@@ -968,24 +968,26 @@ class PoissonGeneratorDataset(Dataset):
     @staticmethod
     def _sample_uniform_gain(
         input: torch.Tensor,
-        max_gain_factor: float | torch.Tensor,
+        log_max_gain_factor: float,
         *,
         batched: bool,
     ) -> torch.Tensor:
-        if not torch.is_tensor(max_gain_factor):
-            max_gain_factor = torch.as_tensor(
-                max_gain_factor, dtype=input.dtype, device=input.device
-            )
-        else:
-            max_gain_factor = max_gain_factor.to(dtype=input.dtype, device=input.device)
+        # if not torch.is_tensor(max_gain_factor):
+        #     max_gain_factor = torch.as_tensor(
+        #         max_gain_factor, dtype=input.dtype, device=input.device
+        #     )
+        # else:
+        #     max_gain_factor = max_gain_factor.to(dtype=input.dtype, device=input.device)
 
         if batched and input.ndim > 0:
             shape = (input.shape[0],) + (1,) * (input.ndim - 1)
         else:
             shape = ()
 
-        random_gain = torch.rand(shape, dtype=input.dtype, device=input.device)
-        return (random_gain * (max_gain_factor - 1)) + 1
+        log_gain_factor = torch.rand(
+            shape, dtype=input.dtype, device=input.device
+        ) * log_max_gain_factor
+        return torch.exp(log_gain_factor)
 
     def __len__(self):
         return len(self.base_inputs)
@@ -1012,28 +1014,11 @@ class PoissonGeneratorDataset(Dataset):
                 gain_factor = self.fixed_gain_factor
 
             elif self.uniform_gain:
-                # gain_factor = (
-                #     torch.rand(input.shape[0]) * (self.max_gain_factor - 1)
-                # ) + 1
-                gain_factor = torch.exp(
-                    torch.rand(input.shape[0]) * self.log_max_gain_factor
+                gain_factor = self._sample_uniform_gain(
+                    input, self.log_max_gain_factor, batched=batched
                 )
-                while gain_factor.ndim < input.ndim:
-                    gain_factor = gain_factor[..., None]
 
             else:
-                # gain_factor = torch.exp(
-                #     ((torch.rand(input.shape[0]) * 2) - 1
-                #     ) * math.log(self.max_gain_factor)
-                # )
-                # gain_factor = torch.exp(
-                #     torch.rand(input.shape[0]) * math.log(self.max_gain_factor)
-                # )
-                # gain_factor = (torch.rand_like(input) * (self.max_gain_factor - 1)) + 1
-                # gain_factor = torch.exp(
-                #     ((torch.rand_like(input) * 2) - 1
-                #     ) * math.log(self.max_gain_factor)
-                # )
                 gain_factor = torch.exp(
                     torch.rand_like(input) * self.log_max_gain_factor
                 )

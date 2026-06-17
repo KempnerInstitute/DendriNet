@@ -201,16 +201,20 @@ class MultiplicativeGainPlotter(BasePlotter):
         gain_factors: list[float] = []
 
         for col in gain_cols:
-            if "_mean" in col and "_gf" in col:
-                parts = col.replace("mult_gain_", "").replace("_mean", "").split("_gf")
-                
-                metric = parts[0]
+            if "_mean" not in col or "_gf" not in col:
+                continue
+
+            parts = col.replace("mult_gain_", "").replace("_mean", "").split("_gf")
+            metric = parts[0]
+            try:
                 gain_factor = float(parts[-1])
-                
-                if metric not in metrics:
-                    metrics.append(metric)
-                if gain_factor not in gain_factors:
-                    gain_factors.append(gain_factor)
+            except ValueError:
+                continue
+
+            if metric not in metrics:
+                metrics.append(metric)
+            if gain_factor not in gain_factors:
+                gain_factors.append(gain_factor)
         
         gain_factors.sort()
         return metrics, gain_factors
@@ -246,7 +250,7 @@ class MultiplicativeGainPlotter(BasePlotter):
                 var_name=var_name,
                 plots_dir=plots_dir,
                 metrics=metrics,
-                gain_factors=gain_factors
+                gain_factors=gain_factors,
             )
         )
         plot_paths.extend(

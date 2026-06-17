@@ -469,7 +469,7 @@ class SNRPlotter(BasePlotter):
         cmap = plt.get_cmap("tab10")
         depth_colors = {depth: cmap(depth / 9.0) for depth in depths}
 
-        fig, axes = plt.subplots(1, 3, figsize=(21, 6))
+        fig, axes = plt.subplots(1, len(categories), figsize=(7.5 * len(categories), 6))
         fig.suptitle(
             f"{SNR_PREFIX_MAP[act_prefix]} Disciminability: "
             + f"{METRIC_MAPPING[act_metric]} vs {var_name} by Depth",
@@ -641,8 +641,12 @@ class SNRPlotter(BasePlotter):
         heatmap_metric = "d_total"
         d_prime_sq_str = r"$d_{total}$"
 
-        # Create subplot layout: len(depths) rows x 2 columns
-        fig, axes = plt.subplots(len(depths), 3, figsize=(21, 3 + 6 * len(depths)))
+        # Create subplot layout: len(depths) rows x one column per category
+        fig, axes = plt.subplots(
+            len(depths),
+            len(categories),
+            figsize=(7.5 * len(categories), 3 + 6 * len(depths)),
+        )
         fig.suptitle(
             f"{SNR_PREFIX_MAP[prefix]} Discriminability: {d_prime_sq_str} Heatmap ({colx} vs {coly})",
             fontsize=16,

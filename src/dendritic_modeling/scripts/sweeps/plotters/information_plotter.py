@@ -2486,7 +2486,7 @@ class InformationPlotter(BasePlotter):
                 fig.tight_layout(rect=[0, 0, 1, 0.98])
 
                 # Create safe filename from metric name
-                safe_metric_name = metric.replace("mi_", "")
+                safe_metric_name = metric.replace("mi_", "").replace("_", "-")
                 plot_path = output_dir / f"{safe_metric_name}_layerwise_heatmaps.png"
                 plot_paths.append(self.save_figure(fig, plot_path))
 
