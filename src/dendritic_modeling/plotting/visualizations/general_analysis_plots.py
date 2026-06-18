@@ -129,8 +129,8 @@ def plot_ablation_results(results: dict, **kwargs):
                     # Calculate average accuracy drop across layers
                     acc_drops = []
                     for _layer_name, metrics in layer_data.items():
-                        if "accuracy_drop" in metrics:
-                            drop_val = metrics["accuracy_drop"]
+                        if "accuracy drop" in metrics:
+                            drop_val = metrics["accuracy drop"]
                             # Ensure we have a scalar value
                             if isinstance(drop_val, (list, np.ndarray)):
                                 drop_val = np.mean(drop_val) if len(drop_val) > 0 else 0
@@ -215,7 +215,7 @@ def plot_layer_ablation(
         Check if key exists at any level in a nested dictionary
         """
         if isinstance(dictionary, dict):
-            key = f"{metric}_drop"
+            key = f"{metric} drop"
             if key in dictionary:
                 return True
             return any(
@@ -298,7 +298,7 @@ def plot_layer_ablation(
                     d = layer_dict.get("depth")
                     if d is None:
                         continue
-                    v = layer_dict.get(f"{metric}_drop", 0.0)
+                    v = layer_dict.get(f"{metric} drop", 0.0)
                     if isinstance(v, list):
                         v = float(np.mean(v)) if v else 0.0
                     depth_to_vals.setdefault(int(d), []).append(float(v))
@@ -408,7 +408,7 @@ def plot_per_layer_ablation(layer_results: dict[str, dict[str, dict]], **kwargs)
         plots = []
 
         # Create separate plots for each metric type
-        metric_types = ["accuracy_drop", "auc_drop", "categorical_loglikelihood_drop"]
+        metric_types = ["accuracy drop", "auc drop", "categorical_loglikelihood drop"]
 
         for metric_type in metric_types:
             if any(
@@ -467,7 +467,7 @@ def plot_per_layer_ablation(layer_results: dict[str, dict[str, dict]], **kwargs)
 
                 # Save individual plot
                 if save_path:
-                    clean_metric = metric_type.replace(" ", "_").replace("_drop", "")
+                    clean_metric = metric_type.replace(" ", "_").replace(" drop", "")
                     save_plot(fig, save_path, f"{filename_prefix}_{clean_metric}")
 
         logger.info(f"Generated {len(plots)} ablation plots")
