@@ -972,13 +972,6 @@ class PoissonGeneratorDataset(Dataset):
         *,
         batched: bool,
     ) -> torch.Tensor:
-        # if not torch.is_tensor(max_gain_factor):
-        #     max_gain_factor = torch.as_tensor(
-        #         max_gain_factor, dtype=input.dtype, device=input.device
-        #     )
-        # else:
-        #     max_gain_factor = max_gain_factor.to(dtype=input.dtype, device=input.device)
-
         if batched and input.ndim > 0:
             shape = (input.shape[0],) + (1,) * (input.ndim - 1)
         else:
