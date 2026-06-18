@@ -101,14 +101,6 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
                 for branch_idx in range(module.n_branches):
                     self.raw_dict[key][branch_idx] = {"depth": module.layer_idx}
 
-                if self.input_analysis:
-                    handle = module.register_forward_pre_hook(
-                        lambda module, input, layer_key=key: self.branch_input_hook(
-                            module, input, layer_key
-                        )
-                    )
-                    handles.append(handle)
-
                 if module.branch_excitation is not None:
                     handle = module.branch_excitation.register_forward_hook(
                         lambda module, input, output, layer_key=key: self.forward_hook(
