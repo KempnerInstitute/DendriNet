@@ -259,6 +259,7 @@ def _build_recurrent_einet_from_structured_config(
     dense_to_sparse = _to_plain_mapping(
         sparsity.get("dense_to_sparse", sparsity.get("annealed_topk", {}))
     )
+    indexed = _to_plain_mapping(sparsity.get("indexed", {}))
 
     # --- Resolve recurrent synapse counts (new location first, old fallback) ---
     def _rec_syn(new_key, *old_keys, fallback=0):
@@ -538,6 +539,13 @@ def _build_recurrent_einet_from_structured_config(
             dense_to_sparse_prune_metric=str(
                 dense_to_sparse.get("prune_metric", "weight")
             ),
+            indexed_seed=indexed.get("seed", sparsity.get("seed")),
+            indexed_candidate_size=indexed.get("candidate_size"),
+            indexed_selection=str(indexed.get("selection", "standard")),
+            indexed_output_chunk_size=int(indexed.get("output_chunk_size", 2048)),
+            indexed_rewire_frequency=int(indexed.get("rewire_frequency", 100)),
+            indexed_rewire_quantile=float(indexed.get("rewire_quantile", 0.05)),
+            indexed_rewire_until_step=indexed.get("rewire_until_step"),
             weight_transform=str(morphology.get("weight_transform", "softplus")),
             use_shunting=use_shunting,
             use_additive_normalization=use_additive_normalization,

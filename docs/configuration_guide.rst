@@ -422,7 +422,7 @@ works for AlexNet, VGG, and coarse splits of ResNet (e.g. at ``avgpool`` or
 ``fc``).  Replacing layers *inside* residual blocks requires an FX-graph
 backend (planned).
 
-The runnable examples page includes ``configs/examples/alexnet_fc7_dendritic_500.yaml``,
+The runnable examples page includes ``configs/vision/alexnet_fc7_dendritic_500.yaml``,
 which replaces AlexNet ``fc7`` with a 500E-only dendritic tensor-map core. See
 :doc:`examples` for all four primary example configs.
 
@@ -430,8 +430,8 @@ Additional pretrained replacement configs:
 
 - ``configs/vision/alexnet_k1_einet_single.yaml`` — replace fc7 only (K=1), single-GPU / non-DDP
 - ``configs/vision/alexnet_k1_einet_ddp.yaml`` — same K=1 replacement configured for DDP launch
-- ``configs/examples/pretrained_alexnet_fc.yaml`` — tensor-map pretrained replacement around AlexNet FC layers
-- ``configs/examples/pretrained_alexnet_conv.yaml`` — spatial pretrained replacement example for AlexNet conv/feature maps
+- ``configs/vision/pretrained_alexnet_fc.yaml`` — tensor-map pretrained replacement around AlexNet FC layers
+- ``configs/vision/pretrained_alexnet_conv.yaml`` — spatial pretrained replacement example for AlexNet conv/feature maps
 - ``scripts/test_pretrained_training.sh`` — generates a temporary 1-epoch AlexNet smoke config
 
 Transformer MLP / FFN Replacement
@@ -528,7 +528,7 @@ Run the distillation trainer with:
 
    PYTHONPATH=src:$PYTHONPATH python -m \
      dendritic_modeling.scripts.training.train_transformer_replacement \
-     configs/examples/deepseek_v3_mlp_dendritic_replacement.yaml
+     jobs/transformer_replacement_benchmarks/configs/templates/deepseek_v3_mlp_dendritic_replacement.yaml
 
 For a quick local learning check that does not load a Hugging Face model, use
 ``configs/examples/transformer_replacement_synthetic_distillation.yaml``.
@@ -574,7 +574,9 @@ Important replacement parameters:
    anneals to the configured synapse count; ``annealed_topk`` is an alias.
    ``indexed`` stores only exactly active fixed synapses. ``indexed_dynamic``
    stores a larger candidate pool and dynamically selects the active ``K`` from
-   that pool, which is the recommended DeepSeek-scale compromise.
+   that pool. ``indexed_rewire`` stores only ``K`` active synapses and
+   periodically replaces the weakest adaptive-quantile slots with new random
+   allowed inputs.
 
 ``sparsity.dense_to_sparse``
    Developmental pruning schedule for ``topk_type: dense_to_sparse``. Common
@@ -586,6 +588,35 @@ Important replacement parameters:
    Candidate-pool size ``C`` for ``indexed_dynamic``.  Stored synapse
    parameters scale as ``out_features * C`` instead of
    ``out_features * input_features``.
+
+``sparsity.indexed.rewire_frequency``
+   Number of optimizer steps between ``indexed_rewire`` updates.  Use larger
+   values for real training; every-step rewiring is useful for fast tests but
+   can be too exploratory on fixed supervised tasks.
+
+``sparsity.indexed.rewire_quantile``
+   Fraction of active same-row synapses replaced at each update.  The
+   threshold is adaptive: the layer replaces the weakest quantile of current
+   active transformed weights, so no absolute weight cutoff has to be tuned
+   across layers.
+
+``sparsity.indexed.rewire_until_step``
+   Optional cutoff step after which indexed rewiring stops and the sampled
+   sparse morphology is frozen.
+
+Minimal ``indexed_rewire`` block:
+
+.. code-block:: yaml
+
+   model:
+     core:
+       sparsity:
+         type: indexed_rewire
+         indexed:
+           seed: 42
+           rewire_frequency: 100
+           rewire_quantile: 0.05
+           rewire_until_step: null
 
 ``input_transform``
    Use ``signed_split`` for transformer hidden states.  It maps ``x`` to
@@ -601,7 +632,7 @@ Recommended experimental order:
 4. Repeat for layers ``[0, 1]`` and then ``[0, 1, 2]``.
 
 Template config:
-``configs/examples/deepseek_v3_mlp_dendritic_replacement.yaml``.
+``jobs/transformer_replacement_benchmarks/configs/templates/deepseek_v3_mlp_dendritic_replacement.yaml``.
 
 Recurrent Networks
 ------------------

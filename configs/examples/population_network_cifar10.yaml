@@ -1,14 +1,13 @@
 # ============================================================================
-# CIFAR-10 128E/32I DendriNet using the population-network schema
+# Population Network CIFAR-10 128E/32I DendriNet
 # ============================================================================
-# Population-format mirror of cifar10_128_333_40e10i.yaml. The old
-# input_mode=0 transfer behavior is retained with explicit input -> I,
+# Canonical CIFAR-10 feedforward example with explicit input -> I,
 # input -> E, and I -> E population edges.
 #
 # Run:
 #   PYTHONPATH=src:$PYTHONPATH python \
 #     src/dendritic_modeling/scripts/training/train_experiments.py \
-#     configs/examples/cifar10_128_333_40e10i_population_network.yaml
+#     configs/examples/population_network_cifar10.yaml
 # ============================================================================
 
 experiment:
@@ -126,7 +125,7 @@ wandb:
   use_wandb: false
 
 outputs:
-  run_name: "cifar10_128_333_40e10i_population_network"
+  run_name: "population_network_cifar10"
   results_dir: "outputs"
 
 distributed:

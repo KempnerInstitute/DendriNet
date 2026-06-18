@@ -284,19 +284,16 @@ Delayed qualified sources are allowed on recurrent target layers and use the
 source population's previous-timestep output, so they do not create an
 instantaneous algebraic loop.
 
-For migration from the older feedforward ``einet`` examples, see
-``configs/examples/standard_mnist_population_network.yaml``,
-``configs/examples/standard_mnist_normalized_additive_population_network.yaml``,
-``configs/examples/standard_cifar10_population_network.yaml``,
-``configs/examples/cifar10_128_333_40e10i_population_network.yaml``, and
-``configs/examples/cifar10_two_layer_population_network.yaml``. These keep
-the old sizes, synapse counts, transfer settings, and readout heads aligned
-while moving the computation into explicit named-population routing. For
-legacy ``input_mode=1`` configs, this means a single E population with direct
-``input_i`` inhibition rather than explicit I cells. The separate
-``configs/examples/population_network_two_layer.yaml`` file intentionally
-demonstrates additional cross-layer population routing beyond the old
-two-layer feedforward path.
+For feedforward examples, see
+``configs/examples/population_network_feedforward.yaml``,
+``configs/examples/population_network_cifar10.yaml``,
+``configs/examples/population_network_dense_to_sparse_cifar10.yaml``,
+``configs/examples/population_network_normalized_additive_mnist.yaml``, and
+``configs/examples/population_network_two_layer.yaml``. These examples use the
+same named-population schema instead of maintaining parallel legacy
+``einet`` YAMLs. When transfer-stream behavior is needed, use
+``configs/examples/population_network_independent_transfer.yaml`` and address
+the split streams explicitly as ``input_e`` and ``input_i``.
 
 When ``input_projection_dims`` is used together with ``use_transfer: true``,
 the projection is applied to the compatibility/excitatory stream
@@ -310,9 +307,7 @@ Canonical examples are
 ``configs/examples/population_network_recurrent_pyr_pv_sst.yaml``,
 ``configs/examples/population_network_synapse_types_ampa_nmda_gaba.yaml``,
 ``configs/examples/population_network_spiking.yaml``, and
-``configs/examples/population_network_soma_feedback.yaml``. The
-``standard_*_population_network.yaml`` files are parity examples that mirror
-older ``einet`` configurations using the canonical population-network schema.
+``configs/examples/population_network_soma_feedback.yaml``.
 
 Transformer MLP/FFN replacement follows the same shared ``model.core.type``
 aliases when a shunting/additive alias is present. If ``model.core.type`` is a
@@ -361,6 +356,13 @@ Controls how input is routed to the E and I pathways.
    Optional feedforward opt-in for newer experiments that intentionally want
    ``input_mode: 1`` plus explicit inhibitory cells. The legacy-compatible
    default is ``false``.
+
+The same conventions can be written explicitly in ``population_network``:
+``configs/examples/population_network_input_mode0_one_layer.yaml`` and
+``population_network_input_mode0_two_layer.yaml`` use named inhibitory
+populations, while ``population_network_input_mode1_one_layer.yaml`` and
+``population_network_input_mode1_two_layer.yaml`` use direct
+``ff_inhibitory`` pathways into E populations.
 
 ``require_explicit_direct_inhibitory_stream``
    Optional safety flag. When ``true``, direct input-mode-1 inhibition requires
@@ -596,7 +598,7 @@ dense trainable score/weight matrix and apply sparse selection on top of it.
 They are biologically useful sparse-selection models, but they do not reduce
 the underlying matrix-multiply memory/compute in proportion to ``K``. For very
 large, high-sparsity networks where memory is the bottleneck, prefer
-``indexed`` or ``indexed_dynamic``.
+``indexed``, ``indexed_dynamic``, or ``indexed_rewire``.
 
 ``standard``
    Dense-score deterministic TopK (default).  Stores an
@@ -647,6 +649,15 @@ large, high-sparsity networks where memory is the bottleneck, prefer
    ``sparsity.indexed.selection: stochastic`` to use rank-probabilistic
    selection inside the candidate pool.
 
+``indexed_rewire``
+   Adaptive-quantile indexed rewiring. It stores only
+   ``out_features x K`` sparse weights plus integer input indices, like
+   ``indexed``, but periodically replaces the weakest fraction of same-row
+   synapses with newly sampled allowed inputs. This is the memory-efficient
+   version of "weak synapses disappear and new random synapses appear on the
+   same dendrite." It is different from ``indexed_dynamic``: the candidate
+   pool itself changes over training rather than remaining fixed.
+
 Example low-parameter dynamic sparse config:
 
 .. code-block:: yaml
@@ -661,6 +672,25 @@ Example low-parameter dynamic sparse config:
            selection: stochastic     # standard or stochastic
            seed: 42
            output_chunk_size: 2048
+
+Example indexed rewiring config:
+
+.. code-block:: yaml
+
+   model:
+     core:
+       sparsity:
+         type: indexed_rewire
+         indexed:
+           seed: 42
+           rewire_frequency: 100
+           rewire_quantile: 0.05
+           rewire_until_step: 10000
+
+In population-network configs the same settings can also be placed directly in
+``population_defaults`` or a per-population ``population:`` override as
+``topk_type: indexed_rewire``, ``indexed_rewire_frequency``,
+``indexed_rewire_quantile``, and ``indexed_rewire_until_step``.
 
 Example dense-to-sparse developmental pruning config:
 
@@ -690,6 +720,78 @@ where ``block_size = in_features / out_features``.
 operations instead of a sparse matrix. Same API and behavior.
 
 Config path: ``model.core.blocklinear``.
+
+Vision Backbone Replacement
+---------------------------
+
+Vision replacement uses ``model.pretrained_replacement`` to split a torchvision
+backbone into three parts: a pretrained prefix, a dendritic replacement core,
+and a pretrained or trainable suffix. This is the image-model analogue of the
+transformer replacement path, but the target modules are named layers in a
+sequential vision backbone such as AlexNet or VGG.
+
+Two dendritic core styles are supported:
+
+``hierarchical_dendritic_tensor_map``
+   Flattens the prefix feature tensor, applies a hierarchical dendritic core,
+   and projects to the flat suffix input when needed. Use this for classifier
+   replacements such as AlexNet ``fc7``.
+
+``hierarchical_dendritic_conv``
+   Applies a shared dendritic core over local spatial patches and preserves a
+   spatial tensor for convolutional suffixes. Use ``model.core.spatial`` to set
+   ``kernel_size``, ``stride``, and ``padding``.
+
+Core options are the same dendritic options used elsewhere: shunting/additive
+mode, branch factors, synapse counts, reactivation initialization, and sparse
+synapse type. Example configs live in ``configs/vision/``:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 42 58
+
+   * - Config
+     - Purpose
+   * - ``configs/vision/alexnet_fc7_dendritic_500.yaml``
+     - AlexNet ``fc7`` replacement with a 500-unit dendritic tensor-map core.
+   * - ``configs/vision/alexnet_k1_einet_single.yaml``
+     - K=1 AlexNet classifier replacement for single-GPU runs.
+   * - ``configs/vision/alexnet_k1_einet_ddp.yaml``
+     - Same replacement configured for DDP launch.
+   * - ``configs/vision/pretrained_alexnet_fc.yaml``
+     - Tensor-map replacement around AlexNet fully connected layers.
+   * - ``configs/vision/pretrained_alexnet_conv.yaml``
+     - Spatial dendritic convolution replacement for feature-map blocks.
+
+Minimal skeleton:
+
+.. code-block:: yaml
+
+   model:
+     pretrained_replacement:
+       enabled: true
+       backbone: alexnet
+       weights: IMAGENET1K_V1
+       input_shape: [3, 224, 224]
+       replace:
+         start: classifier.4
+         end: classifier.5
+       omit_layers: [classifier.0, classifier.3]
+       trainability:
+         encoder: {mode: frozen}
+         decoder: {mode: trainable}
+     core:
+       type: hierarchical_dendritic_tensor_map
+       architecture:
+         excitatory_layer_sizes: [500]
+         excitatory_branch_factors: [3, 3]
+       connectivity:
+         ee_synapses_per_branch_per_layer: [40]
+       morphology:
+         use_shunting: true
+         weight_transform: softplus
+       reactivation:
+         init_policy: occupancy_quantile
 
 Transformer FFN Replacement
 ---------------------------
@@ -768,7 +870,7 @@ projection.
          use_shunting: true
          weight_transform: softplus
        sparsity:
-         type: indexed_dynamic
+         type: indexed_dynamic      # or indexed_rewire for adaptive turnover
          temperature: 0.5
          indexed:
            candidate_size: 256
@@ -1934,7 +2036,9 @@ Dendritic structure:
 
 TopK sparsity:
    ``topk_init_method``, ``topk_noise_level``, ``topk_type``
-   (``"standard"``, ``"stochastic"``, ``"variance"``, ``"deepst"``),
+   (``"standard"``, ``"stochastic"``, ``"variance"``, ``"deepst"``,
+   ``"indexed"``, ``"indexed_dynamic"``, ``"indexed_rewire"``,
+   ``"dense_to_sparse"``),
    ``topk_weight_norm_order``, ``topk_gamma``, ``topk_temperature``,
    ``topk_ultrafast``, ``topk_strategy`` (``"none"``, ``"conductance_dynamic"``).
 
@@ -2228,7 +2332,8 @@ SparsityConfig
    * - ``type``
      - str
      - ``"standard"``
-     - standard, stochastic, variance, deepst
+     - standard, stochastic, variance, deepst, dense_to_sparse, indexed,
+       indexed_dynamic, indexed_rewire
    * - ``weight_norm_order``
      - int/None
      - ``None``

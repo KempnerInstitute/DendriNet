@@ -29,7 +29,7 @@ Basic sweep configuration:
    sweep_config:
      model.core.population_network.layers.0.population_defaults.ff_excitatory_synapses: [20, 30]
      model.core.population_network.layers.0.population_defaults.ff_inhibitory_synapses: [10, 15]
-     model.core.population_network.layers.0.populations.0.branch_factors:
+     model.core.population_network.layers.0.populations.1.branch_factors:
        - [3, 3]
        - [4, 4]
      training.main.common.param_groups.lr: [0.001, 0.01, 0.1]
@@ -97,8 +97,8 @@ indices. For example:
      # First layer population defaults
      model.core.population_network.layers.0.population_defaults.tau_base: [20.0, 50.0]
 
-     # First population in the first layer
-     model.core.population_network.layers.0.populations.0.n_neurons: [64, 128]
+     # Excitatory/readout population in the first layer
+     model.core.population_network.layers.0.populations.1.n_neurons: [64, 128]
 
      # Fourth connection in the first layer
      model.core.population_network.layers.0.connections.3.probability: [0.3, 0.6]

@@ -280,12 +280,12 @@ model:
       - 3
       - 3
       - 3
-      - 3
       excitatory_layer_sizes:
-      - 20
+      - 128
       inhibitory_branch_factors:
       - 1
-      inhibitory_layer_sizes: []
+      inhibitory_layer_sizes:
+      - 32
 
       # Inhibitory network configuration
       inhibitory_network_type: "dendritic"  # Options: "dendritic", "mlp"
@@ -299,7 +299,7 @@ model:
       ee_synapses_per_branch_per_layer:
       - 40
       ei_synapses_per_branch_per_layer:
-      - 0
+      - 10
       ie_synapses_per_branch_per_layer:
       - 10
       ii_synapses_per_branch_per_layer:
@@ -337,14 +337,65 @@ model:
       gradient_scaling: none
       temperature: 0.0
       type: standard
+      indexed:
+        candidate_size: null
+        selection: standard
+        seed: null
+        output_chunk_size: 2048
+        rewire_frequency: 100
+        rewire_quantile: 0.05
+        rewire_until_step: null
     transfer:
       excitatory_dim: null
       independent_pathways: false
       inhibitory_dim: null
-      input_mode: 1
+      input_mode: 0
       allow_direct_inhibitory_stream: true
       output_activation: null
-    type: einet
+    population_network:
+      use_transfer: false
+      transfer_params: {}
+      output_mode: "last"
+      input_projection_dims: []
+      store_routing: false
+      layers:
+      - name: layer0
+        readout_population: e
+        population_defaults:
+          ff_excitatory_synapses: 40
+          ff_inhibitory_synapses: 10
+          rec_excitatory_synapses: 0
+          rec_inhibitory_synapses: 0
+          somatic_synapses: true
+          use_shunting: true
+          reactivate: true
+          reactivation_type: param_tanh
+          reactivation_init_policy: occupancy_quantile
+          reactivation_init_m: 1.5
+          reactivation_init_b: 0.5
+          dbl_init_method: analytical_expectation
+          weight_transform: softplus
+          topk_type: standard
+          topk_init_method: xavier_normal
+        populations:
+        - name: i
+          polarity: inhibitory
+          n_neurons: 32
+          branch_factors: [1]
+          population:
+            ff_inhibitory_synapses: 0
+        - name: e
+          polarity: excitatory
+          n_neurons: 128
+          branch_factors: [3, 3, 3]
+        connections:
+        - source: input
+          target: i
+        - source: input
+          target: e
+        - source: i
+          target: e
+    type: population_network
   decoder:
     params: {}
     type: MLP

@@ -11,6 +11,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic i
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse import (
     DeepstLinear,
     IndexedDynamicTopKLinear,
+    IndexedRewireLinear,
     IndexedSparseLinear,
     StochasticTopKLinear,
     TopKLinear,
@@ -95,6 +96,15 @@ def test_transformer_benchmark_job_config_loads(config_path):
             },
         ),
         ("indexed", IndexedSparseLinear, {"indexed_seed": 3}),
+        (
+            "indexed_rewire",
+            IndexedRewireLinear,
+            {
+                "indexed_seed": 3,
+                "indexed_rewire_frequency": 1,
+                "indexed_rewire_quantile": 0.5,
+            },
+        ),
         (
             "indexed_dynamic",
             IndexedDynamicTopKLinear,
@@ -330,6 +340,8 @@ def test_transformer_replacement_config_maps_shared_core_like_alexnet():
                 "candidate_size": 4,
                 "selection": "stochastic",
                 "seed": 5,
+                "rewire_frequency": 10,
+                "rewire_quantile": 0.1,
             },
         },
         "reactivation": {
@@ -352,6 +364,8 @@ def test_transformer_replacement_config_maps_shared_core_like_alexnet():
     assert kwargs["topk_type"] == "indexed_dynamic"
     assert kwargs["indexed_candidate_size"] == 4
     assert kwargs["indexed_selection"] == "stochastic"
+    assert kwargs["indexed_rewire_frequency"] == 10
+    assert kwargs["indexed_rewire_quantile"] == 0.1
 
     model = TinyHFLikeModel(n_layers=2)
     records = apply_transformer_replacement_config(

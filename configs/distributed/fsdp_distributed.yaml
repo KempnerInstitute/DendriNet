@@ -7,7 +7,7 @@
 # Launch (single node, 4 GPUs):
 #   torchrun --nproc_per_node=4 \
 #     src/dendritic_modeling/scripts/training/train_experiments_fsdp.py \
-#     configs/examples/fsdp_distributed.yaml
+#     configs/distributed/fsdp_distributed.yaml
 #
 # Launch (multi-node via SLURM):
 #   See configs/sweep_config.yaml for SLURM template generation.

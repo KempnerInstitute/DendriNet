@@ -10,6 +10,25 @@ from torch.optim import Optimizer
 from dendritic_modeling.models import BaseModel
 
 
+def _clear_rewired_optimizer_state(model, optimizer: Optimizer) -> None:
+    """Clear optimizer moments for sparse slots replaced during rewiring."""
+    for module in model.modules():
+        consume = getattr(module, "consume_rewired_mask", None)
+        pre_w = getattr(module, "pre_w", None)
+        if not callable(consume) or pre_w is None:
+            continue
+        mask = consume()
+        if mask is None:
+            continue
+        state = optimizer.state.get(pre_w)
+        if not state:
+            continue
+        mask = mask.to(device=pre_w.device)
+        for value in state.values():
+            if getattr(value, "shape", None) == pre_w.shape:
+                value[mask] = 0
+
+
 class CustomWeightDecayOptimizer:
     """
     Custom weight decay optimizer wrapper.
@@ -68,8 +87,9 @@ class CustomWeightDecayOptimizer:
                 weight_decay=lr * self.weight_decay,
                 weight_boosting=self.weight_boosting,
             )
-        self.model.apply_rewiring()
         self.optimizer.step()
+        self.model.apply_rewiring()
+        _clear_rewired_optimizer_state(self.model, self.optimizer)
 
 
 __all__ = ["CustomWeightDecayOptimizer"]

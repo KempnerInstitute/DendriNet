@@ -1,17 +1,13 @@
 # ============================================================================
-# Normalized additive MNIST DendriNet using the population-network schema
+# Population Network Dense-to-Sparse CIFAR-10 DendriNet
 # ============================================================================
-# Population-format normalized additive MNIST example. It keeps legacy
-# input_mode=1 transfer semantics while making additive inhibition explicit at
-# the population level:
-#   use_shunting: false
-#   use_additive_normalization: true
-#   reactivation_init_policy: occupancy_quantile
+# Demonstrates developmental dense-to-sparse pruning from the population
+# configuration surface.
 #
 # Run:
 #   PYTHONPATH=src:$PYTHONPATH python \
 #     src/dendritic_modeling/scripts/training/train_experiments.py \
-#     configs/examples/standard_mnist_normalized_additive_population_network.yaml
+#     configs/examples/population_network_dense_to_sparse_cifar10.yaml
 # ============================================================================
 
 experiment:
@@ -22,7 +18,7 @@ experiment:
     enabled: false
 
 data:
-  dataset_name: "mnist"
+  dataset_name: "cifar10"
   processing:
     flatten: true
     normalize: true
@@ -43,33 +39,36 @@ model:
         - name: "layer0"
           readout_population: "e"
           population_defaults:
-            ff_excitatory_synapses: 30
-            ff_inhibitory_synapses: 15
+            ff_excitatory_synapses: 60
+            ff_inhibitory_synapses: 30
             rec_excitatory_synapses: 0
             rec_inhibitory_synapses: 0
             somatic_synapses: false
-            use_shunting: false
-            use_additive_normalization: true
+            use_shunting: true
             reactivate: true
             reactivation_type: "param_tanh"
             reactivation_init_policy: "occupancy_quantile"
-            reactivation_occupancy_quantile_low: 0.1
-            reactivation_occupancy_quantile_high: 0.9
-            reactivation_occupancy_target_low: 0.1
-            reactivation_occupancy_target_high: 0.9
             reactivation_init_m: 1.5
             reactivation_init_b: 0.5
             dbl_init_method: "analytical_expectation"
             weight_transform: "softplus"
-            topk_type: "standard"
+            topk_type: "dense_to_sparse"
             topk_init_method: "xavier_normal"
+            dense_to_sparse_initial_density: 1.0
+            dense_to_sparse_start_step: 0
+            dense_to_sparse_end_step: 4000
+            dense_to_sparse_update_interval: 50
+            dense_to_sparse_schedule: "cubic"
+            dense_to_sparse_freeze_on_end: true
+            dense_to_sparse_advance_on_forward: true
+            dense_to_sparse_prune_metric: "weight"
             blocklinear_strategy: "none"
             reactivation_strategy: "none"
             efficient_blocklinear: false
           populations:
             - name: "e"
               polarity: "excitatory"
-              n_neurons: 128
+              n_neurons: 256
               branch_factors: [4, 4]
           connections:
             - source: "input_e"
@@ -79,7 +78,7 @@ model:
   decoder:
     type: "MLP"
     params:
-      hidden_dims: [32]
+      hidden_dims: [64]
       activation: "relu"
       output_dim: 10
 
@@ -91,15 +90,14 @@ training:
   main:
     strategy: "standard"
     common:
-      epochs: 50
-      batch_size: 256
+      epochs: 200
+      batch_size: 512
       shuffle: true
       grad_clip_value: 5.0
       loss_function: "ce"
       early_stopping: true
-      patience: 20
+      patience: 50
       load_best_state_dict: true
-      recalibrate_reactivation_every: 0
       weight_decay_rate: 0.01
       weight_boosting: true
       param_groups:
@@ -120,13 +118,14 @@ analysis:
     training: false
     params:
       accuracy: true
+      auc: true
       categorical_loglikelihood: true
 
 wandb:
   use_wandb: false
 
 outputs:
-  run_name: "standard_mnist_normalized_additive_population_network"
+  run_name: "population_network_dense_to_sparse_cifar10"
   results_dir: "outputs"
 
 distributed:
