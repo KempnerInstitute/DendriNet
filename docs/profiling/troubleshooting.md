@@ -122,11 +122,12 @@ Use `rsync` (no repo bloat), **on your Mac**:
 ```bash
 rsync -avz <user>@login.rc.fas.harvard.edu:DendriNet/profilings/ ~/DendriNet/profilings/
 ```
-If you *must* version a report in git, add a gitignore exception for a dedicated
-folder (`!profilings-notignored/`, `!profilings-notignored/**`) and only commit
-the `.nsys-rep` (never the regenerable `.sqlite`). Be selective — git keeps
-binaries in history forever and GitHub rejects files >100 MB. For routine
-large-file versioning, use `git-lfs`.
+If you *must* version a report in git, use **`git-lfs`** and commit only the
+`.nsys-rep` (never the regenerable `.sqlite`). Be selective — plain git keeps
+binaries in history forever and GitHub rejects files >100 MB. As a last resort
+without LFS, add a narrow gitignore exception for the specific file
+(`!profilings/NSights/<name>.nsys-rep`) rather than a whole always-tracked
+folder, so large binaries never get committed by accident.
 
 ## General rule of thumb
 For long-running cluster work, run inside `tmux` (`tmux new -s work`,

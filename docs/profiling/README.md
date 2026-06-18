@@ -12,11 +12,13 @@ cluster), what we found, and every gotcha we hit so you don't re-hit them.
 
 | Doc | What it covers |
 |-----|----------------|
+| [explainer.md](explainer.md) | Plain-language explainer of *what* profiling means here and *why* the plan is shaped this way — good for pasting into a chat for a deeper conversation. |
 | [setup.md](setup.md) | Building the conda environment (incl. the CUDA 12.9 cluster), and the FASRC/Kempner Slurm basics. |
 | [usage.md](usage.md) | How to actually run a profile — the opt-in flags/env vars, the three "rungs," step vs epoch mode, the batch jobs, and how to read the output. |
 | [instrumentation.md](instrumentation.md) | What was added to the codebase, the design (opt-in / off-by-default), and how to instrument another trainer. |
 | [findings.md](findings.md) | The results: the GPU is launch/sync-bound, top-k is the dominant kernel, and what to do about it. |
 | [troubleshooting.md](troubleshooting.md) | Every problem we hit (preemption, dataset caching, 0-byte traces, permissions, git artifacts…) and the fix. |
+| [handoff.md](handoff.md) | Self-contained handoff brief (verified facts, the agreed plan, decisions made) for resuming the effort in a fresh session. |
 
 ## The profiling ladder (the mental model)
 
@@ -67,6 +69,3 @@ rsync -avz <user>@login.rc.fas.harvard.edu:DendriNet/profilings/NSights/ ~/Dendr
 - `jobs/profile_nsys.sbatch` — parameterized Nsight Systems capture (Rung 2).
 - `jobs/profile_ncu.sbatch` — Nsight Compute capture of the top-k kernel (Rung 3).
 - `src/dendritic_modeling/training/utils/profiling.py` — the instrumentation.
-- Root-level `PROFILING_FINDINGS.md`, `PROFILING_REPORT.md`, `PROFILING_HANDOFF.md`
-  — earlier standalone write-ups; [findings.md](findings.md) supersedes the first,
-  and `PROFILING_REPORT.md` is a plain-language explainer good for pasting into a chat.

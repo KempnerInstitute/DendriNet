@@ -4,8 +4,6 @@ Profiled config: `configs/examples/standard_mnist.yaml` (MNIST, hidden `[32]`,
 `strategy: standard`, batch 256). Hardware: 1× A100 (sm_80; the `cutlass_80` /
 `ampere_sgemm` kernel names confirm Ampere). PyTorch 2.11.0+cu128.
 
-> The root-level `PROFILING_FINDINGS.md` is the same content in standalone form.
-
 ## TL;DR
 
 DendriNet training is **CPU-launch-bound and synchronization-bound, not
