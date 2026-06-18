@@ -16,7 +16,7 @@
 # pins `pytorch-cuda=12.1` via the (deprecated) pytorch conda channel, which
 # cannot produce a 12.8/12.9-compatible build. Instead we install PyTorch from
 # the official pip wheel index and then `pip install -e .` (the supported
-# workflow per INSTALL.md) for the package and its declared dependencies.
+# workflow per docs/installation.rst) for the package and its declared dependencies.
 #
 # USAGE
 # -----

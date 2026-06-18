@@ -18,10 +18,13 @@ synapses, spiking soma dynamics, and soma-to-dendrite feedback.
 ## Installation
 
 ```bash
-bash install.sh
+conda env create -f setup/environment.yml
+conda activate dendritic_env
+pip install -e .
 ```
 
-Manual setup is documented in [INSTALL.md](INSTALL.md).
+Full instructions — cluster CUDA 12.9 setup, optional dependency groups, and
+verification — are in [docs/installation.rst](docs/installation.rst).
 
 ## Common Commands
 

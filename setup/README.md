@@ -10,4 +10,4 @@ conda activate dendritic_env
 pip install -e .
 ```
 
-See [INSTALL.md](../INSTALL.md) for complete instructions.
+See [docs/installation.rst](../docs/installation.rst) for complete instructions.
