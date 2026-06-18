@@ -48,3 +48,5 @@ python src/dendritic_modeling/scripts/sweeps/result_analyzer.py \
 
 - Prefer running scripts from the repository root.
 - The detailed workflow docs live in `docs/`.
+- Cluster launchers (Slurm `.sbatch`/`.slurm`) and experiment-specific run
+  configs live in `jobs/`, not here — see `jobs/README.md` for the boundary.

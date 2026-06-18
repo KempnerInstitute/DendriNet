@@ -117,7 +117,8 @@ Pretrained-replacement cores (vision):
 - `src/dendritic_modeling/networks/`: architectures and layers
 - `src/dendritic_modeling/training/`: trainer implementations and utilities
 - `src/dendritic_modeling/analysis/`: analyzers and metric code
-- `src/dendritic_modeling/scripts/`: CLI entry points
+- `src/dendritic_modeling/scripts/`: installable CLI entry points (part of the package)
+- `jobs/`: Slurm batch/array launchers and experiment configs for cluster runs (see [jobs/README.md](jobs/README.md))
 - `configs/`: experiment, sweep, and comparison configs
 - `projects/`: registry for paper-specific reproducibility workspaces
   (project subfolders are ignored until individually released)
