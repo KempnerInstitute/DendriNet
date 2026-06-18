@@ -1,6 +1,5 @@
 import math
 import os
-import re
 import json
 import tqdm
 from functools import partial
@@ -9,8 +8,6 @@ from copy import deepcopy
 
 import logging
 import matplotlib.pyplot as plt
-from matplotlib.colors import TwoSlopeNorm, LinearSegmentedColormap
-from matplotlib.ticker import FuncFormatter
 from matplotlib.patches import Patch
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import pandas as pd
@@ -63,7 +60,6 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
         with torch.enable_grad():
             v_init = pc_1.clone()[:,None]
             v_init = torch.where(v_init < 1e-2, 0.1, v_init)
-            pre_v_init = torch.log(v_init.exp() - 1)
             pre_v_init = torch.zeros(
                 (cov.shape[0], 1), 
                 device=cov.device, 
@@ -161,7 +157,6 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
         syn = weights[weight_mask]
 
         unique_classes = torch.unique(labels)
-        n_classes = len(unique_classes)
 
         class_dict: dict[str, dict[str, float]] = {}
 
@@ -882,7 +877,7 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
                 )
                 _pbar.update(1)
 
-                weight_rfs_path = os.path.join(save_path, "synapse_weight_rfs")                
+                # weight_rfs_path = os.path.join(save_path, "synapse_weight_rfs")                
                 # _plot_receptive_fields(
                 #     save_path=weight_rfs_path,
                 #     title="exc_cell_exc_syn_weight_rfs",
@@ -891,7 +886,7 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
                 # )
                 # _pbar.update(1)
                 
-                agg_weight_rfs_path = os.path.join(save_path, "agg_synapse_weight_rfs")
+                # agg_weight_rfs_path = os.path.join(save_path, "agg_synapse_weight_rfs")
                 # _plot_receptive_fields(
                 #     save_path=agg_weight_rfs_path,
                 #     title="agg_exc_cell_exc_syn_weight_rfs",
@@ -1127,7 +1122,7 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
 ###   (DONE) Linear weighted sum of inh syn receptive fields for each readout neuron (multiply aggregated interneuron exc RFs by inh syn weights on readout neurons)
 ###   (DONE) Aggregate above^ by soma (total interneuron exc RF for each readout neuron)
 ###   (DONE) Multiply all receptive fields by class-conditioned mean vectors of inputs (to kill silent synapses)
-###   Some visual (for each compartment) showing why some preferred stimuli have E/I ratio < 1 and nonpreferred stimuli have E/I ratio > 1 (think about this HARD AHHHH)
+###   Some visual (for each compartment) showing why some preferred stimuli have E/I ratio < 1 and nonpreferred stimuli have E/I ratio > 1
 
 
 def _location_key_to_tuple(location_key: str) -> tuple[int, int, int]:
@@ -1548,21 +1543,10 @@ def _plot_class_discriminability_heatmaps(
     rpb_dict = _compute_point_biserial_correlation(inputs, labels)
 
     n_classes = len(dprime_dict)
-
-    # n_rows = 1
-    # n_cols = 1
-
-    # while n_rows * n_cols < n_classes:
-    #     if n_rows < n_cols:
-    #         n_rows += 1
-    #     else:
-            # n_cols += 1
     
     _plot_discrim_metric_heatmaps(
         save_path=save_path,
         fig_format=fig_format,
-        # n_rows=n_rows,
-        # n_cols=n_cols,
         n_rows=1,
         n_cols=n_classes,
         metric_dict=dprime_dict,
@@ -1574,28 +1558,15 @@ def _plot_class_discriminability_heatmaps(
         center=None
     )
 
-    # cmap = LinearSegmentedColormap.from_list(
-    #     "magenta_purple_black_blue_azure",
-    #     [
-    #         (0.00, "#E5D4FA"),   # light purple bridge
-    #         (0.46, "#FF10F0"),
-    #         (0.50, "#000000"),
-    #         (0.54, "#2FA3E6"),
-    #         (1.00, "#C8E9FA"),   # light blue bridge
-    #     ],
-    # )
     _plot_discrim_metric_heatmaps(
         save_path=save_path,
         fig_format=fig_format,
-        # n_rows=n_rows,
-        # n_cols=n_cols,
         n_rows=1,
         n_cols=n_classes,
         metric_dict=rpb_dict,
         metric_name="rpb",
         shape=shape,
         cmap="seismic_r",
-        # cmap=cmap,
         vmin=-1,
         vmax=1,
         center=0
