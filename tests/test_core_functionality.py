@@ -97,60 +97,32 @@ def test_trainer_config_dict_structure():
     print("Trainer config structure is correct")
 
 
-def test_requirements_structure():
-    """Test that our requirements.txt file exists and has expected structure."""
-    requirements_path = "requirements.txt"
+def test_pyproject_is_packaging_source_of_truth():
+    """Packaging metadata lives solely in pyproject.toml.
+
+    The legacy setup.py shim and the ``-e .`` requirements.txt were removed in
+    favor of pyproject.toml. This test confirms pyproject still declares the
+    core dependencies and guards against the legacy files being reintroduced.
+    """
     pyproject_path = "pyproject.toml"
+    assert os.path.exists(pyproject_path), "pyproject.toml is required for packaging"
 
-    if os.path.exists(requirements_path):
-        with open(requirements_path) as f:
-            content = f.read()
+    with open(pyproject_path) as f:
+        pyproject_content = f.read()
 
-        # Editable install style is allowed; dependencies are then declared in pyproject.
-        assert content.strip()
-        assert "-e ." in content or "torch" in content
+    assert "dependencies" in pyproject_content
+    assert "torch>=" in pyproject_content
+    assert "omegaconf>=" in pyproject_content
+    assert "tensorboard>=" in pyproject_content
 
-        if "-e ." in content:
-            assert os.path.exists(pyproject_path)
-            with open(pyproject_path) as f:
-                pyproject_content = f.read()
-            assert "dependencies" in pyproject_content
-            assert "torch>=" in pyproject_content
-            assert "omegaconf>=" in pyproject_content
-            assert "tensorboard>=" in pyproject_content
+    # These legacy files were intentionally removed; keep them gone so packaging
+    # metadata does not drift across multiple sources again.
+    assert not os.path.exists("setup.py"), "setup.py shim should not be reintroduced"
+    assert not os.path.exists(
+        "requirements.txt"
+    ), "requirements.txt was removed; declare dependencies in pyproject.toml"
 
-        print("requirements/pyproject dependency structure is valid")
-    else:
-        pytest.fail("requirements.txt file not found")
-
-
-def test_setup_py_structure():
-    """Test that our setup.py file exists and has expected structure."""
-    setup_path = "setup.py"
-    pyproject_path = "pyproject.toml"
-
-    if os.path.exists(setup_path):
-        with open(setup_path) as f:
-            content = f.read()
-
-        # Check for key elements of our modern setup.py (pyproject.toml-based)
-        assert "dendritic-modeling" in content
-        assert "setup(" in content
-
-        print("setup.py exists with correct modern structure")
-
-        # Also check that pyproject.toml exists for configuration
-        if os.path.exists(pyproject_path):
-            with open(pyproject_path) as f:
-                pyproject_content = f.read()
-            assert "dendritic-modeling" in pyproject_content
-            assert "dependencies" in pyproject_content
-            print("pyproject.toml exists with configuration")
-        else:
-            pytest.fail("pyproject.toml file not found (required for modern setup)")
-
-    else:
-        pytest.fail("setup.py file not found")
+    print("pyproject.toml is the single packaging source of truth")
 
 
 def test_training_speed_benchmark():

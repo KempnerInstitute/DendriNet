@@ -72,7 +72,7 @@
 
 **Verdict: NO custom kernels worth Nsight Compute. Plan to SKIP Rung 3.**
 - ❌ No CUDA C++ extensions (no `.cu/.cuh`, no `CUDAExtension`/`load_inline`;
-  `setup.py` is an empty shim).
+  packaging is pyproject.toml-only with no build extensions).
 - ❌ No Triton.
 - ⚠️ Exactly ONE `torch.autograd.Function`: `SurrogateSpike`
   (`networks/architectures/recurrent/spiking_soma.py:11`). Its backward is pure
