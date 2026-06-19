@@ -3,13 +3,15 @@
 scripts/__pycache__/*
 tests/__pycache__/*
 results/*
-slurm_jobs/  # Generated SLURM script directories
+# Generated SLURM script directories
+slurm_jobs/
 dendritic_modeling.egg-info/*
 dendritic_modeling/__pycache__/*
 # Ignore ad-hoc root shell scripts; keep scripts under src/ addable.
 /*.sh
 *.out
-*.sbatch  # Generated SLURM batch scripts
+# Generated SLURM batch scripts
+*.sbatch
 notebooks/data/*
 notebook/wandb/*
 notebook/votage_plots/*
@@ -255,3 +257,10 @@ src/dendritic_modeling/analysis/**/*.py[cod]
 
 # Internal code-review working docs (keep out of version control)
 CODEBASE_REVIEW_*.md
+
+# Test-run artifacts and accidental duplicate trees (regenerated locally; never commit).
+# tests/src is a stale copy of src/; tests/outputs holds downloaded datasets and
+# generated plots; tests/docs duplicates docs/.
+tests/src/
+tests/outputs/
+tests/docs/
