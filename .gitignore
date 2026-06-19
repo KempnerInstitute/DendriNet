@@ -255,8 +255,27 @@ src/dendritic_modeling/analysis/**/*.py[cod]
 CODEBASE_REVIEW_*.md
 
 # Test-run artifacts and accidental duplicate trees (regenerated locally; never commit).
-# tests/src is a stale copy of src/; tests/outputs holds downloaded datasets and
-# generated plots; tests/docs duplicates docs/.
+# When the suite is run with tests/ as the working dir it dumps copies of the repo
+# (src/, docs/, configs/, jobs/, etc.) and run outputs into tests/. The real test
+# infra (test_*.py, conftest.py, setup.py) stays tracked; everything below does not.
 tests/src/
 tests/outputs/
 tests/docs/
+tests/configs/
+tests/jobs/
+tests/setup/
+tests/projects/
+tests/results/
+tests/profilings/
+tests/profilings-notignored/
+tests/CHANGELOG.md
+tests/LICENSE
+tests/README.md
+tests/INSTALL.md
+tests/PROFILING_FINDINGS.md
+tests/PROFILING_HANDOFF.md
+tests/PROFILING_REPORT.md
+tests/pyproject.toml
+tests/requirements.txt
+tests/ruff.toml
+tests/pytest.ini
