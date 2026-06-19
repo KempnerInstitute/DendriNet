@@ -17,7 +17,6 @@ notebook/wandb/*
 notebook/votage_plots/*
 notebook/*.log
 notebook/test/*
-# experiments/* - now using submodule
 data/*
 configs/*.txt
 # Private merge/runtime comparison configs belong under ignored projects/ or
@@ -68,7 +67,6 @@ share/python-wheels/
 *.egg
 MANIFEST
 output/*
-outputs/*
 # PyInstaller
 #  Usually these files are written by a python script from a template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
@@ -77,7 +75,6 @@ outputs/*
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
-archive/*
 # Unit test / coverage reports
 htmlcov/
 .tox/
@@ -211,7 +208,6 @@ cython_debug/
 
 .DS_Store
 .vscode/*
-outputs/*
 .data/*
 trained_encoder_networks/*
 .trained_encoder_networks/*
