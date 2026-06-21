@@ -253,6 +253,40 @@ class AnalysisManager:
         )
         self.logger.info(complete_message)
 
+    def _run_logged_data_analysis(
+        self,
+        *,
+        registry_name: str,
+        filename: str,
+        training: bool,
+        start_message: str,
+        complete_message: str,
+        runtime: object | None = None,
+        pass_runtime: bool = False,
+        require_analyzer: bool = True,
+    ) -> None:
+        """Run a logged analyzer with the common data= test-set signature."""
+        if not self._should_run_registered_analysis(
+            registry_name,
+            training=training,
+            require_analyzer=require_analyzer,
+        ):
+            return
+
+        kwargs = {
+            "model": self.model,
+            "data": self.data["test"],
+            "device": self.device,
+            "save_path": self._analysis_save_path(registry_name),
+            "filename": filename,
+        }
+        if pass_runtime:
+            kwargs["runtime"] = runtime
+
+        self.logger.info(start_message)
+        self._analysis_analyzer(registry_name).analyze(**kwargs)
+        self.logger.info(complete_message)
+
     def set_pruning_results(self, pruning_results: dict):
         """Set pruning results for inclusion in performance plots."""
         self.pruning_results = pruning_results
@@ -401,22 +435,13 @@ class AnalysisManager:
 
     def _run_routing_analysis(self, *, filename: str, training: bool) -> None:
         """Run recurrent routing analysis."""
-        if not self._should_run_registered_analysis(
-            "routing",
-            training=training,
-            require_analyzer=True,
-        ):
-            return
-
-        self.logger.info("Starting routing analysis...")
-        self._analysis_analyzer("routing").analyze(
-            model=self.model,
-            data=self.data["test"],
-            device=self.device,
-            save_path=self._analysis_save_path("routing"),
+        self._run_logged_data_analysis(
+            registry_name="routing",
             filename=filename,
+            training=training,
+            start_message="Starting routing analysis...",
+            complete_message="Routing analysis completed successfully",
         )
-        self.logger.info("Routing analysis completed successfully")
 
     def _run_model_only_analysis(
         self,
@@ -507,23 +532,15 @@ class AnalysisManager:
         self, *, filename: str, training: bool, runtime: object | None
     ) -> None:
         """Run spike-train analysis."""
-        if not self._should_run_registered_analysis(
-            "spike_train",
-            training=training,
-            require_analyzer=True,
-        ):
-            return
-
-        self.logger.info("Starting spike train analysis...")
-        self._analysis_analyzer("spike_train").analyze(
-            model=self.model,
-            data=self.data["test"],
-            device=self.device,
-            save_path=self._analysis_save_path("spike_train"),
+        self._run_logged_data_analysis(
+            registry_name="spike_train",
             filename=filename,
+            training=training,
+            start_message="Starting spike train analysis...",
+            complete_message="Spike train analysis completed successfully",
             runtime=runtime,
+            pass_runtime=True,
         )
-        self.logger.info("Spike train analysis completed successfully")
 
     def _run_adversarial_robustness_analysis(
         self, *, filename: str, training: bool, runtime: object | None

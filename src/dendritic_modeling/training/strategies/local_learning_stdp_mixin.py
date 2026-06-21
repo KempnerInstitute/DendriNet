@@ -1,9 +1,4 @@
-"""Mixin methods for :mod:`dendritic_modeling.training.strategies.local_learning`.
-
-This module is a mechanical split of ``LocalCreditAssignment`` helpers. Method
-bodies are kept behavior-compatible with the original trainer; the main trainer
-class owns orchestration and mutable state.
-"""
+"""STDP gradient helpers for local credit assignment."""
 
 from __future__ import annotations
 

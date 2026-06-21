@@ -12,6 +12,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.top
 )
 from dendritic_modeling.training.strategies.local_learning_broadcast import (
     compute_pathway_activity,
+    compute_pathway_seed_projection,
     compute_role_selectivity,
     effective_topk_weight,
     normalize_role_mass,
@@ -30,7 +31,6 @@ class LocalLearningPathwayBroadcastMixin:
         role_mass: torch.Tensor, eps: float = 1e-8
     ) -> torch.Tensor:
         """Normalize non-negative role mass into a role profile."""
-
         return normalize_role_mass(role_mass, eps)
 
     @staticmethod
@@ -38,7 +38,6 @@ class LocalLearningPathwayBroadcastMixin:
         role_profile: torch.Tensor, eps: float = 1e-8
     ) -> torch.Tensor:
         """Measure pathway selectivity from normalized role profiles."""
-
         return compute_role_selectivity(role_profile, eps)
 
     @staticmethod
@@ -48,7 +47,6 @@ class LocalLearningPathwayBroadcastMixin:
         prior_output_roles: list[torch.Tensor],
     ) -> torch.Tensor | None:
         """Resolve the most plausible role basis for a layer input size."""
-
         return resolve_recent_role_profile(
             input_dim, base_input_roles, prior_output_roles
         )
@@ -58,7 +56,6 @@ class LocalLearningPathwayBroadcastMixin:
         layer: TopKLinear, mask: torch.Tensor | None
     ) -> torch.Tensor:
         """Return masked effective synaptic weights."""
-
         return effective_topk_weight(layer, mask)
 
     @staticmethod
@@ -67,12 +64,10 @@ class LocalLearningPathwayBroadcastMixin:
         input_roles: torch.Tensor | None,
     ) -> torch.Tensor | None:
         """Aggregate pathway-role mass through a synaptic weight matrix."""
-
         return role_mass_from_weight_matrix(weight_matrix, input_roles)
 
     def _resolve_router_output_roles(self, model: BaseModel) -> torch.Tensor | None:
         """Return pathway ownership for encoder outputs when available."""
-
         return resolve_router_output_roles(self.local_cfg, model)
 
     def _compute_pathway_activity(
@@ -83,7 +78,6 @@ class LocalLearningPathwayBroadcastMixin:
         eps: float = 1e-8,
     ) -> torch.Tensor | None:
         """Compute a sample-wise local pathway activity gate."""
-
         return compute_pathway_activity(rec, stats, v_n, eps)
 
     def _compute_pathway_vector_broadcast(
@@ -95,76 +89,40 @@ class LocalLearningPathwayBroadcastMixin:
         v_n: torch.Tensor,
     ) -> torch.Tensor:
         """Project soma error into a pathway-aligned apical feedback vector."""
-
         stats = self._layer_stats.get(id(rec.get("layer")))
 
         if stats is None or not isinstance(stats.branch_role_profile, torch.Tensor):
-
             return delta_scalar.expand(-1, v_n.size(1))
 
         role_profile = stats.branch_role_profile.to(device=v_n.device, dtype=v_n.dtype)
 
         if role_profile.dim() != 2 or role_profile.size(0) != v_n.size(1):
-
             return delta_scalar.expand(-1, v_n.size(1))
 
-        role_mass = role_profile.sum(dim=0, keepdim=True).clamp_min(1e-6)
-
-        seed = seed_error
-
-        if isinstance(seed, torch.Tensor):
-
-            if seed.dim() == 1:
-
-                seed = seed.unsqueeze(-1)
-
-            elif seed.dim() != 2:
-
-                seed = seed.view(seed.size(0), -1)
-
-        if isinstance(seed, torch.Tensor) and seed.size(1) == v_n.size(1):
-
-            seed = seed.to(device=v_n.device, dtype=v_n.dtype)
-
-            pathway_error = seed @ role_profile
-
-            pathway_error = pathway_error / role_mass
-
-            base = seed
-
-        else:
-
-            pathway_error = delta_scalar.to(device=v_n.device, dtype=v_n.dtype).expand(
-                -1, role_profile.size(1)
-            )
-
-            base = delta_scalar.to(device=v_n.device, dtype=v_n.dtype).expand(
-                -1, v_n.size(1)
-            )
+        pathway_error, base = compute_pathway_seed_projection(
+            seed_error=seed_error,
+            delta_scalar=delta_scalar,
+            role_profile=role_profile,
+            out_features=v_n.size(1),
+        )
 
         pathway_activity = self._compute_pathway_activity(rec, stats, v_n)
-
         gate_strength = float(
             getattr(self.local_cfg, "pathway_activity_gate_strength", 1.0)
         )
 
         if pathway_activity is not None and gate_strength > 0.0:
-
             pathway_activity = pathway_activity.to(device=v_n.device, dtype=v_n.dtype)
-
             pathway_gate = 1.0 + gate_strength * (pathway_activity - 1.0)
-
             pathway_error = pathway_error * pathway_gate
 
         projected = pathway_error @ role_profile.t()
-
         residual = float(
             max(
                 0.0,
                 min(1.0, getattr(self.local_cfg, "pathway_broadcast_residual", 0.25)),
             )
         )
-
         return (1.0 - residual) * projected + residual * base
 
 

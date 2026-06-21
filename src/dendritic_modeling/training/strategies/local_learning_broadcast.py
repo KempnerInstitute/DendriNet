@@ -227,10 +227,40 @@ def compute_pathway_activity(
     return torch.stack(normalized, dim=0).mean(dim=0)
 
 
+def compute_pathway_seed_projection(
+    seed_error: torch.Tensor | None,
+    delta_scalar: torch.Tensor,
+    role_profile: torch.Tensor,
+    out_features: int,
+    eps: float = 1e-6,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Resolve pathway-space error and residual base for pathway broadcasts."""
+    role_mass = role_profile.sum(dim=0, keepdim=True).clamp_min(eps)
+
+    seed = seed_error
+    if isinstance(seed, torch.Tensor):
+        if seed.dim() == 1:
+            seed = seed.unsqueeze(-1)
+        elif seed.dim() != 2:
+            seed = seed.view(seed.size(0), -1)
+
+    if isinstance(seed, torch.Tensor) and seed.size(1) == out_features:
+        seed = seed.to(device=role_profile.device, dtype=role_profile.dtype)
+        pathway_error = seed @ role_profile
+        pathway_error = pathway_error / role_mass
+        return pathway_error, seed
+
+    scalar = delta_scalar.to(device=role_profile.device, dtype=role_profile.dtype)
+    pathway_error = scalar.expand(-1, role_profile.size(1))
+    base = scalar.expand(-1, out_features)
+    return pathway_error, base
+
+
 __all__ = [
     "apply_broadcast_bandwidth",
     "compute_layer_total_conductance",
     "compute_pathway_activity",
+    "compute_pathway_seed_projection",
     "compute_role_selectivity",
     "effective_topk_weight",
     "expand_parent_signal_to_children",

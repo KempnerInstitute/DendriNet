@@ -2937,6 +2937,127 @@ class TestAnalysisManager(unittest.TestCase):
             mock_info.assert_not_called()
             mock_analyzer.assert_not_called()
 
+    def test_logged_data_analysis_preserves_call_and_logs_without_runtime(self):
+        """Logged data helper should preserve routing call kwargs and logs."""
+        config = AnalysisConfig()
+        config.performance_analysis.enabled = False
+        config.routing_analysis.enabled = True
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manager = AnalysisManager(
+                model=self.model,
+                data=self.data,
+                analysis_config=config,
+                save_root=tmpdir,
+            )
+
+            with (
+                patch.object(manager, "routing_analyzer") as mock_analyzer,
+                patch.object(manager.logger, "info") as mock_info,
+            ):
+                manager._run_logged_data_analysis(
+                    registry_name="routing",
+                    filename="route_eval",
+                    training=False,
+                    start_message="Starting routing analysis...",
+                    complete_message="Routing analysis completed successfully",
+                )
+
+            mock_info.assert_has_calls(
+                [
+                    call("Starting routing analysis..."),
+                    call("Routing analysis completed successfully"),
+                ]
+            )
+            mock_analyzer.analyze.assert_called_once()
+            call_kwargs = mock_analyzer.analyze.call_args.kwargs
+            self.assertIs(call_kwargs["model"], self.model)
+            self.assertIs(call_kwargs["data"], self.data["test"])
+            self.assertEqual(call_kwargs["device"], "cpu")
+            self.assertEqual(
+                call_kwargs["save_path"],
+                str(Path(tmpdir) / "routing_analysis"),
+            )
+            self.assertEqual(call_kwargs["filename"], "route_eval")
+            self.assertNotIn("runtime", call_kwargs)
+
+    def test_logged_data_analysis_preserves_runtime_when_requested(self):
+        """Logged data helper should preserve runtime-aware analyzer calls."""
+        config = AnalysisConfig()
+        config.performance_analysis.enabled = False
+        config.spike_train_analysis.enabled = True
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manager = AnalysisManager(
+                model=self.model,
+                data=self.data,
+                analysis_config=config,
+                save_root=tmpdir,
+            )
+            runtime = manager.config.runtime.final
+
+            with (
+                patch.object(manager, "spike_train_analyzer") as mock_analyzer,
+                patch.object(manager.logger, "info") as mock_info,
+            ):
+                manager._run_logged_data_analysis(
+                    registry_name="spike_train",
+                    filename="spike_eval",
+                    training=False,
+                    start_message="Starting spike train analysis...",
+                    complete_message="Spike train analysis completed successfully",
+                    runtime=runtime,
+                    pass_runtime=True,
+                )
+
+            mock_info.assert_has_calls(
+                [
+                    call("Starting spike train analysis..."),
+                    call("Spike train analysis completed successfully"),
+                ]
+            )
+            mock_analyzer.analyze.assert_called_once()
+            call_kwargs = mock_analyzer.analyze.call_args.kwargs
+            self.assertIs(call_kwargs["model"], self.model)
+            self.assertIs(call_kwargs["data"], self.data["test"])
+            self.assertEqual(
+                call_kwargs["save_path"],
+                str(Path(tmpdir) / "spike_train_analysis"),
+            )
+            self.assertEqual(call_kwargs["filename"], "spike_eval")
+            self.assertIs(call_kwargs["runtime"], runtime)
+
+    def test_logged_data_analysis_skips_missing_required_analyzer(self):
+        """Logged data helper should not emit messages without required analyzer."""
+        config = AnalysisConfig()
+        config.performance_analysis.enabled = False
+        config.routing_analysis.enabled = True
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manager = AnalysisManager(
+                model=self.model,
+                data=self.data,
+                analysis_config=config,
+                save_root=tmpdir,
+            )
+            if hasattr(manager, "routing_analyzer"):
+                delattr(manager, "routing_analyzer")
+
+            with (
+                patch.object(manager, "_analysis_analyzer") as mock_analyzer,
+                patch.object(manager.logger, "info") as mock_info,
+            ):
+                manager._run_logged_data_analysis(
+                    registry_name="routing",
+                    filename="route_eval",
+                    training=False,
+                    start_message="Starting routing analysis...",
+                    complete_message="Routing analysis completed successfully",
+                )
+
+            mock_info.assert_not_called()
+            mock_analyzer.assert_not_called()
+
     def test_common_test_dataset_runners_resolve_registry_metadata(self):
         """Common runner tables should stay synchronized with the registry."""
         from dendritic_modeling.analysis.managers.analysis_manager import (

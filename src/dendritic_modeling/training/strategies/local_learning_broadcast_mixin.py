@@ -1,9 +1,4 @@
-"""Mixin methods for :mod:`dendritic_modeling.training.strategies.local_learning`.
-
-This module is a mechanical split of ``LocalCreditAssignment`` helpers. Method
-bodies are kept behavior-compatible with the original trainer; the main trainer
-class owns orchestration and mutable state.
-"""
+"""Broadcast-error helpers for local credit assignment."""
 
 from __future__ import annotations
 
@@ -37,34 +32,21 @@ class LocalLearningBroadcastMixin(
     def _reduce_error_to_scalar(delta: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
         """Reduce output error to a per-sample scalar for broadcast modes.
 
-
-
         For CE-like errors, per-sample mean can be near zero due to probability
-
         simplex constraints. In that case we fall back to the max-magnitude
-
         component to keep a meaningful signed modulatory signal.
-
         """
-
         if delta.dim() == 1:
-
             return delta.unsqueeze(-1)
 
         if delta.dim() != 2:
-
             delta = delta.view(delta.size(0), -1)
 
         delta_scalar = delta.mean(dim=1, keepdim=True)
-
         near_zero = delta_scalar.abs() <= eps
-
         if near_zero.any():
-
             max_idx = delta.abs().argmax(dim=1, keepdim=True)
-
             fallback = delta.gather(dim=1, index=max_idx)
-
             delta_scalar = torch.where(near_zero, fallback, delta_scalar)
 
         return delta_scalar
@@ -80,63 +62,39 @@ class LocalLearningBroadcastMixin(
     ) -> torch.Tensor:
         """Compute a stabilized local-mismatch broadcast signal.
 
-
-
         The raw local mismatch signal can collapse when parent and soma voltages are
-
         close or poorly scaled. We stabilize it by:
-
         1) centering mismatch across batch,
-
         2) normalizing mismatch per sample by RMS magnitude,
-
         3) clipping outliers,
-
         4) blending with a residual scalar broadcast path.
-
         """
-
         base = delta_scalar.expand(-1, v_n.size(1))
-
         if parent is None:
-
             return base
 
         p = parent
-
         if p.size() != v_n.size():
-
             try:
-
                 p = p.view_as(v_n)
-
             except Exception:
-
                 return base
 
         mismatch = p - v_n
-
         mismatch = mismatch - mismatch.mean(dim=0, keepdim=True)
-
         rms = mismatch.pow(2).mean(dim=1, keepdim=True).sqrt().clamp_min(eps)
-
         mismatch_norm = mismatch / rms
-
         if clip_value > 0.0:
-
             mismatch_norm = torch.clamp(mismatch_norm, -clip_value, clip_value)
 
         modulated = base * mismatch_norm
-
         blend = float(max(0.0, min(1.0, residual_fraction)))
-
         return (1.0 - blend) * modulated + blend * base
 
     def _apply_broadcast_bandwidth(
         self, e_n: torch.Tensor, bandwidth: str
     ) -> torch.Tensor:
         """Apply bandwidth reduction to the broadcast error signal."""
-
         return apply_broadcast_bandwidth(self.local_cfg, e_n, bandwidth)
 
     @staticmethod
@@ -144,7 +102,6 @@ class LocalLearningBroadcastMixin(
         rec: dict[str, Any], v_n: torch.Tensor
     ) -> torch.Tensor:
         """Compute total conductance used by conductance-aware local rules."""
-
         return compute_layer_total_conductance(rec, v_n)
 
     def _prepare_local_rule_broadcast_state(
@@ -156,7 +113,6 @@ class LocalLearningBroadcastMixin(
         delta_scalar: torch.Tensor,
     ) -> _BroadcastState:
         """Prepare per-batch broadcast state shared across local-rule layers."""
-
         bmode = (self.local_cfg.error_broadcast_mode or "scalar").lower()
 
         if (
@@ -212,7 +168,6 @@ class LocalLearningBroadcastMixin(
         broadcast_state: _BroadcastState,
     ) -> torch.Tensor:
         """Compute the compartment-level local broadcast error for one layer."""
-
         bmode = broadcast_state.mode
         if bmode == "per_soma" and delta.dim() == 2 and delta.size(1) == out_features:
             e_n = delta
@@ -277,7 +232,6 @@ class LocalLearningBroadcastMixin(
         layer_dynamics_mode: str,
     ) -> torch.Tensor | float:
         """Compute conductance-mode input resistance for local-rule updates."""
-
         if layer_dynamics_mode != "conductance":
             return 1.0
         if not self.local_cfg.three_factor.use_conductance_scaling:

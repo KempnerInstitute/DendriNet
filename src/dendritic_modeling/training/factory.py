@@ -143,6 +143,29 @@ def _build_multi_stage_config(raw_config: Any) -> MultiStageTrainingConfig:
     return MultiStageTrainingConfig(**config_dict)
 
 
+_FLATTENED_STRATEGY_CONFIG_KEYS = (
+    "voltage_stabilization_config",
+    "homeostatic_control_config",
+    "freeze_layers_config",
+    "freeze_branches_config",
+    "fa_config",
+    "freeze_branch_kl_config",
+)
+
+
+def _pop_flat_strategy_config(
+    enhanced_configs: dict[str, Any],
+    trainer_config_dict: dict[str, Any],
+    key: str,
+) -> None:
+    """Pop a nested strategy config and flatten dict values into trainer kwargs."""
+    if key not in trainer_config_dict:
+        return
+    nested_config = trainer_config_dict.pop(key)
+    if isinstance(nested_config, dict):
+        enhanced_configs.update(nested_config)
+
+
 def _extract_enhanced_configs(trainer_config_dict: dict[str, Any]) -> dict[str, Any]:
     """
     Extract enhanced configuration objects from trainer config dict.
@@ -244,41 +267,8 @@ def _extract_enhanced_configs(trainer_config_dict: dict[str, Any]) -> dict[str, 
             "local_rule_config"
         )
 
-    # Voltage stabilization
-    if "voltage_stabilization_config" in trainer_config_dict:
-        vs_cfg = trainer_config_dict.pop("voltage_stabilization_config")
-        if isinstance(vs_cfg, dict):
-            enhanced_configs.update(vs_cfg)
-
-    # Homeostatic control
-    if "homeostatic_control_config" in trainer_config_dict:
-        hc_cfg = trainer_config_dict.pop("homeostatic_control_config")
-        if isinstance(hc_cfg, dict):
-            enhanced_configs.update(hc_cfg)
-
-    # Freeze layers
-    if "freeze_layers_config" in trainer_config_dict:
-        fl_cfg = trainer_config_dict.pop("freeze_layers_config")
-        if isinstance(fl_cfg, dict):
-            enhanced_configs.update(fl_cfg)
-
-    # Freeze branches
-    if "freeze_branches_config" in trainer_config_dict:
-        fb_cfg = trainer_config_dict.pop("freeze_branches_config")
-        if isinstance(fb_cfg, dict):
-            enhanced_configs.update(fb_cfg)
-
-    # Feedback alignment
-    if "fa_config" in trainer_config_dict:
-        fa_cfg = trainer_config_dict.pop("fa_config")
-        if isinstance(fa_cfg, dict):
-            enhanced_configs.update(fa_cfg)
-
-    # Freeze branch with KL
-    if "freeze_branch_kl_config" in trainer_config_dict:
-        fbkl_cfg = trainer_config_dict.pop("freeze_branch_kl_config")
-        if isinstance(fbkl_cfg, dict):
-            enhanced_configs.update(fbkl_cfg)
+    for key in _FLATTENED_STRATEGY_CONFIG_KEYS:
+        _pop_flat_strategy_config(enhanced_configs, trainer_config_dict, key)
 
     return enhanced_configs
 

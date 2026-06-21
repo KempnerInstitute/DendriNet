@@ -16,6 +16,9 @@ from dendritic_modeling.training.strategies.local_learning import (
     LocalCreditAssignment,
     _LayerStats,
 )
+from dendritic_modeling.training.strategies.local_learning_broadcast import (
+    compute_pathway_seed_projection,
+)
 
 
 class _RoutedSingleBranchModel(nn.Module):
@@ -90,6 +93,61 @@ def _make_trainer(
     trainer._decoder_cache = {}
     trainer._broadcast_cache = {}
     return trainer
+
+
+def test_compute_pathway_seed_projection_matches_legacy_projection() -> None:
+    role_profile = torch.tensor(
+        [
+            [1.0, 0.0],
+            [0.0, 1.0],
+            [1.0, 0.0],
+            [0.0, 1.0],
+        ],
+        dtype=torch.float64,
+    )
+    seed_error = torch.tensor(
+        [[[1.0, -1.0], [0.5, -0.5]]],
+        dtype=torch.float32,
+    )
+    delta_scalar = torch.tensor([[0.0]], dtype=torch.float32)
+
+    pathway_error, base = compute_pathway_seed_projection(
+        seed_error=seed_error,
+        delta_scalar=delta_scalar,
+        role_profile=role_profile,
+        out_features=4,
+    )
+
+    expected_seed = seed_error.view(1, -1).to(dtype=torch.float64)
+    expected_pathway_error = (expected_seed @ role_profile) / torch.tensor(
+        [[2.0, 2.0]],
+        dtype=torch.float64,
+    )
+    torch.testing.assert_close(base, expected_seed)
+    torch.testing.assert_close(pathway_error, expected_pathway_error)
+
+
+def test_compute_pathway_seed_projection_falls_back_to_scalar_broadcast() -> None:
+    role_profile = torch.tensor(
+        [
+            [1.0, 0.0],
+            [0.0, 1.0],
+            [1.0, 0.0],
+            [0.0, 1.0],
+        ]
+    )
+    seed_error = torch.ones(2, 3)
+    delta_scalar = torch.tensor([[0.25], [-0.5]])
+
+    pathway_error, base = compute_pathway_seed_projection(
+        seed_error=seed_error,
+        delta_scalar=delta_scalar,
+        role_profile=role_profile,
+        out_features=4,
+    )
+
+    torch.testing.assert_close(pathway_error, delta_scalar.expand(-1, 2))
+    torch.testing.assert_close(base, delta_scalar.expand(-1, 4))
 
 
 def test_pathway_vector_broadcast_projects_error_into_role_subspace() -> None:

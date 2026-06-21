@@ -77,6 +77,15 @@ class InformationMutualInformationMixin(InformationValidationMixin):
         )
         return value
 
+    def _add_mi_metrics(
+        self,
+        metrics: dict[str, float],
+        metric_specs: list[tuple[str, np.ndarray, np.ndarray]],
+    ) -> None:
+        """Estimate ordered MI metric specs into an existing metrics dict."""
+        for metric_key, x, y in metric_specs:
+            metrics[metric_key] = self._estimate_mi(metric_key, x, y)
+
     def _compute_basic_mi(
         self,
         E: np.ndarray,
@@ -92,26 +101,24 @@ class InformationMutualInformationMixin(InformationValidationMixin):
         )
         metrics = {}
 
-        # I(E;C)
-        metrics["I(E;C)"] = self._estimate_mi("I(E;C)", E, C)
+        self._add_mi_metrics(
+            metrics,
+            [
+                ("I(E;C)", E, C),
+                ("I(I;C)", I_var, C),
+            ],
+        )
 
-        # I(I;C)
-        metrics["I(I;C)"] = self._estimate_mi("I(I;C)", I_var, C)
-
-        # I(Vb;C) if available
         if Vb is not None:
-            metrics["I(Vb;C)"] = self._estimate_mi("I(Vb;C)", Vb, C)
+            self._add_mi_metrics(metrics, [("I(Vb;C)", Vb, C)])
 
-        # I(Vout;C)
-        metrics["I(Vout;C)"] = self._estimate_mi("I(Vout;C)", Vout, C)
+        self._add_mi_metrics(metrics, [("I(Vout;C)", Vout, C)])
 
-        # I(Vinf;C) if available
         if Vinf is not None and self.include_vinf:
-            metrics["I(Vinf;C)"] = self._estimate_mi("I(Vinf;C)", Vinf, C)
+            self._add_mi_metrics(metrics, [("I(Vinf;C)", Vinf, C)])
 
-        # Joint MI: I(E,I;C)
         EI = np.hstack([E, I_var])
-        metrics["I(E,I;C)"] = self._estimate_mi("I(E,I;C)", EI, C)
+        self._add_mi_metrics(metrics, [("I(E,I;C)", EI, C)])
 
         # Optionally normalize by entropy
         if self.normalize_mi:
@@ -141,35 +148,34 @@ class InformationMutualInformationMixin(InformationValidationMixin):
         self.logger.debug("Computing pairwise MI between neural variables...")
         metrics = {}
 
-        # I(E;I)
-        metrics["I(E;I)"] = self._estimate_mi("I(E;I)", E, I_var)
+        self._add_mi_metrics(
+            metrics,
+            [
+                ("I(E;I)", E, I_var),
+                ("I(E;Vout)", E, Vout),
+                ("I(I;Vout)", I_var, Vout),
+            ],
+        )
 
-        # I(E;Vout)
-        metrics["I(E;Vout)"] = self._estimate_mi("I(E;Vout)", E, Vout)
-
-        # I(I;Vout)
-        metrics["I(I;Vout)"] = self._estimate_mi("I(I;Vout)", I_var, Vout)
-
-        # Pairwise MI with Vb if available
         if Vb is not None:
-            # I(E;Vb)
-            metrics["I(E;Vb)"] = self._estimate_mi("I(E;Vb)", E, Vb)
-
-            # I(I;Vb)
-            metrics["I(I;Vb)"] = self._estimate_mi("I(I;Vb)", I_var, Vb)
-
-            # I(Vb;Vout)
-            metrics["I(Vb;Vout)"] = self._estimate_mi("I(Vb;Vout)", Vb, Vout)
+            self._add_mi_metrics(
+                metrics,
+                [
+                    ("I(E;Vb)", E, Vb),
+                    ("I(I;Vb)", I_var, Vb),
+                    ("I(Vb;Vout)", Vb, Vout),
+                ],
+            )
 
         if Vinf is not None and self.include_vinf:
-            # I(E;Vinf)
-            metrics["I(E;Vinf)"] = self._estimate_mi("I(E;Vinf)", E, Vinf)
-
-            # I(I;Vinf)
-            metrics["I(I;Vinf)"] = self._estimate_mi("I(I;Vinf)", I_var, Vinf)
-
-            # I(Vout;Vinf)
-            metrics["I(Vout;Vinf)"] = self._estimate_mi("I(Vout;Vinf)", Vout, Vinf)
+            self._add_mi_metrics(
+                metrics,
+                [
+                    ("I(E;Vinf)", E, Vinf),
+                    ("I(I;Vinf)", I_var, Vinf),
+                    ("I(Vout;Vinf)", Vout, Vinf),
+                ],
+            )
 
         self.logger.debug("  Pairwise MI computation completed.")
         return metrics

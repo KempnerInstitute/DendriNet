@@ -201,6 +201,24 @@ def test_estimate_mi_and_cmi_dispatch_to_active_estimator():
     assert "I(E;I|C) = 2.0000" in harness.logger.debug_messages[-1]
 
 
+def test_add_mi_metrics_preserves_spec_order_and_existing_entries():
+    harness = _MetricHarness()
+    arrays = _arrays()
+    metrics = {"existing": -1.0}
+
+    harness._add_mi_metrics(
+        metrics,
+        [
+            ("I(E;C)", arrays["E"], arrays["C"]),
+            ("I(I;C)", arrays["I"], arrays["C"]),
+        ],
+    )
+
+    assert list(metrics) == ["existing", "I(E;C)", "I(I;C)"]
+    assert metrics == {"existing": -1.0, "I(E;C)": 1.0, "I(I;C)": 2.0}
+    assert [call[0] for call in harness.estimator.calls] == ["mi", "mi"]
+
+
 def test_estimate_cmi_or_zero_preserves_failure_fallback():
     harness = _MetricHarness()
     harness.estimator = _FailingConditionalEstimator()
