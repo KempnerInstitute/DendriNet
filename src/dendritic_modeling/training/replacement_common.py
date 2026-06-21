@@ -13,7 +13,7 @@ import torch.nn.functional as F
 from torch.amp import GradScaler
 from torch.utils.data import DataLoader, Dataset
 
-from dendritic_modeling.config.conversion import to_plain_dict
+from dendritic_modeling.config.conversion import to_plain_dict as _to_plain_mapping
 from dendritic_modeling.training.dataloader_utils import (
     DataLoaderTuning,
     resolve_dataloader_tuning_from_config,
@@ -80,10 +80,6 @@ class ReplacementTrainingHistory:
 def _should_run_periodic_step(step: int, every: int, max_steps: int) -> bool:
     """Return whether a step should run a periodic action."""
     return step % int(every) == 0 or step == int(max_steps)
-
-
-def _to_plain_mapping(obj: Any) -> dict[str, Any]:
-    return to_plain_dict(obj)
 
 
 def _resolve_device(device: str) -> torch.device:

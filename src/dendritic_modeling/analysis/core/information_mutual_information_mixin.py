@@ -105,6 +105,19 @@ class InformationMutualInformationMixin(InformationValidationMixin):
         for metric_key, x, y, condition in metric_specs:
             metrics[metric_key] = self._estimate_cmi(metric_key, x, y, condition)
 
+    def _add_entropy_normalized_metrics(
+        self,
+        metrics: dict[str, float],
+        C: np.ndarray,
+    ) -> None:
+        """Append entropy-normalized copies of existing metrics in insertion order."""
+        self.logger.debug("  Computing entropy H(C) for normalization...")
+        start_time = time.time()
+        H_C = self.estimators[self.method].entropy(C.reshape(-1, 1))
+        self.logger.debug(f"  H(C) = {H_C:.4f} (took {time.time() - start_time:.1f}s)")
+        for key in list(metrics.keys()):
+            metrics[f"{key}_normalized"] = metrics[key] / H_C if H_C > 0 else 0.0
+
     def _compute_basic_mi(
         self,
         E: np.ndarray,
@@ -141,16 +154,7 @@ class InformationMutualInformationMixin(InformationValidationMixin):
 
         # Optionally normalize by entropy
         if self.normalize_mi:
-            self.logger.debug("  Computing entropy H(C) for normalization...")
-            start_time = time.time()
-            H_C = self.estimators[self.method].entropy(C.reshape(-1, 1))
-            self.logger.debug(
-                f"  H(C) = {H_C:.4f} (took {time.time() - start_time:.1f}s)"
-            )
-            # Create a list of keys to avoid modifying dict during iteration
-            keys_to_normalize = list(metrics.keys())
-            for key in keys_to_normalize:
-                metrics[f"{key}_normalized"] = metrics[key] / H_C if H_C > 0 else 0.0
+            self._add_entropy_normalized_metrics(metrics, C)
 
         self.logger.debug("  Basic MI computation completed.")
         return metrics

@@ -9,6 +9,7 @@ from typing import Optional
 
 import torch
 
+from dendritic_modeling.analysis.core.base import AbstractAnalyzer
 from dendritic_modeling.analysis.utils.runtime import (
     analysis_device_context,
     iter_analysis_batches,
@@ -24,7 +25,7 @@ from dendritic_modeling.utils import save_dict
 from dendritic_modeling.utils.hooks import ForwardHookRemovalMixin
 
 
-class SynapticActivationAnalyzer(ForwardHookRemovalMixin):
+class SynapticActivationAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
     """
     Analyzer for tracking synaptic activation patterns during model inference.
 
@@ -45,6 +46,7 @@ class SynapticActivationAnalyzer(ForwardHookRemovalMixin):
             downsample: Whether to downsample input data for efficiency
             samples: Number of samples to use if downsampling
         """
+        super().__init__("SynapticActivationAnalyzer")
         self.network_summary = getattr(params, "network_summary", False)
         self.layer_summary = getattr(params, "layer_summary", False)
         self.branch_summary = getattr(params, "branch_summary", False)

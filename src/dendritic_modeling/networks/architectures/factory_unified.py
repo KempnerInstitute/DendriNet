@@ -6,18 +6,12 @@ from collections.abc import Sequence
 from dataclasses import asdict
 from typing import Any
 
-from dendritic_modeling.config.conversion import to_plain_dict
+from dendritic_modeling.config.conversion import to_plain_dict as _to_plain_mapping
 from dendritic_modeling.config.legacy import canonicalize_unified_ei_config
 from dendritic_modeling.config.model_aliases import (
     get_unified_ei_alias_overrides,
     warn_alias_conflicts,
 )
-
-
-def _to_plain_mapping(obj: Any) -> dict[str, Any]:
-    """Best-effort conversion of config-like objects into a plain mapping."""
-
-    return to_plain_dict(obj)
 
 
 def _apply_population_alias_overrides(

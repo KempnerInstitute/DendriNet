@@ -7,7 +7,7 @@ from typing import Any
 
 from dendritic_modeling.config.conversion import (
     normalize_sparsity_type,
-    to_plain_dict,
+    to_plain_dict as _to_plain_mapping,
 )
 from dendritic_modeling.config.legacy import normalize_transfer_config
 from dendritic_modeling.networks.architectures.recurrent.structured_recurrent_types import (
@@ -15,11 +15,6 @@ from dendritic_modeling.networks.architectures.recurrent.structured_recurrent_ty
 )
 
 logger = logging.getLogger(__name__)
-
-
-def _to_plain_mapping(obj: Any) -> dict[str, Any]:
-    """Best-effort conversion of config-like objects into a plain mapping."""
-    return to_plain_dict(obj)
 
 
 def _normalize_sparsity_type(sparsity_type: Any) -> str:

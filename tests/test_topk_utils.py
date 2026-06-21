@@ -203,10 +203,18 @@ class TestAbstractAnalyzer(unittest.TestCase):
         """Test that concrete analyzers inherit from AbstractAnalyzer."""
         from dendritic_modeling.analysis.core.ablation import AblationAnalyzer
         from dendritic_modeling.analysis.core.base import AbstractAnalyzer
+        from dendritic_modeling.analysis.core.branch_activation import (
+            BranchActivationAnalyzer,
+        )
         from dendritic_modeling.analysis.core.information import InformationAnalyzer
+        from dendritic_modeling.analysis.tools.synaptic_activation import (
+            SynapticActivationAnalyzer,
+        )
         from dendritic_modeling.config.analysis import (
             AblationAnalysisParams,
+            BranchActivationAnalysisParams,
             InformationAnalysisParams,
+            SynapticActivationAnalysisParams,
         )
 
         # Test AblationAnalyzer
@@ -222,6 +230,19 @@ class TestAbstractAnalyzer(unittest.TestCase):
         self.assertIsInstance(info_analyzer, AbstractAnalyzer)
         self.assertTrue(hasattr(info_analyzer, "save_results"))
         self.assertTrue(hasattr(info_analyzer, "logger"))
+
+        # Test hook-based analyzers
+        branch_analyzer = BranchActivationAnalyzer(BranchActivationAnalysisParams())
+        self.assertIsInstance(branch_analyzer, AbstractAnalyzer)
+        self.assertTrue(hasattr(branch_analyzer, "save_results"))
+        self.assertTrue(hasattr(branch_analyzer, "logger"))
+
+        synaptic_analyzer = SynapticActivationAnalyzer(
+            SynapticActivationAnalysisParams()
+        )
+        self.assertIsInstance(synaptic_analyzer, AbstractAnalyzer)
+        self.assertTrue(hasattr(synaptic_analyzer, "save_results"))
+        self.assertTrue(hasattr(synaptic_analyzer, "logger"))
 
 
 class TestConfigCaching(unittest.TestCase):

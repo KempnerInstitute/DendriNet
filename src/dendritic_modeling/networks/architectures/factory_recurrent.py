@@ -7,7 +7,7 @@ from typing import Any
 import torch.nn as nn
 from omegaconf import DictConfig
 
-from dendritic_modeling.config.conversion import to_plain_dict
+from dendritic_modeling.config.conversion import to_plain_dict as _to_plain_mapping
 from dendritic_modeling.config.legacy import normalize_transfer_config
 
 _BASELINE_RNN_TYPES: dict[str, str] = {
@@ -20,12 +20,6 @@ _BASELINE_RNN_TYPES: dict[str, str] = {
 _POPULATION_NETWORK_TYPES: set[str] = {
     "population_network",
 }
-
-
-def _to_plain_mapping(obj: Any) -> dict[str, Any]:
-    """Best-effort conversion of config-like objects into a plain mapping."""
-
-    return to_plain_dict(obj)
 
 
 def _build_baseline_rnn_architecture(

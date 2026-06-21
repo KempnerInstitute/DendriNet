@@ -7,7 +7,18 @@ from typing import Any
 
 import torch.nn as nn
 
-from dendritic_modeling.config.conversion import to_plain_dict
+from dendritic_modeling.config.conversion import to_plain_dict as _to_plain_mapping
+
+__all__ = [
+    "_as_list",
+    "_first_list_value",
+    "_first_parameter",
+    "_get_attr_path",
+    "_infer_mlp_dims",
+    "_last_list_value",
+    "_set_attr_path",
+    "_to_plain_mapping",
+]
 
 
 def _first_parameter(module: nn.Module) -> nn.Parameter | None:
@@ -29,11 +40,6 @@ def _set_attr_path(root: object, path: str, value: object) -> None:
     if not hasattr(parent, attr):
         raise AttributeError(path)
     setattr(parent, attr, value)
-
-
-def _to_plain_mapping(obj: Any) -> dict[str, Any]:
-    """Convert config-like objects into plain dictionaries."""
-    return to_plain_dict(obj)
 
 
 def _infer_mlp_dims(mlp: nn.Module) -> tuple[int, int | None]:

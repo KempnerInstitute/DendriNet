@@ -6,11 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from dendritic_modeling.config.base import BaseConfig
-from dendritic_modeling.config.conversion import to_plain_dict
-
-
-def _to_plain_mapping(config: Any) -> dict[str, Any]:
-    return to_plain_dict(config)
+from dendritic_modeling.config.conversion import to_plain_dict as _to_plain_mapping
 
 
 @dataclass

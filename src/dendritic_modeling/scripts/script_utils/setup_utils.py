@@ -15,7 +15,7 @@ import wandb
 from omegaconf import OmegaConf
 
 from dendritic_modeling.config import DataConfig, ModelConfig, TrainingConfig
-from dendritic_modeling.config.conversion import to_plain_dict
+from dendritic_modeling.config.conversion import to_plain_dict as _config_to_plain_dict
 from dendritic_modeling.config.model import DecoderConfig, EncoderConfig
 from dendritic_modeling.config.recurrence import is_recurrent_core_config
 from dendritic_modeling.datasets import get_unified_datasets
@@ -27,11 +27,6 @@ from dendritic_modeling.utils.logging_config import LoggerManager
 
 logger = logging.getLogger(__name__)
 logger_manager = LoggerManager()
-
-
-def _config_to_plain_dict(cfg) -> dict:
-    """Convert config sections to plain dicts without leaking OmegaConf internals."""
-    return to_plain_dict(cfg)
 
 
 def _get_dataset_specific_params(data_config: DataConfig) -> dict:

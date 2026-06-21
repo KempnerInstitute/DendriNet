@@ -7,7 +7,7 @@ from typing import Any
 import torch.nn as nn
 from omegaconf import DictConfig
 
-from dendritic_modeling.config.conversion import to_plain_dict
+from dendritic_modeling.config.conversion import to_plain_dict as _to_plain_mapping
 
 # Spatial dendritic cores: flatten encoder spatial output -> EINet -> project.
 # Tensor-map baseline: flatten -> DendriNet -> project (no spatial locality).
@@ -24,12 +24,6 @@ _SPATIAL_DENDRITIC_CONV_TYPES: set[str] = {
     "hierarchical_dendritic_conv",
     "spatial_dendritic_conv",
 }
-
-
-def _to_plain_mapping(obj: Any) -> dict[str, Any]:
-    """Best-effort conversion of config-like objects into a plain mapping."""
-
-    return to_plain_dict(obj)
 
 
 def _build_spatial_dendritic_architecture(

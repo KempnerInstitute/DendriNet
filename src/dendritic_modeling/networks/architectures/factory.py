@@ -5,7 +5,7 @@ from typing import Any, Optional, Union
 import torch.nn as nn
 from omegaconf import DictConfig
 
-from dendritic_modeling.config.conversion import to_plain_dict
+from dendritic_modeling.config.conversion import to_plain_dict as _to_plain_mapping
 from dendritic_modeling.config.model_aliases import get_core_morphology_alias_overrides
 from dendritic_modeling.networks.architectures.classical.autoencoder import (
     CNNAutoencoder,
@@ -136,11 +136,6 @@ def get_available_architectures() -> list[str]:
     return sorted(
         set(_BUILTIN_ARCHITECTURE_TYPES) | set(get_registered_architecture_names())
     )
-
-
-def _to_plain_mapping(obj: Any) -> dict[str, Any]:
-    """Best-effort conversion of config-like objects into a plain mapping."""
-    return to_plain_dict(obj)
 
 
 ArchitectureBuilder = Callable[

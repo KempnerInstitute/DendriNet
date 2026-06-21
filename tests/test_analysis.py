@@ -444,6 +444,43 @@ class TestInformationAnalyzer(unittest.TestCase):
 
         self.assertIsNone(arrays)
 
+    def test_entropy_normalized_metrics_append_in_order(self):
+        """Basic-MI normalization should preserve legacy key order and values."""
+
+        class _Estimator:
+            def entropy(self, values):
+                np.testing.assert_array_equal(values, np.array([[0], [1], [0]]))
+                return 2.0
+
+        self.analyzer.method = "unit"
+        self.analyzer.estimators = {"unit": _Estimator()}
+        metrics = {"I(E;C)": 1.0, "I(I;C)": 0.5}
+
+        self.analyzer._add_entropy_normalized_metrics(metrics, np.array([0, 1, 0]))
+
+        self.assertEqual(
+            list(metrics),
+            ["I(E;C)", "I(I;C)", "I(E;C)_normalized", "I(I;C)_normalized"],
+        )
+        self.assertEqual(metrics["I(E;C)_normalized"], 0.5)
+        self.assertEqual(metrics["I(I;C)_normalized"], 0.25)
+
+    def test_entropy_normalized_metrics_zero_when_entropy_is_zero(self):
+        """Zero label entropy should preserve the previous zero-normalization guard."""
+
+        class _Estimator:
+            def entropy(self, values):
+                del values
+                return 0.0
+
+        self.analyzer.method = "unit"
+        self.analyzer.estimators = {"unit": _Estimator()}
+        metrics = {"I(E;C)": 1.0}
+
+        self.analyzer._add_entropy_normalized_metrics(metrics, np.array([0, 0, 0]))
+
+        self.assertEqual(metrics["I(E;C)_normalized"], 0.0)
+
     def test_model_supports_information_analysis_accepts_ei_core(self):
         """Model validation helper should accept compatible EI-core models."""
         with patch(

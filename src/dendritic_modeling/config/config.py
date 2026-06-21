@@ -28,7 +28,7 @@ from dendritic_modeling.config.analysis import (
     SpikeTrainAnalysisParams,
 )
 from dendritic_modeling.config.base import BaseConfig
-from dendritic_modeling.config.conversion import to_plain_dict
+from dendritic_modeling.config.conversion import to_plain_dict as _to_plain_dict
 from dendritic_modeling.config.legacy import normalize_transfer_config
 from dendritic_modeling.config.local_learning import (
     build_local_rule_config as _build_local_rule_config,
@@ -298,11 +298,6 @@ class Config:
     wandb: WandbConfig = field(default_factory=WandbConfig)
     outputs: OutputsConfig = field(default_factory=OutputsConfig)
     distributed: DistributedConfig = field(default_factory=DistributedConfig)
-
-
-def _to_plain_dict(data: Any) -> dict[str, Any]:
-    """Convert OmegaConf/dict-like objects to a plain Python dict."""
-    return to_plain_dict(data)
 
 
 def _build_core_config(core_data: Any) -> CoreConfig:
