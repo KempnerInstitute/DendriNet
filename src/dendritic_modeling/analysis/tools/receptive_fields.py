@@ -21,6 +21,7 @@ from dendritic_modeling.utils import save_dict
 from dendritic_modeling.utils.hooks import (
     ForwardHookRemovalMixin,
     iter_named_modules_of_type,
+    register_hook_groups,
     register_named_forward_hook_groups,
     run_with_forward_hooks,
 )
@@ -215,27 +216,30 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
     def _attach_activation_hooks(
         self, module_name: str, module: DendriticBranchLayer
     ) -> list[torch.utils.hooks.RemovableHandle]:
-        handles = []
-        try:
+        def _hook_specs():
             if module.branch_excitation is not None:
-                handles.append(
-                    self._register_activation_hook(
-                        module.branch_excitation, module_name, "exc"
-                    )
+                yield (
+                    module.branch_excitation,
+                    "exc",
                 )
             if module.branch_inhibition is not None:
-                handles.append(
-                    self._register_activation_hook(
-                        module.branch_inhibition, module_name, "inh"
-                    )
+                yield (
+                    module.branch_inhibition,
+                    "inh",
                 )
-            handles.append(
-                self._register_activation_hook(module.reactivation, module_name, "vout")
-            )
-            return handles
-        except Exception:
-            self.remove_forward_hooks(handles)
-            raise
+            yield module.reactivation, "vout"
+
+        def _register_hook(spec):
+            hook_module, activation_type = spec
+            return [
+                self._register_activation_hook(
+                    hook_module,
+                    module_name,
+                    activation_type,
+                )
+            ]
+
+        return register_hook_groups(_hook_specs(), _register_hook)
 
     def _summarize_signal(
         self,

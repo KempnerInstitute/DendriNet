@@ -26,7 +26,7 @@ from dendritic_modeling.training._transformer_replacement.common import (
     _to_plain_mapping,
 )
 from dendritic_modeling.training.replacement_common import _load_tensor_payload
-from dendritic_modeling.utils.hooks import ForwardHookRemovalMixin
+from dendritic_modeling.utils.hooks import ForwardHookRemovalMixin, register_hook_groups
 
 
 def _sample_hidden_pairs(
@@ -198,20 +198,32 @@ class _MLPIOCapture(ForwardHookRemovalMixin):
         self.handles = []
         try:
             layers = resolve_transformer_layers(model, layers_attr=layers_attr)
-            for layer_index in layer_indices:
+
+            def _register_layer_hooks(layer_index_raw: int):
+                layer_index = int(layer_index_raw)
                 layer = layers[int(layer_index)]
                 mlp = _get_attr_path(layer, mlp_attr)
                 if not isinstance(mlp, nn.Module):
                     raise TypeError(
                         f"layer {layer_index} target {mlp_attr!r} is not an nn.Module"
                     )
-                self.records[int(layer_index)] = {}
-                self.handles.append(
-                    mlp.register_forward_pre_hook(self._make_pre_hook(int(layer_index)))
+                self.records[layer_index] = {}
+
+                def _register_hook(hook_type: str):
+                    if hook_type == "pre":
+                        return [
+                            mlp.register_forward_pre_hook(
+                                self._make_pre_hook(layer_index)
+                            )
+                        ]
+                    return [mlp.register_forward_hook(self._make_hook(layer_index))]
+
+                return register_hook_groups(
+                    ("pre", "forward"),
+                    _register_hook,
                 )
-                self.handles.append(
-                    mlp.register_forward_hook(self._make_hook(int(layer_index)))
-                )
+
+            self.handles = register_hook_groups(layer_indices, _register_layer_hooks)
         except Exception:
             self.close()
             raise

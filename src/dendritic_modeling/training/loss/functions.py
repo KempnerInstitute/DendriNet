@@ -18,6 +18,7 @@ from dendritic_modeling.utils.hooks import (
     ForwardHookRemovalMixin,
     iter_modules_of_type,
     register_forward_hook_groups,
+    register_hook_groups,
 )
 
 LossBuilder = Callable[[], "LossFunction"]
@@ -466,28 +467,25 @@ class ExcitationInhibitionBalanceLoss(ForwardHookRemovalMixin, LossFunction):
         self,
         module: DendriticBranchLayer,
     ) -> list[torch.utils.hooks.RemovableHandle]:
-        handles = []
-        try:
+        def _hook_specs():
             if (
                 module.branch_excitation is not None
                 and module.branch_inhibition is not None
             ):
-                handle = module.branch_excitation.register_forward_hook(
-                    lambda module, inputs, outputs: self.forward_hook(
-                        module, inputs, outputs, "exc"
+                yield module.branch_excitation, "exc"
+                yield module.branch_inhibition, "inh"
+
+        def _register_hook(spec):
+            hook_module, activation = spec
+            return [
+                hook_module.register_forward_hook(
+                    lambda module, inputs, outputs, activation=activation: (
+                        self.forward_hook(module, inputs, outputs, activation)
                     )
                 )
-                handles.append(handle)
-                handle = module.branch_inhibition.register_forward_hook(
-                    lambda module, inputs, outputs: self.forward_hook(
-                        module, inputs, outputs, "inh"
-                    )
-                )
-                handles.append(handle)
-            return handles
-        except Exception:
-            self.remove_forward_hooks(handles)
-            raise
+            ]
+
+        return register_hook_groups(_hook_specs(), _register_hook)
 
     def forward_hook(
         self,
@@ -549,14 +547,10 @@ class HomeostaticControlLoss(ForwardHookRemovalMixin, LossFunction):
         )
 
     def attach_forward_hooks(self, model: BaseModel):
-        handles = []
-        try:
-            handles.extend(self.voltage_stabilization.attach_forward_hooks(model))
-            handles.extend(self.ei_balance.attach_forward_hooks(model))
-            return handles
-        except Exception:
-            self.remove_forward_hooks(handles)
-            raise
+        return register_hook_groups(
+            (self.voltage_stabilization, self.ei_balance),
+            lambda loss_fn: loss_fn.attach_forward_hooks(model),
+        )
 
     def forward(
         self, model: BaseModel, x: torch.Tensor, y: Optional[torch.Tensor] = None

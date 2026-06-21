@@ -36,6 +36,7 @@ from dendritic_modeling.networks import (
 from dendritic_modeling.utils import save_dict
 from dendritic_modeling.utils.hooks import (
     ForwardHookRemovalMixin,
+    register_hook_groups,
     register_named_forward_hook_groups,
     register_named_forward_hooks,
     run_with_forward_hooks,
@@ -268,29 +269,26 @@ class CorrelationAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
     def _attach_synaptic_layer_hooks(
         self, layer_name: str, module: DendriticBranchLayer
     ) -> list[torch.utils.hooks.RemovableHandle]:
-        handles = []
-        try:
+        def _hook_specs():
             if module.branch_excitation is not None:
-                handles.append(
-                    module.branch_excitation.register_forward_hook(
-                        self._make_synapse_hook(layer_name, "E")
-                    )
+                yield (
+                    module.branch_excitation,
+                    self._make_synapse_hook(layer_name, "E"),
                 )
 
             if module.branch_inhibition is not None:
-                handles.append(
-                    module.branch_inhibition.register_forward_hook(
-                        self._make_synapse_hook(layer_name, "I")
-                    )
+                yield (
+                    module.branch_inhibition,
+                    self._make_synapse_hook(layer_name, "I"),
                 )
 
-            handles.append(
-                module.register_forward_hook(self._make_output_hook(layer_name))
-            )
-            return handles
-        except Exception:
-            self.remove_forward_hooks(handles)
-            raise
+            yield module, self._make_output_hook(layer_name)
+
+        def _register_hook(spec):
+            hook_module, hook = spec
+            return [hook_module.register_forward_hook(hook)]
+
+        return register_hook_groups(_hook_specs(), _register_hook)
 
     def _make_synapse_hook(self, layer_name: str, synapse_type: str):
         def hook(module, input, output):

@@ -21,6 +21,7 @@ from dendritic_modeling.training.strategies.standard import Trainer
 from dendritic_modeling.utils.hooks import (
     ForwardHookRemovalMixin,
     iter_modules_of_type,
+    register_hook_groups,
     run_with_forward_hooks,
 )
 
@@ -197,16 +198,14 @@ class FeedbackAlignmentTrainer(ForwardHookRemovalMixin, Trainer):
         self,
         activations: dict[int, torch.Tensor],
     ) -> list[torch.utils.hooks.RemovableHandle]:
-        handles = []
-        try:
-            for idx, (mod, *_rest) in enumerate(self._layer_info):
-                handles.append(
-                    mod.register_forward_hook(self._make_hook(activations, idx))
-                )
-            return handles
-        except Exception:
-            self.remove_forward_hooks(handles)
-            raise
+        def _register_layer_hook(layer_entry):
+            idx, (mod, *_rest) = layer_entry
+            return [mod.register_forward_hook(self._make_hook(activations, idx))]
+
+        return register_hook_groups(
+            enumerate(self._layer_info),
+            _register_layer_hook,
+        )
 
     @staticmethod
     def _make_hook(store: dict, key: int):
@@ -496,20 +495,33 @@ class ShuntingFeedbackAlignmentTrainer(FeedbackAlignmentTrainer):
         activations: dict[int, torch.Tensor],
         branch_layers: list[DendriticBranchLayer],
     ) -> list[torch.utils.hooks.RemovableHandle]:
-        handles = self._attach_activation_hooks(activations)
-        try:
-            for bl_idx, bl in enumerate(branch_layers):
-                handles.append(
-                    bl.register_forward_hook(
+        def _attach_voltage_hooks():
+            def _register_branch_hook(branch_entry):
+                bl_idx, branch_layer = branch_entry
+                return [
+                    branch_layer.register_forward_hook(
                         self._make_voltage_hook(
-                            self._layer_voltages, self._layer_g_tot, bl_idx
+                            self._layer_voltages,
+                            self._layer_g_tot,
+                            bl_idx,
                         )
                     )
-                )
-            return handles
-        except Exception:
-            self.remove_forward_hooks(handles)
-            raise
+                ]
+
+            return register_hook_groups(
+                enumerate(branch_layers),
+                _register_branch_hook,
+            )
+
+        def _register_group(group_name: str):
+            if group_name == "activations":
+                return self._attach_activation_hooks(activations)
+            return _attach_voltage_hooks()
+
+        return register_hook_groups(
+            ("activations", "voltages"),
+            _register_group,
+        )
 
     def _modulate_error_with_shunting(
         self, e_local: torch.Tensor, layer_idx: int

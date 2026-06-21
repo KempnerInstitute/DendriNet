@@ -136,6 +136,29 @@ def test_mlp_io_capture_removes_hooks_after_partial_init_failure():
     assert _count_forward_hooks(model) == 0
 
 
+def test_mlp_io_capture_removes_pre_hook_when_forward_hook_registration_fails(
+    monkeypatch,
+):
+    model = TinyHFLikeModel(n_layers=1)
+    mlp = model.model.layers[0].mlp
+
+    def _raise_forward_hook_failure(*args, **kwargs):
+        raise RuntimeError("forward hook registration failed")
+
+    monkeypatch.setattr(mlp, "register_forward_hook", _raise_forward_hook_failure)
+
+    assert _count_forward_hooks(model) == 0
+    with pytest.raises(RuntimeError, match="forward hook registration failed"):
+        _MLPIOCapture(
+            model,
+            layer_indices=[0],
+            layers_attr="model.layers",
+            mlp_attr="mlp",
+        )
+
+    assert _count_forward_hooks(model) == 0
+
+
 def test_mlp_io_capture_close_removes_hooks_and_clears_handles():
     model = TinyHFLikeModel(n_layers=1)
     capture = _MLPIOCapture(
