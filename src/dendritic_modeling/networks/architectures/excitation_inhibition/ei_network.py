@@ -41,6 +41,135 @@ from dendritic_modeling.networks.utils.weight_transforms import (
 logger = logging.getLogger(__name__)
 
 
+def _extend_synapse_schedule(
+    values: list[int],
+    *,
+    num_layers: int,
+    required: bool,
+    empty_error: str,
+    default_value: int = 0,
+) -> list[int]:
+    """Extend a per-layer synapse schedule without inventing nonzero defaults."""
+
+    schedule = list(values)
+    while len(schedule) < num_layers:
+        if schedule:
+            schedule.append(schedule[-1])
+        elif required:
+            raise ValueError(empty_error)
+        else:
+            schedule.append(default_value)
+    return schedule
+
+
+def _prepare_ei_layer_size_sequences(
+    *,
+    input_dim: int,
+    excitatory_layer_sizes: list[int],
+    inhibitory_layer_sizes: list[int],
+    input_mode: int,
+    input_mode1_builds_i: bool,
+) -> tuple[list[int], list[int | None]]:
+    """Prepare per-layer E/I sizes including the input sentinel."""
+
+    prepared_excitatory_sizes = deepcopy(excitatory_layer_sizes)
+    prepared_inhibitory_sizes: list[int | None] = deepcopy(inhibitory_layer_sizes)
+    prepared_excitatory_sizes.insert(0, input_dim)
+
+    # Preserve the legacy feedforward contract: input_mode=1 uses the
+    # transferred inhibitory stream directly and does not build explicit
+    # inhibitory cells. New configs can opt into input_mode=1 plus explicit
+    # I cells with transfer.input_mode1_build_inhibitory_population.
+    if input_mode == 1:
+        if not input_mode1_builds_i:
+            prepared_inhibitory_sizes = [None] * len(excitatory_layer_sizes)
+        elif not prepared_inhibitory_sizes:
+            prepared_inhibitory_sizes = [None] * len(excitatory_layer_sizes)
+        prepared_inhibitory_sizes.insert(0, None)
+    else:
+        prepared_inhibitory_sizes.insert(0, None)
+
+    return prepared_excitatory_sizes, prepared_inhibitory_sizes
+
+
+def _resolve_ei_layer_build_spec(
+    *,
+    layer_idx: int,
+    excitatory_layer_sizes: list[int],
+    inhibitory_layer_sizes: list[int | None],
+    excitatory_input_dim: int,
+    inhibitory_input_dim: int | None,
+    ei_synapses_per_branch,
+    ii_synapses_per_branch,
+) -> dict[str, Any]:
+    """Resolve dimensions and inhibitory-population build flag for one EI layer."""
+
+    inhibitory_population_has_drive = (
+        int(ei_synapses_per_branch or 0) > 0 or int(ii_synapses_per_branch or 0) > 0
+    )
+    n_inhibitory_cells = (
+        inhibitory_layer_sizes[layer_idx + 1]
+        if layer_idx + 1 < len(inhibitory_layer_sizes)
+        else None
+    )
+    build_inhibitory_cells = (
+        n_inhibitory_cells is not None
+        and n_inhibitory_cells > 0
+        and inhibitory_population_has_drive
+    )
+
+    if layer_idx == 0:
+        layer_excitatory_input_dim = excitatory_input_dim
+        layer_inhibitory_input_dim = inhibitory_input_dim
+    else:
+        layer_excitatory_input_dim = excitatory_layer_sizes[layer_idx]
+        layer_inhibitory_input_dim = (
+            inhibitory_layer_sizes[layer_idx]
+            if layer_idx < len(inhibitory_layer_sizes)
+            else None
+        )
+
+    return {
+        "n_excitatory_cells": excitatory_layer_sizes[layer_idx + 1],
+        "n_inhibitory_cells": n_inhibitory_cells,
+        "excitatory_input_dim": layer_excitatory_input_dim,
+        "inhibitory_input_dim": layer_inhibitory_input_dim,
+        "build_inhibitory_cells": build_inhibitory_cells,
+    }
+
+
+def _validate_direct_inhibitory_stream_contract(
+    *,
+    input_mode: int,
+    has_inhibitory_neurons: bool,
+    ie_synapses_per_branch_per_layer: list[int],
+    allow_direct_inhibitory_stream: bool,
+    require_direct_stream_opt_in: bool,
+) -> None:
+    """Validate explicit opt-in when input_mode=1 uses direct inhibitory drive."""
+
+    uses_direct_inhibitory_stream = (
+        input_mode == 1
+        and not has_inhibitory_neurons
+        and any(int(v or 0) > 0 for v in ie_synapses_per_branch_per_layer)
+    )
+    if (
+        uses_direct_inhibitory_stream
+        and require_direct_stream_opt_in
+        and not allow_direct_inhibitory_stream
+    ):
+        raise ValueError(
+            "input_mode=1 with empty inhibitory_layer_sizes and nonzero "
+            "ie_synapses_per_branch_per_layer would use the transferred "
+            "inhibitory stream directly instead of building inhibitory "
+            "neurons. To build an inhibitory population, set positive "
+            "architecture.inhibitory_layer_sizes and "
+            "transfer.input_mode1_build_inhibitory_population=true. To use "
+            "the direct stream explicitly, set "
+            "transfer.allow_direct_inhibitory_stream=true."
+        )
+
+
 class ExcitationInhibitionNetwork(BaseNetwork):
     """Excitation-Inhibition network for dendritic modeling.
 
@@ -240,30 +369,19 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         # Create network layers using ExcitationInhibitionLayer
         layers = []
 
-        # Setup the lists we need
-        excitatory_layer_sizes = deepcopy(self.excitatory_layer_sizes)
-        inhibitory_layer_sizes = deepcopy(self.inhibitory_layer_sizes)
-
-        # Insert input_dim at the beginning
-        excitatory_layer_sizes.insert(0, self.input_dim)
-
         input_mode = self.transfer_params.get("input_mode", 0)
         input_mode1_builds_i = bool(
             self.transfer_params.get("input_mode1_build_inhibitory_population", False)
         )
-
-        # Preserve the legacy feedforward contract: input_mode=1 uses the
-        # transferred inhibitory stream directly and does not build explicit
-        # inhibitory cells. New configs can opt into input_mode=1 plus
-        # explicit I cells with transfer.input_mode1_build_inhibitory_population.
-        if input_mode == 1:
-            if not input_mode1_builds_i:
-                inhibitory_layer_sizes = [None] * len(self.excitatory_layer_sizes)
-            elif not inhibitory_layer_sizes:
-                inhibitory_layer_sizes = [None] * len(self.excitatory_layer_sizes)
-            inhibitory_layer_sizes.insert(0, None)
-        else:
-            inhibitory_layer_sizes.insert(0, None)
+        excitatory_layer_sizes, inhibitory_layer_sizes = (
+            _prepare_ei_layer_size_sequences(
+                input_dim=self.input_dim,
+                excitatory_layer_sizes=self.excitatory_layer_sizes,
+                inhibitory_layer_sizes=self.inhibitory_layer_sizes,
+                input_mode=input_mode,
+                input_mode1_builds_i=input_mode1_builds_i,
+            )
+        )
 
         # Set up synapses per branch per layer
         ee_syn = list(self.ee_synapses_per_branch_per_layer)
@@ -278,127 +396,78 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         has_inhibitory_neurons = any(
             size is not None and size > 0 for size in inhibitory_layer_sizes
         )
-        uses_direct_inhibitory_stream = (
-            input_mode == 1
-            and not has_inhibitory_neurons
-            and any(int(v or 0) > 0 for v in ie_syn)
-        )
-        allow_direct_inhibitory_stream = bool(
-            self.transfer_params.get("allow_direct_inhibitory_stream", False)
-        )
-        require_direct_stream_opt_in = bool(
-            self.transfer_params.get("require_explicit_direct_inhibitory_stream", False)
-        )
-        if (
-            uses_direct_inhibitory_stream
-            and require_direct_stream_opt_in
-            and not allow_direct_inhibitory_stream
-        ):
-            raise ValueError(
-                "input_mode=1 with empty inhibitory_layer_sizes and nonzero "
-                "ie_synapses_per_branch_per_layer would use the transferred "
-                "inhibitory stream directly instead of building inhibitory "
-                "neurons. To build an inhibitory population, set positive "
-                "architecture.inhibitory_layer_sizes and "
-                "transfer.input_mode1_build_inhibitory_population=true. To use "
-                "the direct stream explicitly, set "
-                "transfer.allow_direct_inhibitory_stream=true."
-            )
-
-        # Only extend lists if they have values to repeat, otherwise error
-        while len(ee_syn) < num_layers:
-            if ee_syn:
-                ee_syn.append(ee_syn[-1])
-            else:
-                raise ValueError("ee_synapses_per_branch_per_layer cannot be empty")
-
-        # EI synapses: only required if inhibitory neurons exist
-        while len(ei_syn) < num_layers:
-            if ei_syn:
-                ei_syn.append(ei_syn[-1])
-            elif has_inhibitory_neurons:
-                raise ValueError(
-                    "ei_synapses_per_branch_per_layer cannot be empty when inhibitory neurons exist"
+        _validate_direct_inhibitory_stream_contract(
+            input_mode=input_mode,
+            has_inhibitory_neurons=has_inhibitory_neurons,
+            ie_synapses_per_branch_per_layer=ie_syn,
+            allow_direct_inhibitory_stream=bool(
+                self.transfer_params.get("allow_direct_inhibitory_stream", False)
+            ),
+            require_direct_stream_opt_in=bool(
+                self.transfer_params.get(
+                    "require_explicit_direct_inhibitory_stream", False
                 )
-            else:
-                # No inhibitory neurons, so E->I connections are not needed
-                ei_syn.append(0)
+            ),
+        )
 
-        # IE synapses: required for input_mode=1 or when inhibitory neurons exist
-        while len(ie_syn) < num_layers:
-            if ie_syn:
-                ie_syn.append(ie_syn[-1])
-            elif (
-                self.transfer_params.get("input_mode", 0) == 1 or has_inhibitory_neurons
-            ):
-                raise ValueError("ie_synapses_per_branch_per_layer cannot be empty")
-            else:
-                # No inhibitory input available, so I->E connections are not needed
-                ie_syn.append(0)
-
-        # II synapses: only required if inhibitory neurons exist
-        while len(ii_syn) < num_layers:
-            if ii_syn:
-                ii_syn.append(ii_syn[-1])
-            elif has_inhibitory_neurons:
-                raise ValueError(
-                    "ii_synapses_per_branch_per_layer cannot be empty when inhibitory neurons exist"
-                )
-            else:
-                # No inhibitory neurons, so I->I connections are not needed
-                ii_syn.append(0)
+        ee_syn = _extend_synapse_schedule(
+            ee_syn,
+            num_layers=num_layers,
+            required=True,
+            empty_error="ee_synapses_per_branch_per_layer cannot be empty",
+        )
+        ei_syn = _extend_synapse_schedule(
+            ei_syn,
+            num_layers=num_layers,
+            required=has_inhibitory_neurons,
+            empty_error=(
+                "ei_synapses_per_branch_per_layer cannot be empty when "
+                "inhibitory neurons exist"
+            ),
+        )
+        ie_syn = _extend_synapse_schedule(
+            ie_syn,
+            num_layers=num_layers,
+            required=input_mode == 1 or has_inhibitory_neurons,
+            empty_error="ie_synapses_per_branch_per_layer cannot be empty",
+        )
+        ii_syn = _extend_synapse_schedule(
+            ii_syn,
+            num_layers=num_layers,
+            required=has_inhibitory_neurons,
+            empty_error=(
+                "ii_synapses_per_branch_per_layer cannot be empty when "
+                "inhibitory neurons exist"
+            ),
+        )
 
         excitatory_input_dim = self.transfer_fn.excitatory_dim
         inhibitory_input_dim = self.transfer_fn.inhibitory_dim
 
         # Build each layer
         for i in range(num_layers):
-            # Build inhibitory cells whenever an inhibitory layer size is active
-            # for this layer. For input_mode=1 this only happens when the config
-            # explicitly opts into input_mode1_build_inhibitory_population.
-            inhibitory_population_has_drive = (
-                int(ei_syn[i] or 0) > 0 or int(ii_syn[i] or 0) > 0
-            )
-            build_inhibitory_cells = (
-                i + 1 < len(inhibitory_layer_sizes)
-                and inhibitory_layer_sizes[i + 1] is not None
-                and inhibitory_layer_sizes[i + 1] > 0
-                and inhibitory_population_has_drive
-            )
-
-            # For the first layer, determine correct dimensions
-            if i == 0:
-                # First layer receives input from transfer function
-                layer_excitatory_input_dim = excitatory_input_dim
-                layer_inhibitory_input_dim = inhibitory_input_dim
-            else:
-                # Subsequent layers receive outputs from previous layer
-                layer_excitatory_input_dim = excitatory_layer_sizes[i]
-                layer_inhibitory_input_dim = (
-                    inhibitory_layer_sizes[i]
-                    if i < len(inhibitory_layer_sizes)
-                    else None
-                )
-
-            # Get n_inhibitory_cells for this layer
-            n_inhibitory_cells = (
-                inhibitory_layer_sizes[i + 1]
-                if i + 1 < len(inhibitory_layer_sizes)
-                else None
+            layer_spec = _resolve_ei_layer_build_spec(
+                layer_idx=i,
+                excitatory_layer_sizes=excitatory_layer_sizes,
+                inhibitory_layer_sizes=inhibitory_layer_sizes,
+                excitatory_input_dim=excitatory_input_dim,
+                inhibitory_input_dim=inhibitory_input_dim,
+                ei_synapses_per_branch=ei_syn[i],
+                ii_synapses_per_branch=ii_syn[i],
             )
 
             # Create ExcitationInhibitionLayer
             layer = ExcitationInhibitionLayer(
-                n_excitatory_cells=excitatory_layer_sizes[i + 1],
-                n_inhibitory_cells=n_inhibitory_cells,
+                n_excitatory_cells=layer_spec["n_excitatory_cells"],
+                n_inhibitory_cells=layer_spec["n_inhibitory_cells"],
                 excitatory_branch_factors=self.excitatory_branch_factors,
                 inhibitory_branch_factors=self.inhibitory_branch_factors,
-                excitatory_input_dim=layer_excitatory_input_dim,
+                excitatory_input_dim=layer_spec["excitatory_input_dim"],
                 ee_synapses_per_branch=ee_syn[i],
                 ei_synapses_per_branch=ei_syn[i],
-                build_inhibitory_cells=build_inhibitory_cells,
+                build_inhibitory_cells=layer_spec["build_inhibitory_cells"],
                 inhibitory_network_type=self.inhibitory_network_type,
-                inhibitory_input_dim=layer_inhibitory_input_dim,
+                inhibitory_input_dim=layer_spec["inhibitory_input_dim"],
                 ie_synapses_per_branch=ie_syn[i],
                 ii_synapses_per_branch=ii_syn[i],
                 reactivate=self.reactivate,
