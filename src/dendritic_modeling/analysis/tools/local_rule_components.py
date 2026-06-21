@@ -203,61 +203,94 @@ class LocalRuleComponentAnalyzer(AbstractAnalyzer):
         if getattr(self.params, "include_broadcast", True) and hasattr(
             model, "decoder_network"
         ):
-
-            def _decoder_pre_hook(_mod, inputs):
-                if inputs and isinstance(inputs[0], torch.Tensor):
-                    decoder_cache["decoder_input"] = inputs[0]
-
             handles.append(
-                model.decoder_network.register_forward_pre_hook(_decoder_pre_hook)
+                self._register_decoder_input_hook(model.decoder_network, decoder_cache)
             )
 
         for module_name, module in model.named_modules():
             if not isinstance(module, DendriticBranchLayer):
                 continue
-            population = (
-                "explicit_inhibitory"
-                if ".inhibitory_cells." in module_name
-                else "excitatory"
-            )
-            rec: dict[str, Any] = {
-                "layer": module,
-                "module_name": module_name,
-                "population": population,
-                "branch_module_index": _parse_branch_module_index(module_name),
-                "dendritic_depth": int(getattr(module, "layer_idx", -1)),
-            }
-
-            def _react_hook(_m, inputs, outputs, rec=rec):
-                rec["v_n"] = inputs[0].detach() if inputs else None
-                rec["v_out"] = outputs.detach() if torch.is_tensor(outputs) else None
-
-            handles.append(module.reactivation.register_forward_hook(_react_hook))
-
-            for path, topk_layer in iter_topk_path_modules(
-                module, _LOCAL_RULE_TOPK_PATHS
-            ):
-
-                def _topk_hook(
-                    _m, inputs, outputs, rec=rec, layer=topk_layer, path=path
-                ):
-                    _record_topk_forward(rec, path, layer, inputs, outputs)
-
-                handles.append(topk_layer.register_forward_hook(_topk_hook))
-
+            rec = self._branch_record(module_name, module)
+            handles.append(self._register_reactivation_hook(module, rec))
+            handles.extend(self._register_topk_hooks(module, rec))
             blk_layer = getattr(module, "branches_to_output", None)
             if blk_layer is not None:
-
-                def _blk_hook(_m, inputs, outputs, rec=rec, layer=blk_layer):
-                    rec["x_blk_raw"] = inputs[0].detach() if inputs else None
-                    rec["blk_out"] = outputs.detach()
-                    rec["blk_module"] = layer
-
-                handles.append(blk_layer.register_forward_hook(_blk_hook))
+                handles.append(self._register_block_output_hook(blk_layer, rec))
 
             records.append(rec)
 
         return records, handles, decoder_cache
+
+    def _register_decoder_input_hook(
+        self,
+        decoder_network: nn.Module,
+        decoder_cache: dict[str, torch.Tensor],
+    ) -> torch.utils.hooks.RemovableHandle:
+        def _decoder_pre_hook(_mod, inputs):
+            if inputs and isinstance(inputs[0], torch.Tensor):
+                decoder_cache["decoder_input"] = inputs[0]
+
+        return decoder_network.register_forward_pre_hook(_decoder_pre_hook)
+
+    def _branch_record(
+        self, module_name: str, module: DendriticBranchLayer
+    ) -> dict[str, Any]:
+        return {
+            "layer": module,
+            "module_name": module_name,
+            "population": self._population_label(module_name),
+            "branch_module_index": _parse_branch_module_index(module_name),
+            "dendritic_depth": int(getattr(module, "layer_idx", -1)),
+        }
+
+    def _population_label(self, module_name: str) -> str:
+        if ".inhibitory_cells." in module_name:
+            return "explicit_inhibitory"
+        return "excitatory"
+
+    def _register_reactivation_hook(
+        self,
+        module: DendriticBranchLayer,
+        rec: dict[str, Any],
+    ) -> torch.utils.hooks.RemovableHandle:
+        def _react_hook(_m, inputs, outputs, rec=rec):
+            rec["v_n"] = inputs[0].detach() if inputs else None
+            rec["v_out"] = outputs.detach() if torch.is_tensor(outputs) else None
+
+        return module.reactivation.register_forward_hook(_react_hook)
+
+    def _register_topk_hooks(
+        self,
+        module: DendriticBranchLayer,
+        rec: dict[str, Any],
+    ) -> list[torch.utils.hooks.RemovableHandle]:
+        handles = []
+        for path, topk_layer in iter_topk_path_modules(module, _LOCAL_RULE_TOPK_PATHS):
+            handles.append(self._register_topk_hook(rec, path, topk_layer))
+        return handles
+
+    def _register_topk_hook(
+        self,
+        rec: dict[str, Any],
+        path: TopKGradientPath,
+        topk_layer: TopKLinear,
+    ) -> torch.utils.hooks.RemovableHandle:
+        def _topk_hook(_m, inputs, outputs, rec=rec, layer=topk_layer, path=path):
+            _record_topk_forward(rec, path, layer, inputs, outputs)
+
+        return topk_layer.register_forward_hook(_topk_hook)
+
+    def _register_block_output_hook(
+        self,
+        blk_layer: nn.Module,
+        rec: dict[str, Any],
+    ) -> torch.utils.hooks.RemovableHandle:
+        def _blk_hook(_m, inputs, outputs, rec=rec, layer=blk_layer):
+            rec["x_blk_raw"] = inputs[0].detach() if inputs else None
+            rec["blk_out"] = outputs.detach()
+            rec["blk_module"] = layer
+
+        return blk_layer.register_forward_hook(_blk_hook)
 
     def _activation_derivative(self, rec: dict[str, Any]) -> torch.Tensor:
         v_n = rec.get("v_n")

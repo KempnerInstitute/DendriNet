@@ -98,11 +98,22 @@ class SpikeTrainAnalyzer(AbstractAnalyzer):
         self, model: BaseModel
     ) -> list[torch.utils.hooks.RemovableHandle]:
         handles = []
+        for name, module in self._iter_lif_somas(model):
+            handles.append(self._register_spike_hook(name, module))
+        return handles
+
+    def _iter_lif_somas(self, model: BaseModel):
         for name, module in model.named_modules():
             if isinstance(module, LIFSoma):
-                module._analysis_name = name
-                handles.append(module.register_forward_hook(self._forward_hook))
-        return handles
+                yield name, module
+
+    def _register_spike_hook(
+        self,
+        name: str,
+        module: LIFSoma,
+    ) -> torch.utils.hooks.RemovableHandle:
+        module._analysis_name = name
+        return module.register_forward_hook(self._forward_hook)
 
     @staticmethod
     def _remove_hooks(handles: list[torch.utils.hooks.RemovableHandle]) -> None:
@@ -152,17 +163,7 @@ class SpikeTrainAnalyzer(AbstractAnalyzer):
 
         sample_cap = getattr(self.params, "max_samples", None)
         try:
-            with analysis_device_context(model, device) as analysis_device:
-                with torch.no_grad():
-                    for batch in iter_analysis_batches(
-                        data,
-                        runtime,
-                        sample_cap,
-                        device=analysis_device,
-                    ):
-                        self._current_batch = {}
-                        _ = model(batch[0].to(analysis_device))
-                        self._finalize_current_batch()
+            self._collect_spike_sequences(model, data, device, runtime, sample_cap)
         finally:
             self._remove_hooks(handles)
 
@@ -181,6 +182,34 @@ class SpikeTrainAnalyzer(AbstractAnalyzer):
 
         self.log_analysis_end("spike_trains", num_results=len(results["populations"]))
         return results
+
+    def _collect_spike_sequences(
+        self,
+        model: BaseModel,
+        data: torch.utils.data.Dataset,
+        device: str,
+        runtime: EvaluationRuntimeConfig | None,
+        sample_cap: int | None,
+    ) -> None:
+        with analysis_device_context(model, device) as analysis_device:
+            with torch.no_grad():
+                for batch in iter_analysis_batches(
+                    data,
+                    runtime,
+                    sample_cap,
+                    device=analysis_device,
+                ):
+                    self._collect_batch_spikes(model, batch, analysis_device)
+
+    def _collect_batch_spikes(
+        self,
+        model: BaseModel,
+        batch: tuple[Any, ...],
+        device: torch.device,
+    ) -> None:
+        self._current_batch = {}
+        _ = model(batch[0].to(device))
+        self._finalize_current_batch()
 
     def _summarize_sequences(self, sequences: list[torch.Tensor]) -> dict[str, Any]:
         threshold = float(self.params.threshold)

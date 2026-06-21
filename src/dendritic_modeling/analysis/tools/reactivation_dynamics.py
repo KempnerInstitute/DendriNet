@@ -245,9 +245,7 @@ class ReactivationDynamicsAnalyzer(AbstractAnalyzer):
             self.logger.debug("No ParametricTanh reactivations found; skipping")
             return {}
 
-        dataset = train_ds if training else test_ds
-        if dataset is None:
-            dataset = valid_ds or test_ds
+        dataset = self._select_dataset(training, train_ds, valid_ds, test_ds)
         if dataset is None:
             self.logger.debug("No dataset available; skipping dynamics snapshot")
             return {}
@@ -257,78 +255,120 @@ class ReactivationDynamicsAnalyzer(AbstractAnalyzer):
             if x is None:
                 return {}
 
-            # Recurrent models expect [B, T, D]; add a length-1 time
-            # dimension so the forward pass runs a single timestep.
-            is_recurrent = getattr(model, "_is_recurrent_core", False)
-            if is_recurrent and x.dim() == 2:
-                x = x.unsqueeze(1)
+            x = self._prepare_inputs(model, x)
+            captured = self._capture_reactivation_inputs(model, layers, x)
+            if captured is None:
+                return {}
 
-            # Attach pre-forward hooks that record the first batch of V
-            # seen at each reactivation module, then remove them after the
-            # single forward pass.
-            captured: dict[str, torch.Tensor] = {}
-            handles = []
-            for name, layer in layers:
-
-                def _make_hook(layer_name: str):
-                    def hook(_mod, inputs):
-                        if layer_name in captured:
-                            return  # first batch only
-                        captured[layer_name] = inputs[0].detach()
-
-                    return hook
-
-                handles.append(layer.register_forward_pre_hook(_make_hook(name)))
-
-            was_training = model.training
-            model.eval()
-            try:
-                with torch.no_grad():
-                    # Model.forward typically takes a single input tensor;
-                    # the analyzer is a diagnostic, not a training step, so
-                    # we pass the sampled batch directly and ignore the
-                    # model's classifier head output.
-                    try:
-                        _ = model(x)
-                    except Exception as e:
-                        self.logger.warning(
-                            "ReactivationDynamicsAnalyzer forward pass failed: %s", e
-                        )
-                        return {}
-            finally:
-                remove_hook_handles(handles)
-                if was_training:
-                    model.train()
-
-            # Aggregate per-layer snapshots.
-            per_layer: dict[str, dict[str, Any]] = {}
-            for name, layer in layers:
-                v = captured.get(name)
-                if v is None:
-                    per_layer[name] = {"skipped": True}
-                    continue
-                v_stats = _quantile_stats(v)
-                param_stats = _param_tanh_params(layer)
-                r_stats = _reactivation_output_stats(layer, v)
-                per_layer[name] = {
-                    "V": v_stats,
-                    "params": param_stats,
-                    "reactivation_output": r_stats,
-                }
-
-            snapshot = {
-                "filename": filename,
-                "training": bool(training),
-                "n_layers": len(per_layer),
-                "layers": per_layer,
-            }
+            snapshot = self._build_snapshot(layers, captured, filename, training)
 
         if save_path is not None:
-            epochs_dir = os.path.join(save_path, "epochs")
-            os.makedirs(epochs_dir, exist_ok=True)
-            save_dict(snapshot, epochs_dir, f"{filename}.json")
+            self._save_snapshot(snapshot, save_path, filename)
 
         return snapshot
+
+    def _select_dataset(
+        self,
+        training: bool,
+        train_ds: torch.utils.data.Dataset | None,
+        valid_ds: torch.utils.data.Dataset | None,
+        test_ds: torch.utils.data.Dataset | None,
+    ) -> torch.utils.data.Dataset | None:
+        dataset = train_ds if training else test_ds
+        if dataset is None:
+            dataset = valid_ds or test_ds
+        return dataset
+
+    def _prepare_inputs(
+        self,
+        model: BaseModel,
+        x: torch.Tensor,
+    ) -> torch.Tensor:
+        if getattr(model, "_is_recurrent_core", False) and x.dim() == 2:
+            return x.unsqueeze(1)
+        return x
+
+    def _capture_reactivation_inputs(
+        self,
+        model: BaseModel,
+        layers: list[tuple[str, ParametricTanh]],
+        x: torch.Tensor,
+    ) -> dict[str, torch.Tensor] | None:
+        captured: dict[str, torch.Tensor] = {}
+        handles = self._attach_capture_hooks(layers, captured)
+        was_training = model.training
+        model.eval()
+        try:
+            with torch.no_grad():
+                try:
+                    _ = model(x)
+                except Exception as e:
+                    self.logger.warning(
+                        "ReactivationDynamicsAnalyzer forward pass failed: %s", e
+                    )
+                    return None
+        finally:
+            remove_hook_handles(handles)
+            if was_training:
+                model.train()
+        return captured
+
+    def _attach_capture_hooks(
+        self,
+        layers: list[tuple[str, ParametricTanh]],
+        captured: dict[str, torch.Tensor],
+    ) -> list[torch.utils.hooks.RemovableHandle]:
+        handles = []
+        for name, layer in layers:
+            handles.append(
+                layer.register_forward_pre_hook(self._make_hook(name, captured))
+            )
+        return handles
+
+    @staticmethod
+    def _make_hook(layer_name: str, captured: dict[str, torch.Tensor]):
+        def hook(_mod, inputs):
+            if layer_name in captured:
+                return
+            captured[layer_name] = inputs[0].detach()
+
+        return hook
+
+    def _build_snapshot(
+        self,
+        layers: list[tuple[str, ParametricTanh]],
+        captured: dict[str, torch.Tensor],
+        filename: str,
+        training: bool,
+    ) -> dict[str, Any]:
+        per_layer: dict[str, dict[str, Any]] = {}
+        for name, layer in layers:
+            v = captured.get(name)
+            if v is None:
+                per_layer[name] = {"skipped": True}
+                continue
+            per_layer[name] = {
+                "V": _quantile_stats(v),
+                "params": _param_tanh_params(layer),
+                "reactivation_output": _reactivation_output_stats(layer, v),
+            }
+
+        return {
+            "filename": filename,
+            "training": bool(training),
+            "n_layers": len(per_layer),
+            "layers": per_layer,
+        }
+
+    def _save_snapshot(
+        self,
+        snapshot: dict[str, Any],
+        save_path: str,
+        filename: str,
+    ) -> None:
+        epochs_dir = os.path.join(save_path, "epochs")
+        os.makedirs(epochs_dir, exist_ok=True)
+        save_dict(snapshot, epochs_dir, f"{filename}.json")
 
 
 __all__ = ["ReactivationDynamicsAnalyzer"]

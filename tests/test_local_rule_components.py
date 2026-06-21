@@ -50,6 +50,9 @@ def test_local_rule_component_recorders_preserve_topk_keys() -> None:
     assert decoder_cache == {}
     assert len(records) == 1
     rec = records[0]
+    assert rec["module_name"] == "branch"
+    assert rec["population"] == "excitatory"
+    assert rec["branch_module_index"] == -1
     assert torch.equal(rec["x_exc"], x)
     assert torch.equal(rec["x_inh"], inhibitory_input)
     assert isinstance(rec["exc_module"], TopKLinear)

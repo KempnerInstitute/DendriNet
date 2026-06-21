@@ -110,6 +110,9 @@ def test_routing_analyzer_collects_population_network_entries():
     assert "microcircuit/pyr" in results
     assert "microcircuit/pv" in results
     assert results["microcircuit/pyr"]["n_levels"] == 2
+    assert results["microcircuit/pyr"]["n_samples"] > 0
+    assert "mean_raw_voltage_norm" in results["microcircuit/pyr"]
+    assert not core.store_routing
 
 
 def test_routing_helpers_extract_and_mask_sequence_lengths():

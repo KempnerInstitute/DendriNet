@@ -121,50 +121,15 @@ class RoutingAnalyzer(AbstractAnalyzer):
         original_store_routing = core.store_routing
         core.store_routing = True
 
-        # Accumulators: per (layer, population) -> list of per-timestep tensors
-        # level_contributions[key] = list of [n_valid, n_levels] tensors
-        # ff_rec_ratios[key] = list of [n_valid, n_levels] tensors
-        level_contribs: dict[str, list[torch.Tensor]] = {}
-        ff_rec_ratios: dict[str, list[torch.Tensor]] = {}
-
         loader = torch.utils.data.DataLoader(data, batch_size=batch_size, shuffle=False)
 
         try:
-            with analysis_device_context(model, device) as analysis_device:
-                with torch.no_grad():
-                    for batch in loader:
-                        x_batch = batch[0].to(analysis_device)
-                        seq_lengths = _extract_seq_lengths(batch)
-                        if seq_lengths is not None:
-                            seq_lengths = seq_lengths.to(analysis_device)
-                        _ = model(x_batch, seq_lengths=seq_lengths)
-
-                        for timestep_idx, timestep_info in enumerate(
-                            core._routing_info
-                        ):
-                            valid_mask, should_process = _valid_timestep_mask(
-                                seq_lengths, timestep_idx
-                            )
-                            if not should_process:
-                                continue
-                            for full_key, pop_info in iter_routing_entries(
-                                timestep_info
-                            ):
-                                if "level_contributions" in pop_info:
-                                    _append_masked_routing_values(
-                                        level_contribs,
-                                        full_key,
-                                        pop_info["level_contributions"],
-                                        valid_mask,
-                                    )
-
-                                if "ff_rec_ratios" in pop_info:
-                                    _append_masked_routing_values(
-                                        ff_rec_ratios,
-                                        full_key,
-                                        pop_info["ff_rec_ratios"],
-                                        valid_mask,
-                                    )
+            level_contribs, ff_rec_ratios = self._collect_routing_values(
+                model,
+                core,
+                loader,
+                device,
+            )
         finally:
             core.store_routing = original_store_routing
 
@@ -172,31 +137,7 @@ class RoutingAnalyzer(AbstractAnalyzer):
             self.logger.warning("No routing info collected")
             return {}
 
-        results: dict[str, Any] = {}
-        for key in sorted(level_contribs.keys()):
-            # Concatenate: [N, n_levels] where N = total_timesteps * batch_size
-            contribs = torch.cat(level_contribs[key], dim=0)
-            # Normalize to get fractional contribution beta_l
-            contribs_sum = contribs.sum(dim=-1, keepdim=True).clamp(min=1e-8)
-            beta = contribs / contribs_sum  # [N, n_levels]
-
-            beta_mean = beta.mean(dim=0)  # [n_levels]
-            beta_std = beta.std(dim=0)
-
-            entry: dict[str, Any] = {
-                "n_levels": contribs.shape[-1],
-                "n_samples": contribs.shape[0],
-                "mean_level_contribution": beta_mean.tolist(),
-                "std_level_contribution": beta_std.tolist(),
-                "mean_raw_voltage_norm": contribs.mean(dim=0).tolist(),
-            }
-
-            if key in ff_rec_ratios:
-                ratios = torch.cat(ff_rec_ratios[key], dim=0)  # [N, n_levels]
-                entry["mean_ff_rec_ratio"] = ratios.mean(dim=0).tolist()
-                entry["std_ff_rec_ratio"] = ratios.std(dim=0).tolist()
-
-            results[key] = entry
+        results = self._summarize_routing_values(level_contribs, ff_rec_ratios)
 
         self.log_analysis_end("routing_analysis", num_results=len(results))
 
@@ -204,3 +145,98 @@ class RoutingAnalyzer(AbstractAnalyzer):
             save_dict(results, save_path, filename)
 
         return results
+
+    def _collect_routing_values(
+        self,
+        model: BaseModel,
+        core: Any,
+        loader: torch.utils.data.DataLoader,
+        device: str,
+    ) -> tuple[dict[str, list[torch.Tensor]], dict[str, list[torch.Tensor]]]:
+        # Per key, each chunk is [n_valid, n_levels].
+        level_contribs: dict[str, list[torch.Tensor]] = {}
+        ff_rec_ratios: dict[str, list[torch.Tensor]] = {}
+
+        with analysis_device_context(model, device) as analysis_device:
+            with torch.no_grad():
+                for batch in loader:
+                    x_batch = batch[0].to(analysis_device)
+                    seq_lengths = _extract_seq_lengths(batch)
+                    if seq_lengths is not None:
+                        seq_lengths = seq_lengths.to(analysis_device)
+                    _ = model(x_batch, seq_lengths=seq_lengths)
+                    self._collect_batch_routing_values(
+                        core._routing_info,
+                        seq_lengths,
+                        level_contribs,
+                        ff_rec_ratios,
+                    )
+
+        return level_contribs, ff_rec_ratios
+
+    def _collect_batch_routing_values(
+        self,
+        routing_info: list[dict[str, Any]],
+        seq_lengths: Optional[torch.Tensor],
+        level_contribs: dict[str, list[torch.Tensor]],
+        ff_rec_ratios: dict[str, list[torch.Tensor]],
+    ) -> None:
+        for timestep_idx, timestep_info in enumerate(routing_info):
+            valid_mask, should_process = _valid_timestep_mask(seq_lengths, timestep_idx)
+            if not should_process:
+                continue
+            for full_key, pop_info in iter_routing_entries(timestep_info):
+                if "level_contributions" in pop_info:
+                    _append_masked_routing_values(
+                        level_contribs,
+                        full_key,
+                        pop_info["level_contributions"],
+                        valid_mask,
+                    )
+
+                if "ff_rec_ratios" in pop_info:
+                    _append_masked_routing_values(
+                        ff_rec_ratios,
+                        full_key,
+                        pop_info["ff_rec_ratios"],
+                        valid_mask,
+                    )
+
+    def _summarize_routing_values(
+        self,
+        level_contribs: dict[str, list[torch.Tensor]],
+        ff_rec_ratios: dict[str, list[torch.Tensor]],
+    ) -> dict[str, Any]:
+        results: dict[str, Any] = {}
+        for key in sorted(level_contribs.keys()):
+            results[key] = self._summarize_routing_entry(
+                level_contribs[key],
+                ff_rec_ratios.get(key),
+            )
+        return results
+
+    def _summarize_routing_entry(
+        self,
+        level_contribs: list[torch.Tensor],
+        ff_rec_ratios: Optional[list[torch.Tensor]],
+    ) -> dict[str, Any]:
+        # Concatenate: [N, n_levels] where N = total_timesteps * batch_size.
+        contribs = torch.cat(level_contribs, dim=0)
+        # Normalize to get fractional contribution beta_l.
+        contribs_sum = contribs.sum(dim=-1, keepdim=True).clamp(min=1e-8)
+        beta = contribs / contribs_sum
+
+        entry: dict[str, Any] = {
+            "n_levels": contribs.shape[-1],
+            "n_samples": contribs.shape[0],
+            "mean_level_contribution": beta.mean(dim=0).tolist(),
+            "std_level_contribution": beta.std(dim=0).tolist(),
+            "mean_raw_voltage_norm": contribs.mean(dim=0).tolist(),
+        }
+
+        if ff_rec_ratios:
+            ratios = torch.cat(ff_rec_ratios, dim=0)
+            entry["mean_ff_rec_ratio"] = ratios.mean(dim=0).tolist()
+            entry["std_ff_rec_ratio"] = ratios.std(dim=0).tolist()
+
+        return entry

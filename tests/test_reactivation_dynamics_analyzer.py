@@ -51,6 +51,7 @@ def _make_dataset(n: int = 64, dim: int = 16, n_classes: int = 4) -> TensorDatas
 
 def test_analyzer_snapshots_all_reactivation_layers():
     model = _StackedReactivationModel()
+    model.train()
     analyzer = ReactivationDynamicsAnalyzer(
         ReactivationDynamicsAnalysisParams(max_samples=32)
     )
@@ -68,6 +69,9 @@ def test_analyzer_snapshots_all_reactivation_layers():
             training=True,
         )
 
+        assert model.training
+        assert snapshot["filename"] == "epoch0"
+        assert snapshot["training"] is True
         assert snapshot["n_layers"] == 2, "should find both ParametricTanh layers"
         assert set(snapshot["layers"].keys()) == {"r1", "r2"}
 

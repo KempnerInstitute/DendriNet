@@ -88,6 +88,20 @@ def test_spike_train_analyzer_reports_population_statistics():
     assert isinstance(stats["raster_events"], list)
 
 
+def test_spike_train_hook_registration_tags_lif_somas():
+    model = _spiking_population_network()
+    analyzer = SpikeTrainAnalyzer()
+    lif_somas = list(analyzer._iter_lif_somas(model))
+
+    handles = analyzer._attach_hooks(model)
+    try:
+        assert len(handles) == len(lif_somas) == 1
+        name, module = lif_somas[0]
+        assert module._analysis_name == name
+    finally:
+        analyzer._remove_hooks(handles)
+
+
 def test_spike_train_summary_helpers_match_loop_semantics():
     seq_a = torch.zeros(2, 4, 3)
     seq_a[0, [0, 2], 0] = 1
