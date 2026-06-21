@@ -188,6 +188,21 @@ def _component_snapshot_from_rows(
     }
 
 
+def _component_snapshot_save_targets(
+    save_path: str,
+    filename: str,
+    training: bool,
+) -> dict[str, str]:
+    subdir = "epochs" if training else "final"
+    snapshot_dir = os.path.join(save_path, subdir)
+    return {
+        "snapshot_dir": snapshot_dir,
+        "json_filename": f"{filename}.json",
+        "csv_path": os.path.join(snapshot_dir, f"{filename}.csv"),
+        "trajectory_csv_path": os.path.join(save_path, "trajectory.csv"),
+    }
+
+
 def _record_topk_forward(
     rec: dict[str, Any],
     path: TopKGradientPath,
@@ -1041,13 +1056,13 @@ class LocalRuleComponentAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
     ) -> None:
         os.makedirs(save_path, exist_ok=True)
         rows = snapshot["rows"]
-        subdir = "epochs" if training else "final"
+        targets = _component_snapshot_save_targets(save_path, filename, training)
         if bool(getattr(self.params, "save_json", True)):
-            save_dict(snapshot, os.path.join(save_path, subdir), f"{filename}.json")
+            save_dict(snapshot, targets["snapshot_dir"], targets["json_filename"])
         if bool(getattr(self.params, "save_csv", True)):
-            self._write_csv(rows, os.path.join(save_path, subdir, f"{filename}.csv"))
+            self._write_csv(rows, targets["csv_path"])
         if training and bool(getattr(self.params, "append_training_csv", True)):
-            self._append_csv(rows, os.path.join(save_path, "trajectory.csv"))
+            self._append_csv(rows, targets["trajectory_csv_path"])
 
 
 __all__ = ["LocalRuleComponentAnalyzer"]

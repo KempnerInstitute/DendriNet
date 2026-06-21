@@ -278,6 +278,16 @@ def test_dataloader_optimization():
     print("DataLoader optimization test passed")
 
 
+def test_dataloader_in_order_resolver_preserves_none_and_explicit_flags():
+    """DataLoader ordering should only change when explicitly configured."""
+
+    from dendritic_modeling.training.dataloader_utils import _resolve_in_order
+
+    assert _resolve_in_order(None) is None
+    assert _resolve_in_order(False) is False
+    assert _resolve_in_order(True) is True
+
+
 def test_dataloader_optimization_uses_workers_for_lazy_datasets(monkeypatch):
     """Image/file-backed datasets should keep multi-worker loading by default."""
 

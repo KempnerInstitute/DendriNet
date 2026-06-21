@@ -18,6 +18,7 @@ from dendritic_modeling.analysis.tools.local_rule_components import (
     _component_key_from_record,
     _component_rows_from_accum,
     _component_snapshot_from_rows,
+    _component_snapshot_save_targets,
     _ComponentKey,
     _delta_out_for_outputs,
     _depth_labels_for_records,
@@ -638,6 +639,36 @@ def test_local_rule_component_build_snapshot_method_uses_shared_helper() -> None
         filename="final",
         training=False,
     ) == _component_snapshot_from_rows(rows, filename="final", training=False)
+
+
+def test_local_rule_component_snapshot_save_targets_preserve_training_paths() -> None:
+    targets = _component_snapshot_save_targets(
+        "/tmp/local_rule",
+        filename="epoch_1",
+        training=True,
+    )
+
+    assert targets == {
+        "snapshot_dir": "/tmp/local_rule/epochs",
+        "json_filename": "epoch_1.json",
+        "csv_path": "/tmp/local_rule/epochs/epoch_1.csv",
+        "trajectory_csv_path": "/tmp/local_rule/trajectory.csv",
+    }
+
+
+def test_local_rule_component_snapshot_save_targets_preserve_final_paths() -> None:
+    targets = _component_snapshot_save_targets(
+        "/tmp/local_rule",
+        filename="final",
+        training=False,
+    )
+
+    assert targets == {
+        "snapshot_dir": "/tmp/local_rule/final",
+        "json_filename": "final.json",
+        "csv_path": "/tmp/local_rule/final/final.csv",
+        "trajectory_csv_path": "/tmp/local_rule/trajectory.csv",
+    }
 
 
 def test_local_rule_component_delta_out_preserves_none_mode() -> None:

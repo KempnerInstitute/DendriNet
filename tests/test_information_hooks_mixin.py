@@ -11,6 +11,7 @@ from dendritic_modeling.analysis.core.information_hooks_mixin import (
     _enable_analysis_current_capture,
     _has_analyzable_branch_signals,
     _has_no_branch_synapses,
+    _prepare_branch_hook_capture,
     _resolve_branch_input_current,
     _resolve_synaptic_branch_currents,
     _restore_analysis_current_capture,
@@ -221,6 +222,23 @@ def test_analysis_current_capture_lifecycle_preserves_previous_state():
     assert previous_store == "previous"
     assert module._store_analysis_currents == "previous"
     assert not hasattr(module, "_last_analysis_currents")
+
+
+def test_prepare_branch_hook_capture_preserves_registration_state():
+    module = _branch_layer()
+    module._store_analysis_currents = "previous"
+    data_dict = {}
+    hook_modules = []
+
+    _prepare_branch_hook_capture(data_dict, hook_modules, "layer0", module)
+
+    assert data_dict == {"layer0": {}}
+    assert module._name == "layer0"
+    assert module._store_analysis_currents is True
+    assert hook_modules == [(module, "previous")]
+
+    _restore_analysis_current_capture(module, hook_modules[0][1])
+    assert module._store_analysis_currents == "previous"
 
 
 def test_information_hook_stores_resolved_currents_and_flags():

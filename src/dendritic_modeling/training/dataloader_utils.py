@@ -169,6 +169,10 @@ def _resolve_prefetch_factor(
     return max(1, int(prefetch_factor))
 
 
+def _resolve_in_order(in_order: bool | None) -> bool | None:
+    return bool(in_order) if in_order is not None else None
+
+
 def resolve_dataloader_tuning(
     dataset: Dataset,
     *,
@@ -206,7 +210,7 @@ def resolve_dataloader_tuning(
         dataset_profile=dataset_profile,
         num_workers=resolved_workers,
     )
-    resolved_in_order = bool(in_order) if in_order is not None else None
+    resolved_in_order = _resolve_in_order(in_order)
 
     return DataLoaderTuning(
         num_workers=resolved_workers,

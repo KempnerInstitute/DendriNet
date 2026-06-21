@@ -94,6 +94,18 @@ def _restore_analysis_current_capture(
         delattr(module, "_last_analysis_currents")
 
 
+def _prepare_branch_hook_capture(
+    data_dict: dict,
+    hook_modules: list[tuple[DendriticBranchLayer, object]],
+    name: str,
+    module: DendriticBranchLayer,
+) -> None:
+    data_dict[name] = {}
+    module._name = name
+    previous_store = _enable_analysis_current_capture(module)
+    hook_modules.append((module, previous_store))
+
+
 def _store_branch_hook_data(
     data_dict: dict,
     module: DendriticBranchLayer,
@@ -145,10 +157,12 @@ class InformationHooksMixin(ForwardHookRemovalMixin):
                 model, DendriticBranchLayer
             ):
                 if _has_analyzable_branch_signals(module):
-                    self.data_dict[_name] = {}
-                    module._name = _name
-                    previous_store = _enable_analysis_current_capture(module)
-                    self._analysis_hook_modules.append((module, previous_store))
+                    _prepare_branch_hook_capture(
+                        self.data_dict,
+                        self._analysis_hook_modules,
+                        _name,
+                        module,
+                    )
                     handle = module.register_forward_hook(self.forward_hook)
                     handles.append(handle)
             return handles

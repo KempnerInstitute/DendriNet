@@ -8,6 +8,7 @@ from torch.utils.data import DataLoader, Dataset, TensorDataset
 
 from dendritic_modeling.analysis.metrics.performance import PerformanceAnalyzer
 from dendritic_modeling.analysis.utils.runtime import (
+    _resolve_analysis_prefetch_factor,
     analysis_device_context,
     analysis_loader_kwargs_from_runtime,
     evaluation_kwargs_from_runtime,
@@ -136,6 +137,13 @@ def test_analysis_loader_kwargs_omit_prefetch_without_workers():
         "pin_memory": False,
         "persistent_workers": False,
     }
+
+
+def test_analysis_prefetch_resolver_preserves_worker_gating_and_clamp():
+    assert _resolve_analysis_prefetch_factor(None, num_workers=2) is None
+    assert _resolve_analysis_prefetch_factor(5, num_workers=0) is None
+    assert _resolve_analysis_prefetch_factor(0, num_workers=2) == 1
+    assert _resolve_analysis_prefetch_factor(5, num_workers=2) == 5
 
 
 def test_single_gpu_without_runtime_defaults_to_materialize(tmp_path):

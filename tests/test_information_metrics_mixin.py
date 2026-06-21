@@ -369,6 +369,42 @@ def test_add_cmi_metrics_preserves_spec_order_and_existing_entries():
         np.testing.assert_array_equal(call[3], C_col)
 
 
+def test_estimate_class_entropy_for_normalization_preserves_debug_shape():
+    harness = _MetricHarness()
+    arrays = _arrays()
+
+    entropy = harness._estimate_class_entropy_for_normalization(arrays["C"])
+
+    assert entropy == 2.0
+    assert [call[0] for call in harness.estimator.calls] == ["entropy"]
+    np.testing.assert_array_equal(
+        harness.estimator.calls[0][1],
+        arrays["C"].reshape(-1, 1),
+    )
+    assert harness.logger.debug_messages[0] == (
+        "  Computing entropy H(C) for normalization..."
+    )
+    assert harness.logger.debug_messages[1].startswith("  H(C) = 2.0000 (took ")
+    assert harness.logger.debug_messages[1].endswith("s)")
+
+
+def test_add_entropy_normalized_metrics_preserves_order_and_values():
+    harness = _MetricHarness()
+    arrays = _arrays()
+    metrics = {"I(E;C)": 1.0, "I(I;C)": 3.0}
+
+    harness._add_entropy_normalized_metrics(metrics, arrays["C"])
+
+    assert list(metrics) == [
+        "I(E;C)",
+        "I(I;C)",
+        "I(E;C)_normalized",
+        "I(I;C)_normalized",
+    ]
+    assert metrics["I(E;C)_normalized"] == 0.5
+    assert metrics["I(I;C)_normalized"] == 1.5
+
+
 def test_estimate_cmi_or_zero_preserves_failure_fallback():
     harness = _MetricHarness()
     harness.estimator = _FailingConditionalEstimator()

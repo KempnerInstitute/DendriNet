@@ -21,6 +21,16 @@ from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 logger = logging.getLogger(__name__)
 
 
+def _resolve_analysis_prefetch_factor(
+    prefetch_factor: int | None,
+    *,
+    num_workers: int,
+) -> int | None:
+    if prefetch_factor is not None and num_workers > 0:
+        return max(1, int(prefetch_factor))
+    return None
+
+
 def analysis_loader_kwargs_from_runtime(
     runtime: EvaluationRuntimeConfig | None,
     device: str | torch.device | None = None,
@@ -39,9 +49,12 @@ def analysis_loader_kwargs_from_runtime(
         "pin_memory": pin,
         "persistent_workers": persistent_workers,
     }
-    prefetch_factor = getattr(runtime, "prefetch_factor", None)
-    if prefetch_factor is not None and num_workers > 0:
-        loader_kwargs["prefetch_factor"] = max(1, int(prefetch_factor))
+    prefetch_factor = _resolve_analysis_prefetch_factor(
+        getattr(runtime, "prefetch_factor", None),
+        num_workers=num_workers,
+    )
+    if prefetch_factor is not None:
+        loader_kwargs["prefetch_factor"] = prefetch_factor
     return loader_kwargs
 
 
