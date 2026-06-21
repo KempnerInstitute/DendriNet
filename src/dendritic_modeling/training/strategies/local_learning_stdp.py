@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import math
+from collections.abc import Callable
 
 import torch
 from torch.nn import functional
@@ -60,9 +61,32 @@ def stdp_decay(tau: float) -> float:
     return math.exp(-1.0 / tau)
 
 
+def weight_transform_derivative(
+    raw_param: torch.Tensor,
+    transform_type: str,
+    *,
+    warn_unknown: Callable[[str], None] | None = None,
+) -> torch.Tensor:
+    """Derivative of transformed conductance with respect to a raw parameter."""
+    transform = (transform_type or "exp").lower()
+    if transform == "exp":
+        return raw_param.exp()
+    if transform == "relu":
+        return (raw_param > 0).to(raw_param.dtype)
+    if transform == "softplus":
+        return torch.sigmoid(raw_param)
+    if transform == "identity":
+        return torch.ones_like(raw_param)
+
+    if warn_unknown is not None:
+        warn_unknown(transform_type)
+    return raw_param.exp()
+
+
 __all__ = [
     "stdp_activity",
     "stdp_decay",
     "stdp_enabled",
     "stdp_pathway_enabled",
+    "weight_transform_derivative",
 ]

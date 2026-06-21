@@ -17,6 +17,7 @@ from dendritic_modeling.training.strategies.local_learning_stdp import (
     stdp_decay,
     stdp_enabled,
     stdp_pathway_enabled,
+    weight_transform_derivative,
 )
 
 
@@ -52,6 +53,38 @@ def test_stdp_activity_reshapes_non_2d_and_centers_threshold():
     out = stdp_activity(vals, threshold=1.0, mode="identity")
     assert out.shape == (2, 4)
     torch.testing.assert_close(out[0], torch.tensor([-1.0, 0.0, 1.0, 2.0]))
+
+
+def test_weight_transform_derivative_modes():
+    raw = torch.tensor([[-1.0, 0.0, 2.0]])
+
+    torch.testing.assert_close(weight_transform_derivative(raw, "exp"), raw.exp())
+    torch.testing.assert_close(
+        weight_transform_derivative(raw, "relu"),
+        torch.tensor([[0.0, 0.0, 1.0]]),
+    )
+    torch.testing.assert_close(
+        weight_transform_derivative(raw, "softplus"),
+        torch.sigmoid(raw),
+    )
+    torch.testing.assert_close(
+        weight_transform_derivative(raw, "identity"),
+        torch.ones_like(raw),
+    )
+
+
+def test_weight_transform_derivative_unknown_falls_back_to_exp_and_warns():
+    raw = torch.tensor([[-1.0, 0.0, 2.0]])
+    warnings = []
+
+    out = weight_transform_derivative(
+        raw,
+        "unknown",
+        warn_unknown=warnings.append,
+    )
+
+    torch.testing.assert_close(out, raw.exp())
+    assert warnings == ["unknown"]
 
 
 def test_stdp_enabled_predicate():

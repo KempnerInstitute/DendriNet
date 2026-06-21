@@ -239,7 +239,8 @@ Dataset-specific parameters go under ``data.dataset_params.<name>``.
 See :doc:`datasets` for details.
 
 For ImageNet with a pretrained torchvision backbone, use the pretrained
-transform preset and keep fake-data fallback disabled for real runs:
+transform preset and point the run at a real ImageNet root; missing roots fail
+loudly instead of falling back to synthetic data:
 
 .. code-block:: yaml
 

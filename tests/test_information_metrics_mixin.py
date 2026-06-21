@@ -219,6 +219,27 @@ def test_add_mi_metrics_preserves_spec_order_and_existing_entries():
     assert [call[0] for call in harness.estimator.calls] == ["mi", "mi"]
 
 
+def test_add_cmi_metrics_preserves_spec_order_and_existing_entries():
+    harness = _MetricHarness()
+    arrays = _arrays()
+    C_col = arrays["C"].reshape(-1, 1)
+    metrics = {"existing": -1.0}
+
+    harness._add_cmi_metrics(
+        metrics,
+        [
+            ("I(E;I|C)", arrays["E"], arrays["I"], C_col),
+            ("I(E;Vout|C)", arrays["E"], arrays["Vout"], C_col),
+        ],
+    )
+
+    assert list(metrics) == ["existing", "I(E;I|C)", "I(E;Vout|C)"]
+    assert metrics == {"existing": -1.0, "I(E;I|C)": 1.0, "I(E;Vout|C)": 2.0}
+    assert [call[0] for call in harness.estimator.calls] == ["cmi", "cmi"]
+    for call in harness.estimator.calls:
+        np.testing.assert_array_equal(call[3], C_col)
+
+
 def test_estimate_cmi_or_zero_preserves_failure_fallback():
     harness = _MetricHarness()
     harness.estimator = _FailingConditionalEstimator()

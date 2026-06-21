@@ -47,6 +47,9 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.b
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
     TopKLinear,
 )
+from dendritic_modeling.training.strategies.local_learning_broadcast import (
+    reduce_error_to_scalar as _reduce_error_to_scalar,
+)
 from dendritic_modeling.training.strategies.local_learning_pathways import (
     EXCITATORY_TOPK_PATHS,
     INHIBITORY_TOPK_PATHS,
@@ -128,23 +131,6 @@ def _summary(values: torch.Tensor) -> dict[str, float | int]:
         "q95": float(q[2].item()),
         "n": int(values.numel()),
     }
-
-
-def _reduce_error_to_scalar(delta: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
-    """Match LocalCA's robust per-example scalar broadcast reduction."""
-
-    if delta.dim() == 1:
-        return delta.unsqueeze(-1)
-    if delta.dim() != 2:
-        delta = delta.view(delta.size(0), -1)
-
-    delta_scalar = delta.mean(dim=1, keepdim=True)
-    near_zero = delta_scalar.abs() <= eps
-    if near_zero.any():
-        max_idx = delta.abs().argmax(dim=1, keepdim=True)
-        fallback = delta.gather(dim=1, index=max_idx)
-        delta_scalar = torch.where(near_zero, fallback, delta_scalar)
-    return delta_scalar
 
 
 def _record_topk_forward(

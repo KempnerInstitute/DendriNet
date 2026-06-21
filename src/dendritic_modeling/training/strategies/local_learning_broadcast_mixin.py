@@ -10,6 +10,8 @@ from dendritic_modeling.models import BaseModel
 from dendritic_modeling.training.strategies.local_learning_broadcast import (
     apply_broadcast_bandwidth,
     compute_layer_total_conductance,
+    compute_local_mismatch_broadcast,
+    reduce_error_to_scalar,
 )
 from dendritic_modeling.training.strategies.local_learning_broadcast_low_rank_mixin import (
     LocalLearningLowRankBroadcastMixin,
@@ -36,20 +38,7 @@ class LocalLearningBroadcastMixin(
         simplex constraints. In that case we fall back to the max-magnitude
         component to keep a meaningful signed modulatory signal.
         """
-        if delta.dim() == 1:
-            return delta.unsqueeze(-1)
-
-        if delta.dim() != 2:
-            delta = delta.view(delta.size(0), -1)
-
-        delta_scalar = delta.mean(dim=1, keepdim=True)
-        near_zero = delta_scalar.abs() <= eps
-        if near_zero.any():
-            max_idx = delta.abs().argmax(dim=1, keepdim=True)
-            fallback = delta.gather(dim=1, index=max_idx)
-            delta_scalar = torch.where(near_zero, fallback, delta_scalar)
-
-        return delta_scalar
+        return reduce_error_to_scalar(delta, eps=eps)
 
     @staticmethod
     def _compute_local_mismatch_broadcast(
@@ -69,27 +58,14 @@ class LocalLearningBroadcastMixin(
         3) clipping outliers,
         4) blending with a residual scalar broadcast path.
         """
-        base = delta_scalar.expand(-1, v_n.size(1))
-        if parent is None:
-            return base
-
-        p = parent
-        if p.size() != v_n.size():
-            try:
-                p = p.view_as(v_n)
-            except Exception:
-                return base
-
-        mismatch = p - v_n
-        mismatch = mismatch - mismatch.mean(dim=0, keepdim=True)
-        rms = mismatch.pow(2).mean(dim=1, keepdim=True).sqrt().clamp_min(eps)
-        mismatch_norm = mismatch / rms
-        if clip_value > 0.0:
-            mismatch_norm = torch.clamp(mismatch_norm, -clip_value, clip_value)
-
-        modulated = base * mismatch_norm
-        blend = float(max(0.0, min(1.0, residual_fraction)))
-        return (1.0 - blend) * modulated + blend * base
+        return compute_local_mismatch_broadcast(
+            delta_scalar=delta_scalar,
+            v_n=v_n,
+            parent=parent,
+            residual_fraction=residual_fraction,
+            clip_value=clip_value,
+            eps=eps,
+        )
 
     def _apply_broadcast_bandwidth(
         self, e_n: torch.Tensor, bandwidth: str

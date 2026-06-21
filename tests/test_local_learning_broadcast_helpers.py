@@ -9,9 +9,11 @@ import torch
 
 from dendritic_modeling.training.strategies.local_learning_broadcast import (
     apply_broadcast_bandwidth,
+    compute_local_mismatch_broadcast,
     compute_role_selectivity,
     expand_parent_signal_to_children,
     normalize_role_mass,
+    reduce_error_to_scalar,
     resolve_recent_role_profile,
     role_mass_from_weight_matrix,
 )
@@ -31,6 +33,43 @@ def test_apply_broadcast_bandwidth_modes():
     sp = apply_broadcast_bandwidth(cfg, e, "sparse_topk")
     assert int((sp != 0).sum()) == 2  # 50% of 4
     assert sp[0, 0] == -2.0 and sp[0, 3] == 3.0  # largest-|.| retained
+
+
+def test_reduce_error_to_scalar_preserves_mean_and_near_zero_fallback():
+    delta = torch.tensor([[2.0, 4.0], [1.0, -1.0], [-3.0, 0.5]])
+
+    out = reduce_error_to_scalar(delta)
+
+    torch.testing.assert_close(out, torch.tensor([[3.0], [1.0], [-1.25]]))
+
+
+def test_reduce_error_to_scalar_flattens_higher_rank_errors():
+    delta = torch.tensor([[[1.0, -1.0], [0.25, -0.25]], [[2.0, 4.0], [6.0, 8.0]]])
+
+    out = reduce_error_to_scalar(delta)
+
+    torch.testing.assert_close(out, torch.tensor([[1.0], [5.0]]))
+
+
+def test_compute_local_mismatch_broadcast_matches_stabilized_formula():
+    delta_scalar = torch.tensor([[0.5], [-0.25]], dtype=torch.float32)
+    v_n = torch.tensor([[0.0, 0.1], [0.2, 0.3]], dtype=torch.float32)
+    parent = torch.tensor([[0.4, 0.1], [0.2, -0.1]], dtype=torch.float32)
+
+    out = compute_local_mismatch_broadcast(
+        delta_scalar=delta_scalar,
+        v_n=v_n,
+        parent=parent,
+        residual_fraction=0.25,
+        clip_value=3.0,
+    )
+
+    base = delta_scalar.expand_as(v_n)
+    mismatch = parent - v_n
+    mismatch = mismatch - mismatch.mean(dim=0, keepdim=True)
+    rms = mismatch.pow(2).mean(dim=1, keepdim=True).sqrt().clamp_min(1e-6)
+    expected = 0.75 * base * (mismatch / rms).clamp(-3.0, 3.0) + 0.25 * base
+    torch.testing.assert_close(out, expected)
 
 
 def test_normalize_role_mass_rows_sum_to_one():

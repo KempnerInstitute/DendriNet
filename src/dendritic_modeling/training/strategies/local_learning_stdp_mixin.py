@@ -18,6 +18,7 @@ from dendritic_modeling.training.strategies.local_learning_stdp import (
     stdp_decay,
     stdp_enabled,
     stdp_pathway_enabled,
+    weight_transform_derivative,
 )
 
 logger = logging.getLogger(__name__)
@@ -29,30 +30,14 @@ class LocalLearningSTDPMixin:
         raw_param: torch.Tensor, transform_type: str
     ) -> torch.Tensor:
         """Derivative of transformed conductance w.r.t. raw parameter."""
-
-        t = (transform_type or "exp").lower()
-
-        if t == "exp":
-
-            return raw_param.exp()
-
-        if t == "relu":
-
-            return (raw_param > 0).to(raw_param.dtype)
-
-        if t == "softplus":
-
-            return torch.sigmoid(raw_param)
-
-        if t == "identity":
-
-            return torch.ones_like(raw_param)
-
-        logger.warning(
-            f"Unknown weight transform '{transform_type}', falling back to exp derivative."
+        return weight_transform_derivative(
+            raw_param,
+            transform_type,
+            warn_unknown=lambda unknown: logger.warning(
+                "Unknown weight transform '%s', falling back to exp derivative.",
+                unknown,
+            ),
         )
-
-        return raw_param.exp()
 
     def _stdp_enabled(self) -> bool:
         """Return whether trace-based STDP updates should be applied."""

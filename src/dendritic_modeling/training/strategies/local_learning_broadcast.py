@@ -61,6 +61,57 @@ def apply_broadcast_bandwidth(
         return e_n
 
 
+def reduce_error_to_scalar(delta: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
+    """Reduce output error to a robust per-sample scalar broadcast signal."""
+    if delta.dim() == 1:
+        return delta.unsqueeze(-1)
+
+    if delta.dim() != 2:
+        delta = delta.view(delta.size(0), -1)
+
+    delta_scalar = delta.mean(dim=1, keepdim=True)
+    near_zero = delta_scalar.abs() <= eps
+    if near_zero.any():
+        max_idx = delta.abs().argmax(dim=1, keepdim=True)
+        fallback = delta.gather(dim=1, index=max_idx)
+        delta_scalar = torch.where(near_zero, fallback, delta_scalar)
+
+    return delta_scalar
+
+
+def compute_local_mismatch_broadcast(
+    *,
+    delta_scalar: torch.Tensor,
+    v_n: torch.Tensor,
+    parent: torch.Tensor | None,
+    residual_fraction: float = 0.2,
+    clip_value: float = 3.0,
+    eps: float = 1e-6,
+) -> torch.Tensor:
+    """Compute a stabilized local-mismatch broadcast signal."""
+    base = delta_scalar.expand(-1, v_n.size(1))
+    if parent is None:
+        return base
+
+    p = parent
+    if p.size() != v_n.size():
+        try:
+            p = p.view_as(v_n)
+        except Exception:
+            return base
+
+    mismatch = p - v_n
+    mismatch = mismatch - mismatch.mean(dim=0, keepdim=True)
+    rms = mismatch.pow(2).mean(dim=1, keepdim=True).sqrt().clamp_min(eps)
+    mismatch_norm = mismatch / rms
+    if clip_value > 0.0:
+        mismatch_norm = torch.clamp(mismatch_norm, -clip_value, clip_value)
+
+    modulated = base * mismatch_norm
+    blend = float(max(0.0, min(1.0, residual_fraction)))
+    return (1.0 - blend) * modulated + blend * base
+
+
 def compute_layer_total_conductance(
     rec: dict[str, Any], v_n: torch.Tensor
 ) -> torch.Tensor:
@@ -259,12 +310,14 @@ def compute_pathway_seed_projection(
 __all__ = [
     "apply_broadcast_bandwidth",
     "compute_layer_total_conductance",
+    "compute_local_mismatch_broadcast",
     "compute_pathway_activity",
     "compute_pathway_seed_projection",
     "compute_role_selectivity",
     "effective_topk_weight",
     "expand_parent_signal_to_children",
     "normalize_role_mass",
+    "reduce_error_to_scalar",
     "resolve_recent_role_profile",
     "resolve_router_output_roles",
     "role_mass_from_weight_matrix",
