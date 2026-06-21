@@ -506,6 +506,69 @@ class TestInformationAnalyzer(unittest.TestCase):
         mock_info.assert_any_call("   - Branches processed: 5")
         mock_info.assert_any_call("   - Layers processed: 2")
 
+    def test_analysis_summary_file_helper_writes_summary_text(self):
+        """Summary file helper should write get_summary output next to results."""
+        results = {"metric": 1.0}
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch.object(
+                self.analyzer,
+                "get_summary",
+                return_value="summary text",
+            ) as mock_summary:
+                self.analyzer._write_analysis_summary_file(
+                    results=results,
+                    save_path=tmpdir,
+                    filename="analysis",
+                )
+
+            summary_path = Path(tmpdir) / "analysis_summary.txt"
+            self.assertEqual(summary_path.read_text(), "summary text")
+            mock_summary.assert_called_once_with(results)
+
+    def test_post_save_visualization_helper_runs_optional_outputs(self):
+        """Post-save visualization helper should run summaries and plots."""
+        results = {"per_layer_analysis": {"layer0": {"metric": 1.0}}}
+
+        with (
+            patch.object(self.analyzer, "_save_per_layer_ei_summaries") as mock_save,
+            patch.object(self.analyzer, "_generate_information_plots") as mock_plots,
+        ):
+            self.analyzer._run_post_save_visualizations(
+                results=results,
+                save_path="/tmp/out",
+                filename="analysis",
+                somatic_synapses=False,
+            )
+
+        mock_save.assert_called_once_with(
+            results["per_layer_analysis"], "/tmp/out", "analysis"
+        )
+        mock_plots.assert_called_once_with(results, "/tmp/out", False)
+
+    def test_post_save_visualization_helper_logs_failures(self):
+        """Post-save visualization helper should preserve plotting failure logging."""
+        results = {}
+
+        with (
+            patch.object(
+                self.analyzer,
+                "_generate_information_plots",
+                side_effect=RuntimeError("plot boom"),
+            ),
+            patch.object(self.analyzer.logger, "warning") as mock_warning,
+        ):
+            self.analyzer._run_post_save_visualizations(
+                results=results,
+                save_path="/tmp/out",
+                filename="analysis",
+                somatic_synapses=True,
+            )
+
+        mock_warning.assert_called_once_with(
+            "Post-save visualization failed: plot boom"
+        )
+
     def test_all_branch_helper_sample_aggregation_expands_labels(self):
         """All-branch sample aggregation should flatten branches and repeat labels."""
         self.analyzer.branch_aggregation = "sample"

@@ -170,6 +170,102 @@ def test_synthetic_soma_entry_uses_real_soma_statistics():
     assert "I(I;C)_mean" not in soma
 
 
+def test_synthetic_soma_metric_filter_removes_missing_synapse_terms():
+    analyzer = InformationAnalyzer(InformationAnalysisParams())
+    soma_entry = {
+        "I(E;C)_mean": 1.0,
+        "I(I;C)_mean": 2.0,
+        "I(Vb;C)_mean": 3.0,
+        "I(Vout;C)_mean": 4.0,
+        "I(Vb;Vout)_mean": 5.0,
+    }
+
+    filtered = analyzer._filter_synthetic_soma_entry_metrics(soma_entry)
+
+    assert filtered["has_synapses"] is False
+    assert "I(E;C)_mean" not in filtered
+    assert "I(I;C)_mean" not in filtered
+    assert filtered["I(Vb;C)_mean"] == 3.0
+    assert filtered["I(Vout;C)_mean"] == 4.0
+    assert filtered["I(Vb;Vout)_mean"] == 5.0
+
+
+def test_synthetic_soma_decision_requires_missing_somatic_synapses_and_stats():
+    analyzer = InformationAnalyzer(InformationAnalysisParams())
+
+    assert analyzer._should_add_synthetic_soma_entry(
+        somatic_synapses=False,
+        results={"layer_statistics": {"layer0": {}}},
+        soma_already_captured=False,
+    )
+    assert not analyzer._should_add_synthetic_soma_entry(
+        somatic_synapses=True,
+        results={"layer_statistics": {"layer0": {}}},
+        soma_already_captured=False,
+    )
+    assert not analyzer._should_add_synthetic_soma_entry(
+        somatic_synapses=False,
+        results={},
+        soma_already_captured=False,
+    )
+    assert not analyzer._should_add_synthetic_soma_entry(
+        somatic_synapses=False,
+        results={"layer_statistics": {"layer0": {}}},
+        soma_already_captured=True,
+    )
+
+
+def test_branch_layer_index_parser_accepts_only_valid_branch_layer_paths():
+    analyzer = InformationAnalyzer(InformationAnalysisParams())
+
+    assert analyzer._parse_branch_layer_index("core.branch_layers.0") == 0
+    assert analyzer._parse_branch_layer_index("core.branch_layers.12.output") == 12
+    assert analyzer._parse_branch_layer_index("core.branch_layers.bad.output") is None
+    assert analyzer._parse_branch_layer_index("core.branch_layers") is None
+    assert analyzer._parse_branch_layer_index("core.other_layers.1") is None
+
+
+def test_find_real_soma_layer_uses_highest_valid_branch_layer_index():
+    analyzer = InformationAnalyzer(InformationAnalysisParams())
+    layer_statistics = {
+        "core.branch_layers.1": {},
+        "core.branch_layers.bad": {},
+        "core.branch_layers.4.output": {},
+        "core.other_layers.9": {},
+        "core.branch_layers.2": {},
+    }
+
+    assert (
+        analyzer._find_real_soma_layer(layer_statistics)
+        == "core.branch_layers.4.output"
+    )
+
+
+def test_extract_soma_statistics_copies_all_mapped_metrics():
+    analyzer = InformationAnalyzer(InformationAnalysisParams())
+    metric_map = analyzer._soma_statistics_metric_map()
+    source_stats = {
+        metric_key: float(idx + 1) for idx, metric_key in enumerate(metric_map.values())
+    }
+    layer_statistics = {"core.branch_layers.3": source_stats}
+
+    soma_stats = analyzer._extract_soma_statistics(
+        "core.branch_layers.3", layer_statistics
+    )
+
+    for idx, soma_key in enumerate(metric_map.keys()):
+        assert soma_stats[soma_key] == float(idx + 1)
+
+
+def test_extract_soma_statistics_defaults_to_zero_without_real_soma_layer():
+    analyzer = InformationAnalyzer(InformationAnalysisParams())
+
+    soma_stats = analyzer._extract_soma_statistics(None, {})
+
+    assert set(soma_stats) == set(analyzer._soma_statistics_metric_map())
+    assert all(value == 0.0 for value in soma_stats.values())
+
+
 def test_synthetic_soma_entry_skips_when_soma_already_captured():
     analyzer = InformationAnalyzer(InformationAnalysisParams())
     model = SimpleNamespace(core_network=SimpleNamespace(somatic_synapses=False))

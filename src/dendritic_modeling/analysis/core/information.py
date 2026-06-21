@@ -1518,11 +1518,39 @@ class InformationAnalyzer(
         self.logger.info(f"Saving results to {save_path}/{filename}")
         save_dict(results, save_path, filename)
 
+        self._write_analysis_summary_file(
+            results=results, save_path=save_path, filename=filename
+        )
+        self._run_post_save_visualizations(
+            results=results,
+            save_path=save_path,
+            filename=filename,
+            somatic_synapses=somatic_synapses,
+        )
+        self.logger.info("Results saved successfully!")
+
+    def _write_analysis_summary_file(
+        self,
+        *,
+        results: dict[str, Any],
+        save_path: str,
+        filename: str,
+    ) -> None:
+        """Write the text summary next to serialized analysis results."""
         summary = self.get_summary(results)
         summary_path = os.path.join(save_path, f"{filename}_summary.txt")
         with open(summary_path, "w") as f:
             f.write(summary)
 
+    def _run_post_save_visualizations(
+        self,
+        *,
+        results: dict[str, Any],
+        save_path: str,
+        filename: str,
+        somatic_synapses: bool,
+    ) -> None:
+        """Generate optional post-save summaries and plots."""
         try:
             if "per_layer_analysis" in results:
                 self._save_per_layer_ei_summaries(
@@ -1531,8 +1559,6 @@ class InformationAnalyzer(
             self._generate_information_plots(results, save_path, somatic_synapses)
         except Exception as plot_err:
             self.logger.warning(f"Post-save visualization failed: {plot_err}")
-
-        self.logger.info("Results saved successfully!")
 
     def _add_synthetic_soma_entry_if_needed(
         self, results: dict[str, Any], model: BaseModel
@@ -1543,10 +1569,10 @@ class InformationAnalyzer(
         self.logger.info(f"Somatic synapses enabled: {somatic_synapses}")
 
         soma_already_captured = self._soma_layer_already_captured(results)
-        if (
-            not somatic_synapses
-            and "layer_statistics" in results
-            and not soma_already_captured
+        if self._should_add_synthetic_soma_entry(
+            somatic_synapses=somatic_synapses,
+            results=results,
+            soma_already_captured=soma_already_captured,
         ):
             self.logger.info(
                 f"Adding synthetic soma entry to {len(results['layer_statistics'])} existing layers"
@@ -1571,22 +1597,42 @@ class InformationAnalyzer(
             )
         return somatic_synapses
 
+    @staticmethod
+    def _should_add_synthetic_soma_entry(
+        *,
+        somatic_synapses: bool,
+        results: dict[str, Any],
+        soma_already_captured: bool,
+    ) -> bool:
+        """Return whether a synthetic soma layer should be added to results."""
+        return (
+            not somatic_synapses
+            and "layer_statistics" in results
+            and not soma_already_captured
+        )
+
     def _soma_layer_already_captured(self, results: dict[str, Any]) -> bool:
         if "layer_statistics" not in results:
             return False
 
         for layer_name in results["layer_statistics"].keys():
-            if "branch_layers." not in layer_name:
+            if self._parse_branch_layer_index(layer_name) is None:
                 continue
-            try:
-                int(layer_name.split("branch_layers.")[1].split(".")[0])
-                layer_data = results["layer_statistics"][layer_name]
-                if layer_data.get("has_synapses") is False:
-                    self.logger.info(f"Soma layer already captured: {layer_name}")
-                    return True
-            except (ValueError, IndexError):
-                continue
+            layer_data = results["layer_statistics"][layer_name]
+            if layer_data.get("has_synapses") is False:
+                self.logger.info(f"Soma layer already captured: {layer_name}")
+                return True
         return False
+
+    @staticmethod
+    def _parse_branch_layer_index(layer_name: str) -> Optional[int]:
+        """Extract the branch-layer index from a module path, if present."""
+        if "branch_layers." not in layer_name:
+            return None
+        try:
+            return int(layer_name.split("branch_layers.")[1].split(".")[0])
+        except (ValueError, IndexError):
+            return None
 
     @staticmethod
     def _find_real_soma_layer(layer_statistics: dict[str, Any]) -> Optional[str]:
@@ -1594,11 +1640,8 @@ class InformationAnalyzer(
         real_soma_layer = None
 
         for layer_name in layer_statistics.keys():
-            if "branch_layers." not in layer_name:
-                continue
-            try:
-                branch_idx = int(layer_name.split("branch_layers.")[1].split(".")[0])
-            except (ValueError, IndexError):
+            branch_idx = InformationAnalyzer._parse_branch_layer_index(layer_name)
+            if branch_idx is None:
                 continue
             if branch_idx > max_branch_idx:
                 max_branch_idx = branch_idx
@@ -1609,57 +1652,14 @@ class InformationAnalyzer(
     def _extract_soma_statistics(
         self, real_soma_layer: Optional[str], layer_statistics: dict[str, Any]
     ) -> dict[str, float]:
-        soma_stats = {
-            "soma_vout_mean": 0.0,
-            "soma_vout_std": 0.0,
-            "soma_vb_mean": 0.0,
-            "soma_vb_std": 0.0,
-            "soma_vb_lin_mean": 0.0,
-            "soma_vb_lin_std": 0.0,
-            "soma_vb_vout_mean": 0.0,
-            "soma_vb_vout_std": 0.0,
-            "soma_vb_vout_c_mean": 0.0,
-            "soma_vb_vout_c_std": 0.0,
-            "soma_vb_lin_vout_mean": 0.0,
-            "soma_vb_lin_vout_std": 0.0,
-            "soma_vb_lin_vout_c_mean": 0.0,
-            "soma_vb_lin_vout_c_std": 0.0,
-            "soma_vout_lin_mean": 0.0,
-            "soma_vout_lin_std": 0.0,
-        }
+        soma_stats = dict.fromkeys(self._soma_statistics_metric_map(), 0.0)
 
         if real_soma_layer and real_soma_layer in layer_statistics:
             real_soma_stats = layer_statistics[real_soma_layer]
             soma_stats.update(
                 {
-                    "soma_vout_mean": real_soma_stats.get("I(Vout;C)_mean", 0.0),
-                    "soma_vout_std": real_soma_stats.get("I(Vout;C)_std", 0.0),
-                    "soma_vb_mean": real_soma_stats.get("I(Vb;C)_mean", 0.0),
-                    "soma_vb_std": real_soma_stats.get("I(Vb;C)_std", 0.0),
-                    "soma_vb_lin_mean": real_soma_stats.get("I(Vb_lin;C)_mean", 0.0),
-                    "soma_vb_lin_std": real_soma_stats.get("I(Vb_lin;C)_std", 0.0),
-                    "soma_vb_vout_mean": real_soma_stats.get("I(Vb;Vout)_mean", 0.0),
-                    "soma_vb_vout_std": real_soma_stats.get("I(Vb;Vout)_std", 0.0),
-                    "soma_vb_vout_c_mean": real_soma_stats.get(
-                        "I(Vb;Vout|C)_mean", 0.0
-                    ),
-                    "soma_vb_vout_c_std": real_soma_stats.get("I(Vb;Vout|C)_std", 0.0),
-                    "soma_vb_lin_vout_mean": real_soma_stats.get(
-                        "I(Vb_lin;Vout_lin)_mean", 0.0
-                    ),
-                    "soma_vb_lin_vout_std": real_soma_stats.get(
-                        "I(Vb_lin;Vout_lin)_std", 0.0
-                    ),
-                    "soma_vb_lin_vout_c_mean": real_soma_stats.get(
-                        "I(Vb_lin;Vout_lin|C)_mean", 0.0
-                    ),
-                    "soma_vb_lin_vout_c_std": real_soma_stats.get(
-                        "I(Vb_lin;Vout_lin|C)_std", 0.0
-                    ),
-                    "soma_vout_lin_mean": real_soma_stats.get(
-                        "I(Vout_lin;C)_mean", 0.0
-                    ),
-                    "soma_vout_lin_std": real_soma_stats.get("I(Vout_lin;C)_std", 0.0),
+                    soma_key: real_soma_stats.get(metric_key, 0.0)
+                    for soma_key, metric_key in self._soma_statistics_metric_map().items()
                 }
             )
             self.logger.info(f"Found real soma layer: {real_soma_layer}")
@@ -1679,6 +1679,28 @@ class InformationAnalyzer(
             )
 
         return soma_stats
+
+    @staticmethod
+    def _soma_statistics_metric_map() -> dict[str, str]:
+        """Map internal soma-stat keys to source layer-stat metric keys."""
+        return {
+            "soma_vout_mean": "I(Vout;C)_mean",
+            "soma_vout_std": "I(Vout;C)_std",
+            "soma_vb_mean": "I(Vb;C)_mean",
+            "soma_vb_std": "I(Vb;C)_std",
+            "soma_vb_lin_mean": "I(Vb_lin;C)_mean",
+            "soma_vb_lin_std": "I(Vb_lin;C)_std",
+            "soma_vb_vout_mean": "I(Vb;Vout)_mean",
+            "soma_vb_vout_std": "I(Vb;Vout)_std",
+            "soma_vb_vout_c_mean": "I(Vb;Vout|C)_mean",
+            "soma_vb_vout_c_std": "I(Vb;Vout|C)_std",
+            "soma_vb_lin_vout_mean": "I(Vb_lin;Vout_lin)_mean",
+            "soma_vb_lin_vout_std": "I(Vb_lin;Vout_lin)_std",
+            "soma_vb_lin_vout_c_mean": "I(Vb_lin;Vout_lin|C)_mean",
+            "soma_vb_lin_vout_c_std": "I(Vb_lin;Vout_lin|C)_std",
+            "soma_vout_lin_mean": "I(Vout_lin;C)_mean",
+            "soma_vout_lin_std": "I(Vout_lin;C)_std",
+        }
 
     def _build_synthetic_soma_entry(
         self, soma_stats: dict[str, float]
@@ -1753,18 +1775,24 @@ class InformationAnalyzer(
             "I(Vb_lin;Vout_lin|C)_mean": soma_stats["soma_vb_lin_vout_c_mean"],
             "I(Vb_lin;Vout_lin|C)_std": soma_stats["soma_vb_lin_vout_c_std"],
         }
-        soma_entry = {
-            k: v
-            for k, v in soma_entry.items()
+        return self._filter_synthetic_soma_entry_metrics(soma_entry)
+
+    def _filter_synthetic_soma_entry_metrics(
+        self, soma_entry: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Apply soma availability rules to a synthetic soma result entry."""
+        filtered_entry = {
+            key: value
+            for key, value in soma_entry.items()
             if self._keep_metric_key_given_availability(
-                k,
+                key,
                 has_exc_synapses=False,
                 has_inh_synapses=False,
                 has_branch_input=True,
             )
         }
-        soma_entry["has_synapses"] = False
-        return soma_entry
+        filtered_entry["has_synapses"] = False
+        return filtered_entry
 
     def compute_class_mi(self, activations, labels):
         return self.estimators[self.method].mutual_information(activations, labels)
@@ -1836,12 +1864,9 @@ class InformationAnalyzer(
         # Extract and sort layers by branch index
         layers_with_idx = []
         for layer_name in layer_names:
-            if "branch_layers" in layer_name:
-                try:
-                    idx = int(layer_name.split("branch_layers.")[1].split(".")[0])
-                    layers_with_idx.append((idx, layer_name))
-                except (ValueError, IndexError):
-                    continue
+            idx = self._parse_branch_layer_index(layer_name)
+            if idx is not None:
+                layers_with_idx.append((idx, layer_name))
         layers_with_idx.sort(key=lambda x: x[0])
 
         # Chain LDA through all layers
