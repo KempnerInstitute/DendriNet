@@ -22,6 +22,93 @@ from dendritic_modeling.training.strategies.local_learning_state import _LayerSt
 logger = logging.getLogger(__name__)
 
 
+def _is_class_index_target(y: torch.Tensor) -> bool:
+    """Return whether a target tensor stores class indices."""
+
+    return y.dim() == 1 or (y.dim() == 2 and y.size(1) == 1)
+
+
+def _prepare_ce_target(y_hat: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    """Prepare cross-entropy targets with legacy one-hot handling."""
+
+    if _is_class_index_target(y):
+        num_classes = y_hat.size(-1)
+        return functional.one_hot(y.view(-1), num_classes=num_classes).to(y_hat.dtype)
+    return y
+
+
+def _prepare_bce_prediction(y_hat: torch.Tensor) -> torch.Tensor:
+    """Prepare BCE predictions from logits or probabilities."""
+
+    y_hat_detached = y_hat.detach()
+    if y_hat_detached.min() < 0 or y_hat_detached.max() > 1:
+        return torch.sigmoid(y_hat)
+    return torch.clamp(y_hat, min=1e-6, max=1.0 - 1e-6)
+
+
+def _decoder_linear_layers(decoder_network: nn.Module) -> list[nn.Linear]:
+    """Return decoder linear layers, preserving legacy traversal failure handling."""
+
+    try:
+        return [
+            module
+            for module in decoder_network.modules()
+            if isinstance(module, nn.Linear)
+        ]
+    except Exception:
+        return []
+
+
+def _has_single_linear_decoder(decoder_network: nn.Module) -> bool:
+    """Return whether the decoder is a single linear readout."""
+
+    return len(_decoder_linear_layers(decoder_network)) == 1
+
+
+def _linear_decoder_shapes_compatible(
+    *,
+    delta_out: torch.Tensor,
+    h_in: torch.Tensor,
+    lin_mod: nn.Linear,
+) -> bool:
+    """Return whether cached tensors match a single linear decoder mapping."""
+
+    return (
+        delta_out.dim() == 2
+        and h_in.dim() == 2
+        and delta_out.size(0) == h_in.size(0)
+        and delta_out.size(1) == lin_mod.weight.size(0)
+        and h_in.size(1) == lin_mod.weight.size(1)
+    )
+
+
+def _map_decoder_input_error(
+    *,
+    y_hat: torch.Tensor,
+    decoder_input: Any,
+    delta_out: torch.Tensor,
+) -> tuple[torch.Tensor, torch.Tensor] | None:
+    """Map output error through a cached decoder input when autograd can resolve it."""
+
+    if not isinstance(decoder_input, torch.Tensor):
+        return None
+
+    try:
+        delta_core = torch.autograd.grad(
+            outputs=y_hat,
+            inputs=decoder_input,
+            grad_outputs=delta_out,
+            retain_graph=True,
+            allow_unused=True,
+        )[0]
+    except RuntimeError:
+        delta_core = None
+
+    if isinstance(delta_core, torch.Tensor):
+        return decoder_input.detach(), delta_core.detach()
+    return None
+
+
 class LocalLearningSignalMixin:
     def _compute_logging_loss(
         self, model: BaseModel, x: torch.Tensor, y: torch.Tensor
@@ -35,6 +122,14 @@ class LocalLearningSignalMixin:
         """
 
         return self.loss_function(model, x, y)
+
+    def _warn_decoder_soma_fallback_once(self, message: str) -> None:
+        """Log a decoder soma-mapping fallback once per trainer instance."""
+
+        if self._warned_decoder_soma_fallback:
+            return
+        logger.info(message)
+        self._warned_decoder_soma_fallback = True
 
     def _compute_soma_error(self, y_hat: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """Compute output-space error signal: dL/dy_hat per sample.
@@ -128,49 +223,21 @@ class LocalLearningSignalMixin:
 
         decoder_input = self._decoder_cache.get("decoder_input")
 
-        if isinstance(decoder_input, torch.Tensor):
-
-            try:
-
-                delta_core = torch.autograd.grad(
-                    outputs=y_hat,
-                    inputs=decoder_input,
-                    grad_outputs=delta_out,
-                    retain_graph=True,
-                    allow_unused=True,
-                )[0]
-
-            except RuntimeError:
-
-                delta_core = None
-
-            if isinstance(delta_core, torch.Tensor):
-
-                return decoder_input.detach(), delta_core.detach()
-
-        try:
-
-            linear_layers = [
-                module
-                for module in model.decoder_network.modules()
-                if isinstance(module, nn.Linear)
-            ]
-
-        except Exception:
-
-            linear_layers = []
+        mapped_decoder_input = _map_decoder_input_error(
+            y_hat=y_hat,
+            decoder_input=decoder_input,
+            delta_out=delta_out,
+        )
+        if mapped_decoder_input is not None:
+            return mapped_decoder_input
 
         # We only apply explicit mapping when decoder is a single linear readout.
 
-        if len(linear_layers) != 1:
+        if not _has_single_linear_decoder(model.decoder_network):
 
-            if not self._warned_decoder_soma_fallback:
-
-                logger.info(
-                    "Local soma-error mapping fallback: decoder is not a single linear layer."
-                )
-
-                self._warned_decoder_soma_fallback = True
+            self._warn_decoder_soma_fallback_once(
+                "Local soma-error mapping fallback: decoder is not a single linear layer."
+            )
 
             return v0_local, delta_local
 
@@ -180,33 +247,23 @@ class LocalLearningSignalMixin:
 
         if not (isinstance(lin_mod, nn.Linear) and isinstance(h_in, torch.Tensor)):
 
-            if not self._warned_decoder_soma_fallback:
-
-                logger.info(
-                    "Local soma-error mapping fallback: missing cached decoder input."
-                )
-
-                self._warned_decoder_soma_fallback = True
+            self._warn_decoder_soma_fallback_once(
+                "Local soma-error mapping fallback: missing cached decoder input."
+            )
 
             return v0_local, delta_local
 
         # Ensure dimensions are aligned before mapping.
 
-        if (
-            delta_out.dim() != 2
-            or h_in.dim() != 2
-            or delta_out.size(0) != h_in.size(0)
-            or delta_out.size(1) != lin_mod.weight.size(0)
-            or h_in.size(1) != lin_mod.weight.size(1)
+        if not _linear_decoder_shapes_compatible(
+            delta_out=delta_out,
+            h_in=h_in,
+            lin_mod=lin_mod,
         ):
 
-            if not self._warned_decoder_soma_fallback:
-
-                logger.info(
-                    "Local soma-error mapping fallback: incompatible decoder shapes."
-                )
-
-                self._warned_decoder_soma_fallback = True
+            self._warn_decoder_soma_fallback_once(
+                "Local soma-error mapping fallback: incompatible decoder shapes."
+            )
 
             return v0_local, delta_local
 
@@ -387,15 +444,7 @@ class LocalLearningSignalMixin:
 
             # Support both logits (BCEWithLogits-style) and probability outputs (BCELoss).
 
-            y_hat_detached = y_hat.detach()
-
-            if y_hat_detached.min() < 0 or y_hat_detached.max() > 1:
-
-                pred = torch.sigmoid(y_hat)
-
-            else:
-
-                pred = torch.clamp(y_hat, min=1e-6, max=1.0 - 1e-6)
+            pred = _prepare_bce_prediction(y_hat)
 
             return pred - y
 
@@ -403,19 +452,7 @@ class LocalLearningSignalMixin:
 
             # Gradient of CrossEntropy w.r.t logits: softmax(y_hat) - one_hot(y)
 
-            if y.dim() == 1 or (y.dim() == 2 and y.size(1) == 1):
-
-                num_classes = y_hat.size(-1)
-
-                y_onehot = functional.one_hot(y.view(-1), num_classes=num_classes).to(
-                    y_hat.dtype
-                )
-
-            else:
-
-                # assume already one-hot
-
-                y_onehot = y
+            y_onehot = _prepare_ce_target(y_hat, y)
 
             probs = functional.softmax(y_hat, dim=-1)
 

@@ -35,6 +35,7 @@ from dendritic_modeling.training.strategies.local_learning_epoch import (
     _resolve_freeze_update_modes,
     _resolve_schedule_epoch_range,
     _set_topk_mask_cache,
+    _should_clip_gradients,
 )
 from dendritic_modeling.training.strategies.local_learning_gradients_mixin import (
     LocalLearningGradientMixin,
@@ -785,6 +786,13 @@ def test_clip_model_gradients_clamps_existing_gradients():
 
     assert torch.equal(model.weight.grad, torch.tensor([[0.25, -0.25]]))
     assert torch.equal(model.bias.grad, torch.tensor([0.1]))
+
+
+def test_should_clip_gradients_matches_legacy_truthiness_guard():
+    assert _should_clip_gradients(0.25) is True
+    assert _should_clip_gradients(None) is False
+    assert _should_clip_gradients(0) is False
+    assert _should_clip_gradients(-0.25) is False
 
 
 @pytest.mark.parametrize("clip_grad_value", [None, 0, -0.25])

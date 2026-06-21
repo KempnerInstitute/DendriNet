@@ -290,8 +290,14 @@ def _apply_decoder_local_gradients(
         _accumulate_parameter_grad(lin_mod.bias, grad_b)
 
 
+def _should_clip_gradients(clip_grad_value: Any) -> bool:
+    """Return whether value-wise gradient clipping is enabled."""
+
+    return bool(clip_grad_value and clip_grad_value > 0)
+
+
 def _clip_model_gradients(model: BaseModel, clip_grad_value: Any) -> None:
-    if clip_grad_value and clip_grad_value > 0:
+    if _should_clip_gradients(clip_grad_value):
         torch.nn.utils.clip_grad_value_(model.parameters(), clip_grad_value)
 
 
