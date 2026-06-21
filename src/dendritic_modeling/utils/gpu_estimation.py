@@ -19,6 +19,7 @@ from dendritic_modeling.datasets.dimensions import (
     dataset_class_count,
     dataset_input_shape,
 )
+from dendritic_modeling.utils.hooks import iter_modules_matching
 
 logger = logging.getLogger(__name__)
 
@@ -203,9 +204,7 @@ def _is_leaf_module(module: torch.nn.Module) -> bool:
 
 def _iter_leaf_modules(model: torch.nn.Module) -> Iterator[torch.nn.Module]:
     """Yield leaf modules in PyTorch module traversal order."""
-    for module in model.modules():
-        if _is_leaf_module(module):
-            yield module
+    yield from iter_modules_matching(model, _is_leaf_module)
 
 
 def _module_parameter_category(module: torch.nn.Module) -> str:
@@ -248,9 +247,11 @@ def _find_einet_activation_config(
     model: torch.nn.Module,
 ) -> dict[str, Any] | None:
     """Return activation-estimation config for the first EINet module, if present."""
-    for module in model.modules():
-        if "ExcitationInhibitionNetwork" in type(module).__name__:
-            return _extract_einet_activation_config(module)
+    for module in iter_modules_matching(
+        model,
+        lambda module: "ExcitationInhibitionNetwork" in type(module).__name__,
+    ):
+        return _extract_einet_activation_config(module)
     return None
 
 

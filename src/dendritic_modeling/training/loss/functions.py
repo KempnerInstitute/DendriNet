@@ -45,6 +45,62 @@ def _reduce_tensor_loss(loss: torch.Tensor, reduction: str) -> torch.Tensor:
     return _loss_reduction_fn(reduction)(loss)
 
 
+def _difference_first_mean_error(
+    reduction_fn: Callable[[torch.Tensor], torch.Tensor],
+    x: torch.Tensor,
+    y: torch.Tensor,
+) -> torch.Tensor:
+    """Return the historical voltage mean-error term."""
+    return reduction_fn(x - y)
+
+
+def _separate_reduction_mean_error(
+    reduction_fn: Callable[[torch.Tensor], torch.Tensor],
+    x: torch.Tensor,
+    y: torch.Tensor,
+) -> torch.Tensor:
+    """Return the historical E/I balance mean-error term."""
+    return reduction_fn(x) - reduction_fn(y)
+
+
+def _build_pair_metric_fn(
+    loss_metric: str,
+    *,
+    reduction: str,
+    eps: float,
+    error_context: str,
+    reduce_mean_error_difference_first: bool,
+) -> Callable[[torch.Tensor, torch.Tensor], torch.Tensor]:
+    """Build a two-tensor metric while preserving domain-specific formulas."""
+    reduction_fn = _loss_reduction_fn(reduction)
+    mean_error_fn = (
+        _difference_first_mean_error
+        if reduce_mean_error_difference_first
+        else _separate_reduction_mean_error
+    )
+
+    if loss_metric == "mse":
+        return lambda x, y: reduction_fn((x - y) ** 2)
+    if loss_metric == "log_mse":
+        return lambda x, y: torch.log(reduction_fn((x - y) ** 2) + eps)
+    if loss_metric == "mae":
+        return lambda x, y: reduction_fn(torch.abs(x - y))
+    if loss_metric == "log_mae":
+        return lambda x, y: torch.log(reduction_fn(torch.abs(x - y)) + eps)
+    if loss_metric == "squared_mean_error":
+        return lambda x, y: mean_error_fn(reduction_fn, x, y) ** 2
+    if loss_metric == "log_squared_mean_error":
+        return lambda x, y: torch.log(mean_error_fn(reduction_fn, x, y) ** 2 + eps)
+    if loss_metric == "abs_mean_error":
+        return lambda x, y: torch.abs(mean_error_fn(reduction_fn, x, y))
+    if loss_metric == "log_abs_mean_error":
+        return lambda x, y: torch.log(
+            torch.abs(mean_error_fn(reduction_fn, x, y)) + eps
+        )
+
+    raise ValueError(f"Invalid metric for {error_context}: {loss_metric}")
+
+
 def register_loss_function(
     name: str,
     builder: LossBuilder,
@@ -272,32 +328,13 @@ class VoltageStabilizationLoss(ForwardHookRemovalMixin, LossFunction):
             # gate_occupancy hooks on the reactivation output (r)
             self.save_outputs = True
 
-        reduction_fn = _loss_reduction_fn(self.reduction)
-
-        if loss_metric == "mse":
-            self.metric_fn = lambda x, y: reduction_fn((x - y) ** 2)
-        elif loss_metric == "log_mse":
-            self.metric_fn = lambda x, y: torch.log(
-                reduction_fn((x - y) ** 2) + self.eps
-            )
-        elif loss_metric == "mae":
-            self.metric_fn = lambda x, y: reduction_fn(torch.abs(x - y))
-        elif loss_metric == "log_mae":
-            self.metric_fn = lambda x, y: torch.log(
-                reduction_fn(torch.abs(x - y)) + self.eps
-            )
-        elif loss_metric == "squared_mean_error":
-            self.metric_fn = lambda x, y: reduction_fn(x - y) ** 2
-        elif loss_metric == "log_squared_mean_error":
-            self.metric_fn = lambda x, y: torch.log(reduction_fn(x - y) ** 2 + self.eps)
-        elif loss_metric == "abs_mean_error":
-            self.metric_fn = lambda x, y: torch.abs(reduction_fn(x - y))
-        elif loss_metric == "log_abs_mean_error":
-            self.metric_fn = lambda x, y: torch.log(
-                torch.abs(reduction_fn(x - y)) + self.eps
-            )
-        else:
-            raise ValueError(f"Invalid metric for voltage stabilization: {loss_metric}")
+        self.metric_fn = _build_pair_metric_fn(
+            loss_metric,
+            reduction=self.reduction,
+            eps=self.eps,
+            error_context="voltage stabilization",
+            reduce_mean_error_difference_first=True,
+        )
 
     def attach_forward_hooks(self, model: BaseModel):
         handles = []
@@ -397,39 +434,15 @@ class ExcitationInhibitionBalanceLoss(ForwardHookRemovalMixin, LossFunction):
         super().__init__(reduction)
         self._loss_name = "Excitation-Inhibition Balance"
         self.loss_metric = loss_metric
-
-        reduction_fn = _loss_reduction_fn(self.reduction)
-
-        if loss_metric == "mse":
-            self.metric_fn = lambda x, y: reduction_fn((x - y) ** 2)
-        elif loss_metric == "log_mse":
-            self.metric_fn = lambda x, y: torch.log(
-                reduction_fn((x - y) ** 2) + self.eps
-            )
-        elif loss_metric == "mae":
-            self.metric_fn = lambda x, y: reduction_fn(torch.abs(x - y))
-        elif loss_metric == "log_mae":
-            self.metric_fn = lambda x, y: torch.log(
-                reduction_fn(torch.abs(x - y)) + self.eps
-            )
-        elif loss_metric == "squared_mean_error":
-            self.metric_fn = lambda x, y: (reduction_fn(x) - reduction_fn(y)) ** 2
-        elif loss_metric == "log_squared_mean_error":
-            self.metric_fn = lambda x, y: torch.log(
-                (reduction_fn(x) - reduction_fn(y)) ** 2 + self.eps
-            )
-        elif loss_metric == "abs_mean_error":
-            self.metric_fn = lambda x, y: torch.abs(reduction_fn(x) - reduction_fn(y))
-        elif loss_metric == "log_abs_mean_error":
-            self.metric_fn = lambda x, y: torch.log(
-                torch.abs(reduction_fn(x) - reduction_fn(y)) + self.eps
-            )
-        else:
-            raise ValueError(
-                f"Invalid metric for excitation-inhibition balance: {loss_metric}"
-            )
-
         self.eps = torch.finfo(torch.float32).eps
+
+        self.metric_fn = _build_pair_metric_fn(
+            loss_metric,
+            reduction=self.reduction,
+            eps=self.eps,
+            error_context="excitation-inhibition balance",
+            reduce_mean_error_difference_first=False,
+        )
 
     def attach_forward_hooks(self, model: BaseModel):
         handles = []

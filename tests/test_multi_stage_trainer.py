@@ -20,9 +20,11 @@ from dendritic_modeling.training.strategies.multi_stage import (
     _epoch_files_by_local_epoch,
     _finalize_multi_stage_results,
     _initial_multi_stage_results,
+    _iter_resettable_modules,
     _load_stage_checkpoint,
     _optimizer_class_and_weight_decay,
     _prepare_stage_analysis_root,
+    _reset_module_weights,
     _run_between_stage_analysis,
     _stage_checkpoint_optimizer_state,
     _stage_checkpoint_path,
@@ -551,6 +553,34 @@ def test_finalize_multi_stage_results_sets_final_model_and_best_metadata():
     assert all_results["best_loss"] == 0.2
     assert torch.equal(all_results["final_state_dict"]["weight"], model.weight)
     assert torch.equal(all_results["final_state_dict"]["bias"], model.bias)
+
+
+def test_resettable_modules_preserve_order_and_reset_rule():
+    calls = []
+
+    class ResetAware(nn.Module):
+        def __init__(self, label):
+            super().__init__()
+            self.label = label
+            self.weight = nn.Parameter(torch.ones(1))
+
+        def reset_parameters(self):
+            calls.append(self.label)
+            with torch.no_grad():
+                self.weight.zero_()
+
+    first = ResetAware("first")
+    second = ResetAware("second")
+    model = nn.Sequential(first, nn.Identity(), nn.Sequential(second))
+
+    resettable = list(_iter_resettable_modules(model))
+    for module in resettable:
+        _reset_module_weights(module)
+
+    assert resettable == [first, second]
+    assert calls == ["first", "second"]
+    assert first.weight.item() == 0.0
+    assert second.weight.item() == 0.0
 
 
 def test_stage_checkpoint_optimizer_state_prefers_trainer_optimizer():

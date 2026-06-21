@@ -21,6 +21,7 @@ from dendritic_modeling.networks.utils.weight_transforms import (
     apply_weight_transform,
     inverse_softplus,
 )
+from dendritic_modeling.utils.hooks import iter_modules_matching
 
 TOPK_INIT_METHODS = {
     "xavier_normal": nn.init.xavier_normal_,
@@ -38,10 +39,14 @@ def _iter_recurrent_weight_cache_setters(
     module: nn.Module,
 ) -> Iterator[Callable[[bool], None]]:
     """Yield recurrent-cache setter callables in module traversal order."""
-    for sub in module.modules():
+    for sub in iter_modules_matching(
+        module,
+        lambda candidate: callable(
+            getattr(candidate, "set_recurrent_weight_cache", None)
+        ),
+    ):
         setter = getattr(sub, "set_recurrent_weight_cache", None)
-        if callable(setter):
-            yield setter
+        yield setter
 
 
 def apply_recurrent_weight_cache(module: nn.Module, enabled: bool) -> None:

@@ -36,6 +36,71 @@ from dendritic_modeling.training.loss.functions import (
     get_loss_function,
 )
 
+_PAIR_METRICS = (
+    "mse",
+    "log_mse",
+    "mae",
+    "log_mae",
+    "squared_mean_error",
+    "log_squared_mean_error",
+    "abs_mean_error",
+    "log_abs_mean_error",
+)
+
+
+def _expected_voltage_metric(
+    loss_metric: str,
+    reduction: str,
+    x: torch.Tensor,
+    y: torch.Tensor,
+    eps: float,
+) -> torch.Tensor:
+    reduction_fn = _loss_reduction_fn(reduction)
+    if loss_metric == "mse":
+        return reduction_fn((x - y) ** 2)
+    if loss_metric == "log_mse":
+        return torch.log(reduction_fn((x - y) ** 2) + eps)
+    if loss_metric == "mae":
+        return reduction_fn(torch.abs(x - y))
+    if loss_metric == "log_mae":
+        return torch.log(reduction_fn(torch.abs(x - y)) + eps)
+    if loss_metric == "squared_mean_error":
+        return reduction_fn(x - y) ** 2
+    if loss_metric == "log_squared_mean_error":
+        return torch.log(reduction_fn(x - y) ** 2 + eps)
+    if loss_metric == "abs_mean_error":
+        return torch.abs(reduction_fn(x - y))
+    if loss_metric == "log_abs_mean_error":
+        return torch.log(torch.abs(reduction_fn(x - y)) + eps)
+    raise AssertionError(f"unexpected metric {loss_metric}")
+
+
+def _expected_ei_metric(
+    loss_metric: str,
+    reduction: str,
+    x: torch.Tensor,
+    y: torch.Tensor,
+    eps: float,
+) -> torch.Tensor:
+    reduction_fn = _loss_reduction_fn(reduction)
+    if loss_metric == "mse":
+        return reduction_fn((x - y) ** 2)
+    if loss_metric == "log_mse":
+        return torch.log(reduction_fn((x - y) ** 2) + eps)
+    if loss_metric == "mae":
+        return reduction_fn(torch.abs(x - y))
+    if loss_metric == "log_mae":
+        return torch.log(reduction_fn(torch.abs(x - y)) + eps)
+    if loss_metric == "squared_mean_error":
+        return (reduction_fn(x) - reduction_fn(y)) ** 2
+    if loss_metric == "log_squared_mean_error":
+        return torch.log((reduction_fn(x) - reduction_fn(y)) ** 2 + eps)
+    if loss_metric == "abs_mean_error":
+        return torch.abs(reduction_fn(x) - reduction_fn(y))
+    if loss_metric == "log_abs_mean_error":
+        return torch.log(torch.abs(reduction_fn(x) - reduction_fn(y)) + eps)
+    raise AssertionError(f"unexpected metric {loss_metric}")
+
 
 class TestLossFunction:
     """Test the base LossFunction class."""
@@ -633,6 +698,56 @@ class TestVoltageStabilizationLoss:
         torch.testing.assert_close(mean_loss.metric_fn(x, y), ((x - y) ** 2).mean())
         torch.testing.assert_close(sum_loss.metric_fn(x, y), ((x - y) ** 2).sum())
         torch.testing.assert_close(none_loss.metric_fn(x, y), (x - y) ** 2)
+
+    @pytest.mark.parametrize("loss_metric", _PAIR_METRICS)
+    @pytest.mark.parametrize("reduction", ["mean", "sum", "none"])
+    def test_voltage_pair_metrics_preserve_formulas(self, loss_metric, reduction):
+        x = torch.tensor([[0.2, -0.4, 1.0], [0.5, 0.1, -0.3]])
+        y = torch.tensor([[0.1, -0.2, 0.7], [0.4, -0.1, -0.5]])
+        loss_fn = VoltageStabilizationLoss(
+            loss_metric=loss_metric,
+            reduction=reduction,
+        )
+
+        expected = _expected_voltage_metric(
+            loss_metric,
+            reduction,
+            x,
+            y,
+            loss_fn.eps,
+        )
+
+        torch.testing.assert_close(
+            loss_fn.metric_fn(x, y),
+            expected,
+            rtol=0.0,
+            atol=0.0,
+        )
+
+    @pytest.mark.parametrize("loss_metric", _PAIR_METRICS)
+    @pytest.mark.parametrize("reduction", ["mean", "sum", "none"])
+    def test_ei_pair_metrics_preserve_formulas(self, loss_metric, reduction):
+        x = torch.tensor([[0.2, -0.4, 1.0], [0.5, 0.1, -0.3]])
+        y = torch.tensor([[0.1, -0.2, 0.7], [0.4, -0.1, -0.5]])
+        loss_fn = ExcitationInhibitionBalanceLoss(
+            loss_metric=loss_metric,
+            reduction=reduction,
+        )
+
+        expected = _expected_ei_metric(
+            loss_metric,
+            reduction,
+            x,
+            y,
+            loss_fn.eps,
+        )
+
+        torch.testing.assert_close(
+            loss_fn.metric_fn(x, y),
+            expected,
+            rtol=0.0,
+            atol=0.0,
+        )
 
     def test_voltage_hooks_removed_after_failed_registration(self, monkeypatch):
         model = self.TinyDendriticModel()

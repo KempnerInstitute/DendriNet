@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import shutil
+from collections.abc import Iterator
 from typing import Any, Optional
 
 import torch
@@ -23,6 +24,7 @@ from dendritic_modeling.models import BaseModel
 from dendritic_modeling.training.optimizers.custom import CustomWeightDecayOptimizer
 from dendritic_modeling.training.strategies.standard import Trainer
 from dendritic_modeling.utils.epoch_files import epoch_files_by_number
+from dendritic_modeling.utils.hooks import iter_modules_matching
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +58,28 @@ def _copy_valid_epoch_file(src_path: str, dest_path: str) -> bool:
         return True
     except Exception:
         return False
+
+
+def _is_resettable_module(module: nn.Module) -> bool:
+    """Return whether a module participates in between-stage weight resets."""
+    return hasattr(module, "reset_parameters") or isinstance(
+        module, (nn.Linear, nn.Conv2d)
+    )
+
+
+def _reset_module_weights(module: nn.Module) -> None:
+    """Reset one module using the historical multi-stage reset rule."""
+    if hasattr(module, "reset_parameters"):
+        module.reset_parameters()
+    elif isinstance(module, (nn.Linear, nn.Conv2d)):
+        nn.init.xavier_uniform_(module.weight)
+        if module.bias is not None:
+            nn.init.zeros_(module.bias)
+
+
+def _iter_resettable_modules(model: nn.Module) -> Iterator[nn.Module]:
+    """Yield resettable modules in module traversal order."""
+    yield from iter_modules_matching(model, _is_resettable_module)
 
 
 def _concatenate_stage_performance_epochs(
@@ -583,10 +607,5 @@ class MultiStageTrainer(Trainer):
 
     def _reset_model_weights(self, model: nn.Module):
         """Reset model weights to random initialization."""
-        for module in model.modules():
-            if hasattr(module, "reset_parameters"):
-                module.reset_parameters()
-            elif isinstance(module, (nn.Linear, nn.Conv2d)):
-                nn.init.xavier_uniform_(module.weight)
-                if module.bias is not None:
-                    nn.init.zeros_(module.bias)
+        for module in _iter_resettable_modules(model):
+            _reset_module_weights(module)
