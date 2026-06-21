@@ -373,6 +373,260 @@ class TestInformationAnalyzer(unittest.TestCase):
                 self.assertIsInstance(results, dict)
                 self.assertIn("method", results)
 
+    def test_enhanced_analysis_helper_adds_requested_results(self):
+        """Enhanced analysis helper should preserve optional result additions."""
+        self.analyzer.per_layer_analysis = True
+        self.analyzer.per_neuron_analysis = True
+        self.analyzer.per_einet_analysis = True
+        self.analyzer.data_dict = {
+            "layer0": {
+                "excitation": torch.ones(4, 2),
+                "inhibition": torch.zeros(4, 2),
+                "output": torch.full((4, 2), 0.5),
+            },
+            "layer1": {
+                "excitation": torch.ones(4, 1) * 2.0,
+                "inhibition": torch.ones(4, 1),
+                "output": torch.full((4, 1), 0.25),
+            },
+        }
+        C = np.array([0, 1, 0, 1])
+        results = {}
+
+        with (
+            patch.object(
+                self.analyzer,
+                "compute_per_layer_enhanced_analysis",
+                return_value={"layer_metric": 1.0},
+            ) as mock_layer,
+            patch.object(
+                self.analyzer,
+                "compute_per_neuron_mi",
+                return_value={"neuron_metric": 2.0},
+            ) as mock_neuron,
+            patch.object(
+                self.analyzer,
+                "compute_ei_specific_mi",
+                return_value={"ei_metric": 3.0},
+            ) as mock_ei,
+        ):
+            self.analyzer._add_enhanced_analysis_results(results, C)
+
+        self.assertEqual(results["per_layer_analysis"], {"layer_metric": 1.0})
+        self.assertEqual(results["per_neuron_analysis"], {"neuron_metric": 2.0})
+        self.assertEqual(results["per_einet_analysis"], {"ei_metric": 3.0})
+        mock_layer.assert_called_once_with(C)
+        self.assertEqual(mock_neuron.call_args.args[0].shape, (4, 3))
+        self.assertEqual(mock_neuron.call_args.args[1].shape, (4, 3))
+        self.assertEqual(mock_neuron.call_args.args[2].shape, (4, 3))
+        np.testing.assert_array_equal(mock_neuron.call_args.args[3], C)
+        self.assertEqual(mock_ei.call_args.args[0].shape, (4, 3))
+        np.testing.assert_array_equal(mock_ei.call_args.args[3], C)
+
+    def test_all_branch_helper_sample_aggregation_expands_labels(self):
+        """All-branch sample aggregation should flatten branches and repeat labels."""
+        self.analyzer.branch_aggregation = "sample"
+        self.analyzer.mi_null_shuffles = 0
+        self.analyzer.data_dict = {
+            "layer0": {
+                "excitation": torch.arange(6, dtype=torch.float32).reshape(3, 2),
+                "inhibition": torch.ones(3, 2),
+                "branch_input": torch.ones(3, 2) * 2.0,
+                "output": torch.ones(3, 2) * 3.0,
+            },
+            "layer1": {
+                "excitation": torch.ones(3, 1) * 4.0,
+                "inhibition": torch.ones(3, 1) * 5.0,
+                "branch_input": torch.ones(3, 1) * 6.0,
+                "output": torch.ones(3, 1) * 7.0,
+            },
+        }
+        C = np.array([0, 1, 2])
+        model = torch.nn.Linear(2, 1)
+        inputs = torch.ones(3, 2)
+
+        with patch.object(
+            self.analyzer,
+            "compute_metrics",
+            return_value={"method": "mock"},
+        ) as mock_metrics:
+            results = self.analyzer._compute_all_branch_results(
+                model=model,
+                inputs=inputs,
+                C=C,
+            )
+
+        self.assertEqual(results["aggregation_method"], "sample")
+        self.assertEqual(results["computation_level"], "all_branch")
+        E, I_var, Vout, C_for_metrics, Vinf, Vb = mock_metrics.call_args.args
+        self.assertEqual(E.shape, (9, 1))
+        self.assertEqual(I_var.shape, (9, 1))
+        self.assertEqual(Vout.shape, (9, 1))
+        self.assertEqual(Vb.shape, (9, 1))
+        self.assertIsNone(Vinf)
+        np.testing.assert_array_equal(C_for_metrics, np.repeat(C, 3, axis=0))
+
+    def test_all_branch_helper_multivariate_preserves_feature_axis(self):
+        """All-branch multivariate aggregation should concatenate branch features."""
+        self.analyzer.branch_aggregation = "multivariate"
+        self.analyzer.mi_null_shuffles = 0
+        self.analyzer.data_dict = {
+            "layer0": {
+                "excitation": torch.ones(4, 2),
+                "inhibition": torch.ones(4, 2) * 2.0,
+                "branch_input": torch.ones(4, 2) * 3.0,
+                "output": torch.ones(4, 2) * 4.0,
+            },
+            "layer1": {
+                "excitation": torch.ones(4, 3) * 5.0,
+                "inhibition": torch.ones(4, 3) * 6.0,
+                "branch_input": torch.ones(4, 3) * 7.0,
+                "output": torch.ones(4, 3) * 8.0,
+            },
+        }
+        C = np.array([0, 1, 0, 1])
+        model = torch.nn.Linear(2, 1)
+        inputs = torch.ones(4, 2)
+
+        with patch.object(
+            self.analyzer,
+            "compute_metrics",
+            return_value={"method": "mock"},
+        ) as mock_metrics:
+            results = self.analyzer._compute_all_branch_results(
+                model=model,
+                inputs=inputs,
+                C=C,
+            )
+
+        self.assertEqual(results["aggregation_method"], "multivariate")
+        E, I_var, Vout, C_for_metrics, Vinf, Vb = mock_metrics.call_args.args
+        self.assertEqual(E.shape, (4, 5))
+        self.assertEqual(I_var.shape, (4, 5))
+        self.assertEqual(Vout.shape, (4, 5))
+        self.assertEqual(Vb.shape, (4, 5))
+        self.assertIsNone(Vinf)
+        np.testing.assert_array_equal(C_for_metrics, C)
+
+    def test_layer_branch_helper_sample_aggregation_expands_labels(self):
+        """Layer-branch sample aggregation should flatten each layer independently."""
+        self.analyzer.branch_aggregation = "sample"
+        self.analyzer.mi_null_shuffles = 0
+        self.analyzer.data_dict = {
+            "layer0": {
+                "excitation": torch.arange(6, dtype=torch.float32).reshape(3, 2),
+                "inhibition": torch.ones(3, 2),
+                "branch_input": torch.ones(3, 2) * 2.0,
+                "output": torch.ones(3, 2) * 3.0,
+            },
+            "layer1": {
+                "excitation": torch.ones(3, 1) * 4.0,
+                "inhibition": torch.ones(3, 1) * 5.0,
+                "branch_input": torch.ones(3, 1) * 6.0,
+                "output": torch.ones(3, 1) * 7.0,
+            },
+        }
+        C = np.array([0, 1, 2])
+        layer_metric_results = [{"layer": 0}, {"layer": 1}]
+
+        with (
+            patch.object(
+                self.analyzer,
+                "compute_metrics",
+                side_effect=layer_metric_results,
+            ) as mock_metrics,
+            patch.object(self.analyzer, "_filter_result_metrics_in_place"),
+            patch.object(
+                self.analyzer,
+                "_average_mi_results",
+                return_value={"avg": True},
+            ) as mock_average,
+            patch.object(
+                self.analyzer,
+                "_compute_layer_statistics",
+                side_effect=[{"stat": 0.0}, {"stat": 1.0}],
+            ),
+        ):
+            results = self.analyzer._compute_layer_branch_results(C)
+
+        self.assertEqual(results["layer_names"], ["layer0", "layer1"])
+        self.assertEqual(results["num_layers"], 2)
+        self.assertEqual(results["computation_level"], "layer_branch")
+        self.assertEqual(results["layer_statistics"]["layer0"]["stat"], 0.0)
+        self.assertEqual(results["layer_statistics"]["layer1"]["stat"], 1.0)
+        mock_average.assert_called_once_with(layer_metric_results)
+
+        first_args = mock_metrics.call_args_list[0].args
+        second_args = mock_metrics.call_args_list[1].args
+        self.assertEqual(first_args[0].shape, (6, 1))
+        self.assertEqual(first_args[1].shape, (6, 1))
+        self.assertEqual(first_args[2].shape, (6, 1))
+        self.assertEqual(first_args[5].shape, (6, 1))
+        np.testing.assert_array_equal(first_args[3], np.repeat(C, 2, axis=0))
+        self.assertIsNone(first_args[4])
+        self.assertEqual(second_args[0].shape, (3, 1))
+        np.testing.assert_array_equal(second_args[3], C)
+
+    def test_layer_branch_helper_multivariate_preserves_feature_axis(self):
+        """Layer-branch multivariate aggregation should keep per-layer branches."""
+        self.analyzer.branch_aggregation = "multivariate"
+        self.analyzer.mi_null_shuffles = 0
+        self.analyzer.data_dict = {
+            "layer0": {
+                "excitation": torch.ones(4, 2),
+                "inhibition": torch.ones(4, 2) * 2.0,
+                "branch_input": torch.ones(4, 2) * 3.0,
+                "output": torch.ones(4, 2) * 4.0,
+            },
+            "layer1": {
+                "excitation": torch.ones(4, 3) * 5.0,
+                "inhibition": torch.ones(4, 3) * 6.0,
+                "branch_input": torch.ones(4, 3) * 7.0,
+                "output": torch.ones(4, 3) * 8.0,
+            },
+        }
+        C = np.array([0, 1, 0, 1])
+        layer_metric_results = [{"layer": 0}, {"layer": 1}]
+
+        with (
+            patch.object(
+                self.analyzer,
+                "compute_metrics",
+                side_effect=layer_metric_results,
+            ) as mock_metrics,
+            patch.object(self.analyzer, "_filter_result_metrics_in_place"),
+            patch.object(
+                self.analyzer,
+                "_average_mi_results",
+                return_value={"avg": True},
+            ) as mock_average,
+            patch.object(
+                self.analyzer,
+                "_compute_layer_statistics",
+                side_effect=[{"stat": 0.0}, {"stat": 1.0}],
+            ),
+        ):
+            results = self.analyzer._compute_layer_branch_results(C)
+
+        self.assertEqual(results["layer_names"], ["layer0", "layer1"])
+        self.assertEqual(results["num_layers"], 2)
+        self.assertEqual(results["computation_level"], "layer_branch")
+        mock_average.assert_called_once_with(layer_metric_results)
+
+        first_args = mock_metrics.call_args_list[0].args
+        second_args = mock_metrics.call_args_list[1].args
+        self.assertEqual(first_args[0].shape, (4, 2))
+        self.assertEqual(first_args[1].shape, (4, 2))
+        self.assertEqual(first_args[2].shape, (4, 2))
+        self.assertEqual(first_args[5].shape, (4, 2))
+        np.testing.assert_array_equal(first_args[3], C)
+        self.assertIsNone(first_args[4])
+        self.assertEqual(second_args[0].shape, (4, 3))
+        self.assertEqual(second_args[1].shape, (4, 3))
+        self.assertEqual(second_args[2].shape, (4, 3))
+        self.assertEqual(second_args[5].shape, (4, 3))
+        np.testing.assert_array_equal(second_args[3], C)
+
 
 class TestActivationAnalyzers(unittest.TestCase):
     """Test the activation analyzer classes."""

@@ -319,6 +319,276 @@ class AnalysisManager:
         """Set pruning results for inclusion in performance plots."""
         self.pruning_results = pruning_results
 
+    def _analysis_runtime(self, training: bool) -> object | None:
+        """Return the runtime profile for the current analysis phase."""
+        return (
+            getattr(self.config.runtime, "training", None)
+            if training
+            else getattr(self.config.runtime, "final", None)
+        )
+
+    def _run_performance_analysis(
+        self, *, filename: str, training: bool, runtime: object | None
+    ) -> None:
+        """Run performance analysis with split-specific options."""
+        if not self._should_run_config(self.config.performance_analysis, training):
+            return
+
+        save_path = (
+            self._save_path("performance", "epochs", create=True)
+            if training
+            else self._save_path("performance")
+        )
+        perf_cfg = self.config.performance_analysis
+        splits = (
+            getattr(perf_cfg, "training_splits", None)
+            if training
+            else getattr(perf_cfg, "final_splits", None)
+        )
+
+        self.performance_analyzer.analyze(
+            model=self.model,
+            train_ds=self.data["train"],
+            valid_ds=self.data["valid"],
+            test_ds=self.data["test"],
+            device=self.device,
+            save_path=save_path,
+            filename=filename,
+            training=training,
+            runtime=runtime,
+            splits=splits,
+        )
+
+    def _run_information_analysis(
+        self, *, filename: str, training: bool, runtime: object | None
+    ) -> None:
+        """Run information analysis."""
+        if not self._should_run_config(self.config.information_analysis, training):
+            return
+
+        self.logger.info("Starting information analysis...")
+        self.information_analyzer.analyze(
+            model=self.model,
+            test_dataset=self.data["test"],
+            device=self.device,
+            save_path=self._save_path("information_analysis"),
+            filename=filename,
+            runtime=runtime,
+        )
+        self.logger.info("Information analysis completed successfully")
+
+    def _run_synaptic_turnover_analysis(self, *, filename: str, training: bool) -> None:
+        """Run synaptic turnover analysis."""
+        if not self._should_run_config(self.config.synapse_turnover_analysis, training):
+            return
+
+        self.syn_turnover_analyzer.analyze(
+            model=self.model,
+            training=training,
+            save_path=self._save_path("synapse_turnover_analysis"),
+            filename=filename,
+        )
+
+    def _run_weight_analysis(self, *, filename: str, training: bool) -> None:
+        """Run weight analysis."""
+        if not self._should_run_config(self.config.weight_analysis, training):
+            return
+
+        self.weight_analyzer.analyze(
+            model=self.model,
+            save_path=self._save_path("weight_analysis"),
+            filename=filename,
+            training=training,
+        )
+
+    def _run_reactivation_dynamics_analysis(
+        self, *, filename: str, training: bool, runtime: object | None
+    ) -> None:
+        """Run reactivation dynamics analysis."""
+        rd_cfg = getattr(self.config, "reactivation_dynamics_analysis", None)
+        if not self._should_run_config(rd_cfg, training):
+            return
+
+        self.reactivation_dynamics_analyzer.analyze(
+            model=self.model,
+            train_ds=self.data.get("train"),
+            valid_ds=self.data.get("valid"),
+            test_ds=self.data.get("test"),
+            device=self.device,
+            save_path=self._save_path("reactivation_dynamics"),
+            filename=filename,
+            training=training,
+            runtime=runtime,
+        )
+
+    def _run_local_rule_component_analysis(
+        self, *, filename: str, training: bool, runtime: object | None
+    ) -> None:
+        """Run local-rule component analysis."""
+        lrc_cfg = getattr(self.config, "local_rule_component_analysis", None)
+        if not (
+            lrc_cfg is not None
+            and self._should_run_config(lrc_cfg, training)
+            and hasattr(self, "local_rule_component_analyzer")
+        ):
+            return
+
+        self.local_rule_component_analyzer.analyze(
+            model=self.model,
+            train_ds=self.data.get("train"),
+            valid_ds=self.data.get("valid"),
+            test_dataset=self.data.get("test"),
+            device=self.device,
+            save_path=self._save_path("local_rule_components"),
+            filename=filename,
+            training=training,
+            runtime=runtime,
+        )
+
+    def _run_correlation_analysis(
+        self, *, filename: str, training: bool, runtime: object | None
+    ) -> None:
+        """Run correlation analysis."""
+        if not (
+            self.correlation_analysis_enabled
+            and self._should_run_config(self.config.correlation_analysis, training)
+        ):
+            return
+
+        self.logger.info("Starting correlation analysis...")
+        self.correlation_analyzer.analyze(
+            model=self.model,
+            test_dataset=self.data["test"],
+            device=self.device,
+            save_path=self._save_path("correlation_analysis"),
+            filename=filename,
+            runtime=runtime,
+        )
+        self.logger.info("Correlation analysis completed successfully")
+
+    def _run_routing_analysis(self, *, filename: str, training: bool) -> None:
+        """Run recurrent routing analysis."""
+        if not (
+            self._should_run_config(
+                getattr(self.config, "routing_analysis", None), training
+            )
+            and hasattr(self, "routing_analyzer")
+        ):
+            return
+
+        self.logger.info("Starting routing analysis...")
+        self.routing_analyzer.analyze(
+            model=self.model,
+            data=self.data["test"],
+            device=self.device,
+            save_path=self._save_path("routing_analysis"),
+            filename=filename,
+        )
+        self.logger.info("Routing analysis completed successfully")
+
+    def _run_inhibitory_specialization_analysis(
+        self, *, filename: str, training: bool
+    ) -> None:
+        """Run inhibitory specialization analysis."""
+        inh_spec_cfg = getattr(self.config, "inhibitory_specialization_analysis", None)
+        if not (
+            self._should_run_config(inh_spec_cfg, training)
+            and hasattr(self, "inhibitory_specialization_analyzer")
+        ):
+            return
+
+        self.logger.info("Starting inhibitory specialization analysis...")
+        self.inhibitory_specialization_analyzer.analyze(
+            model=self.model,
+            device=self.device,
+            save_path=self._save_path("inhibitory_specialization"),
+            filename=filename,
+        )
+        self.logger.info("Inhibitory specialization analysis completed successfully")
+
+    def _run_jacobian_spectrum_analysis(self, *, filename: str, training: bool) -> None:
+        """Run jacobian spectrum analysis."""
+        jac_cfg = getattr(self.config, "jacobian_spectrum_analysis", None)
+        if not (
+            self._should_run_config(jac_cfg, training)
+            and hasattr(self, "jacobian_spectrum_analyzer")
+        ):
+            return
+
+        self.logger.info("Starting jacobian spectrum analysis...")
+        self.jacobian_spectrum_analyzer.analyze(
+            model=self.model,
+            device=self.device,
+            save_path=self._save_path("jacobian_spectrum"),
+            filename=filename,
+        )
+        self.logger.info("Jacobian spectrum analysis completed successfully")
+
+    def _run_dendritic_timetraces_analysis(
+        self, *, filename: str, training: bool
+    ) -> None:
+        """Run dendritic timetraces analysis."""
+        ddt_cfg = getattr(self.config, "dendritic_timetraces_analysis", None)
+        if not (
+            self._should_run_config(ddt_cfg, training)
+            and hasattr(self, "dendritic_timetraces_analyzer")
+        ):
+            return
+
+        self.logger.info("Starting dendritic timetraces analysis...")
+        self.dendritic_timetraces_analyzer.analyze(
+            model=self.model,
+            device=self.device,
+            save_path=self._save_path("dendritic_timetraces"),
+            filename=filename,
+        )
+        self.logger.info("Dendritic timetraces analysis completed successfully")
+
+    def _run_spike_train_analysis(
+        self, *, filename: str, training: bool, runtime: object | None
+    ) -> None:
+        """Run spike-train analysis."""
+        spike_cfg = getattr(self.config, "spike_train_analysis", None)
+        if not (
+            self._should_run_config(spike_cfg, training)
+            and hasattr(self, "spike_train_analyzer")
+        ):
+            return
+
+        self.logger.info("Starting spike train analysis...")
+        self.spike_train_analyzer.analyze(
+            model=self.model,
+            data=self.data["test"],
+            device=self.device,
+            save_path=self._save_path("spike_train_analysis"),
+            filename=filename,
+            runtime=runtime,
+        )
+        self.logger.info("Spike train analysis completed successfully")
+
+    def _run_adversarial_robustness_analysis(
+        self, *, filename: str, training: bool, runtime: object | None
+    ) -> None:
+        """Run adversarial robustness analysis."""
+        adv_cfg = getattr(self.config, "adversarial_robustness_analysis", None)
+        if not (
+            self._should_run_config(adv_cfg, training)
+            and hasattr(self, "adversarial_robustness_analyzer")
+        ):
+            return
+
+        self.logger.info("Starting adversarial robustness analysis...")
+        self._run_test_dataset_analysis(
+            cfg=adv_cfg,
+            analyzer_attr="adversarial_robustness_analyzer",
+            save_subdir="adversarial_robustness_analysis",
+            filename=filename,
+            training=training,
+            runtime=runtime,
+            require_analyzer=True,
+        )
+        self.logger.info("Adversarial robustness analysis completed successfully")
+
     def run_analysis(self, filename: str = "final", training: bool = False):
         """
         Run all enabled analysis tools.
@@ -327,63 +597,15 @@ class AnalysisManager:
             filename: Base filename for saving analysis results
             training: Whether this is being called during training (affects which analyses run)
         """
-        runtime = (
-            getattr(self.config.runtime, "training", None)
-            if training
-            else getattr(self.config.runtime, "final", None)
+        runtime = self._analysis_runtime(training)
+
+        self._run_performance_analysis(
+            filename=filename, training=training, runtime=runtime
         )
-
-        # Performance Analysis
-        if self._should_run_config(self.config.performance_analysis, training):
-            # Determine save path based on whether this is training or final analysis
-            if training:
-                # Save epoch results in a subfolder
-                save_path = self._save_path("performance", "epochs", create=True)
-            else:
-                # Save final results in main performance folder
-                save_path = self._save_path("performance")
-
-            perf_cfg = self.config.performance_analysis
-            splits = (
-                getattr(perf_cfg, "training_splits", None)
-                if training
-                else getattr(perf_cfg, "final_splits", None)
-            )
-
-            self.performance_analyzer.analyze(
-                model=self.model,
-                train_ds=self.data["train"],
-                valid_ds=self.data["valid"],
-                test_ds=self.data["test"],
-                device=self.device,
-                save_path=save_path,
-                filename=filename,
-                training=training,
-                runtime=runtime,
-                splits=splits,
-            )
-
-        # Information Analysis
-        if self._should_run_config(self.config.information_analysis, training):
-            self.logger.info("Starting information analysis...")
-            self.information_analyzer.analyze(
-                model=self.model,
-                test_dataset=self.data["test"],
-                device=self.device,
-                save_path=self._save_path("information_analysis"),
-                filename=filename,
-                runtime=runtime,
-            )
-            self.logger.info("Information analysis completed successfully")
-
-        # Synaptic Turnover Analysis
-        if self._should_run_config(self.config.synapse_turnover_analysis, training):
-            self.syn_turnover_analyzer.analyze(
-                model=self.model,
-                training=training,
-                save_path=self._save_path("synapse_turnover_analysis"),
-                filename=filename,
-            )
+        self._run_information_analysis(
+            filename=filename, training=training, runtime=runtime
+        )
+        self._run_synaptic_turnover_analysis(filename=filename, training=training)
 
         for runner in _PRE_WEIGHT_TEST_DATASET_ANALYSES:
             self._run_test_dataset_analysis_runner(
@@ -393,29 +615,10 @@ class AnalysisManager:
                 runtime=runtime,
             )
 
-        # Weight Analysis
-        if self._should_run_config(self.config.weight_analysis, training):
-            self.weight_analyzer.analyze(
-                model=self.model,
-                save_path=self._save_path("weight_analysis"),
-                filename=filename,
-                training=training,
-            )
-
-        # Reactivation Dynamics Analysis
-        rd_cfg = getattr(self.config, "reactivation_dynamics_analysis", None)
-        if self._should_run_config(rd_cfg, training):
-            self.reactivation_dynamics_analyzer.analyze(
-                model=self.model,
-                train_ds=self.data.get("train"),
-                valid_ds=self.data.get("valid"),
-                test_ds=self.data.get("test"),
-                device=self.device,
-                save_path=self._save_path("reactivation_dynamics"),
-                filename=filename,
-                training=training,
-                runtime=runtime,
-            )
+        self._run_weight_analysis(filename=filename, training=training)
+        self._run_reactivation_dynamics_analysis(
+            filename=filename, training=training, runtime=runtime
+        )
 
         for runner in _POST_REACTIVATION_TEST_DATASET_ANALYSES:
             self._run_test_dataset_analysis_runner(
@@ -425,127 +628,21 @@ class AnalysisManager:
                 runtime=runtime,
             )
 
-        # Local Rule Component Analysis
-        lrc_cfg = getattr(self.config, "local_rule_component_analysis", None)
-        if (
-            lrc_cfg is not None
-            and self._should_run_config(lrc_cfg, training)
-            and hasattr(self, "local_rule_component_analyzer")
-        ):
-            self.local_rule_component_analyzer.analyze(
-                model=self.model,
-                train_ds=self.data.get("train"),
-                valid_ds=self.data.get("valid"),
-                test_dataset=self.data.get("test"),
-                device=self.device,
-                save_path=self._save_path("local_rule_components"),
-                filename=filename,
-                training=training,
-                runtime=runtime,
-            )
-
-        # Correlation Analysis
-        if self.correlation_analysis_enabled and self._should_run_config(
-            self.config.correlation_analysis, training
-        ):
-            self.logger.info("Starting correlation analysis...")
-            self.correlation_analyzer.analyze(
-                model=self.model,
-                test_dataset=self.data["test"],
-                device=self.device,
-                save_path=self._save_path("correlation_analysis"),
-                filename=filename,
-                runtime=runtime,
-            )
-            self.logger.info("Correlation analysis completed successfully")
-
-        # Routing Analysis (recurrent models)
-        if self._should_run_config(
-            getattr(self.config, "routing_analysis", None), training
-        ) and hasattr(self, "routing_analyzer"):
-            self.logger.info("Starting routing analysis...")
-            self.routing_analyzer.analyze(
-                model=self.model,
-                data=self.data["test"],
-                device=self.device,
-                save_path=self._save_path("routing_analysis"),
-                filename=filename,
-            )
-            self.logger.info("Routing analysis completed successfully")
-
-        # Inhibitory Specialization Analysis (recurrent E-I models)
-        inh_spec_cfg = getattr(self.config, "inhibitory_specialization_analysis", None)
-        if self._should_run_config(inh_spec_cfg, training) and hasattr(
-            self, "inhibitory_specialization_analyzer"
-        ):
-            self.logger.info("Starting inhibitory specialization analysis...")
-            self.inhibitory_specialization_analyzer.analyze(
-                model=self.model,
-                device=self.device,
-                save_path=self._save_path("inhibitory_specialization"),
-                filename=filename,
-            )
-            self.logger.info(
-                "Inhibitory specialization analysis completed successfully"
-            )
-
-        # Jacobian Spectrum Analysis (recurrent dendritic models)
-        jac_cfg = getattr(self.config, "jacobian_spectrum_analysis", None)
-        if self._should_run_config(jac_cfg, training) and hasattr(
-            self, "jacobian_spectrum_analyzer"
-        ):
-            self.logger.info("Starting jacobian spectrum analysis...")
-            self.jacobian_spectrum_analyzer.analyze(
-                model=self.model,
-                device=self.device,
-                save_path=self._save_path("jacobian_spectrum"),
-                filename=filename,
-            )
-            self.logger.info("Jacobian spectrum analysis completed successfully")
-
-        # Dendritic Timetraces Analysis (recurrent dendritic models)
-        ddt_cfg = getattr(self.config, "dendritic_timetraces_analysis", None)
-        if self._should_run_config(ddt_cfg, training) and hasattr(
-            self, "dendritic_timetraces_analyzer"
-        ):
-            self.logger.info("Starting dendritic timetraces analysis...")
-            self.dendritic_timetraces_analyzer.analyze(
-                model=self.model,
-                device=self.device,
-                save_path=self._save_path("dendritic_timetraces"),
-                filename=filename,
-            )
-            self.logger.info("Dendritic timetraces analysis completed successfully")
-
-        # Spike Train Analysis (spiking recurrent models)
-        spike_cfg = getattr(self.config, "spike_train_analysis", None)
-        if self._should_run_config(spike_cfg, training) and hasattr(
-            self, "spike_train_analyzer"
-        ):
-            self.logger.info("Starting spike train analysis...")
-            self.spike_train_analyzer.analyze(
-                model=self.model,
-                data=self.data["test"],
-                device=self.device,
-                save_path=self._save_path("spike_train_analysis"),
-                filename=filename,
-                runtime=runtime,
-            )
-            self.logger.info("Spike train analysis completed successfully")
-
-        # Adversarial Robustness Analysis
-        if self._should_run_config(
-            getattr(self.config, "adversarial_robustness_analysis", None),
-            training,
-        ) and hasattr(self, "adversarial_robustness_analyzer"):
-            self.logger.info("Starting adversarial robustness analysis...")
-            self._run_test_dataset_analysis(
-                cfg=getattr(self.config, "adversarial_robustness_analysis", None),
-                analyzer_attr="adversarial_robustness_analyzer",
-                save_subdir="adversarial_robustness_analysis",
-                filename=filename,
-                training=training,
-                runtime=runtime,
-                require_analyzer=True,
-            )
-            self.logger.info("Adversarial robustness analysis completed successfully")
+        self._run_local_rule_component_analysis(
+            filename=filename, training=training, runtime=runtime
+        )
+        self._run_correlation_analysis(
+            filename=filename, training=training, runtime=runtime
+        )
+        self._run_routing_analysis(filename=filename, training=training)
+        self._run_inhibitory_specialization_analysis(
+            filename=filename, training=training
+        )
+        self._run_jacobian_spectrum_analysis(filename=filename, training=training)
+        self._run_dendritic_timetraces_analysis(filename=filename, training=training)
+        self._run_spike_train_analysis(
+            filename=filename, training=training, runtime=runtime
+        )
+        self._run_adversarial_robustness_analysis(
+            filename=filename, training=training, runtime=runtime
+        )

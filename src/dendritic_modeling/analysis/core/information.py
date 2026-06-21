@@ -9,6 +9,7 @@ import logging
 import os
 import time
 import traceback
+from dataclasses import dataclass
 from typing import Any, Optional
 
 import numpy as np
@@ -48,6 +49,16 @@ from dendritic_modeling.utils.information.estimators import (
 from dendritic_modeling.utils.information.pid import (
     check_pid_available,
 )
+
+
+@dataclass(frozen=True)
+class _InformationAnalysisData:
+    """Materialized inputs and labels used by information analysis."""
+
+    inputs: torch.Tensor
+    labels: torch.Tensor
+    C: np.ndarray
+    entropy_C: Optional[float]
 
 
 class InformationAnalyzer(
@@ -515,6 +526,53 @@ class InformationAnalyzer(
                     "PID package not available. PID metrics will be skipped."
                 )
 
+    def _collect_analysis_data(
+        self,
+        *,
+        model: BaseModel,
+        test_dataset: torch.utils.data.Dataset,
+        device: str,
+        runtime: Optional[EvaluationRuntimeConfig],
+    ) -> _InformationAnalysisData:
+        """Materialize data and collect branch activations through forward hooks."""
+        self.logger.info("Loading test dataset...")
+        items = materialize_dataset(
+            test_dataset,
+            runtime,
+            explicit_max_samples=self.max_samples,
+            device=device,
+        )
+        inputs: torch.Tensor = items[0].to(device)
+        labels: torch.Tensor = items[1].to(device)
+        self.logger.info(
+            f"Loaded dataset: {len(inputs)} samples, input shape: {inputs.shape}"
+        )
+
+        handles = self.attach_forward_hooks(model)
+        try:
+            with torch.no_grad():
+                _ = model(inputs)
+        finally:
+            self.remove_forward_hooks(handles)
+
+        C = labels.detach().cpu().numpy()
+        self.logger.debug(
+            f"Data collection completed. Found {len(self.data_dict)} layers."
+        )
+
+        entropy_C: Optional[float]
+        if self._is_discrete_class_labels(C):
+            entropy_C = self._discrete_entropy_nats(C)
+        else:
+            entropy_C = None
+
+        return _InformationAnalysisData(
+            inputs=inputs,
+            labels=labels,
+            C=C,
+            entropy_C=entropy_C,
+        )
+
     def analyze(
         self,
         model: BaseModel,
@@ -564,41 +622,16 @@ class InformationAnalyzer(
             model.eval()
             moved = True
 
-            self.logger.info("Loading test dataset...")
-            items = materialize_dataset(
-                test_dataset,
-                runtime,
-                explicit_max_samples=self.max_samples,
+            analysis_data = self._collect_analysis_data(
+                model=model,
+                test_dataset=test_dataset,
                 device=device,
+                runtime=runtime,
             )
-            inputs: torch.Tensor = items[0].to(device)
-            labels: torch.Tensor = items[1].to(device)
-            self.logger.info(
-                f"Loaded dataset: {len(inputs)} samples, input shape: {inputs.shape}"
-            )
-
-            # Attach forward hooks and run forward pass
-            handles = self.attach_forward_hooks(model)
-            try:
-                with torch.no_grad():
-                    _ = model(inputs)
-            finally:
-                self.remove_forward_hooks(handles)
-            C = labels.detach().cpu().numpy()
-
-            self.logger.debug(
-                f"Data collection completed. Found {len(self.data_dict)} layers."
-            )
-
-            self.data_dict: dict[str, dict[str, torch.Tensor]]
-
-            # Discrete class entropy (nats). Used for "layer total" heuristics in
-            # single-branch mode (e.g. sum/union aggregations of per-branch MI).
-            entropy_C: Optional[float]
-            if self._is_discrete_class_labels(C):
-                entropy_C = self._discrete_entropy_nats(C)
-            else:
-                entropy_C = None
+            inputs = analysis_data.inputs
+            labels = analysis_data.labels
+            C = analysis_data.C
+            entropy_C = analysis_data.entropy_C
 
             if self.computation_level == "single_branch":
                 # Individual branch analysis: Compute MI for each branch separately and average
@@ -948,463 +981,32 @@ class InformationAnalyzer(
                     return
 
             elif self.computation_level == "layer_branch":
-                # Layer-level analysis: treat each layer as a unit
-                self.logger.info("Computing MI at layer level...")
-
-                all_results = []
-                layer_names = []
-
-                layers_to_process = [
-                    (name, data)
-                    for name, data in self.data_dict.items()
-                    if "excitation" in data
-                ]
-
-                for layer_name, layer_data in tqdm(
-                    layers_to_process,
-                    desc="Processing layers",
-                    leave=False,
-                    ncols=100,
-                ):
-                    # Aggregate all branches within this layer using branch_aggregation
-                    E_layer_data_raw = layer_data[
-                        "excitation"
-                    ]  # Shape: [n_samples, n_branches]
-                    I_layer_data_raw = layer_data["inhibition"]
-                    Vb_layer_data_raw = layer_data.get("branch_input")
-                    Vout_layer_data = layer_data["output"]
-
-                    has_exc_synapses = bool(layer_data.get("has_exc_synapses", True))
-                    has_inh_synapses = bool(layer_data.get("has_inh_synapses", True))
-                    has_branch_input = Vb_layer_data_raw is not None
-
-                    # Ensure inhibitory data is available
-                    E_layer_data, I_layer_data = self.ensure_inhibitory_data(
-                        E_layer_data_raw, I_layer_data_raw
-                    )
-
-                    # Keep Vb as None when it doesn't exist (e.g., outermost distal layer)
-                    # or when config disables branch input analysis.
-                    Vb_layer_data = Vb_layer_data_raw if has_branch_input else None
-                    C_for_layer = C
-
-                    if self.branch_aggregation == "mean":
-                        E_layer = (
-                            E_layer_data.mean(dim=1).detach().cpu().numpy()
-                        )  # [n_samples,]
-                        I_layer = I_layer_data.mean(dim=1).detach().cpu().numpy()
-                        if Vb_layer_data is not None:
-                            Vb_layer = Vb_layer_data.mean(dim=1).detach().cpu().numpy()
-                            Vb_layer = Vb_layer.reshape(-1, 1)
-                        else:
-                            Vb_layer = None
-                        Vout_layer = Vout_layer_data.mean(dim=1).detach().cpu().numpy()
-                        # Reshape to 2D for MI computation
-                        E_layer = E_layer.reshape(-1, 1)
-                        I_layer = I_layer.reshape(-1, 1)
-                        Vout_layer = Vout_layer.reshape(-1, 1)
-                    elif self.branch_aggregation == "multivariate":
-                        # Multivariate: Keep all branches as multivariate input (no aggregation)
-                        E_layer = (
-                            E_layer_data.detach().cpu().numpy()
-                        )  # [n_samples, n_branches]
-                        I_layer = (
-                            I_layer_data.detach().cpu().numpy()
-                        )  # [n_samples, n_branches]
-                        Vb_layer = (
-                            Vb_layer_data.detach().cpu().numpy()
-                            if Vb_layer_data is not None
-                            else None
-                        )
-                        Vout_layer = (
-                            Vout_layer_data.detach().cpu().numpy()
-                        )  # [n_samples, n_branches]
-                    elif self.branch_aggregation == "sample":
-                        # Sample: Treat each branch as a separate observation/sample
-                        # Flatten [n_samples, n_branches] -> [n_samples * n_branches, 1]
-                        E_layer = (
-                            E_layer_data.detach().cpu().numpy().flatten().reshape(-1, 1)
-                        )
-                        I_layer = (
-                            I_layer_data.detach().cpu().numpy().flatten().reshape(-1, 1)
-                        )
-                        Vb_layer = (
-                            Vb_layer_data.detach()
-                            .cpu()
-                            .numpy()
-                            .flatten()
-                            .reshape(-1, 1)
-                            if Vb_layer_data is not None
-                            else None
-                        )
-                        Vout_layer = (
-                            Vout_layer_data.detach()
-                            .cpu()
-                            .numpy()
-                            .flatten()
-                            .reshape(-1, 1)
-                        )
-                        # Need to replicate C for each branch
-                        n_samples, n_branches = E_layer_data.shape
-                        C_expanded = np.repeat(
-                            C, n_branches, axis=0
-                        )  # Expand C to match new sample count
-                        C_for_layer = C_expanded
-                    else:
-                        # Default to mean
-                        E_layer = E_layer_data.mean(dim=1).detach().cpu().numpy()
-                        I_layer = I_layer_data.mean(dim=1).detach().cpu().numpy()
-                        if Vb_layer_data is not None:
-                            Vb_layer = Vb_layer_data.mean(dim=1).detach().cpu().numpy()
-                            Vb_layer = Vb_layer.reshape(-1, 1)
-                        else:
-                            Vb_layer = None
-                        Vout_layer = Vout_layer_data.mean(dim=1).detach().cpu().numpy()
-                        # Reshape to 2D for MI computation
-                        E_layer = E_layer.reshape(-1, 1)
-                        I_layer = I_layer.reshape(-1, 1)
-                        Vout_layer = Vout_layer.reshape(-1, 1)
-
-                    # Compute MI for this layer
-                    layer_results = self.compute_metrics(
-                        E_layer, I_layer, Vout_layer, C_for_layer, None, Vb_layer
-                    )
-                    self._filter_result_metrics_in_place(
-                        layer_results,
-                        has_exc_synapses=has_exc_synapses,
-                        has_inh_synapses=has_inh_synapses,
-                        has_branch_input=has_branch_input,
-                    )
-                    if self.mi_null_shuffles > 0:
-                        try:
-                            self._add_label_shuffle_null_baselines_in_place(
-                                layer_results,
-                                E=E_layer,
-                                I_var=I_layer,
-                                Vout=Vout_layer,
-                                C=C_for_layer,
-                                Vb=Vb_layer,
-                                Vinf=None,
-                                has_exc_synapses=has_exc_synapses,
-                                has_inh_synapses=has_inh_synapses,
-                                has_branch_input=has_branch_input
-                                and (Vb_layer is not None),
-                                seed_offset=len(all_results),
-                            )
-                        except Exception as e:
-                            self.logger.warning(
-                                f"Null (label-shuffle) baseline failed for layer {layer_name}: {e}"
-                            )
-                    all_results.append(layer_results)
-                    layer_names.append(layer_name)
-
-                # Average the results across layers
-                if all_results:
-                    results = self._average_mi_results(all_results)
-                    results["layer_names"] = layer_names
-                    results["num_layers"] = len(all_results)
-                    results["computation_level"] = "layer_branch"
-
-                    # Generate layer statistics for plotting (similar to single_branch mode)
-                    layer_statistics = {}
-                    for _i, (layer_name, layer_result) in enumerate(
-                        zip(layer_names, all_results)
-                    ):
-                        # Convert individual layer result to statistics format expected by plotting
-                        layer_stats = self._compute_layer_statistics([layer_result])
-
-                        # Add has_synapses flag for plotting code to use
-                        if layer_name in self.data_dict:
-                            layer_stats["has_synapses"] = self.data_dict[
-                                layer_name
-                            ].get("has_synapses", True)
-                            # Zero out E/I related MI values when layer has no synapses
-                            # (e.g., soma with somatic_synapses=False)
-                            if not layer_stats["has_synapses"]:
-                                for key in list(layer_stats.keys()):
-                                    # Remove any metric involving E or I (they don't exist here),
-                                    # so downstream plots/averages don't get diluted by zeros.
-                                    if any(
-                                        x in key
-                                        for x in [
-                                            "I(E;",
-                                            "I(I;",
-                                            "I(E_lin;",
-                                            "I(I_lin;",
-                                        ]
-                                    ):
-                                        layer_stats.pop(key, None)
-
-                        layer_statistics[layer_name] = layer_stats
-
-                    results["layer_statistics"] = layer_statistics
-                    self.logger.info(
-                        f"Generated layer statistics for {len(layer_statistics)} layers for plotting"
-                    )
-                else:
-                    self.logger.warning("No layer results to average")
+                results = self._compute_layer_branch_results(C)
+                if results is None:
                     return
 
             else:  # computation_level == "all_branch"
-                # Full network aggregation: properly handle different-sized tensors
-                self.logger.info(
-                    f"Aggregating branches using method: {self.branch_aggregation} (full network aggregation)"
+                results = self._compute_all_branch_results(
+                    model=model,
+                    inputs=inputs,
+                    C=C,
                 )
-
-                # Collect aggregated data from each layer
-                layer_excitation = []
-                layer_inhibition = []
-                layer_branch_input = []
-                missing_vb_in_any_layer = False
-                layer_output = []
-
-                for layer_data in self.data_dict.values():
-                    if "excitation" in layer_data:
-                        # Aggregate within each layer first
-                        if self.branch_aggregation == "mean":
-                            layer_E = layer_data["excitation"].mean(
-                                dim=1, keepdim=True
-                            )  # [n_samples, 1]
-                            layer_I = layer_data["inhibition"].mean(dim=1, keepdim=True)
-                            layer_Vb_raw = layer_data.get("branch_input")
-                            if layer_Vb_raw is not None:
-                                layer_Vb = layer_Vb_raw.mean(dim=1, keepdim=True)
-                            else:
-                                layer_Vb = None
-                                missing_vb_in_any_layer = True
-                            layer_Vout = layer_data["output"].mean(dim=1, keepdim=True)
-                        elif self.branch_aggregation == "multivariate":
-                            # For network level with multivariate, keep branches separate for each layer
-                            layer_E = layer_data[
-                                "excitation"
-                            ]  # [n_samples, n_branches]
-                            layer_I = layer_data[
-                                "inhibition"
-                            ]  # [n_samples, n_branches]
-                            layer_Vb_raw = layer_data.get("branch_input")
-                            if layer_Vb_raw is not None:
-                                layer_Vb = layer_Vb_raw
-                            else:
-                                layer_Vb = None
-                                missing_vb_in_any_layer = True
-                            layer_Vout = layer_data["output"]  # [n_samples, n_branches]
-                        elif self.branch_aggregation == "sample":
-                            # For network level with sample, flatten each layer's branches into samples
-                            n_samples, n_branches = layer_data["excitation"].shape
-                            layer_E = layer_data["excitation"].view(
-                                n_samples * n_branches, 1
-                            )
-                            layer_I = layer_data["inhibition"].view(
-                                n_samples * n_branches, 1
-                            )
-                            layer_Vb_raw = layer_data.get("branch_input")
-                            if layer_Vb_raw is not None:
-                                layer_Vb = layer_Vb_raw.view(n_samples * n_branches, 1)
-                            else:
-                                layer_Vb = None
-                                missing_vb_in_any_layer = True
-                            layer_Vout = layer_data["output"].view(
-                                n_samples * n_branches, 1
-                            )
-                        else:
-                            # Default to mean
-                            layer_E = layer_data["excitation"].mean(dim=1, keepdim=True)
-                            layer_I = layer_data["inhibition"].mean(dim=1, keepdim=True)
-                            layer_Vb_raw = layer_data.get("branch_input")
-                            if layer_Vb_raw is not None:
-                                layer_Vb = layer_Vb_raw.mean(dim=1, keepdim=True)
-                            else:
-                                layer_Vb = None
-                                missing_vb_in_any_layer = True
-                            layer_Vout = layer_data["output"].mean(dim=1, keepdim=True)
-
-                        layer_excitation.append(layer_E)
-                        layer_inhibition.append(layer_I)
-                        if layer_Vb is not None:
-                            layer_branch_input.append(layer_Vb)
-                        layer_output.append(layer_Vout)
-
-                if not layer_excitation:
-                    self.logger.warning(
-                        "No excitatory activations collected. Skipping information analysis."
-                    )
+                if results is None:
                     return
 
-                # Handle concatenation based on aggregation method
-                C_for_metrics = C
-                if self.branch_aggregation == "sample":
-                    # For sample aggregation, concatenate along sample dimension (axis=0)
-                    E = (
-                        torch.cat(layer_excitation, dim=0).detach().cpu().numpy()
-                    )  # [n_samples * n_branches * n_layers, 1]
-                    I_var = torch.cat(layer_inhibition, dim=0).detach().cpu().numpy()
-                    # Vb only exists if it exists for ALL included layers in sample-aggregation
-                    Vb = (
-                        torch.cat(layer_branch_input, dim=0).detach().cpu().numpy()
-                        if (layer_branch_input and not missing_vb_in_any_layer)
-                        else None
-                    )
-                    Vout = torch.cat(layer_output, dim=0).detach().cpu().numpy()
-                    # Expand C to match the new sample count
-                    total_samples = E.shape[0]
-                    original_samples = C.shape[0]
-                    expansion_factor = total_samples // original_samples
-                    C_for_metrics = np.repeat(C, expansion_factor, axis=0)
-                elif self.branch_aggregation == "multivariate":
-                    # For multivariate, concatenate along feature dimension (axis=1)
-                    E = (
-                        torch.cat(layer_excitation, dim=1).detach().cpu().numpy()
-                    )  # [n_samples, n_branches * n_layers]
-                    I_var = torch.cat(layer_inhibition, dim=1).detach().cpu().numpy()
-                    Vb = (
-                        torch.cat(layer_branch_input, dim=1).detach().cpu().numpy()
-                        if layer_branch_input
-                        else None
-                    )
-                    Vout = torch.cat(layer_output, dim=1).detach().cpu().numpy()
-                else:
-                    # For mean/max/sum, concatenate across layers (all tensors are [n_samples, 1])
-                    E = (
-                        torch.cat(layer_excitation, dim=1).detach().cpu().numpy()
-                    )  # [n_samples, n_layers]
-                    I_var = torch.cat(layer_inhibition, dim=1).detach().cpu().numpy()
-                    Vb = (
-                        torch.cat(layer_branch_input, dim=1).detach().cpu().numpy()
-                        if layer_branch_input
-                        else None
-                    )
-                    Vout = torch.cat(layer_output, dim=1).detach().cpu().numpy()
-
-                self.logger.info(
-                    "Aggregated data shapes - "
-                    f"E: {E.shape}, I: {I_var.shape}, Vb: {None if Vb is None else Vb.shape}, Vout: {Vout.shape}, C: {C_for_metrics.shape}"
-                )
-
-                # Get soma activation (Vinf) if available for aggregate mode
-                Vinf = None
-                # For now, we'll use the final model output as Vinf
-                with torch.no_grad():
-                    final_output: torch.Tensor = model(inputs)
-                    if hasattr(model, "final_fc"):
-                        # Model has final classification layer
-                        Vinf = final_output.detach().cpu().numpy()
-
-                # Run information analysis on aggregated data
-                results = self.compute_metrics(E, I_var, Vout, C_for_metrics, Vinf, Vb)
-                if self.mi_null_shuffles > 0:
-                    try:
-                        self._add_label_shuffle_null_baselines_in_place(
-                            results,
-                            E=E,
-                            I_var=I_var,
-                            Vout=Vout,
-                            C=C_for_metrics,
-                            Vb=Vb,
-                            Vinf=Vinf,
-                            has_exc_synapses=True,
-                            has_inh_synapses=True,
-                            has_branch_input=Vb is not None,
-                            seed_offset=999_999,
-                        )
-                    except Exception as e:
-                        self.logger.warning(
-                            f"Null (label-shuffle) baseline failed for all-branch analysis: {e}"
-                        )
-                results["aggregation_method"] = self.branch_aggregation
-                results["computation_level"] = "all_branch"
-
-            # Add enhanced analysis results if requested
-            if (
-                self.per_neuron_analysis
-                or self.per_einet_analysis
-                or self.per_layer_analysis
-            ):
-                self.logger.info("Running enhanced analysis modes...")
-
-                # Add per-layer analysis if requested
-                if self.per_layer_analysis:
-                    per_layer_results = self.compute_per_layer_enhanced_analysis(C)
-                    results["per_layer_analysis"] = per_layer_results
-
-                # Network-level enhanced analysis (existing functionality)
-                if self.per_neuron_analysis or self.per_einet_analysis:
-                    # Collect all data for enhanced analysis
-                    all_E_data = []
-                    all_I_data = []
-                    all_Vout_data = []
-
-                    for layer_data in self.data_dict.values():
-                        if "excitation" in layer_data:
-                            # Ensure inhibitory data is available
-                            E_filtered, I_filtered = self.ensure_inhibitory_data(
-                                layer_data["excitation"], layer_data["inhibition"]
-                            )
-                            all_E_data.append(E_filtered.detach().cpu().numpy())
-                            all_I_data.append(I_filtered.detach().cpu().numpy())
-                            all_Vout_data.append(
-                                layer_data["output"].detach().cpu().numpy()
-                            )
-
-                    # Concatenate data across layers (network-level view)
-                    if all_E_data:
-                        E_all = np.concatenate(
-                            all_E_data, axis=1
-                        )  # [n_samples, total_neurons]
-                        I_all = np.concatenate(all_I_data, axis=1)
-                        Vout_all = np.concatenate(all_Vout_data, axis=1)
-
-                        # Add per-neuron analysis results
-                        if self.per_neuron_analysis:
-                            per_neuron_results = self.compute_per_neuron_mi(
-                                E_all, I_all, Vout_all, C
-                            )
-                            results["per_neuron_analysis"] = per_neuron_results
-
-                        # Add EI-network analysis results
-                        if self.per_einet_analysis:
-                            ei_specific_results = self.compute_ei_specific_mi(
-                                E_all, I_all, Vout_all, C
-                            )
-                            results["per_einet_analysis"] = ei_specific_results
+            self._add_enhanced_analysis_results(results, C)
 
             # Add metadata about analysis configuration
-            results["per_neuron_analysis_enabled"] = self.per_neuron_analysis
-            results["per_einet_analysis_enabled"] = self.per_einet_analysis
-            results["per_layer_analysis_enabled"] = self.per_layer_analysis
-            results["has_inhibitory_data"] = self.has_inhibitory_data(self.data_dict)
-
-            # Analysis completion summary
-            total_analysis_time = time.time() - analysis_start_time
-            self.logger.info("Information analysis completed successfully!")
-            self.logger.info("Analysis summary:")
-            self.logger.info(f"   - Total time: {total_analysis_time:.1f}s")
-            self.logger.info(f"   - Computation level: {self.computation_level}")
-            self.logger.info(f"   - Method: {self.method}")
-            self.logger.info(f"   - Sample size: {results.get('n_samples', 'unknown')}")
-            if "num_branches" in results:
-                self.logger.info(f"   - Branches processed: {results['num_branches']}")
-            if "num_layers" in results:
-                self.logger.info(f"   - Layers processed: {results['num_layers']}")
-
-            somatic_synapses = self._add_synthetic_soma_entry_if_needed(results, model)
-            self._finalize_information_units_and_variance(results)
-            self._maybe_add_lda_vs_trained_performance(
+            return self._complete_analysis_results(
                 results=results,
                 model=model,
                 inputs=inputs,
                 labels=labels,
+                analysis_start_time=analysis_start_time,
                 device=device,
                 save_path=save_path,
-            )
-            self._save_analysis_outputs(
-                results=results,
-                save_path=save_path,
                 filename=filename,
-                somatic_synapses=somatic_synapses,
             )
-
-            # Always return results for plotting
-            return results
 
         except Exception as e:
             self.logger.error(f"Error in information analysis: {e}")
@@ -1414,6 +1016,397 @@ class InformationAnalyzer(
                 model.to(original_device)
                 if was_training:
                     model.train()
+
+    def _compute_layer_branch_results(self, C: np.ndarray) -> dict[str, Any] | None:
+        """Compute information metrics after aggregating branches within each layer."""
+        self.logger.info("Computing MI at layer level...")
+
+        all_results = []
+        layer_names = []
+
+        layers_to_process = [
+            (name, data)
+            for name, data in self.data_dict.items()
+            if "excitation" in data
+        ]
+
+        for layer_name, layer_data in tqdm(
+            layers_to_process,
+            desc="Processing layers",
+            leave=False,
+            ncols=100,
+        ):
+            E_layer_data_raw = layer_data["excitation"]
+            I_layer_data_raw = layer_data["inhibition"]
+            Vb_layer_data_raw = layer_data.get("branch_input")
+            Vout_layer_data = layer_data["output"]
+
+            has_exc_synapses = bool(layer_data.get("has_exc_synapses", True))
+            has_inh_synapses = bool(layer_data.get("has_inh_synapses", True))
+            has_branch_input = Vb_layer_data_raw is not None
+
+            E_layer_data, I_layer_data = self.ensure_inhibitory_data(
+                E_layer_data_raw, I_layer_data_raw
+            )
+
+            # Keep Vb as None when it doesn't exist (e.g., outermost distal layer)
+            # or when config disables branch input analysis.
+            Vb_layer_data = Vb_layer_data_raw if has_branch_input else None
+            C_for_layer = C
+
+            if self.branch_aggregation == "mean":
+                E_layer = E_layer_data.mean(dim=1).detach().cpu().numpy()
+                I_layer = I_layer_data.mean(dim=1).detach().cpu().numpy()
+                if Vb_layer_data is not None:
+                    Vb_layer = Vb_layer_data.mean(dim=1).detach().cpu().numpy()
+                    Vb_layer = Vb_layer.reshape(-1, 1)
+                else:
+                    Vb_layer = None
+                Vout_layer = Vout_layer_data.mean(dim=1).detach().cpu().numpy()
+                E_layer = E_layer.reshape(-1, 1)
+                I_layer = I_layer.reshape(-1, 1)
+                Vout_layer = Vout_layer.reshape(-1, 1)
+            elif self.branch_aggregation == "multivariate":
+                E_layer = E_layer_data.detach().cpu().numpy()
+                I_layer = I_layer_data.detach().cpu().numpy()
+                Vb_layer = (
+                    Vb_layer_data.detach().cpu().numpy()
+                    if Vb_layer_data is not None
+                    else None
+                )
+                Vout_layer = Vout_layer_data.detach().cpu().numpy()
+            elif self.branch_aggregation == "sample":
+                E_layer = E_layer_data.detach().cpu().numpy().flatten().reshape(-1, 1)
+                I_layer = I_layer_data.detach().cpu().numpy().flatten().reshape(-1, 1)
+                Vb_layer = (
+                    Vb_layer_data.detach().cpu().numpy().flatten().reshape(-1, 1)
+                    if Vb_layer_data is not None
+                    else None
+                )
+                Vout_layer = (
+                    Vout_layer_data.detach().cpu().numpy().flatten().reshape(-1, 1)
+                )
+                _n_samples, n_branches = E_layer_data.shape
+                C_for_layer = np.repeat(C, n_branches, axis=0)
+            else:
+                E_layer = E_layer_data.mean(dim=1).detach().cpu().numpy()
+                I_layer = I_layer_data.mean(dim=1).detach().cpu().numpy()
+                if Vb_layer_data is not None:
+                    Vb_layer = Vb_layer_data.mean(dim=1).detach().cpu().numpy()
+                    Vb_layer = Vb_layer.reshape(-1, 1)
+                else:
+                    Vb_layer = None
+                Vout_layer = Vout_layer_data.mean(dim=1).detach().cpu().numpy()
+                E_layer = E_layer.reshape(-1, 1)
+                I_layer = I_layer.reshape(-1, 1)
+                Vout_layer = Vout_layer.reshape(-1, 1)
+
+            layer_results = self.compute_metrics(
+                E_layer, I_layer, Vout_layer, C_for_layer, None, Vb_layer
+            )
+            self._filter_result_metrics_in_place(
+                layer_results,
+                has_exc_synapses=has_exc_synapses,
+                has_inh_synapses=has_inh_synapses,
+                has_branch_input=has_branch_input,
+            )
+            if self.mi_null_shuffles > 0:
+                try:
+                    self._add_label_shuffle_null_baselines_in_place(
+                        layer_results,
+                        E=E_layer,
+                        I_var=I_layer,
+                        Vout=Vout_layer,
+                        C=C_for_layer,
+                        Vb=Vb_layer,
+                        Vinf=None,
+                        has_exc_synapses=has_exc_synapses,
+                        has_inh_synapses=has_inh_synapses,
+                        has_branch_input=has_branch_input and (Vb_layer is not None),
+                        seed_offset=len(all_results),
+                    )
+                except Exception as e:
+                    self.logger.warning(
+                        f"Null (label-shuffle) baseline failed for layer {layer_name}: {e}"
+                    )
+            all_results.append(layer_results)
+            layer_names.append(layer_name)
+
+        if not all_results:
+            self.logger.warning("No layer results to average")
+            return None
+
+        results = self._average_mi_results(all_results)
+        results["layer_names"] = layer_names
+        results["num_layers"] = len(all_results)
+        results["computation_level"] = "layer_branch"
+
+        layer_statistics = {}
+        for layer_name, layer_result in zip(layer_names, all_results):
+            layer_stats = self._compute_layer_statistics([layer_result])
+
+            if layer_name in self.data_dict:
+                layer_stats["has_synapses"] = self.data_dict[layer_name].get(
+                    "has_synapses", True
+                )
+                if not layer_stats["has_synapses"]:
+                    for key in list(layer_stats.keys()):
+                        if any(
+                            x in key
+                            for x in [
+                                "I(E;",
+                                "I(I;",
+                                "I(E_lin;",
+                                "I(I_lin;",
+                            ]
+                        ):
+                            layer_stats.pop(key, None)
+
+            layer_statistics[layer_name] = layer_stats
+
+        results["layer_statistics"] = layer_statistics
+        self.logger.info(
+            f"Generated layer statistics for {len(layer_statistics)} layers for plotting"
+        )
+        return results
+
+    def _compute_all_branch_results(
+        self,
+        *,
+        model: BaseModel,
+        inputs: torch.Tensor,
+        C: np.ndarray,
+    ) -> dict[str, Any] | None:
+        """Compute full-network information metrics across all collected branches."""
+        self.logger.info(
+            f"Aggregating branches using method: {self.branch_aggregation} (full network aggregation)"
+        )
+
+        layer_excitation = []
+        layer_inhibition = []
+        layer_branch_input = []
+        missing_vb_in_any_layer = False
+        layer_output = []
+
+        for layer_data in self.data_dict.values():
+            if "excitation" in layer_data:
+                if self.branch_aggregation == "mean":
+                    layer_E = layer_data["excitation"].mean(dim=1, keepdim=True)
+                    layer_I = layer_data["inhibition"].mean(dim=1, keepdim=True)
+                    layer_Vb_raw = layer_data.get("branch_input")
+                    if layer_Vb_raw is not None:
+                        layer_Vb = layer_Vb_raw.mean(dim=1, keepdim=True)
+                    else:
+                        layer_Vb = None
+                        missing_vb_in_any_layer = True
+                    layer_Vout = layer_data["output"].mean(dim=1, keepdim=True)
+                elif self.branch_aggregation == "multivariate":
+                    layer_E = layer_data["excitation"]
+                    layer_I = layer_data["inhibition"]
+                    layer_Vb_raw = layer_data.get("branch_input")
+                    if layer_Vb_raw is not None:
+                        layer_Vb = layer_Vb_raw
+                    else:
+                        layer_Vb = None
+                        missing_vb_in_any_layer = True
+                    layer_Vout = layer_data["output"]
+                elif self.branch_aggregation == "sample":
+                    n_samples, n_branches = layer_data["excitation"].shape
+                    layer_E = layer_data["excitation"].view(n_samples * n_branches, 1)
+                    layer_I = layer_data["inhibition"].view(n_samples * n_branches, 1)
+                    layer_Vb_raw = layer_data.get("branch_input")
+                    if layer_Vb_raw is not None:
+                        layer_Vb = layer_Vb_raw.view(n_samples * n_branches, 1)
+                    else:
+                        layer_Vb = None
+                        missing_vb_in_any_layer = True
+                    layer_Vout = layer_data["output"].view(n_samples * n_branches, 1)
+                else:
+                    layer_E = layer_data["excitation"].mean(dim=1, keepdim=True)
+                    layer_I = layer_data["inhibition"].mean(dim=1, keepdim=True)
+                    layer_Vb_raw = layer_data.get("branch_input")
+                    if layer_Vb_raw is not None:
+                        layer_Vb = layer_Vb_raw.mean(dim=1, keepdim=True)
+                    else:
+                        layer_Vb = None
+                        missing_vb_in_any_layer = True
+                    layer_Vout = layer_data["output"].mean(dim=1, keepdim=True)
+
+                layer_excitation.append(layer_E)
+                layer_inhibition.append(layer_I)
+                if layer_Vb is not None:
+                    layer_branch_input.append(layer_Vb)
+                layer_output.append(layer_Vout)
+
+        if not layer_excitation:
+            self.logger.warning(
+                "No excitatory activations collected. Skipping information analysis."
+            )
+            return None
+
+        C_for_metrics = C
+        if self.branch_aggregation == "sample":
+            E = torch.cat(layer_excitation, dim=0).detach().cpu().numpy()
+            I_var = torch.cat(layer_inhibition, dim=0).detach().cpu().numpy()
+            Vb = (
+                torch.cat(layer_branch_input, dim=0).detach().cpu().numpy()
+                if (layer_branch_input and not missing_vb_in_any_layer)
+                else None
+            )
+            Vout = torch.cat(layer_output, dim=0).detach().cpu().numpy()
+            total_samples = E.shape[0]
+            original_samples = C.shape[0]
+            expansion_factor = total_samples // original_samples
+            C_for_metrics = np.repeat(C, expansion_factor, axis=0)
+        elif self.branch_aggregation == "multivariate":
+            E = torch.cat(layer_excitation, dim=1).detach().cpu().numpy()
+            I_var = torch.cat(layer_inhibition, dim=1).detach().cpu().numpy()
+            Vb = (
+                torch.cat(layer_branch_input, dim=1).detach().cpu().numpy()
+                if layer_branch_input
+                else None
+            )
+            Vout = torch.cat(layer_output, dim=1).detach().cpu().numpy()
+        else:
+            E = torch.cat(layer_excitation, dim=1).detach().cpu().numpy()
+            I_var = torch.cat(layer_inhibition, dim=1).detach().cpu().numpy()
+            Vb = (
+                torch.cat(layer_branch_input, dim=1).detach().cpu().numpy()
+                if layer_branch_input
+                else None
+            )
+            Vout = torch.cat(layer_output, dim=1).detach().cpu().numpy()
+
+        self.logger.info(
+            "Aggregated data shapes - "
+            f"E: {E.shape}, I: {I_var.shape}, Vb: {None if Vb is None else Vb.shape}, Vout: {Vout.shape}, C: {C_for_metrics.shape}"
+        )
+
+        Vinf = None
+        with torch.no_grad():
+            final_output: torch.Tensor = model(inputs)
+            if hasattr(model, "final_fc"):
+                Vinf = final_output.detach().cpu().numpy()
+
+        results = self.compute_metrics(E, I_var, Vout, C_for_metrics, Vinf, Vb)
+        if self.mi_null_shuffles > 0:
+            try:
+                self._add_label_shuffle_null_baselines_in_place(
+                    results,
+                    E=E,
+                    I_var=I_var,
+                    Vout=Vout,
+                    C=C_for_metrics,
+                    Vb=Vb,
+                    Vinf=Vinf,
+                    has_exc_synapses=True,
+                    has_inh_synapses=True,
+                    has_branch_input=Vb is not None,
+                    seed_offset=999_999,
+                )
+            except Exception as e:
+                self.logger.warning(
+                    f"Null (label-shuffle) baseline failed for all-branch analysis: {e}"
+                )
+        results["aggregation_method"] = self.branch_aggregation
+        results["computation_level"] = "all_branch"
+        return results
+
+    def _add_enhanced_analysis_results(
+        self, results: dict[str, Any], C: np.ndarray
+    ) -> None:
+        """Add optional per-layer, per-neuron, and EI-specific analysis results."""
+        if not (
+            self.per_neuron_analysis
+            or self.per_einet_analysis
+            or self.per_layer_analysis
+        ):
+            return
+
+        self.logger.info("Running enhanced analysis modes...")
+
+        if self.per_layer_analysis:
+            per_layer_results = self.compute_per_layer_enhanced_analysis(C)
+            results["per_layer_analysis"] = per_layer_results
+
+        if not (self.per_neuron_analysis or self.per_einet_analysis):
+            return
+
+        all_E_data = []
+        all_I_data = []
+        all_Vout_data = []
+
+        for layer_data in self.data_dict.values():
+            if "excitation" in layer_data:
+                E_filtered, I_filtered = self.ensure_inhibitory_data(
+                    layer_data["excitation"], layer_data["inhibition"]
+                )
+                all_E_data.append(E_filtered.detach().cpu().numpy())
+                all_I_data.append(I_filtered.detach().cpu().numpy())
+                all_Vout_data.append(layer_data["output"].detach().cpu().numpy())
+
+        if not all_E_data:
+            return
+
+        E_all = np.concatenate(all_E_data, axis=1)
+        I_all = np.concatenate(all_I_data, axis=1)
+        Vout_all = np.concatenate(all_Vout_data, axis=1)
+
+        if self.per_neuron_analysis:
+            per_neuron_results = self.compute_per_neuron_mi(E_all, I_all, Vout_all, C)
+            results["per_neuron_analysis"] = per_neuron_results
+
+        if self.per_einet_analysis:
+            ei_specific_results = self.compute_ei_specific_mi(E_all, I_all, Vout_all, C)
+            results["per_einet_analysis"] = ei_specific_results
+
+    def _complete_analysis_results(
+        self,
+        *,
+        results: dict[str, Any],
+        model: BaseModel,
+        inputs: torch.Tensor,
+        labels: torch.Tensor,
+        analysis_start_time: float,
+        device: str,
+        save_path: Optional[str],
+        filename: str,
+    ) -> dict[str, Any]:
+        """Add metadata, finalize units/plots, save outputs, and return results."""
+        results["per_neuron_analysis_enabled"] = self.per_neuron_analysis
+        results["per_einet_analysis_enabled"] = self.per_einet_analysis
+        results["per_layer_analysis_enabled"] = self.per_layer_analysis
+        results["has_inhibitory_data"] = self.has_inhibitory_data(self.data_dict)
+
+        total_analysis_time = time.time() - analysis_start_time
+        self.logger.info("Information analysis completed successfully!")
+        self.logger.info("Analysis summary:")
+        self.logger.info(f"   - Total time: {total_analysis_time:.1f}s")
+        self.logger.info(f"   - Computation level: {self.computation_level}")
+        self.logger.info(f"   - Method: {self.method}")
+        self.logger.info(f"   - Sample size: {results.get('n_samples', 'unknown')}")
+        if "num_branches" in results:
+            self.logger.info(f"   - Branches processed: {results['num_branches']}")
+        if "num_layers" in results:
+            self.logger.info(f"   - Layers processed: {results['num_layers']}")
+
+        somatic_synapses = self._add_synthetic_soma_entry_if_needed(results, model)
+        self._finalize_information_units_and_variance(results)
+        self._maybe_add_lda_vs_trained_performance(
+            results=results,
+            model=model,
+            inputs=inputs,
+            labels=labels,
+            device=device,
+            save_path=save_path,
+        )
+        self._save_analysis_outputs(
+            results=results,
+            save_path=save_path,
+            filename=filename,
+            somatic_synapses=somatic_synapses,
+        )
+        return results
 
     def _finalize_information_units_and_variance(self, results: dict[str, Any]) -> None:
         results["information_units"] = getattr(self, "output_units", "nats")
