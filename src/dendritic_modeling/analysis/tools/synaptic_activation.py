@@ -21,10 +21,10 @@ from dendritic_modeling.training.strategies.local_learning_pathways import (
     iter_topk_path_modules,
 )
 from dendritic_modeling.utils import save_dict
-from dendritic_modeling.utils.hooks import remove_hook_handles
+from dendritic_modeling.utils.hooks import ForwardHookRemovalMixin
 
 
-class SynapticActivationAnalyzer:
+class SynapticActivationAnalyzer(ForwardHookRemovalMixin):
     """
     Analyzer for tracking synaptic activation patterns during model inference.
 
@@ -101,10 +101,6 @@ class SynapticActivationAnalyzer:
     ) -> None:
         synapse_module._analysis_layer_name = layer_name
         synapse_module._analysis_synapse_type = synapse_type
-
-    def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
-        """Remove forward hooks."""
-        remove_hook_handles(handles)
 
     def forward_hook(
         self,

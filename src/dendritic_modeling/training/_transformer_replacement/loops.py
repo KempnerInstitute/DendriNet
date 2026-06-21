@@ -51,8 +51,10 @@ from dendritic_modeling.training._transformer_replacement.joint import (
 )
 from dendritic_modeling.training.optimizers import create_optimizer
 from dendritic_modeling.training.replacement_common import (
+    ReplacementTrainingHistory,
     _infinite_loader,
     _make_cuda_grad_scaler,
+    _should_run_periodic_step,
     _write_metrics_json,
 )
 
@@ -119,10 +121,7 @@ def _train_tensor_dataset_source(
         forward_modules=forward_modules,
         train_cfg=train_cfg,
     )
-    best_valid = initial_valid
-    best_step = 0
-    train_losses: list[float] = []
-    valid_losses: list[float] = [initial_valid]
+    history = ReplacementTrainingHistory.start(initial_valid)
 
     for step in range(1, int(train_cfg.max_steps) + 1):
         optimizer.zero_grad(set_to_none=True)
@@ -144,9 +143,9 @@ def _train_tensor_dataset_source(
         scaler.scale(step_loss).backward()
         scaler.step(optimizer)
         scaler.update()
-        train_losses.append(float(step_loss.detach().item()))
+        history.record_train_loss(float(step_loss.detach().item()))
 
-        if step % int(train_cfg.eval_every) == 0 or step == int(train_cfg.max_steps):
+        if _should_run_periodic_step(step, train_cfg.eval_every, train_cfg.max_steps):
             valid = _evaluate_tensor_datasets(
                 units,
                 valid_datasets,
@@ -158,26 +157,18 @@ def _train_tensor_dataset_source(
                 forward_modules=forward_modules,
                 train_cfg=train_cfg,
             )
-            valid_losses.append(valid)
-            if valid < best_valid:
-                best_valid = valid
-                best_step = step
-        if step % int(train_cfg.log_every) == 0 or step == 1:
+            history.record_valid_loss(step, valid)
+        if _should_run_periodic_step(step, train_cfg.log_every, 1):
             logger.info(
                 "transformer replacement distillation step=%s/%s train_loss=%.6f valid_loss=%.6f",
                 step,
                 train_cfg.max_steps,
-                train_losses[-1],
-                valid_losses[-1],
+                history.train_losses[-1],
+                history.valid_losses[-1],
             )
 
     result = TransformerReplacementTrainingResult(
-        train_losses=train_losses,
-        valid_losses=valid_losses,
-        initial_valid_loss=initial_valid,
-        final_valid_loss=valid_losses[-1],
-        best_valid_loss=best_valid,
-        best_step=best_step,
+        **history.as_result_kwargs(),
         save_dir=train_cfg.save_dir,
         layer_indices=[unit.layer_index for unit in units],
     )
@@ -266,10 +257,7 @@ def _train_hf_text_source(
         dtype=dtype,
         forward_modules=forward_modules,
     )
-    best_valid = initial_valid
-    best_step = 0
-    train_losses: list[float] = []
-    valid_losses: list[float] = [initial_valid]
+    history = ReplacementTrainingHistory.start(initial_valid)
 
     try:
         for step in range(1, int(train_cfg.max_steps) + 1):
@@ -302,10 +290,12 @@ def _train_hf_text_source(
             scaler.scale(step_loss).backward()
             scaler.step(optimizer)
             scaler.update()
-            train_losses.append(float(step_loss.detach().item()))
+            history.record_train_loss(float(step_loss.detach().item()))
 
-            if step % int(train_cfg.eval_every) == 0 or step == int(
-                train_cfg.max_steps
+            if _should_run_periodic_step(
+                step,
+                train_cfg.eval_every,
+                train_cfg.max_steps,
             ):
                 valid = _evaluate_hf_text(
                     teacher,
@@ -317,28 +307,20 @@ def _train_hf_text_source(
                     dtype=dtype,
                     forward_modules=forward_modules,
                 )
-                valid_losses.append(valid)
-                if valid < best_valid:
-                    best_valid = valid
-                    best_step = step
-            if step % int(train_cfg.log_every) == 0 or step == 1:
+                history.record_valid_loss(step, valid)
+            if _should_run_periodic_step(step, train_cfg.log_every, 1):
                 logger.info(
                     "hf_text dendritic distillation step=%s/%s train_loss=%.6f valid_loss=%.6f",
                     step,
                     train_cfg.max_steps,
-                    train_losses[-1],
-                    valid_losses[-1],
+                    history.train_losses[-1],
+                    history.valid_losses[-1],
                 )
     finally:
         capture.close()
 
     result = TransformerReplacementTrainingResult(
-        train_losses=train_losses,
-        valid_losses=valid_losses,
-        initial_valid_loss=initial_valid,
-        final_valid_loss=valid_losses[-1],
-        best_valid_loss=best_valid,
-        best_step=best_step,
+        **history.as_result_kwargs(),
         save_dir=train_cfg.save_dir,
         layer_indices=[unit.layer_index for unit in units],
     )
@@ -427,10 +409,7 @@ def _train_joint_hf_text_source(
         max_batches=eval_batches,
     )
     initial_valid = float(initial_metrics["lm_loss"])
-    best_valid = initial_valid
-    best_step = 0
-    train_losses: list[float] = []
-    valid_losses: list[float] = [initial_valid]
+    history = ReplacementTrainingHistory.start(initial_valid)
     hidden_layers = _resolve_joint_hidden_layers(config)
     input_device = next(student.parameters()).device
 
@@ -481,9 +460,9 @@ def _train_joint_hf_text_source(
             torch.nn.utils.clip_grad_norm_(trainable_params, float(max_grad_norm))
         scaler.step(optimizer)
         scaler.update()
-        train_losses.append(float(loss.detach().float().item()))
+        history.record_train_loss(float(loss.detach().float().item()))
 
-        if step % int(train_cfg.eval_every) == 0 or step == int(train_cfg.max_steps):
+        if _should_run_periodic_step(step, train_cfg.eval_every, train_cfg.max_steps):
             valid_metrics = _evaluate_lm_loss_on_tokens(
                 student,
                 valid_tokens,
@@ -492,14 +471,11 @@ def _train_joint_hf_text_source(
                 max_batches=eval_batches,
             )
             valid = float(valid_metrics["lm_loss"])
-            valid_losses.append(valid)
-            if valid < best_valid:
-                best_valid = valid
-                best_step = step
+            history.record_valid_loss(step, valid)
             for record in records:
                 record.replacement.train()
 
-        if step % int(train_cfg.log_every) == 0 or step == 1:
+        if _should_run_periodic_step(step, train_cfg.log_every, 1):
             logger.info(
                 (
                     "joint LM distillation step=%s/%s total=%.6f lm=%.6f "
@@ -511,17 +487,12 @@ def _train_joint_hf_text_source(
                 components["lm"],
                 components["kl"],
                 components["hidden"],
-                valid_losses[-1],
+                history.valid_losses[-1],
             )
 
     units = _records_to_units(records)
     result = TransformerReplacementTrainingResult(
-        train_losses=train_losses,
-        valid_losses=valid_losses,
-        initial_valid_loss=initial_valid,
-        final_valid_loss=valid_losses[-1],
-        best_valid_loss=best_valid,
-        best_step=best_step,
+        **history.as_result_kwargs(),
         save_dir=train_cfg.save_dir,
         layer_indices=[unit.layer_index for unit in units],
     )

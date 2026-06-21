@@ -1,3 +1,4 @@
+import json
 import warnings
 
 import torch
@@ -371,6 +372,45 @@ def test_evaluate_metric_generic_forwards_seq_lengths_across_runtime_modes():
     assert len(seen_seq_lengths) == 2
     for observed in seen_seq_lengths:
         torch.testing.assert_close(observed, seq_lengths)
+
+
+def test_evaluate_metric_generic_saves_tensor_metrics_via_shared_serialization(
+    tmp_path,
+):
+    x = torch.arange(12, dtype=torch.float32).reshape(4, 3)
+    y = torch.arange(4, dtype=torch.long)
+    dataset = TensorDataset(x, y)
+    model = nn.Identity()
+
+    def vector_metric(
+        model,
+        inputs,
+        labels,
+        reduce_dim=0,
+        move_device=True,
+        device="cpu",
+    ):
+        return torch.tensor([1.25, 2.5])
+
+    result = evaluation_utils._evaluate_metric_generic(
+        metric_func=vector_metric,
+        metric_name="vector_metric",
+        model=model,
+        test_ds=dataset,
+        move_device=False,
+        device="cpu",
+        save_path=str(tmp_path),
+        filename="vector_metric.json",
+    )
+
+    assert result[0] is None
+    assert result[1] is None
+    torch.testing.assert_close(result[2], torch.tensor([1.25, 2.5]))
+    assert json.loads((tmp_path / "vector_metric.json").read_text()) == {
+        "train vector_metric": None,
+        "valid vector_metric": None,
+        "test vector_metric": [1.25, 2.5],
+    }
 
 
 def test_stream_model_outputs_forwards_seq_lengths_to_compatible_model():

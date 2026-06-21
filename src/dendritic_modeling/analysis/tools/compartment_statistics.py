@@ -40,12 +40,12 @@ from dendritic_modeling.training.strategies.local_learning_pathways import (
     iter_topk_path_modules,
 )
 from dendritic_modeling.utils import save_dict
-from dendritic_modeling.utils.hooks import remove_hook_handles
+from dendritic_modeling.utils.hooks import ForwardHookRemovalMixin
 
 logger = logging.getLogger(__name__)
 
 
-class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
+class CompartmentStatisticsAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
     """
     Analyzer for compartment-level dendritic statistics.
 
@@ -176,10 +176,6 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
                 self._register_synapse_capture_hook(key, synapse_type, synapse_module)
             )
         return handles
-
-    def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
-        """Remove forward hooks from the model."""
-        remove_hook_handles(handles)
 
     def forward_hook(
         self,

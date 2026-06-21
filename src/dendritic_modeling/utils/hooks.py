@@ -15,4 +15,12 @@ def remove_hook_handles(handles: Iterable[HookHandle]) -> None:
         handle.remove()
 
 
-__all__ = ["HookHandle", "remove_hook_handles"]
+class ForwardHookRemovalMixin:
+    """Mixin for analyzers whose hook teardown only removes handles."""
+
+    def remove_forward_hooks(self, handles: Iterable[HookHandle]) -> None:
+        """Remove registered forward hooks."""
+        remove_hook_handles(handles)
+
+
+__all__ = ["ForwardHookRemovalMixin", "HookHandle", "remove_hook_handles"]

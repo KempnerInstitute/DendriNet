@@ -5,7 +5,6 @@ from __future__ import annotations
 import inspect
 import logging
 from collections.abc import Callable
-from dataclasses import dataclass
 
 import torch
 from torch.utils.data import DataLoader
@@ -16,6 +15,7 @@ from dendritic_modeling.analysis.utils.runtime import (
     make_analysis_loader,
     should_materialize_dataset,
 )
+from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.models import Classifier, RecurrentClassifier, Regressor
 from dendritic_modeling.training.utils._evaluation.score import (
     _metric_accepts_seq_lengths,
@@ -25,19 +25,6 @@ from dendritic_modeling.utils.general import save_dict
 logger = logging.getLogger("dendritic_modeling.training.utils.evaluation")
 
 
-@dataclass(frozen=True)
-class _MetricEvaluationRuntime:
-    """Runtime view shared by metric evaluation and analysis DataLoader helpers."""
-
-    mode: str = "auto"
-    materialize_threshold_mb: float = 1024
-    batch_size: int = 256
-    num_workers: int = 4
-    pin_memory: bool = True
-    persistent_workers: bool = False
-    prefetch_factor: int | None = 2
-
-
 def _should_materialize(
     dataset: torch.utils.data.Dataset,
     mode: str = "auto",
@@ -45,7 +32,7 @@ def _should_materialize(
 ) -> bool:
     """Decide whether to materialize *dataset* into a single tensor."""
 
-    runtime = _MetricEvaluationRuntime(
+    runtime = EvaluationRuntimeConfig(
         mode=mode,
         materialize_threshold_mb=threshold_mb,
     )
@@ -122,7 +109,7 @@ def _make_eval_loader(
 ) -> DataLoader:
     """Build a DataLoader suitable for evaluation (no shuffle, no drop_last)."""
 
-    runtime = _MetricEvaluationRuntime(
+    runtime = EvaluationRuntimeConfig(
         batch_size=batch_size,
         num_workers=num_workers,
         pin_memory=pin_memory,
@@ -346,15 +333,11 @@ def _evaluate_metric_generic(
 
     # Save results if path provided
     if save_path is not None:
-
-        def _to_serializable(value):
-            return value.tolist() if isinstance(value, torch.Tensor) else value
-
         save_dict(
             {
-                f"train {metric_name}": _to_serializable(train_metric),
-                f"valid {metric_name}": _to_serializable(valid_metric),
-                f"test {metric_name}": _to_serializable(test_metric),
+                f"train {metric_name}": train_metric,
+                f"valid {metric_name}": valid_metric,
+                f"test {metric_name}": test_metric,
             },
             save_path,
             filename,
@@ -365,7 +348,6 @@ def _evaluate_metric_generic(
 
 __all__ = [
     "_CachedOutputModel",
-    "_MetricEvaluationRuntime",
     "_evaluate_metric_generic",
     "_make_eval_loader",
     "_model_accepts_seq_lengths",

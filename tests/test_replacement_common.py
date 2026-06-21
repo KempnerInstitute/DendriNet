@@ -8,10 +8,12 @@ from dendritic_modeling.training._transformer_replacement.common import (
     _compute_distillation_loss as _compute_transformer_distillation_loss,
 )
 from dendritic_modeling.training.replacement_common import (
+    ReplacementTrainingHistory,
     _compute_distillation_loss as _compute_shared_distillation_loss,
     _infinite_loader,
     _make_cuda_grad_scaler,
     _resolve_dtype,
+    _should_run_periodic_step,
     _write_metrics_json,
 )
 from dendritic_modeling.training.vision_replacement import (
@@ -214,6 +216,49 @@ def test_shared_infinite_loader_restarts_without_cycle_cache():
     observed = [int(next(iterator)[0].item()) for _ in range(5)]
 
     assert observed == [1, 2, 3, 1, 2]
+
+
+def test_replacement_training_history_tracks_best_validation_loss():
+    history = ReplacementTrainingHistory.start(1.5)
+
+    history.record_train_loss(1.25)
+    history.record_valid_loss(5, 1.6)
+    history.record_valid_loss(10, 1.2)
+    history.record_valid_loss(15, 1.2)
+
+    assert history.initial_valid_loss == 1.5
+    assert history.train_losses == [1.25]
+    assert history.valid_losses == [1.5, 1.6, 1.2, 1.2]
+    assert history.best_valid_loss == 1.2
+    assert history.best_step == 10
+    assert history.final_valid_loss == 1.2
+
+
+def test_replacement_training_history_result_kwargs_match_direct_fields():
+    history = ReplacementTrainingHistory.start(1.5)
+    history.record_train_loss(1.25)
+    history.record_valid_loss(5, 1.6)
+    history.record_valid_loss(10, 1.2)
+
+    payload = history.as_result_kwargs()
+
+    assert payload == {
+        "train_losses": [1.25],
+        "valid_losses": [1.5, 1.6, 1.2],
+        "initial_valid_loss": 1.5,
+        "final_valid_loss": 1.2,
+        "best_valid_loss": 1.2,
+        "best_step": 10,
+    }
+    assert payload["train_losses"] is history.train_losses
+    assert payload["valid_losses"] is history.valid_losses
+
+
+def test_should_run_periodic_step_matches_loop_conditions():
+    assert _should_run_periodic_step(1, every=100, max_steps=1)
+    assert _should_run_periodic_step(10, every=5, max_steps=99)
+    assert _should_run_periodic_step(40, every=7, max_steps=40)
+    assert not _should_run_periodic_step(11, every=5, max_steps=40)
 
 
 def test_write_metrics_json_supports_default_and_explicit_output_dir(tmp_path):

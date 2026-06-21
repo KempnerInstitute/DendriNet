@@ -21,10 +21,10 @@ from dendritic_modeling.networks import (
     ExcitationInhibitionNetwork,
 )
 from dendritic_modeling.utils import save_dict
-from dendritic_modeling.utils.hooks import remove_hook_handles
+from dendritic_modeling.utils.hooks import ForwardHookRemovalMixin
 
 
-class BranchActivationAnalyzer:
+class BranchActivationAnalyzer(ForwardHookRemovalMixin):
     """
     Analyzer for tracking both synaptic and branch activation patterns during model inference.
 
@@ -76,10 +76,6 @@ class BranchActivationAnalyzer:
                     handle = module.register_forward_hook(self.forward_hook)
                     handles.append(handle)
         return handles
-
-    def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
-        """Remove forward hooks."""
-        remove_hook_handles(handles)
 
     def forward_hook(
         self,

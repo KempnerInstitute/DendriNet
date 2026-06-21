@@ -37,7 +37,7 @@ from dendritic_modeling.networks import (
     TopKLinear,
 )
 from dendritic_modeling.utils import save_dict
-from dendritic_modeling.utils.hooks import remove_hook_handles
+from dendritic_modeling.utils.hooks import ForwardHookRemovalMixin
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ METRIC_MAPPING = {
 }
 
 
-class CompartmentSNRAnalyzer(AbstractAnalyzer):
+class CompartmentSNRAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
     """
     Unified analyzer for comprehensive compartment SNR analysis.
 
@@ -140,10 +140,6 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
         handles.append(self._register_activation_hook(module.reactivation, key, "vinf"))
         handles.append(self._register_activation_hook(module.reactivation, key, "vout"))
         return handles
-
-    def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
-        """Remove forward hooks from the model."""
-        remove_hook_handles(handles)
 
     def _capture_input_once(self, name: str, tensor: torch.Tensor | None) -> None:
         if tensor is None or hasattr(self, name):

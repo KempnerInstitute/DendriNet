@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from dataclasses import dataclass
 from typing import Any, Literal
 
 import torch
@@ -23,6 +24,56 @@ _DTYPE_ALIASES = {
 }
 _MSE_LOSS_NAMES = {"mse", "l2"}
 _SMOOTH_L1_LOSS_NAMES = {"smooth_l1", "huber"}
+
+
+@dataclass
+class ReplacementTrainingHistory:
+    """Bookkeeping shared by replacement distillation loops."""
+
+    initial_valid_loss: float
+    best_valid_loss: float
+    best_step: int
+    train_losses: list[float]
+    valid_losses: list[float]
+
+    @classmethod
+    def start(cls, initial_valid_loss: float) -> ReplacementTrainingHistory:
+        return cls(
+            initial_valid_loss=initial_valid_loss,
+            best_valid_loss=initial_valid_loss,
+            best_step=0,
+            train_losses=[],
+            valid_losses=[initial_valid_loss],
+        )
+
+    def record_train_loss(self, train_loss: float) -> None:
+        self.train_losses.append(train_loss)
+
+    def record_valid_loss(self, step: int, valid_loss: float) -> None:
+        self.valid_losses.append(valid_loss)
+        if valid_loss < self.best_valid_loss:
+            self.best_valid_loss = valid_loss
+            self.best_step = step
+
+    @property
+    def final_valid_loss(self) -> float:
+        return self.valid_losses[-1]
+
+    def as_result_kwargs(self) -> dict[str, Any]:
+        """Return common replacement-training result fields."""
+        return {
+            "train_losses": self.train_losses,
+            "valid_losses": self.valid_losses,
+            "initial_valid_loss": self.initial_valid_loss,
+            "final_valid_loss": self.final_valid_loss,
+            "best_valid_loss": self.best_valid_loss,
+            "best_step": self.best_step,
+        }
+
+
+def _should_run_periodic_step(step: int, every: int, max_steps: int) -> bool:
+    """Return whether a step should run a periodic action."""
+    return step % int(every) == 0 or step == int(max_steps)
 
 
 def _to_plain_mapping(obj: Any) -> dict[str, Any]:
@@ -168,6 +219,7 @@ def _write_metrics_json(
 
 
 __all__ = [
+    "ReplacementTrainingHistory",
     "_compute_distillation_loss",
     "_compute_transformer_distillation_loss",
     "_compute_vision_distillation_loss",
@@ -175,6 +227,7 @@ __all__ = [
     "_make_cuda_grad_scaler",
     "_resolve_device",
     "_resolve_dtype",
+    "_should_run_periodic_step",
     "_to_plain_mapping",
     "_write_metrics_json",
 ]

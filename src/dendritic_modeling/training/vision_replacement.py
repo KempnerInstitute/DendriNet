@@ -21,11 +21,13 @@ from dendritic_modeling.training.dataloader_utils import (
 )
 from dendritic_modeling.training.optimizers import create_optimizer
 from dendritic_modeling.training.replacement_common import (
+    ReplacementTrainingHistory,
     _compute_vision_distillation_loss as _compute_distillation_loss,
     _infinite_loader,
     _make_cuda_grad_scaler,
     _resolve_device,
     _resolve_dtype,
+    _should_run_periodic_step,
     _to_plain_mapping,
     _write_metrics_json,
 )
@@ -295,10 +297,7 @@ def run_vision_replacement_training(
         loss_name=train_cfg.loss,
         cosine_weight=train_cfg.cosine_weight,
     )
-    best_valid = initial_valid
-    best_step = 0
-    train_losses: list[float] = []
-    valid_losses: list[float] = [initial_valid]
+    history = ReplacementTrainingHistory.start(initial_valid)
 
     for step in range(1, int(train_cfg.max_steps) + 1):
         optimizer.zero_grad(set_to_none=True)
@@ -324,9 +323,9 @@ def run_vision_replacement_training(
             torch.nn.utils.clip_grad_norm_(trainable_params, float(max_grad_norm))
         scaler.step(optimizer)
         scaler.update()
-        train_losses.append(float(loss.detach().item()))
+        history.record_train_loss(float(loss.detach().item()))
 
-        if step % int(train_cfg.eval_every) == 0 or step == int(train_cfg.max_steps):
+        if _should_run_periodic_step(step, train_cfg.eval_every, train_cfg.max_steps):
             model.eval()
             valid = _evaluate_dataset(
                 forward_fn,
@@ -337,27 +336,19 @@ def run_vision_replacement_training(
                 loss_name=train_cfg.loss,
                 cosine_weight=train_cfg.cosine_weight,
             )
-            valid_losses.append(valid)
-            if valid < best_valid:
-                best_valid = valid
-                best_step = step
-        if step % int(train_cfg.log_every) == 0 or step == 1:
+            history.record_valid_loss(step, valid)
+        if _should_run_periodic_step(step, train_cfg.log_every, 1):
             logger.info(
                 "vision replacement distillation step=%s/%s train_loss=%.6f "
                 "valid_loss=%.6f",
                 step,
                 train_cfg.max_steps,
-                train_losses[-1],
-                valid_losses[-1],
+                history.train_losses[-1],
+                history.valid_losses[-1],
             )
 
     result = VisionReplacementTrainingResult(
-        train_losses=train_losses,
-        valid_losses=valid_losses,
-        initial_valid_loss=initial_valid,
-        final_valid_loss=valid_losses[-1],
-        best_valid_loss=best_valid,
-        best_step=best_step,
+        **history.as_result_kwargs(),
         save_dir=train_cfg.save_dir,
         train_target=train_target,
         teacher_source=teacher_source,
