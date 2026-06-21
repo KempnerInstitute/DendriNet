@@ -9,6 +9,7 @@ import torch.nn as nn
 
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic import (
     DendriNet,
+    DendriNetConfig,
     DendriticSynapseConfig,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.ei_layer import (
@@ -161,14 +162,16 @@ class DendriticFFNReplacement(TokenReplacementCell):
             }
         )
         core = DendriNet(
-            n_soma=dendritic_units,
-            branch_factors=branch_factors,
-            excitatory_input_dim=input_dim,
-            excitatory_synapses_per_branch=synapses_per_branch,
-            inhibitory_input_dim=None,
-            inhibitory_synapses_per_branch=None,
-            somatic_synapses=bool(somatic_synapses),
-            synapse_config=synapse_config,
+            config=DendriNetConfig(
+                n_soma=dendritic_units,
+                branch_factors=tuple(branch_factors),
+                excitatory_input_dim=input_dim,
+                excitatory_synapses_per_branch=synapses_per_branch,
+                inhibitory_input_dim=None,
+                inhibitory_synapses_per_branch=None,
+                somatic_synapses=bool(somatic_synapses),
+                synapse_config=synapse_config,
+            ),
         )
 
         super().__init__(

@@ -7,6 +7,7 @@ import yaml
 
 from dendritic_modeling.config import load_config
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic import (
+    DendriNet,
     DendriticBranchLayer,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse import (
@@ -317,6 +318,44 @@ def test_dendritic_ffn_replacement_preserves_transformer_mlp_shape():
     y.sum().backward()
     assert x.grad is not None
     assert replacement.output_projection.weight.grad is not None
+
+
+def test_dendritic_ffn_core_matches_legacy_dendrinet_construction():
+    kwargs = {
+        "hidden_size": 8,
+        "dendritic_units": 4,
+        "branch_factors": [2],
+        "synapses_per_branch": 2,
+        "input_transform": "signed_split",
+        "topk_type": "standard",
+        "use_shunting": False,
+        "weight_transform": "softplus",
+        "somatic_synapses": True,
+        "efficient_blocklinear": True,
+    }
+
+    torch.manual_seed(123)
+    replacement = DendriticFFNReplacement(**kwargs)
+    torch.manual_seed(123)
+    legacy_core = DendriNet(
+        n_soma=kwargs["dendritic_units"],
+        branch_factors=kwargs["branch_factors"],
+        excitatory_input_dim=16,
+        excitatory_synapses_per_branch=kwargs["synapses_per_branch"],
+        inhibitory_input_dim=None,
+        inhibitory_synapses_per_branch=None,
+        somatic_synapses=kwargs["somatic_synapses"],
+        synapse_config=replacement.core.synapse_config,
+    )
+
+    assert replacement.core.branch_configs == legacy_core.branch_configs
+    assert replacement.core.synapse_config == legacy_core.synapse_config
+    assert replacement.core.state_dict().keys() == legacy_core.state_dict().keys()
+    for key, value in replacement.core.state_dict().items():
+        torch.testing.assert_close(value, legacy_core.state_dict()[key], rtol=0, atol=0)
+
+    x = torch.rand(3, 16)
+    torch.testing.assert_close(replacement.core(x), legacy_core(x), rtol=0, atol=0)
 
 
 def test_indexed_sparse_linear_rejects_duplicate_indices():

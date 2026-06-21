@@ -200,6 +200,8 @@ both the standard trainer and FSDP script:
          pin_memory: null           # null = auto by device
          persistent_workers: null   # requires num_workers > 0
          prefetch_factor: null      # requires num_workers > 0
+         in_order: null             # false can reduce image-loader stalls
+         profile_dataloader: false  # log epoch data-wait timing
 
 Loss Functions
 --------------
@@ -271,9 +273,12 @@ flattened ImageNet path is memory-heavy and requires the explicit
 ImageNet/ImageFolder datasets use the shared dataloader auto-tuning path when
 ``num_workers``, ``pin_memory``, ``persistent_workers``, and
 ``prefetch_factor`` are left as ``null``.  The auto path keeps multi-worker,
-pinned, persistent prefetching for file-backed image datasets and avoids worker
+pinned, persistent prefetching for file-backed image datasets, uses
+non-blocking CUDA copies when pinned batches are available, and avoids worker
 overhead for tensor-backed datasets. Set ``in_order: false`` for ImageNet jobs
-where worker stragglers cause batch-delivery stalls. For fixed cluster jobs, set explicit
+where worker stragglers cause batch-delivery stalls. Set
+``profile_dataloader: true`` to log per-epoch data-wait time and confirm whether
+training is input-pipeline bound. For fixed cluster jobs, set explicit
 per-process values under the active trainer config, for example
 ``num_workers: 8``, ``pin_memory: true``, ``persistent_workers: true``, and
 ``prefetch_factor: 4``.

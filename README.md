@@ -71,6 +71,8 @@ If `analysis.runtime` is omitted entirely, non-distributed runs default to that
 single-process materialized behavior automatically.
 Analyzers may temporarily move the model to the requested analysis device, but
 they restore the original device and train/eval mode before returning.
+For ImageNet training stalls, set `training.main.common.profile_dataloader: true`
+to log epoch data-wait time.
 
 ## Documentation
 

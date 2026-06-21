@@ -558,6 +558,7 @@ class TestConfigLoading(unittest.TestCase):
                         "persistent_workers": True,
                         "prefetch_factor": 3,
                         "in_order": False,
+                        "profile_dataloader": True,
                     },
                 }
             },
@@ -574,6 +575,7 @@ class TestConfigLoading(unittest.TestCase):
         self.assertTrue(common.persistent_workers)
         self.assertEqual(common.prefetch_factor, 3)
         self.assertFalse(common.in_order)
+        self.assertTrue(common.profile_dataloader)
 
     def test_additive_alias_defaults_to_occupancy_quantile_when_policy_omitted(self):
         """Additive configs should not silently use weak analytical gates."""

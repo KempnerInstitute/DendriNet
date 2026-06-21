@@ -117,6 +117,7 @@ training:
       pin_memory: true
       persistent_workers: true
       prefetch_factor: 4
+      profile_dataloader: true
       shuffle: true
       grad_clip_value: 5.0
       loss_function: "cat_nll"

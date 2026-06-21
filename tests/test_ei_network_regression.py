@@ -5,10 +5,19 @@ stable across code changes. They use frozen seeds so any change in initializatio
 or forward-pass logic is immediately detected.
 """
 
+from unittest.mock import patch
+
 import pytest
 import torch
 
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic import (
+    DendriNetConfig,
+    DendriticSynapseConfig,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.ei_layer import (
+    _build_dendrinet_cells,
+    _build_excitatory_cells,
+    _build_inhibitory_cells,
     _resolve_excitatory_inhibitory_input_dim,
     _structured_connectivity_enabled,
 )
@@ -626,6 +635,156 @@ class TestEILayerValidation:
         )
         assert dim == 3
         assert concat is True
+
+    def test_dendrinet_cell_builder_groups_config_and_preserves_extra_kwargs(self):
+        synapse_config = DendriticSynapseConfig.from_kwargs(
+            {"topk_type": "indexed_rewire", "weight_transform": "softplus"}
+        )
+        marker = object()
+
+        with patch(
+            "dendritic_modeling.networks.architectures.excitation_inhibition."
+            "ei_layer.DendriNet"
+        ) as build_dendrinet:
+            build_dendrinet.return_value = "cells"
+            result = _build_dendrinet_cells(
+                n_soma=7,
+                branch_factors=[2, 3],
+                excitatory_input_dim=11,
+                excitatory_synapses_per_branch=5,
+                inhibitory_input_dim=4,
+                inhibitory_synapses_per_branch=2,
+                somatic_synapses=False,
+                synapse_config=synapse_config,
+                dendrinet_extra_kwargs={"unit_marker": marker},
+                structured_connectivity={"enabled": True},
+                structured_layer_idx=3,
+                structured_excitatory_pathway="ei",
+                structured_inhibitory_pathway="ii",
+            )
+
+        assert result == "cells"
+        build_dendrinet.assert_called_once()
+        call_kwargs = build_dendrinet.call_args.kwargs
+        config = call_kwargs["config"]
+        assert isinstance(config, DendriNetConfig)
+        assert config.n_soma == 7
+        assert config.branch_factors == (2, 3)
+        assert config.excitatory_input_dim == 11
+        assert config.excitatory_synapses_per_branch == 5
+        assert config.inhibitory_input_dim == 4
+        assert config.inhibitory_synapses_per_branch == 2
+        assert config.somatic_synapses is False
+        assert config.structured_connectivity == {"enabled": True}
+        assert config.structured_layer_idx == 3
+        assert config.structured_excitatory_pathway == "ei"
+        assert config.structured_inhibitory_pathway == "ii"
+        assert config.synapse_config == synapse_config
+        assert call_kwargs["unit_marker"] is marker
+
+    def test_ei_mode_builders_preserve_structured_pathway_metadata(self):
+        synapse_config = DendriticSynapseConfig()
+        with patch(
+            "dendritic_modeling.networks.architectures.excitation_inhibition."
+            "ei_layer._build_dendrinet_cells"
+        ) as build_cells:
+            build_cells.side_effect = ["inh", "exc"]
+            inhibitory = _build_inhibitory_cells(
+                n_inhibitory_cells=5,
+                inhibitory_branch_factors=[2],
+                excitatory_input_dim=13,
+                ei_synapses_per_branch=3,
+                build_inhibitory_cells=True,
+                inhibitory_network_type="dendritic",
+                inhibitory_input_dim=4,
+                ii_synapses_per_branch=2,
+                somatic_synapses=True,
+                synapse_mode="ei",
+                common_synapse_config=synapse_config,
+                structured_connectivity={"enabled": True},
+                structured_layer_idx=9,
+                dendrinet_extra_kwargs={"extra": "value"},
+                mlp_inhibitory_network_params={},
+            )
+            excitatory = _build_excitatory_cells(
+                n_excitatory_cells=7,
+                excitatory_branch_factors=[3],
+                excitatory_input_dim=13,
+                ee_synapses_per_branch=4,
+                excitatory_inhibitory_input_dim=5,
+                ie_synapses_per_branch=1,
+                somatic_synapses=True,
+                synapse_mode="ei",
+                common_synapse_config=synapse_config,
+                structured_connectivity={"enabled": True},
+                structured_layer_idx=9,
+                dendrinet_extra_kwargs={"extra": "value"},
+            )
+
+        assert inhibitory == "inh"
+        assert excitatory == "exc"
+        inhibitory_kwargs = build_cells.call_args_list[0].kwargs
+        excitatory_kwargs = build_cells.call_args_list[1].kwargs
+        assert inhibitory_kwargs["structured_excitatory_pathway"] == "ei"
+        assert inhibitory_kwargs["structured_inhibitory_pathway"] == "ii"
+        assert inhibitory_kwargs["inhibitory_input_dim"] == 4
+        assert inhibitory_kwargs["inhibitory_synapses_per_branch"] == 2
+        assert excitatory_kwargs["structured_excitatory_pathway"] == "ee"
+        assert excitatory_kwargs["structured_inhibitory_pathway"] == "ie"
+        assert excitatory_kwargs["inhibitory_input_dim"] == 5
+        assert excitatory_kwargs["inhibitory_synapses_per_branch"] == 1
+
+    def test_mlp_synapse_mode_builders_preserve_merged_input_geometry(self):
+        synapse_config = DendriticSynapseConfig()
+        with patch(
+            "dendritic_modeling.networks.architectures.excitation_inhibition."
+            "ei_layer._build_dendrinet_cells"
+        ) as build_cells:
+            build_cells.side_effect = ["inh", "exc"]
+            inhibitory = _build_inhibitory_cells(
+                n_inhibitory_cells=5,
+                inhibitory_branch_factors=[2],
+                excitatory_input_dim=13,
+                ei_synapses_per_branch=3,
+                build_inhibitory_cells=True,
+                inhibitory_network_type="dendritic",
+                inhibitory_input_dim=4,
+                ii_synapses_per_branch=2,
+                somatic_synapses=True,
+                synapse_mode="mlp",
+                common_synapse_config=synapse_config,
+                structured_connectivity=None,
+                structured_layer_idx=0,
+                dendrinet_extra_kwargs={},
+                mlp_inhibitory_network_params={},
+            )
+            excitatory = _build_excitatory_cells(
+                n_excitatory_cells=7,
+                excitatory_branch_factors=[3],
+                excitatory_input_dim=13,
+                ee_synapses_per_branch=4,
+                excitatory_inhibitory_input_dim=5,
+                ie_synapses_per_branch=1,
+                somatic_synapses=True,
+                synapse_mode="mlp",
+                common_synapse_config=synapse_config,
+                structured_connectivity=None,
+                structured_layer_idx=0,
+                dendrinet_extra_kwargs={},
+            )
+
+        assert inhibitory == "inh"
+        assert excitatory == "exc"
+        inhibitory_kwargs = build_cells.call_args_list[0].kwargs
+        excitatory_kwargs = build_cells.call_args_list[1].kwargs
+        assert inhibitory_kwargs["excitatory_input_dim"] == 17
+        assert inhibitory_kwargs["excitatory_synapses_per_branch"] == 5
+        assert inhibitory_kwargs["inhibitory_input_dim"] is None
+        assert inhibitory_kwargs["inhibitory_synapses_per_branch"] is None
+        assert excitatory_kwargs["excitatory_input_dim"] == 18
+        assert excitatory_kwargs["excitatory_synapses_per_branch"] == 5
+        assert excitatory_kwargs["inhibitory_input_dim"] is None
+        assert excitatory_kwargs["inhibitory_synapses_per_branch"] is None
 
     def test_invalid_synapse_mode_raises(self):
         from dendritic_modeling.networks.architectures.excitation_inhibition.ei_layer import (

@@ -52,6 +52,7 @@ class CommonTrainerConfig(BaseConfig):
     lr_warmup_epochs: int = 0
     enable_nan_checking: bool = False
     enable_adaptive_clipping: bool = False
+    profile_dataloader: bool = False
     weight_decay_rate: float = 0.01
     weight_boosting: bool = False
     # Periodic reactivation recalibration during training.

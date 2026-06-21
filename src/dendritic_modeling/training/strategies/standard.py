@@ -125,6 +125,7 @@ class Trainer:
         # Performance optimization flags (disabled by default for speed)
         self.enable_nan_checking = kwargs.get("enable_nan_checking", False)
         self.enable_adaptive_clipping = kwargs.get("enable_adaptive_clipping", False)
+        self.profile_dataloader = kwargs.get("profile_dataloader", False)
 
         self.enable_amp = kwargs.get("use_amp", False)
         if self.enable_amp and torch.cuda.is_available():
@@ -638,9 +639,28 @@ class Trainer:
 
         # Check once if regularization is enabled to avoid repeated checks
         has_regularization = self.regularization_manager.has_regularization()
+        profile_loader = bool(getattr(self, "profile_dataloader", False))
+        data_wait_total = 0.0
+        step_time_total = 0.0
+        max_data_wait = 0.0
 
-        for batch in train_loader:
-            x_batch, y_batch = batch[0].to(self.device), batch[1].to(self.device)
+        train_iter = iter(train_loader)
+        while True:
+            fetch_start = time.perf_counter()
+            try:
+                batch = next(train_iter)
+            except StopIteration:
+                break
+            if profile_loader:
+                data_wait = time.perf_counter() - fetch_start
+                data_wait_total += data_wait
+                max_data_wait = max(max_data_wait, data_wait)
+                step_start = time.perf_counter()
+
+            x_batch, y_batch = self._move_training_batch_to_device(
+                batch,
+                train_loader,
+            )
 
             if self.enable_amp:
                 # Mixed precision forward pass
@@ -724,7 +744,10 @@ class Trainer:
             train_loss_base += base_loss.item()
             train_loss_reg += reg_loss_item
             n_batches += 1
+            if profile_loader:
+                step_time_total += time.perf_counter() - step_start
 
+        local_n_batches = n_batches
         if self._is_distributed:
             stats = torch.tensor(
                 [
@@ -744,11 +767,66 @@ class Trainer:
                 int(stats[3].item()),
             )
 
+        if profile_loader and self._is_main_process:
+            self._log_dataloader_profile(
+                n_batches=local_n_batches,
+                data_wait_total=data_wait_total,
+                step_time_total=step_time_total,
+                max_data_wait=max_data_wait,
+            )
+
         denom = max(n_batches, 1)
         train_loss_total /= denom
         train_loss_base /= denom
         train_loss_reg /= denom
         return train_loss_total, train_loss_base, train_loss_reg
+
+    def _loader_uses_non_blocking_transfer(self, loader: DataLoader) -> bool:
+        """Return whether batch copies can be issued asynchronously."""
+        try:
+            device_type = torch.device(self.device).type
+        except (RuntimeError, TypeError):
+            return False
+        return device_type == "cuda" and bool(getattr(loader, "pin_memory", False))
+
+    def _move_training_batch_to_device(
+        self,
+        batch,
+        loader: DataLoader,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Move the input/target tensors using the loader's transfer policy."""
+        non_blocking = self._loader_uses_non_blocking_transfer(loader)
+        return (
+            batch[0].to(self.device, non_blocking=non_blocking),
+            batch[1].to(self.device, non_blocking=non_blocking),
+        )
+
+    def _log_dataloader_profile(
+        self,
+        *,
+        n_batches: int,
+        data_wait_total: float,
+        step_time_total: float,
+        max_data_wait: float,
+    ) -> None:
+        """Log epoch-level dataloader wait time for input-pipeline diagnosis."""
+        if n_batches <= 0:
+            return
+        total_time = data_wait_total + step_time_total
+        wait_fraction = data_wait_total / max(total_time, 1e-12)
+        logger.info(
+            "%sDataLoader profile epoch=%s batches=%s "
+            "data_wait=%.3fs step_time=%.3fs wait_fraction=%.1f%% "
+            "avg_wait=%.1fms max_wait=%.1fms",
+            getattr(self, "logger_info_prefix", "[Standard] "),
+            getattr(self, "epoch_counter", 0),
+            n_batches,
+            data_wait_total,
+            step_time_total,
+            100.0 * wait_fraction,
+            1000.0 * data_wait_total / n_batches,
+            1000.0 * max_data_wait,
+        )
 
     def _epoch_valid(
         self, model: BaseModel, valid_loader: DataLoader
@@ -759,8 +837,10 @@ class Trainer:
         n_batches = 0
         with torch.no_grad():
             for batch in valid_loader:
-                x_batch: torch.Tensor = batch[0].to(self.device)
-                y_batch: torch.Tensor = batch[1].to(self.device)
+                x_batch, y_batch = self._move_training_batch_to_device(
+                    batch,
+                    valid_loader,
+                )
                 loss: torch.Tensor = self.loss_function(model, x_batch, y_batch)
                 valid_loss += loss.item()
                 n_batches += 1
@@ -787,8 +867,10 @@ class Trainer:
         seen = 0
         with torch.no_grad():
             for batch in valid_loader:
-                x_batch: torch.Tensor = batch[0].to(self.device)
-                y_batch: torch.Tensor = batch[1].to(self.device)
+                x_batch, y_batch = self._move_training_batch_to_device(
+                    batch,
+                    valid_loader,
+                )
                 batch_size = y_batch.size(0)
                 if real_count is not None:
                     real_in_batch = min(batch_size, real_count - seen)

@@ -13,6 +13,7 @@ import torch.nn as nn
 from dendritic_modeling.networks.architectures.classical.mlp.mlp import MLP
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet import (
     DendriNet,
+    DendriNetConfig,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.synapse_config import (
     DendriticSynapseConfig,
@@ -133,6 +134,43 @@ def _resolve_excitatory_inhibitory_input_dim(
     return excitatory_inhibitory_input_dim, concat_inhibitory_to_excitatory
 
 
+def _build_dendrinet_cells(
+    *,
+    n_soma,
+    branch_factors,
+    excitatory_input_dim,
+    excitatory_synapses_per_branch,
+    inhibitory_input_dim=None,
+    inhibitory_synapses_per_branch=None,
+    somatic_synapses,
+    synapse_config,
+    dendrinet_extra_kwargs,
+    structured_connectivity=None,
+    structured_layer_idx=0,
+    structured_excitatory_pathway="ee",
+    structured_inhibitory_pathway="ie",
+) -> DendriNet:
+    """Build one DendriNet population from grouped construction metadata."""
+
+    return DendriNet(
+        config=DendriNetConfig(
+            n_soma=n_soma,
+            branch_factors=tuple(branch_factors),
+            excitatory_input_dim=excitatory_input_dim,
+            excitatory_synapses_per_branch=excitatory_synapses_per_branch,
+            inhibitory_input_dim=inhibitory_input_dim,
+            inhibitory_synapses_per_branch=inhibitory_synapses_per_branch,
+            somatic_synapses=somatic_synapses,
+            structured_connectivity=structured_connectivity,
+            structured_layer_idx=structured_layer_idx,
+            structured_excitatory_pathway=structured_excitatory_pathway,
+            structured_inhibitory_pathway=structured_inhibitory_pathway,
+            synapse_config=synapse_config,
+        ),
+        **dendrinet_extra_kwargs,
+    )
+
+
 def _build_inhibitory_cells(
     *,
     n_inhibitory_cells,
@@ -162,7 +200,7 @@ def _build_inhibitory_cells(
     )
     if inhibitory_network_type == "dendritic":
         if synapse_mode == "ei":
-            return DendriNet(
+            return _build_dendrinet_cells(
                 n_soma=n_inhibitory_cells,
                 branch_factors=inhibitory_branch_factors,
                 excitatory_input_dim=excitatory_input_dim,
@@ -175,12 +213,12 @@ def _build_inhibitory_cells(
                 structured_excitatory_pathway="ei",
                 structured_inhibitory_pathway="ii",
                 synapse_config=common_synapse_config,
-                **dendrinet_extra_kwargs,
+                dendrinet_extra_kwargs=dendrinet_extra_kwargs,
             )
 
         inh_in_dim = int(excitatory_input_dim) + int(inhibitory_input_dim or 0)
         k_total = int(ei_synapses_per_branch or 0) + int(ii_synapses_per_branch or 0)
-        return DendriNet(
+        return _build_dendrinet_cells(
             n_soma=n_inhibitory_cells,
             branch_factors=inhibitory_branch_factors,
             excitatory_input_dim=inh_in_dim,
@@ -189,7 +227,7 @@ def _build_inhibitory_cells(
             inhibitory_synapses_per_branch=None,
             somatic_synapses=somatic_synapses,
             synapse_config=common_synapse_config,
-            **dendrinet_extra_kwargs,
+            dendrinet_extra_kwargs=dendrinet_extra_kwargs,
         )
 
     inh_mlp = MLP(
@@ -221,7 +259,7 @@ def _build_excitatory_cells(
     """Build the excitatory population for one EI layer."""
 
     if synapse_mode == "ei":
-        return DendriNet(
+        return _build_dendrinet_cells(
             n_soma=n_excitatory_cells,
             branch_factors=excitatory_branch_factors,
             excitatory_input_dim=excitatory_input_dim,
@@ -234,12 +272,12 @@ def _build_excitatory_cells(
             structured_inhibitory_pathway="ie",
             somatic_synapses=somatic_synapses,
             synapse_config=common_synapse_config,
-            **dendrinet_extra_kwargs,
+            dendrinet_extra_kwargs=dendrinet_extra_kwargs,
         )
 
     exc_in_dim = int(excitatory_input_dim) + int(excitatory_inhibitory_input_dim or 0)
     k_total = int(ee_synapses_per_branch or 0) + int(ie_synapses_per_branch or 0)
-    return DendriNet(
+    return _build_dendrinet_cells(
         n_soma=n_excitatory_cells,
         branch_factors=excitatory_branch_factors,
         excitatory_input_dim=exc_in_dim,
@@ -248,7 +286,7 @@ def _build_excitatory_cells(
         inhibitory_synapses_per_branch=None,
         somatic_synapses=somatic_synapses,
         synapse_config=common_synapse_config,
-        **dendrinet_extra_kwargs,
+        dendrinet_extra_kwargs=dendrinet_extra_kwargs,
     )
 
 
