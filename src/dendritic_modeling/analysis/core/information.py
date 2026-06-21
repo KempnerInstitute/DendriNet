@@ -8,10 +8,8 @@ with the main configuration system.
 import logging
 import time
 import traceback
-from dataclasses import dataclass
 from typing import Any, Optional
 
-import numpy as np
 import torch
 
 from dendritic_modeling.analysis.core import information_config as _information_config
@@ -21,6 +19,13 @@ from dendritic_modeling.analysis.core.information_all_branch_mixin import (
 )
 from dendritic_modeling.analysis.core.information_branch_mixin import (
     InformationBranchAnalysisMixin,
+)
+from dendritic_modeling.analysis.core.information_data_mixin import (
+    InformationDataMixin,
+    _InformationAnalysisData as _InformationAnalysisData,
+)
+from dendritic_modeling.analysis.core.information_dispatch_mixin import (
+    InformationDispatchMixin,
 )
 from dendritic_modeling.analysis.core.information_enhanced_mixin import (
     InformationEnhancedAnalysisMixin,
@@ -37,10 +42,6 @@ from dendritic_modeling.analysis.core.information_lda_mixin import (
 from dendritic_modeling.analysis.core.information_lifecycle_mixin import (
     InformationLifecycleMixin,
 )
-from dendritic_modeling.analysis.core.information_metric_merge import (
-    merge_average_renamed_numeric_metrics_in_place,
-    merge_renamed_metric_dicts_in_place,
-)
 from dendritic_modeling.analysis.core.information_metrics_mixin import (
     InformationMetricsMixin,
 )
@@ -56,8 +57,6 @@ from dendritic_modeling.analysis.core.information_single_branch_mixin import (
 from dendritic_modeling.analysis.core.information_synthetic_soma_mixin import (
     InformationSyntheticSomaMixin,
 )
-from dendritic_modeling.analysis.utils.einet_core import has_einet_core
-from dendritic_modeling.analysis.utils.runtime import materialize_dataset
 from dendritic_modeling.config import InformationAnalysisParams
 from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.models import BaseModel
@@ -68,17 +67,6 @@ from dendritic_modeling.utils.information.estimators import (
 from dendritic_modeling.utils.information.pid import (
     check_pid_available,
 )
-
-
-@dataclass(frozen=True)
-class _InformationAnalysisData:
-    """Materialized inputs and labels used by information analysis."""
-
-    inputs: torch.Tensor
-    labels: torch.Tensor
-    C: np.ndarray
-    entropy_C: Optional[float]
-
 
 # Backward-compatible aliases for config helpers that moved out of this module.
 _InformationComponentSelection = _information_config._InformationComponentSelection
@@ -163,6 +151,8 @@ def _build_information_estimators(
 class InformationAnalyzer(
     InformationMetricsMixin,
     InformationHooksMixin,
+    InformationDataMixin,
+    InformationDispatchMixin,
     InformationSyntheticSomaMixin,
     InformationSignalAggregationMixin,
     InformationLifecycleMixin,
@@ -386,53 +376,6 @@ class InformationAnalyzer(
                     "PID package not available. PID metrics will be skipped."
                 )
 
-    def _collect_analysis_data(
-        self,
-        *,
-        model: BaseModel,
-        test_dataset: torch.utils.data.Dataset,
-        device: str,
-        runtime: Optional[EvaluationRuntimeConfig],
-    ) -> _InformationAnalysisData:
-        """Materialize data and collect branch activations through forward hooks."""
-        self.logger.info("Loading test dataset...")
-        items = materialize_dataset(
-            test_dataset,
-            runtime,
-            explicit_max_samples=self.max_samples,
-            device=device,
-        )
-        inputs: torch.Tensor = items[0].to(device)
-        labels: torch.Tensor = items[1].to(device)
-        self.logger.info(
-            f"Loaded dataset: {len(inputs)} samples, input shape: {inputs.shape}"
-        )
-
-        handles = self.attach_forward_hooks(model)
-        try:
-            with torch.no_grad():
-                _ = model(inputs)
-        finally:
-            self.remove_forward_hooks(handles)
-
-        C = labels.detach().cpu().numpy()
-        self.logger.debug(
-            f"Data collection completed. Found {len(self.data_dict)} layers."
-        )
-
-        entropy_C: Optional[float]
-        if self._is_discrete_class_labels(C):
-            entropy_C = self._discrete_entropy_nats(C)
-        else:
-            entropy_C = None
-
-        return _InformationAnalysisData(
-            inputs=inputs,
-            labels=labels,
-            C=C,
-            entropy_C=entropy_C,
-        )
-
     def analyze(
         self,
         model: BaseModel,
@@ -536,73 +479,4 @@ class InformationAnalyzer(
             device=device,
             save_path=save_path,
             filename=filename,
-        )
-
-    def _model_supports_information_analysis(self, model: BaseModel) -> bool:
-        """Return whether a model exposes the EI core needed for information analysis."""
-        if has_einet_core(model):
-            return True
-
-        self.logger.warning(
-            "Model does not expose an ExcitationInhibitionNetwork. Skipping information analysis."
-        )
-        return False
-
-    def _compute_results_for_level(
-        self,
-        *,
-        model: BaseModel,
-        inputs: torch.Tensor,
-        C: np.ndarray,
-        entropy_C: Optional[float],
-    ) -> dict[str, Any] | None:
-        """Dispatch to the configured information-analysis granularity."""
-        if self.computation_level == "single_branch":
-            return self._compute_single_branch_results(C, entropy_C)
-
-        if self.computation_level == "layer_branch":
-            return self._compute_layer_branch_results(C)
-
-        return self._compute_all_branch_results(
-            model=model,
-            inputs=inputs,
-            C=C,
-        )
-
-    def _merge_renamed_metric_dicts_in_place(
-        self,
-        *,
-        target: dict[str, Any],
-        source: dict[str, Any],
-        token_map: dict[str, str],
-    ) -> None:
-        """Merge nested metric dictionaries after renaming variable tokens."""
-        merge_renamed_metric_dicts_in_place(
-            target=target,
-            source=source,
-            token_map=token_map,
-            rename_metric_key_tokens=self._rename_metric_key_tokens,
-        )
-
-    def _merge_average_renamed_numeric_metrics_in_place(
-        self,
-        *,
-        target: dict[str, Any],
-        sources: list[dict[str, Any]],
-        token_map: dict[str, str],
-    ) -> None:
-        """Average numeric nested metric values, rename them, and merge into target."""
-        merge_average_renamed_numeric_metrics_in_place(
-            target=target,
-            sources=sources,
-            token_map=token_map,
-            rename_metric_key_tokens=self._rename_metric_key_tokens,
-        )
-
-    def compute_class_mi(self, activations, labels):
-        return self.estimators[self.method].mutual_information(activations, labels)
-
-    def compute_conditional_mi(self, activations, labels, condition):
-        return self.estimators[self.method].conditional_mutual_information(
-            activations, labels, condition
         )

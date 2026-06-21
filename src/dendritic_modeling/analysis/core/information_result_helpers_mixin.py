@@ -16,6 +16,10 @@ from dendritic_modeling.analysis.core.information_helpers import (
     rename_metric_key_tokens,
     should_convert_information_key_to_bits,
 )
+from dendritic_modeling.analysis.core.information_metric_merge import (
+    merge_average_renamed_numeric_metrics_in_place,
+    merge_renamed_metric_dicts_in_place,
+)
 from dendritic_modeling.analysis.core.information_null_baseline_mixin import (
     InformationNullBaselineMixin,
 )
@@ -121,6 +125,36 @@ class InformationResultHelpersMixin(InformationNullBaselineMixin):
         conditioning parts (after '|').
         """
         return rename_metric_key_tokens(metric_key, token_map)
+
+    def _merge_renamed_metric_dicts_in_place(
+        self,
+        *,
+        target: dict[str, Any],
+        source: dict[str, Any],
+        token_map: dict[str, str],
+    ) -> None:
+        """Merge nested metric dictionaries after renaming variable tokens."""
+        merge_renamed_metric_dicts_in_place(
+            target=target,
+            source=source,
+            token_map=token_map,
+            rename_metric_key_tokens=self._rename_metric_key_tokens,
+        )
+
+    def _merge_average_renamed_numeric_metrics_in_place(
+        self,
+        *,
+        target: dict[str, Any],
+        sources: list[dict[str, Any]],
+        token_map: dict[str, str],
+    ) -> None:
+        """Average numeric nested metric values, rename them, and merge into target."""
+        merge_average_renamed_numeric_metrics_in_place(
+            target=target,
+            sources=sources,
+            token_map=token_map,
+            rename_metric_key_tokens=self._rename_metric_key_tokens,
+        )
 
     def _keep_metric_key_given_availability(
         self,

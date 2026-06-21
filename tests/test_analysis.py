@@ -447,7 +447,7 @@ class TestInformationAnalyzer(unittest.TestCase):
     def test_model_supports_information_analysis_accepts_ei_core(self):
         """Model validation helper should accept compatible EI-core models."""
         with patch(
-            "dendritic_modeling.analysis.core.information.has_einet_core",
+            "dendritic_modeling.analysis.core.information_validation_mixin.has_einet_core",
             return_value=True,
         ) as mock_has_core:
             result = self.analyzer._model_supports_information_analysis(self.model)
@@ -459,7 +459,7 @@ class TestInformationAnalyzer(unittest.TestCase):
         """Model validation helper should preserve the incompatible-model warning."""
         with (
             patch(
-                "dendritic_modeling.analysis.core.information.has_einet_core",
+                "dendritic_modeling.analysis.core.information_validation_mixin.has_einet_core",
                 return_value=False,
             ) as mock_has_core,
             patch.object(self.analyzer.logger, "warning") as mock_warning,

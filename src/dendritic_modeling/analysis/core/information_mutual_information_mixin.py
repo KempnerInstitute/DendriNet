@@ -14,6 +14,14 @@ from dendritic_modeling.analysis.core.information_validation_mixin import (
 class InformationMutualInformationMixin(InformationValidationMixin):
     """Computes basic, pairwise, conditional, and class MI metrics."""
 
+    def compute_class_mi(self, activations, labels):
+        return self.estimators[self.method].mutual_information(activations, labels)
+
+    def compute_conditional_mi(self, activations, labels, condition):
+        return self.estimators[self.method].conditional_mutual_information(
+            activations, labels, condition
+        )
+
     def _estimate_mi(
         self,
         metric_key: str,

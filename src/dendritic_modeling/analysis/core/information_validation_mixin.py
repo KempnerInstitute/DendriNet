@@ -8,6 +8,8 @@ from dendritic_modeling.analysis.core.information_helpers import ensure_2d
 from dendritic_modeling.analysis.core.information_result_helpers_mixin import (
     InformationResultHelpersMixin,
 )
+from dendritic_modeling.analysis.utils.einet_core import has_einet_core
+from dendritic_modeling.models import BaseModel
 
 
 class InformationValidationMixin(InformationResultHelpersMixin):
@@ -45,6 +47,16 @@ class InformationValidationMixin(InformationResultHelpersMixin):
     def _ensure_2d(arr: np.ndarray) -> np.ndarray:
         """Ensure array is 2D."""
         return ensure_2d(arr)
+
+    def _model_supports_information_analysis(self, model: BaseModel) -> bool:
+        """Return whether a model exposes the EI core needed for information analysis."""
+        if has_einet_core(model):
+            return True
+
+        self.logger.warning(
+            "Model does not expose an ExcitationInhibitionNetwork. Skipping information analysis."
+        )
+        return False
 
 
 __all__ = ["InformationValidationMixin"]
