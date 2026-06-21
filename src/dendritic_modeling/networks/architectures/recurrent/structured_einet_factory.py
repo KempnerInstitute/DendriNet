@@ -128,6 +128,19 @@ class _RecurrentReactivationOptions:
     init_policy: str
 
 
+@dataclass(frozen=True)
+class _StructuredRecurrentBuildOptions:
+    excitatory_sizes: list[Any]
+    inhibitory_sizes: list[Any]
+    input_mode: int
+    use_transfer: bool
+    transfer_inhibitory_mode: str
+    explicit_recurrent_layers: Any
+    use_shunting: bool
+    use_additive_normalization: bool
+    reactivation_options: _RecurrentReactivationOptions
+
+
 def _parse_structured_recurrent_sections(
     raw_params: dict[str, Any],
 ) -> _StructuredRecurrentSections:
@@ -459,6 +472,64 @@ def _resolve_transfer_inhibitory_mode(
             "transfer.inhibitory_mode must be one of ('none', 'first', 'all')"
         )
     return transfer_inhibitory_mode
+
+
+def _resolve_structured_recurrent_build_options(
+    *,
+    core_type: str,
+    sections: _StructuredRecurrentSections,
+) -> _StructuredRecurrentBuildOptions:
+    """Resolve validated build options before constructing recurrent layers."""
+    recurrent_cfg = sections.recurrent_cfg
+    architecture = sections.architecture
+    connectivity = sections.connectivity
+    transfer = sections.transfer
+
+    _validate_structured_recurrent_type(core_type)
+    excitatory_sizes = _require_recurrent_excitatory_sizes(architecture)
+    inhibitory_sizes, input_mode = _validate_direct_inhibitory_stream(
+        transfer=transfer,
+        architecture=architecture,
+        connectivity=connectivity,
+        excitatory_sizes=excitatory_sizes,
+    )
+    use_transfer = _resolve_recurrent_use_transfer(recurrent_cfg)
+    (
+        structured_alias_overrides,
+        use_shunting,
+        use_additive_normalization,
+    ) = _resolve_recurrent_morphology_options(
+        core_type=core_type,
+        morphology=sections.morphology,
+    )
+    reactivation_options = _resolve_recurrent_reactivation_options(
+        core_type=core_type,
+        reactivation=sections.reactivation,
+        structured_alias_overrides=structured_alias_overrides,
+    )
+
+    # Per-layer recurrence: infer from synapse counts, backward compat with explicit flag
+    explicit_recurrent_layers = recurrent_cfg.get(
+        "recurrent_layers", recurrent_cfg.get("recurrent_per_layer", None)
+    )
+
+    # transfer_inhibitory_mode: new location first, old fallback
+    transfer_inhibitory_mode = _resolve_transfer_inhibitory_mode(
+        transfer=transfer,
+        recurrent_cfg=recurrent_cfg,
+    )
+
+    return _StructuredRecurrentBuildOptions(
+        excitatory_sizes=excitatory_sizes,
+        inhibitory_sizes=inhibitory_sizes,
+        input_mode=input_mode,
+        use_transfer=use_transfer,
+        transfer_inhibitory_mode=transfer_inhibitory_mode,
+        explicit_recurrent_layers=explicit_recurrent_layers,
+        use_shunting=use_shunting,
+        use_additive_normalization=use_additive_normalization,
+        reactivation_options=reactivation_options,
+    )
 
 
 def _layer_recurrence_enabled(
@@ -1079,6 +1150,169 @@ def _build_structured_excitatory_population_config(
     )
 
 
+def _build_structured_recurrent_layer_config(
+    *,
+    ei_layer_config_cls: type[Any],
+    population_config_cls: type[Any],
+    sections: _StructuredRecurrentSections,
+    counts: _RecurrentSynapseCounts,
+    flags: _RecurrentFeatureFlags,
+    layer_idx: int,
+    n_exc: Any,
+    n_inh: int,
+    input_mode: int,
+    transfer_inhibitory_mode: str,
+    explicit_recurrent_layers: Any,
+    use_shunting: bool,
+    use_additive_normalization: bool,
+    reactivation_options: _RecurrentReactivationOptions,
+) -> Any:
+    """Build one recurrent E/I layer config from structured sections."""
+    architecture = sections.architecture
+    connectivity = sections.connectivity
+    recurrent_cfg = sections.recurrent_cfg
+
+    # Per-layer recurrence
+    rec_enabled = _layer_recurrence_enabled(
+        layer_idx=layer_idx,
+        explicit_recurrent_layers=explicit_recurrent_layers,
+        counts=counts,
+    )
+
+    timing = _resolve_layer_recurrent_timing(
+        recurrent_cfg=recurrent_cfg,
+        layer_idx=layer_idx,
+    )
+
+    exc_cfg = _build_structured_excitatory_population_config(
+        population_config_cls=population_config_cls,
+        sections=sections,
+        counts=counts,
+        layer_idx=layer_idx,
+        n_exc=n_exc,
+        use_shunting=use_shunting,
+        use_additive_normalization=use_additive_normalization,
+        reactivation_options=reactivation_options,
+        tau_base=timing.tau_base,
+        tau_ratio=timing.tau_ratio,
+    )
+
+    inh_synapses = _resolve_layer_inhibitory_synapse_counts(
+        connectivity=connectivity,
+        counts=counts,
+        layer_idx=layer_idx,
+    )
+    build_inhibitory_population = _should_build_inhibitory_population(
+        n_inh=n_inh,
+        synapses=inh_synapses,
+    )
+
+    inh_cfg = None
+    if build_inhibitory_population:
+        inh_cfg = _build_structured_inhibitory_population_config(
+            excitatory_config=exc_cfg,
+            architecture=architecture,
+            layer_idx=layer_idx,
+            n_inh=n_inh,
+            synapses=inh_synapses,
+        )
+
+    rec_enabled = _effective_layer_recurrence_enabled(
+        base_recurrent=rec_enabled,
+        flags=flags,
+        exc_cfg=exc_cfg,
+        inh_cfg=inh_cfg,
+    )
+
+    direct_ff_inh = _direct_ff_inhibitory_enabled(
+        input_mode=input_mode,
+        transfer_inhibitory_mode=transfer_inhibitory_mode,
+        layer_idx=layer_idx,
+    )
+
+    return ei_layer_config_cls(
+        excitatory=exc_cfg,
+        inhibitory=inh_cfg,
+        recurrent=rec_enabled,
+        dt=timing.dt,
+        direct_ff_inhibitory_to_excitatory=direct_ff_inh,
+    )
+
+
+def _build_structured_recurrent_layers(
+    *,
+    ei_layer_config_cls: type[Any],
+    population_config_cls: type[Any],
+    sections: _StructuredRecurrentSections,
+    counts: _RecurrentSynapseCounts,
+    flags: _RecurrentFeatureFlags,
+    excitatory_sizes: list[Any],
+    inhibitory_sizes: list[Any],
+    input_mode: int,
+    transfer_inhibitory_mode: str,
+    explicit_recurrent_layers: Any,
+    use_shunting: bool,
+    use_additive_normalization: bool,
+    reactivation_options: _RecurrentReactivationOptions,
+) -> list[Any]:
+    """Build the per-layer recurrent E/I config sequence."""
+    layers: list[Any] = []
+    for layer_idx, n_exc in enumerate(excitatory_sizes):
+        n_inh = int(_layer_value(inhibitory_sizes, layer_idx, default=0))
+        layers.append(
+            _build_structured_recurrent_layer_config(
+                ei_layer_config_cls=ei_layer_config_cls,
+                population_config_cls=population_config_cls,
+                sections=sections,
+                counts=counts,
+                flags=flags,
+                layer_idx=layer_idx,
+                n_exc=n_exc,
+                n_inh=n_inh,
+                input_mode=input_mode,
+                transfer_inhibitory_mode=transfer_inhibitory_mode,
+                explicit_recurrent_layers=explicit_recurrent_layers,
+                use_shunting=use_shunting,
+                use_additive_normalization=use_additive_normalization,
+                reactivation_options=reactivation_options,
+            )
+        )
+    return layers
+
+
+def _build_structured_recurrent_network_config(
+    *,
+    network_config_cls: type[Any],
+    sections: _StructuredRecurrentSections,
+    layers: list[Any],
+    input_dim: int,
+    use_transfer: bool,
+) -> Any:
+    """Assemble the recurrent network config from resolved sections."""
+    transfer_params = _resolve_recurrent_transfer_params(
+        transfer=sections.transfer,
+        recurrent_cfg=sections.recurrent_cfg,
+    )
+    input_projection_dims = _resolve_recurrent_input_projection_dims(
+        architecture=sections.architecture,
+        recurrent_cfg=sections.recurrent_cfg,
+    )
+    store_routing = _resolve_recurrent_store_routing(
+        implementation=sections.implementation,
+        recurrent_cfg=sections.recurrent_cfg,
+    )
+
+    return network_config_cls(
+        layers=layers,
+        input_dim=input_dim,
+        use_transfer=use_transfer,
+        transfer_params=transfer_params,
+        input_projection_dims=input_projection_dims,
+        output_mode=str(sections.recurrent_cfg.get("output_mode", "last")),
+        store_routing=store_routing,
+    )
+
+
 def _build_recurrent_einet_from_structured_config(
     *,
     type: str,
@@ -1109,141 +1343,33 @@ def _build_recurrent_einet_from_structured_config(
     if not _should_build_structured_recurrent_einet(sections, flags):
         return None
 
-    recurrent_cfg = sections.recurrent_cfg
-    architecture = sections.architecture
-    connectivity = sections.connectivity
-    transfer = sections.transfer
-    morphology = sections.morphology
-    reactivation = sections.reactivation
-    implementation = sections.implementation
-
-    _validate_structured_recurrent_type(type)
-    excitatory_sizes = _require_recurrent_excitatory_sizes(architecture)
-    inhibitory_sizes, input_mode = _validate_direct_inhibitory_stream(
-        transfer=transfer,
-        architecture=architecture,
-        connectivity=connectivity,
-        excitatory_sizes=excitatory_sizes,
-    )
-    use_transfer = _resolve_recurrent_use_transfer(recurrent_cfg)
-    (
-        structured_alias_overrides,
-        use_shunting,
-        use_additive_normalization,
-    ) = _resolve_recurrent_morphology_options(
+    options = _resolve_structured_recurrent_build_options(
         core_type=type,
-        morphology=morphology,
-    )
-    reactivation_options = _resolve_recurrent_reactivation_options(
-        core_type=type,
-        reactivation=reactivation,
-        structured_alias_overrides=structured_alias_overrides,
+        sections=sections,
     )
 
-    # Per-layer recurrence: infer from synapse counts, backward compat with explicit flag
-    explicit_recurrent_layers = recurrent_cfg.get(
-        "recurrent_layers", recurrent_cfg.get("recurrent_per_layer", None)
+    layers = _build_structured_recurrent_layers(
+        ei_layer_config_cls=EILayerConfig,
+        population_config_cls=PopulationConfig,
+        sections=sections,
+        counts=counts,
+        flags=flags,
+        excitatory_sizes=options.excitatory_sizes,
+        inhibitory_sizes=options.inhibitory_sizes,
+        input_mode=options.input_mode,
+        transfer_inhibitory_mode=options.transfer_inhibitory_mode,
+        explicit_recurrent_layers=options.explicit_recurrent_layers,
+        use_shunting=options.use_shunting,
+        use_additive_normalization=options.use_additive_normalization,
+        reactivation_options=options.reactivation_options,
     )
 
-    # transfer_inhibitory_mode: new location first, old fallback
-    transfer_inhibitory_mode = _resolve_transfer_inhibitory_mode(
-        transfer=transfer,
-        recurrent_cfg=recurrent_cfg,
-    )
-
-    layers: list[EILayerConfig] = []
-    for layer_idx, n_exc in enumerate(excitatory_sizes):
-        n_inh = int(_layer_value(inhibitory_sizes, layer_idx, default=0))
-
-        # Per-layer recurrence
-        rec_enabled = _layer_recurrence_enabled(
-            layer_idx=layer_idx,
-            explicit_recurrent_layers=explicit_recurrent_layers,
-            counts=counts,
-        )
-
-        timing = _resolve_layer_recurrent_timing(
-            recurrent_cfg=recurrent_cfg,
-            layer_idx=layer_idx,
-        )
-
-        exc_cfg = _build_structured_excitatory_population_config(
-            population_config_cls=PopulationConfig,
-            sections=sections,
-            counts=counts,
-            layer_idx=layer_idx,
-            n_exc=n_exc,
-            use_shunting=use_shunting,
-            use_additive_normalization=use_additive_normalization,
-            reactivation_options=reactivation_options,
-            tau_base=timing.tau_base,
-            tau_ratio=timing.tau_ratio,
-        )
-
-        inh_synapses = _resolve_layer_inhibitory_synapse_counts(
-            connectivity=connectivity,
-            counts=counts,
-            layer_idx=layer_idx,
-        )
-        build_inhibitory_population = _should_build_inhibitory_population(
-            n_inh=n_inh,
-            synapses=inh_synapses,
-        )
-
-        inh_cfg = None
-        if build_inhibitory_population:
-            inh_cfg = _build_structured_inhibitory_population_config(
-                excitatory_config=exc_cfg,
-                architecture=architecture,
-                layer_idx=layer_idx,
-                n_inh=n_inh,
-                synapses=inh_synapses,
-            )
-
-        rec_enabled = _effective_layer_recurrence_enabled(
-            base_recurrent=rec_enabled,
-            flags=flags,
-            exc_cfg=exc_cfg,
-            inh_cfg=inh_cfg,
-        )
-
-        direct_ff_inh = _direct_ff_inhibitory_enabled(
-            input_mode=input_mode,
-            transfer_inhibitory_mode=transfer_inhibitory_mode,
-            layer_idx=layer_idx,
-        )
-
-        layers.append(
-            EILayerConfig(
-                excitatory=exc_cfg,
-                inhibitory=inh_cfg,
-                recurrent=rec_enabled,
-                dt=timing.dt,
-                direct_ff_inhibitory_to_excitatory=direct_ff_inh,
-            )
-        )
-
-    transfer_params = _resolve_recurrent_transfer_params(
-        transfer=transfer,
-        recurrent_cfg=recurrent_cfg,
-    )
-    ipd = _resolve_recurrent_input_projection_dims(
-        architecture=architecture,
-        recurrent_cfg=recurrent_cfg,
-    )
-    store_routing = _resolve_recurrent_store_routing(
-        implementation=implementation,
-        recurrent_cfg=recurrent_cfg,
-    )
-
-    cfg = EINetworkConfig(
+    cfg = _build_structured_recurrent_network_config(
+        network_config_cls=EINetworkConfig,
+        sections=sections,
         layers=layers,
         input_dim=input_dim,
-        use_transfer=use_transfer,
-        transfer_params=transfer_params,
-        input_projection_dims=ipd,
-        output_mode=str(recurrent_cfg.get("output_mode", "last")),
-        store_routing=store_routing,
+        use_transfer=options.use_transfer,
     )
     return EINetwork(cfg)
 

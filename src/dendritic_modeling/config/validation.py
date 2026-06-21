@@ -69,6 +69,15 @@ class ConfigValidationError(ValueError):
         return f"Invalid configuration:\n{details}"
 
 
+@dataclass
+class _PopulationNetworkValidationIndex:
+    """Layer and population lookup tables built during structural validation."""
+
+    layer_names: list[str]
+    population_dims: dict[str, dict[str, int]]
+    population_polarities: dict[str, dict[str, str]]
+
+
 def _get(obj: Any, key: str, default: Any = None) -> Any:
     if isinstance(obj, dict):
         return obj.get(key, default)
@@ -381,6 +390,16 @@ def _validate_population_network_core(core: Any, errors: list[str]) -> None:
         errors.append("population_network.layers must contain at least one layer")
         return
 
+    validation_index = _validate_population_network_layers(layers, errors)
+    _validate_population_network_readout(config, validation_index, errors)
+    _validate_population_network_connections(layers, validation_index, errors)
+
+
+def _validate_population_network_layers(
+    layers: list[dict[str, Any]],
+    errors: list[str],
+) -> _PopulationNetworkValidationIndex:
+    """Validate layer/population declarations and build lookup tables."""
     layer_names: list[str] = []
     population_dims: dict[str, dict[str, int]] = {}
     population_polarities: dict[str, dict[str, str]] = {}
@@ -438,6 +457,21 @@ def _validate_population_network_core(core: Any, errors: list[str]) -> None:
         population_dims[layer_name] = dims
         population_polarities[layer_name] = polarities
 
+    return _PopulationNetworkValidationIndex(
+        layer_names=layer_names,
+        population_dims=population_dims,
+        population_polarities=population_polarities,
+    )
+
+
+def _validate_population_network_readout(
+    config: dict[str, Any],
+    validation_index: _PopulationNetworkValidationIndex,
+    errors: list[str],
+) -> None:
+    """Validate network-level readout layer and population references."""
+    layer_names = validation_index.layer_names
+    population_dims = validation_index.population_dims
     layer_index = {name: idx for idx, name in enumerate(layer_names)}
     network_readout_layer = config.get("readout_layer")
     if (
@@ -457,6 +491,18 @@ def _validate_population_network_core(core: Any, errors: list[str]) -> None:
                 "population_network.readout_population "
                 f"{network_readout_population!r} is not in readout layer {selected_layer!r}"
             )
+
+
+def _validate_population_network_connections(
+    layers: list[dict[str, Any]],
+    validation_index: _PopulationNetworkValidationIndex,
+    errors: list[str],
+) -> None:
+    """Validate per-layer population connection declarations."""
+    layer_names = validation_index.layer_names
+    population_dims = validation_index.population_dims
+    population_polarities = validation_index.population_polarities
+    layer_index = {name: idx for idx, name in enumerate(layer_names)}
 
     for layer_idx, layer in enumerate(layers):
         layer_name = layer_names[layer_idx]

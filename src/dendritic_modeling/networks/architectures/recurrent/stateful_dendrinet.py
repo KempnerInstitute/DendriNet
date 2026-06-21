@@ -3,6 +3,7 @@ Stateful DendriNet with optional recurrent compartments and per-level traces.
 """
 
 import math
+from dataclasses import dataclass
 from typing import Optional
 
 import torch
@@ -44,6 +45,61 @@ from dendritic_modeling.networks.architectures.recurrent.stateful_typed_dynamics
 from dendritic_modeling.networks.architectures.recurrent.synapse_types import (
     build_synapse_type_set,
 )
+
+
+@dataclass(frozen=True)
+class _StatefulBranchSynapseLayout:
+    """Per-level branch factors and synapse counts for a stateful population."""
+
+    input_branch_factors: list[int]
+    ff_exc_by_level: list[int]
+    ff_inh_by_level: list[int]
+    rec_exc_by_level: list[int]
+    rec_inh_by_level: list[int]
+
+
+def _resolve_stateful_branch_synapse_layout(
+    pop_config: PopulationConfig,
+    n_levels: int,
+) -> _StatefulBranchSynapseLayout:
+    """Resolve branch factors and per-level synapse counts from population config."""
+    return _StatefulBranchSynapseLayout(
+        input_branch_factors=compute_input_branch_factors(pop_config.branch_factors),
+        ff_exc_by_level=resolve_synapses_by_level(
+            per_level=pop_config.ff_excitatory_synapses_by_level,
+            fallback=pop_config.ff_excitatory_synapses,
+            n_levels=n_levels,
+            field_name="ff_excitatory_synapses_by_level",
+        ),
+        ff_inh_by_level=resolve_synapses_by_level(
+            per_level=pop_config.ff_inhibitory_synapses_by_level,
+            fallback=pop_config.ff_inhibitory_synapses,
+            n_levels=n_levels,
+            field_name="ff_inhibitory_synapses_by_level",
+        ),
+        rec_exc_by_level=resolve_synapses_by_level(
+            per_level=pop_config.rec_excitatory_synapses_by_level,
+            fallback=pop_config.rec_excitatory_synapses,
+            n_levels=n_levels,
+            field_name="rec_excitatory_synapses_by_level",
+        ),
+        rec_inh_by_level=resolve_synapses_by_level(
+            per_level=pop_config.rec_inhibitory_synapses_by_level,
+            fallback=pop_config.rec_inhibitory_synapses,
+            n_levels=n_levels,
+            field_name="rec_inhibitory_synapses_by_level",
+        ),
+    )
+
+
+def _active_input_dim(input_dim: Optional[int], synapses: int) -> Optional[int]:
+    """Return an input dimension only when the corresponding pathway is active."""
+    return input_dim if input_dim is not None and synapses > 0 else None
+
+
+def _active_synapse_count(input_dim: Optional[int], synapses: int) -> Optional[int]:
+    """Return a synapse count only when the corresponding pathway is active."""
+    return synapses if input_dim is not None and synapses > 0 else None
 
 
 class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
@@ -222,49 +278,15 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
 
         # Build branch layers (distal to soma)
         self.branch_layers = nn.ModuleList()
-        input_branch_factors = compute_input_branch_factors(pop_config.branch_factors)
-        ff_exc_by_level = resolve_synapses_by_level(
-            per_level=pop_config.ff_excitatory_synapses_by_level,
-            fallback=pop_config.ff_excitatory_synapses,
-            n_levels=self.n_levels,
-            field_name="ff_excitatory_synapses_by_level",
-        )
-        ff_inh_by_level = resolve_synapses_by_level(
-            per_level=pop_config.ff_inhibitory_synapses_by_level,
-            fallback=pop_config.ff_inhibitory_synapses,
-            n_levels=self.n_levels,
-            field_name="ff_inhibitory_synapses_by_level",
-        )
-        rec_exc_by_level = resolve_synapses_by_level(
-            per_level=pop_config.rec_excitatory_synapses_by_level,
-            fallback=pop_config.rec_excitatory_synapses,
-            n_levels=self.n_levels,
-            field_name="rec_excitatory_synapses_by_level",
-        )
-        rec_inh_by_level = resolve_synapses_by_level(
-            per_level=pop_config.rec_inhibitory_synapses_by_level,
-            fallback=pop_config.rec_inhibitory_synapses,
-            n_levels=self.n_levels,
-            field_name="rec_inhibitory_synapses_by_level",
+        synapse_layout = _resolve_stateful_branch_synapse_layout(
+            pop_config,
+            self.n_levels,
         )
         direct_connection_masks = connection_masks_by_pathway or {}
 
         common_synapse_config = DendriticSynapseConfig.from_population_config(
             pop_config
         )
-
-        # Helper to compute conditional dims
-        def _exc_dim(synapses):
-            return excitatory_input_dim if synapses > 0 else None
-
-        def _exc_syn(synapses):
-            return synapses if synapses > 0 else None
-
-        def _inh_dim(dim, synapses):
-            return dim if dim is not None and synapses > 0 else None
-
-        def _inh_syn(dim, synapses):
-            return synapses if dim is not None and synapses > 0 else None
 
         is_soma_level = self.n_levels - 1  # last index
 
@@ -288,19 +310,25 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
                 rec_inh_in = None
                 rec_inh_syn = None
             else:
-                ff_exc_syn = ff_exc_by_level[level_idx]
-                ff_inh_syn_count = ff_inh_by_level[level_idx]
-                rec_exc_syn_count = rec_exc_by_level[level_idx]
-                rec_inh_syn_count = rec_inh_by_level[level_idx]
+                ff_exc_syn = synapse_layout.ff_exc_by_level[level_idx]
+                ff_inh_syn_count = synapse_layout.ff_inh_by_level[level_idx]
+                rec_exc_syn_count = synapse_layout.rec_exc_by_level[level_idx]
+                rec_inh_syn_count = synapse_layout.rec_inh_by_level[level_idx]
 
-                exc_in = _exc_dim(ff_exc_syn)
-                exc_syn = _exc_syn(ff_exc_syn)
-                inh_in = _inh_dim(inhibitory_input_dim, ff_inh_syn_count)
-                inh_syn = _inh_syn(inhibitory_input_dim, ff_inh_syn_count)
-                rec_in = _inh_dim(recurrent_excitatory_input_dim, rec_exc_syn_count)
-                rec_syn = _inh_syn(recurrent_excitatory_input_dim, rec_exc_syn_count)
-                rec_inh_in = _inh_dim(recurrent_inhibitory_input_dim, rec_inh_syn_count)
-                rec_inh_syn = _inh_syn(
+                exc_in = _active_input_dim(excitatory_input_dim, ff_exc_syn)
+                exc_syn = _active_synapse_count(excitatory_input_dim, ff_exc_syn)
+                inh_in = _active_input_dim(inhibitory_input_dim, ff_inh_syn_count)
+                inh_syn = _active_synapse_count(inhibitory_input_dim, ff_inh_syn_count)
+                rec_in = _active_input_dim(
+                    recurrent_excitatory_input_dim, rec_exc_syn_count
+                )
+                rec_syn = _active_synapse_count(
+                    recurrent_excitatory_input_dim, rec_exc_syn_count
+                )
+                rec_inh_in = _active_input_dim(
+                    recurrent_inhibitory_input_dim, rec_inh_syn_count
+                )
+                rec_inh_syn = _active_synapse_count(
                     recurrent_inhibitory_input_dim, rec_inh_syn_count
                 )
 
@@ -339,7 +367,7 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
                         pop_config.ff_inhibitory_pathway,
                         inh_in,
                     ),
-                    input_branch_factor=input_branch_factors[level_idx],
+                    input_branch_factor=synapse_layout.input_branch_factors[level_idx],
                     recurrent_input_dim=rec_in,
                     recurrent_synapses_per_branch=rec_syn,
                     recurrent_forbidden_input_index_per_output=(
