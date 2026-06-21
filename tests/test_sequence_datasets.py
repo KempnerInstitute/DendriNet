@@ -5,6 +5,10 @@ import numpy as np
 import pytest
 import torch
 
+from dendritic_modeling.datasets.sequence.builders.registry import (
+    SEQUENCE_DATASET_BUILDERS,
+    merge_sequence_dataset_builders,
+)
 from dendritic_modeling.datasets.sequence_datasets import (
     AddingProblemDataset,
     ContextDependentDecisionDataset,
@@ -52,6 +56,16 @@ def _write_tiny_stringer(tmp_path, *, n_neurons=4, n_trials=20):
     all_running = np.empty(1, dtype=object)
     all_running[0] = np.linspace(0.0, 1.0, n_trials).astype(np.float32)
     np.save(tmp_path / StringerV1Dataset._RUNNING_FILE, all_running, allow_pickle=True)
+
+
+def test_sequence_builder_registry_rejects_duplicate_names():
+    def builder(_dataset_name, _data_path, _kwargs):
+        raise AssertionError("builder should not be called")
+
+    with pytest.raises(ValueError, match="duplicate"):
+        merge_sequence_dataset_builders({"task": builder}, {"task": builder})
+
+    assert SEQUENCE_DATASET_BUILDERS["copy_task"] is not None
 
 
 def test_sequential_mnist_modes_and_invalid(monkeypatch):

@@ -74,19 +74,11 @@ class AnalysisManager:
             if cfg is None or not getattr(cfg, "enabled", False):
                 continue
             params = getattr(cfg, "params", None)
-            constructor_style = initializer.constructor_style
-            if constructor_style == "none":
-                analyzer = initializer.analyzer_cls()
-            elif constructor_style == "model_params":
-                analyzer = initializer.analyzer_cls(model=self.model, params=params)
-            elif constructor_style == "params":
-                analyzer = initializer.analyzer_cls(params)
-            else:
-                raise ValueError(
-                    "Unsupported analyzer constructor style for "
-                    f"{initializer.registry_name}: {constructor_style}"
-                )
-            setattr(self, initializer.attribute_name, analyzer)
+            setattr(
+                self,
+                initializer.attribute_name,
+                initializer.build(model=self.model, params=params),
+            )
         self.correlation_analysis_enabled = hasattr(self, "correlation_analyzer")
 
     def _sanitize_performance_metrics_for_task(self) -> None:

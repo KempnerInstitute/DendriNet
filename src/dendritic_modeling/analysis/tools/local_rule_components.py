@@ -47,6 +47,12 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.b
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
     TopKLinear,
 )
+from dendritic_modeling.training.strategies.local_learning_pathways import (
+    EXCITATORY_TOPK_PATHS,
+    INHIBITORY_TOPK_PATHS,
+    TopKGradientPath,
+    iter_topk_path_modules,
+)
 from dendritic_modeling.utils import save_dict
 
 
@@ -62,6 +68,9 @@ class _ComponentKey:
     synapse_type: str
     component: str
     used_in_rule: bool
+
+
+_LOCAL_RULE_TOPK_PATHS = (EXCITATORY_TOPK_PATHS[0], INHIBITORY_TOPK_PATHS[0])
 
 
 def _safe_float(value: Any) -> float:
@@ -135,6 +144,24 @@ def _reduce_error_to_scalar(delta: torch.Tensor, eps: float = 1e-6) -> torch.Ten
         fallback = delta.gather(dim=1, index=max_idx)
         delta_scalar = torch.where(near_zero, fallback, delta_scalar)
     return delta_scalar
+
+
+def _record_topk_forward(
+    rec: dict[str, Any],
+    path: TopKGradientPath,
+    layer: TopKLinear,
+    inputs,
+    outputs,
+) -> None:
+    rec[path.input_key] = inputs[0].detach() if inputs else None
+    rec[path.output_key] = outputs.detach()
+    rec[path.module_key] = layer
+    cached = getattr(layer, "_last_forward_weight_mask", None)
+    rec[path.mask_key] = (
+        cached.detach()
+        if isinstance(cached, torch.Tensor)
+        else layer.weight_mask().detach()
+    )
 
 
 def _parse_branch_module_index(module_name: str) -> int:
@@ -220,37 +247,16 @@ class LocalRuleComponentAnalyzer(AbstractAnalyzer):
 
             handles.append(module.reactivation.register_forward_hook(_react_hook))
 
-            exc_layer = getattr(module, "branch_excitation", None)
-            if exc_layer is not None:
+            for path, topk_layer in iter_topk_path_modules(
+                module, _LOCAL_RULE_TOPK_PATHS
+            ):
 
-                def _exc_hook(_m, inputs, outputs, rec=rec, layer=exc_layer):
-                    rec["x_exc"] = inputs[0].detach() if inputs else None
-                    rec["exc_out"] = outputs.detach()
-                    rec["exc_module"] = layer
-                    cached = getattr(layer, "_last_forward_weight_mask", None)
-                    rec["exc_mask"] = (
-                        cached.detach()
-                        if isinstance(cached, torch.Tensor)
-                        else layer.weight_mask().detach()
-                    )
+                def _topk_hook(
+                    _m, inputs, outputs, rec=rec, layer=topk_layer, path=path
+                ):
+                    _record_topk_forward(rec, path, layer, inputs, outputs)
 
-                handles.append(exc_layer.register_forward_hook(_exc_hook))
-
-            inh_layer = getattr(module, "branch_inhibition", None)
-            if inh_layer is not None:
-
-                def _inh_hook(_m, inputs, outputs, rec=rec, layer=inh_layer):
-                    rec["x_inh"] = inputs[0].detach() if inputs else None
-                    rec["inh_out"] = outputs.detach()
-                    rec["inh_module"] = layer
-                    cached = getattr(layer, "_last_forward_weight_mask", None)
-                    rec["inh_mask"] = (
-                        cached.detach()
-                        if isinstance(cached, torch.Tensor)
-                        else layer.weight_mask().detach()
-                    )
-
-                handles.append(inh_layer.register_forward_hook(_inh_hook))
+                handles.append(topk_layer.register_forward_hook(_topk_hook))
 
             blk_layer = getattr(module, "branches_to_output", None)
             if blk_layer is not None:

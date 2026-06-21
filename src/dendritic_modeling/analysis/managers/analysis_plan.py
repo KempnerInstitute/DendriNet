@@ -45,6 +45,21 @@ class _AnalyzerInitializer:
     def constructor_style(self) -> str:
         return _registered_analyzer_spec(self.registry_name).constructor_style
 
+    def build(self, *, model: object, params: object | None) -> object:
+        """Instantiate this analyzer using its registered constructor style."""
+        analyzer_cls = self.analyzer_cls
+        constructor_style = self.constructor_style
+        if constructor_style == "none":
+            return analyzer_cls()
+        if constructor_style == "model_params":
+            return analyzer_cls(model=model, params=params)
+        if constructor_style == "params":
+            return analyzer_cls(params)
+        raise ValueError(
+            "Unsupported analyzer constructor style for "
+            f"{self.registry_name}: {constructor_style}"
+        )
+
 
 @dataclass(frozen=True)
 class _TestDatasetAnalysisRunner:

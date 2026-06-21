@@ -17,6 +17,9 @@ from dendritic_modeling.config import SynapticActivationAnalysisParams
 from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import DendriticBranchLayer, TopKLinear
+from dendritic_modeling.training.strategies.local_learning_pathways import (
+    iter_topk_path_modules,
+)
 from dendritic_modeling.utils import save_dict
 
 
@@ -62,18 +65,10 @@ class SynapticActivationAnalyzer:
         handles = []
         for layer_name, module in model.named_modules():
             if isinstance(module, DendriticBranchLayer):
-                synapse_modules = [
-                    ("exc", module.branch_excitation),
-                    ("inh", module.branch_inhibition),
-                    ("rec_exc", getattr(module, "branch_recurrent", None)),
-                    ("rec_inh", getattr(module, "branch_rec_inhibition", None)),
-                ]
                 self.data_dict.setdefault(layer_name, {})
-                for synapse_type, synapse_module in synapse_modules:
-                    if synapse_module is None:
-                        continue
+                for path, synapse_module in iter_topk_path_modules(module):
                     synapse_module._analysis_layer_name = layer_name
-                    synapse_module._analysis_synapse_type = synapse_type
+                    synapse_module._analysis_synapse_type = path.pathway
                     handle = synapse_module.register_forward_hook(self.forward_hook)
                     handles.append(handle)
         return handles

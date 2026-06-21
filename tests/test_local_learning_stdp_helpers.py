@@ -8,7 +8,9 @@ from types import SimpleNamespace
 import torch
 
 from dendritic_modeling.training.strategies.local_learning_pathways import (
+    RECORDER_TOPK_PATHS,
     STDP_TOPK_PATHS,
+    iter_topk_path_modules,
 )
 from dendritic_modeling.training.strategies.local_learning_stdp import (
     stdp_activity,
@@ -83,4 +85,72 @@ def test_stdp_path_descriptors_preserve_dispatch_order():
         ("inh", "inh_module", "x_inh", "inh_mask"),
         ("rec_exc", "rec_exc_module", "x_rec_exc", "rec_exc_mask"),
         ("rec_inh", "rec_inh_module", "x_rec_inh", "rec_inh_mask"),
+    ]
+
+
+def test_recorder_path_descriptors_preserve_record_keys():
+    assert [
+        (
+            path.pathway,
+            path.module_attr,
+            path.module_key,
+            path.input_key,
+            path.output_key,
+            path.mask_key,
+        )
+        for path in RECORDER_TOPK_PATHS
+    ] == [
+        (
+            "exc",
+            "branch_excitation",
+            "exc_module",
+            "x_exc",
+            "exc_out",
+            "exc_mask",
+        ),
+        (
+            "inh",
+            "branch_inhibition",
+            "inh_module",
+            "x_inh",
+            "inh_out",
+            "inh_mask",
+        ),
+        (
+            "rec_exc",
+            "branch_recurrent",
+            "rec_exc_module",
+            "x_rec_exc",
+            "rec_exc_out",
+            "rec_exc_mask",
+        ),
+        (
+            "rec_inh",
+            "branch_rec_inhibition",
+            "rec_inh_module",
+            "x_rec_inh",
+            "rec_inh_out",
+            "rec_inh_mask",
+        ),
+    ]
+
+
+def test_iter_topk_path_modules_preserves_descriptor_order():
+    exc = object()
+    rec_exc = object()
+    rec_inh = object()
+    module = SimpleNamespace(
+        branch_excitation=exc,
+        branch_inhibition=None,
+        branch_recurrent=rec_exc,
+        branch_rec_inhibition=rec_inh,
+    )
+
+    assert [
+        (path.pathway, topk_module)
+        for path, topk_module in iter_topk_path_modules(module)
+    ] == [
+        ("exc", exc),
+        ("rec_exc", rec_exc),
+        ("rec_inh", rec_inh),
     ]

@@ -37,6 +37,9 @@ from dendritic_modeling.plotting.visualizations.plotting_utils import (
 from dendritic_modeling.plotting.visualizations.synaptic_weight_plots import (
     plot_synaptic_weight_analysis,
 )
+from dendritic_modeling.training.strategies.local_learning_pathways import (
+    iter_topk_path_modules,
+)
 from dendritic_modeling.utils import save_dict
 
 logger = logging.getLogger(__name__)
@@ -92,10 +95,8 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
                     self.raw_dict[key][branch_idx] = {"depth": module.layer_idx}
 
                 synapse_modules = [
-                    ("exc", module.branch_excitation),
-                    ("inh", module.branch_inhibition),
-                    ("rec_exc", getattr(module, "branch_recurrent", None)),
-                    ("rec_inh", getattr(module, "branch_rec_inhibition", None)),
+                    (path.pathway, synapse_module)
+                    for path, synapse_module in iter_topk_path_modules(module)
                 ]
 
                 if self.synapse_weights:

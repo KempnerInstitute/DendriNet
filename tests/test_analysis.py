@@ -2479,6 +2479,20 @@ class TestAnalysisManager(unittest.TestCase):
         self.assertTrue(hasattr(manager, "routing_analyzer"))
         self.assertTrue(manager.correlation_analysis_enabled)
 
+    def test_analyzer_initializer_builds_from_registered_constructor_style(self):
+        """Initializer metadata should own analyzer construction semantics."""
+        from dendritic_modeling.analysis.managers.analysis_plan import (
+            _AnalyzerInitializer,
+        )
+
+        params = self.analysis_config.performance_analysis.params
+        analyzer = _AnalyzerInitializer("performance").build(
+            model=self.model,
+            params=params,
+        )
+
+        self.assertIsInstance(analyzer, PerformanceAnalyzer)
+
     def test_should_run_config_matches_training_phase_rules(self):
         """Shared analysis gate should preserve final/training behavior."""
         cfg = self.analysis_config.performance_analysis

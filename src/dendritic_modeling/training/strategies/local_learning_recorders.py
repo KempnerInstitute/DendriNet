@@ -18,8 +18,34 @@ from dendritic_modeling.networks import DendriticBranchLayer
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
     TopKLinear,
 )
+from dendritic_modeling.training.strategies.local_learning_pathways import (
+    RECORDER_TOPK_PATHS,
+    TopKGradientPath,
+    iter_topk_path_modules,
+)
 
 logger = logging.getLogger(__name__)
+
+
+def _record_topk_forward(
+    rec: dict[str, Any],
+    path: TopKGradientPath,
+    layer: TopKLinear,
+    inputs,
+    outputs,
+) -> None:
+    """Record one TopK pathway forward pass for local learning."""
+    rec[path.input_key] = inputs[0].detach()
+    rec[path.output_key] = outputs.detach()
+    rec[path.module_key] = layer
+    try:
+        cached_mask = getattr(layer, "_last_forward_weight_mask", None)
+        if isinstance(cached_mask, torch.Tensor):
+            rec[path.mask_key] = cached_mask.detach()
+        else:
+            rec[path.mask_key] = layer.weight_mask().detach()
+    except Exception:
+        rec[path.mask_key] = None
 
 
 class LocalLearningRecorderMixin:
@@ -124,133 +150,14 @@ class LocalLearningRecorderMixin:
 
             handles.append(module.reactivation.register_forward_hook(_react_hook))
 
-            # Excitatory TopK
+            for path, topk_layer in iter_topk_path_modules(module, RECORDER_TOPK_PATHS):
 
-            if getattr(module, "branch_excitation", None) is not None:
+                def _topk_hook(
+                    m, inputs, outputs, rec=rec, layer=topk_layer, path=path
+                ):
+                    _record_topk_forward(rec, path, layer, inputs, outputs)
 
-                exc_layer: TopKLinear = module.branch_excitation
-
-                def _exc_hook(m, inputs, outputs, rec=rec, layer=exc_layer):
-
-                    rec["x_exc"] = inputs[0].detach()
-
-                    rec["exc_out"] = outputs.detach()
-
-                    rec["exc_module"] = layer
-
-                    try:
-
-                        cached_mask = getattr(layer, "_last_forward_weight_mask", None)
-
-                        if isinstance(cached_mask, torch.Tensor):
-
-                            rec["exc_mask"] = cached_mask.detach()
-
-                        else:
-
-                            rec["exc_mask"] = layer.weight_mask().detach()
-
-                    except Exception:
-
-                        rec["exc_mask"] = None
-
-                handles.append(exc_layer.register_forward_hook(_exc_hook))
-
-            # Inhibitory TopK
-
-            if getattr(module, "branch_inhibition", None) is not None:
-
-                inh_layer: TopKLinear = module.branch_inhibition
-
-                def _inh_hook(m, inputs, outputs, rec=rec, layer=inh_layer):
-
-                    rec["x_inh"] = inputs[0].detach()
-
-                    rec["inh_out"] = outputs.detach()
-
-                    rec["inh_module"] = layer
-
-                    try:
-
-                        cached_mask = getattr(layer, "_last_forward_weight_mask", None)
-
-                        if isinstance(cached_mask, torch.Tensor):
-
-                            rec["inh_mask"] = cached_mask.detach()
-
-                        else:
-
-                            rec["inh_mask"] = layer.weight_mask().detach()
-
-                    except Exception:
-
-                        rec["inh_mask"] = None
-
-                handles.append(inh_layer.register_forward_hook(_inh_hook))
-
-            # Recurrent excitatory TopK
-
-            if getattr(module, "branch_recurrent", None) is not None:
-
-                rec_exc_layer: TopKLinear = module.branch_recurrent
-
-                def _rec_exc_hook(m, inputs, outputs, rec=rec, layer=rec_exc_layer):
-
-                    rec["x_rec_exc"] = inputs[0].detach()
-
-                    rec["rec_exc_out"] = outputs.detach()
-
-                    rec["rec_exc_module"] = layer
-
-                    try:
-
-                        cached_mask = getattr(layer, "_last_forward_weight_mask", None)
-
-                        if isinstance(cached_mask, torch.Tensor):
-
-                            rec["rec_exc_mask"] = cached_mask.detach()
-
-                        else:
-
-                            rec["rec_exc_mask"] = layer.weight_mask().detach()
-
-                    except Exception:
-
-                        rec["rec_exc_mask"] = None
-
-                handles.append(rec_exc_layer.register_forward_hook(_rec_exc_hook))
-
-            # Recurrent inhibitory TopK
-
-            if getattr(module, "branch_rec_inhibition", None) is not None:
-
-                rec_inh_layer: TopKLinear = module.branch_rec_inhibition
-
-                def _rec_inh_hook(m, inputs, outputs, rec=rec, layer=rec_inh_layer):
-
-                    rec["x_rec_inh"] = inputs[0].detach()
-
-                    rec["rec_inh_out"] = outputs.detach()
-
-                    rec["rec_inh_module"] = layer
-
-                    try:
-
-                        cached_mask = getattr(layer, "_last_forward_weight_mask", None)
-
-                        if isinstance(cached_mask, torch.Tensor):
-
-                            rec["rec_inh_mask"] = cached_mask.detach()
-
-                        else:
-
-                            rec["rec_inh_mask"] = layer.weight_mask().detach()
-
-                    except Exception:
-
-                        rec["rec_inh_mask"] = None
-
-                handles.append(rec_inh_layer.register_forward_hook(_rec_inh_hook))
+                handles.append(topk_layer.register_forward_hook(_topk_hook))
 
             # Dendritic BlockLinear
 
