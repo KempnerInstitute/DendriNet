@@ -77,6 +77,19 @@ def _normalize_batch_gradient(
     return grad
 
 
+def _reduce_batch_mean_gradient(
+    factor: torch.Tensor,
+    *,
+    normalize_by_batch: bool,
+    batch_size: int,
+) -> torch.Tensor:
+    """Reduce per-example local factors using the legacy batch scaling rule."""
+    grad = factor.mean(dim=0)
+    if not normalize_by_batch:
+        grad = grad * float(batch_size)
+    return grad
+
+
 def _topk_pre_weight_grad(
     local_grad: torch.Tensor,
     *,
@@ -304,44 +317,17 @@ class LocalLearningGradientMixin:
             return layer
 
         x_pre: torch.Tensor = rec[input_key]
-        if layer_dynamics_mode == "conductance":
-            if self.local_cfg.three_factor.use_driving_force:
-                inh_post = self.local_cfg.three_factor.e_rev_inh - v_n
-            else:
-                inh_post = self.local_cfg.three_factor.theta - v_n
-            inh_factor = e_v * r_tot * inh_post
-        else:
-            additive_mode = getattr(
-                self.local_cfg.three_factor, "additive_gain_mode", "none"
-            )
-            if additive_mode == "input_dependent":
-                pseudo_R, _ = self._compute_additive_pseudo_signals(rec, v_n)
-                inh_post = self.local_cfg.three_factor.theta - v_n
-                inh_factor = e_v * pseudo_R * inh_post
-            elif additive_mode in ("learned_gain", "running_stats"):
-                inh_factor = -post_factor_raw
-            else:
-                inh_factor = -e_v
-
-        if isinstance(rho, torch.Tensor):
-            inh_factor = inh_factor * rho.unsqueeze(0)
-        else:
-            inh_factor = (
-                inh_factor * float(rho)
-                if self.local_cfg.rule_variant in {"4f", "5f"}
-                else inh_factor
-            )
-
-        inh_factor = (
-            inh_factor * float(phi)
-            if self.local_cfg.rule_variant == "5f"
-            else inh_factor
+        inh_factor = self._compute_inhibitory_topk_factor(
+            rec=rec,
+            e_v=e_v,
+            post_factor_raw=post_factor_raw,
+            v_n=v_n,
+            r_tot=r_tot,
+            rho=rho,
+            phi=phi,
+            branch_scale=branch_scale,
+            layer_dynamics_mode=layer_dynamics_mode,
         )
-
-        if isinstance(branch_scale, torch.Tensor):
-            inh_factor = inh_factor * branch_scale.unsqueeze(0)
-        else:
-            inh_factor = inh_factor * float(branch_scale)
 
         grad_g = inh_factor.t() @ x_pre
         grad_g = _normalize_batch_gradient(
@@ -385,6 +371,59 @@ class LocalLearningGradientMixin:
         self._add_topk_transformed_grad(layer, grad_g, rec.get(mask_key))
         return layer
 
+    def _compute_inhibitory_topk_factor(
+        self,
+        *,
+        rec: dict[str, Any],
+        e_v: torch.Tensor,
+        post_factor_raw: torch.Tensor,
+        v_n: torch.Tensor,
+        r_tot: Any,
+        rho: Any,
+        phi: float,
+        branch_scale: Any,
+        layer_dynamics_mode: str,
+    ) -> torch.Tensor:
+        if layer_dynamics_mode == "conductance":
+            if self.local_cfg.three_factor.use_driving_force:
+                inh_post = self.local_cfg.three_factor.e_rev_inh - v_n
+            else:
+                inh_post = self.local_cfg.three_factor.theta - v_n
+            inh_factor = e_v * r_tot * inh_post
+        else:
+            additive_mode = getattr(
+                self.local_cfg.three_factor, "additive_gain_mode", "none"
+            )
+            if additive_mode == "input_dependent":
+                pseudo_R, _ = self._compute_additive_pseudo_signals(rec, v_n)
+                inh_post = self.local_cfg.three_factor.theta - v_n
+                inh_factor = e_v * pseudo_R * inh_post
+            elif additive_mode in ("learned_gain", "running_stats"):
+                inh_factor = -post_factor_raw
+            else:
+                inh_factor = -e_v
+
+        if isinstance(rho, torch.Tensor):
+            inh_factor = inh_factor * rho.unsqueeze(0)
+        else:
+            inh_factor = (
+                inh_factor * float(rho)
+                if self.local_cfg.rule_variant in {"4f", "5f"}
+                else inh_factor
+            )
+
+        inh_factor = (
+            inh_factor * float(phi)
+            if self.local_cfg.rule_variant == "5f"
+            else inh_factor
+        )
+
+        if isinstance(branch_scale, torch.Tensor):
+            inh_factor = inh_factor * branch_scale.unsqueeze(0)
+        else:
+            inh_factor = inh_factor * float(branch_scale)
+        return inh_factor
+
     def _add_topk_transformed_grad(
         self,
         layer: TopKLinear,
@@ -421,6 +460,74 @@ class LocalLearningGradientMixin:
 
         block_size = blk_layer.block_size
         x_blk = x_blk_raw.view(x_blk_raw.size(0), blk_layer.out_features, block_size)
+        den_factor = self._compute_dendritic_block_factor(
+            rec=rec,
+            e_v=e_v,
+            post_factor_raw=post_factor_raw,
+            v_n=v_n,
+            r_tot=r_tot,
+            rho=rho,
+            phi=phi,
+            dendritic_branch_scale=dendritic_branch_scale,
+            x_blk=x_blk,
+            layer_dynamics_mode=layer_dynamics_mode,
+        )
+
+        grad_g_den = _reduce_batch_mean_gradient(
+            den_factor,
+            normalize_by_batch=self.local_cfg.normalize_by_batch,
+            batch_size=batch_size,
+        )
+
+        voltage_homeo_error = self._compute_voltage_homeostasis_error(v_n)
+        if voltage_homeo_error is not None:
+            den_homeo_factor = self._compute_dendritic_block_homeostasis_factor(
+                voltage_homeo_error=voltage_homeo_error,
+                v_n=v_n,
+                r_tot=r_tot,
+                x_blk=x_blk,
+                layer_dynamics_mode=layer_dynamics_mode,
+            )
+            grad_homeo_den = _reduce_batch_mean_gradient(
+                den_homeo_factor,
+                normalize_by_batch=self.local_cfg.normalize_by_batch,
+                batch_size=batch_size,
+            )
+            grad_g_den = grad_g_den + grad_homeo_den
+
+        grad_g_den = _apply_optional_alignment(grad_g_den, role_block_alignment)
+
+        if self.local_cfg.morphology_aware.use_dendritic_normalization:
+            grad_g_den = self._compute_dendritic_normalization(rec, grad_g_den)
+
+        self._add_dendritic_block_transformed_grad(blk_layer, grad_g_den)
+
+    def _add_dendritic_block_transformed_grad(
+        self,
+        blk_layer: Any,
+        local_grad: torch.Tensor,
+    ) -> None:
+        den_chain = self._weight_transform_derivative(
+            blk_layer.log_weight.detach(),
+            getattr(blk_layer, "weight_transform", "exp"),
+        )
+        grad_param_den = local_grad * den_chain
+        _accumulate_parameter_grad(blk_layer.log_weight, grad_param_den)
+
+    def _compute_dendritic_block_factor(
+        self,
+        *,
+        rec: dict[str, Any],
+        e_v: torch.Tensor,
+        post_factor_raw: torch.Tensor,
+        v_n: torch.Tensor,
+        r_tot: Any,
+        rho: Any,
+        phi: float,
+        dendritic_branch_scale: Any,
+        x_blk: torch.Tensor,
+        layer_dynamics_mode: str,
+    ) -> torch.Tensor:
         if layer_dynamics_mode == "conductance":
             diff = x_blk - v_n.unsqueeze(-1)
             if isinstance(r_tot, torch.Tensor):
@@ -459,40 +566,25 @@ class LocalLearningGradientMixin:
                 )
         else:
             den_factor = den_factor * float(dendritic_branch_scale)
+        return den_factor
 
-        grad_g_den = den_factor.mean(dim=0)
-        if not self.local_cfg.normalize_by_batch:
-            grad_g_den = grad_g_den * float(batch_size)
-
-        voltage_homeo_error = self._compute_voltage_homeostasis_error(v_n)
-        if voltage_homeo_error is not None:
-            if layer_dynamics_mode == "conductance":
-                diff_homeo = x_blk - v_n.unsqueeze(-1)
-                if isinstance(r_tot, torch.Tensor):
-                    r_homeo = r_tot.unsqueeze(-1)
-                else:
-                    r_homeo = torch.ones_like(v_n).unsqueeze(-1) * float(r_tot)
-                den_homeo_factor = (
-                    voltage_homeo_error.unsqueeze(-1) * r_homeo * diff_homeo
-                )
+    def _compute_dendritic_block_homeostasis_factor(
+        self,
+        *,
+        voltage_homeo_error: torch.Tensor,
+        v_n: torch.Tensor,
+        r_tot: Any,
+        x_blk: torch.Tensor,
+        layer_dynamics_mode: str,
+    ) -> torch.Tensor:
+        if layer_dynamics_mode == "conductance":
+            diff_homeo = x_blk - v_n.unsqueeze(-1)
+            if isinstance(r_tot, torch.Tensor):
+                r_homeo = r_tot.unsqueeze(-1)
             else:
-                den_homeo_factor = voltage_homeo_error.unsqueeze(-1) * x_blk
-            grad_homeo_den = den_homeo_factor.mean(dim=0)
-            if not self.local_cfg.normalize_by_batch:
-                grad_homeo_den = grad_homeo_den * float(batch_size)
-            grad_g_den = grad_g_den + grad_homeo_den
-
-        grad_g_den = _apply_optional_alignment(grad_g_den, role_block_alignment)
-
-        if self.local_cfg.morphology_aware.use_dendritic_normalization:
-            grad_g_den = self._compute_dendritic_normalization(rec, grad_g_den)
-
-        den_chain = self._weight_transform_derivative(
-            blk_layer.log_weight.detach(),
-            getattr(blk_layer, "weight_transform", "exp"),
-        )
-        grad_param_den = grad_g_den * den_chain
-        _accumulate_parameter_grad(blk_layer.log_weight, grad_param_den)
+                r_homeo = torch.ones_like(v_n).unsqueeze(-1) * float(r_tot)
+            return voltage_homeo_error.unsqueeze(-1) * r_homeo * diff_homeo
+        return voltage_homeo_error.unsqueeze(-1) * x_blk
 
     def _apply_reactivation_local_grad(
         self,
