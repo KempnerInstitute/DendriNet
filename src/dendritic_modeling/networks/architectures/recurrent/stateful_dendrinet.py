@@ -35,11 +35,17 @@ from dendritic_modeling.networks.architectures.recurrent.stateful_setup import (
     _resolve_stateful_soma_feedback_levels,
 )
 from dendritic_modeling.networks.architectures.recurrent.stateful_step import (
+    _apply_stateful_branch_voltage_modulators,
     _apply_stateful_dendritic_spike_dynamics,
+    _apply_stateful_keep_mask_to_level_tensors,
     _apply_stateful_soma_dynamics,
     _build_stateful_next_state,
     _build_stateful_routing_info,
+    _init_stateful_dendrinet_state,
+    _stateful_current_taus,
+    _stateful_decay_factors,
     _stateful_level_keep_mask,
+    _stateful_raw_branch_drive,
 )
 from dendritic_modeling.networks.architectures.recurrent.stateful_typed_dynamics import (
     StatefulTypedDynamicsMixin,
@@ -199,10 +205,12 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
 
     def get_decays(self) -> torch.Tensor:
         """Return per-level decay factors, computing from log_tau if learnable."""
-        if self.learnable_tau:
-            tau = self.log_tau.exp()
-            return torch.exp(-self.dt / tau)
-        return self.decays
+        return _stateful_decay_factors(
+            learnable_tau=self.learnable_tau,
+            log_tau=self.log_tau,
+            decays=getattr(self, "decays", None) if self.learnable_tau else self.decays,
+            dt=self.dt,
+        )
 
     def set_level_silencing(self, mask: Optional[torch.Tensor]) -> None:
         """Set an optional per-level lesion mask used during recurrent analysis.
@@ -235,9 +243,12 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
     @property
     def current_taus(self) -> torch.Tensor:
         """Current tau values (useful for inspection/logging)."""
-        if self.learnable_tau:
-            return self.log_tau.exp().detach()
-        return -self.dt / self.decays.clamp(min=1e-8).log()
+        return _stateful_current_taus(
+            learnable_tau=self.learnable_tau,
+            log_tau=self.log_tau,
+            decays=getattr(self, "decays", None) if self.learnable_tau else self.decays,
+            dt=self.dt,
+        )
 
     def init_state(
         self,
@@ -245,21 +256,16 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
         device: torch.device,
         dtype: torch.dtype = torch.float32,
     ) -> DendriNetState:
-        return DendriNetState.zeros(
+        return _init_stateful_dendrinet_state(
             level_dims=self._level_dims,
+            n_soma=self._n_soma,
             batch_size=batch_size,
             device=device,
             dtype=dtype,
-            soma_dim=(
-                self._n_soma
-                if self.spiking_soma is not None or self.soma_feedback_enabled
-                else None
-            ),
-            track_branch_voltage=(
-                self.synapse_types_enabled or self.dendritic_spikes_enabled
-            ),
-            track_dendritic_spikes=self.dendritic_spikes_enabled,
-            track_soma_output=self.soma_feedback_enabled,
+            spiking_soma_enabled=self.spiking_soma is not None,
+            soma_feedback_enabled=self.soma_feedback_enabled,
+            synapse_types_enabled=self.synapse_types_enabled,
+            dendritic_spikes_enabled=self.dendritic_spikes_enabled,
         )
 
     def _resolve_soma_feedback_levels(self, levels) -> set[int]:
@@ -433,12 +439,14 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
             )
 
             # 2. Branch aggregation from child level
-            if layer.input_branches and branch_voltage is not None:
-                raw_branch = layer.branches_to_output(branch_voltage)
-            else:
-                raw_branch = torch.zeros(
-                    batch_size, self._level_dims[level_idx], device=device, dtype=dtype
-                )
+            raw_branch = _stateful_raw_branch_drive(
+                layer=layer,
+                branch_voltage=branch_voltage,
+                batch_size=batch_size,
+                level_dim=self._level_dims[level_idx],
+                device=device,
+                dtype=dtype,
+            )
             branch_conductance = self._branch_conductance_tensor(layer, raw_branch)
 
             keep_mask = self._level_keep_mask(
@@ -458,19 +466,34 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
                 and level_idx < len(state.branch_voltage)
                 else prev_trace_branch
             )
-            if keep_mask is not None:
-                raw_E = raw_E * keep_mask
-                raw_E_rec = raw_E_rec * keep_mask
-                raw_I = raw_I * keep_mask
-                raw_I_rec = raw_I_rec * keep_mask
-                raw_branch = raw_branch * keep_mask
-                branch_conductance = branch_conductance * keep_mask
-                prev_trace_E = prev_trace_E * keep_mask
-                prev_trace_E_rec = prev_trace_E_rec * keep_mask
-                prev_trace_I = prev_trace_I * keep_mask
-                prev_trace_I_rec = prev_trace_I_rec * keep_mask
-                prev_trace_branch = prev_trace_branch * keep_mask
-                prev_branch_voltage = prev_branch_voltage * keep_mask
+            (
+                raw_E,
+                raw_E_rec,
+                raw_I,
+                raw_I_rec,
+                raw_branch,
+                branch_conductance,
+                prev_trace_E,
+                prev_trace_E_rec,
+                prev_trace_I,
+                prev_trace_I_rec,
+                prev_trace_branch,
+                prev_branch_voltage,
+            ) = _apply_stateful_keep_mask_to_level_tensors(
+                keep_mask=keep_mask,
+                raw_E=raw_E,
+                raw_E_rec=raw_E_rec,
+                raw_I=raw_I,
+                raw_I_rec=raw_I_rec,
+                raw_branch=raw_branch,
+                branch_conductance=branch_conductance,
+                prev_trace_E=prev_trace_E,
+                prev_trace_E_rec=prev_trace_E_rec,
+                prev_trace_I=prev_trace_I,
+                prev_trace_I_rec=prev_trace_I_rec,
+                prev_trace_branch=prev_trace_branch,
+                prev_branch_voltage=prev_branch_voltage,
+            )
 
             # 3. Leaky-integrate all 5 trace types
             decay = all_decays[level_idx].to(device=device, dtype=dtype)
@@ -586,10 +609,11 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
                 )
                 self._maybe_update_dynamic_grad_scales(layer, denominator)
                 branch_voltage = layer.reactivation(voltage)
-            if soma_feedback_gate is not None:
-                branch_voltage = branch_voltage * (1.0 + soma_feedback_gate)
-            if keep_mask is not None:
-                branch_voltage = branch_voltage * keep_mask
+            branch_voltage = _apply_stateful_branch_voltage_modulators(
+                branch_voltage=branch_voltage,
+                soma_feedback_gate=soma_feedback_gate,
+                keep_mask=keep_mask,
+            )
             if self.dendritic_spikes_enabled:
                 branch_voltage, plateau, refractory, event = (
                     self._apply_dendritic_spike_dynamics(

@@ -90,6 +90,148 @@ def _apply_stateful_soma_dynamics(
     )[:4]
 
 
+def _stateful_decay_factors(
+    *,
+    learnable_tau: bool,
+    log_tau: Tensor | None,
+    decays: Tensor | None,
+    dt: float,
+) -> Tensor:
+    """Return per-level decay factors for fixed or learnable time constants."""
+    if learnable_tau:
+        tau = log_tau.exp()
+        return torch.exp(-dt / tau)
+    return decays
+
+
+def _stateful_current_taus(
+    *,
+    learnable_tau: bool,
+    log_tau: Tensor | None,
+    decays: Tensor | None,
+    dt: float,
+) -> Tensor:
+    """Return inspectable per-level tau values for fixed or learnable taus."""
+    if learnable_tau:
+        return log_tau.exp().detach()
+    return -dt / decays.clamp(min=1e-8).log()
+
+
+def _init_stateful_dendrinet_state(
+    *,
+    level_dims: list[int],
+    n_soma: int,
+    batch_size: int,
+    device: torch.device,
+    dtype: torch.dtype,
+    spiking_soma_enabled: bool,
+    soma_feedback_enabled: bool,
+    synapse_types_enabled: bool,
+    dendritic_spikes_enabled: bool,
+) -> DendriNetState:
+    """Create the zero state for one stateful dendritic population."""
+    return DendriNetState.zeros(
+        level_dims=level_dims,
+        batch_size=batch_size,
+        device=device,
+        dtype=dtype,
+        soma_dim=n_soma if spiking_soma_enabled or soma_feedback_enabled else None,
+        track_branch_voltage=synapse_types_enabled or dendritic_spikes_enabled,
+        track_dendritic_spikes=dendritic_spikes_enabled,
+        track_soma_output=soma_feedback_enabled,
+    )
+
+
+def _stateful_raw_branch_drive(
+    *,
+    layer: torch.nn.Module,
+    branch_voltage: Tensor | None,
+    batch_size: int,
+    level_dim: int,
+    device: torch.device,
+    dtype: torch.dtype,
+) -> Tensor:
+    """Resolve branch input drive from child branches or a zero fallback."""
+    if layer.input_branches and branch_voltage is not None:
+        return layer.branches_to_output(branch_voltage)
+    return torch.zeros(batch_size, level_dim, device=device, dtype=dtype)
+
+
+def _apply_stateful_keep_mask_to_level_tensors(
+    *,
+    keep_mask: Tensor | None,
+    raw_E: Tensor,
+    raw_E_rec: Tensor,
+    raw_I: Tensor,
+    raw_I_rec: Tensor,
+    raw_branch: Tensor,
+    branch_conductance: Tensor,
+    prev_trace_E: Tensor,
+    prev_trace_E_rec: Tensor,
+    prev_trace_I: Tensor,
+    prev_trace_I_rec: Tensor,
+    prev_trace_branch: Tensor,
+    prev_branch_voltage: Tensor,
+) -> tuple[
+    Tensor,
+    Tensor,
+    Tensor,
+    Tensor,
+    Tensor,
+    Tensor,
+    Tensor,
+    Tensor,
+    Tensor,
+    Tensor,
+    Tensor,
+    Tensor,
+]:
+    """Apply a resolved level keep mask to all tensors that carry level state."""
+    if keep_mask is None:
+        return (
+            raw_E,
+            raw_E_rec,
+            raw_I,
+            raw_I_rec,
+            raw_branch,
+            branch_conductance,
+            prev_trace_E,
+            prev_trace_E_rec,
+            prev_trace_I,
+            prev_trace_I_rec,
+            prev_trace_branch,
+            prev_branch_voltage,
+        )
+    return (
+        raw_E * keep_mask,
+        raw_E_rec * keep_mask,
+        raw_I * keep_mask,
+        raw_I_rec * keep_mask,
+        raw_branch * keep_mask,
+        branch_conductance * keep_mask,
+        prev_trace_E * keep_mask,
+        prev_trace_E_rec * keep_mask,
+        prev_trace_I * keep_mask,
+        prev_trace_I_rec * keep_mask,
+        prev_trace_branch * keep_mask,
+        prev_branch_voltage * keep_mask,
+    )
+
+
+def _apply_stateful_branch_voltage_modulators(
+    *,
+    branch_voltage: Tensor,
+    soma_feedback_gate: Tensor | None,
+    keep_mask: Tensor | None,
+) -> Tensor:
+    """Apply post-voltage soma feedback and level keep-mask modulation."""
+    if soma_feedback_gate is not None:
+        branch_voltage = branch_voltage * (1.0 + soma_feedback_gate)
+    if keep_mask is not None:
+        branch_voltage = branch_voltage * keep_mask
+    return branch_voltage
+
+
 def _build_stateful_next_state(
     *,
     trace_E: list[Tensor],
@@ -159,9 +301,15 @@ def _build_stateful_routing_info(
 
 
 __all__ = [
+    "_apply_stateful_branch_voltage_modulators",
     "_apply_stateful_dendritic_spike_dynamics",
+    "_apply_stateful_keep_mask_to_level_tensors",
     "_apply_stateful_soma_dynamics",
     "_build_stateful_next_state",
     "_build_stateful_routing_info",
+    "_init_stateful_dendrinet_state",
+    "_stateful_current_taus",
+    "_stateful_decay_factors",
     "_stateful_level_keep_mask",
+    "_stateful_raw_branch_drive",
 ]
