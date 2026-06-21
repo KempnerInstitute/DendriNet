@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
 from typing import Any
 
 import torch
@@ -121,6 +122,15 @@ def _default_path_factor(child_v: Any, mode: str) -> torch.Tensor | float:
     return 1.0
 
 
+def _iter_distal_parent_records(
+    layer_records: list[dict[str, Any]],
+) -> Iterator[tuple[int, dict[str, Any], dict[str, Any]]]:
+    """Yield recorded child/parent pairs from distal layers toward the soma."""
+
+    for layer_idx in range(len(layer_records) - 2, -1, -1):
+        yield layer_idx, layer_records[layer_idx], layer_records[layer_idx + 1]
+
+
 class LocalLearningPathTransportBroadcastMixin:
     """Recursive transport of local-rule feedback through dendritic trees."""
 
@@ -200,11 +210,9 @@ class LocalLearningPathTransportBroadcastMixin:
 
                 path_factors[-1] = torch.ones_like(soma_v)
 
-        for layer_idx in range(len(layer_records) - 2, -1, -1):
-
-            child_rec = layer_records[layer_idx]
-
-            parent_rec = layer_records[layer_idx + 1]
+        for layer_idx, child_rec, parent_rec in _iter_distal_parent_records(
+            layer_records
+        ):
 
             child_v = child_rec.get("v_n")
 
@@ -325,11 +333,9 @@ class LocalLearningPathTransportBroadcastMixin:
 
         transported[-1] = _soma_seed_from_delta(soma_v, delta, delta_scalar)
 
-        for layer_idx in range(len(layer_records) - 2, -1, -1):
-
-            child_rec = layer_records[layer_idx]
-
-            parent_rec = layer_records[layer_idx + 1]
+        for layer_idx, child_rec, parent_rec in _iter_distal_parent_records(
+            layer_records
+        ):
 
             child_v = child_rec.get("v_n")
 
@@ -433,11 +439,9 @@ class LocalLearningPathTransportBroadcastMixin:
 
         feedback[-1] = _soma_seed_from_delta(soma_v, delta, delta_scalar)
 
-        for layer_idx in range(len(layer_records) - 2, -1, -1):
-
-            child_rec = layer_records[layer_idx]
-
-            parent_rec = layer_records[layer_idx + 1]
+        for layer_idx, child_rec, parent_rec in _iter_distal_parent_records(
+            layer_records
+        ):
 
             child_v = child_rec.get("v_n")
 
@@ -479,6 +483,7 @@ __all__ = [
     "_edge_weights_like_child",
     "_expand_scalar_like",
     "_expected_child_out_features",
+    "_iter_distal_parent_records",
     "_scalar_edge_mean_factor",
     "_soma_seed_from_delta",
     "_warn_child_out_mismatch",

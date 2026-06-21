@@ -104,17 +104,21 @@ def _resolve_num_workers(
     return min(resolved_workers, available_cpus), False
 
 
+def _resolve_device_type(device: torch.device | str | None) -> str:
+    """Resolve the device type used for DataLoader pin-memory defaults."""
+
+    if device is not None:
+        return torch.device(device).type
+    return "cuda" if torch.cuda.is_available() else "cpu"
+
+
 def _resolve_pin_memory(
     *,
     device: torch.device | str | None,
     pin_memory: bool | None,
     num_workers: int,
 ) -> bool:
-    device_type = (
-        torch.device(device).type
-        if device is not None
-        else ("cuda" if torch.cuda.is_available() else "cpu")
-    )
+    device_type = _resolve_device_type(device)
     return (
         bool(pin_memory)
         if pin_memory is not None

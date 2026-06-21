@@ -26,6 +26,7 @@ from dendritic_modeling.training.strategies.local_learning_broadcast_transport_m
     _edge_weights_like_child,
     _expand_scalar_like,
     _expected_child_out_features,
+    _iter_distal_parent_records,
     _scalar_edge_mean_factor,
     _soma_seed_from_delta,
     _warn_child_out_mismatch,
@@ -162,6 +163,19 @@ def test_default_path_factor_preserves_scalar_tensor_and_missing_paths():
     torch.testing.assert_close(vector_factor, torch.ones_like(child_v))
 
     assert _default_path_factor(None, "per_branch") == 1.0
+
+
+def test_iter_distal_parent_records_preserves_child_parent_order():
+    distal = {"name": "distal"}
+    middle = {"name": "middle"}
+    soma = {"name": "soma"}
+    records = [distal, middle, soma]
+
+    pairs = list(_iter_distal_parent_records(records))
+
+    assert pairs == [(1, middle, soma), (0, distal, middle)]
+    assert list(_iter_distal_parent_records([])) == []
+    assert list(_iter_distal_parent_records([soma])) == []
 
 
 def test_expand_scalar_like_matches_reference_shape_dtype_and_device():

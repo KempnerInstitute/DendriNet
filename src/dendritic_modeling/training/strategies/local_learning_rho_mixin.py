@@ -15,6 +15,12 @@ from dendritic_modeling.training.strategies.local_learning_state import _LayerSt
 logger = logging.getLogger(__name__)
 
 
+def _clamp_rho(rho: float) -> float:
+    """Clamp rho to the legacy stability range."""
+
+    return float(max(0.1, min(2.0, rho)))
+
+
 class LocalLearningRhoMixin(LocalLearningPhiMixin):
     """Input-output correlation modulators for 4-factor and 5-factor rules."""
 
@@ -62,7 +68,7 @@ class LocalLearningRhoMixin(LocalLearningPhiMixin):
 
                 stats.rho_ema = decay * stats.rho_ema + alpha * rho_val
 
-            return float(max(0.1, min(2.0, stats.rho_ema)))  # Clamp to stable range
+            return _clamp_rho(stats.rho_ema)
 
         elif rho_mode == "none":
 
@@ -88,7 +94,7 @@ class LocalLearningRhoMixin(LocalLearningPhiMixin):
 
                 stats.rho_ema = decay * stats.rho_ema + alpha * rho_batch
 
-            return float(max(0.1, min(2.0, stats.rho_ema)))
+            return _clamp_rho(stats.rho_ema)
 
         else:
 
@@ -198,7 +204,7 @@ class LocalLearningRhoMixin(LocalLearningPhiMixin):
 
                 stats.rho_ema = rho_ema
 
-                return float(max(0.1, min(2.0, rho_ema)))  # Clamp for stability
+                return _clamp_rho(rho_ema)
 
             elif estimator == "augment":
 
@@ -271,7 +277,7 @@ class LocalLearningRhoMixin(LocalLearningPhiMixin):
 
                     stats.rho_ema = decay * stats.rho_ema + alpha * rho_augment
 
-                return float(max(0.1, min(2.0, rho_augment)))  # Clamp for stability
+                return _clamp_rho(rho_augment)
 
             else:
 

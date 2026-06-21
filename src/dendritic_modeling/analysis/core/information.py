@@ -6,7 +6,6 @@ with the main configuration system.
 """
 
 import logging
-import time
 import traceback
 from typing import Optional
 
@@ -42,6 +41,7 @@ from dendritic_modeling.analysis.core.information_config import (
     _InformationScopeSelection as _InformationScopeSelection,
     _InformationSignalVariantSelection as _InformationSignalVariantSelection,
     _normalize_config_token as _normalize_config_token,
+    _normalize_config_tokens as _normalize_config_tokens,
     _parse_information_component_selection as _parse_information_component_selection,
     _parse_information_scope_selection as _parse_information_scope_selection,
 )
@@ -246,9 +246,10 @@ class InformationAnalyzer(
         filename : str, optional
             Filename for saved results, by default "final"
         """
-        self.logger.info("Starting information analysis")
-        self.logger.info(
-            f"Model: {type(model).__name__}, Dataset size: {len(test_dataset)}, Device: {device}"
+        self._log_analysis_start(
+            model=model,
+            test_dataset=test_dataset,
+            device=device,
         )
 
         lifecycle_state = self._capture_model_lifecycle_state(model)
@@ -257,8 +258,7 @@ class InformationAnalyzer(
             if not self._model_supports_information_analysis(model):
                 return
 
-            self.logger.info("Model validation passed - starting analysis")
-            analysis_start_time = time.time()
+            analysis_start_time = self._mark_analysis_validation_passed()
 
             # Prepare data
             model = self._prepare_model_for_analysis(model, device)

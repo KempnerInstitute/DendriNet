@@ -509,6 +509,38 @@ class TestInformationAnalyzer(unittest.TestCase):
             "Model does not expose an ExcitationInhibitionNetwork. Skipping information analysis."
         )
 
+    def test_log_analysis_start_preserves_entrypoint_summary(self):
+        """Analysis start logging should preserve the existing entrypoint messages."""
+        with patch.object(self.analyzer.logger, "info") as mock_info:
+            self.analyzer._log_analysis_start(
+                model=self.model,
+                test_dataset=self.test_data,
+                device="cpu",
+            )
+
+        mock_info.assert_has_calls(
+            [
+                call("Starting information analysis"),
+                call(
+                    "Model: Classifier, Dataset size: 30, Device: cpu",
+                ),
+            ]
+        )
+
+    def test_mark_analysis_validation_passed_logs_and_returns_time(self):
+        """Validation pass helper should preserve logging and start-time capture."""
+        with (
+            patch.object(self.analyzer.logger, "info") as mock_info,
+            patch(
+                "dendritic_modeling.analysis.core.information_lifecycle_mixin.time.time",
+                return_value=123.5,
+            ),
+        ):
+            start_time = self.analyzer._mark_analysis_validation_passed()
+
+        self.assertEqual(start_time, 123.5)
+        mock_info.assert_called_once_with("Model validation passed - starting analysis")
+
     def test_prepare_model_for_analysis_moves_and_evals_returned_model(self):
         """Model preparation should preserve the original move/eval behavior."""
         input_model = Mock()

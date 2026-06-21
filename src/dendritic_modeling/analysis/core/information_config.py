@@ -140,6 +140,16 @@ def _normalize_config_token(value: Any) -> str:
     return str(value).strip().lower().replace("-", "_").replace(" ", "_")
 
 
+def _normalize_config_tokens(values: Sequence[Any]) -> set[str]:
+    """Normalize non-blank config selector tokens into a set."""
+    return {_normalize_config_token(value) for value in values if str(value).strip()}
+
+
+def _has_any_config_token(tokens: set[str], aliases: set[str]) -> bool:
+    """Return whether normalized tokens include any accepted aliases."""
+    return bool(aliases.intersection(tokens))
+
+
 def _parse_information_component_selection(
     components_raw: Sequence[Any],
 ) -> _InformationComponentSelection | None:
@@ -147,31 +157,28 @@ def _parse_information_component_selection(
     if not components_raw:
         return None
 
-    components = {
-        _normalize_config_token(component)
-        for component in components_raw
-        if str(component).strip()
-    }
+    components = _normalize_config_tokens(components_raw)
     return _InformationComponentSelection(
-        compute_basic_mi=bool({"basic", "basic_mi"}.intersection(components)),
-        compute_pairwise_mi=bool({"pairwise", "pairwise_mi"}.intersection(components)),
-        compute_conditional_mi=bool(
-            {"conditional", "conditional_mi"}.intersection(components)
+        compute_basic_mi=_has_any_config_token(components, {"basic", "basic_mi"}),
+        compute_pairwise_mi=_has_any_config_token(
+            components, {"pairwise", "pairwise_mi"}
+        ),
+        compute_conditional_mi=_has_any_config_token(
+            components, {"conditional", "conditional_mi"}
         ),
         compute_pid="pid" in components,
-        compute_gaussian_fisher=bool(
-            {"gaussian_fisher", "gaussianfisher", "fisher"}.intersection(components)
+        compute_gaussian_fisher=_has_any_config_token(
+            components, {"gaussian_fisher", "gaussianfisher", "fisher"}
         ),
-        compute_ablation_aligned_mi=bool(
-            {"ablation_aligned", "ablation"}.intersection(components)
+        compute_ablation_aligned_mi=_has_any_config_token(
+            components, {"ablation_aligned", "ablation"}
         ),
-        compute_layer_total_proxies=bool(
-            {"layer_proxies", "layer_total_proxies", "layer_total"}.intersection(
-                components
-            )
+        compute_layer_total_proxies=_has_any_config_token(
+            components,
+            {"layer_proxies", "layer_total_proxies", "layer_total"},
         ),
-        compute_upstream_unique_cmi=bool(
-            {"upstream_unique_cmi", "upstream_unique"}.intersection(components)
+        compute_upstream_unique_cmi=_has_any_config_token(
+            components, {"upstream_unique_cmi", "upstream_unique"}
         ),
     )
 
@@ -183,13 +190,11 @@ def _parse_information_scope_selection(
     if not scopes_raw:
         return None
 
-    scopes = {
-        _normalize_config_token(scope) for scope in scopes_raw if str(scope).strip()
-    }
+    scopes = _normalize_config_tokens(scopes_raw)
     return _InformationScopeSelection(
-        per_neuron_analysis=bool({"neuron", "per_neuron"}.intersection(scopes)),
-        per_einet_analysis=bool({"einet", "per_einet"}.intersection(scopes)),
-        per_layer_analysis=bool({"layer", "per_layer"}.intersection(scopes)),
+        per_neuron_analysis=_has_any_config_token(scopes, {"neuron", "per_neuron"}),
+        per_einet_analysis=_has_any_config_token(scopes, {"einet", "per_einet"}),
+        per_layer_analysis=_has_any_config_token(scopes, {"layer", "per_layer"}),
     )
 
 
@@ -242,13 +247,9 @@ def _build_information_signal_variant_selection(
         or []
     )
     if variants_raw:
-        variants = {
-            _normalize_config_token(variant)
-            for variant in variants_raw
-            if str(variant).strip()
-        }
+        variants = _normalize_config_tokens(variants_raw)
         want_lda = "lda" in variants
-        want_random = bool({"random", "shuffle", "shuffled"}.intersection(variants))
+        want_random = _has_any_config_token(variants, {"random", "shuffle", "shuffled"})
         compute_lda_weights = bool(want_lda or want_random)
         lda_n_shuffles = lda_n_shuffles if want_random else 0
 
@@ -289,11 +290,7 @@ def _build_information_label_shuffle_null_config(
         )
         or ["basic"]
     )
-    mi_null_components = {
-        _normalize_config_token(component)
-        for component in null_components_raw
-        if str(component).strip()
-    } or {"basic"}
+    mi_null_components = _normalize_config_tokens(null_components_raw) or {"basic"}
 
     return _InformationLabelShuffleNullConfig(
         mi_null_shuffles=mi_null_shuffles,

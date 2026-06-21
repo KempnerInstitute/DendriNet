@@ -308,6 +308,21 @@ def test_dataloader_optimization_uses_workers_for_lazy_datasets(monkeypatch):
     assert tuning.persistent_workers is True
 
 
+def test_dataloader_device_type_resolution_preserves_pin_memory_defaults(monkeypatch):
+    """Loader tuning should resolve explicit and auto device types consistently."""
+
+    from dendritic_modeling.training.dataloader_utils import _resolve_device_type
+
+    assert _resolve_device_type("cuda:0") == "cuda"
+    assert _resolve_device_type(torch.device("cpu")) == "cpu"
+
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    assert _resolve_device_type(None) == "cuda"
+
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+    assert _resolve_device_type(None) == "cpu"
+
+
 def test_dataloader_auto_workers_share_cpus_across_local_ranks(monkeypatch):
     """Auto worker selection should avoid multiplying workers by local DDP ranks."""
 

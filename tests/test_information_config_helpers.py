@@ -15,6 +15,7 @@ from dendritic_modeling.analysis.core.information import (
     _get_config_path,
     _get_config_value,
     _normalize_config_token,
+    _normalize_config_tokens,
     _parse_information_component_selection,
     _parse_information_scope_selection,
 )
@@ -83,6 +84,12 @@ def test_normalize_config_token_preserves_legacy_selector_normalization():
     assert _normalize_config_token("Gaussian Fisher") == "gaussian_fisher"
     assert _normalize_config_token("basic_mi") == "basic_mi"
     assert _normalize_config_token(123) == "123"
+
+
+def test_normalize_config_tokens_filters_blanks_and_deduplicates():
+    assert _normalize_config_tokens(
+        [" Basic MI ", "basic-mi", "", " ", "Gaussian Fisher"]
+    ) == {"basic_mi", "gaussian_fisher"}
 
 
 def test_parse_information_component_selection_preserves_aliases():
