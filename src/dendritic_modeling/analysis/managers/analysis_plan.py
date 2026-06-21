@@ -1,0 +1,221 @@
+"""Registry-backed analyzer construction and execution metadata."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+from dendritic_modeling.analysis.registry import (
+    AnalyzerSpec,
+    get_analyzer_spec,
+    load_analyzer_class,
+)
+
+if TYPE_CHECKING:
+    from dendritic_modeling.analysis.managers.analysis_manager import AnalysisManager
+
+
+def _registered_analyzer_spec(registry_name: str) -> AnalyzerSpec:
+    """Return registered analyzer metadata or fail loudly on registry drift."""
+    spec = get_analyzer_spec(registry_name)
+    if spec is None:
+        raise KeyError(f"Analyzer {registry_name!r} is not registered")
+    return spec
+
+
+@dataclass(frozen=True)
+class _AnalyzerInitializer:
+    """Construction metadata used by AnalysisManager."""
+
+    registry_name: str
+
+    @property
+    def config_field(self) -> str:
+        return _registered_analyzer_spec(self.registry_name).config_field
+
+    @property
+    def attribute_name(self) -> str:
+        return _registered_analyzer_spec(self.registry_name).attribute_name
+
+    @property
+    def analyzer_cls(self) -> type:
+        return load_analyzer_class(self.registry_name)
+
+    @property
+    def constructor_style(self) -> str:
+        return _registered_analyzer_spec(self.registry_name).constructor_style
+
+
+@dataclass(frozen=True)
+class _TestDatasetAnalysisRunner:
+    """Execution metadata for analyzers sharing the test-dataset signature."""
+
+    registry_name: str
+    pass_training: bool = False
+    require_analyzer: bool = False
+
+    @property
+    def config_field(self) -> str:
+        return _registered_analyzer_spec(self.registry_name).config_field
+
+    @property
+    def analyzer_attr(self) -> str:
+        return _registered_analyzer_spec(self.registry_name).attribute_name
+
+    @property
+    def save_subdir(self) -> str:
+        return _registered_analyzer_spec(self.registry_name).save_subdir
+
+
+@dataclass(frozen=True)
+class _ModelOnlyAnalysisRunner:
+    """Execution metadata for analyzers sharing the model-only signature."""
+
+    registry_name: str
+    start_message: str
+    complete_message: str
+
+    @property
+    def config_field(self) -> str:
+        return _registered_analyzer_spec(self.registry_name).config_field
+
+    @property
+    def analyzer_attr(self) -> str:
+        return _registered_analyzer_spec(self.registry_name).attribute_name
+
+    @property
+    def save_subdir(self) -> str:
+        return _registered_analyzer_spec(self.registry_name).save_subdir
+
+
+@dataclass(frozen=True)
+class _AnalysisSequenceStep:
+    """One entry in the top-level analysis execution order."""
+
+    method_name: str
+    pass_runtime: bool = False
+    runners: object | None = None
+
+    def run(
+        self,
+        manager: AnalysisManager,
+        *,
+        filename: str,
+        training: bool,
+        runtime: object | None,
+    ) -> None:
+        """Call the manager method declared by this step."""
+        kwargs = {"filename": filename, "training": training}
+        if self.runners is not None:
+            kwargs["runners"] = self.runners
+        if self.pass_runtime:
+            kwargs["runtime"] = runtime
+        getattr(manager, self.method_name)(**kwargs)
+
+
+_ANALYZER_INITIALIZERS = (
+    _AnalyzerInitializer("performance"),
+    _AnalyzerInitializer("information"),
+    _AnalyzerInitializer("synapse_turnover"),
+    _AnalyzerInitializer("noise_perturbation"),
+    _AnalyzerInitializer("single_layer_contribution"),
+    _AnalyzerInitializer("ablation"),
+    _AnalyzerInitializer("weight"),
+    _AnalyzerInitializer("compartment_statistics"),
+    _AnalyzerInitializer("compartment_snr"),
+    _AnalyzerInitializer("multiplicative_gain"),
+    _AnalyzerInitializer("receptive_field"),
+    _AnalyzerInitializer("reactivation_dynamics"),
+    _AnalyzerInitializer("synaptic_activation"),
+    _AnalyzerInitializer("branch_activation"),
+    _AnalyzerInitializer("local_rule_components"),
+    _AnalyzerInitializer("correlation"),
+    _AnalyzerInitializer("routing"),
+    _AnalyzerInitializer("inhibitory_specialization"),
+    _AnalyzerInitializer("jacobian_spectrum"),
+    _AnalyzerInitializer("dendritic_timetraces"),
+    _AnalyzerInitializer("spike_train"),
+    _AnalyzerInitializer("adversarial_robustness"),
+)
+
+
+_INHIBITORY_SPECIALIZATION_ANALYSIS = _ModelOnlyAnalysisRunner(
+    "inhibitory_specialization",
+    start_message="Starting inhibitory specialization analysis...",
+    complete_message="Inhibitory specialization analysis completed successfully",
+)
+_JACOBIAN_SPECTRUM_ANALYSIS = _ModelOnlyAnalysisRunner(
+    "jacobian_spectrum",
+    start_message="Starting jacobian spectrum analysis...",
+    complete_message="Jacobian spectrum analysis completed successfully",
+)
+_DENDRITIC_TIMETRACES_ANALYSIS = _ModelOnlyAnalysisRunner(
+    "dendritic_timetraces",
+    start_message="Starting dendritic timetraces analysis...",
+    complete_message="Dendritic timetraces analysis completed successfully",
+)
+_MODEL_ONLY_ANALYSES = (
+    _INHIBITORY_SPECIALIZATION_ANALYSIS,
+    _JACOBIAN_SPECTRUM_ANALYSIS,
+    _DENDRITIC_TIMETRACES_ANALYSIS,
+)
+
+
+_PRE_WEIGHT_TEST_DATASET_ANALYSES = (
+    _TestDatasetAnalysisRunner("noise_perturbation"),
+    _TestDatasetAnalysisRunner("single_layer_contribution"),
+    _TestDatasetAnalysisRunner(
+        "ablation",
+        pass_training=True,
+    ),
+)
+
+
+_POST_REACTIVATION_TEST_DATASET_ANALYSES = (
+    _TestDatasetAnalysisRunner(
+        "compartment_statistics",
+        pass_training=True,
+    ),
+    _TestDatasetAnalysisRunner(
+        "compartment_snr",
+        pass_training=True,
+    ),
+    _TestDatasetAnalysisRunner(
+        "multiplicative_gain",
+        pass_training=True,
+    ),
+    _TestDatasetAnalysisRunner(
+        "receptive_field",
+        pass_training=True,
+    ),
+    _TestDatasetAnalysisRunner("synaptic_activation"),
+    _TestDatasetAnalysisRunner("branch_activation"),
+)
+
+
+_ORDERED_ANALYSIS_SEQUENCE = (
+    _AnalysisSequenceStep("_run_performance_analysis", pass_runtime=True),
+    _AnalysisSequenceStep("_run_information_analysis", pass_runtime=True),
+    _AnalysisSequenceStep("_run_synaptic_turnover_analysis"),
+    _AnalysisSequenceStep(
+        "_run_test_dataset_analysis_runners",
+        pass_runtime=True,
+        runners=_PRE_WEIGHT_TEST_DATASET_ANALYSES,
+    ),
+    _AnalysisSequenceStep("_run_weight_analysis"),
+    _AnalysisSequenceStep("_run_reactivation_dynamics_analysis", pass_runtime=True),
+    _AnalysisSequenceStep(
+        "_run_test_dataset_analysis_runners",
+        pass_runtime=True,
+        runners=_POST_REACTIVATION_TEST_DATASET_ANALYSES,
+    ),
+    _AnalysisSequenceStep("_run_local_rule_component_analysis", pass_runtime=True),
+    _AnalysisSequenceStep("_run_correlation_analysis", pass_runtime=True),
+    _AnalysisSequenceStep("_run_routing_analysis"),
+    _AnalysisSequenceStep(
+        "_run_model_only_analysis_runners",
+        runners=_MODEL_ONLY_ANALYSES,
+    ),
+    _AnalysisSequenceStep("_run_spike_train_analysis", pass_runtime=True),
+    _AnalysisSequenceStep("_run_adversarial_robustness_analysis", pass_runtime=True),
+)

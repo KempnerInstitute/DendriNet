@@ -2426,6 +2426,7 @@ class TestAnalysisManager(unittest.TestCase):
 
         assert spec is not None
         self.assertTrue(hasattr(self.manager, spec.attribute_name))
+        self.assertIsInstance(self.manager.performance_analyzer, spec.load_class())
         self.assertIs(
             self.manager.performance_analyzer,
             getattr(self.manager, spec.attribute_name),
@@ -2457,6 +2458,13 @@ class TestAnalysisManager(unittest.TestCase):
         config.synapse_turnover_analysis.enabled = True
         config.correlation_analysis.enabled = True
         config.routing_analysis.enabled = True
+
+        synapse_turnover_spec = get_analyzer_spec("synapse_turnover")
+        routing_spec = get_analyzer_spec("routing")
+        assert synapse_turnover_spec is not None
+        assert routing_spec is not None
+        self.assertEqual(synapse_turnover_spec.constructor_style, "model_params")
+        self.assertEqual(routing_spec.constructor_style, "none")
 
         with tempfile.TemporaryDirectory() as tmpdir:
             manager = AnalysisManager(

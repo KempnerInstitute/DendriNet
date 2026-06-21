@@ -89,6 +89,30 @@ def subset_dataset_for_runtime(
     return Subset(dataset, range(cap))
 
 
+def analysis_loader_kwargs_from_runtime(
+    runtime: EvaluationRuntimeConfig | None,
+    device: str | torch.device | None = None,
+) -> dict[str, object]:
+    """Return DataLoader kwargs governed by analysis runtime settings."""
+    if runtime is None:
+        runtime = EvaluationRuntimeConfig()
+    pin = resolve_analysis_pin_memory(runtime, device)
+    num_workers = max(0, int(getattr(runtime, "num_workers", 0)))
+    persistent_workers = bool(getattr(runtime, "persistent_workers", False))
+    if persistent_workers and num_workers == 0:
+        raise ValueError("persistent_workers=True requires num_workers > 0")
+
+    loader_kwargs: dict[str, object] = {
+        "num_workers": num_workers,
+        "pin_memory": pin,
+        "persistent_workers": persistent_workers,
+    }
+    prefetch_factor = getattr(runtime, "prefetch_factor", None)
+    if prefetch_factor is not None and num_workers > 0:
+        loader_kwargs["prefetch_factor"] = max(1, int(prefetch_factor))
+    return loader_kwargs
+
+
 def make_analysis_loader(
     dataset: Dataset,
     runtime: EvaluationRuntimeConfig | None,
@@ -99,22 +123,11 @@ def make_analysis_loader(
     if runtime is None:
         runtime = EvaluationRuntimeConfig()
     dataset_view = subset_dataset_for_runtime(dataset, runtime, explicit_max_samples)
-    pin = resolve_analysis_pin_memory(runtime, device)
-    num_workers = max(0, int(getattr(runtime, "num_workers", 0)))
-    persistent_workers = bool(getattr(runtime, "persistent_workers", False))
-    if persistent_workers and num_workers == 0:
-        raise ValueError("persistent_workers=True requires num_workers > 0")
-    loader_kwargs = {}
-    prefetch_factor = getattr(runtime, "prefetch_factor", None)
-    if prefetch_factor is not None and num_workers > 0:
-        loader_kwargs["prefetch_factor"] = max(1, int(prefetch_factor))
+    loader_kwargs = analysis_loader_kwargs_from_runtime(runtime, device)
     return DataLoader(
         dataset_view,
         batch_size=runtime.batch_size,
         shuffle=False,
-        num_workers=num_workers,
-        pin_memory=pin,
-        persistent_workers=persistent_workers,
         **loader_kwargs,
     )
 

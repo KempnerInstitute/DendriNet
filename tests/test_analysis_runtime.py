@@ -8,6 +8,7 @@ from torch.utils.data import DataLoader, Dataset, TensorDataset
 from dendritic_modeling.analysis.metrics.performance import PerformanceAnalyzer
 from dendritic_modeling.analysis.utils.runtime import (
     analysis_device_context,
+    analysis_loader_kwargs_from_runtime,
     evaluation_kwargs_from_runtime,
     iter_analysis_batches,
     materialize_dataset,
@@ -94,6 +95,45 @@ def test_evaluation_kwargs_preserve_worker_runtime_options():
         "eval_prefetch_factor": 5,
         "eval_max_batches": 3,
         "eval_materialize_threshold_mb": 128,
+    }
+
+
+def test_analysis_loader_kwargs_preserve_worker_runtime_options():
+    runtime = EvaluationRuntimeConfig(
+        mode="stream",
+        batch_size=16,
+        num_workers=2,
+        pin_memory=False,
+        persistent_workers=True,
+        prefetch_factor=5,
+    )
+
+    kwargs = analysis_loader_kwargs_from_runtime(runtime, device="cpu")
+
+    assert kwargs == {
+        "num_workers": 2,
+        "pin_memory": False,
+        "persistent_workers": True,
+        "prefetch_factor": 5,
+    }
+
+
+def test_analysis_loader_kwargs_omit_prefetch_without_workers():
+    runtime = EvaluationRuntimeConfig(
+        mode="stream",
+        batch_size=16,
+        num_workers=0,
+        pin_memory=False,
+        persistent_workers=False,
+        prefetch_factor=5,
+    )
+
+    kwargs = analysis_loader_kwargs_from_runtime(runtime, device="cpu")
+
+    assert kwargs == {
+        "num_workers": 0,
+        "pin_memory": False,
+        "persistent_workers": False,
     }
 
 

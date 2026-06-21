@@ -7,7 +7,11 @@ a safe extension surface for future manager refactors.
 
 from __future__ import annotations
 
+import importlib
 from dataclasses import dataclass
+from typing import Literal
+
+AnalyzerConstructor = Literal["params", "model_params", "none"]
 
 
 @dataclass(frozen=True)
@@ -19,8 +23,22 @@ class AnalyzerSpec:
     class_path: str
     attribute_name: str
     save_subdir: str
+    constructor_style: AnalyzerConstructor = "params"
     supports_training: bool = True
     description: str = ""
+
+    def load_class(self) -> type:
+        """Resolve the analyzer class declared by this spec."""
+        module_name, _, class_name = self.class_path.rpartition(".")
+        if not module_name or not class_name:
+            raise ValueError(f"Invalid analyzer class path: {self.class_path!r}")
+        module = importlib.import_module(module_name)
+        analyzer_cls = getattr(module, class_name)
+        if not isinstance(analyzer_cls, type):
+            raise TypeError(
+                f"Analyzer path does not resolve to a class: {self.class_path}"
+            )
+        return analyzer_cls
 
 
 _ANALYZER_REGISTRY: dict[str, AnalyzerSpec] = {}
@@ -33,6 +51,7 @@ def register_analyzer(
     class_path: str,
     attribute_name: str,
     save_subdir: str,
+    constructor_style: AnalyzerConstructor = "params",
     supports_training: bool = True,
     description: str = "",
     allow_override: bool = False,
@@ -43,12 +62,15 @@ def register_analyzer(
         raise ValueError("analyzer name must be non-empty")
     if key in _ANALYZER_REGISTRY and not allow_override:
         raise ValueError(f"Analyzer '{key}' is already registered")
+    if constructor_style not in ("params", "model_params", "none"):
+        raise ValueError(f"Unsupported analyzer constructor style: {constructor_style}")
     _ANALYZER_REGISTRY[key] = AnalyzerSpec(
         name=key,
         config_field=config_field,
         class_path=class_path,
         attribute_name=attribute_name,
         save_subdir=save_subdir,
+        constructor_style=constructor_style,
         supports_training=supports_training,
         description=description,
     )
@@ -74,7 +96,19 @@ def get_registered_analyzers() -> dict[str, AnalyzerSpec]:
     return dict(_ANALYZER_REGISTRY)
 
 
+def load_analyzer_class(name: str) -> type:
+    """Resolve the registered analyzer class for one analyzer name."""
+    spec = get_analyzer_spec(name)
+    if spec is None:
+        raise KeyError(f"Analyzer {name!r} is not registered")
+    return spec.load_class()
+
+
 def _register_builtin_analyzers() -> None:
+    constructor_styles: dict[str, AnalyzerConstructor] = {
+        "synapse_turnover": "model_params",
+        "routing": "none",
+    }
     builtins = [
         (
             "performance",
@@ -238,6 +272,7 @@ def _register_builtin_analyzers() -> None:
             class_path=class_path,
             attribute_name=attribute_name,
             save_subdir=save_subdir,
+            constructor_style=constructor_styles.get(name, "params"),
         )
 
 
@@ -245,10 +280,12 @@ _register_builtin_analyzers()
 
 
 __all__ = [
+    "AnalyzerConstructor",
     "AnalyzerSpec",
     "get_analyzer_spec",
     "get_registered_analyzer_names",
     "get_registered_analyzers",
+    "load_analyzer_class",
     "register_analyzer",
     "unregister_analyzer",
 ]
