@@ -102,11 +102,11 @@ class DendriticBranchLayer(nn.Module):
         rec_inhibitory_forbidden_input_index_per_output=None,
         topk_init_method="xavier_normal",
         topk_noise_level=0.0,
-        topk_type="standard",  # New parameter
+        topk_type="standard",  # TopK implementation strategy.
         topk_weight_norm_order=None,
         topk_gamma=1.0,
-        topk_temperature=0.5,  # For stochastic TopK
-        topk_ultrafast=False,  # For much faster stochastic TopK
+        topk_temperature=0.5,  # Stochastic TopK temperature.
+        topk_ultrafast=False,  # Fast stochastic TopK path.
         topk_strategy="none",
         dense_to_sparse_initial_density=1.0,
         dense_to_sparse_initial_k=None,
@@ -141,7 +141,7 @@ class DendriticBranchLayer(nn.Module):
         efficient_blocklinear: bool = False,
         layer_idx=0,
         print_hooks=False,
-        # DEEPST specific parameters, clean up later
+        # DeepST-compatible sparse-rewiring parameters.
         use_noise=True,
         rewiring_mode="global",
         rewire_frequency=1,
@@ -156,8 +156,8 @@ class DendriticBranchLayer(nn.Module):
         adaptive_initialization=True,
         adaptive_initialization_policy="legacy_scale",
         adaptive_target_conductance=5.0,
-        branch_factors=None,  # Add branch_factors parameter
-        epsilon=1e-8,  # Add configurable epsilon for numerical stability
+        branch_factors=None,  # Branch count per dendritic level.
+        epsilon=1e-8,  # Numerical stability constant.
         weight_transform="exp",  # Weight transformation for positive weights
         excitatory_connection_mask=None,
         inhibitory_connection_mask=None,
@@ -314,15 +314,13 @@ class DendriticBranchLayer(nn.Module):
         self.use_shunting = use_shunting
         self.use_additive_normalization = use_additive_normalization
         self.dbl_init_method = dbl_init_method
-        self.epsilon = epsilon  # Store epsilon for numerical stability
-        self.topk_type = topk_type  # Store the strategy
-        self.topk_weight_norm_order = (
-            topk_weight_norm_order  # Store the weight norm order
-        )
-        self.topk_gamma = topk_gamma  # Store the gamma
-        self.topk_temperature = topk_temperature  # Store the temperature
-        self.topk_ultrafast = topk_ultrafast  # Store the ultrafast flag
-        self.topk_strategy = topk_strategy  # Store the strategy
+        self.epsilon = epsilon
+        self.topk_type = topk_type
+        self.topk_weight_norm_order = topk_weight_norm_order
+        self.topk_gamma = topk_gamma
+        self.topk_temperature = topk_temperature
+        self.topk_ultrafast = topk_ultrafast
+        self.topk_strategy = topk_strategy
         self.dense_to_sparse_initial_density = dense_to_sparse_initial_density
         self.dense_to_sparse_initial_k = dense_to_sparse_initial_k
         self.dense_to_sparse_start_step = dense_to_sparse_start_step
@@ -342,7 +340,7 @@ class DendriticBranchLayer(nn.Module):
         self.input_excitatory = excitatory_input_dim is not None
         self.print_hooks = print_hooks
 
-        # DEEPST specific parameters, clean up later
+        # DeepST-compatible sparse-rewiring parameters.
         self.use_noise = use_noise
         self.rewiring_mode = rewiring_mode
         self.rewire_frequency = rewire_frequency
@@ -357,7 +355,7 @@ class DendriticBranchLayer(nn.Module):
         self.adaptive_initialization = adaptive_initialization
         self.adaptive_initialization_policy = adaptive_initialization_policy
         self.adaptive_target_conductance = adaptive_target_conductance
-        self.branch_factors = branch_factors  # Store branch_factors
+        self.branch_factors = branch_factors
         self.weight_transform = weight_transform
         self.dendritic_activation = reactivation_type if reactivate else "none"
 
@@ -570,7 +568,7 @@ class DendriticBranchLayer(nn.Module):
     def decay_weights(self, weight_decay, weight_boosting=False):
         decay_branch_synapse_weights(self, weight_decay, weight_boosting)
 
-    # DEEPST specific method
+    # Sparse-rewiring maintenance API.
     def apply_rewiring(self):
         """
         Apply rewiring to all synaptic connections.

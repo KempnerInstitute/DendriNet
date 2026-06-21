@@ -106,6 +106,42 @@ def _compute_distillation_loss(
     return loss + float(cosine_weight) * cosine_loss
 
 
+def _compute_transformer_distillation_loss(
+    prediction: torch.Tensor,
+    target: torch.Tensor,
+    *,
+    loss_name: str,
+    cosine_weight: float = 0.0,
+) -> torch.Tensor:
+    """Compute transformer replacement loss with token/hidden-dim flattening."""
+    return _compute_distillation_loss(
+        prediction,
+        target,
+        loss_name=loss_name,
+        cosine_weight=cosine_weight,
+        cosine_flatten="last_dim",
+        error_context="transformer replacement",
+    )
+
+
+def _compute_vision_distillation_loss(
+    prediction: torch.Tensor,
+    target: torch.Tensor,
+    *,
+    loss_name: str,
+    cosine_weight: float = 0.0,
+) -> torch.Tensor:
+    """Compute vision replacement loss with per-example flattening."""
+    return _compute_distillation_loss(
+        prediction,
+        target,
+        loss_name=loss_name,
+        cosine_weight=cosine_weight,
+        cosine_flatten="batch",
+        error_context="vision replacement",
+    )
+
+
 def _infinite_loader(loader: Any):
     """Yield batches from a loader forever without caching an epoch."""
     while True:
@@ -127,6 +163,8 @@ def _write_metrics_json(
 
 __all__ = [
     "_compute_distillation_loss",
+    "_compute_transformer_distillation_loss",
+    "_compute_vision_distillation_loss",
     "_infinite_loader",
     "_resolve_device",
     "_resolve_dtype",

@@ -12,13 +12,38 @@ from typing import Optional
 
 import torch
 
-from dendritic_modeling.analysis.core import information_config as _information_config
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
 from dendritic_modeling.analysis.core.information_all_branch_mixin import (
     InformationAllBranchMixin,
 )
 from dendritic_modeling.analysis.core.information_branch_mixin import (
     InformationBranchAnalysisMixin,
+)
+from dendritic_modeling.analysis.core.information_config import (
+    _build_information_ablation_aligned_config as _build_information_ablation_aligned_config,
+    _build_information_estimator_core_config as _build_information_estimator_core_config,
+    _build_information_estimator_method_params as _build_information_estimator_method_params,
+    _build_information_gaussian_fisher_config as _build_information_gaussian_fisher_config,
+    _build_information_granularity_config as _build_information_granularity_config,
+    _build_information_label_shuffle_null_config as _build_information_label_shuffle_null_config,
+    _build_information_pid_config as _build_information_pid_config,
+    _build_information_runtime_config as _build_information_runtime_config,
+    _build_information_signal_variant_selection as _build_information_signal_variant_selection,
+    _get_config_path as _get_config_path,
+    _get_config_value as _get_config_value,
+    _InformationAblationAlignedConfig as _InformationAblationAlignedConfig,
+    _InformationComponentSelection as _InformationComponentSelection,
+    _InformationEstimatorCoreConfig as _InformationEstimatorCoreConfig,
+    _InformationGaussianFisherConfig as _InformationGaussianFisherConfig,
+    _InformationGranularityConfig as _InformationGranularityConfig,
+    _InformationLabelShuffleNullConfig as _InformationLabelShuffleNullConfig,
+    _InformationPidConfig as _InformationPidConfig,
+    _InformationRuntimeConfig as _InformationRuntimeConfig,
+    _InformationScopeSelection as _InformationScopeSelection,
+    _InformationSignalVariantSelection as _InformationSignalVariantSelection,
+    _normalize_config_token as _normalize_config_token,
+    _parse_information_component_selection as _parse_information_component_selection,
+    _parse_information_scope_selection as _parse_information_scope_selection,
 )
 from dendritic_modeling.analysis.core.information_config_setup_mixin import (
     InformationConfigSetupMixin,
@@ -69,58 +94,6 @@ from dendritic_modeling.analysis.core.information_synthetic_soma_mixin import (
 from dendritic_modeling.config import InformationAnalysisParams
 from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.models import BaseModel
-
-# Backward-compatible aliases for config helpers that moved out of this module.
-_InformationComponentSelection = _information_config._InformationComponentSelection
-_InformationScopeSelection = _information_config._InformationScopeSelection
-_InformationSignalVariantSelection = (
-    _information_config._InformationSignalVariantSelection
-)
-_InformationLabelShuffleNullConfig = (
-    _information_config._InformationLabelShuffleNullConfig
-)
-_InformationPidConfig = _information_config._InformationPidConfig
-_InformationGaussianFisherConfig = _information_config._InformationGaussianFisherConfig
-_InformationAblationAlignedConfig = (
-    _information_config._InformationAblationAlignedConfig
-)
-_InformationRuntimeConfig = _information_config._InformationRuntimeConfig
-_InformationGranularityConfig = _information_config._InformationGranularityConfig
-_InformationEstimatorCoreConfig = _information_config._InformationEstimatorCoreConfig
-_get_config_value = _information_config._get_config_value
-_get_config_path = _information_config._get_config_path
-_normalize_config_token = _information_config._normalize_config_token
-_parse_information_component_selection = (
-    _information_config._parse_information_component_selection
-)
-_parse_information_scope_selection = (
-    _information_config._parse_information_scope_selection
-)
-_build_information_signal_variant_selection = (
-    _information_config._build_information_signal_variant_selection
-)
-_build_information_label_shuffle_null_config = (
-    _information_config._build_information_label_shuffle_null_config
-)
-_build_information_pid_config = _information_config._build_information_pid_config
-_build_information_gaussian_fisher_config = (
-    _information_config._build_information_gaussian_fisher_config
-)
-_build_information_ablation_aligned_config = (
-    _information_config._build_information_ablation_aligned_config
-)
-_build_information_runtime_config = (
-    _information_config._build_information_runtime_config
-)
-_build_information_granularity_config = (
-    _information_config._build_information_granularity_config
-)
-_build_information_estimator_core_config = (
-    _information_config._build_information_estimator_core_config
-)
-_build_information_estimator_method_params = (
-    _information_config._build_information_estimator_method_params
-)
 
 
 class InformationAnalyzer(

@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 from dendritic_modeling.analysis.registry import (
     AnalyzerSpec,
     get_analyzer_spec,
+    get_builtin_analyzer_names,
     load_analyzer_class,
 )
 
@@ -119,30 +120,7 @@ class _AnalysisSequenceStep:
         getattr(manager, self.method_name)(**kwargs)
 
 
-_ANALYZER_INITIALIZER_NAMES = (
-    "performance",
-    "information",
-    "synapse_turnover",
-    "noise_perturbation",
-    "single_layer_contribution",
-    "ablation",
-    "weight",
-    "compartment_statistics",
-    "compartment_snr",
-    "multiplicative_gain",
-    "receptive_field",
-    "reactivation_dynamics",
-    "synaptic_activation",
-    "branch_activation",
-    "local_rule_components",
-    "correlation",
-    "routing",
-    "inhibitory_specialization",
-    "jacobian_spectrum",
-    "dendritic_timetraces",
-    "spike_train",
-    "adversarial_robustness",
-)
+_ANALYZER_INITIALIZER_NAMES = get_builtin_analyzer_names()
 _ANALYZER_INITIALIZERS = tuple(
     _AnalyzerInitializer(name) for name in _ANALYZER_INITIALIZER_NAMES
 )

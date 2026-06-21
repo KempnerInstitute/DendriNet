@@ -113,22 +113,16 @@ class LocalLearningTopKGradientMixin:
             batch_size=batch_size,
         )
 
-        voltage_homeo_error = self._compute_voltage_homeostasis_error(v_n)
-        if voltage_homeo_error is not None:
-            if layer_dynamics_mode == "conductance":
-                homeo_factor = (
-                    voltage_homeo_error
-                    * r_tot
-                    * (self.local_cfg.three_factor.e_rev_exc - v_n)
-                )
-            else:
-                homeo_factor = voltage_homeo_error
-            grad_homeo = _factor_pre_weight_grad(
-                homeo_factor,
-                x_pre,
-                normalize_by_batch=self.local_cfg.normalize_by_batch,
-                batch_size=batch_size,
-            )
+        grad_homeo = self._compute_topk_voltage_homeostasis_grad(
+            v_n=v_n,
+            x_pre=x_pre,
+            r_tot=r_tot,
+            layer_dynamics_mode=layer_dynamics_mode,
+            batch_size=batch_size,
+            conductance_reversal=self.local_cfg.three_factor.e_rev_exc,
+            additive_sign=1.0,
+        )
+        if grad_homeo is not None:
             grad_g = grad_g + grad_homeo
 
         grad_g = _apply_optional_alignment(grad_g, role_synaptic_alignment)
@@ -180,22 +174,16 @@ class LocalLearningTopKGradientMixin:
 
         grad_g = _apply_optional_alignment(grad_g, role_synaptic_alignment)
 
-        voltage_homeo_error = self._compute_voltage_homeostasis_error(v_n)
-        if voltage_homeo_error is not None:
-            if layer_dynamics_mode == "conductance":
-                homeo_factor = (
-                    voltage_homeo_error
-                    * r_tot
-                    * (self.local_cfg.three_factor.e_rev_inh - v_n)
-                )
-            else:
-                homeo_factor = -voltage_homeo_error
-            grad_homeo = _factor_pre_weight_grad(
-                homeo_factor,
-                x_pre,
-                normalize_by_batch=self.local_cfg.normalize_by_batch,
-                batch_size=batch_size,
-            )
+        grad_homeo = self._compute_topk_voltage_homeostasis_grad(
+            v_n=v_n,
+            x_pre=x_pre,
+            r_tot=r_tot,
+            layer_dynamics_mode=layer_dynamics_mode,
+            batch_size=batch_size,
+            conductance_reversal=self.local_cfg.three_factor.e_rev_inh,
+            additive_sign=-1.0,
+        )
+        if grad_homeo is not None:
             grad_g = grad_g + grad_homeo
 
         inhibitory_homeo_factor = self._compute_inhibitory_homeostasis_factor(
@@ -212,6 +200,33 @@ class LocalLearningTopKGradientMixin:
 
         self._add_topk_transformed_grad(layer, grad_g, rec.get(mask_key))
         return layer
+
+    def _compute_topk_voltage_homeostasis_grad(
+        self,
+        *,
+        v_n: torch.Tensor,
+        x_pre: torch.Tensor,
+        r_tot: Any,
+        layer_dynamics_mode: str,
+        batch_size: int,
+        conductance_reversal: float,
+        additive_sign: float,
+    ) -> torch.Tensor | None:
+        voltage_homeo_error = self._compute_voltage_homeostasis_error(v_n)
+        if voltage_homeo_error is None:
+            return None
+
+        if layer_dynamics_mode == "conductance":
+            homeo_factor = voltage_homeo_error * r_tot * (conductance_reversal - v_n)
+        else:
+            homeo_factor = voltage_homeo_error * float(additive_sign)
+
+        return _factor_pre_weight_grad(
+            homeo_factor,
+            x_pre,
+            normalize_by_batch=self.local_cfg.normalize_by_batch,
+            batch_size=batch_size,
+        )
 
     def _compute_inhibitory_topk_factor(
         self,

@@ -21,7 +21,7 @@ from dendritic_modeling.training.dataloader_utils import (
 )
 from dendritic_modeling.training.optimizers import create_optimizer
 from dendritic_modeling.training.replacement_common import (
-    _compute_distillation_loss as _shared_compute_distillation_loss,
+    _compute_vision_distillation_loss as _compute_distillation_loss,
     _infinite_loader,
     _resolve_device,
     _resolve_dtype,
@@ -48,23 +48,6 @@ class VisionReplacementTrainingResult:
 
     def asdict(self) -> dict[str, Any]:
         return asdict(self)
-
-
-def _compute_distillation_loss(
-    prediction: torch.Tensor,
-    target: torch.Tensor,
-    *,
-    loss_name: str,
-    cosine_weight: float = 0.0,
-) -> torch.Tensor:
-    return _shared_compute_distillation_loss(
-        prediction,
-        target,
-        loss_name=loss_name,
-        cosine_weight=cosine_weight,
-        cosine_flatten="batch",
-        error_context="vision replacement",
-    )
 
 
 def _load_tensor(path: str) -> torch.Tensor:

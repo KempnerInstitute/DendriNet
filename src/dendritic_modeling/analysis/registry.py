@@ -256,6 +256,11 @@ def get_registered_analyzers() -> dict[str, AnalyzerSpec]:
     return dict(_ANALYZER_REGISTRY)
 
 
+def get_builtin_analyzer_names() -> tuple[str, ...]:
+    """Return built-in analyzer names in their declared initialization order."""
+    return tuple(spec.name for spec in _BUILTIN_ANALYZERS)
+
+
 def load_analyzer_class(name: str) -> type:
     """Resolve the registered analyzer class for one analyzer name."""
     spec = get_analyzer_spec(name)
@@ -285,6 +290,7 @@ __all__ = [
     "AnalyzerConstructor",
     "AnalyzerSpec",
     "get_analyzer_spec",
+    "get_builtin_analyzer_names",
     "get_registered_analyzer_names",
     "get_registered_analyzers",
     "load_analyzer_class",

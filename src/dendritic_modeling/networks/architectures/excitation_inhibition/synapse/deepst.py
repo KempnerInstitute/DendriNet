@@ -36,9 +36,9 @@ class DeepstLinear(nn.Module):
         synapses_per_branch=None,  # Required for 'constant_branch' mode
         param_space="log",  # 'log' or 'presigmoid' for weight parameterization
         weight_init_range=None,
-        init_method=None,  # Add initialization method parameter
-        freeze_connectivity=False,  # New: flag to freeze synapse locations
-        weight_threshold=1e-6,  # New: threshold for weight pruning
+        init_method=None,
+        freeze_connectivity=False,  # Freeze synapse locations.
+        weight_threshold=1e-6,  # Threshold for weight pruning.
         weight_transform: WeightTransformType = "exp",
         forbidden_input_index_per_output: Optional[torch.Tensor] = None,
         connection_mask: Optional[torch.Tensor] = None,
@@ -72,7 +72,7 @@ class DeepstLinear(nn.Module):
                     f"[0, {in_features - 1}]"
                 )
 
-        # Add K attribute for compatibility with initialize_dendritic_branch_layer
+        # Compatibility with dendritic branch-layer initialization.
         self.K = int(target_density * in_features) if in_features else None
 
         # Default initialization ranges
@@ -83,7 +83,6 @@ class DeepstLinear(nn.Module):
                 weight_init_range = (-0.1, 0.1)  # Default for presigmoid
             elif param_space == "uniform":
                 weight_init_range = (0.25, 0.75)  # Default for uniform
-        # Store weight initialization range
         self.weight_init_range = weight_init_range
         self.freeze_connectivity = freeze_connectivity
         self.weight_threshold = weight_threshold
@@ -192,10 +191,8 @@ class DeepstLinear(nn.Module):
         # Initialize connectivity
         self._initialize_connectivity()
 
-        # Store freeze flag
         self.freeze_connectivity = freeze_connectivity
 
-        # Store weight threshold for pruning
         self.weight_threshold = weight_threshold
 
     def _initialize_connectivity(self):

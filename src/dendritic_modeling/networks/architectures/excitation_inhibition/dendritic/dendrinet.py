@@ -104,12 +104,12 @@ class DendriNet(nn.Module):
         somatic_synapses=True,
         topk_init_method="xavier_normal",
         topk_noise_level=0.0,
-        topk_type="standard",  # New parameter for TopK strategy
+        topk_type="standard",  # TopK implementation strategy.
         topk_weight_norm_order=None,
         topk_gamma=1.0,
         weight_transform="exp",  # Weight transformation for positive weights
-        topk_temperature=0.5,  # For stochastic TopK
-        topk_ultrafast=False,  # For much faster stochastic TopK
+        topk_temperature=0.5,  # Stochastic TopK temperature.
+        topk_ultrafast=False,  # Fast stochastic TopK path.
         topk_strategy="none",
         use_shunting=True,
         reactivation_type="param_tanh",
@@ -122,7 +122,7 @@ class DendriNet(nn.Module):
         reactivation_init_policy="analytical",
         reactivation_sigma_aware_k=0.25,
         dbl_init_method="analytical_expectation",
-        # DEEPST specific parameters, clean up later
+        # DeepST-compatible sparse-rewiring parameters.
         excitatory_target_density=0.1,
         inhibitory_target_density=0.1,
         use_noise=True,
@@ -135,7 +135,7 @@ class DendriNet(nn.Module):
         freeze_inhibitory_connectivity=False,
         init_method=None,
         weight_threshold=1e-6,
-        adaptive_initialization=True,  # Add adaptive initialization parameter
+        adaptive_initialization=True,
         adaptive_initialization_policy="legacy_scale",
         adaptive_target_conductance=5.0,
         structured_connectivity=None,
