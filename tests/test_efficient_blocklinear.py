@@ -45,6 +45,12 @@ class TestEfficientBlockLinear(unittest.TestCase):
     def test_medium(self):
         self._parity_check(out_features=16, block_size=5)
 
+    def test_shape_mismatch_raises(self):
+        model = EfficientBlockLinear(in_features=12, out_features=4)
+        x = torch.randn(4, 11)
+        with self.assertRaises(ValueError):
+            model(x)
+
 
 if __name__ == "__main__":
     unittest.main()

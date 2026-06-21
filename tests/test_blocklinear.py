@@ -2,6 +2,7 @@
 
 import unittest
 
+import pytest
 import torch
 
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.blocklinear import (
@@ -184,6 +185,14 @@ class TestEfficientBlockLinear:
         out = ebl(x)
         out.sum().backward()
         assert ebl.log_weight.grad is not None
+
+    def test_input_shape_mismatch(self):
+        ebl = EfficientBlockLinear(
+            in_features=12, out_features=4, weight_transform="exp"
+        )
+        x = torch.randn(2, 11)
+        with pytest.raises(ValueError):
+            ebl(x)
 
 
 # ---------------------------------------------------------------------------
