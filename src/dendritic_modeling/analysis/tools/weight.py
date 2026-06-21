@@ -497,7 +497,7 @@ class WeightAnalyzer(AbstractAnalyzer):
         depth_to_branch_list: dict[int, list[dict[str, Any]]] = {}
 
         for layer_idx_attr, branch_layer in self._iter_branch_layers(
-            model, include_inhibitory=False
+            model, include_inhibitory=True
         ):
             stats_dict = self._compute_branch_weight_statistics(
                 branch_layer, module_name=f"branch_layers.{layer_idx_attr}"

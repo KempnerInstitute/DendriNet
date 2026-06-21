@@ -8,6 +8,7 @@ from dendritic_modeling.analysis.tools.weight import (
     _weight_tensor_statistics,
 )
 from dendritic_modeling.config.analysis import WeightAnalysisParams
+from dendritic_modeling.networks import DendriticBranchLayer
 
 
 def test_weight_tensor_statistics_helper_matches_current_reductions():
@@ -176,3 +177,42 @@ def test_weight_enhanced_branch_accumulator_matches_active_weight_reductions():
     assert depth_to_strength == {3: expected_active.sum().item()}
     assert len(depth_to_weights[3]) == 2
     torch.testing.assert_close(torch.cat(depth_to_weights[3]), expected_active)
+
+
+def test_weight_branch_level_statistics_include_inhibitory_populations():
+    analyzer = WeightAnalyzer(WeightAnalysisParams())
+    excitatory = DendriticBranchLayer(
+        output_dim=2,
+        excitatory_input_dim=3,
+        excitatory_synapses_per_branch=1,
+        inhibitory_input_dim=3,
+        inhibitory_synapses_per_branch=1,
+        reactivate=False,
+        topk_noise_level=0.0,
+        layer_idx=1,
+    )
+    inhibitory = DendriticBranchLayer(
+        output_dim=3,
+        excitatory_input_dim=3,
+        excitatory_synapses_per_branch=1,
+        inhibitory_input_dim=3,
+        inhibitory_synapses_per_branch=1,
+        reactivate=False,
+        topk_noise_level=0.0,
+        layer_idx=1,
+    )
+    model = SimpleNamespace(
+        core_network=SimpleNamespace(
+            layers=[
+                SimpleNamespace(
+                    e_population=SimpleNamespace(branch_layers=[excitatory]),
+                    i_population=SimpleNamespace(branch_layers=[inhibitory]),
+                )
+            ]
+        )
+    )
+
+    stats = analyzer._compute_branch_level_statistics(model)
+    branches = stats["branch_layers.1"]["branches"]
+
+    assert len(branches) == excitatory.n_branches + inhibitory.n_branches
