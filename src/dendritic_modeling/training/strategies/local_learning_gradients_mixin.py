@@ -12,6 +12,7 @@ from dendritic_modeling.training.strategies.local_learning_dendritic_block_mixin
 from dendritic_modeling.training.strategies.local_learning_gradient_utils import (
     _accumulate_parameter_grad,
     _apply_optional_alignment,
+    _factor_pre_weight_grad,
     _normalize_batch_gradient,
     _reactivation_output_slope,
     _reduce_batch_mean_gradient,
@@ -122,6 +123,7 @@ __all__ = [
     "LocalLearningGradientMixin",
     "_accumulate_parameter_grad",
     "_apply_optional_alignment",
+    "_factor_pre_weight_grad",
     "_normalize_batch_gradient",
     "_reactivation_output_slope",
     "_reduce_batch_mean_gradient",

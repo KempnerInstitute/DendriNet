@@ -64,6 +64,21 @@ def _normalize_batch_gradient(
     return grad
 
 
+def _factor_pre_weight_grad(
+    factor: torch.Tensor,
+    x_pre: torch.Tensor,
+    *,
+    normalize_by_batch: bool,
+    batch_size: int,
+) -> torch.Tensor:
+    """Compute a local pre-synaptic gradient with legacy batch scaling."""
+    return _normalize_batch_gradient(
+        factor.t() @ x_pre,
+        normalize_by_batch=normalize_by_batch,
+        batch_size=batch_size,
+    )
+
+
 def _reduce_batch_mean_gradient(
     factor: torch.Tensor,
     *,
@@ -92,6 +107,7 @@ def _topk_pre_weight_grad(
 __all__ = [
     "_accumulate_parameter_grad",
     "_apply_optional_alignment",
+    "_factor_pre_weight_grad",
     "_normalize_batch_gradient",
     "_reactivation_output_slope",
     "_reduce_batch_mean_gradient",

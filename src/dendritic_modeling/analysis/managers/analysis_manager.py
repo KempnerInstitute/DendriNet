@@ -224,6 +224,35 @@ class AnalysisManager:
                 runtime=runtime,
             )
 
+    def _run_logged_test_dataset_analysis(
+        self,
+        *,
+        registry_name: str,
+        filename: str,
+        training: bool,
+        runtime: object | None,
+        start_message: str,
+        complete_message: str,
+        require_analyzer: bool = False,
+    ) -> None:
+        """Run a common test-dataset analyzer with start/complete logging."""
+        if not self._should_run_registered_analysis(
+            registry_name,
+            training=training,
+            require_analyzer=require_analyzer,
+        ):
+            return
+
+        self.logger.info(start_message)
+        self._run_test_dataset_analysis(
+            registry_name=registry_name,
+            filename=filename,
+            training=training,
+            runtime=runtime,
+            require_analyzer=require_analyzer,
+        )
+        self.logger.info(complete_message)
+
     def set_pruning_results(self, pruning_results: dict):
         """Set pruning results for inclusion in performance plots."""
         self.pruning_results = pruning_results
@@ -272,19 +301,14 @@ class AnalysisManager:
         self, *, filename: str, training: bool, runtime: object | None
     ) -> None:
         """Run information analysis."""
-        if not self._should_run_config(self._analysis_config("information"), training):
-            return
-
-        self.logger.info("Starting information analysis...")
-        self._analysis_analyzer("information").analyze(
-            model=self.model,
-            test_dataset=self.data["test"],
-            device=self.device,
-            save_path=self._analysis_save_path("information"),
+        self._run_logged_test_dataset_analysis(
+            registry_name="information",
             filename=filename,
+            training=training,
             runtime=runtime,
+            start_message="Starting information analysis...",
+            complete_message="Information analysis completed successfully",
         )
-        self.logger.info("Information analysis completed successfully")
 
     def _run_synaptic_turnover_analysis(self, *, filename: str, training: bool) -> None:
         """Run synaptic turnover analysis."""
@@ -366,16 +390,14 @@ class AnalysisManager:
         ):
             return
 
-        self.logger.info("Starting correlation analysis...")
-        self._analysis_analyzer("correlation").analyze(
-            model=self.model,
-            test_dataset=self.data["test"],
-            device=self.device,
-            save_path=self._analysis_save_path("correlation"),
+        self._run_logged_test_dataset_analysis(
+            registry_name="correlation",
             filename=filename,
+            training=training,
             runtime=runtime,
+            start_message="Starting correlation analysis...",
+            complete_message="Correlation analysis completed successfully",
         )
-        self.logger.info("Correlation analysis completed successfully")
 
     def _run_routing_analysis(self, *, filename: str, training: bool) -> None:
         """Run recurrent routing analysis."""
@@ -507,22 +529,15 @@ class AnalysisManager:
         self, *, filename: str, training: bool, runtime: object | None
     ) -> None:
         """Run adversarial robustness analysis."""
-        if not self._should_run_registered_analysis(
-            "adversarial_robustness",
-            training=training,
-            require_analyzer=True,
-        ):
-            return
-
-        self.logger.info("Starting adversarial robustness analysis...")
-        self._run_test_dataset_analysis(
+        self._run_logged_test_dataset_analysis(
             registry_name="adversarial_robustness",
             filename=filename,
             training=training,
             runtime=runtime,
+            start_message="Starting adversarial robustness analysis...",
+            complete_message="Adversarial robustness analysis completed successfully",
             require_analyzer=True,
         )
-        self.logger.info("Adversarial robustness analysis completed successfully")
 
     def _run_ordered_analysis_sequence(
         self, *, filename: str, training: bool, runtime: object | None

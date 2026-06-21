@@ -129,6 +129,17 @@ class InformationConfigSetupMixin:
             component_selection.compute_upstream_unique_cmi
         )
 
+    def _disable_pid_if_requested(self) -> None:
+        """Apply the current policy that PID requests are acknowledged but skipped."""
+        if not self.compute_pid:
+            return
+
+        self.logger.warning(
+            "PID requested via selection.components, but PID is currently disabled "
+            "and will be skipped."
+        )
+        self.compute_pid = False
+
     def _configure_gaussian_fisher_metrics(self, *, gaussian_fisher_cfg: Any) -> None:
         """Assign Gaussian/Fisher proxy parameters."""
         gaussian_fisher_config = _build_information_gaussian_fisher_config(

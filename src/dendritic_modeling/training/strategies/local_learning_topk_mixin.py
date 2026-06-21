@@ -11,7 +11,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.top
 )
 from dendritic_modeling.training.strategies.local_learning_gradient_utils import (
     _apply_optional_alignment,
-    _normalize_batch_gradient,
+    _factor_pre_weight_grad,
     _topk_pre_weight_grad,
 )
 from dendritic_modeling.training.strategies.local_learning_pathways import (
@@ -106,9 +106,9 @@ class LocalLearningTopKGradientMixin:
             return layer
 
         x_pre: torch.Tensor = rec[input_key]
-        grad_g = post_factor.t() @ x_pre
-        grad_g = _normalize_batch_gradient(
-            grad_g,
+        grad_g = _factor_pre_weight_grad(
+            post_factor,
+            x_pre,
             normalize_by_batch=self.local_cfg.normalize_by_batch,
             batch_size=batch_size,
         )
@@ -123,9 +123,9 @@ class LocalLearningTopKGradientMixin:
                 )
             else:
                 homeo_factor = voltage_homeo_error
-            grad_homeo = homeo_factor.t() @ x_pre
-            grad_homeo = _normalize_batch_gradient(
-                grad_homeo,
+            grad_homeo = _factor_pre_weight_grad(
+                homeo_factor,
+                x_pre,
                 normalize_by_batch=self.local_cfg.normalize_by_batch,
                 batch_size=batch_size,
             )
@@ -171,9 +171,9 @@ class LocalLearningTopKGradientMixin:
             layer_dynamics_mode=layer_dynamics_mode,
         )
 
-        grad_g = inh_factor.t() @ x_pre
-        grad_g = _normalize_batch_gradient(
-            grad_g,
+        grad_g = _factor_pre_weight_grad(
+            inh_factor,
+            x_pre,
             normalize_by_batch=self.local_cfg.normalize_by_batch,
             batch_size=batch_size,
         )
@@ -190,9 +190,9 @@ class LocalLearningTopKGradientMixin:
                 )
             else:
                 homeo_factor = -voltage_homeo_error
-            grad_homeo = homeo_factor.t() @ x_pre
-            grad_homeo = _normalize_batch_gradient(
-                grad_homeo,
+            grad_homeo = _factor_pre_weight_grad(
+                homeo_factor,
+                x_pre,
                 normalize_by_batch=self.local_cfg.normalize_by_batch,
                 batch_size=batch_size,
             )
@@ -202,9 +202,9 @@ class LocalLearningTopKGradientMixin:
             rec=rec, R_tot=r_tot, v_n=v_n
         )
         if inhibitory_homeo_factor is not None:
-            grad_homeo = inhibitory_homeo_factor.t() @ x_pre
-            grad_homeo = _normalize_batch_gradient(
-                grad_homeo,
+            grad_homeo = _factor_pre_weight_grad(
+                inhibitory_homeo_factor,
+                x_pre,
                 normalize_by_batch=self.local_cfg.normalize_by_batch,
                 batch_size=batch_size,
             )

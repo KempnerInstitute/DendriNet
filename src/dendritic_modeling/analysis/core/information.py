@@ -204,20 +204,7 @@ class InformationAnalyzer(
             selection_cfg=selection_cfg,
         )
 
-        # ------------------------------------------------------------------
-        # PID is currently disabled.
-        #
-        # The existing PID implementation depends on an optional external backend
-        # and assumes discrete variables; our current wiring/binarization is not
-        # robust for general use (e.g., multi-class C). To avoid silently
-        # producing misleading numbers, we ignore PID requests for now.
-        # ------------------------------------------------------------------
-        if self.compute_pid:
-            self.logger.warning(
-                "PID requested via selection.components, but PID is currently disabled "
-                "and will be skipped."
-            )
-            self.compute_pid = False
+        self._disable_pid_if_requested()
 
         self._configure_gaussian_fisher_metrics(gaussian_fisher_cfg=gaussian_fisher_cfg)
 

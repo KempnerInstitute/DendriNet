@@ -28,6 +28,7 @@ from dendritic_modeling.training.strategies.local_learning_gradients_mixin impor
     LocalLearningGradientMixin,
     _accumulate_parameter_grad,
     _apply_optional_alignment,
+    _factor_pre_weight_grad,
     _reactivation_output_slope,
     _scale_reactivation_error,
 )
@@ -140,6 +141,28 @@ def test_apply_optional_alignment_ignores_missing_or_mismatched_alignment():
 
     assert _apply_optional_alignment(grad, None) is grad
     assert _apply_optional_alignment(grad, torch.ones(2, 1)) is grad
+
+
+def test_factor_pre_weight_grad_matches_existing_formula():
+    factor = torch.tensor([[1.0, -2.0], [0.5, 3.0], [-1.0, 0.25]])
+    x_pre = torch.tensor([[2.0, -1.0, 0.5], [1.5, 0.0, -2.0], [0.25, 3.0, 1.0]])
+
+    normalized = _factor_pre_weight_grad(
+        factor,
+        x_pre,
+        normalize_by_batch=True,
+        batch_size=3,
+    )
+    unnormalized = _factor_pre_weight_grad(
+        factor,
+        x_pre,
+        normalize_by_batch=False,
+        batch_size=3,
+    )
+
+    expected = factor.t() @ x_pre
+    torch.testing.assert_close(normalized, expected / 3.0)
+    torch.testing.assert_close(unnormalized, expected)
 
 
 def test_apply_layer_local_gradients_dispatches_topk_paths_in_order():

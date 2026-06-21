@@ -18,6 +18,8 @@ _LOCAL_WORLD_SIZE_ENV_VARS = (
     "LOCAL_WORLD_SIZE",
     "OMPI_COMM_WORLD_LOCAL_SIZE",
     "MV2_COMM_WORLD_LOCAL_SIZE",
+    "SLURM_NTASKS_PER_NODE",
+    "SLURM_STEP_TASKS_PER_NODE",
 )
 _IMAGE_DATASET_PREFETCH_FACTOR = 4
 
@@ -55,17 +57,31 @@ def visible_cpu_count() -> int:
     return max(1, available_cpus)
 
 
+def _parse_local_process_count(raw_value: str) -> int | None:
+    """Parse local process counts from simple integers or SLURM node specs."""
+    values = []
+    for chunk in raw_value.split(","):
+        digits = []
+        for char in chunk.strip():
+            if not char.isdigit():
+                break
+            digits.append(char)
+        if not digits:
+            continue
+        value = int("".join(digits))
+        if value > 0:
+            values.append(value)
+    return max(values) if values else None
+
+
 def _local_process_count() -> int:
     """Return the number of training processes sharing this node, if known."""
     for env_name in _LOCAL_WORLD_SIZE_ENV_VARS:
         raw_value = os.environ.get(env_name)
         if raw_value is None:
             continue
-        try:
-            value = int(raw_value)
-        except ValueError:
-            continue
-        if value > 0:
+        value = _parse_local_process_count(raw_value)
+        if value is not None:
             return value
     return 1
 

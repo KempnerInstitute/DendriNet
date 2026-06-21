@@ -13,7 +13,7 @@ import tempfile
 import unittest
 from contextlib import ExitStack
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 import numpy as np
 import pytest
@@ -2858,6 +2858,83 @@ class TestAnalysisManager(unittest.TestCase):
                     require_analyzer=True,
                 )
 
+            mock_analyzer.assert_not_called()
+
+    def test_logged_test_dataset_analysis_preserves_call_and_logs(self):
+        """Logged test-dataset helper should preserve kwargs and message order."""
+        config = AnalysisConfig()
+        config.performance_analysis.enabled = False
+        config.noise_perturbation_analysis.enabled = True
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manager = AnalysisManager(
+                model=self.model,
+                data=self.data,
+                analysis_config=config,
+                save_root=tmpdir,
+            )
+
+            with (
+                patch.object(manager, "noise_perturbation_analyzer") as mock_analyzer,
+                patch.object(manager.logger, "info") as mock_info,
+            ):
+                manager._run_logged_test_dataset_analysis(
+                    registry_name="noise_perturbation",
+                    filename="logged_eval",
+                    training=False,
+                    runtime=manager.config.runtime.final,
+                    start_message="Starting noise analysis...",
+                    complete_message="Noise analysis completed",
+                )
+
+            mock_info.assert_has_calls(
+                [
+                    call("Starting noise analysis..."),
+                    call("Noise analysis completed"),
+                ]
+            )
+            mock_analyzer.analyze.assert_called_once()
+            call_kwargs = mock_analyzer.analyze.call_args.kwargs
+            self.assertIs(call_kwargs["model"], self.model)
+            self.assertIs(call_kwargs["test_dataset"], self.data["test"])
+            self.assertEqual(
+                call_kwargs["save_path"],
+                str(Path(tmpdir) / "noise_perturbation_analysis"),
+            )
+            self.assertEqual(call_kwargs["filename"], "logged_eval")
+            self.assertIs(call_kwargs["runtime"], manager.config.runtime.final)
+
+    def test_logged_test_dataset_analysis_skips_missing_required_analyzer(self):
+        """Logged helper should not emit messages when required analyzer is absent."""
+        config = AnalysisConfig()
+        config.performance_analysis.enabled = False
+        config.adversarial_robustness_analysis.enabled = True
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manager = AnalysisManager(
+                model=self.model,
+                data=self.data,
+                analysis_config=config,
+                save_root=tmpdir,
+            )
+            if hasattr(manager, "adversarial_robustness_analyzer"):
+                delattr(manager, "adversarial_robustness_analyzer")
+
+            with (
+                patch.object(manager, "_analysis_analyzer") as mock_analyzer,
+                patch.object(manager.logger, "info") as mock_info,
+            ):
+                manager._run_logged_test_dataset_analysis(
+                    registry_name="adversarial_robustness",
+                    filename="logged_eval",
+                    training=False,
+                    runtime=manager.config.runtime.final,
+                    start_message="Starting adversarial analysis...",
+                    complete_message="Adversarial analysis completed",
+                    require_analyzer=True,
+                )
+
+            mock_info.assert_not_called()
             mock_analyzer.assert_not_called()
 
     def test_common_test_dataset_runners_resolve_registry_metadata(self):

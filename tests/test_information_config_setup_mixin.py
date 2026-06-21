@@ -154,6 +154,22 @@ def test_config_setup_mixin_component_selection_preserves_empty_override_semanti
     assert harness.compute_upstream_unique_cmi is True
 
 
+def test_config_setup_mixin_disables_pid_request_with_warning():
+    harness = _ConfigHarness()
+    harness.compute_pid = True
+
+    harness._disable_pid_if_requested()
+
+    assert harness.compute_pid is False
+    assert harness.logger.warnings == [
+        (
+            "PID requested via selection.components, but PID is currently disabled "
+            "and will be skipped.",
+            (),
+        )
+    ]
+
+
 def test_config_setup_mixin_runtime_options_warn_on_invalid_output_units():
     harness = _ConfigHarness()
 
