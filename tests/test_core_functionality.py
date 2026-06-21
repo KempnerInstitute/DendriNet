@@ -568,6 +568,37 @@ def test_dataloader_config_helpers_preserve_resolved_kwargs():
     )
 
 
+def test_dataloader_config_helper_accepts_default_num_workers():
+    """Config-backed tuning should support caller defaults when config is unset."""
+    from types import SimpleNamespace
+
+    from dendritic_modeling.training.dataloader_utils import (
+        resolve_dataloader_tuning_from_config,
+    )
+
+    dataset = torch.utils.data.TensorDataset(
+        torch.randn(8, 3), torch.randint(0, 2, (8,))
+    )
+    cfg = SimpleNamespace(
+        num_workers=None,
+        pin_memory=False,
+        persistent_workers=True,
+        prefetch_factor=2,
+    )
+
+    tuning = resolve_dataloader_tuning_from_config(
+        dataset,
+        cfg,
+        device="cpu",
+        default_num_workers=1,
+    )
+
+    assert tuning.num_workers == 1
+    assert tuning.pin_memory is False
+    assert tuning.persistent_workers is True
+    assert tuning.prefetch_factor == 2
+
+
 def test_analysis_loader_runtime_preserves_worker_options():
     from dendritic_modeling.analysis.utils.runtime import make_analysis_loader
     from dendritic_modeling.config.analysis import EvaluationRuntimeConfig

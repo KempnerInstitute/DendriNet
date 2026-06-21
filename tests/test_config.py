@@ -18,6 +18,7 @@ from dendritic_modeling.config import (
     ConnectivityConfig,
     CoreConfig,
     DataConfig,
+    DatasetParamsConfig,
     FSDPConfig,
     LocalRuleComponentAnalysisConfig,
     LocalRuleComponentAnalysisParams,
@@ -35,6 +36,7 @@ from dendritic_modeling.config import (
 )
 from dendritic_modeling.config.config import (
     _analysis_field_mapping,
+    _build_data_config,
     _build_filtered_config,
     _map_analysis_config,
     _map_training_config,
@@ -330,6 +332,60 @@ class TestConfigDataclasses(unittest.TestCase):
 
         self.assertFalse(config.use_wandb)
         self.assertEqual(config.project, "dendritic-sweeps")
+
+    def test_build_data_config_defaults_dataset_params_to_typed_config(self):
+        config = _build_data_config({"dataset_name": "mnist"})
+
+        self.assertEqual(config.dataset_name, "mnist")
+        self.assertEqual(config.base_dir, "")
+        self.assertTrue(config.processing.flatten)
+        self.assertIsInstance(config.dataset_params, DatasetParamsConfig)
+
+    def test_build_data_config_preserves_custom_dataset_param_sections(self):
+        config = _build_data_config(
+            {
+                "dataset_name": "custom_stream",
+                "base_dir": "/tmp/data",
+                "processing": {"flatten": False, "normalize": True},
+                "dataset_params": {
+                    "custom_stream": {"window": 5, "stride": 2},
+                    "imagenet": {"loader_backend": "imagefolder"},
+                },
+            }
+        )
+
+        self.assertEqual(config.dataset_name, "custom_stream")
+        self.assertEqual(config.base_dir, "/tmp/data")
+        self.assertFalse(config.processing.flatten)
+        self.assertTrue(config.processing.normalize)
+        self.assertEqual(config.dataset_params["custom_stream"]["window"], 5)
+        self.assertEqual(
+            config.dataset_params["imagenet"]["loader_backend"], "imagefolder"
+        )
+
+    def test_build_data_config_resolves_omegaconf_dataset_params(self):
+        payload = OmegaConf.create(
+            {
+                "dataset_name": "imagenet",
+                "dataset_params": {
+                    "imagenet": {
+                        "loader_backend": "torchvision",
+                        "train_samples_per_class": 2,
+                    }
+                },
+            }
+        )
+
+        config = _build_data_config(payload)
+
+        self.assertIsInstance(config.dataset_params, dict)
+        self.assertEqual(
+            config.dataset_params["imagenet"]["loader_backend"],
+            "torchvision",
+        )
+        self.assertEqual(
+            config.dataset_params["imagenet"]["train_samples_per_class"], 2
+        )
 
     def test_map_training_config_hoists_legacy_learning_strategy_config(self):
         training = {

@@ -2950,6 +2950,35 @@ class TestAnalysisManager(unittest.TestCase):
             self.assertEqual(call_kwargs["filename"], "logged_eval")
             self.assertIs(call_kwargs["runtime"], manager.config.runtime.final)
 
+    def test_logged_action_logs_completion_only_after_success(self):
+        """Logged action wrapper should keep success-only completion semantics."""
+        with patch.object(self.manager.logger, "info") as mock_info:
+            self.manager._run_logged_action(
+                start_message="Starting action...",
+                complete_message="Action completed",
+                action=lambda: None,
+            )
+
+        mock_info.assert_has_calls(
+            [
+                call("Starting action..."),
+                call("Action completed"),
+            ]
+        )
+
+        def fail():
+            raise RuntimeError("boom")
+
+        with patch.object(self.manager.logger, "info") as mock_info:
+            with self.assertRaisesRegex(RuntimeError, "boom"):
+                self.manager._run_logged_action(
+                    start_message="Starting action...",
+                    complete_message="Action completed",
+                    action=fail,
+                )
+
+        mock_info.assert_called_once_with("Starting action...")
+
     def test_logged_test_dataset_analysis_skips_missing_required_analyzer(self):
         """Logged helper should not emit messages when required analyzer is absent."""
         config = AnalysisConfig()

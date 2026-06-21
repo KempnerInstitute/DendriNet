@@ -632,20 +632,26 @@ def _build_model_config(model_data: Any) -> ModelConfig:
 def _build_data_config(data_data: Any) -> DataConfig:
     """Build a typed DataConfig while preserving custom dataset sections."""
     data_dict = _to_plain_dict(data_data)
-    processing = DataProcessingConfig(**_to_plain_dict(data_dict.get("processing", {})))
-
-    dataset_params = data_dict.get("dataset_params")
-    if dataset_params is None:
-        dataset_params = DatasetParamsConfig()
-    elif hasattr(dataset_params, "_metadata"):
-        dataset_params = OmegaConf.to_container(dataset_params, resolve=True)
-
     return DataConfig(
         dataset_name=str(data_dict.get("dataset_name", "cifar10")),
         base_dir=str(data_dict.get("base_dir", "")),
-        processing=processing,
-        dataset_params=dataset_params,
+        processing=_build_data_processing_config(data_dict.get("processing", {})),
+        dataset_params=_coerce_dataset_params(data_dict.get("dataset_params")),
     )
+
+
+def _build_data_processing_config(processing_data: Any) -> DataProcessingConfig:
+    """Build typed data-processing config from a config-like payload."""
+    return DataProcessingConfig(**_to_plain_dict(processing_data))
+
+
+def _coerce_dataset_params(dataset_params: Any) -> DatasetParamsConfig | Any:
+    """Return typed default params or preserve custom dataset parameter sections."""
+    if dataset_params is None:
+        return DatasetParamsConfig()
+    if hasattr(dataset_params, "_metadata"):
+        return OmegaConf.to_container(dataset_params, resolve=True)
+    return dataset_params
 
 
 def _filter_dataclass_kwargs(config_cls: type, raw_data: Any) -> dict[str, Any]:

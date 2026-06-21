@@ -261,6 +261,22 @@ Set ``loader_backend: "imagefolder"`` when the configured root already has
 torchvision ImageNet metadata loader.  Keep ``"auto"`` for compatibility with
 official torchvision ImageNet roots.
 
+For AlexNet or other pretrained-backbone ImageNet runs, prefer node-local
+storage when the cluster provides it.  Set ``IMAGENET_LOCAL_DIR`` to the staged
+copy and use ``loader_backend: "imagefolder"`` when that copy is organized as
+class directories.  Keep ``processing.flatten: false`` for these runs; the
+flattened ImageNet path is memory-heavy and requires the explicit
+``allow_flatten_materialize: true`` opt-in.
+
+ImageNet/ImageFolder datasets use the shared dataloader auto-tuning path when
+``num_workers``, ``pin_memory``, ``persistent_workers``, and
+``prefetch_factor`` are left as ``null``.  The auto path keeps multi-worker,
+pinned, persistent prefetching for file-backed image datasets and avoids worker
+overhead for tensor-backed datasets.  For fixed cluster jobs, set explicit
+per-process values under the active trainer config, for example
+``num_workers: 8``, ``pin_memory: true``, ``persistent_workers: true``, and
+``prefetch_factor: 4``.
+
 For shunting E-I models with positive weight transforms, keep the tensors that
 enter the first shunting layer non-negative. If preprocessing uses
 ``normalize: true``, either disable normalization for that run or set

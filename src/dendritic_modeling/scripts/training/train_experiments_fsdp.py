@@ -60,7 +60,7 @@ from dendritic_modeling.scripts.training.train_encoder_network import (
 )
 from dendritic_modeling.training.dataloader_utils import (
     DataLoaderTuning,
-    resolve_dataloader_tuning,
+    resolve_dataloader_tuning_from_config,
     visible_cpu_count,
 )
 from dendritic_modeling.training.fsdp_utils import get_fsdp_config, save_fsdp_checkpoint
@@ -653,19 +653,17 @@ def _dataloader_tuning_from_common(
     device: torch.device | str | None = None,
 ) -> DataLoaderTuning:
     """Resolve DataLoader tuning from training.main.common."""
-    num_workers = getattr(common_config, "num_workers", None)
-    if dataset is None and num_workers is None:
+    default_num_workers = None
+    if dataset is None and getattr(common_config, "num_workers", None) is None:
         # Preserve the historical standalone helper default.  Real call sites
         # pass a dataset so shared tuning can choose tensor-vs-file loading.
-        num_workers = min(4, visible_cpu_count())
+        default_num_workers = min(4, visible_cpu_count())
 
-    return resolve_dataloader_tuning(
+    return resolve_dataloader_tuning_from_config(
         dataset if dataset is not None else _FSDPLoaderTuningDataset(),
+        common_config,
         device=device,
-        num_workers=num_workers,
-        pin_memory=getattr(common_config, "pin_memory", None),
-        persistent_workers=getattr(common_config, "persistent_workers", None),
-        prefetch_factor=getattr(common_config, "prefetch_factor", None),
+        default_num_workers=default_num_workers,
     )
 
 

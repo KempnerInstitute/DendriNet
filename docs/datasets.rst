@@ -269,3 +269,30 @@ while plain ``train/<class>`` and ``val/<class>`` trees use
 directories on local storage, set ``loader_backend: "imagefolder"`` to avoid
 the torchvision ImageNet metadata path.  Missing ImageNet roots fail loudly;
 there is no synthetic-data fallback.
+
+For long AlexNet or other pretrained-backbone runs, the most reliable way to
+avoid dataloader stalls is to keep ImageNet on node-local storage and point the
+loader at that copy with ``IMAGENET_LOCAL_DIR``.  If the local copy has
+``train/<class>`` and ``val/<class>`` directories, set
+``loader_backend: "imagefolder"``.  Keep ``processing.flatten: false`` for
+backbone runs; flattening ImageNet is a debugging-only path that must be
+enabled explicitly with ``allow_flatten_materialize: true``.
+
+Training dataloader knobs live under the active trainer config.  ``null`` keeps
+the shared auto-tuning path, which uses multi-worker, pinned, persistent
+prefetching for ImageNet/ImageFolder datasets and single-process loading for
+tensor-backed datasets.  For fixed cluster jobs, set these values explicitly per
+process/rank:
+
+.. code-block:: yaml
+
+   training:
+     main:
+       common:
+         num_workers: 8
+         pin_memory: true
+         persistent_workers: true
+         prefetch_factor: 4
+
+For vision distillation runs, the same fields are available under
+``training.vision_replacement``.

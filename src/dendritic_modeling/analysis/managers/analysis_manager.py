@@ -7,6 +7,7 @@ all the different analysis tools in the dendritic modeling package.
 
 import logging
 import os
+from collections.abc import Callable
 from typing import Optional
 
 import torch
@@ -144,6 +145,18 @@ class AnalysisManager:
         spec = _registered_analyzer_spec(registry_name)
         return self._save_path(spec.save_subdir, *parts, create=create)
 
+    def _run_logged_action(
+        self,
+        *,
+        start_message: str,
+        complete_message: str,
+        action: Callable[[], None],
+    ) -> None:
+        """Log a start/success pair around an analysis action."""
+        self.logger.info(start_message)
+        action()
+        self.logger.info(complete_message)
+
     def _should_run_registered_analysis(
         self,
         registry_name: str,
@@ -243,15 +256,17 @@ class AnalysisManager:
         ):
             return
 
-        self.logger.info(start_message)
-        self._run_test_dataset_analysis(
-            registry_name=registry_name,
-            filename=filename,
-            training=training,
-            runtime=runtime,
-            require_analyzer=require_analyzer,
+        self._run_logged_action(
+            start_message=start_message,
+            complete_message=complete_message,
+            action=lambda: self._run_test_dataset_analysis(
+                registry_name=registry_name,
+                filename=filename,
+                training=training,
+                runtime=runtime,
+                require_analyzer=require_analyzer,
+            ),
         )
-        self.logger.info(complete_message)
 
     def _run_logged_data_analysis(
         self,
@@ -283,9 +298,11 @@ class AnalysisManager:
         if pass_runtime:
             kwargs["runtime"] = runtime
 
-        self.logger.info(start_message)
-        self._analysis_analyzer(registry_name).analyze(**kwargs)
-        self.logger.info(complete_message)
+        self._run_logged_action(
+            start_message=start_message,
+            complete_message=complete_message,
+            action=lambda: self._analysis_analyzer(registry_name).analyze(**kwargs),
+        )
 
     def set_pruning_results(self, pruning_results: dict):
         """Set pruning results for inclusion in performance plots."""
@@ -455,14 +472,16 @@ class AnalysisManager:
         ):
             return
 
-        self.logger.info(start_message)
-        self._analysis_analyzer(registry_name).analyze(
-            model=self.model,
-            device=self.device,
-            save_path=self._analysis_save_path(registry_name),
-            filename=filename,
+        self._run_logged_action(
+            start_message=start_message,
+            complete_message=complete_message,
+            action=lambda: self._analysis_analyzer(registry_name).analyze(
+                model=self.model,
+                device=self.device,
+                save_path=self._analysis_save_path(registry_name),
+                filename=filename,
+            ),
         )
-        self.logger.info(complete_message)
 
     def _run_model_only_analysis_runner(
         self,

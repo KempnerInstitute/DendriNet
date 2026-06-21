@@ -19,6 +19,9 @@ from dendritic_modeling.training.dataloader_resources import (
 )
 
 _IMAGE_DATASET_PREFETCH_FACTOR = 4
+_CUDA_WORKER_CAP = 16
+_CPU_WORKER_CAP = 8
+_CPU_RESERVED_MAIN_PROCESS_WORKERS = 1
 
 
 @dataclass(frozen=True)
@@ -69,8 +72,11 @@ def auto_num_workers_for_dataset(
     worker_cpu_budget = auto_worker_cpu_budget(cpus)
     use_cuda = torch.cuda.is_available() if cuda_available is None else cuda_available
     if use_cuda:
-        return min(16, worker_cpu_budget)
-    return min(8, max(0, worker_cpu_budget - 1))
+        return min(_CUDA_WORKER_CAP, worker_cpu_budget)
+    return min(
+        _CPU_WORKER_CAP,
+        max(0, worker_cpu_budget - _CPU_RESERVED_MAIN_PROCESS_WORKERS),
+    )
 
 
 def _resolve_num_workers(
@@ -192,12 +198,16 @@ def resolve_dataloader_tuning_from_config(
     config: Any,
     *,
     device: torch.device | str | None = None,
+    default_num_workers: int | None = None,
 ) -> DataLoaderTuning:
     """Resolve DataLoader tuning from a config-like object."""
+    num_workers = getattr(config, "num_workers", None)
+    if num_workers is None:
+        num_workers = default_num_workers
     return resolve_dataloader_tuning(
         dataset,
         device=device,
-        num_workers=getattr(config, "num_workers", None),
+        num_workers=num_workers,
         pin_memory=getattr(config, "pin_memory", None),
         persistent_workers=getattr(config, "persistent_workers", None),
         prefetch_factor=getattr(config, "prefetch_factor", None),
