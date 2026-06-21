@@ -935,13 +935,18 @@ class TestRealDatasets(unittest.TestCase):
         self, _mock_imagenet
     ):
         """Missing ImageNet should fail instead of falling back to synthetic data."""
-        with self.assertRaisesRegex(RuntimeError, "valid ImageNet root"):
+        with self.assertRaisesRegex(RuntimeError, "valid ImageNet root") as ctx:
             load_imagenet_as_datasets(
                 train_valid_split=0.8,
                 flatten=False,
                 normalize=False,
                 task_data_path=self.temp_dir,
             )
+        message = str(ctx.exception)
+        self.assertIn("loader_backend='auto'", message)
+        self.assertIn(f"task_data_path='{self.temp_dir}'", message)
+        self.assertIn("imagenet_dir=", message)
+        self.assertIn("No synthetic or FakeData fallback is used.", message)
 
     def test_load_imagenet_flatten_requires_explicit_opt_in(self):
         """Flattening ImageNet is memory-heavy and should be explicit."""

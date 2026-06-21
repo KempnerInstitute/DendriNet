@@ -356,6 +356,92 @@ class TestTwoStepLocalHeads(unittest.TestCase):
 
         self.assertFalse(torch.allclose(before, trainer.local_heads[0].weight))
 
+    def test_two_step_restores_state_after_pretrain_failure(self):
+        for trainer_cls, expected_prefix in (
+            (TwoStepTrainer, "twostep_stage1_"),
+            (TwoStepTrainerWithKL, "twostep_kl_stage1_"),
+        ):
+            with self.subTest(trainer=trainer_cls.__name__):
+                model = _TinyLayeredModel()
+                optimizer = torch.optim.Adam(model.parameters(), lr=0.05)
+                trainer = trainer_cls(
+                    optimizer=optimizer,
+                    loss_function="cross_entropy",
+                    epochs=1,
+                    batch_size=4,
+                    suppress_prints=True,
+                    num_workers=0,
+                )
+                trainer.pretrain_epochs = 1
+                trainer.device = "cpu"
+                train_data = torch.utils.data.TensorDataset(
+                    torch.randn(4, 4), torch.randint(0, 2, (4,))
+                )
+
+                def _fail_after_freeze(
+                    *_args,
+                    trainer=trainer,
+                    expected_prefix=expected_prefix,
+                    model=model,
+                    **_kwargs,
+                ):
+                    self.assertEqual(trainer.filename_prefix, expected_prefix)
+                    self.assertTrue(
+                        any(not param.requires_grad for param in model.parameters())
+                    )
+                    raise RuntimeError("local pretrain failed")
+
+                with patch(
+                    "dendritic_modeling.training.strategies.two_step."
+                    "_forward_through_local_layers",
+                    side_effect=_fail_after_freeze,
+                ):
+                    with self.assertRaisesRegex(RuntimeError, "local pretrain failed"):
+                        trainer.train(model, train_data, train_data)
+
+                self.assertEqual(trainer.filename_prefix, "")
+                self.assertTrue(
+                    all(param.requires_grad for param in model.parameters())
+                )
+
+    def test_two_step_restores_prefix_after_final_stage_failure(self):
+        for trainer_cls, expected_prefix in (
+            (TwoStepTrainer, "twostep_stage2_"),
+            (TwoStepTrainerWithKL, "twostep_kl_stage2_"),
+        ):
+            with self.subTest(trainer=trainer_cls.__name__):
+                model = _TinyLayeredModel()
+                optimizer = torch.optim.Adam(model.parameters(), lr=0.05)
+                trainer = trainer_cls(
+                    optimizer=optimizer,
+                    loss_function="cross_entropy",
+                    epochs=1,
+                    batch_size=4,
+                    suppress_prints=True,
+                    num_workers=0,
+                )
+                trainer.pretrain_epochs = 0
+                trainer.device = "cpu"
+                trainer._loss_plotting = lambda *_args, **_kwargs: None
+                train_data = torch.utils.data.TensorDataset(
+                    torch.randn(4, 4), torch.randint(0, 2, (4,))
+                )
+
+                def _fail_final_stage(
+                    *_args,
+                    trainer=trainer,
+                    expected_prefix=expected_prefix,
+                    **_kwargs,
+                ):
+                    self.assertEqual(trainer.filename_prefix, expected_prefix)
+                    raise RuntimeError("final stage failed")
+
+                with patch.object(Trainer, "train", side_effect=_fail_final_stage):
+                    with self.assertRaisesRegex(RuntimeError, "final stage failed"):
+                        trainer.train(model, train_data, train_data)
+
+                self.assertEqual(trainer.filename_prefix, "")
+
 
 if __name__ == "__main__":
     unittest.main()

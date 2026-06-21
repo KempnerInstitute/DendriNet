@@ -190,6 +190,31 @@ def test_compartment_statistics_removes_hooks_after_failed_collection():
     assert _count_registered_forward_hooks(model) == 0
 
 
+def test_receptive_field_removes_hooks_after_failed_hook_registration(monkeypatch):
+    model = _direct_inhibitory_model()
+    x, _labels, _dataset = _toy_dataset()
+    analyzer = ReceptiveFieldAnalyzer(
+        ReceptiveFieldAnalysisParams(compute_activation_tuning=True)
+    )
+    original_register = analyzer._register_activation_hook
+    call_count = 0
+
+    def _register_once_then_fail(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return original_register(*args, **kwargs)
+        raise RuntimeError("hook registration failed")
+
+    monkeypatch.setattr(analyzer, "_register_activation_hook", _register_once_then_fail)
+
+    with pytest.raises(RuntimeError, match="hook registration failed"):
+        analyzer._collect_activation_raw(model, x)
+
+    assert call_count == 2
+    assert _count_registered_forward_hooks(model) == 0
+
+
 def test_receptive_field_checkpoint_and_activation_tuning(tmp_path):
     model = _direct_inhibitory_model()
     _x, _labels, dataset = _toy_dataset()

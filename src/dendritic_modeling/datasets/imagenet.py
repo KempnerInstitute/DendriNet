@@ -28,6 +28,26 @@ from .imagenet_transforms import (
 )
 
 
+def _format_imagenet_load_error(
+    *,
+    task_data_path: str | None,
+    imagenet_dir: str,
+    train_root: str | None,
+    val_root: str | None,
+    loader_backend: str,
+) -> str:
+    """Return a loader error that includes the resolved ImageNet location."""
+    return (
+        "Could not load ImageNet. Set data.base_dir or IMAGENET_LOCAL_DIR "
+        "to a valid ImageNet root. "
+        f"Resolved loader_backend={loader_backend!r}, "
+        f"task_data_path={task_data_path!r}, "
+        f"imagenet_dir={imagenet_dir!r}, "
+        f"train_root={train_root!r}, val_root={val_root!r}. "
+        "No synthetic or FakeData fallback is used."
+    )
+
+
 def load_imagenet_as_datasets(
     train_valid_split=0.8,
     flatten=False,
@@ -100,8 +120,13 @@ def load_imagenet_as_datasets(
         )
     except Exception as e:
         raise RuntimeError(
-            "Could not load ImageNet. Set data.base_dir or IMAGENET_LOCAL_DIR "
-            "to a valid ImageNet root."
+            _format_imagenet_load_error(
+                task_data_path=task_data_path,
+                imagenet_dir=imagenet_dir,
+                train_root=train_root,
+                val_root=val_root,
+                loader_backend=loader_backend,
+            )
         ) from e
 
     return _prepare_imagenet_dataset_triplet(
@@ -123,6 +148,7 @@ __all__ = [
     "_build_imagenet_transforms",
     "_class_subset_indices",
     "_copy_dataset_with_transform",
+    "_format_imagenet_load_error",
     "_is_official_imagenet_root",
     "_load_imagenet_dataset_triplet",
     "_materialize_flattened_tensor_dataset",

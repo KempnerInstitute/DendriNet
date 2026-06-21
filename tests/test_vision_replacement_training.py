@@ -170,6 +170,18 @@ def test_vision_trainable_parameter_selection_supports_full_model():
     assert all(param.requires_grad for param in model.parameters())
 
 
+def test_vision_trainable_parameter_selection_restores_after_empty_replacement():
+    model = _TinyVisionReplacementModel()
+    model.core_network = nn.Identity()
+    model.decoder_network.bias.requires_grad_(False)
+    original_states = [param.requires_grad for param in model.parameters()]
+
+    with pytest.raises(ValueError, match="No vision replacement parameters"):
+        _select_vision_trainable_parameters(model, "replacement_only")
+
+    assert [param.requires_grad for param in model.parameters()] == original_states
+
+
 def test_vision_replacement_loader_uses_configured_worker_options():
     dataset = torch.utils.data.TensorDataset(
         torch.arange(8).float().unsqueeze(1), torch.arange(8).float().unsqueeze(1)

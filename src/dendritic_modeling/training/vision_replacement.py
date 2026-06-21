@@ -18,6 +18,7 @@ from dendritic_modeling.scripts.script_utils.setup_utils import initialize_model
 from dendritic_modeling.training.optimizers import create_optimizer
 from dendritic_modeling.training.replacement_common import (
     ReplacementTrainingHistory,
+    _capture_requires_grad_states,
     _compute_vision_distillation_loss as _compute_distillation_loss,
     _infinite_loader,
     _load_required_tensor,
@@ -26,6 +27,7 @@ from dendritic_modeling.training.replacement_common import (
     _resolve_device,
     _resolve_dtype,
     _resolve_replacement_loader_tuning,
+    _restore_requires_grad_states,
     _should_run_periodic_step,
     _to_plain_mapping,
     _write_metrics_json,
@@ -95,13 +97,25 @@ def _select_vision_trainable_parameters(
     """Select trainable parameters for vision replacement distillation."""
     normalized = str(train_target).lower()
     if normalized in {"replacement_only", "core_only", "dendritic_only"}:
-        for param in model.parameters():
-            param.requires_grad_(False)
-        return _unique_trainable_parameters([model.core_network])
+        states = _capture_requires_grad_states(model.parameters())
+        try:
+            for param in model.parameters():
+                param.requires_grad_(False)
+            return _unique_trainable_parameters([model.core_network])
+        except Exception:
+            _restore_requires_grad_states(states)
+            raise
     if normalized in {"replacement_and_decoder", "core_decoder"}:
-        for param in model.parameters():
-            param.requires_grad_(False)
-        return _unique_trainable_parameters([model.core_network, model.decoder_network])
+        states = _capture_requires_grad_states(model.parameters())
+        try:
+            for param in model.parameters():
+                param.requires_grad_(False)
+            return _unique_trainable_parameters(
+                [model.core_network, model.decoder_network]
+            )
+        except Exception:
+            _restore_requires_grad_states(states)
+            raise
     if normalized in {"full_model", "all", "student"}:
         for param in model.parameters():
             param.requires_grad_(True)

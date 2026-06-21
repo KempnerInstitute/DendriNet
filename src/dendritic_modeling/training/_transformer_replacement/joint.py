@@ -10,26 +10,35 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from dendritic_modeling.config import Config
+from dendritic_modeling.training.replacement_common import (
+    _capture_requires_grad_states,
+    _restore_requires_grad_states,
+)
 
 
 def _freeze_except_replacements(
     model: nn.Module,
     records: Sequence[Any],
 ) -> list[nn.Parameter]:
-    for param in model.parameters():
-        param.requires_grad_(False)
-    trainable: list[nn.Parameter] = []
-    seen: set[int] = set()
-    for record in records:
-        for param in record.replacement.parameters():
-            param.requires_grad_(True)
-            param_id = id(param)
-            if param_id not in seen:
-                seen.add(param_id)
-                trainable.append(param)
-    if not trainable:
-        raise ValueError("No replacement parameters are trainable")
-    return trainable
+    states = _capture_requires_grad_states(model.parameters())
+    try:
+        for param in model.parameters():
+            param.requires_grad_(False)
+        trainable: list[nn.Parameter] = []
+        seen: set[int] = set()
+        for record in records:
+            for param in record.replacement.parameters():
+                param.requires_grad_(True)
+                param_id = id(param)
+                if param_id not in seen:
+                    seen.add(param_id)
+                    trainable.append(param)
+        if not trainable:
+            raise ValueError("No replacement parameters are trainable")
+        return trainable
+    except Exception:
+        _restore_requires_grad_states(states)
+        raise
 
 
 def _select_joint_trainable_parameters(

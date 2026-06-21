@@ -171,14 +171,14 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
         self.activation_raw = {}
         handles = []
 
-        for module_name, module in model.named_modules():
-            if not isinstance(module, DendriticBranchLayer):
-                continue
-
-            self._initialize_activation_records(module_name, module)
-            handles.extend(self._attach_activation_hooks(module_name, module))
-
         try:
+            for module_name, module in model.named_modules():
+                if not isinstance(module, DendriticBranchLayer):
+                    continue
+
+                self._initialize_activation_records(module_name, module)
+                handles.extend(self._attach_activation_hooks(module_name, module))
+
             with torch.no_grad():
                 _ = model(x)
         finally:
@@ -208,22 +208,26 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
         self, module_name: str, module: DendriticBranchLayer
     ) -> list[torch.utils.hooks.RemovableHandle]:
         handles = []
-        if module.branch_excitation is not None:
-            handles.append(
-                self._register_activation_hook(
-                    module.branch_excitation, module_name, "exc"
+        try:
+            if module.branch_excitation is not None:
+                handles.append(
+                    self._register_activation_hook(
+                        module.branch_excitation, module_name, "exc"
+                    )
                 )
-            )
-        if module.branch_inhibition is not None:
-            handles.append(
-                self._register_activation_hook(
-                    module.branch_inhibition, module_name, "inh"
+            if module.branch_inhibition is not None:
+                handles.append(
+                    self._register_activation_hook(
+                        module.branch_inhibition, module_name, "inh"
+                    )
                 )
+            handles.append(
+                self._register_activation_hook(module.reactivation, module_name, "vout")
             )
-        handles.append(
-            self._register_activation_hook(module.reactivation, module_name, "vout")
-        )
-        return handles
+            return handles
+        except Exception:
+            remove_hook_handles(handles)
+            raise
 
     def _summarize_signal(
         self,

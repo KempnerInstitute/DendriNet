@@ -216,55 +216,64 @@ class TwoStepTrainer(Trainer):
         n_layers = len(net_obj.layers)
 
         self.filename_prefix = "twostep_stage1_"
-        for _ in range(1, self.pretrain_epochs + 1):
-            self.epoch_counter += 1
-            epoch_loss_accum = 0.0
-            batch_counter = 0
+        try:
+            for _ in range(1, self.pretrain_epochs + 1):
+                self.epoch_counter += 1
+                epoch_loss_accum = 0.0
+                batch_counter = 0
 
-            # Train each layer with its local head
-            for layer_idx in range(n_layers):
-                layer = net_obj.layers[layer_idx]
-                local_head: torch.nn.Module = self.local_heads[layer_idx]
-                local_optimizer = self.local_optimizers[layer_idx]
-                _set_only_current_layer_and_head_trainable(model, layer, local_head)
-                local_params = _current_local_params(layer, local_head)
+                # Train each layer with its local head
+                for layer_idx in range(n_layers):
+                    layer = net_obj.layers[layer_idx]
+                    local_head: torch.nn.Module = self.local_heads[layer_idx]
+                    local_optimizer = self.local_optimizers[layer_idx]
+                    _set_only_current_layer_and_head_trainable(model, layer, local_head)
+                    local_params = _current_local_params(layer, local_head)
 
-                # Train on batches
-                for batch in train_loader:
-                    x_batch: torch.Tensor = batch[0].to(self.device)
-                    y_batch: torch.Tensor = batch[1].to(self.device)
+                    # Train on batches
+                    for batch in train_loader:
+                        x_batch: torch.Tensor = batch[0].to(self.device)
+                        y_batch: torch.Tensor = batch[1].to(self.device)
 
-                    # Forward pass through layers up to current layer
-                    h_batch = _forward_through_local_layers(net_obj, x_batch, layer_idx)
+                        # Forward pass through layers up to current layer
+                        h_batch = _forward_through_local_layers(
+                            net_obj, x_batch, layer_idx
+                        )
 
-                    # Local supervision
-                    loss: torch.Tensor = self.loss_function(
-                        local_head, h_batch, y_batch
-                    )
-                    local_optimizer.zero_grad()
-                    loss.backward()
-                    clip_grad_value_(local_params, self.grad_clip_value)
-                    local_optimizer.step()
+                        # Local supervision
+                        loss: torch.Tensor = self.loss_function(
+                            local_head, h_batch, y_batch
+                        )
+                        local_optimizer.zero_grad()
+                        loss.backward()
+                        clip_grad_value_(local_params, self.grad_clip_value)
+                        local_optimizer.step()
 
-                    epoch_loss_accum += loss.item()
-                    batch_counter += 1
+                        epoch_loss_accum += loss.item()
+                        batch_counter += 1
 
-            avg_loss = epoch_loss_accum / batch_counter if batch_counter > 0 else 0.0
-            train_losses.append(avg_loss)
+                avg_loss = (
+                    epoch_loss_accum / batch_counter if batch_counter > 0 else 0.0
+                )
+                train_losses.append(avg_loss)
 
-            valid_loss = _validate_full_model(self, model, valid_loader)
-            valid_losses.append(valid_loss)
+                valid_loss = _validate_full_model(self, model, valid_loader)
+                valid_losses.append(valid_loss)
 
-            self._update_best(model, valid_loss)
+                self._update_best(model, valid_loss)
 
-            self._analyze()
+                self._analyze()
 
-            self._tracking(
-                avg_loss, valid_loss, "[TwoStep-Pretrain] ", {"phase": "pretrain"}
-            )
+                self._tracking(
+                    avg_loss, valid_loss, "[TwoStep-Pretrain] ", {"phase": "pretrain"}
+                )
 
-            if self._check_early_stopping():
-                break
+                if self._check_early_stopping():
+                    break
+        except Exception:
+            self.filename_prefix = ""
+            _restore_full_model_trainability(model)
+            raise
 
         self._loss_plotting(train_losses, valid_losses)
 
@@ -278,8 +287,10 @@ class TwoStepTrainer(Trainer):
         _restore_full_model_trainability(model)
 
         self.filename_prefix = "twostep_stage2_"
-        final_results = super().train(model, train_data, valid_data)
-        self.filename_prefix = ""
+        try:
+            final_results = super().train(model, train_data, valid_data)
+        finally:
+            self.filename_prefix = ""
 
         return _prepend_pretrain_losses(final_results, train_losses, valid_losses)
 
@@ -341,67 +352,79 @@ class TwoStepTrainerWithKL(Trainer):
         n_layers = len(net_obj.layers)
 
         self.filename_prefix = "twostep_kl_stage1_"
-        for _ in range(1, self.pretrain_epochs + 1):
-            self.epoch_counter += 1
-            epoch_loss_accum = 0.0
-            batch_counter = 0
+        try:
+            for _ in range(1, self.pretrain_epochs + 1):
+                self.epoch_counter += 1
+                epoch_loss_accum = 0.0
+                batch_counter = 0
 
-            # Train each layer with its local head
-            for layer_idx in range(n_layers):
-                layer = net_obj.layers[layer_idx]
-                local_head: torch.nn.Module = self.local_heads[layer_idx]
-                local_optimizer = self.local_optimizers[layer_idx]
-                _set_only_current_layer_and_head_trainable(model, layer, local_head)
-                local_params = _current_local_params(layer, local_head)
+                # Train each layer with its local head
+                for layer_idx in range(n_layers):
+                    layer = net_obj.layers[layer_idx]
+                    local_head: torch.nn.Module = self.local_heads[layer_idx]
+                    local_optimizer = self.local_optimizers[layer_idx]
+                    _set_only_current_layer_and_head_trainable(model, layer, local_head)
+                    local_params = _current_local_params(layer, local_head)
 
-                # Train on batches
-                for batch in train_loader:
-                    x_batch: torch.Tensor = batch[0].to(self.device)
-                    y_batch: torch.Tensor = batch[1].to(self.device)
+                    # Train on batches
+                    for batch in train_loader:
+                        x_batch: torch.Tensor = batch[0].to(self.device)
+                        y_batch: torch.Tensor = batch[1].to(self.device)
 
-                    # Forward pass through layers up to current layer
-                    h_batch = _forward_through_local_layers(net_obj, x_batch, layer_idx)
+                        # Forward pass through layers up to current layer
+                        h_batch = _forward_through_local_layers(
+                            net_obj, x_batch, layer_idx
+                        )
 
-                    # Local head predictions
-                    local_logits = local_head(h_batch)
+                        # Local head predictions
+                        local_logits = local_head(h_batch)
 
-                    # Get full model predictions for KL divergence
-                    with torch.no_grad():
-                        full_logits = model(x_batch)
+                        # Get full model predictions for KL divergence
+                        with torch.no_grad():
+                            full_logits = model(x_batch)
 
-                    # Combined loss: cross-entropy + KL divergence
-                    ce_loss = functional.cross_entropy(local_logits, y_batch)
-                    kl_loss = functional.kl_div(
-                        functional.log_softmax(local_logits, dim=1),
-                        functional.softmax(full_logits, dim=1),
-                        reduction="batchmean",
-                    )
-                    loss = ce_loss + self.kl_weight * kl_loss
+                        # Combined loss: cross-entropy + KL divergence
+                        ce_loss = functional.cross_entropy(local_logits, y_batch)
+                        kl_loss = functional.kl_div(
+                            functional.log_softmax(local_logits, dim=1),
+                            functional.softmax(full_logits, dim=1),
+                            reduction="batchmean",
+                        )
+                        loss = ce_loss + self.kl_weight * kl_loss
 
-                    local_optimizer.zero_grad()
-                    loss.backward()
-                    clip_grad_value_(local_params, self.grad_clip_value)
-                    local_optimizer.step()
+                        local_optimizer.zero_grad()
+                        loss.backward()
+                        clip_grad_value_(local_params, self.grad_clip_value)
+                        local_optimizer.step()
 
-                    epoch_loss_accum += loss.item()
-                    batch_counter += 1
+                        epoch_loss_accum += loss.item()
+                        batch_counter += 1
 
-            avg_loss = epoch_loss_accum / batch_counter if batch_counter > 0 else 0.0
-            train_losses.append(avg_loss)
+                avg_loss = (
+                    epoch_loss_accum / batch_counter if batch_counter > 0 else 0.0
+                )
+                train_losses.append(avg_loss)
 
-            valid_loss = _validate_full_model(self, model, valid_loader)
-            valid_losses.append(valid_loss)
+                valid_loss = _validate_full_model(self, model, valid_loader)
+                valid_losses.append(valid_loss)
 
-            self._update_best(model, valid_loss)
+                self._update_best(model, valid_loss)
 
-            self._analyze()
+                self._analyze()
 
-            self._tracking(
-                avg_loss, valid_loss, "[TwoStepKL-Pretrain] ", {"phase": "pretrain_kl"}
-            )
+                self._tracking(
+                    avg_loss,
+                    valid_loss,
+                    "[TwoStepKL-Pretrain] ",
+                    {"phase": "pretrain_kl"},
+                )
 
-            if self._check_early_stopping():
-                break
+                if self._check_early_stopping():
+                    break
+        except Exception:
+            self.filename_prefix = ""
+            _restore_full_model_trainability(model)
+            raise
 
         self._loss_plotting(train_losses, valid_losses)
 
@@ -415,7 +438,9 @@ class TwoStepTrainerWithKL(Trainer):
         _restore_full_model_trainability(model)
 
         self.filename_prefix = "twostep_kl_stage2_"
-        final_results = super().train(model, train_data, valid_data)
-        self.filename_prefix = ""
+        try:
+            final_results = super().train(model, train_data, valid_data)
+        finally:
+            self.filename_prefix = ""
 
         return _prepend_pretrain_losses(final_results, train_losses, valid_losses)

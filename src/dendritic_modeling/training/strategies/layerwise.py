@@ -154,9 +154,11 @@ class LayerWiseTrainer(Trainer):
             self.epochs = self.pretrain_epochs
             self.filename_prefix = "pretrain_"
             self.logger_info_prefix = "[Pretrain] "
-            pretrain_results = super().train(model, train_data, valid_data)
-            self.epochs = default_epochs
-            self.filename_prefix = ""
+            try:
+                pretrain_results = super().train(model, train_data, valid_data)
+            finally:
+                self.epochs = default_epochs
+                self.filename_prefix = ""
 
             pretrain_histories = _loss_histories_from_results(pretrain_results)
 
@@ -218,9 +220,11 @@ class LayerWiseTrainer(Trainer):
         self.epochs = self.final_tune_epochs
         self.filename_prefix = "final_tune_"
         self.logger_info_prefix = "[Final Tune] "
-        final_results = super().train(model, train_data, valid_data)
-        self.epochs = default_epochs
-        self.filename_prefix = ""
+        try:
+            final_results = super().train(model, train_data, valid_data)
+        finally:
+            self.epochs = default_epochs
+            self.filename_prefix = ""
         return final_results
 
     def train(

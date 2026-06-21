@@ -271,3 +271,73 @@ def test_run_final_tuning_preserves_legacy_prefix_reset(monkeypatch):
     assert trainer.epochs == 9
     assert trainer.filename_prefix == ""
     assert trainer.logger_info_prefix == "[Final Tune] "
+
+
+def test_pretrain_restores_epoch_and_filename_after_failure(monkeypatch):
+    model = nn.Linear(2, 1)
+    trainer = LayerWiseTrainer(
+        optimizer=torch.optim.SGD(model.parameters(), lr=0.1),
+        epochs=9,
+    )
+    trainer.pretrain_epochs = 4
+    trainer.filename_prefix = "previous_"
+    trainer.logger_info_prefix = "[Previous] "
+
+    def _failing_train(self, model_arg, train_data_arg, valid_data_arg):
+        assert model_arg is model
+        assert train_data_arg is train_data
+        assert valid_data_arg is valid_data
+        assert self.epochs == 4
+        assert self.filename_prefix == "pretrain_"
+        assert self.logger_info_prefix == "[Pretrain] "
+        raise RuntimeError("pretrain failed")
+
+    train_data = object()
+    valid_data = object()
+    monkeypatch.setattr(Trainer, "train", _failing_train)
+
+    try:
+        trainer._pretrain(model, train_data=train_data, valid_data=valid_data)
+    except RuntimeError as exc:
+        assert str(exc) == "pretrain failed"
+    else:
+        raise AssertionError("Expected pretrain failure")
+
+    assert trainer.epochs == 9
+    assert trainer.filename_prefix == ""
+    assert trainer.logger_info_prefix == "[Pretrain] "
+
+
+def test_run_final_tuning_restores_epoch_and_filename_after_failure(monkeypatch):
+    model = nn.Linear(2, 1)
+    trainer = LayerWiseTrainer(
+        optimizer=torch.optim.SGD(model.parameters(), lr=0.1),
+        epochs=9,
+    )
+    trainer.final_tune_epochs = 4
+    trainer.filename_prefix = "previous_"
+    trainer.logger_info_prefix = "[Previous] "
+
+    def _failing_train(self, model_arg, train_data_arg, valid_data_arg):
+        assert model_arg is model
+        assert train_data_arg is train_data
+        assert valid_data_arg is valid_data
+        assert self.epochs == 4
+        assert self.filename_prefix == "final_tune_"
+        assert self.logger_info_prefix == "[Final Tune] "
+        raise RuntimeError("final tune failed")
+
+    train_data = object()
+    valid_data = object()
+    monkeypatch.setattr(Trainer, "train", _failing_train)
+
+    try:
+        trainer._run_final_tuning(model, train_data=train_data, valid_data=valid_data)
+    except RuntimeError as exc:
+        assert str(exc) == "final tune failed"
+    else:
+        raise AssertionError("Expected final tuning failure")
+
+    assert trainer.epochs == 9
+    assert trainer.filename_prefix == ""
+    assert trainer.logger_info_prefix == "[Final Tune] "

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -103,6 +104,21 @@ def _resolve_dtype(dtype: str) -> torch.dtype:
 def _make_cuda_grad_scaler(use_amp: bool, device: torch.device) -> GradScaler:
     """Create the CUDA GradScaler used by replacement-training loops."""
     return GradScaler("cuda", enabled=bool(use_amp and device.type == "cuda"))
+
+
+def _capture_requires_grad_states(
+    parameters: Iterable[torch.nn.Parameter],
+) -> list[tuple[torch.nn.Parameter, bool]]:
+    """Capture parameter trainability before a temporary selection pass."""
+    return [(param, bool(param.requires_grad)) for param in parameters]
+
+
+def _restore_requires_grad_states(
+    states: Iterable[tuple[torch.nn.Parameter, bool]],
+) -> None:
+    """Restore parameter trainability captured by ``_capture_requires_grad_states``."""
+    for param, requires_grad in states:
+        param.requires_grad_(requires_grad)
 
 
 def _base_distillation_loss(
@@ -285,6 +301,7 @@ def _write_metrics_json(
 
 __all__ = [
     "ReplacementTrainingHistory",
+    "_capture_requires_grad_states",
     "_compute_distillation_loss",
     "_compute_transformer_distillation_loss",
     "_compute_vision_distillation_loss",
@@ -296,6 +313,7 @@ __all__ = [
     "_resolve_device",
     "_resolve_dtype",
     "_resolve_replacement_loader_tuning",
+    "_restore_requires_grad_states",
     "_should_run_periodic_step",
     "_to_plain_mapping",
     "_write_metrics_json",

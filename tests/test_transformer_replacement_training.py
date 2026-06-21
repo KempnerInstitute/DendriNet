@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 
+import pytest
 import torch
 
 from dendritic_modeling.config import Config
@@ -285,3 +286,24 @@ def test_joint_trainable_parameter_selection_supports_full_model():
         id(param) for param in model.parameters()
     }
     assert all(param.requires_grad for param in model.parameters())
+
+
+def test_joint_trainable_parameter_selection_restores_after_empty_replacement():
+    original = torch.nn.Linear(4, 4)
+    replacement = torch.nn.Identity()
+    model = torch.nn.Sequential(original, replacement)
+    original.bias.requires_grad_(False)
+    original_states = [param.requires_grad for param in model.parameters()]
+    records = [
+        ReplacementRecord(
+            layer_index=0,
+            mlp_attr="mlp",
+            original_mlp=original,
+            replacement=replacement,
+        )
+    ]
+
+    with pytest.raises(ValueError, match="No replacement parameters"):
+        _select_joint_trainable_parameters(model, records, "replacement_only")
+
+    assert [param.requires_grad for param in model.parameters()] == original_states
