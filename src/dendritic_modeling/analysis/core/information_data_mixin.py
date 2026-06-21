@@ -10,6 +10,7 @@ import torch
 from dendritic_modeling.analysis.utils.runtime import materialize_dataset
 from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.models import BaseModel
+from dendritic_modeling.utils.hooks import run_with_forward_hooks
 
 
 @dataclass(frozen=True)
@@ -54,12 +55,16 @@ class InformationDataMixin:
         inputs: torch.Tensor,
     ) -> None:
         """Run a no-grad forward pass while collecting attached hook payloads."""
-        handles = self.attach_forward_hooks(model)
-        try:
+
+        def _forward_pass() -> None:
             with torch.no_grad():
                 _ = model(inputs)
-        finally:
-            self.remove_forward_hooks(handles)
+
+        run_with_forward_hooks(
+            attach=lambda: self.attach_forward_hooks(model),
+            remove=self.remove_forward_hooks,
+            body=_forward_pass,
+        )
 
     def _labels_to_class_array(
         self,

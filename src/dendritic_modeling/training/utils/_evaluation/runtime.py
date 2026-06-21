@@ -105,6 +105,7 @@ def _make_eval_loader(
     device: str = "cpu",
     persistent_workers: bool = False,
     prefetch_factor: int | None = 2,
+    in_order: bool | None = None,
     **_extra,
 ) -> DataLoader:
     """Build a DataLoader suitable for evaluation (no shuffle, no drop_last)."""
@@ -115,6 +116,7 @@ def _make_eval_loader(
         pin_memory=pin_memory,
         persistent_workers=persistent_workers,
         prefetch_factor=prefetch_factor,
+        in_order=in_order,
     )
     return make_analysis_loader(
         dataset=dataset,
@@ -234,6 +236,7 @@ def _evaluate_streamed_metric(
     eval_pin_memory: bool,
     eval_persistent_workers: bool,
     eval_prefetch_factor: int | None,
+    eval_in_order: bool | None,
     eval_max_batches: int | None,
     eval_materialize_threshold_mb: float,
     eval_loader_factory: Callable[..., DataLoader] | None,
@@ -258,6 +261,7 @@ def _evaluate_streamed_metric(
         device=device,
         persistent_workers=eval_persistent_workers,
         prefetch_factor=eval_prefetch_factor,
+        in_order=eval_in_order,
     )
     cat_outputs, cat_labels, cat_seq_lengths = _stream_model_outputs(
         model=model,
@@ -310,6 +314,7 @@ def _evaluate_metric_generic(
     eval_pin_memory: bool = True,
     eval_persistent_workers: bool = False,
     eval_prefetch_factor: int | None = 2,
+    eval_in_order: bool | None = None,
     eval_max_batches: int | None = None,
     eval_materialize_threshold_mb: float = 1024,
     eval_loader_factory: Callable[..., DataLoader] | None = None,
@@ -406,6 +411,7 @@ def _evaluate_metric_generic(
                 eval_pin_memory=eval_pin_memory,
                 eval_persistent_workers=eval_persistent_workers,
                 eval_prefetch_factor=eval_prefetch_factor,
+                eval_in_order=eval_in_order,
                 eval_max_batches=eval_max_batches,
                 eval_materialize_threshold_mb=eval_materialize_threshold_mb,
                 eval_loader_factory=eval_loader_factory,

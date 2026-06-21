@@ -272,7 +272,8 @@ ImageNet/ImageFolder datasets use the shared dataloader auto-tuning path when
 ``num_workers``, ``pin_memory``, ``persistent_workers``, and
 ``prefetch_factor`` are left as ``null``.  The auto path keeps multi-worker,
 pinned, persistent prefetching for file-backed image datasets and avoids worker
-overhead for tensor-backed datasets.  For fixed cluster jobs, set explicit
+overhead for tensor-backed datasets. Set ``in_order: false`` for ImageNet jobs
+where worker stragglers cause batch-delivery stalls. For fixed cluster jobs, set explicit
 per-process values under the active trainer config, for example
 ``num_workers: 8``, ``pin_memory: true``, ``persistent_workers: true``, and
 ``prefetch_factor: 4``.
@@ -298,6 +299,9 @@ Each module lives under ``analysis.<module_name>`` with ``enabled`` and
          batch_size: 256
          num_workers: 4
          pin_memory: true
+         persistent_workers: true
+         prefetch_factor: 4
+         in_order: null
          max_batches: null
          max_samples: null
          materialize_threshold_mb: 1024
@@ -306,6 +310,9 @@ Each module lives under ``analysis.<module_name>`` with ``enabled`` and
          batch_size: 256
          num_workers: 4
          pin_memory: true
+         persistent_workers: true
+         prefetch_factor: 4
+         in_order: null
          max_batches: null
          max_samples: null
          materialize_threshold_mb: 1024
@@ -329,6 +336,9 @@ the original device and train/eval mode are restored automatically after the
 analysis finishes.
 For most runs, keep the default ``mode: "auto"``: it materializes small
 datasets and switches to streaming when the dataset estimate is large.
+For ImageNet-scale streamed analysis, set ``in_order: false`` to let DataLoader
+yield ready worker batches without waiting for slower earlier batches. Leave it
+``null`` for PyTorch's default ordering behavior.
 If you omit ``analysis.runtime`` entirely, non-distributed runs default to
 ``materialize``, while DDP/FSDP runs keep the shared ``auto`` default.
 The ``pin_memory`` flag is also interpreted per device: CPU analysis disables

@@ -32,6 +32,17 @@ class _PostFactors:
     post_factor_raw: torch.Tensor
 
 
+@dataclass(frozen=True)
+class _LocalRuleRecordState:
+    v_n: torch.Tensor
+    e_n: torch.Tensor
+    stdp_error_signal: torch.Tensor
+    r_tot: torch.Tensor | float
+    layer_dynamics_mode: str
+    modulators: _LayerModulators
+    post_factors: _PostFactors
+
+
 class _LayerStats:
     """Holds per-layer running statistics for morphology/info factors."""
 
@@ -57,4 +68,10 @@ class _LayerStats:
         self.branch_block_selectivity: torch.Tensor | None = None  # [out, block]
 
 
-__all__ = ["_BroadcastState", "_LayerModulators", "_LayerStats", "_PostFactors"]
+__all__ = [
+    "_BroadcastState",
+    "_LayerModulators",
+    "_LayerStats",
+    "_LocalRuleRecordState",
+    "_PostFactors",
+]

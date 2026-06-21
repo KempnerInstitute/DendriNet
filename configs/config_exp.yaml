@@ -669,6 +669,7 @@ analysis:
       pin_memory: true                  # bool: Pin memory for GPU transfer (auto-disabled on CPU analysis)
       persistent_workers: true          # bool: Keep workers alive between streamed passes
       prefetch_factor: 4                # int | null: Batches prefetched per worker
+      in_order: null                    # bool | null: false can reduce ImageNet worker head-of-line blocking
       max_batches: null                 # int | null: Optional cheap/training-time cap (null = all batches)
       max_samples: null                 # int | null: Hard cap for expensive analyses that still accumulate CPU tensors
       materialize_threshold_mb: 1024    # int: Auto-mode threshold (MB); keeps small single-GPU datasets materialized
@@ -679,6 +680,7 @@ analysis:
       pin_memory: true                  # bool: Pin memory for GPU transfer (auto-disabled on CPU analysis)
       persistent_workers: true          # bool: Keep workers alive between streamed passes
       prefetch_factor: 4                # int | null: Batches prefetched per worker
+      in_order: null                    # bool | null: false can reduce ImageNet worker head-of-line blocking
       max_batches: null                 # int | null: Optional cap (usually leave null for final analysis)
       max_samples: null                 # int | null: Use when heavy analyses must inspect only a bounded subset
       materialize_threshold_mb: 1024    # int: Auto-mode threshold (MB); use materialize for exact small-dataset analysis

@@ -71,6 +71,9 @@ def analysis_loader_kwargs_from_runtime(
     )
     if prefetch_factor is not None:
         loader_kwargs["prefetch_factor"] = prefetch_factor
+    in_order = getattr(runtime, "in_order", None)
+    if in_order is not None:
+        loader_kwargs["in_order"] = bool(in_order)
     return loader_kwargs
 
 
@@ -141,7 +144,7 @@ def evaluation_kwargs_from_runtime(
     """Translate runtime config into metric evaluation kwargs."""
     if runtime is None:
         runtime = EvaluationRuntimeConfig()
-    return {
+    kwargs: dict[str, int | bool | str | None] = {
         "eval_mode": runtime.mode,
         "eval_batch_size": runtime.batch_size,
         "eval_num_workers": runtime.num_workers,
@@ -151,6 +154,9 @@ def evaluation_kwargs_from_runtime(
         "eval_max_batches": runtime.max_batches,
         "eval_materialize_threshold_mb": runtime.materialize_threshold_mb,
     }
+    if runtime.in_order is not None:
+        kwargs["eval_in_order"] = runtime.in_order
+    return kwargs
 
 
 def iter_analysis_batches(

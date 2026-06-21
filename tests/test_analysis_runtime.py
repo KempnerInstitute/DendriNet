@@ -85,6 +85,7 @@ def test_evaluation_kwargs_preserve_worker_runtime_options():
         pin_memory=False,
         persistent_workers=True,
         prefetch_factor=5,
+        in_order=False,
         max_batches=3,
         materialize_threshold_mb=128,
     )
@@ -98,6 +99,7 @@ def test_evaluation_kwargs_preserve_worker_runtime_options():
         "eval_pin_memory": False,
         "eval_persistent_workers": True,
         "eval_prefetch_factor": 5,
+        "eval_in_order": False,
         "eval_max_batches": 3,
         "eval_materialize_threshold_mb": 128,
     }
@@ -111,6 +113,7 @@ def test_analysis_loader_kwargs_preserve_worker_runtime_options():
         pin_memory=False,
         persistent_workers=True,
         prefetch_factor=5,
+        in_order=False,
     )
 
     kwargs = analysis_loader_kwargs_from_runtime(runtime, device="cpu")
@@ -120,6 +123,7 @@ def test_analysis_loader_kwargs_preserve_worker_runtime_options():
         "pin_memory": False,
         "persistent_workers": True,
         "prefetch_factor": 5,
+        "in_order": False,
     }
 
 
@@ -140,6 +144,28 @@ def test_analysis_loader_kwargs_omit_prefetch_without_workers():
         "pin_memory": False,
         "persistent_workers": False,
     }
+
+
+def test_analysis_loader_kwargs_omit_default_in_order():
+    runtime = EvaluationRuntimeConfig(
+        mode="stream",
+        batch_size=16,
+        num_workers=2,
+        pin_memory=False,
+        persistent_workers=True,
+        prefetch_factor=5,
+        in_order=None,
+    )
+
+    kwargs = analysis_loader_kwargs_from_runtime(runtime, device="cpu")
+
+    assert "in_order" not in kwargs
+
+
+def test_evaluation_kwargs_omit_default_in_order():
+    kwargs = evaluation_kwargs_from_runtime(EvaluationRuntimeConfig())
+
+    assert "eval_in_order" not in kwargs
 
 
 def test_analysis_prefetch_resolver_preserves_worker_gating_and_clamp():
@@ -596,6 +622,7 @@ def test_performance_stream_forwards_worker_runtime_options(monkeypatch):
         pin_memory=False,
         persistent_workers=True,
         prefetch_factor=5,
+        in_order=False,
     )
     analyzer.analyze(
         model=model,
@@ -610,6 +637,7 @@ def test_performance_stream_forwards_worker_runtime_options(monkeypatch):
     assert recorded_kwargs["pin_memory"] is False
     assert recorded_kwargs["persistent_workers"] is True
     assert recorded_kwargs["prefetch_factor"] == 5
+    assert recorded_kwargs["in_order"] is False
 
 
 def test_iter_analysis_batches_materialize_yields_single_full_batch():

@@ -140,6 +140,7 @@ analysis:
       pin_memory: true
       persistent_workers: true
       prefetch_factor: 4
+      in_order: false
   performance:
     enabled: true
     training: false

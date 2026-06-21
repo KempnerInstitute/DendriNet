@@ -16,6 +16,9 @@ Dataset iteration is controlled centrally via ``analysis.runtime``:
          batch_size: 256
          num_workers: 4
          pin_memory: true
+         persistent_workers: true
+         prefetch_factor: 4
+         in_order: null
          max_batches: null
          max_samples: null
          materialize_threshold_mb: 1024
@@ -24,6 +27,9 @@ Dataset iteration is controlled centrally via ``analysis.runtime``:
          batch_size: 256
          num_workers: 4
          pin_memory: true
+         persistent_workers: true
+         prefetch_factor: 4
+         in_order: null
          max_batches: null
          max_samples: null
          materialize_threshold_mb: 1024
@@ -34,6 +40,9 @@ ImageNet, ``mode: "stream"`` avoids materializing the full dataset on the
 device. For expensive analyses that still accumulate tensors on CPU
 (``information``, ``correlation``, some compartment analyses), use
 ``max_samples`` to bound total analysis memory explicitly.
+For ImageNet-scale streamed evaluation, ``in_order: false`` can reduce
+DataLoader head-of-line blocking; leave it ``null`` to keep PyTorch's default
+ordering behavior.
 Analyzers may temporarily move the model to the requested analysis device,
 but they restore the original device and train/eval mode before returning, so
 post-training analysis does not leave the model in a different execution state.

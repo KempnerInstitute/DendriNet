@@ -48,23 +48,18 @@ class LocalLearningGradientMixin(
 ):
     """Gradient writeback helpers used by ``LocalCreditAssignment``."""
 
-    def _apply_layer_local_gradients(
+    def _apply_synaptic_local_gradients(
         self,
         *,
         rec: dict[str, Any],
-        layer_idx: int,
-        num_layers: int,
-        y_target: torch.Tensor | None,
-        batch_size: int,
-        e_n: torch.Tensor,
-        stdp_error_signal: torch.Tensor,
         v_n: torch.Tensor,
         r_tot: torch.Tensor | float,
         layer_dynamics_mode: str,
+        batch_size: int,
         modulators: _LayerModulators,
         post_factors: _PostFactors,
-        update_reactivation: bool,
-    ) -> None:
+    ) -> Any:
+        """Apply synaptic and dendritic-block local gradients for one layer."""
         exc_layer = self._apply_excitatory_topk_pathways(
             rec=rec,
             v_n=v_n,
@@ -98,7 +93,24 @@ class LocalLearningGradientMixin(
             layer_dynamics_mode=layer_dynamics_mode,
             batch_size=batch_size,
         )
+        return exc_layer
 
+    def _apply_auxiliary_local_gradients(
+        self,
+        *,
+        rec: dict[str, Any],
+        exc_layer: Any,
+        layer_idx: int,
+        num_layers: int,
+        y_target: torch.Tensor | None,
+        batch_size: int,
+        e_n: torch.Tensor,
+        stdp_error_signal: torch.Tensor,
+        v_n: torch.Tensor,
+        modulators: _LayerModulators,
+        update_reactivation: bool,
+    ) -> None:
+        """Apply reactivation, STDP, and HSIC local-gradient phases."""
         self._apply_reactivation_local_grad(
             rec=rec,
             e_n=e_n,
@@ -122,6 +134,47 @@ class LocalLearningGradientMixin(
             num_layers=num_layers,
             y_target=y_target,
             batch_size=batch_size,
+        )
+
+    def _apply_layer_local_gradients(
+        self,
+        *,
+        rec: dict[str, Any],
+        layer_idx: int,
+        num_layers: int,
+        y_target: torch.Tensor | None,
+        batch_size: int,
+        e_n: torch.Tensor,
+        stdp_error_signal: torch.Tensor,
+        v_n: torch.Tensor,
+        r_tot: torch.Tensor | float,
+        layer_dynamics_mode: str,
+        modulators: _LayerModulators,
+        post_factors: _PostFactors,
+        update_reactivation: bool,
+    ) -> None:
+        exc_layer = self._apply_synaptic_local_gradients(
+            rec=rec,
+            v_n=v_n,
+            r_tot=r_tot,
+            layer_dynamics_mode=layer_dynamics_mode,
+            batch_size=batch_size,
+            modulators=modulators,
+            post_factors=post_factors,
+        )
+
+        self._apply_auxiliary_local_gradients(
+            rec=rec,
+            exc_layer=exc_layer,
+            layer_idx=layer_idx,
+            num_layers=num_layers,
+            y_target=y_target,
+            batch_size=batch_size,
+            e_n=e_n,
+            stdp_error_signal=stdp_error_signal,
+            v_n=v_n,
+            modulators=modulators,
+            update_reactivation=update_reactivation,
         )
 
     def _apply_stdp_local_gradients(

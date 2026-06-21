@@ -11,6 +11,9 @@ from dendritic_modeling.training.strategies.local_learning_epoch import (
     _apply_path_propagation_factor,
     _resolve_stdp_error_signals,
 )
+from dendritic_modeling.training.strategies.local_learning_state import (
+    _LocalRuleRecordState,
+)
 
 
 class LocalLearningRuleMixin:
@@ -72,6 +75,43 @@ class LocalLearningRuleMixin:
         if v_n is None:
             return
 
+        record_state = self._prepare_local_rule_record_state(
+            rec=rec,
+            layer_idx=layer_idx,
+            v0=v0,
+            delta=delta,
+            delta_scalar=delta_scalar,
+            v_n=v_n,
+            broadcast_state=broadcast_state,
+        )
+        self._apply_layer_local_gradients(
+            rec=rec,
+            layer_idx=layer_idx,
+            num_layers=num_layers,
+            y_target=y_target,
+            batch_size=batch_size,
+            e_n=record_state.e_n,
+            stdp_error_signal=record_state.stdp_error_signal,
+            v_n=record_state.v_n,
+            r_tot=record_state.r_tot,
+            layer_dynamics_mode=record_state.layer_dynamics_mode,
+            modulators=record_state.modulators,
+            post_factors=record_state.post_factors,
+            update_reactivation=update_reactivation,
+        )
+
+    def _prepare_local_rule_record_state(
+        self,
+        *,
+        rec: dict[str, Any],
+        layer_idx: int,
+        v0: torch.Tensor,
+        delta: torch.Tensor,
+        delta_scalar: torch.Tensor,
+        v_n: torch.Tensor,
+        broadcast_state: Any,
+    ) -> _LocalRuleRecordState:
+        """Prepare local-rule factors for one recorded layer."""
         layer_depth = layer_idx + 1
         e_n = self._compute_local_broadcast_error(
             rec=rec,
@@ -114,20 +154,14 @@ class LocalLearningRuleMixin:
             layer_idx=layer_idx,
             modulators=modulators,
         )
-        self._apply_layer_local_gradients(
-            rec=rec,
-            layer_idx=layer_idx,
-            num_layers=num_layers,
-            y_target=y_target,
-            batch_size=batch_size,
+        return _LocalRuleRecordState(
+            v_n=v_n,
             e_n=e_n,
             stdp_error_signal=stdp_error_signal,
-            v_n=v_n,
             r_tot=r_tot,
             layer_dynamics_mode=layer_dynamics_mode,
             modulators=modulators,
             post_factors=post_factors,
-            update_reactivation=update_reactivation,
         )
 
 

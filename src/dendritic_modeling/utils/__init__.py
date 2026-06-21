@@ -26,6 +26,7 @@ from .hooks import (
     register_named_forward_hook_groups,
     register_named_forward_hooks,
     remove_hook_handles,
+    run_with_forward_hooks,
 )
 from .lda import (
     apply_nonnegative_lda,
@@ -82,6 +83,7 @@ __all__ = [
     "register_named_forward_hooks",
     "remove_hook_handles",
     "roc_auc_score",
+    "run_with_forward_hooks",
     "save_dict",
     "select_topk_features_by_lda",
     "set_seed",

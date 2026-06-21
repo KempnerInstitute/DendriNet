@@ -279,6 +279,137 @@ def test_apply_layer_local_gradients_dispatches_topk_paths_in_order():
     ]
 
 
+def test_apply_synaptic_local_gradients_preserves_pathway_order_and_return():
+    class _Probe(LocalLearningGradientMixin):
+        def __init__(self):
+            self.calls = []
+
+        def _apply_excitatory_topk_pathways(self, **kwargs):
+            self.calls.append(("exc", kwargs["layer_dynamics_mode"]))
+            return "feedforward-exc"
+
+        def _apply_inhibitory_topk_pathways(self, **kwargs):
+            self.calls.append(("inh", kwargs["batch_size"]))
+
+        def _apply_dendritic_block_local_grad(self, **kwargs):
+            self.calls.append(
+                (
+                    "block",
+                    kwargs["rho"],
+                    kwargs["phi"],
+                    kwargs["dendritic_branch_scale"],
+                    kwargs["role_block_alignment"],
+                )
+            )
+
+    trainer = _Probe()
+    tensor = torch.ones(2, 3)
+    role_block_alignment = torch.full((2, 3), 0.25)
+    modulators = _LayerModulators(
+        rho=2.0,
+        phi=0.5,
+        branch_scale=1.0,
+        dendritic_branch_scale=3.0,
+        role_synaptic_alignment=None,
+        role_block_alignment=role_block_alignment,
+    )
+    post_factors = _PostFactors(
+        e_v=tensor,
+        post_factor=tensor + 1.0,
+        post_factor_raw=tensor + 2.0,
+    )
+
+    exc_layer = trainer._apply_synaptic_local_gradients(
+        rec={},
+        v_n=tensor,
+        r_tot=1.0,
+        layer_dynamics_mode="conductance",
+        batch_size=2,
+        modulators=modulators,
+        post_factors=post_factors,
+    )
+
+    assert exc_layer == "feedforward-exc"
+    assert trainer.calls[:2] == [("exc", "conductance"), ("inh", 2)]
+    assert trainer.calls[2][:4] == ("block", 2.0, 0.5, 3.0)
+    assert trainer.calls[2][4] is role_block_alignment
+
+
+def test_apply_auxiliary_local_gradients_preserves_phase_order_and_payload():
+    class _Probe(LocalLearningGradientMixin):
+        def __init__(self):
+            self.calls = []
+
+        def _apply_reactivation_local_grad(self, **kwargs):
+            self.calls.append(("reactivation", kwargs))
+
+        def _stdp_enabled(self):
+            return True
+
+        def _apply_stdp_pathways(self, **kwargs):
+            self.calls.append(("stdp", kwargs))
+
+        def _apply_hsic_auxiliary_gradients(self, **kwargs):
+            self.calls.append(("hsic", kwargs))
+
+    trainer = _Probe()
+    tensor = torch.ones(2, 3)
+    rec = {"v_out": tensor + 1.0}
+    y_target = torch.tensor([0, 1])
+    rho = torch.tensor([1.0, 2.0, 3.0])
+    branch_scale = torch.tensor([0.25, 0.5, 0.75])
+    modulators = _LayerModulators(
+        rho=rho,
+        phi=0.5,
+        branch_scale=branch_scale,
+        dendritic_branch_scale=1.0,
+        role_synaptic_alignment=None,
+        role_block_alignment=None,
+    )
+    stdp_error_signal = tensor + 2.0
+
+    trainer._apply_auxiliary_local_gradients(
+        rec=rec,
+        exc_layer="feedforward-exc",
+        layer_idx=2,
+        num_layers=4,
+        y_target=y_target,
+        batch_size=2,
+        e_n=tensor,
+        stdp_error_signal=stdp_error_signal,
+        v_n=tensor + 3.0,
+        modulators=modulators,
+        update_reactivation=False,
+    )
+
+    assert [name for name, _payload in trainer.calls] == [
+        "reactivation",
+        "stdp",
+        "hsic",
+    ]
+
+    react = trainer.calls[0][1]
+    assert react["rec"] is rec
+    assert react["e_n"] is tensor
+    assert react["rho"] is rho
+    assert react["phi"] == 0.5
+    assert react["branch_scale"] is branch_scale
+    assert react["update_reactivation"] is False
+
+    stdp = trainer.calls[1][1]
+    assert stdp["rec"] is rec
+    assert stdp["post_signal"] is rec["v_out"]
+    assert stdp["error_signal"] is stdp_error_signal
+
+    hsic = trainer.calls[2][1]
+    assert hsic["rec"] is rec
+    assert hsic["exc_layer"] == "feedforward-exc"
+    assert hsic["layer_idx"] == 2
+    assert hsic["num_layers"] == 4
+    assert hsic["y_target"] is y_target
+    assert hsic["batch_size"] == 2
+
+
 def test_apply_stdp_local_gradients_uses_recorded_output_signal():
     class _Probe(LocalLearningGradientMixin):
         def __init__(self):

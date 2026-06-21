@@ -9,6 +9,7 @@ analysis:
       pin_memory: true
       persistent_workers: true
       prefetch_factor: 4
+      in_order: false
       max_batches: null
       max_samples: null
       materialize_threshold_mb: 1024
@@ -19,6 +20,7 @@ analysis:
       pin_memory: true
       persistent_workers: true
       prefetch_factor: 4
+      in_order: false
       max_batches: null
       max_samples: null
       materialize_threshold_mb: 1024

@@ -293,6 +293,7 @@ process/rank:
          pin_memory: true
          persistent_workers: true
          prefetch_factor: 4
+         in_order: false
 
 For vision distillation runs, the same fields are available under
 ``training.vision_replacement``.

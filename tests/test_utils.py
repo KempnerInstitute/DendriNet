@@ -47,6 +47,7 @@ def test_utils_reexports_hook_helpers():
         iter_named_modules_of_type,
         register_named_forward_hook_groups,
         register_named_forward_hooks,
+        run_with_forward_hooks,
     )
 
     assert utils.ForwardHookRemovalMixin is ForwardHookRemovalMixin
@@ -59,6 +60,42 @@ def test_utils_reexports_hook_helpers():
         utils.register_named_forward_hook_groups is register_named_forward_hook_groups
     )
     assert utils.register_named_forward_hooks is register_named_forward_hooks
+    assert utils.run_with_forward_hooks is run_with_forward_hooks
+
+
+def test_run_with_forward_hooks_returns_body_result_and_removes_handles():
+    from dendritic_modeling.utils.hooks import run_with_forward_hooks
+
+    handles = ["h0", "h1"]
+    removed = []
+
+    result = run_with_forward_hooks(
+        attach=lambda: handles,
+        remove=lambda active_handles: removed.append(list(active_handles)),
+        body=lambda: "result",
+    )
+
+    assert result == "result"
+    assert removed == [["h0", "h1"]]
+
+
+def test_run_with_forward_hooks_removes_handles_after_body_failure():
+    from dendritic_modeling.utils.hooks import run_with_forward_hooks
+
+    handles = ["h0"]
+    removed = []
+
+    def failing_body():
+        raise RuntimeError("body failed")
+
+    with pytest.raises(RuntimeError, match="body failed"):
+        run_with_forward_hooks(
+            attach=lambda: handles,
+            remove=lambda active_handles: removed.append(list(active_handles)),
+            body=failing_body,
+        )
+
+    assert removed == [["h0"]]
 
 
 def test_iter_child_modules_of_type_preserves_child_only_order():

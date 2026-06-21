@@ -63,7 +63,8 @@ python src/dendritic_modeling/scripts/sweeps/result_analyzer.py \
 
 Analysis runtime is configured centrally under `analysis.runtime` in YAML.
 Use `mode: "stream"` there for large datasets, and set `max_samples` for
-expensive analyses that should only inspect a bounded subset. Keep
+expensive analyses that should only inspect a bounded subset. For ImageNet
+streaming, `in_order: false` can reduce DataLoader head-of-line blocking. Keep
 `mode: "auto"` for the normal default, and use `mode: "materialize"` when you
 want exact small-dataset single-GPU analysis behavior.
 If `analysis.runtime` is omitted entirely, non-distributed runs default to that

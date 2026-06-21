@@ -107,6 +107,7 @@ analysis:
     final:
       mode: "stream"                    # large-image analysis under FSDP: stream by default
       batch_size: 128
+      in_order: false
   performance:
     enabled: true
     params:

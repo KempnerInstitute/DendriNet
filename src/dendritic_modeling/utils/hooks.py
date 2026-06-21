@@ -9,6 +9,7 @@ import torch
 
 HookHandle = torch.utils.hooks.RemovableHandle
 ModuleT = TypeVar("ModuleT", bound=torch.nn.Module)
+ResultT = TypeVar("ResultT")
 ForwardHook = Callable[..., object]
 
 
@@ -16,6 +17,20 @@ def remove_hook_handles(handles: Iterable[HookHandle]) -> None:
     """Remove all registered hook handles."""
     for handle in handles:
         handle.remove()
+
+
+def run_with_forward_hooks(
+    *,
+    attach: Callable[[], Iterable[HookHandle]],
+    remove: Callable[[Iterable[HookHandle]], None],
+    body: Callable[[], ResultT],
+) -> ResultT:
+    """Run ``body`` with attached forward hooks and always remove them."""
+    handles = attach()
+    try:
+        return body()
+    finally:
+        remove(handles)
 
 
 def iter_child_modules_of_type(
@@ -141,4 +156,5 @@ __all__ = [
     "register_named_forward_hook_groups",
     "register_named_forward_hooks",
     "remove_hook_handles",
+    "run_with_forward_hooks",
 ]
