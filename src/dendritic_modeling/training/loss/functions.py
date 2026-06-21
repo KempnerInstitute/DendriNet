@@ -340,16 +340,23 @@ class VoltageStabilizationLoss(ForwardHookRemovalMixin, LossFunction):
         handles = []
         try:
             for module in iter_modules_of_type(model, DendriticBranchLayer):
-                if self.stabilize_mode == "gate_occupancy" and not isinstance(
-                    module.reactivation, ParametricActivation
-                ):
-                    continue
-                handle = module.reactivation.register_forward_hook(self.forward_hook)
-                handles.append(handle)
+                if self._should_hook_reactivation(module):
+                    handles.append(self._register_reactivation_hook(module))
             return handles
         except Exception:
             self.remove_forward_hooks(handles)
             raise
+
+    def _should_hook_reactivation(self, module: DendriticBranchLayer) -> bool:
+        if self.stabilize_mode != "gate_occupancy":
+            return True
+        return isinstance(module.reactivation, ParametricActivation)
+
+    def _register_reactivation_hook(
+        self,
+        module: DendriticBranchLayer,
+    ) -> torch.utils.hooks.RemovableHandle:
+        return module.reactivation.register_forward_hook(self.forward_hook)
 
     def forward_hook(
         self,
@@ -448,22 +455,34 @@ class ExcitationInhibitionBalanceLoss(ForwardHookRemovalMixin, LossFunction):
         handles = []
         try:
             for module in iter_modules_of_type(model, DendriticBranchLayer):
-                if (
-                    module.branch_excitation is not None
-                    and module.branch_inhibition is not None
-                ):
-                    handle = module.branch_excitation.register_forward_hook(
-                        lambda module, inputs, outputs: self.forward_hook(
-                            module, inputs, outputs, "exc"
-                        )
+                handles.extend(self._attach_branch_balance_hooks(module))
+            return handles
+        except Exception:
+            self.remove_forward_hooks(handles)
+            raise
+
+    def _attach_branch_balance_hooks(
+        self,
+        module: DendriticBranchLayer,
+    ) -> list[torch.utils.hooks.RemovableHandle]:
+        handles = []
+        try:
+            if (
+                module.branch_excitation is not None
+                and module.branch_inhibition is not None
+            ):
+                handle = module.branch_excitation.register_forward_hook(
+                    lambda module, inputs, outputs: self.forward_hook(
+                        module, inputs, outputs, "exc"
                     )
-                    handles.append(handle)
-                    handle = module.branch_inhibition.register_forward_hook(
-                        lambda module, inputs, outputs: self.forward_hook(
-                            module, inputs, outputs, "inh"
-                        )
+                )
+                handles.append(handle)
+                handle = module.branch_inhibition.register_forward_hook(
+                    lambda module, inputs, outputs: self.forward_hook(
+                        module, inputs, outputs, "inh"
                     )
-                    handles.append(handle)
+                )
+                handles.append(handle)
             return handles
         except Exception:
             self.remove_forward_hooks(handles)

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Callable, Iterable
+from typing import Any, TypeVar
 
 import torch
 
@@ -17,11 +18,14 @@ from dendritic_modeling.training.strategies.local_learning_gradient_utils import
 from dendritic_modeling.training.strategies.local_learning_pathways import (
     EXCITATORY_TOPK_PATHS,
     INHIBITORY_TOPK_PATHS,
+    TopKGradientPath,
 )
 from dendritic_modeling.training.strategies.local_learning_state import (
     _LayerModulators,
     _PostFactors,
 )
+
+T = TypeVar("T")
 
 
 def _apply_output_modulator(
@@ -111,6 +115,19 @@ def _additive_inhibitory_topk_factor(
     return -e_v
 
 
+def _dispatch_topk_gradient_paths(
+    paths: Iterable[TopKGradientPath],
+    apply_path: Callable[[TopKGradientPath], T | None],
+) -> T | None:
+    """Apply a TopK local-gradient callback to each pathway in order."""
+    first_layer: T | None = None
+    for path_idx, path in enumerate(paths):
+        layer = apply_path(path)
+        if path_idx == 0:
+            first_layer = layer
+    return first_layer
+
+
 class LocalLearningTopKGradientMixin:
     """Gradient writeback for TopK feedforward and recurrent pathways."""
 
@@ -126,9 +143,9 @@ class LocalLearningTopKGradientMixin:
         post_factors: _PostFactors,
     ) -> TopKLinear | None:
         """Apply local gradients to feedforward and recurrent excitatory paths."""
-        exc_layer = None
-        for path_idx, path in enumerate(EXCITATORY_TOPK_PATHS):
-            layer = self._apply_excitatory_topk_local_grad(
+
+        def apply_path(path: TopKGradientPath) -> TopKLinear | None:
+            return self._apply_excitatory_topk_local_grad(
                 rec=rec,
                 module_key=path.module_key,
                 input_key=path.input_key,
@@ -140,9 +157,8 @@ class LocalLearningTopKGradientMixin:
                 batch_size=batch_size,
                 role_synaptic_alignment=modulators.role_synaptic_alignment,
             )
-            if path_idx == 0:
-                exc_layer = layer
-        return exc_layer
+
+        return _dispatch_topk_gradient_paths(EXCITATORY_TOPK_PATHS, apply_path)
 
     def _apply_inhibitory_topk_pathways(
         self,
@@ -156,8 +172,9 @@ class LocalLearningTopKGradientMixin:
         post_factors: _PostFactors,
     ) -> None:
         """Apply local gradients to feedforward and recurrent inhibitory paths."""
-        for path in INHIBITORY_TOPK_PATHS:
-            self._apply_inhibitory_topk_local_grad(
+
+        def apply_path(path: TopKGradientPath) -> TopKLinear | None:
+            return self._apply_inhibitory_topk_local_grad(
                 rec=rec,
                 module_key=path.module_key,
                 input_key=path.input_key,
@@ -173,6 +190,8 @@ class LocalLearningTopKGradientMixin:
                 batch_size=batch_size,
                 role_synaptic_alignment=modulators.role_synaptic_alignment,
             )
+
+        _dispatch_topk_gradient_paths(INHIBITORY_TOPK_PATHS, apply_path)
 
     def _apply_excitatory_topk_local_grad(
         self,

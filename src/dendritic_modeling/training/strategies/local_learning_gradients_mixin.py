@@ -31,6 +31,16 @@ from dendritic_modeling.training.strategies.local_learning_topk_mixin import (
 )
 
 
+def _resolve_stdp_post_signal(
+    rec: dict[str, Any],
+    v_n: torch.Tensor,
+) -> torch.Tensor:
+    post_signal = rec.get("v_out")
+    if isinstance(post_signal, torch.Tensor):
+        return post_signal
+    return v_n
+
+
 class LocalLearningGradientMixin(
     LocalLearningTopKGradientMixin,
     LocalLearningDendriticBlockGradientMixin,
@@ -125,9 +135,7 @@ class LocalLearningGradientMixin(
         if not self._stdp_enabled():
             return
 
-        post_signal = rec.get("v_out")
-        if not isinstance(post_signal, torch.Tensor):
-            post_signal = v_n
+        post_signal = _resolve_stdp_post_signal(rec, v_n)
         self._apply_stdp_pathways(
             rec=rec,
             post_signal=post_signal,
@@ -143,6 +151,7 @@ __all__ = [
     "_normalize_batch_gradient",
     "_reactivation_output_slope",
     "_reduce_batch_mean_gradient",
+    "_resolve_stdp_post_signal",
     "_scale_reactivation_error",
     "_topk_pre_weight_grad",
 ]

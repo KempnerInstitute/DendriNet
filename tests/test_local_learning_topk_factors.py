@@ -9,6 +9,7 @@ from dendritic_modeling.training.strategies.local_learning_topk_mixin import (
     _additive_inhibitory_topk_factor,
     _apply_inhibitory_topk_modulators,
     _conductance_inhibitory_topk_factor,
+    _dispatch_topk_gradient_paths,
 )
 
 
@@ -81,6 +82,26 @@ def test_apply_inhibitory_topk_modulators_preserves_tensor_rho_for_3f():
 
     expected = factor * rho.unsqueeze(0) * branch_scale.unsqueeze(0)
     torch.testing.assert_close(actual, expected)
+
+
+def test_dispatch_topk_gradient_paths_preserves_order_and_first_return():
+    seen = []
+
+    def apply_path(path):
+        seen.append(path.pathway)
+        return f"{path.pathway}-layer"
+
+    actual = _dispatch_topk_gradient_paths(
+        (
+            SimpleNamespace(pathway="exc"),
+            SimpleNamespace(pathway="rec_exc"),
+            SimpleNamespace(pathway="rec_inh"),
+        ),
+        apply_path,
+    )
+
+    assert seen == ["exc", "rec_exc", "rec_inh"]
+    assert actual == "exc-layer"
 
 
 def test_conductance_inhibitory_topk_factor_preserves_formula():

@@ -50,6 +50,7 @@ from dendritic_modeling.training.strategies.local_learning_gradients_mixin impor
     _apply_optional_alignment,
     _factor_pre_weight_grad,
     _reactivation_output_slope,
+    _resolve_stdp_post_signal,
     _scale_reactivation_error,
 )
 from dendritic_modeling.training.strategies.local_learning_state import (
@@ -305,6 +306,15 @@ def test_apply_stdp_local_gradients_uses_recorded_output_signal():
     assert trainer.calls[0]["rec"] is rec
     assert trainer.calls[0]["post_signal"] is v_out
     assert trainer.calls[0]["error_signal"] is error_signal
+
+
+def test_resolve_stdp_post_signal_preserves_recorded_tensor_and_fallback():
+    v_n = torch.ones(2, 3)
+    v_out = torch.full((2, 3), 2.0)
+
+    assert _resolve_stdp_post_signal({"v_out": v_out}, v_n) is v_out
+    assert _resolve_stdp_post_signal({"v_out": "not-a-tensor"}, v_n) is v_n
+    assert _resolve_stdp_post_signal({}, v_n) is v_n
 
 
 def test_apply_stdp_local_gradients_falls_back_to_layer_voltage_and_respects_disable():
