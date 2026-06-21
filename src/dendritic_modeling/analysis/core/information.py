@@ -221,56 +221,30 @@ class InformationAnalyzer(
 
         self._configure_gaussian_fisher_metrics(gaussian_fisher_cfg=gaussian_fisher_cfg)
 
-        runtime_config = _build_information_runtime_config(
+        self._configure_runtime_options(
             params=params,
             compute_cfg=compute_cfg,
         )
-        self.include_vinf = runtime_config.include_vinf
-        self.normalize_mi = runtime_config.normalize_mi
-        if runtime_config.invalid_output_units is not None:
-            self.logger.warning(
-                "Unknown output_units=%r; falling back to 'bits'.",
-                runtime_config.invalid_output_units,
-            )
-        self.output_units = runtime_config.output_units
-        self.verbose = runtime_config.verbose
 
-        granularity_config = _build_information_granularity_config(
+        self._configure_granularity_defaults(
             params=params,
             compute_cfg=compute_cfg,
         )
-        self.computation_level = granularity_config.computation_level
-        self.branch_aggregation = granularity_config.branch_aggregation
-        self.per_neuron_analysis = granularity_config.per_neuron_analysis
-        self.per_einet_analysis = granularity_config.per_einet_analysis
-        self.per_layer_analysis = granularity_config.per_layer_analysis
 
         # Preferred list-based selection of scopes (overrides per_* flags if provided).
         #
         # `views` is a backward-compatible alias for `scopes`.
-        scopes_raw = list(
-            get_config(selection_cfg, "scopes", get_config(params, "scopes", [])) or []
+        self._configure_scope_selection_override(
+            params=params,
+            selection_cfg=selection_cfg,
         )
-        if not scopes_raw:
-            scopes_raw = list(
-                get_config(selection_cfg, "views", get_config(params, "views", []))
-                or []
-            )
-        scope_selection = _parse_information_scope_selection(scopes_raw)
-        if scope_selection is not None:
-            self.per_neuron_analysis = scope_selection.per_neuron_analysis
-            self.per_einet_analysis = scope_selection.per_einet_analysis
-            self.per_layer_analysis = scope_selection.per_layer_analysis
 
-        signal_variant_selection = _build_information_signal_variant_selection(
+        self._configure_signal_variants(
             params=params,
             selection_cfg=selection_cfg,
             compute_cfg=compute_cfg,
             baselines_cfg=baselines_cfg,
         )
-        self.compute_lda_weights = signal_variant_selection.compute_lda_weights
-        self.lda_n_shuffles = signal_variant_selection.lda_n_shuffles
-        self.random_weights_seed = signal_variant_selection.random_weights_seed
 
         if self.verbose:
             self.logger.setLevel(logging.DEBUG)

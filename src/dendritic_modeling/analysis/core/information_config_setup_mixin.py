@@ -8,10 +8,14 @@ from dendritic_modeling.analysis.core.information_config import (
     _build_information_ablation_aligned_config,
     _build_information_estimator_core_config,
     _build_information_gaussian_fisher_config,
+    _build_information_granularity_config,
     _build_information_label_shuffle_null_config,
     _build_information_pid_config,
+    _build_information_runtime_config,
+    _build_information_signal_variant_selection,
     _get_config_value,
     _parse_information_component_selection,
+    _parse_information_scope_selection,
 )
 
 
@@ -137,6 +141,91 @@ class InformationConfigSetupMixin:
             gaussian_fisher_config.gaussian_fisher_mi_transform
         )
         self.gaussian_fisher_eps = gaussian_fisher_config.gaussian_fisher_eps
+
+    def _configure_runtime_options(self, *, params: Any, compute_cfg: Any) -> None:
+        """Assign runtime/reporting options."""
+        runtime_config = _build_information_runtime_config(
+            params=params,
+            compute_cfg=compute_cfg,
+        )
+        self.include_vinf = runtime_config.include_vinf
+        self.normalize_mi = runtime_config.normalize_mi
+        if runtime_config.invalid_output_units is not None:
+            self.logger.warning(
+                "Unknown output_units=%r; falling back to 'bits'.",
+                runtime_config.invalid_output_units,
+            )
+        self.output_units = runtime_config.output_units
+        self.verbose = runtime_config.verbose
+
+    def _configure_granularity_defaults(
+        self,
+        *,
+        params: Any,
+        compute_cfg: Any,
+    ) -> None:
+        """Assign granularity and enhanced-view defaults."""
+        granularity_config = _build_information_granularity_config(
+            params=params,
+            compute_cfg=compute_cfg,
+        )
+        self.computation_level = granularity_config.computation_level
+        self.branch_aggregation = granularity_config.branch_aggregation
+        self.per_neuron_analysis = granularity_config.per_neuron_analysis
+        self.per_einet_analysis = granularity_config.per_einet_analysis
+        self.per_layer_analysis = granularity_config.per_layer_analysis
+
+    def _configure_scope_selection_override(
+        self,
+        *,
+        params: Any,
+        selection_cfg: Any,
+    ) -> None:
+        """Apply selection.scopes/views overrides to per-view flags."""
+        scopes_raw = list(
+            _get_config_value(
+                selection_cfg,
+                "scopes",
+                _get_config_value(params, "scopes", []),
+            )
+            or []
+        )
+        if not scopes_raw:
+            scopes_raw = list(
+                _get_config_value(
+                    selection_cfg,
+                    "views",
+                    _get_config_value(params, "views", []),
+                )
+                or []
+            )
+
+        scope_selection = _parse_information_scope_selection(scopes_raw)
+        if scope_selection is None:
+            return
+
+        self.per_neuron_analysis = scope_selection.per_neuron_analysis
+        self.per_einet_analysis = scope_selection.per_einet_analysis
+        self.per_layer_analysis = scope_selection.per_layer_analysis
+
+    def _configure_signal_variants(
+        self,
+        *,
+        params: Any,
+        selection_cfg: Any,
+        compute_cfg: Any,
+        baselines_cfg: Any,
+    ) -> None:
+        """Assign LDA and random-weight signal variant settings."""
+        signal_variant_selection = _build_information_signal_variant_selection(
+            params=params,
+            selection_cfg=selection_cfg,
+            compute_cfg=compute_cfg,
+            baselines_cfg=baselines_cfg,
+        )
+        self.compute_lda_weights = signal_variant_selection.compute_lda_weights
+        self.lda_n_shuffles = signal_variant_selection.lda_n_shuffles
+        self.random_weights_seed = signal_variant_selection.random_weights_seed
 
 
 __all__ = ["InformationConfigSetupMixin"]
