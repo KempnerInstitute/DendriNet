@@ -199,61 +199,28 @@ class InformationMutualInformationMixin(InformationValidationMixin):
         self.logger.debug("  Pairwise MI computation completed.")
         return metrics
 
-    def _compute_conditional_mi(
+    def _add_ablation_aligned_conditional_metrics(
         self,
+        metrics: dict[str, float],
         E: np.ndarray,
         I_var: np.ndarray,
         Vout: np.ndarray,
-        C: np.ndarray,
-        Vinf: np.ndarray | None = None,
-        Vb: np.ndarray | None = None,
-    ) -> dict[str, float]:
-        """Compute conditional mutual information given C."""
-        self.logger.debug(
-            "Computing conditional MI metrics (conditioned on class labels)..."
-        )
-        metrics = {}
-        C_col = C.reshape(-1, 1)
-
+        C_col: np.ndarray,
+        Vb: np.ndarray | None,
+    ) -> None:
+        """Append ablation-aligned conditional MI metrics in legacy order."""
+        # One-sided conditional class information in the dendritic output.
+        # These are useful for interaction-information identities such as
+        # I(Vout;C) - I(Vout;C|E) = I(E;Vout) - I(E;Vout|C).
         self._add_cmi_metrics(
             metrics,
             [
-                ("I(E;I|C)", E, I_var, C_col),
-                ("I(E;Vout|C)", E, Vout, C_col),
-                ("I(I;Vout|C)", I_var, Vout, C_col),
+                ("I(Vout;C|E)", Vout, C_col, E),
+                ("I(Vout;C|I)", Vout, C_col, I_var),
             ],
         )
 
         if Vb is not None:
-            self._add_cmi_metrics(
-                metrics,
-                [
-                    ("I(E;Vb|C)", E, Vb, C_col),
-                    ("I(I;Vb|C)", I_var, Vb, C_col),
-                    ("I(Vb;Vout|C)", Vb, Vout, C_col),
-                ],
-            )
-
-        # ------------------------------------------------------------------
-        # Ablation-aligned conditional MI proxies
-        #
-        # These measure *unique* class information that each component provides
-        # beyond other components, which is often closer to what layer ablations
-        # probe than raw I(E;C) / I(I;C).
-        # ------------------------------------------------------------------
-        if self.compute_ablation_aligned_mi:
-            # One-sided conditional class information in the dendritic output.
-            # These are useful for interaction-information identities such as
-            # I(Vout;C) - I(Vout;C|E) = I(E;Vout) - I(E;Vout|C).
-            self._add_cmi_metrics(
-                metrics,
-                [
-                    ("I(Vout;C|E)", Vout, C_col, E),
-                    ("I(Vout;C|I)", Vout, C_col, I_var),
-                ],
-            )
-
-        if self.compute_ablation_aligned_mi and Vb is not None:
             # How much class info is present in the layer output beyond upstream input
             # Complement: how much upstream class information is *not* reflected in the layer output
             # (helps interpret upstream vs synapse contributions).
@@ -317,40 +284,112 @@ class InformationMutualInformationMixin(InformationValidationMixin):
                 metrics,
                 [("I(I;C|E,Vb)", I_var, C_col, np.hstack([E, Vb]))],
             )
-        elif self.compute_ablation_aligned_mi:
-            # No upstream branch input (outermost layer): still compute unique info between E and I
-            # Information-processing conditionals without upstream input.
+            return
+
+        # No upstream branch input (outermost layer): still compute unique info between E and I
+        # Information-processing conditionals without upstream input.
+        self._add_cmi_metrics(
+            metrics,
+            [
+                ("I(E;C|I)", E, C_col, I_var),
+                ("I(I;C|E)", I_var, C_col, E),
+                ("I(E;Vout|I)", E, Vout, I_var),
+                ("I(I;Vout|E)", I_var, Vout, E),
+            ],
+        )
+
+        EI = np.hstack([E, I_var])
+        self._add_cmi_metrics(metrics, [("I(Vout;C|E,I)", Vout, C_col, EI)])
+
+    def _add_vinf_conditional_metrics(
+        self,
+        metrics: dict[str, float],
+        E: np.ndarray,
+        I_var: np.ndarray,
+        Vout: np.ndarray,
+        C_col: np.ndarray,
+        Vinf: np.ndarray,
+    ) -> None:
+        """Append soma-activation conditional MI metrics in legacy order."""
+        self._add_cmi_metrics(
+            metrics,
+            [
+                ("I(E;Vinf|C)", E, Vinf, C_col),
+                ("I(I;Vinf|C)", I_var, Vinf, C_col),
+            ],
+        )
+
+        # Somatic processing conditionals (low-dimensional and useful for "Vout -> Vinf -> C" chain).
+        if self.compute_ablation_aligned_mi:
             self._add_cmi_metrics(
                 metrics,
                 [
-                    ("I(E;C|I)", E, C_col, I_var),
-                    ("I(I;C|E)", I_var, C_col, E),
-                    ("I(E;Vout|I)", E, Vout, I_var),
-                    ("I(I;Vout|E)", I_var, Vout, E),
+                    ("I(Vinf;C|Vout)", Vinf, C_col, Vout),
+                    ("I(Vout;C|Vinf)", Vout, C_col, Vinf),
                 ],
             )
 
-            EI = np.hstack([E, I_var])
-            self._add_cmi_metrics(metrics, [("I(Vout;C|E,I)", Vout, C_col, EI)])
+    def _compute_conditional_mi(
+        self,
+        E: np.ndarray,
+        I_var: np.ndarray,
+        Vout: np.ndarray,
+        C: np.ndarray,
+        Vinf: np.ndarray | None = None,
+        Vb: np.ndarray | None = None,
+    ) -> dict[str, float]:
+        """Compute conditional mutual information given C."""
+        self.logger.debug(
+            "Computing conditional MI metrics (conditioned on class labels)..."
+        )
+        metrics = {}
+        C_col = C.reshape(-1, 1)
+
+        self._add_cmi_metrics(
+            metrics,
+            [
+                ("I(E;I|C)", E, I_var, C_col),
+                ("I(E;Vout|C)", E, Vout, C_col),
+                ("I(I;Vout|C)", I_var, Vout, C_col),
+            ],
+        )
+
+        if Vb is not None:
+            self._add_cmi_metrics(
+                metrics,
+                [
+                    ("I(E;Vb|C)", E, Vb, C_col),
+                    ("I(I;Vb|C)", I_var, Vb, C_col),
+                    ("I(Vb;Vout|C)", Vb, Vout, C_col),
+                ],
+            )
+
+        # ------------------------------------------------------------------
+        # Ablation-aligned conditional MI proxies
+        #
+        # These measure *unique* class information that each component provides
+        # beyond other components, which is often closer to what layer ablations
+        # probe than raw I(E;C) / I(I;C).
+        # ------------------------------------------------------------------
+        if self.compute_ablation_aligned_mi:
+            self._add_ablation_aligned_conditional_metrics(
+                metrics,
+                E,
+                I_var,
+                Vout,
+                C_col,
+                Vb,
+            )
 
         if Vinf is not None and self.include_vinf:
-            self._add_cmi_metrics(
+            self._add_vinf_conditional_metrics(
                 metrics,
-                [
-                    ("I(E;Vinf|C)", E, Vinf, C_col),
-                    ("I(I;Vinf|C)", I_var, Vinf, C_col),
-                ],
+                E,
+                I_var,
+                Vout,
+                C_col,
+                Vinf,
             )
-
-            # Somatic processing conditionals (low-dimensional and useful for "Vout -> Vinf -> C" chain).
-            if self.compute_ablation_aligned_mi:
-                self._add_cmi_metrics(
-                    metrics,
-                    [
-                        ("I(Vinf;C|Vout)", Vinf, C_col, Vout),
-                        ("I(Vout;C|Vinf)", Vout, C_col, Vinf),
-                    ],
-                )
 
         self.logger.debug("  Conditional MI computation completed.")
         return metrics

@@ -394,6 +394,14 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
                 branch_layer.set_forward_dynamic_grad_scaling(True)
             self.branch_layers.append(branch_layer)
 
+        self.synapse_config = common_synapse_config
+        self.synapse_configs = tuple(
+            branch_layer.synapse_config for branch_layer in self.branch_layers
+        )
+        self.branch_configs = tuple(
+            branch_layer.branch_config for branch_layer in self.branch_layers
+        )
+
     @property
     def n_soma(self) -> int:
         return self._n_soma

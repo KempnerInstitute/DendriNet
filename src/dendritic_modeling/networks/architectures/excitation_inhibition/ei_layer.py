@@ -314,6 +314,28 @@ class ExcitationInhibitionLayer(nn.Module):
                 **dendrinet_extra_kwargs,
             )
 
+        self.synapse_config = common_synapse_config
+        self.excitatory_synapse_config = getattr(
+            self.excitatory_cells,
+            "synapse_config",
+            common_synapse_config,
+        )
+        self.inhibitory_synapse_config = getattr(
+            self.inhibitory_cells,
+            "synapse_config",
+            None,
+        )
+        self.excitatory_branch_configs = getattr(
+            self.excitatory_cells,
+            "branch_configs",
+            (),
+        )
+        self.inhibitory_branch_configs = getattr(
+            self.inhibitory_cells,
+            "branch_configs",
+            (),
+        )
+
     def decay_weights(self, weight_decay: float, weight_boosting=False):
         if self.inhibitory_cells is not None and hasattr(
             self.inhibitory_cells, "decay_weights"

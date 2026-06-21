@@ -1,12 +1,14 @@
 import pytest
 import torch
 
+from dendritic_modeling.config import TransferFunctionConfig
 from dendritic_modeling.networks import (
     AdaptiveInitConfig,
     DeepSTConfig,
     DendriticBranchConfig,
     DendriticSynapseConfig,
     DenseToSparseConfig,
+    ExcitationInhibitionNetwork,
     IndexedSynapseConfig,
     MorphologyConfig,
     ReactivationConfig,
@@ -583,11 +585,38 @@ def test_ei_layer_typed_config_matches_legacy_kwargs_numerically():
         **geometry_kwargs,
         **legacy_synapse_kwargs,
     )
+    provided_synapse_config = DendriticSynapseConfig.from_kwargs(legacy_synapse_kwargs)
     torch.manual_seed(456)
     typed_layer = ExcitationInhibitionLayer(
         **geometry_kwargs,
-        synapse_config=DendriticSynapseConfig.from_kwargs(legacy_synapse_kwargs),
+        synapse_config=provided_synapse_config,
     )
+
+    assert typed_layer.synapse_config is provided_synapse_config
+    assert (
+        legacy_layer.excitatory_synapse_config.to_kwargs()
+        == legacy_layer.excitatory_cells.synapse_config.to_kwargs()
+    )
+    assert (
+        legacy_layer.inhibitory_synapse_config.to_kwargs()
+        == legacy_layer.inhibitory_cells.synapse_config.to_kwargs()
+    )
+    assert (
+        typed_layer.excitatory_synapse_config.to_kwargs()
+        == typed_layer.excitatory_cells.synapse_config.to_kwargs()
+    )
+    assert (
+        typed_layer.inhibitory_synapse_config.to_kwargs()
+        == typed_layer.inhibitory_cells.synapse_config.to_kwargs()
+    )
+    assert [cfg.to_kwargs() for cfg in typed_layer.excitatory_branch_configs] == [
+        layer.branch_config.to_kwargs()
+        for layer in typed_layer.excitatory_cells.branch_layers
+    ]
+    assert [cfg.to_kwargs() for cfg in typed_layer.inhibitory_branch_configs] == [
+        layer.branch_config.to_kwargs()
+        for layer in typed_layer.inhibitory_cells.branch_layers
+    ]
 
     _assert_state_dict_exact(legacy_layer.state_dict(), typed_layer.state_dict())
 
@@ -598,6 +627,73 @@ def test_ei_layer_typed_config_matches_legacy_kwargs_numerically():
 
     torch.testing.assert_close(legacy_exc, typed_exc, rtol=0.0, atol=0.0)
     torch.testing.assert_close(legacy_inh, typed_inh, rtol=0.0, atol=0.0)
+
+
+def test_ei_network_typed_config_metadata_matches_layers_numerically():
+    geometry_kwargs = {
+        "input_dim": 6,
+        "transfer_params": TransferFunctionConfig(input_mode=0).asdict(),
+        "excitatory_layer_sizes": [4, 3],
+        "inhibitory_layer_sizes": [3, 2],
+        "excitatory_branch_factors": [1],
+        "inhibitory_branch_factors": [1],
+        "ee_synapses_per_branch_per_layer": [2, 2],
+        "ei_synapses_per_branch_per_layer": [2, 1],
+        "ie_synapses_per_branch_per_layer": [1, 1],
+        "ii_synapses_per_branch_per_layer": [1, 1],
+        "somatic_synapses": True,
+    }
+    legacy_synapse_kwargs = {
+        "topk_type": "standard",
+        "topk_init_method": "xavier_normal",
+        "topk_gamma": 0.8,
+        "reactivate": False,
+        "use_shunting": False,
+        "weight_transform": "softplus",
+        "dbl_init_method": "default",
+        "adaptive_initialization": False,
+    }
+
+    torch.manual_seed(654)
+    legacy_net = ExcitationInhibitionNetwork(
+        **geometry_kwargs,
+        **legacy_synapse_kwargs,
+    )
+    provided_synapse_config = DendriticSynapseConfig.from_kwargs(legacy_synapse_kwargs)
+    torch.manual_seed(654)
+    typed_net = ExcitationInhibitionNetwork(
+        **geometry_kwargs,
+        synapse_config=provided_synapse_config,
+    )
+
+    assert typed_net.synapse_configs == tuple(
+        layer.synapse_config for layer in typed_net.layers
+    )
+    assert typed_net.excitatory_synapse_configs == tuple(
+        layer.excitatory_synapse_config for layer in typed_net.layers
+    )
+    assert typed_net.inhibitory_synapse_configs == tuple(
+        layer.inhibitory_synapse_config for layer in typed_net.layers
+    )
+    assert typed_net.excitatory_branch_configs == tuple(
+        tuple(layer.excitatory_branch_configs) for layer in typed_net.layers
+    )
+    assert typed_net.inhibitory_branch_configs == tuple(
+        tuple(layer.inhibitory_branch_configs) for layer in typed_net.layers
+    )
+    assert [cfg.to_kwargs() for cfg in typed_net.branch_configs] == [
+        layer.branch_config.to_kwargs() for layer in typed_net.branch_layers
+    ]
+
+    _assert_state_dict_exact(legacy_net.state_dict(), typed_net.state_dict())
+
+    x = torch.rand(5, 6)
+    torch.testing.assert_close(
+        legacy_net(x),
+        typed_net(x),
+        rtol=0.0,
+        atol=0.0,
+    )
 
 
 def test_dendrinet_passes_legacy_synapse_kwargs_through_typed_config():

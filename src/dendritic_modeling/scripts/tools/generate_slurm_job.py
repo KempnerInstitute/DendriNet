@@ -18,6 +18,7 @@ from omegaconf import OmegaConf
 # Add parent directory to path to import dendritic_modeling
 # sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../'))  # to reach root
 # But since in package, imports should work relatively
+from dendritic_modeling.datasets.dimensions import dataset_input_shape
 from dendritic_modeling.utils.gpu_estimation import estimate_from_config
 
 # Cluster specifications (limits - what's available, not what to request)
@@ -28,6 +29,15 @@ CLUSTER_LIMITS = {
     "max_memory_per_node_gb": 1200,  # Support 4 GPUs * 300GB
     "max_cpus_per_gpu": 25,  # Reasonable ratio
 }
+
+
+def _job_input_shape(dataset_name: str | None) -> tuple[int, ...]:
+    """Return the flat input shape used by SLURM resource estimation."""
+    return dataset_input_shape(
+        dataset_name,
+        flatten=True,
+        default_input_dim=784,
+    )
 
 
 class SlurmJobGenerator:
@@ -142,13 +152,7 @@ class SlurmJobGenerator:
         }
 
     def _get_input_shape(self):
-        shapes = {
-            "mnist": (784,),
-            "cifar10": (3072,),
-            "cifar100": (3072,),
-            "imagenet": (150528,),
-        }
-        return shapes.get(self.dataset, (784,))
+        return _job_input_shape(self.dataset)
 
     def _select_best_gpu(self, gpu_recs):
         # Select the GPU type that requires the fewest GPUs (most efficient)

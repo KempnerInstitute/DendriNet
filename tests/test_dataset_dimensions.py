@@ -10,6 +10,7 @@ def test_dataset_input_shape_preserves_builtin_flat_shapes():
     assert dataset_input_shape("mnist") == (784,)
     assert dataset_input_shape("fashion_mnist") == (784,)
     assert dataset_input_shape("cifar10") == (3072,)
+    assert dataset_input_shape("cifar100") == (3072,)
     assert dataset_input_shape("imagenet", flatten=True) == (150528,)
 
 
@@ -26,6 +27,7 @@ def test_dataset_input_shape_preserves_unknown_fallback_behavior():
 def test_flat_dataset_input_dim_preserves_existing_values():
     assert flat_dataset_input_dim("mnist", default_input_dim=1) == 784
     assert flat_dataset_input_dim("cifar10", default_input_dim=1) == 3072
+    assert flat_dataset_input_dim("cifar100", default_input_dim=1) == 3072
     assert flat_dataset_input_dim("imagenet", default_input_dim=1) == 150528
 
 

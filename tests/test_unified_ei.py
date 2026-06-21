@@ -5,6 +5,9 @@ from omegaconf import OmegaConf
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer import (
     DendriticBranchLayer,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.synapse_config import (
+    DendriticSynapseConfig,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.ei_network import (
     ConfigurableEINetwork,
 )
@@ -49,6 +52,65 @@ def test_stateful_dendrinet_feedforward_shape():
     inh = torch.rand(3, 5)
     y = net(x, inh)
     assert y.shape == (3, 8)
+
+
+def test_stateful_dendrinet_stores_normalized_configs_without_numeric_change():
+    pop = PopulationConfig(
+        n_neurons=5,
+        branch_factors=[2, 1],
+        ff_excitatory_synapses=3,
+        ff_inhibitory_synapses=2,
+        rec_excitatory_synapses=0,
+        rec_inhibitory_synapses=0,
+        reactivate=False,
+        use_shunting=False,
+        use_noise=False,
+        weight_transform="softplus",
+        dbl_init_method="default",
+        adaptive_initialization=False,
+    )
+
+    torch.manual_seed(812)
+    reference = StatefulDendriNet(
+        pop_config=pop,
+        excitatory_input_dim=7,
+        inhibitory_input_dim=4,
+        dt=1.0,
+    )
+    torch.manual_seed(812)
+    net = StatefulDendriNet(
+        pop_config=pop,
+        excitatory_input_dim=7,
+        inhibitory_input_dim=4,
+        dt=1.0,
+    )
+
+    assert (
+        net.synapse_config.to_kwargs()
+        == DendriticSynapseConfig.from_population_config(pop).to_kwargs()
+    )
+    assert net.synapse_configs == tuple(
+        branch_layer.synapse_config for branch_layer in net.branch_layers
+    )
+    assert net.branch_configs == tuple(
+        branch_layer.branch_config for branch_layer in net.branch_layers
+    )
+    assert [cfg.to_kwargs() for cfg in net.branch_configs] == [
+        branch_layer.branch_config.to_kwargs() for branch_layer in net.branch_layers
+    ]
+
+    assert reference.state_dict().keys() == net.state_dict().keys()
+    for key, value in reference.state_dict().items():
+        torch.testing.assert_close(value, net.state_dict()[key], rtol=0.0, atol=0.0)
+
+    x = torch.rand(3, 7)
+    inh = torch.rand(3, 4)
+    torch.testing.assert_close(
+        reference(x, inh),
+        net(x, inh),
+        rtol=0.0,
+        atol=0.0,
+    )
 
 
 def test_stateful_dendrinet_recurrent_step_shape():

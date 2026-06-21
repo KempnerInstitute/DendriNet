@@ -444,6 +444,28 @@ class ExcitationInhibitionNetwork(BaseNetwork):
 
         # Create ModuleList with the layers
         self.layers = nn.ModuleList(layers)
+        self.synapse_configs = tuple(layer.synapse_config for layer in layers)
+        self.excitatory_synapse_configs = tuple(
+            layer.excitatory_synapse_config for layer in layers
+        )
+        self.inhibitory_synapse_configs = tuple(
+            layer.inhibitory_synapse_config for layer in layers
+        )
+        self.excitatory_branch_configs = tuple(
+            tuple(layer.excitatory_branch_configs) for layer in layers
+        )
+        self.inhibitory_branch_configs = tuple(
+            tuple(layer.inhibitory_branch_configs) for layer in layers
+        )
+        self.branch_configs = tuple(
+            branch_config
+            for layer in layers
+            for branch_configs in (
+                layer.excitatory_branch_configs,
+                layer.inhibitory_branch_configs,
+            )
+            for branch_config in branch_configs
+        )
 
         # Optional torch.compile acceleration. Keep this opt-in because
         # Inductor caches can be fragile on shared filesystems and in tests.
