@@ -532,6 +532,107 @@ def _resolve_main_training_settings(main_train_config) -> _MainTrainingSettings:
     )
 
 
+def _install_encoder_network(unwrapped_model, encoder_network) -> None:
+    """Install the post-pretraining encoder on the unwrapped model."""
+    if isinstance(encoder_network, Identity):
+        unwrapped_model.encoder_network = encoder_network
+    elif hasattr(encoder_network, "encoder"):
+        unwrapped_model.encoder_network = Identity(encoder_network.encoder.output_dim)
+    else:
+        unwrapped_model.encoder_network = encoder_network
+
+
+def _record_model_size_summary(unwrapped_model, config, run_save_path: str) -> int:
+    """Persist model size metadata and log size-based configuration suggestions."""
+    nparams = sum(p.numel() for p in unwrapped_model.parameters())
+    if wandb.run is not None:
+        wandb.log({"nparams": nparams})
+    save_dict({"nparams": nparams}, run_save_path, "nparams")
+
+    suggestions = suggest_optimal_config_for_model_size(nparams)
+    if suggestions:
+        logger.info(
+            f"=== MODEL SIZE RECOMMENDATIONS (Model has {nparams:,} parameters) ==="
+        )
+        for key, value in suggestions.items():
+            current_value = getattr(config.training, key, "Not available")
+            if current_value != value:
+                logger.info(f"  Consider: {key} = {value} (current: {current_value})")
+        logger.info("=" * 50)
+
+    return nparams
+
+
+def _load_or_train_encoder_datasets(
+    *,
+    encoder_network,
+    training_config,
+    model_config,
+    data_config,
+    train_ds,
+    valid_ds,
+    test_ds,
+    world_size: int,
+    is_main: bool,
+):
+    """Load/train the encoder and return encoded datasets with DDP serialization."""
+    loader_kwargs = {
+        "encoder_network": encoder_network,
+        "encoder_train_config": training_config.encoder,
+        "train_ds": train_ds,
+        "valid_ds": valid_ds,
+        "test_ds": test_ds,
+        "encoder_network_config": model_config.encoder,
+        "task_config": data_config,
+    }
+
+    if world_size > 1 and isinstance(encoder_network, BaseAutoencoder):
+        if is_main:
+            encoded = load_train_encoder_network(**loader_kwargs)
+        dist.barrier()  # wait for rank 0 to finish training/saving
+        if not is_main:
+            # Rank 0 has saved a checkpoint; non-rank-0 will find it and
+            # skip training, just load + encode.
+            encoded = load_train_encoder_network(**loader_kwargs)
+        return encoded
+
+    return load_train_encoder_network(**loader_kwargs)
+
+
+def _maybe_plot_multistage_training_performance(
+    *,
+    strategy: str,
+    analysis_config,
+    run_save_path: str,
+    main_train_config,
+    common_epochs: int,
+    analysis_manager,
+) -> None:
+    """Plot multi-stage training performance when epoch traces are available."""
+    if strategy != "multi_stage":
+        return
+    if not analysis_config.performance_analysis.training:
+        return
+
+    performance_dir = os.path.join(run_save_path, "performance", "epochs")
+    if not os.path.exists(performance_dir):
+        return
+
+    try:
+        multi_stage = main_train_config.strategies.multi_stage
+        stages = multi_stage.stages
+        total_epochs = sum(getattr(stage, "epochs", common_epochs) for stage in stages)
+        plotter = PerformancePlotter()
+        plotter.plot_performance_evolution(
+            performance_dir=performance_dir,
+            save_path=os.path.join(run_save_path, "performance"),
+            pruning_performance=getattr(analysis_manager, "pruning_results", None),
+            final_epoch=total_epochs,
+        )
+    except Exception as e:
+        logger.error(f"Failed to generate performance plots: {e}")
+
+
 def main(config_path: str, args=None):
     rank, local_rank, world_size = setup_distributed()
     is_main = rank == 0
@@ -693,46 +794,19 @@ def main(config_path: str, args=None):
     # Under DDP, autoencoder pretraining must be serialized: rank 0
     # trains and saves the checkpoint, other ranks wait then load it.
     # Identity and non-autoencoder encoders are safe on all ranks.
-    if world_size > 1 and isinstance(encoder_network, BaseAutoencoder):
-        if is_main:
-            encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds = (
-                load_train_encoder_network(
-                    encoder_network=encoder_network,
-                    encoder_train_config=training_config.encoder,
-                    train_ds=train_ds,
-                    valid_ds=valid_ds,
-                    test_ds=test_ds,
-                    encoder_network_config=model_config.encoder,
-                    task_config=data_config,
-                )
-            )
-        dist.barrier()  # wait for rank 0 to finish training/saving
-        if not is_main:
-            # Rank 0 has saved a checkpoint; non-rank-0 will find it and
-            # skip training, just load + encode.
-            encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds = (
-                load_train_encoder_network(
-                    encoder_network=encoder_network,
-                    encoder_train_config=training_config.encoder,
-                    train_ds=train_ds,
-                    valid_ds=valid_ds,
-                    test_ds=test_ds,
-                    encoder_network_config=model_config.encoder,
-                    task_config=data_config,
-                )
-            )
-    else:
-        encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds = (
-            load_train_encoder_network(
-                encoder_network=encoder_network,
-                encoder_train_config=training_config.encoder,
-                train_ds=train_ds,
-                valid_ds=valid_ds,
-                test_ds=test_ds,
-                encoder_network_config=model_config.encoder,
-                task_config=data_config,
-            )
+    encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds = (
+        _load_or_train_encoder_datasets(
+            encoder_network=encoder_network,
+            training_config=training_config,
+            model_config=model_config,
+            data_config=data_config,
+            train_ds=train_ds,
+            valid_ds=valid_ds,
+            test_ds=test_ds,
+            world_size=world_size,
+            is_main=is_main,
         )
+    )
 
     encoded_data = {
         "train": encoded_train_ds,
@@ -749,12 +823,7 @@ def main(config_path: str, args=None):
 
     # Replace encoder on the unwrapped model so the change is visible
     # through the DDP wrapper (which delegates to model.module).
-    if isinstance(encoder_network, Identity):
-        unwrapped_model.encoder_network = encoder_network
-    elif hasattr(encoder_network, "encoder"):
-        unwrapped_model.encoder_network = Identity(encoder_network.encoder.output_dim)
-    else:
-        unwrapped_model.encoder_network = encoder_network
+    _install_encoder_network(unwrapped_model, encoder_network)
 
     # Optional post-hoc empirical calibration of the reactivation (m, b).
     # Triggered when model.core.reactivation.init_policy == "empirical".
@@ -822,49 +891,19 @@ def main(config_path: str, args=None):
     )
 
     if is_main:
-        nparams = sum(p.numel() for p in unwrapped_model.parameters())
-        if wandb.run is not None:
-            wandb.log({"nparams": nparams})
-        save_dict({"nparams": nparams}, run_save_path, "nparams")
-
-        suggestions = suggest_optimal_config_for_model_size(nparams)
-        if suggestions:
-            logger.info(
-                f"=== MODEL SIZE RECOMMENDATIONS (Model has {nparams:,} parameters) ==="
-            )
-            for key, value in suggestions.items():
-                current_value = getattr(config.training, key, "Not available")
-                if current_value != value:
-                    logger.info(
-                        f"  Consider: {key} = {value} (current: {current_value})"
-                    )
-            logger.info("=" * 50)
+        _record_model_size_summary(unwrapped_model, config, run_save_path)
 
     # Run analysis if enabled (rank 0 only)
     if is_main:
         any_analysis_enabled = analysis_config.any_enabled()
-
-        if strategy == "multi_stage":
-            if analysis_config.performance_analysis.training:
-                performance_dir = os.path.join(run_save_path, "performance", "epochs")
-                if os.path.exists(performance_dir):
-                    try:
-                        multi_stage = main_train_config.strategies.multi_stage
-                        stages = multi_stage.stages
-                        total_epochs = sum(
-                            getattr(stage, "epochs", common_epochs) for stage in stages
-                        )
-                        plotter = PerformancePlotter()
-                        plotter.plot_performance_evolution(
-                            performance_dir=performance_dir,
-                            save_path=os.path.join(run_save_path, "performance"),
-                            pruning_performance=getattr(
-                                analysis_manager, "pruning_results", None
-                            ),
-                            final_epoch=total_epochs,
-                        )
-                    except Exception as e:
-                        logger.error(f"Failed to generate performance plots: {e}")
+        _maybe_plot_multistage_training_performance(
+            strategy=strategy,
+            analysis_config=analysis_config,
+            run_save_path=run_save_path,
+            main_train_config=main_train_config,
+            common_epochs=common_epochs,
+            analysis_manager=analysis_manager,
+        )
 
     # Now apply pruning if enabled (separate step)
     if original_pruning_config and original_pruning_config.get("enabled", False):

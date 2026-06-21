@@ -621,6 +621,28 @@ def _encode_rank0_analysis_datasets(
     )
 
 
+def _prepare_rank_analysis_datasets(
+    *,
+    rank: int,
+    model,
+    config,
+    train_ds,
+    valid_ds,
+    test_ds,
+):
+    """Return encoded analysis datasets on rank 0 and placeholders elsewhere."""
+    if rank == 0:
+        return _encode_rank0_analysis_datasets(
+            model=model,
+            config=config,
+            train_ds=train_ds,
+            valid_ds=valid_ds,
+            test_ds=test_ds,
+        )
+
+    return Identity(1), None, None, None
+
+
 class _FSDPLoaderTuningDataset(Dataset):
     """Placeholder used only for backwards-compatible helper calls."""
 
@@ -782,19 +804,16 @@ def main(config_path):
     # To pretrain an autoencoder encoder, run it *before* FSDP
     # training with the standard single-GPU script, then point
     # the config at the saved checkpoint.
-    if rank == 0:
-        encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds = (
-            _encode_rank0_analysis_datasets(
-                model=model,
-                config=config,
-                train_ds=train_ds,
-                valid_ds=valid_ds,
-                test_ds=test_ds,
-            )
+    encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds = (
+        _prepare_rank_analysis_datasets(
+            rank=rank,
+            model=model,
+            config=config,
+            train_ds=train_ds,
+            valid_ds=valid_ds,
+            test_ds=test_ds,
         )
-    else:
-        encoded_train_ds = encoded_valid_ds = encoded_test_ds = None
-        encoder_network = Identity(1)
+    )
 
     # Generate detailed parameter summary with real sample input
     if rank == 0:  # Only on rank 0 to avoid duplicate output

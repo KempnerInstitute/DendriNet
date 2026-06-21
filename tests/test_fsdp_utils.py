@@ -25,6 +25,7 @@ from dendritic_modeling.scripts.training.train_experiments_fsdp import (
     _dataloader_kwargs_from_common,
     _encode_rank0_analysis_datasets,
     _maybe_calibrate_fsdp_data_driven_reactivation,
+    _prepare_rank_analysis_datasets,
     _print_rank0_model_summary,
     _requested_data_driven_reactivation_policies,
     _resolve_large_model_input_dim,
@@ -458,6 +459,69 @@ def test_encode_rank0_analysis_datasets_skips_base_autoencoder(monkeypatch):
     )
 
     assert result == (encoder, train_ds, valid_ds, test_ds)
+
+
+def test_prepare_rank_analysis_datasets_rank0_delegates_to_encoder(monkeypatch):
+    """Rank 0 should prepare real encoded datasets for analysis."""
+    model = object()
+    config = object()
+    train_ds = object()
+    valid_ds = object()
+    test_ds = object()
+    result = (object(), object(), object(), object())
+    calls = []
+
+    monkeypatch.setattr(
+        fsdp_script,
+        "_encode_rank0_analysis_datasets",
+        lambda **kwargs: calls.append(kwargs) or result,
+    )
+
+    prepared = _prepare_rank_analysis_datasets(
+        rank=0,
+        model=model,
+        config=config,
+        train_ds=train_ds,
+        valid_ds=valid_ds,
+        test_ds=test_ds,
+    )
+
+    assert prepared is result
+    assert calls == [
+        {
+            "model": model,
+            "config": config,
+            "train_ds": train_ds,
+            "valid_ds": valid_ds,
+            "test_ds": test_ds,
+        }
+    ]
+
+
+def test_prepare_rank_analysis_datasets_non_rank0_returns_placeholders(monkeypatch):
+    """Non-rank-0 processes should not encode analysis datasets."""
+    monkeypatch.setattr(
+        fsdp_script,
+        "_encode_rank0_analysis_datasets",
+        lambda **kwargs: pytest.fail("non-rank-0 should not encode datasets"),
+    )
+
+    encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds = (
+        _prepare_rank_analysis_datasets(
+            rank=1,
+            model=object(),
+            config=object(),
+            train_ds=object(),
+            valid_ds=object(),
+            test_ds=object(),
+        )
+    )
+
+    assert isinstance(encoder_network, fsdp_script.Identity)
+    assert encoder_network.output_dim == 1
+    assert encoded_train_ds is None
+    assert encoded_valid_ds is None
+    assert encoded_test_ds is None
 
 
 def test_print_rank0_model_summary_uses_sample_input(monkeypatch):
