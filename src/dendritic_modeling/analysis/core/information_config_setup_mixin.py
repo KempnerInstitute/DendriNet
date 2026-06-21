@@ -5,8 +5,13 @@ from __future__ import annotations
 from typing import Any
 
 from dendritic_modeling.analysis.core.information_config import (
+    _build_information_ablation_aligned_config,
     _build_information_estimator_core_config,
+    _build_information_gaussian_fisher_config,
     _build_information_label_shuffle_null_config,
+    _build_information_pid_config,
+    _get_config_value,
+    _parse_information_component_selection,
 )
 
 
@@ -46,6 +51,92 @@ class InformationConfigSetupMixin:
         self.mi_null_shuffles = label_shuffle_null.mi_null_shuffles
         self.mi_null_seed = label_shuffle_null.mi_null_seed
         self.mi_null_components = label_shuffle_null.mi_null_components
+
+    def _configure_legacy_component_selection(self, *, params: Any) -> None:
+        """Assign legacy flat compute_* component flags."""
+        self.compute_basic_mi = bool(getattr(params, "compute_basic_mi", False))
+        self.compute_pairwise_mi = bool(getattr(params, "compute_pairwise_mi", False))
+        self.compute_conditional_mi = bool(
+            getattr(params, "compute_conditional_mi", False)
+        )
+        self.compute_pid = bool(getattr(params, "compute_pid", False))
+        self.compute_gaussian_fisher = False
+
+    def _configure_pid_preprocessing(self, *, params: Any, pid_cfg: Any) -> None:
+        """Assign PID preprocessing parameters."""
+        pid_config = _build_information_pid_config(params=params, pid_cfg=pid_cfg)
+        self.pid_binarize = pid_config.pid_binarize
+        self.pid_binarize_method = pid_config.pid_binarize_method
+        self.pid_binarize_threshold = pid_config.pid_binarize_threshold
+
+    def _configure_ablation_aligned_metrics(
+        self,
+        *,
+        params: Any,
+        compute_cfg: Any,
+    ) -> None:
+        """Assign ablation-aligned metric parameters."""
+        ablation_aligned_config = _build_information_ablation_aligned_config(
+            params=params,
+            compute_cfg=compute_cfg,
+        )
+        self.compute_ablation_aligned_mi = (
+            ablation_aligned_config.compute_ablation_aligned_mi
+        )
+        self.compute_upstream_unique_cmi = (
+            ablation_aligned_config.compute_upstream_unique_cmi
+        )
+        self.compute_layer_total_proxies = (
+            ablation_aligned_config.compute_layer_total_proxies
+        )
+        self.layer_total_topk = ablation_aligned_config.layer_total_topk
+
+    def _configure_component_selection_override(
+        self,
+        *,
+        params: Any,
+        selection_cfg: Any,
+    ) -> None:
+        """Apply selection.components overrides to legacy component flags."""
+        components_raw = list(
+            _get_config_value(
+                selection_cfg,
+                "components",
+                _get_config_value(params, "components", []),
+            )
+            or []
+        )
+        component_selection = _parse_information_component_selection(components_raw)
+        if component_selection is None:
+            return
+
+        self.compute_basic_mi = component_selection.compute_basic_mi
+        self.compute_pairwise_mi = component_selection.compute_pairwise_mi
+        self.compute_conditional_mi = component_selection.compute_conditional_mi
+        self.compute_pid = component_selection.compute_pid
+        self.compute_gaussian_fisher = component_selection.compute_gaussian_fisher
+        self.compute_ablation_aligned_mi = (
+            component_selection.compute_ablation_aligned_mi
+        )
+        self.compute_layer_total_proxies = (
+            component_selection.compute_layer_total_proxies
+        )
+        self.compute_upstream_unique_cmi = (
+            component_selection.compute_upstream_unique_cmi
+        )
+
+    def _configure_gaussian_fisher_metrics(self, *, gaussian_fisher_cfg: Any) -> None:
+        """Assign Gaussian/Fisher proxy parameters."""
+        gaussian_fisher_config = _build_information_gaussian_fisher_config(
+            gaussian_fisher_cfg=gaussian_fisher_cfg
+        )
+        self.gaussian_fisher_aggregation = (
+            gaussian_fisher_config.gaussian_fisher_aggregation
+        )
+        self.gaussian_fisher_mi_transform = (
+            gaussian_fisher_config.gaussian_fisher_mi_transform
+        )
+        self.gaussian_fisher_eps = gaussian_fisher_config.gaussian_fisher_eps
 
 
 __all__ = ["InformationConfigSetupMixin"]

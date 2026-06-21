@@ -185,62 +185,24 @@ class InformationAnalyzer(
         # ------------------------------------------------------------------
         # Legacy boolean selection (still supported).
         # ------------------------------------------------------------------
-        self.compute_basic_mi = bool(getattr(params, "compute_basic_mi", False))
-        self.compute_pairwise_mi = bool(getattr(params, "compute_pairwise_mi", False))
-        self.compute_conditional_mi = bool(
-            getattr(params, "compute_conditional_mi", False)
-        )
-        self.compute_pid = bool(getattr(params, "compute_pid", False))
-        # Enabled via selection.components ("gaussian_fisher").
-        self.compute_gaussian_fisher = False
+        self._configure_legacy_component_selection(params=params)
 
-        pid_config = _build_information_pid_config(params=params, pid_cfg=pid_cfg)
-        self.pid_binarize = pid_config.pid_binarize
-        self.pid_binarize_method = pid_config.pid_binarize_method
-        self.pid_binarize_threshold = pid_config.pid_binarize_threshold
+        self._configure_pid_preprocessing(params=params, pid_cfg=pid_cfg)
 
-        ablation_aligned_config = _build_information_ablation_aligned_config(
+        self._configure_ablation_aligned_metrics(
             params=params,
             compute_cfg=compute_cfg,
         )
-        self.compute_ablation_aligned_mi = (
-            ablation_aligned_config.compute_ablation_aligned_mi
-        )
-        self.compute_upstream_unique_cmi = (
-            ablation_aligned_config.compute_upstream_unique_cmi
-        )
-        self.compute_layer_total_proxies = (
-            ablation_aligned_config.compute_layer_total_proxies
-        )
-        self.layer_total_topk = ablation_aligned_config.layer_total_topk
 
         # ------------------------------------------------------------------
         # Preferred list-based selection of components.
         #
         # If provided, overrides the individual compute_* booleans above.
         # ------------------------------------------------------------------
-        components_raw = list(
-            get_config(
-                selection_cfg, "components", get_config(params, "components", [])
-            )
-            or []
+        self._configure_component_selection_override(
+            params=params,
+            selection_cfg=selection_cfg,
         )
-        component_selection = _parse_information_component_selection(components_raw)
-        if component_selection is not None:
-            self.compute_basic_mi = component_selection.compute_basic_mi
-            self.compute_pairwise_mi = component_selection.compute_pairwise_mi
-            self.compute_conditional_mi = component_selection.compute_conditional_mi
-            self.compute_pid = component_selection.compute_pid
-            self.compute_gaussian_fisher = component_selection.compute_gaussian_fisher
-            self.compute_ablation_aligned_mi = (
-                component_selection.compute_ablation_aligned_mi
-            )
-            self.compute_layer_total_proxies = (
-                component_selection.compute_layer_total_proxies
-            )
-            self.compute_upstream_unique_cmi = (
-                component_selection.compute_upstream_unique_cmi
-            )
 
         # ------------------------------------------------------------------
         # PID is currently disabled.
@@ -257,16 +219,7 @@ class InformationAnalyzer(
             )
             self.compute_pid = False
 
-        gaussian_fisher_config = _build_information_gaussian_fisher_config(
-            gaussian_fisher_cfg=gaussian_fisher_cfg
-        )
-        self.gaussian_fisher_aggregation = (
-            gaussian_fisher_config.gaussian_fisher_aggregation
-        )
-        self.gaussian_fisher_mi_transform = (
-            gaussian_fisher_config.gaussian_fisher_mi_transform
-        )
-        self.gaussian_fisher_eps = gaussian_fisher_config.gaussian_fisher_eps
+        self._configure_gaussian_fisher_metrics(gaussian_fisher_cfg=gaussian_fisher_cfg)
 
         runtime_config = _build_information_runtime_config(
             params=params,
