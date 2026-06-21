@@ -41,6 +41,90 @@ def test_resolve_final_epoch_for_performance_plot_handles_missing_sections():
     )
 
 
+def test_apply_cli_overrides_updates_config_fields():
+    config = SimpleNamespace(
+        training=SimpleNamespace(main=SimpleNamespace(strategy="standard")),
+        outputs=SimpleNamespace(results_dir="old_dir", run_name="old_run"),
+        experiment=SimpleNamespace(seed=1),
+    )
+    args = SimpleNamespace(
+        learning_strategy="local_ca",
+        output_dir="new_dir",
+        run_name="new_run",
+        seed=99,
+    )
+
+    train_experiments._apply_cli_overrides(config, args)
+
+    assert config.training.main.strategy == "local_ca"
+    assert config.outputs.results_dir == "new_dir"
+    assert config.outputs.run_name == "new_run"
+    assert config.experiment.seed == 99
+
+
+def test_apply_cli_overrides_ignores_missing_args_object():
+    config = SimpleNamespace(
+        training=SimpleNamespace(main=SimpleNamespace(strategy="standard")),
+        outputs=SimpleNamespace(results_dir="old_dir", run_name="old_run"),
+        experiment=SimpleNamespace(seed=1),
+    )
+
+    train_experiments._apply_cli_overrides(config, None)
+
+    assert config.training.main.strategy == "standard"
+    assert config.outputs.results_dir == "old_dir"
+    assert config.outputs.run_name == "old_run"
+    assert config.experiment.seed == 1
+
+
+def test_resolve_main_training_settings_from_dict_config():
+    main_train_config = {
+        "strategy": "recurrent",
+        "optimizer": {"name": "sgd", "lr": 0.02},
+        "common": {
+            "param_groups": {"lr": 0.03, "split_params": False},
+            "weight_decay_rate": 0.4,
+            "weight_boosting": True,
+            "epochs": 12,
+        },
+    }
+
+    settings = train_experiments._resolve_main_training_settings(main_train_config)
+
+    assert settings.common_config is main_train_config["common"]
+    assert settings.strategy == "recurrent"
+    assert settings.optimizer_config.name == "sgd"
+    assert settings.optimizer_config.lr == 0.02
+    assert settings.param_groups == {"lr": 0.03, "split_params": False}
+    assert settings.weight_decay_rate == 0.4
+    assert settings.weight_boosting is True
+    assert settings.common_epochs == 12
+
+
+def test_resolve_main_training_settings_from_object_config():
+    common_config = SimpleNamespace(
+        param_groups={"lr": 0.05},
+        weight_decay_rate=0.2,
+        epochs=9,
+    )
+    main_train_config = SimpleNamespace(
+        strategy="standard",
+        optimizer=SimpleNamespace(name="adamw", lr=0.01),
+        common=common_config,
+    )
+
+    settings = train_experiments._resolve_main_training_settings(main_train_config)
+
+    assert settings.common_config is common_config
+    assert settings.strategy == "standard"
+    assert settings.optimizer_config.name == "adamw"
+    assert settings.optimizer_config.lr == 0.01
+    assert settings.param_groups == {"lr": 0.05}
+    assert settings.weight_decay_rate == 0.2
+    assert settings.weight_boosting is False
+    assert settings.common_epochs == 9
+
+
 def test_run_analysis_attaches_pruning_results_and_plots_evolution(
     monkeypatch,
     tmp_path,

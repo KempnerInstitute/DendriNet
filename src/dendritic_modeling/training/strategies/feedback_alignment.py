@@ -159,11 +159,7 @@ class FeedbackAlignmentTrainer(Trainer):
 
             # --- forward with activation caching ---
             activations: dict[int, torch.Tensor] = {}
-            handles = []
-            for idx, (mod, *_rest) in enumerate(self._layer_info):
-                handles.append(
-                    mod.register_forward_hook(self._make_hook(activations, idx))
-                )
+            handles = self._attach_activation_hooks(activations)
             try:
                 y_hat = model(x_batch)
             finally:
@@ -196,6 +192,21 @@ class FeedbackAlignmentTrainer(Trainer):
     # ------------------------------------------------------------------
     # Hook helper
     # ------------------------------------------------------------------
+    def _attach_activation_hooks(
+        self,
+        activations: dict[int, torch.Tensor],
+    ) -> list[torch.utils.hooks.RemovableHandle]:
+        handles = []
+        try:
+            for idx, (mod, *_rest) in enumerate(self._layer_info):
+                handles.append(
+                    mod.register_forward_hook(self._make_hook(activations, idx))
+                )
+            return handles
+        except Exception:
+            remove_hook_handles(handles)
+            raise
+
     @staticmethod
     def _make_hook(store: dict, key: int):
         def hook_fn(_module, inp, _out):
@@ -442,23 +453,7 @@ class ShuntingFeedbackAlignmentTrainer(FeedbackAlignmentTrainer):
                 activations: dict[int, torch.Tensor] = {}
                 self._layer_voltages.clear()
                 self._layer_g_tot.clear()
-                handles = []
-
-                # Activation hooks (input caching for gradient computation)
-                for idx, (mod, *_rest) in enumerate(self._layer_info):
-                    handles.append(
-                        mod.register_forward_hook(self._make_hook(activations, idx))
-                    )
-
-                # Voltage hooks on DendriticBranchLayer modules
-                for bl_idx, bl in enumerate(branch_layers):
-                    handles.append(
-                        bl.register_forward_hook(
-                            self._make_voltage_hook(
-                                self._layer_voltages, self._layer_g_tot, bl_idx
-                            )
-                        )
-                    )
+                handles = self._attach_shunting_hooks(activations, branch_layers)
 
                 try:
                     y_hat = model(x_batch)
@@ -492,6 +487,26 @@ class ShuntingFeedbackAlignmentTrainer(FeedbackAlignmentTrainer):
 
         n = len(train_loader)
         return total_loss / n, total_base / n, 0.0
+
+    def _attach_shunting_hooks(
+        self,
+        activations: dict[int, torch.Tensor],
+        branch_layers: list[DendriticBranchLayer],
+    ) -> list[torch.utils.hooks.RemovableHandle]:
+        handles = self._attach_activation_hooks(activations)
+        try:
+            for bl_idx, bl in enumerate(branch_layers):
+                handles.append(
+                    bl.register_forward_hook(
+                        self._make_voltage_hook(
+                            self._layer_voltages, self._layer_g_tot, bl_idx
+                        )
+                    )
+                )
+            return handles
+        except Exception:
+            remove_hook_handles(handles)
+            raise
 
     def _modulate_error_with_shunting(
         self, e_local: torch.Tensor, layer_idx: int

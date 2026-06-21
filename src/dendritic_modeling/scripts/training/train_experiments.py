@@ -28,7 +28,8 @@ os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"  # Disable oneDNN optimizations warnin
 # Core imports
 import argparse
 import logging
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
+from typing import Any
 
 import torch
 import torch.distributed as dist
@@ -79,6 +80,17 @@ canonicalize_model_core_flags = getattr(
 canonicalize_rnn_core_flags = getattr(
     _config_utils, "canonicalize_rnn_core_flags", None
 )
+
+
+@dataclass(frozen=True)
+class _MainTrainingSettings:
+    common_config: Any
+    strategy: str
+    optimizer_config: OptimizerConfig
+    param_groups: Any
+    weight_decay_rate: float
+    weight_boosting: bool
+    common_epochs: int
 
 
 if normalize_param_groups_config is None:
@@ -464,6 +476,62 @@ def run_analysis(
         logger.info("Analysis completed")
 
 
+def _apply_cli_overrides(config, args) -> None:
+    """Apply command-line overrides to a loaded training config."""
+    if not args:
+        return
+
+    if args.learning_strategy:
+        config.training.main.strategy = args.learning_strategy
+        logger.info(f"Override learning strategy: {args.learning_strategy}")
+    if args.output_dir:
+        config.outputs.results_dir = args.output_dir
+        logger.info(f"Override output directory: {args.output_dir}")
+    if args.run_name:
+        config.outputs.run_name = args.run_name
+        logger.info(f"Override run name: {args.run_name}")
+    if getattr(args, "seed", None) is not None:
+        config.experiment.seed = args.seed
+        logger.info(f"Override seed: {args.seed}")
+
+
+def _resolve_main_training_settings(main_train_config) -> _MainTrainingSettings:
+    """Resolve main training settings from dict or object config shapes."""
+    if isinstance(main_train_config, dict):
+        common_config = main_train_config.get("common", {})
+        strategy = main_train_config.get("strategy", "standard")
+        optimizer_config = normalize_optimizer_config(
+            main_train_config.get("optimizer")
+        )
+    else:
+        common_config = main_train_config.common
+        strategy = main_train_config.strategy
+        optimizer_config = normalize_optimizer_config(
+            getattr(main_train_config, "optimizer", None)
+        )
+
+    if isinstance(common_config, dict):
+        param_groups = common_config.get("param_groups", {})
+        weight_decay_rate = common_config.get("weight_decay_rate", 0.0)
+        weight_boosting = common_config.get("weight_boosting", False)
+        common_epochs = common_config.get("epochs", 100)
+    else:
+        param_groups = common_config.param_groups
+        weight_decay_rate = common_config.weight_decay_rate
+        weight_boosting = getattr(common_config, "weight_boosting", False)
+        common_epochs = common_config.epochs
+
+    return _MainTrainingSettings(
+        common_config=common_config,
+        strategy=strategy,
+        optimizer_config=optimizer_config,
+        param_groups=param_groups,
+        weight_decay_rate=weight_decay_rate,
+        weight_boosting=weight_boosting,
+        common_epochs=common_epochs,
+    )
+
+
 def main(config_path: str, args=None):
     rank, local_rank, world_size = setup_distributed()
     is_main = rank == 0
@@ -491,19 +559,7 @@ def main(config_path: str, args=None):
     if not is_main and hasattr(config, "wandb"):
         config.wandb.use_wandb = False
 
-    if args:
-        if args.learning_strategy:
-            config.training.main.strategy = args.learning_strategy
-            logger.info(f"Override learning strategy: {args.learning_strategy}")
-        if args.output_dir:
-            config.outputs.results_dir = args.output_dir
-            logger.info(f"Override output directory: {args.output_dir}")
-        if args.run_name:
-            config.outputs.run_name = args.run_name
-            logger.info(f"Override run name: {args.run_name}")
-        if getattr(args, "seed", None) is not None:
-            config.experiment.seed = args.seed
-            logger.info(f"Override seed: {args.seed}")
+    _apply_cli_overrides(config, args)
 
     # Extract config sections
     experiment_config = config.experiment
@@ -726,41 +782,18 @@ def main(config_path: str, args=None):
     )
     main_trainer_config_dict["seed"] = int(getattr(experiment_config, "seed", 0) or 0)
 
-    # Extract config values (handle both dict from sweeps and object from single runs)
-    if isinstance(main_train_config, dict):
-        common_config = main_train_config.get("common", {})
-        strategy = main_train_config.get("strategy", "standard")
-        optimizer_config = normalize_optimizer_config(
-            main_train_config.get("optimizer")
-        )
-    else:
-        common_config = main_train_config.common
-        strategy = main_train_config.strategy
-        optimizer_config = normalize_optimizer_config(
-            getattr(main_train_config, "optimizer", None)
-        )
-
-    # Extract from common_config (also handle dict vs object)
-    if isinstance(common_config, dict):
-        param_groups = common_config.get("param_groups", {})
-        weight_decay_rate = common_config.get("weight_decay_rate", 0.0)
-        weight_boosting = common_config.get("weight_boosting", False)
-        common_epochs = common_config.get("epochs", 100)
-    else:
-        param_groups = common_config.param_groups
-        weight_decay_rate = common_config.weight_decay_rate
-        weight_boosting = getattr(common_config, "weight_boosting", False)
-        common_epochs = common_config.epochs
-
-    param_groups = normalize_param_groups_config(param_groups)
+    settings = _resolve_main_training_settings(main_train_config)
+    strategy = settings.strategy
+    common_epochs = settings.common_epochs
+    param_groups = normalize_param_groups_config(settings.param_groups)
     model_param_groups = unwrapped_model.get_param_groups(param_groups)
-    base_optimizer = create_optimizer(model_param_groups, optimizer_config)
+    base_optimizer = create_optimizer(model_param_groups, settings.optimizer_config)
 
     optimizer = CustomWeightDecayOptimizer(
         model=unwrapped_model,
         optimizer=base_optimizer,
-        weight_decay=weight_decay_rate,
-        weight_boosting=weight_boosting,
+        weight_decay=settings.weight_decay_rate,
+        weight_boosting=settings.weight_boosting,
     )
 
     original_pruning_config = main_trainer_config_dict.get("pruning", {})

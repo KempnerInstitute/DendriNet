@@ -2,6 +2,7 @@
 
 from unittest.mock import patch
 
+import pytest
 import torch
 import torch.nn as nn
 
@@ -84,6 +85,25 @@ def test_local_recorders_use_cached_topk_mask_without_extra_sampling():
     rec = records[0]
     assert isinstance(rec.get("exc_mask"), torch.Tensor)
     torch.testing.assert_close(rec["exc_mask"], topk._last_forward_weight_mask)
+
+
+def test_local_recorders_remove_hooks_after_failed_registration(monkeypatch):
+    model = _SingleBranchModel()
+    topk = model.branch.branch_excitation
+    assert isinstance(topk, TopKLinear)
+
+    trainer = LocalCreditAssignment.__new__(LocalCreditAssignment)
+    trainer._decoder_cache = {}
+
+    def _failing_register(*args, **kwargs):
+        raise RuntimeError("local recorder hook registration failed")
+
+    monkeypatch.setattr(topk, "register_forward_hook", _failing_register)
+
+    with pytest.raises(RuntimeError, match="local recorder hook registration failed"):
+        trainer._attach_local_recorders(model)
+
+    assert sum(len(module._forward_hooks) for module in model.modules()) == 0
 
 
 def test_explicit_inhibitory_update_mode_only_gates_i_cell_records():
