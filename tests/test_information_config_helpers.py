@@ -16,6 +16,7 @@ from dendritic_modeling.analysis.core.information import (
     _get_config_value,
     _get_grouped_or_legacy_value,
     _get_grouped_path_or_legacy_value,
+    _get_lower_config_value,
     _normalize_config_token,
     _normalize_config_tokens,
     _parse_information_component_selection,
@@ -156,6 +157,16 @@ def test_normalize_config_token_preserves_legacy_selector_normalization():
     assert _normalize_config_token("Gaussian Fisher") == "gaussian_fisher"
     assert _normalize_config_token("basic_mi") == "basic_mi"
     assert _normalize_config_token(123) == "123"
+
+
+def test_get_lower_config_value_preserves_stripped_lowercase_behavior():
+    assert _get_lower_config_value({"value": " Half-Log1P Mode "}, "value", "sum") == (
+        "half-log1p mode"
+    )
+    assert _get_lower_config_value({"value": None}, "value", "Default Value") == (
+        "default value"
+    )
+    assert _get_lower_config_value({}, "missing", 123) == "123"
 
 
 def test_normalize_config_tokens_filters_blanks_and_deduplicates():

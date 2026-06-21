@@ -48,6 +48,28 @@ def _centered_alignment_gain(
     return torch.clamp(1.0 + weight * centered_alignment, min=0.0)
 
 
+def _apply_branch_length_factor(
+    scale: torch.Tensor | float,
+    length_factor: torch.Tensor,
+) -> torch.Tensor:
+    """Apply branch-length factors to scalar or per-branch scales."""
+
+    if isinstance(scale, torch.Tensor):
+        return scale * length_factor
+    return float(scale) * length_factor
+
+
+def _apply_dendritic_length_factor(
+    scale: torch.Tensor,
+    length_factor: torch.Tensor,
+) -> torch.Tensor:
+    """Apply branch-length factors to branch or block-level dendritic scales."""
+
+    if scale.dim() == 2:
+        return scale * length_factor.unsqueeze(-1)
+    return scale * length_factor
+
+
 def _default_branch_depths(
     out_features: int,
     layer_idx: int,
@@ -86,6 +108,15 @@ def _reset_branch_role_metadata(stats: _LayerStats) -> None:
     stats.block_input_role_profile = None
     stats.branch_block_roles = None
     stats.branch_block_selectivity = None
+
+
+def _sum_role_mass_terms(role_mass_terms: list[torch.Tensor]) -> torch.Tensor:
+    """Combine role-mass terms with the original left-to-right tensor addition."""
+
+    total_role_mass = role_mass_terms[0]
+    for extra_mass in role_mass_terms[1:]:
+        total_role_mass = total_role_mass + extra_mass
+    return total_role_mass
 
 
 class LocalLearningMorphologyMixin:
@@ -241,13 +272,7 @@ class LocalLearningMorphologyMixin:
                 stats.branch_depths, depth_offset
             )
 
-            if isinstance(scale, torch.Tensor):
-
-                scale = scale * length_factor
-
-            else:
-
-                scale = float(scale) * length_factor
+            scale = _apply_branch_length_factor(scale, length_factor)
 
         return scale
 
@@ -422,11 +447,7 @@ class LocalLearningMorphologyMixin:
 
             if role_mass_terms:
 
-                total_role_mass = role_mass_terms[0]
-
-                for extra_mass in role_mass_terms[1:]:
-
-                    total_role_mass = total_role_mass + extra_mass
+                total_role_mass = _sum_role_mass_terms(role_mass_terms)
 
                 role_profile = self._normalize_role_mass(total_role_mass)
 
@@ -501,13 +522,9 @@ class LocalLearningMorphologyMixin:
 
             if isinstance(dendritic_scale, torch.Tensor):
 
-                if dendritic_scale.dim() == 2:
-
-                    dendritic_scale = dendritic_scale * length_factor.unsqueeze(-1)
-
-                else:
-
-                    dendritic_scale = dendritic_scale * length_factor
+                dendritic_scale = _apply_dendritic_length_factor(
+                    dendritic_scale, length_factor
+                )
 
         return branch_scale, dendritic_scale
 

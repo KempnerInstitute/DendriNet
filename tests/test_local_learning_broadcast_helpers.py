@@ -165,6 +165,26 @@ def test_default_path_factor_preserves_scalar_tensor_and_missing_paths():
     assert _default_path_factor(None, "per_branch") == 1.0
 
 
+def test_precompute_path_propagation_uses_default_soma_factor_modes():
+    soma_v = torch.zeros(2, 3, dtype=torch.float64)
+    transport = LocalLearningPathTransportBroadcastMixin()
+
+    transport.local_cfg = SimpleNamespace(
+        morphology_aware=SimpleNamespace(path_factor_mode="per_branch")
+    )
+    per_branch = transport._precompute_path_propagation_factors([{"v_n": soma_v}])
+    torch.testing.assert_close(per_branch[-1], torch.ones_like(soma_v))
+
+    transport.local_cfg = SimpleNamespace(
+        morphology_aware=SimpleNamespace(path_factor_mode="scalar_mean")
+    )
+    scalar = transport._precompute_path_propagation_factors([{"v_n": soma_v}])
+    torch.testing.assert_close(
+        scalar[-1],
+        torch.ones(soma_v.size(0), 1, dtype=soma_v.dtype),
+    )
+
+
 def test_iter_distal_parent_records_preserves_child_parent_order():
     distal = {"name": "distal"}
     middle = {"name": "middle"}

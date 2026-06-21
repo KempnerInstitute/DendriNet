@@ -198,17 +198,7 @@ class LocalLearningPathTransportBroadcastMixin:
 
         soma_v = layer_records[-1].get("v_n")
 
-        if isinstance(soma_v, torch.Tensor):
-
-            if mode == "scalar_mean":
-
-                path_factors[-1] = torch.ones(
-                    soma_v.size(0), 1, device=soma_v.device, dtype=soma_v.dtype
-                )
-
-            else:
-
-                path_factors[-1] = torch.ones_like(soma_v)
+        path_factors[-1] = _default_path_factor(soma_v, mode)
 
         for layer_idx, child_rec, parent_rec in _iter_distal_parent_records(
             layer_records

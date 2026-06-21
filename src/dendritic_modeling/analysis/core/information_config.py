@@ -167,6 +167,11 @@ def _get_grouped_path_or_legacy_value(
     )
 
 
+def _get_lower_config_value(obj: Any, key: str, default: Any) -> str:
+    """Get a config value using legacy stripped-lowercase normalization."""
+    return str(_get_config_value(obj, key, default)).strip().lower()
+
+
 def _normalize_config_token(value: Any) -> str:
     """Normalize config selector tokens for legacy and grouped configs."""
     return str(value).strip().lower().replace("-", "_").replace(" ", "_")
@@ -381,16 +386,12 @@ def _build_information_gaussian_fisher_config(
 ) -> _InformationGaussianFisherConfig:
     """Build Gaussian/Fisher proxy settings from grouped config."""
     return _InformationGaussianFisherConfig(
-        gaussian_fisher_aggregation=str(
-            _get_config_value(gaussian_fisher_cfg, "aggregation", "sum")
-        )
-        .strip()
-        .lower(),
-        gaussian_fisher_mi_transform=str(
-            _get_config_value(gaussian_fisher_cfg, "mi_transform", "half_log1p")
-        )
-        .strip()
-        .lower(),
+        gaussian_fisher_aggregation=_get_lower_config_value(
+            gaussian_fisher_cfg, "aggregation", "sum"
+        ),
+        gaussian_fisher_mi_transform=_get_lower_config_value(
+            gaussian_fisher_cfg, "mi_transform", "half_log1p"
+        ),
         gaussian_fisher_eps=float(
             _get_config_value(
                 gaussian_fisher_cfg,

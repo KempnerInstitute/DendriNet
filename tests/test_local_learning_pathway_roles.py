@@ -20,12 +20,15 @@ from dendritic_modeling.training.strategies.local_learning_broadcast import (
     compute_pathway_seed_projection,
 )
 from dendritic_modeling.training.strategies.local_learning_morphology_mixin import (
+    _apply_branch_length_factor,
+    _apply_dendritic_length_factor,
     _centered_alignment_gain,
     _default_branch_depths,
     _default_branch_types,
     _normalized_inverse_depth_factor,
     _reset_branch_role_metadata,
     _role_specialization_scale,
+    _sum_role_mass_terms,
 )
 
 
@@ -217,6 +220,35 @@ def test_centered_alignment_gain_preserves_center_and_clamp_formula() -> None:
     assert gain[1, 0].item() == 0.0
 
 
+def test_apply_branch_length_factor_preserves_scalar_and_tensor_paths() -> None:
+    length_factor = torch.tensor([0.5, 2.0])
+
+    torch.testing.assert_close(
+        _apply_branch_length_factor(1.5, length_factor),
+        torch.tensor([0.75, 3.0]),
+    )
+    torch.testing.assert_close(
+        _apply_branch_length_factor(torch.tensor([2.0, 4.0]), length_factor),
+        torch.tensor([1.0, 8.0]),
+    )
+
+
+def test_apply_dendritic_length_factor_preserves_branch_and_block_paths() -> None:
+    length_factor = torch.tensor([0.5, 2.0])
+
+    torch.testing.assert_close(
+        _apply_dendritic_length_factor(torch.tensor([2.0, 4.0]), length_factor),
+        torch.tensor([1.0, 8.0]),
+    )
+    torch.testing.assert_close(
+        _apply_dendritic_length_factor(
+            torch.tensor([[2.0, 4.0], [6.0, 8.0]]),
+            length_factor,
+        ),
+        torch.tensor([[1.0, 2.0], [12.0, 16.0]]),
+    )
+
+
 def test_default_branch_depths_preserve_layer_index_heuristic() -> None:
     depths = _default_branch_depths(
         3,
@@ -271,6 +303,20 @@ def test_reset_branch_role_metadata_preserves_morphology_annotations() -> None:
     assert stats.block_input_role_profile is None
     assert stats.branch_block_roles is None
     assert stats.branch_block_selectivity is None
+
+
+def test_sum_role_mass_terms_preserves_left_to_right_addition() -> None:
+    terms = [
+        torch.tensor([[1.0, 2.0], [3.0, 4.0]], dtype=torch.float64),
+        torch.tensor([[0.5, -1.0], [2.0, -3.0]], dtype=torch.float64),
+        torch.tensor([[4.0, 1.0], [-2.0, 0.25]], dtype=torch.float64),
+    ]
+
+    expected = terms[0]
+    for extra in terms[1:]:
+        expected = expected + extra
+
+    torch.testing.assert_close(_sum_role_mass_terms(terms), expected)
 
 
 def test_pathway_vector_broadcast_projects_error_into_role_subspace() -> None:
