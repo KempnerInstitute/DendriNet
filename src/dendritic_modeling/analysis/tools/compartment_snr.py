@@ -53,6 +53,30 @@ METRIC_MAPPING = {
 }
 
 
+def _aggregate_non_depth_values(records) -> dict[str, list[float]]:
+    """Collect non-depth scalar fields across branch or layer records."""
+    aggregated: dict[str, list[float]] = {}
+    for record in records:
+        for field, value in record.items():
+            if field not in aggregated.keys() and field != "depth":
+                aggregated[field] = []
+            if field != "depth":
+                aggregated[field].append(value)
+    return aggregated
+
+
+def _summarize_population_values(
+    aggregated_values: dict[str, list[float]],
+    stats_dict: dict[str, float],
+) -> dict[str, float]:
+    """Summarize aggregated scalar metrics using population reductions."""
+    for field, values in aggregated_values.items():
+        data_tensor = torch.tensor(values)
+        stats_dict[f"{field}_mean"] = data_tensor.mean().item()
+        stats_dict[f"{field}_std"] = data_tensor.std(correction=0).item()
+    return stats_dict
+
+
 class CompartmentSNRAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
     """
     Unified analyzer for comprehensive compartment SNR analysis.
@@ -490,25 +514,14 @@ class CompartmentSNRAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         return layer_statistics
 
     def _aggregate_stat_values(self, records) -> dict[str, list[float]]:
-        aggregated: dict[str, list[float]] = {}
-        for record in records:
-            for field, value in record.items():
-                if field not in aggregated.keys() and field != "depth":
-                    aggregated[field] = []
-                if field != "depth":
-                    aggregated[field].append(value)
-        return aggregated
+        return _aggregate_non_depth_values(records)
 
     def _summarize_aggregated_values(
         self,
         aggregated_values: dict[str, list[float]],
         stats_dict: dict[str, float],
     ) -> dict[str, float]:
-        for field, values in aggregated_values.items():
-            data_tensor = torch.tensor(values)
-            stats_dict[f"{field}_mean"] = data_tensor.mean().item()
-            stats_dict[f"{field}_std"] = data_tensor.std(correction=0).item()
-        return stats_dict
+        return _summarize_population_values(aggregated_values, stats_dict)
 
     def analyze(
         self,

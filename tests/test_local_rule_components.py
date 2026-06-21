@@ -9,9 +9,21 @@ from torch.utils.data import TensorDataset
 
 from dendritic_modeling.analysis.tools.local_rule_components import (
     LocalRuleComponentAnalyzer,
+    _activation_derivative_for_record,
+    _branch_record_for_module,
+    _depth_labels_for_records,
+    _population_label_for_module_name,
 )
 from dendritic_modeling.config.analysis import LocalRuleComponentAnalysisParams
 from dendritic_modeling.networks import DendriticBranchLayer, TopKLinear
+from dendritic_modeling.networks.activations.parametric import ParametricTanh
+
+
+class _LayerWithReactivation(nn.Module):
+    def __init__(self, reactivation: nn.Module | None) -> None:
+        super().__init__()
+        if reactivation is not None:
+            self.reactivation = reactivation
 
 
 class _FeedforwardBranchModel(nn.Module):
@@ -31,6 +43,189 @@ class _FeedforwardBranchModel(nn.Module):
 
     def forward(self, x: torch.Tensor, inhibitory_input: torch.Tensor) -> torch.Tensor:
         return self.branch(x, inhibitory_input=inhibitory_input)
+
+
+def _branch_at_depth(depth: int) -> DendriticBranchLayer:
+    layer = DendriticBranchLayer(
+        output_dim=1,
+        excitatory_input_dim=2,
+        excitatory_synapses_per_branch=1,
+        inhibitory_input_dim=2,
+        inhibitory_synapses_per_branch=1,
+        use_shunting=False,
+        reactivate=False,
+        topk_noise_level=0.0,
+        weight_transform="identity",
+    )
+    layer.layer_idx = depth
+    return layer
+
+
+def test_local_rule_component_depth_labels_preserve_depth_ordering() -> None:
+    records = [
+        {"layer": _branch_at_depth(2)},
+        {"layer": _branch_at_depth(0)},
+        {"layer": _branch_at_depth(4)},
+        {"layer": _branch_at_depth(1)},
+        {"layer": nn.Linear(1, 1)},
+    ]
+
+    labels = _depth_labels_for_records(records)
+
+    assert labels == {
+        0: "soma",
+        1: "proximal",
+        2: "intermediate",
+        4: "distal",
+    }
+
+
+def test_local_rule_component_depth_labels_preserve_single_positive_depth() -> None:
+    records = [{"layer": _branch_at_depth(3)}]
+
+    assert _depth_labels_for_records(records) == {3: "distal"}
+
+
+def test_local_rule_component_depth_labels_preserve_negative_depth_cases() -> None:
+    assert _depth_labels_for_records([{"layer": _branch_at_depth(-1)}]) == {
+        -1: "dendritic"
+    }
+    assert _depth_labels_for_records(
+        [{"layer": _branch_at_depth(-1)}, {"layer": _branch_at_depth(2)}]
+    ) == {-1: "intermediate", 2: "distal"}
+
+
+def test_local_rule_component_depth_labels_method_uses_shared_helper() -> None:
+    analyzer = LocalRuleComponentAnalyzer(LocalRuleComponentAnalysisParams())
+    records = [{"layer": _branch_at_depth(0)}, {"layer": _branch_at_depth(2)}]
+
+    assert analyzer._depth_labels(records) == _depth_labels_for_records(records)
+
+
+def test_local_rule_component_population_label_helper_preserves_name_rules() -> None:
+    assert _population_label_for_module_name("branch_layers.0") == "excitatory"
+    assert (
+        _population_label_for_module_name("core.inhibitory_cells.branch_layers.2")
+        == "explicit_inhibitory"
+    )
+
+
+def test_local_rule_component_branch_record_helper_preserves_metadata() -> None:
+    layer = _branch_at_depth(5)
+
+    record = _branch_record_for_module("core.branch_layers.7", layer)
+
+    assert record == {
+        "layer": layer,
+        "module_name": "core.branch_layers.7",
+        "population": "excitatory",
+        "branch_module_index": 7,
+        "dendritic_depth": 5,
+    }
+
+
+def test_local_rule_component_branch_record_method_uses_shared_helpers() -> None:
+    analyzer = LocalRuleComponentAnalyzer(LocalRuleComponentAnalysisParams())
+    layer = _branch_at_depth(3)
+
+    assert analyzer._branch_record(
+        "core.inhibitory_cells.branch_layers.2", layer
+    ) == _branch_record_for_module("core.inhibitory_cells.branch_layers.2", layer)
+    assert (
+        analyzer._population_label("core.inhibitory_cells.branch_layers.2")
+        == "explicit_inhibitory"
+    )
+
+
+def test_local_rule_component_activation_derivative_preserves_empty_fallback() -> None:
+    derivative = _activation_derivative_for_record(
+        {"layer": _LayerWithReactivation(nn.Identity()), "v_n": None}
+    )
+
+    assert derivative.numel() == 0
+
+
+def test_local_rule_component_activation_derivative_preserves_identity_and_relu() -> (
+    None
+):
+    v_n = torch.tensor([[-1.0, 0.0, 2.0]], dtype=torch.float32)
+
+    identity = _activation_derivative_for_record(
+        {"layer": _LayerWithReactivation(nn.Identity()), "v_n": v_n}
+    )
+    relu = _activation_derivative_for_record(
+        {"layer": _LayerWithReactivation(nn.ReLU()), "v_n": v_n}
+    )
+    no_reactivation = _activation_derivative_for_record(
+        {"layer": _LayerWithReactivation(None), "v_n": v_n}
+    )
+
+    assert torch.equal(identity, torch.ones_like(v_n))
+    assert torch.equal(relu, torch.tensor([[0.0, 0.0, 1.0]]))
+    assert torch.equal(no_reactivation, torch.ones_like(v_n))
+
+
+def test_local_rule_component_activation_derivative_uses_cached_sigmoid_output() -> (
+    None
+):
+    v_n = torch.tensor([[-20.0, 20.0]], dtype=torch.float32)
+    v_out = torch.tensor([[0.25, 0.75]], dtype=torch.float32)
+
+    derivative = _activation_derivative_for_record(
+        {
+            "layer": _LayerWithReactivation(nn.Sigmoid()),
+            "v_n": v_n,
+            "v_out": v_out,
+        }
+    )
+
+    assert torch.equal(derivative, v_out * (1.0 - v_out))
+
+
+def test_local_rule_component_activation_derivative_uses_cached_tanh_output() -> None:
+    v_n = torch.tensor([[-20.0, 20.0]], dtype=torch.float32)
+    v_out = torch.tensor([[-0.25, 0.75]], dtype=torch.float32)
+
+    derivative = _activation_derivative_for_record(
+        {
+            "layer": _LayerWithReactivation(nn.Tanh()),
+            "v_n": v_n,
+            "v_out": v_out,
+        }
+    )
+
+    assert torch.equal(derivative, 1.0 - v_out.square())
+
+
+def test_local_rule_component_activation_derivative_preserves_parametric_tanh() -> None:
+    reactivation = ParametricTanh(output_dim=2, init_m=1.5, init_b=0.1)
+    v_n = torch.tensor([[0.2, -0.4], [0.5, 0.1]], dtype=torch.float32)
+    v_out = reactivation(v_n)
+    m = reactivation.log_m.detach().exp().to(device=v_n.device, dtype=v_n.dtype)
+    expected = 0.5 * m.unsqueeze(0) * (1.0 - (2.0 * v_out - 1.0).square())
+
+    derivative = _activation_derivative_for_record(
+        {
+            "layer": _LayerWithReactivation(reactivation),
+            "v_n": v_n,
+            "v_out": v_out,
+        }
+    )
+
+    assert torch.allclose(derivative, expected)
+
+
+def test_local_rule_component_activation_derivative_method_uses_shared_helper() -> None:
+    analyzer = LocalRuleComponentAnalyzer(LocalRuleComponentAnalysisParams())
+    rec = {
+        "layer": _LayerWithReactivation(nn.ReLU()),
+        "v_n": torch.tensor([[-1.0, 2.0]], dtype=torch.float32),
+    }
+
+    assert torch.equal(
+        analyzer._activation_derivative(rec),
+        _activation_derivative_for_record(rec),
+    )
 
 
 def test_local_rule_component_recorders_preserve_topk_keys() -> None:

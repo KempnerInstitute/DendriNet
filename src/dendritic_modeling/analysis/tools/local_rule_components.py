@@ -162,6 +162,75 @@ def _parse_branch_module_index(module_name: str) -> int:
     return int(match.group(1))
 
 
+def _population_label_for_module_name(module_name: str) -> str:
+    if ".inhibitory_cells." in module_name:
+        return "explicit_inhibitory"
+    return "excitatory"
+
+
+def _branch_record_for_module(
+    module_name: str, module: DendriticBranchLayer
+) -> dict[str, Any]:
+    return {
+        "layer": module,
+        "module_name": module_name,
+        "population": _population_label_for_module_name(module_name),
+        "branch_module_index": _parse_branch_module_index(module_name),
+        "dendritic_depth": int(getattr(module, "layer_idx", -1)),
+    }
+
+
+def _depth_labels_for_records(records: list[dict[str, Any]]) -> dict[int, str]:
+    depths = sorted(
+        {
+            int(getattr(rec["layer"], "layer_idx", -1))
+            for rec in records
+            if isinstance(rec.get("layer"), DendriticBranchLayer)
+        }
+    )
+    positive = [d for d in depths if d > 0]
+    min_positive = min(positive) if positive else None
+    max_positive = max(positive) if positive else None
+    labels: dict[int, str] = {}
+    for depth in depths:
+        if depth == 0:
+            labels[depth] = "soma"
+        elif min_positive is not None and max_positive is not None:
+            if depth == max_positive:
+                labels[depth] = "distal"
+            elif depth == min_positive:
+                labels[depth] = "proximal"
+            else:
+                labels[depth] = "intermediate"
+        else:
+            labels[depth] = "dendritic"
+    return labels
+
+
+def _activation_derivative_for_record(rec: dict[str, Any]) -> torch.Tensor:
+    v_n = rec.get("v_n")
+    if not isinstance(v_n, torch.Tensor):
+        return torch.empty(0)
+    layer = rec["layer"]
+    reactivation = getattr(layer, "reactivation", None)
+    v_out = rec.get("v_out")
+    if reactivation is None or isinstance(reactivation, nn.Identity):
+        return torch.ones_like(v_n)
+    if isinstance(reactivation, nn.ReLU):
+        return (v_n > 0).to(dtype=v_n.dtype)
+    if isinstance(reactivation, nn.Sigmoid):
+        y = v_out if isinstance(v_out, torch.Tensor) else torch.sigmoid(v_n)
+        return y * (1.0 - y)
+    if isinstance(reactivation, nn.Tanh):
+        y = v_out if isinstance(v_out, torch.Tensor) else torch.tanh(v_n)
+        return 1.0 - y.square()
+    if isinstance(reactivation, (ParametricTanh, ParametricTanhOnlyM)):
+        y = v_out if isinstance(v_out, torch.Tensor) else reactivation(v_n)
+        m = reactivation.log_m.detach().exp().to(device=v_n.device, dtype=v_n.dtype)
+        return 0.5 * m.unsqueeze(0) * (1.0 - (2.0 * y - 1.0).square())
+    return torch.ones_like(v_n)
+
+
 class LocalRuleComponentAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
     """Record LocalCA eligibility factors by E/I type and dendritic depth."""
 
@@ -170,30 +239,7 @@ class LocalRuleComponentAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         self.params = params
 
     def _depth_labels(self, records: list[dict[str, Any]]) -> dict[int, str]:
-        depths = sorted(
-            {
-                int(getattr(rec["layer"], "layer_idx", -1))
-                for rec in records
-                if isinstance(rec.get("layer"), DendriticBranchLayer)
-            }
-        )
-        positive = [d for d in depths if d > 0]
-        min_positive = min(positive) if positive else None
-        max_positive = max(positive) if positive else None
-        labels: dict[int, str] = {}
-        for depth in depths:
-            if depth == 0:
-                labels[depth] = "soma"
-            elif min_positive is not None and max_positive is not None:
-                if depth == max_positive:
-                    labels[depth] = "distal"
-                elif depth == min_positive:
-                    labels[depth] = "proximal"
-                else:
-                    labels[depth] = "intermediate"
-            else:
-                labels[depth] = "dendritic"
-        return labels
+        return _depth_labels_for_records(records)
 
     def _attach_recorders(self, model: BaseModel) -> tuple[
         list[dict[str, Any]],
@@ -245,18 +291,10 @@ class LocalRuleComponentAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
     def _branch_record(
         self, module_name: str, module: DendriticBranchLayer
     ) -> dict[str, Any]:
-        return {
-            "layer": module,
-            "module_name": module_name,
-            "population": self._population_label(module_name),
-            "branch_module_index": _parse_branch_module_index(module_name),
-            "dendritic_depth": int(getattr(module, "layer_idx", -1)),
-        }
+        return _branch_record_for_module(module_name, module)
 
     def _population_label(self, module_name: str) -> str:
-        if ".inhibitory_cells." in module_name:
-            return "explicit_inhibitory"
-        return "excitatory"
+        return _population_label_for_module_name(module_name)
 
     def _register_reactivation_hook(
         self,
@@ -309,27 +347,7 @@ class LocalRuleComponentAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         return blk_layer.register_forward_hook(_blk_hook)
 
     def _activation_derivative(self, rec: dict[str, Any]) -> torch.Tensor:
-        v_n = rec.get("v_n")
-        if not isinstance(v_n, torch.Tensor):
-            return torch.empty(0)
-        layer = rec["layer"]
-        reactivation = getattr(layer, "reactivation", None)
-        v_out = rec.get("v_out")
-        if reactivation is None or isinstance(reactivation, nn.Identity):
-            return torch.ones_like(v_n)
-        if isinstance(reactivation, nn.ReLU):
-            return (v_n > 0).to(dtype=v_n.dtype)
-        if isinstance(reactivation, nn.Sigmoid):
-            y = v_out if isinstance(v_out, torch.Tensor) else torch.sigmoid(v_n)
-            return y * (1.0 - y)
-        if isinstance(reactivation, nn.Tanh):
-            y = v_out if isinstance(v_out, torch.Tensor) else torch.tanh(v_n)
-            return 1.0 - y.square()
-        if isinstance(reactivation, (ParametricTanh, ParametricTanhOnlyM)):
-            y = v_out if isinstance(v_out, torch.Tensor) else reactivation(v_n)
-            m = reactivation.log_m.detach().exp().to(device=v_n.device, dtype=v_n.dtype)
-            return 0.5 * m.unsqueeze(0) * (1.0 - (2.0 * y - 1.0).square())
-        return torch.ones_like(v_n)
+        return _activation_derivative_for_record(rec)
 
     def _total_conductance(
         self, rec: dict[str, Any], v_n: torch.Tensor

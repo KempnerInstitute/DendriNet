@@ -1,6 +1,10 @@
 import torch
 
-from dendritic_modeling.analysis.tools.compartment_snr import CompartmentSNRAnalyzer
+from dendritic_modeling.analysis.tools.compartment_snr import (
+    CompartmentSNRAnalyzer,
+    _aggregate_non_depth_values,
+    _summarize_population_values,
+)
 from dendritic_modeling.config.analysis import CompartmentSNRAnalysisParams
 
 
@@ -9,6 +13,34 @@ def _expected_population_stats(prefix, values):
     return {
         f"{prefix}_mean": tensor.mean().item(),
         f"{prefix}_std": tensor.std(correction=0).item(),
+    }
+
+
+def test_compartment_snr_aggregate_helper_excludes_depth():
+    records = [
+        {"depth": 0, "exc_d'^2": 1.0, "inh_d'^2": 2.0},
+        {"depth": 0, "exc_d'^2": 3.0, "inh_d'^2": 4.0},
+    ]
+
+    assert _aggregate_non_depth_values(records) == {
+        "exc_d'^2": [1.0, 3.0],
+        "inh_d'^2": [2.0, 4.0],
+    }
+
+
+def test_compartment_snr_population_summary_helper_matches_current_reductions():
+    actual = _summarize_population_values(
+        {
+            "vout_d_total": [1.0, 3.0],
+            "vout_d_max": [2.0, 4.0],
+        },
+        {"depth": 1},
+    )
+
+    assert actual == {
+        "depth": 1,
+        **_expected_population_stats("vout_d_total", [1.0, 3.0]),
+        **_expected_population_stats("vout_d_max", [2.0, 4.0]),
     }
 
 

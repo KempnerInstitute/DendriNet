@@ -2,8 +2,87 @@ from types import SimpleNamespace
 
 import torch
 
-from dendritic_modeling.analysis.tools.weight import WeightAnalyzer
+from dendritic_modeling.analysis.tools.weight import (
+    WeightAnalyzer,
+    _branch_synapse_statistics,
+    _weight_tensor_statistics,
+)
 from dendritic_modeling.config.analysis import WeightAnalysisParams
+
+
+def test_weight_tensor_statistics_helper_matches_current_reductions():
+    weights = torch.tensor([1.0, 3.0, 5.0])
+
+    assert _weight_tensor_statistics(
+        weights,
+        compute_mean=True,
+        compute_variance=True,
+        compute_min_max=True,
+        compute_percentiles=True,
+    ) == {
+        "mean": weights.mean().item(),
+        "variance": weights.var().item(),
+        "std": weights.std().item(),
+        "min": weights.min().item(),
+        "max": weights.max().item(),
+        "median": weights.median().item(),
+        "q1": weights.quantile(0.25).item(),
+        "q3": weights.quantile(0.75).item(),
+    }
+
+
+def test_weight_tensor_statistics_helper_respects_disabled_fields():
+    weights = torch.tensor([1.0, 3.0, 5.0])
+
+    assert _weight_tensor_statistics(
+        weights,
+        compute_mean=False,
+        compute_variance=False,
+        compute_min_max=True,
+        compute_percentiles=False,
+    ) == {
+        "min": weights.min().item(),
+        "max": weights.max().item(),
+    }
+
+
+def test_branch_synapse_statistics_helper_matches_active_weight_reductions():
+    active = torch.tensor([0.2, 0.5])
+
+    assert _branch_synapse_statistics(
+        "exc",
+        active,
+        compute_mean=True,
+        compute_variance=True,
+        compute_min_max=True,
+        compute_percentiles=True,
+    ) == {
+        "exc_n_active_synapses": len(active),
+        "exc_weight_mean": active.mean().item(),
+        "exc_weight_var": active.var().item(),
+        "exc_weight_min": active.min().item(),
+        "exc_weight_max": active.max().item(),
+        "exc_weight_median": active.median().item(),
+    }
+
+
+def test_branch_synapse_statistics_helper_records_count_only_for_empty_or_disabled():
+    assert _branch_synapse_statistics(
+        "inh",
+        torch.tensor([]),
+        compute_mean=True,
+        compute_variance=True,
+        compute_min_max=True,
+        compute_percentiles=True,
+    ) == {"inh_n_active_synapses": 0}
+    assert _branch_synapse_statistics(
+        "exc",
+        torch.tensor([0.2, 0.5]),
+        compute_mean=False,
+        compute_variance=False,
+        compute_min_max=False,
+        compute_percentiles=False,
+    ) == {"exc_n_active_synapses": 2}
 
 
 def test_weight_branch_synapse_statistics_match_tensor_reductions():

@@ -25,6 +25,63 @@ from dendritic_modeling.utils.hooks import iter_named_modules_of_type
 logger = logging.getLogger(__name__)
 
 
+def _weight_tensor_statistics(
+    weights: torch.Tensor,
+    *,
+    compute_mean: bool,
+    compute_variance: bool,
+    compute_min_max: bool,
+    compute_percentiles: bool,
+) -> dict[str, float]:
+    """Compute configured weight statistics with the historical torch reductions."""
+    stats = {}
+
+    if compute_mean:
+        stats["mean"] = weights.mean().item()
+
+    if compute_variance:
+        stats["variance"] = weights.var().item()
+        stats["std"] = weights.std().item()
+
+    if compute_min_max:
+        stats["min"] = weights.min().item()
+        stats["max"] = weights.max().item()
+
+    if compute_percentiles:
+        stats["median"] = weights.median().item()
+        stats["q1"] = weights.quantile(0.25).item()
+        stats["q3"] = weights.quantile(0.75).item()
+
+    return stats
+
+
+def _branch_synapse_statistics(
+    prefix: str,
+    active_weights: torch.Tensor,
+    *,
+    compute_mean: bool,
+    compute_variance: bool,
+    compute_min_max: bool,
+    compute_percentiles: bool,
+) -> dict[str, float | int]:
+    """Compute active-synapse branch statistics for one synapse type."""
+    stats: dict[str, float | int] = {f"{prefix}_n_active_synapses": len(active_weights)}
+    if len(active_weights) == 0:
+        return stats
+
+    if compute_mean:
+        stats[f"{prefix}_weight_mean"] = active_weights.mean().item()
+    if compute_variance:
+        stats[f"{prefix}_weight_var"] = active_weights.var().item()
+    if compute_min_max:
+        stats[f"{prefix}_weight_min"] = active_weights.min().item()
+        stats[f"{prefix}_weight_max"] = active_weights.max().item()
+    if compute_percentiles:
+        stats[f"{prefix}_weight_median"] = active_weights.median().item()
+
+    return stats
+
+
 class WeightAnalyzer(AbstractAnalyzer):
     """
     Unified analyzer for comprehensive synaptic weight analysis.
@@ -246,25 +303,13 @@ class WeightAnalyzer(AbstractAnalyzer):
 
     def _compute_weight_statistics(self, weights: torch.Tensor) -> dict[str, float]:
         """Compute comprehensive statistics for a weight tensor."""
-        stats = {}
-
-        if self.compute_mean:
-            stats["mean"] = weights.mean().item()
-
-        if self.compute_variance:
-            stats["variance"] = weights.var().item()
-            stats["std"] = weights.std().item()
-
-        if self.compute_min_max:
-            stats["min"] = weights.min().item()
-            stats["max"] = weights.max().item()
-
-        if self.compute_percentiles:
-            stats["median"] = weights.median().item()
-            stats["q1"] = weights.quantile(0.25).item()
-            stats["q3"] = weights.quantile(0.75).item()
-
-        return stats
+        return _weight_tensor_statistics(
+            weights,
+            compute_mean=self.compute_mean,
+            compute_variance=self.compute_variance,
+            compute_min_max=self.compute_min_max,
+            compute_percentiles=self.compute_percentiles,
+        )
 
     def _active_weights(self, weights: torch.Tensor) -> torch.Tensor:
         """Return weights above the configured active-synapse threshold."""
@@ -400,19 +445,16 @@ class WeightAnalyzer(AbstractAnalyzer):
     ) -> None:
         """Add active-synapse weight statistics for one branch and synapse type."""
         active_weights = weights[weights > self.weight_threshold]
-        branch_stats[f"{prefix}_n_active_synapses"] = len(active_weights)
-        if len(active_weights) == 0:
-            return
-
-        if self.compute_mean:
-            branch_stats[f"{prefix}_weight_mean"] = active_weights.mean().item()
-        if self.compute_variance:
-            branch_stats[f"{prefix}_weight_var"] = active_weights.var().item()
-        if self.compute_min_max:
-            branch_stats[f"{prefix}_weight_min"] = active_weights.min().item()
-            branch_stats[f"{prefix}_weight_max"] = active_weights.max().item()
-        if self.compute_percentiles:
-            branch_stats[f"{prefix}_weight_median"] = active_weights.median().item()
+        branch_stats.update(
+            _branch_synapse_statistics(
+                prefix,
+                active_weights,
+                compute_mean=self.compute_mean,
+                compute_variance=self.compute_variance,
+                compute_min_max=self.compute_min_max,
+                compute_percentiles=self.compute_percentiles,
+            )
+        )
 
     def _compute_branch_level_statistics(self, model: BaseModel) -> dict[str, Any]:
         """Compute and return raw per-branch statistics grouped by depth.
