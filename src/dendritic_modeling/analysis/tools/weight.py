@@ -16,9 +16,12 @@ import torch
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
 from dendritic_modeling.analysis.utils.einet_core import has_einet_core
+from dendritic_modeling.analysis.utils.recurrent_introspection import (
+    iter_recurrent_populations,
+)
 from dendritic_modeling.config import WeightAnalysisParams
 from dendritic_modeling.models import BaseModel
-from dendritic_modeling.networks import DendriNet, DendriticBranchLayer
+from dendritic_modeling.networks import DendriticBranchLayer
 from dendritic_modeling.utils import save_dict
 from dendritic_modeling.utils.hooks import iter_named_modules_of_type
 
@@ -80,6 +83,46 @@ def _branch_synapse_statistics(
         stats[f"{prefix}_weight_median"] = active_weights.median().item()
 
     return stats
+
+
+def _iter_dendritic_populations(
+    model: BaseModel,
+    *,
+    include_inhibitory: bool = True,
+):
+    """Yield unique population modules that expose dendritic branch layers."""
+    core = getattr(model, "core_network", model)
+    seen: set[int] = set()
+
+    for record in iter_recurrent_populations(core):
+        if not include_inhibitory and record.polarity == "inhibitory":
+            continue
+        population = record.population
+        if not hasattr(population, "branch_layers"):
+            continue
+        ident = id(population)
+        if ident in seen:
+            continue
+        seen.add(ident)
+        yield population
+
+    for layer in getattr(core, "layers", []) or []:
+        for attr, polarity in (
+            ("excitatory_cells", "excitatory"),
+            ("inhibitory_cells", "inhibitory"),
+            ("e_population", "excitatory"),
+            ("i_population", "inhibitory"),
+        ):
+            if not include_inhibitory and polarity == "inhibitory":
+                continue
+            population = getattr(layer, attr, None)
+            if not hasattr(population, "branch_layers"):
+                continue
+            ident = id(population)
+            if ident in seen:
+                continue
+            seen.add(ident)
+            yield population
 
 
 class WeightAnalyzer(AbstractAnalyzer):
@@ -175,14 +218,10 @@ class WeightAnalyzer(AbstractAnalyzer):
                 # Dynamically determine expected layers from network structure
                 # Get the actual number of dendritic layers from the first EI layer
                 expected_max_idx = 0
-                for ei_layer in model.core_network.layers:
-                    ex_dn = getattr(ei_layer, "excitatory_cells", None)
-                    if ex_dn is not None and hasattr(ex_dn, "branch_layers"):
-                        # The highest layer_idx in the network should be n_branch_layers
-                        expected_max_idx = max(
-                            expected_max_idx, len(ex_dn.branch_layers)
-                        )
-                        break
+                for population in _iter_dendritic_populations(model):
+                    expected_max_idx = max(
+                        expected_max_idx, len(population.branch_layers)
+                    )
 
                 # Remove any layers beyond the expected range
                 for key in list(layer_stats.keys()):
@@ -329,24 +368,16 @@ class WeightAnalyzer(AbstractAnalyzer):
         require_excitatory_dendrinet: bool = False,
         require_layer_idx: bool = False,
     ) -> Iterator[tuple[int, DendriticBranchLayer]]:
-        for ei_layer in model.core_network.layers:
-            ex_dn = getattr(ei_layer, "excitatory_cells", None)
-            if ex_dn is not None and (
-                not require_excitatory_dendrinet or isinstance(ex_dn, DendriNet)
-            ):
-                yield from self._iter_dendrinet_branch_layers(
-                    ex_dn, require_layer_idx=require_layer_idx
-                )
-
-            if include_inhibitory:
-                in_dn = getattr(ei_layer, "inhibitory_cells", None)
-                if isinstance(in_dn, DendriNet):
-                    yield from self._iter_dendrinet_branch_layers(
-                        in_dn, require_layer_idx=require_layer_idx
-                    )
+        del require_excitatory_dendrinet
+        for population in _iter_dendritic_populations(
+            model, include_inhibitory=include_inhibitory
+        ):
+            yield from self._iter_dendrinet_branch_layers(
+                population, require_layer_idx=require_layer_idx
+            )
 
     def _iter_dendrinet_branch_layers(
-        self, dendrinet: DendriNet, *, require_layer_idx: bool = False
+        self, dendrinet, *, require_layer_idx: bool = False
     ) -> Iterator[tuple[int, DendriticBranchLayer]]:
         for depth_idx, branch_layer in enumerate(dendrinet.branch_layers):
             if require_layer_idx and getattr(branch_layer, "layer_idx", None) is None:

@@ -308,6 +308,7 @@ def _validate_population_entry(
         branch_factors,
         name=f"{context}.branch_factors",
         errors=errors,
+        allow_empty=True,
     )
     return name, polarity, n_neurons
 

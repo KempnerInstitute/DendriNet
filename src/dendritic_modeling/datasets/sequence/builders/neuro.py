@@ -17,6 +17,7 @@ from dendritic_modeling.datasets.sequence.neuro_tasks import (
     OculomotorDelayedResponseDataset,
     RomoDelayComparisonDataset,
     StringerV1Dataset,
+    _resolve_stringer_session_file,
 )
 
 
@@ -132,7 +133,14 @@ def build_stringer_v1(
     n_classes = kwargs.get("n_classes", 8)
     normalize = kwargs.get("normalize", True)
     seed = kwargs.get("label_noise_seed", 42)
-    session_idx = kwargs.get("session_idx", 20)
+    session_id = kwargs.get("session_id", None)
+    if session_id is not None:
+        grating_file, session_idx = _resolve_stringer_session_file(
+            data_dir, str(session_id)
+        )
+    else:
+        session_idx = kwargs.get("session_idx", 20)
+        grating_file = kwargs.get("grating_file", StringerV1Dataset._GRATING_FILE)
     running_quantile = kwargs.get("running_quantile", 0.5)
     running_state = kwargs.get("running_state", "all")
     train_running_state = kwargs.get("train_running_state", running_state)
@@ -141,6 +149,8 @@ def build_stringer_v1(
     gain_grouping = kwargs.get("gain_grouping", "preferred_class")
     poisson_sampling = kwargs.get("poisson_sampling", False)
     poisson_rate_scale = kwargs.get("poisson_rate_scale", 1.0)
+    running_residualize = kwargs.get("running_residualize", False)
+    running_residualize_clip = kwargs.get("running_residualize_clip", True)
     gain_seed = kwargs.get("gain_seed", seed)
 
     def state_kwargs(prefix: str, state: str) -> dict[str, Any]:
@@ -170,6 +180,12 @@ def build_stringer_v1(
             "poisson_rate_scale": kwargs.get(
                 f"{prefix}poisson_rate_scale", poisson_rate_scale
             ),
+            "running_residualize": kwargs.get(
+                f"{prefix}running_residualize", running_residualize
+            ),
+            "running_residualize_clip": kwargs.get(
+                f"{prefix}running_residualize_clip", running_residualize_clip
+            ),
         }
 
     common = {
@@ -179,6 +195,7 @@ def build_stringer_v1(
         "normalize": normalize,
         "seed": seed,
         "session_idx": session_idx,
+        "grating_file": grating_file,
     }
 
     use_state_specific_split = (

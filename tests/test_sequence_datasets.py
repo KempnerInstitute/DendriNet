@@ -49,11 +49,19 @@ def _seed_rngs():
     np.random.seed(0)
 
 
-def _write_tiny_stringer(tmp_path, *, n_neurons=4, n_trials=20):
+def _write_tiny_stringer(
+    tmp_path,
+    *,
+    n_neurons=4,
+    n_trials=20,
+    grating_file=StringerV1Dataset._GRATING_FILE,
+    offset=0.0,
+):
     responses = np.stack(
         [
             np.linspace(0.0, 1.0 + neuron, n_trials)
             + (10.0 * (np.arange(n_trials) >= n_trials // 2))
+            + offset
             for neuron in range(n_neurons)
         ],
         axis=0,
@@ -62,7 +70,7 @@ def _write_tiny_stringer(tmp_path, *, n_neurons=4, n_trials=20):
         np.float32
     )
     np.save(
-        tmp_path / StringerV1Dataset._GRATING_FILE,
+        tmp_path / grating_file,
         {"sresp": responses, "istim": orientations},
         allow_pickle=True,
     )
@@ -534,6 +542,122 @@ def test_frequency_forecast_and_dynamical_sequence_datasets(tmp_path):
         StringerV1Dataset(data_dir=str(tmp_path), poisson_rate_scale=0.0)
     with pytest.raises(FileNotFoundError, match="Stringer V1 data not found"):
         StringerV1Dataset(data_dir=str(tmp_path))
+    with pytest.raises(ValueError, match="grating_file must be a filename"):
+        StringerV1Dataset(
+            data_dir=str(tmp_path),
+            grating_file="../outside.npy",
+        )
+
+
+def test_stringer_v1_selects_requested_grating_file(tmp_path):
+    _write_tiny_stringer(tmp_path, grating_file=StringerV1Dataset._GRATING_FILE)
+    _write_tiny_stringer(tmp_path, grating_file="alternate_session.npy", offset=5.0)
+
+    default_ds = StringerV1Dataset(
+        data_dir=str(tmp_path),
+        n_neurons=4,
+        n_classes=4,
+        split="all",
+        normalize=False,
+        session_idx=0,
+    )
+    alternate_ds = StringerV1Dataset(
+        data_dir=str(tmp_path),
+        n_neurons=4,
+        n_classes=4,
+        split="all",
+        normalize=False,
+        session_idx=0,
+        grating_file="alternate_session.npy",
+    )
+
+    assert default_ds.grating_file == StringerV1Dataset._GRATING_FILE
+    assert alternate_ds.grating_file == "alternate_session.npy"
+    assert torch.allclose(alternate_ds.responses, default_ds.responses + 5.0)
+
+
+def test_stringer_v1_running_residualization_removes_classwise_running_gain(tmp_path):
+    n_trials = 48
+    n_neurons = 4
+    running = np.linspace(-1.0, 1.0, n_trials).astype(np.float32)
+    labels = np.arange(n_trials) % 4
+    orientations = (labels * (2 * np.pi / 4)).astype(np.float32)
+    responses = np.stack(
+        [3.0 + labels + (neuron + 1) * running for neuron in range(n_neurons)],
+        axis=0,
+    ).astype(np.float32)
+    responses -= responses.min() - 0.25
+    np.save(
+        tmp_path / StringerV1Dataset._GRATING_FILE,
+        {"sresp": responses, "istim": orientations},
+        allow_pickle=True,
+    )
+    all_running = np.empty(1, dtype=object)
+    all_running[0] = running
+    np.save(tmp_path / StringerV1Dataset._RUNNING_FILE, all_running, allow_pickle=True)
+
+    raw_ds = StringerV1Dataset(
+        data_dir=str(tmp_path),
+        n_neurons=n_neurons,
+        n_classes=4,
+        split="all",
+        normalize=False,
+        session_idx=0,
+    )
+    resid_ds = StringerV1Dataset(
+        data_dir=str(tmp_path),
+        n_neurons=n_neurons,
+        n_classes=4,
+        split="all",
+        normalize=False,
+        session_idx=0,
+        running_residualize=True,
+    )
+
+    assert resid_ds.running_residualized is True
+    assert torch.all(resid_ds.responses >= 0.0)
+    raw_np = raw_ds.responses.numpy()
+    resid_np = resid_ds.responses.numpy()
+    for class_idx in range(4):
+        mask = labels == class_idx
+        r = running[mask] - running[mask].mean()
+        raw_slope = float(np.dot(r, raw_np[mask, 0]) / np.dot(r, r))
+        resid_slope = float(np.dot(r, resid_np[mask, 0]) / np.dot(r, r))
+        assert abs(resid_slope) < 1e-5
+        assert abs(raw_slope) > 0.1
+
+
+def test_stringer_v1_session_id_resolves_file_and_running_index(tmp_path):
+    session_file = "gratings_drifting_GT1_2019_04_12_1.npy"
+    _write_tiny_stringer(tmp_path, grating_file=session_file)
+    np.save(
+        tmp_path / "database.npy",
+        np.array(
+            [
+                {
+                    "expt": "gratings_drifting",
+                    "mouse_name": "GT1",
+                    "date": "2019_04_12",
+                    "block": "1",
+                }
+            ],
+            dtype=object,
+        ),
+        allow_pickle=True,
+    )
+
+    train_ds, _, test_ds = get_sequence_datasets(
+        "stringer_v1",
+        data_path=str(tmp_path),
+        n_neurons=4,
+        n_classes=4,
+        normalize=False,
+        session_id="GT1_2019_04_12",
+        train_valid_split=0.8,
+    )
+
+    assert train_ds.dataset.grating_file == session_file
+    assert test_ds.grating_file == session_file
 
 
 def test_stringer_v1_uses_train_split_normalization_stats(tmp_path):

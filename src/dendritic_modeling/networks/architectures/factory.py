@@ -1,4 +1,5 @@
 import logging
+import math
 from collections.abc import Callable
 from typing import Any, Optional, Union
 
@@ -210,9 +211,19 @@ def _build_point_mlp_architecture(
     """Build the point-neuron MLP baseline from structured E/I config."""
     del type, suffix_input_dim
     raw_params = _to_plain_mapping(parameters)
+    if "population_network" in raw_params:
+        reference = _build_population_network_architecture(
+            "population_network", raw_params, input_dim, None
+        )
+        return _build_reference_matched_mlp(
+            reference=reference,
+            input_dim=input_dim,
+            match_mode="effective",
+        )
     if not ("architecture" in raw_params and "connectivity" in raw_params):
         raise ValueError(
-            "point_mlp requires structured architecture/connectivity config"
+            "point_mlp requires structured architecture/connectivity config or "
+            "a population_network reference config"
         )
     if input_dim is None:
         raise ValueError(
@@ -225,6 +236,38 @@ def _build_point_mlp_architecture(
 
     params = prepare_ei_network_params(raw_params, input_dim)
     return PointMatchedParamMLP(**params)
+
+
+def _build_reference_matched_mlp(
+    *,
+    reference: nn.Module,
+    input_dim: Optional[int],
+    match_mode: str,
+    activation: str = "relu",
+) -> nn.Module:
+    if input_dim is None:
+        raise ValueError("input_dim required when building matched MLP baselines")
+
+    output_dim = int(reference.output_dim)
+    if match_mode == "effective" and hasattr(reference, "get_effective_params"):
+        target_params = int(reference.get_effective_params())
+    elif match_mode in {"effective", "total"}:
+        target_params = sum(
+            p.numel() for p in reference.parameters() if p.requires_grad
+        )
+    else:
+        raise ValueError(f"Unknown matched MLP mode: {match_mode!r}")
+
+    # One hidden layer, matching PointMatchedParamMLP semantics:
+    # (input_dim * H + H) + (H * output_dim + output_dim) >= target_params.
+    denom = int(input_dim) + output_dim + 1
+    hidden_width = max(1, math.ceil(max(0, target_params - output_dim) / denom))
+    return MLP(
+        input_dim=int(input_dim),
+        hidden_dims=[hidden_width],
+        activation=activation,
+        output_dim=output_dim,
+    )
 
 
 def _ensure_flat_parameters(
@@ -274,6 +317,16 @@ def _build_total_param_mlp(
     suffix_input_dim: Optional[int],
 ) -> nn.Module:
     del type, suffix_input_dim
+    raw_params = _to_plain_mapping(parameters)
+    if "population_network" in raw_params:
+        reference = _build_population_network_architecture(
+            "population_network", raw_params, input_dim, None
+        )
+        return _build_reference_matched_mlp(
+            reference=reference,
+            input_dim=input_dim,
+            match_mode="total",
+        )
     return MatchedTotalParamMLP(parameters, input_dim)
 
 
@@ -284,6 +337,16 @@ def _build_active_param_mlp(
     suffix_input_dim: Optional[int],
 ) -> nn.Module:
     del type, suffix_input_dim
+    raw_params = _to_plain_mapping(parameters)
+    if "population_network" in raw_params:
+        reference = _build_population_network_architecture(
+            "population_network", raw_params, input_dim, None
+        )
+        return _build_reference_matched_mlp(
+            reference=reference,
+            input_dim=input_dim,
+            match_mode="effective",
+        )
     return MatchedActiveParamMLP(parameters, input_dim)
 
 

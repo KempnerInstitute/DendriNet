@@ -168,6 +168,48 @@ class PopulationNetwork(BaseNetwork):
                 branch_layers.extend(list(getattr(population, "branch_layers", [])))
         return branch_layers
 
+    @property
+    def n_branch_layers(self) -> int:
+        """Return the total number of dendritic branch layers across populations."""
+        return len(self.branch_layers)
+
+    def get_effective_params(self) -> int:
+        """Calculate active/effective parameters after TopK-style sparsity.
+
+        This mirrors the legacy E/I network API used by matched MLP baselines.
+        Sparse synapse modules contribute their active K entries per output
+        unit, while dense block/re-activation/input-projection parameters count
+        in full.
+        """
+        effective = sum(p.numel() for p in self.input_projection.parameters())
+
+        def _effective_synapse_params(module: nn.Module | None) -> int:
+            if module is None:
+                return 0
+            if hasattr(module, "out_features") and hasattr(module, "K"):
+                return int(module.out_features) * int(module.K)
+            if hasattr(module, "weight_mask"):
+                return int(module.weight_mask().sum().item())
+            return sum(p.numel() for p in module.parameters())
+
+        for branch_layer in self.branch_layers:
+            effective += _effective_synapse_params(
+                getattr(branch_layer, "branch_excitation", None)
+            )
+            effective += _effective_synapse_params(
+                getattr(branch_layer, "branch_inhibition", None)
+            )
+
+            branches_to_output = getattr(branch_layer, "branches_to_output", None)
+            if branches_to_output is not None:
+                effective += sum(p.numel() for p in branches_to_output.parameters())
+
+            reactivation = getattr(branch_layer, "reactivation", None)
+            if reactivation is not None and not isinstance(reactivation, nn.Identity):
+                effective += sum(p.numel() for p in reactivation.parameters())
+
+        return int(effective)
+
     def decay_weights(self, weight_decay: float, weight_boosting: bool = False) -> None:
         for layer in self.layers:
             for population in layer.populations.values():

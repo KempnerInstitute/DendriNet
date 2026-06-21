@@ -68,6 +68,41 @@ def _single_layer_temporal_population_config(population_overrides):
     }
 
 
+def test_population_network_all_somatic_population_allows_empty_branch_factors():
+    cfg = {
+        "population_network": {
+            "layers": [
+                {
+                    "name": "layer0",
+                    "readout_population": "e",
+                    "population_defaults": _base_population(
+                        {
+                            "rec_excitatory_synapses": 0,
+                            "rec_inhibitory_synapses": 0,
+                            "somatic_synapses": True,
+                        }
+                    ),
+                    "populations": [
+                        {
+                            "name": "e",
+                            "polarity": "excitatory",
+                            "n_neurons": 5,
+                            "branch_factors": [],
+                        }
+                    ],
+                    "connections": [{"source": "input", "target": "e"}],
+                }
+            ],
+        }
+    }
+
+    net = get_architecture("population_network", cfg, input_dim=4)
+    out = net(torch.randn(2, 4))
+
+    assert out.shape == (2, 5)
+    assert net.layers[0].population_configs["e"].branch_factors == []
+
+
 def test_population_network_two_pop_feedforward_matches_current_ei_pattern():
     cfg = {
         "population_network": {

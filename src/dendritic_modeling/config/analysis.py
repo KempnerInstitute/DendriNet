@@ -575,6 +575,9 @@ class NoisePerturbationAnalysisParams(BaseConfig):
     - gaussian_noise: enable Gaussian noise sweeps.
     - gaussian_sdevs: list of standard deviations for Gaussian noise.
     - n_samples: number of noisy replicates per magnitude/sdev.
+    - clamp_range: optional ``[min, max]`` output clamp. Set to ``None`` for
+      unnormalized neural activity where noise should not be clipped to an
+      image-like range.
 
     Metric toggles (same semantics as PerformanceAnalysisParams):
     - accuracy, auc, categorical_loglikelihood, mse, cosine_similarity
@@ -585,6 +588,7 @@ class NoisePerturbationAnalysisParams(BaseConfig):
     gaussian_noise: bool = True
     gaussian_sdevs: list[float] = field(default_factory=lambda: [0.1, 0.2])
     n_samples: int = 10
+    clamp_range: Optional[list[float]] = field(default_factory=lambda: [0.0, 1.0])
     accuracy: bool = True
     auc: bool = True
     categorical_loglikelihood: bool = True

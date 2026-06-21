@@ -194,6 +194,9 @@ dmypy.json
 # Pyre type checker
 .pyre/
 .claude/
+.fc_verify.py
+.fusion_scratch/
+.v1_verify_panel.py
 # pytype static type analyzer
 .pytype/
 

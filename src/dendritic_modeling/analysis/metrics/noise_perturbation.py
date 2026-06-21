@@ -19,6 +19,7 @@ from dendritic_modeling.analysis.utils.runtime import (
 from dendritic_modeling.config import NoisePerturbationAnalysisParams
 from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.datasets.augmentation.noise import (
+    ClampRange,
     add_gaussian_noise,
     add_uniform_noise,
 )
@@ -66,6 +67,34 @@ class NoisePerturbationAnalyzer(AbstractAnalyzer):
         self.mse = getattr(params, "mse", False)
         self.cosine_similarity = getattr(params, "cosine_similarity", False)
         self.seed = int(getattr(params, "seed", 0) or 0)
+        self.clamp_range = self._normalize_clamp_range(
+            getattr(params, "clamp_range", (0.0, 1.0))
+        )
+
+    @staticmethod
+    def _normalize_clamp_range(value) -> ClampRange:
+        if value is None:
+            return None
+        if (
+            isinstance(value, (str, bytes))
+            or not hasattr(value, "__len__")
+            or not hasattr(value, "__getitem__")
+        ):
+            raise ValueError(
+                "noise_perturbation.params.clamp_range must be null or a "
+                "[min, max] pair."
+            )
+        if len(value) != 2:
+            raise ValueError(
+                "noise_perturbation.params.clamp_range must be null or a "
+                "[min, max] pair."
+            )
+        lo, hi = float(value[0]), float(value[1])
+        if lo > hi:
+            raise ValueError(
+                "noise_perturbation.params.clamp_range must satisfy min <= max."
+            )
+        return (lo, hi)
 
     def analyze(
         self,
@@ -130,6 +159,7 @@ class NoisePerturbationAnalyzer(AbstractAnalyzer):
                         spread=mag,
                         n_samples=self.n_samples,
                         generator=generator,
+                        clamp_range=self.clamp_range,
                     )
                     noisy_test_ds = TensorDataset(noisy_x, y)
                     if self.accuracy:
@@ -182,6 +212,7 @@ class NoisePerturbationAnalyzer(AbstractAnalyzer):
                         std=sdev,
                         n_samples=self.n_samples,
                         generator=generator,
+                        clamp_range=self.clamp_range,
                     )
                     noisy_test_ds = TensorDataset(noisy_x, y)
                     if self.accuracy:

@@ -109,6 +109,7 @@ def register_named_forward_hooks(
     *,
     predicate: Callable[[str, ModuleT], bool] | None = None,
     prepare: Callable[[str, ModuleT], None] | None = None,
+    with_kwargs: bool = False,
 ) -> list[HookHandle]:
     """Register one forward hook per matching module with partial-failure cleanup."""
     handles: list[HookHandle] = []
@@ -118,7 +119,7 @@ def register_named_forward_hooks(
                 continue
             if prepare is not None:
                 prepare(name, module)
-            handles.append(module.register_forward_hook(hook))
+            handles.append(module.register_forward_hook(hook, with_kwargs=with_kwargs))
         return handles
     except Exception:
         remove_hook_handles(handles)

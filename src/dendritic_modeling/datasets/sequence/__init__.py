@@ -25,6 +25,7 @@ from dendritic_modeling.datasets.sequence.neuro_tasks import (
     OculomotorDelayedResponseDataset,
     RomoDelayComparisonDataset,
     StringerV1Dataset,
+    _resolve_stringer_session_file,
 )
 from dendritic_modeling.datasets.sequence.signal_tasks import (
     LorenzSequenceDataset,
@@ -50,6 +51,7 @@ __all__ = [
     "SwitchingLDSDataset",
     "TimescaleGeneralizationDataset",
     "VariableDelayDMSDataset",
+    "_resolve_stringer_session_file",
     "get_registered_sequence_dataset_names",
     "get_sequence_dataset_builder",
     "get_sequence_datasets",

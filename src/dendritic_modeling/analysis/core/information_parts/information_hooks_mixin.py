@@ -134,6 +134,7 @@ def _attach_analyzable_branch_hooks(
                 name,
                 module,
             ),
+            with_kwargs=True,
         )
     except Exception:
         _restore_branch_hook_capture(hook_modules)
@@ -195,11 +196,24 @@ class InformationHooksMixin(ForwardHookRemovalMixin):
     def forward_hook(
         self,
         module: DendriticBranchLayer,
-        input: tuple[torch.Tensor, torch.Tensor, torch.Tensor],
-        output: torch.Tensor,
+        *hook_args,
     ):
         """Forward hook to collect branch data."""
-        excitatory_input, inhibitory_input, branch_input = input
+        if len(hook_args) == 3:
+            input_args, input_kwargs, output = hook_args
+        else:
+            input_args, output = hook_args
+            input_kwargs = {}
+
+        excitatory_input = input_kwargs.get(
+            "x", input_args[0] if len(input_args) > 0 else None
+        )
+        inhibitory_input = input_kwargs.get(
+            "inhibitory_input", input_args[1] if len(input_args) > 1 else None
+        )
+        branch_input = input_kwargs.get(
+            "branch_input", input_args[2] if len(input_args) > 2 else None
+        )
 
         cached_currents = getattr(module, "_last_analysis_currents", None)
         (
