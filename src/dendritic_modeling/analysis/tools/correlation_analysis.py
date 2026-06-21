@@ -38,6 +38,30 @@ from dendritic_modeling.utils.hooks import remove_hook_handles
 
 logger = logging.getLogger(__name__)
 
+_CORRELATION_COMPUTE_DEFAULTS = {
+    "computation_level": "layer_branch",
+    "max_samples": 5000,
+    "batch_process": True,
+    "per_layer_analysis": True,
+    "per_einet_analysis": True,
+    "per_neuron_analysis": False,
+}
+_CORRELATION_SAMPLING_DEFAULTS = {
+    "n_synapse_pairs": 10000,
+    "sampling_strategy": "stratified",
+    "stratified_categories": ["within_branch", "within_layer", "across_layer"],
+    "max_pairs_per_category": 1000,
+}
+
+
+def _prefer_nested_config_value(nested_cfg, flat_cfg, name: str, default):
+    """Use legacy flat values when the nested config still has its default."""
+    nested_value = getattr(nested_cfg, name, default)
+    flat_value = getattr(flat_cfg, name, default)
+    if flat_value != default and nested_value == default:
+        return flat_value
+    return nested_value
+
 
 class CorrelationAnalyzer(AbstractAnalyzer):
     """Hierarchical correlation analyzer for dendritic networks."""
@@ -62,10 +86,11 @@ class CorrelationAnalyzer(AbstractAnalyzer):
         sampling_cfg = getattr(params, "sampling", None)
 
         # Core parameters
-        self.computation_level = getattr(
+        self.computation_level = _prefer_nested_config_value(
             compute_cfg,
+            params,
             "computation_level",
-            getattr(params, "computation_level", "layer_branch"),
+            _CORRELATION_COMPUTE_DEFAULTS["computation_level"],
         )
 
         # ------------------------------------------------------------------
@@ -94,24 +119,27 @@ class CorrelationAnalyzer(AbstractAnalyzer):
         )
 
         self.per_layer_analysis = bool(
-            getattr(
+            _prefer_nested_config_value(
                 compute_cfg,
+                params,
                 "per_layer_analysis",
-                getattr(params, "per_layer_analysis", True),
+                _CORRELATION_COMPUTE_DEFAULTS["per_layer_analysis"],
             )
         )
         self.per_einet_analysis = bool(
-            getattr(
+            _prefer_nested_config_value(
                 compute_cfg,
+                params,
                 "per_einet_analysis",
-                getattr(params, "per_einet_analysis", True),
+                _CORRELATION_COMPUTE_DEFAULTS["per_einet_analysis"],
             )
         )
         self.per_neuron_analysis = bool(
-            getattr(
+            _prefer_nested_config_value(
                 compute_cfg,
+                params,
                 "per_neuron_analysis",
-                getattr(params, "per_neuron_analysis", False),
+                _CORRELATION_COMPUTE_DEFAULTS["per_neuron_analysis"],
             )
         )
 
@@ -161,31 +189,43 @@ class CorrelationAnalyzer(AbstractAnalyzer):
             )
 
         # Sampling parameters (for synaptic level) (with defaults)
-        self.n_synapse_pairs = getattr(
-            sampling_cfg, "n_synapse_pairs", getattr(params, "n_synapse_pairs", 1000)
-        )
-        self.sampling_strategy = getattr(
+        self.n_synapse_pairs = _prefer_nested_config_value(
             sampling_cfg,
+            params,
+            "n_synapse_pairs",
+            _CORRELATION_SAMPLING_DEFAULTS["n_synapse_pairs"],
+        )
+        self.sampling_strategy = _prefer_nested_config_value(
+            sampling_cfg,
+            params,
             "sampling_strategy",
-            getattr(params, "sampling_strategy", "random"),
+            _CORRELATION_SAMPLING_DEFAULTS["sampling_strategy"],
         )
-        self.stratified_categories = getattr(
+        self.stratified_categories = _prefer_nested_config_value(
             sampling_cfg,
+            params,
             "stratified_categories",
-            getattr(params, "stratified_categories", None),
+            _CORRELATION_SAMPLING_DEFAULTS["stratified_categories"],
         )
-        self.max_pairs_per_category = getattr(
+        self.max_pairs_per_category = _prefer_nested_config_value(
             sampling_cfg,
+            params,
             "max_pairs_per_category",
-            getattr(params, "max_pairs_per_category", None),
+            _CORRELATION_SAMPLING_DEFAULTS["max_pairs_per_category"],
         )
 
         # Performance (with defaults)
-        self.max_samples = getattr(
-            compute_cfg, "max_samples", getattr(params, "max_samples", 5000)
+        self.max_samples = _prefer_nested_config_value(
+            compute_cfg,
+            params,
+            "max_samples",
+            _CORRELATION_COMPUTE_DEFAULTS["max_samples"],
         )
-        self.batch_process = getattr(
-            compute_cfg, "batch_process", getattr(params, "batch_process", True)
+        self.batch_process = _prefer_nested_config_value(
+            compute_cfg,
+            params,
+            "batch_process",
+            _CORRELATION_COMPUTE_DEFAULTS["batch_process"],
         )
 
         self.logger.info(
@@ -195,107 +235,99 @@ class CorrelationAnalyzer(AbstractAnalyzer):
     def attach_forward_hooks(self, model: BaseModel) -> list:
         """Attach forward hooks to collect activations."""
         self.data_dict = {}
-        handles = []
-
         if self.computation_level == "synaptic":
-            # For synaptic level, we need to hook into TopKLinear modules
-            for name, module in model.named_modules():
-                if isinstance(module, DendriticBranchLayer):
-                    layer_name = name
-                    self.data_dict[layer_name] = {}
-
-                    # Hook excitatory TopKLinear
-                    if module.branch_excitation is not None:
-
-                        def create_synapse_hook(layer_name, synapse_type):
-                            # Capture the module to avoid loop variable binding issues
-                            def hook(module, input, output):
-                                x = input[0] if isinstance(input, tuple) else input
-                                with torch.no_grad():
-                                    # Get active synapses
-                                    weights = module.weight()  # noqa: B023
-                                    active_indices = torch.topk(
-                                        module.pre_w,  # noqa: B023
-                                        module.K,  # noqa: B023
-                                        dim=-1,
-                                        largest=True,
-                                        sorted=False,
-                                    )[1]
-
-                                    # Extract synaptic activations
-                                    batch_size = x.shape[0]
-                                    n_branches = active_indices.shape[0]
-                                    x_expanded = x.unsqueeze(1).expand(
-                                        -1, n_branches, -1
-                                    )
-                                    indices_expanded = active_indices.unsqueeze(
-                                        0
-                                    ).expand(batch_size, -1, -1)
-                                    synaptic_inputs = torch.gather(
-                                        x_expanded, 2, indices_expanded
-                                    )
-
-                                    weights_active = torch.gather(
-                                        weights, 1, active_indices
-                                    )
-                                    weights_expanded = weights_active.unsqueeze(
-                                        0
-                                    ).expand(batch_size, -1, -1)
-                                    synaptic_activations = (
-                                        synaptic_inputs * weights_expanded
-                                    )
-
-                                    # Store
-                                    self.data_dict[layer_name][
-                                        f"{synapse_type}_synaptic"
-                                    ] = synaptic_activations
-                                    self.data_dict[layer_name][
-                                        f"{synapse_type}_indices"
-                                    ] = active_indices
-                                    self.data_dict[layer_name][
-                                        f"{synapse_type}_weights"
-                                    ] = weights_active
-                                    self.data_dict[layer_name][
-                                        f"{synapse_type}_branch_output"
-                                    ] = output
-
-                            return hook
-
-                        handle = module.branch_excitation.register_forward_hook(
-                            create_synapse_hook(layer_name, "E")
-                        )
-                        handles.append(handle)
-
-                    # Hook inhibitory TopKLinear
-                    if module.branch_inhibition is not None:
-                        handle = module.branch_inhibition.register_forward_hook(
-                            create_synapse_hook(layer_name, "I")
-                        )
-                        handles.append(handle)
-
-                    # Hook layer output
-                    def output_hook(layer_name):
-                        def hook(module, input, output):
-                            self.data_dict[layer_name]["output"] = output
-
-                        return hook
-
-                    handle = module.register_forward_hook(output_hook(layer_name))
-                    handles.append(handle)
+            handles = self._attach_synaptic_hooks(model)
         else:
-            # For branch/layer level, use standard hooks
-            for name, module in model.named_modules():
-                if isinstance(module, DendriticBranchLayer):
-                    if (
-                        module.branch_excitation is not None
-                        and module.branch_inhibition is not None
-                    ):
-                        self.data_dict[name] = {}
-                        module._name = name
-                        handle = module.register_forward_hook(self.forward_hook)
-                        handles.append(handle)
+            handles = self._attach_branch_level_hooks(model)
 
         self.logger.info(f"Attached hooks to {len(handles)} modules")
+        return handles
+
+    def _attach_synaptic_hooks(
+        self, model: BaseModel
+    ) -> list[torch.utils.hooks.RemovableHandle]:
+        handles = []
+        for layer_name, module in model.named_modules():
+            if isinstance(module, DendriticBranchLayer):
+                self.data_dict[layer_name] = {}
+                handles.extend(self._attach_synaptic_layer_hooks(layer_name, module))
+        return handles
+
+    def _attach_synaptic_layer_hooks(
+        self, layer_name: str, module: DendriticBranchLayer
+    ) -> list[torch.utils.hooks.RemovableHandle]:
+        handles = []
+        if module.branch_excitation is not None:
+            handles.append(
+                module.branch_excitation.register_forward_hook(
+                    self._make_synapse_hook(layer_name, "E")
+                )
+            )
+
+        if module.branch_inhibition is not None:
+            handles.append(
+                module.branch_inhibition.register_forward_hook(
+                    self._make_synapse_hook(layer_name, "I")
+                )
+            )
+
+        handles.append(module.register_forward_hook(self._make_output_hook(layer_name)))
+        return handles
+
+    def _make_synapse_hook(self, layer_name: str, synapse_type: str):
+        def hook(module, input, output):
+            x = input[0] if isinstance(input, tuple) else input
+            with torch.no_grad():
+                weights = module.weight()
+                active_indices = torch.topk(
+                    module.pre_w,
+                    module.K,
+                    dim=-1,
+                    largest=True,
+                    sorted=False,
+                )[1]
+
+                batch_size = x.shape[0]
+                n_branches = active_indices.shape[0]
+                x_expanded = x.unsqueeze(1).expand(-1, n_branches, -1)
+                indices_expanded = active_indices.unsqueeze(0).expand(
+                    batch_size, -1, -1
+                )
+                synaptic_inputs = torch.gather(x_expanded, 2, indices_expanded)
+
+                weights_active = torch.gather(weights, 1, active_indices)
+                weights_expanded = weights_active.unsqueeze(0).expand(
+                    batch_size, -1, -1
+                )
+                synaptic_activations = synaptic_inputs * weights_expanded
+
+                self.data_dict[layer_name][
+                    f"{synapse_type}_synaptic"
+                ] = synaptic_activations
+                self.data_dict[layer_name][f"{synapse_type}_indices"] = active_indices
+                self.data_dict[layer_name][f"{synapse_type}_weights"] = weights_active
+                self.data_dict[layer_name][f"{synapse_type}_branch_output"] = output
+
+        return hook
+
+    def _make_output_hook(self, layer_name: str):
+        def hook(module, input, output):
+            self.data_dict[layer_name]["output"] = output
+
+        return hook
+
+    def _attach_branch_level_hooks(
+        self, model: BaseModel
+    ) -> list[torch.utils.hooks.RemovableHandle]:
+        handles = []
+        for name, module in model.named_modules():
+            if isinstance(module, DendriticBranchLayer) and (
+                module.branch_excitation is not None
+                and module.branch_inhibition is not None
+            ):
+                self.data_dict[name] = {}
+                module._name = name
+                handles.append(module.register_forward_hook(self.forward_hook))
         return handles
 
     def forward_hook(

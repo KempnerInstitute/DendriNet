@@ -2,9 +2,13 @@ import torch
 from torch.utils.data import TensorDataset
 
 from dendritic_modeling.analysis.tools.compartment_snr import CompartmentSNRAnalyzer
+from dendritic_modeling.analysis.tools.compartment_statistics import (
+    CompartmentStatisticsAnalyzer,
+)
 from dendritic_modeling.analysis.tools.receptive_fields import ReceptiveFieldAnalyzer
 from dendritic_modeling.config.analysis import (
     CompartmentSNRAnalysisParams,
+    CompartmentStatisticsAnalysisParams,
     ReceptiveFieldAnalysisParams,
 )
 from dendritic_modeling.models import Classifier
@@ -106,6 +110,43 @@ def test_compartment_snr_collects_expected_branch_channels():
         assert branch_data["vout"].shape == (x.shape[0],)
 
 
+def test_compartment_statistics_collects_expected_branch_payloads():
+    model = _direct_inhibitory_model()
+    x, labels, _dataset = _toy_dataset()
+    analyzer = CompartmentStatisticsAnalyzer(
+        CompartmentStatisticsAnalysisParams(compute_entropy=False)
+    )
+
+    analyzer.collect_raw_data(model, x, labels)
+
+    first_layer = analyzer.raw_dict[
+        "core_network.layers.0.excitatory_cells.branch_layers.0"
+    ]
+    second_layer = analyzer.raw_dict[
+        "core_network.layers.0.excitatory_cells.branch_layers.1"
+    ]
+    for branch_data in first_layer.values():
+        assert set(branch_data) == {
+            "depth",
+            "exc_weights",
+            "inh_weights",
+            "exc_inputs",
+            "inh_inputs",
+            "exc_activations",
+            "inh_activations",
+        }
+        assert branch_data["exc_weights"].shape == (2,)
+        assert branch_data["inh_weights"].shape == (2,)
+        assert branch_data["exc_inputs"].shape == (x.shape[0], 2)
+        assert branch_data["inh_inputs"].shape == (x.shape[0], 2)
+        assert branch_data["exc_activations"].shape == (x.shape[0],)
+        assert branch_data["inh_activations"].shape == (x.shape[0],)
+
+    for branch_data in second_layer.values():
+        assert set(branch_data) == {"depth", "branch_weights"}
+        assert branch_data["branch_weights"].shape == (2,)
+
+
 def test_receptive_field_checkpoint_and_activation_tuning(tmp_path):
     model = _direct_inhibitory_model()
     _x, _labels, dataset = _toy_dataset()
@@ -127,6 +168,20 @@ def test_receptive_field_checkpoint_and_activation_tuning(tmp_path):
     assert results is not None
     assert results["n_receptive_fields"] > 0
     assert "activation_tuning" in results
+    first_layer = analyzer.activation_raw[
+        "core_network.layers.0.excitatory_cells.branch_layers.0"
+    ]
+    second_layer = analyzer.activation_raw[
+        "core_network.layers.0.excitatory_cells.branch_layers.1"
+    ]
+    for branch_data in first_layer.values():
+        assert set(branch_data) == {"depth", "exc", "inh", "vout"}
+        assert branch_data["exc"].shape == (_x.shape[0],)
+        assert branch_data["inh"].shape == (_x.shape[0],)
+        assert branch_data["vout"].shape == (_x.shape[0],)
+    for branch_data in second_layer.values():
+        assert set(branch_data) == {"depth", "vout"}
+        assert branch_data["vout"].shape == (_x.shape[0],)
     assert (tmp_path / "rf_raw_receptive_fields.pt").exists()
     assert (tmp_path / "rf_activation_tuning.json").exists()
 

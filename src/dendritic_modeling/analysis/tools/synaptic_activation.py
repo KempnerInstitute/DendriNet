@@ -66,13 +66,41 @@ class SynapticActivationAnalyzer:
         handles = []
         for layer_name, module in model.named_modules():
             if isinstance(module, DendriticBranchLayer):
-                self.data_dict.setdefault(layer_name, {})
-                for path, synapse_module in iter_topk_path_modules(module):
-                    synapse_module._analysis_layer_name = layer_name
-                    synapse_module._analysis_synapse_type = path.pathway
-                    handle = synapse_module.register_forward_hook(self.forward_hook)
-                    handles.append(handle)
+                handles.extend(self._attach_layer_hooks(layer_name, module))
         return handles
+
+    def _attach_layer_hooks(
+        self, layer_name: str, module: DendriticBranchLayer
+    ) -> list[torch.utils.hooks.RemovableHandle]:
+        self.data_dict.setdefault(layer_name, {})
+        handles = []
+        for path, synapse_module in iter_topk_path_modules(module):
+            handles.append(
+                self._register_synapse_hook(
+                    layer_name,
+                    path.pathway,
+                    synapse_module,
+                )
+            )
+        return handles
+
+    def _register_synapse_hook(
+        self,
+        layer_name: str,
+        synapse_type: str,
+        synapse_module: TopKLinear,
+    ) -> torch.utils.hooks.RemovableHandle:
+        self._tag_synapse_module(synapse_module, layer_name, synapse_type)
+        return synapse_module.register_forward_hook(self.forward_hook)
+
+    def _tag_synapse_module(
+        self,
+        synapse_module: TopKLinear,
+        layer_name: str,
+        synapse_type: str,
+    ) -> None:
+        synapse_module._analysis_layer_name = layer_name
+        synapse_module._analysis_synapse_type = synapse_type
 
     def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
         """Remove forward hooks."""

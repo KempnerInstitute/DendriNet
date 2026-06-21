@@ -91,44 +91,14 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
         handles = []
         for key, module in model.named_modules():
             if isinstance(module, DendriticBranchLayer):
-                self.raw_dict[key] = {}
-                for branch_idx in range(module.n_branches):
-                    self.raw_dict[key][branch_idx] = {"depth": module.layer_idx}
-
-                synapse_modules = [
-                    (path.pathway, synapse_module)
-                    for path, synapse_module in iter_topk_path_modules(module)
-                ]
-
-                if self.synapse_weights:
-                    for synapse_type, synapse_module in synapse_modules:
-                        if synapse_module is None:
-                            continue
-                        weights = synapse_module.pruned_weight().detach().cpu()
-                        for branch_idx in range(module.n_branches):
-                            w = weights[branch_idx]
-                            w = w[w > self.epsilon]
-                            self.raw_dict[key][branch_idx][
-                                f"{synapse_type}_weights"
-                            ] = w
-
-                if self.branch_weights and hasattr(module, "branches_to_output"):
-                    branch_weights = module.branches_to_output.weight().detach().cpu()
-                    for branch_idx in range(module.n_branches):
-                        branch_w = branch_weights[branch_idx]
-                        branch_w = branch_w[branch_w > self.epsilon]
-                        self.raw_dict[key][branch_idx]["branch_weights"] = branch_w
+                self._initialize_branch_records(key, module)
+                synapse_modules = self._iter_synapse_modules(module)
+                self._collect_layer_static_data(key, module, synapse_modules)
 
                 if self.inputs or self.activations:
-                    for synapse_type, synapse_module in synapse_modules:
-                        if synapse_module is None:
-                            continue
-                        handle = synapse_module.register_forward_hook(
-                            lambda module, input, output, layer_key=key, label=synapse_type: self.forward_hook(
-                                module, input, output, layer_key, label
-                            )
-                        )
-                        handles.append(handle)
+                    handles.extend(
+                        self._attach_synapse_capture_hooks(key, synapse_modules)
+                    )
 
         if self.inputs or self.activations:
             if self.n_samples is not None:
@@ -143,6 +113,70 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
             with torch.no_grad():
                 _ = model(x)
             self.remove_forward_hooks(handles)
+
+    def _initialize_branch_records(
+        self, key: str, module: DendriticBranchLayer
+    ) -> None:
+        self.raw_dict[key] = {}
+        for branch_idx in range(module.n_branches):
+            self.raw_dict[key][branch_idx] = {"depth": module.layer_idx}
+
+    def _iter_synapse_modules(
+        self, module: DendriticBranchLayer
+    ) -> list[tuple[str, TopKLinear | None]]:
+        return [
+            (path.pathway, synapse_module)
+            for path, synapse_module in iter_topk_path_modules(module)
+        ]
+
+    def _collect_layer_static_data(
+        self,
+        key: str,
+        module: DendriticBranchLayer,
+        synapse_modules: list[tuple[str, TopKLinear | None]],
+    ) -> None:
+        if self.synapse_weights:
+            for synapse_type, synapse_module in synapse_modules:
+                if synapse_module is None:
+                    continue
+                weights = synapse_module.pruned_weight().detach().cpu()
+                for branch_idx in range(module.n_branches):
+                    w = weights[branch_idx]
+                    w = w[w > self.epsilon]
+                    self.raw_dict[key][branch_idx][f"{synapse_type}_weights"] = w
+
+        if self.branch_weights and hasattr(module, "branches_to_output"):
+            branch_weights = module.branches_to_output.weight().detach().cpu()
+            for branch_idx in range(module.n_branches):
+                branch_w = branch_weights[branch_idx]
+                branch_w = branch_w[branch_w > self.epsilon]
+                self.raw_dict[key][branch_idx]["branch_weights"] = branch_w
+
+    def _register_synapse_capture_hook(
+        self,
+        key: str,
+        synapse_type: str,
+        synapse_module: TopKLinear,
+    ) -> torch.utils.hooks.RemovableHandle:
+        return synapse_module.register_forward_hook(
+            lambda module, input, output, layer_key=key, label=synapse_type: self.forward_hook(
+                module, input, output, layer_key, label
+            )
+        )
+
+    def _attach_synapse_capture_hooks(
+        self,
+        key: str,
+        synapse_modules: list[tuple[str, TopKLinear | None]],
+    ) -> list[torch.utils.hooks.RemovableHandle]:
+        handles = []
+        for synapse_type, synapse_module in synapse_modules:
+            if synapse_module is None:
+                continue
+            handles.append(
+                self._register_synapse_capture_hook(key, synapse_type, synapse_module)
+            )
+        return handles
 
     def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
         """Remove forward hooks from the model."""

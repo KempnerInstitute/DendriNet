@@ -194,7 +194,7 @@ def test_synaptic_activation_supports_population_network_topk_hooks():
     core = _population_network()
     dataset = TensorDataset(torch.ones(4, 5, 5), torch.zeros(4, dtype=torch.long))
     analyzer = SynapticActivationAnalyzer(
-        SynapticActivationAnalysisParams(raw_summary=False, downsample=False)
+        SynapticActivationAnalysisParams(raw_summary=True, downsample=False)
     )
 
     results = analyzer.analyze(core, dataset, device="cpu")
@@ -203,3 +203,9 @@ def test_synaptic_activation_supports_population_network_topk_hooks():
     assert "network_summary" in results
     assert "exc" in results["network_summary"]
     assert "rec_inh" in results["network_summary"]
+    raw_synapse_types = {
+        synapse_type
+        for layer_data in results["raw_summary"].values()
+        for synapse_type in layer_data
+    }
+    assert {"exc", "rec_inh"}.issubset(raw_synapse_types)

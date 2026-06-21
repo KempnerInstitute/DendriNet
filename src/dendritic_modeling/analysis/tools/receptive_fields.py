@@ -175,40 +175,55 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
             if not isinstance(module, DendriticBranchLayer):
                 continue
 
-            self.activation_raw[module_name] = {
-                branch_idx: {"depth": module.layer_idx}
-                for branch_idx in range(module.n_branches)
-            }
-
-            if module.branch_excitation is not None:
-                handles.append(
-                    module.branch_excitation.register_forward_hook(
-                        lambda module, inputs, output, layer_key=module_name: (
-                            self._activation_hook(output, layer_key, "exc")
-                        )
-                    )
-                )
-            if module.branch_inhibition is not None:
-                handles.append(
-                    module.branch_inhibition.register_forward_hook(
-                        lambda module, inputs, output, layer_key=module_name: (
-                            self._activation_hook(output, layer_key, "inh")
-                        )
-                    )
-                )
-            handles.append(
-                module.reactivation.register_forward_hook(
-                    lambda module, inputs, output, layer_key=module_name: (
-                        self._activation_hook(output, layer_key, "vout")
-                    )
-                )
-            )
+            self._initialize_activation_records(module_name, module)
+            handles.extend(self._attach_activation_hooks(module_name, module))
 
         try:
             with torch.no_grad():
                 _ = model(x)
         finally:
             remove_hook_handles(handles)
+
+    def _initialize_activation_records(
+        self, module_name: str, module: DendriticBranchLayer
+    ) -> None:
+        self.activation_raw[module_name] = {
+            branch_idx: {"depth": module.layer_idx}
+            for branch_idx in range(module.n_branches)
+        }
+
+    def _register_activation_hook(
+        self,
+        module: torch.nn.Module,
+        layer_key: str,
+        activation_type: str,
+    ) -> torch.utils.hooks.RemovableHandle:
+        return module.register_forward_hook(
+            lambda module, inputs, output, key=layer_key: (
+                self._activation_hook(output, key, activation_type)
+            )
+        )
+
+    def _attach_activation_hooks(
+        self, module_name: str, module: DendriticBranchLayer
+    ) -> list[torch.utils.hooks.RemovableHandle]:
+        handles = []
+        if module.branch_excitation is not None:
+            handles.append(
+                self._register_activation_hook(
+                    module.branch_excitation, module_name, "exc"
+                )
+            )
+        if module.branch_inhibition is not None:
+            handles.append(
+                self._register_activation_hook(
+                    module.branch_inhibition, module_name, "inh"
+                )
+            )
+        handles.append(
+            self._register_activation_hook(module.reactivation, module_name, "vout")
+        )
+        return handles
 
     def _summarize_signal(
         self,
