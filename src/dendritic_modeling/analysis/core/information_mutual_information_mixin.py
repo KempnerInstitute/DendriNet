@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 
 import numpy as np
 
@@ -22,6 +23,20 @@ class InformationMutualInformationMixin(InformationValidationMixin):
             activations, labels, condition
         )
 
+    def _estimate_timed_metric(
+        self,
+        metric_key: str,
+        estimate_fn: Callable[[], float],
+    ) -> float:
+        """Compute one metric while preserving the debug timing format."""
+        self.logger.debug(f"  Computing {metric_key}...")
+        start_time = time.time()
+        value = estimate_fn()
+        self.logger.debug(
+            f"  {metric_key} = {value:.4f} (took {time.time() - start_time:.1f}s)"
+        )
+        return value
+
     def _estimate_mi(
         self,
         metric_key: str,
@@ -29,13 +44,10 @@ class InformationMutualInformationMixin(InformationValidationMixin):
         y: np.ndarray,
     ) -> float:
         """Compute one MI metric with the existing debug timing format."""
-        self.logger.debug(f"  Computing {metric_key}...")
-        start_time = time.time()
-        value = self.estimators[self.method].mutual_information(x, y)
-        self.logger.debug(
-            f"  {metric_key} = {value:.4f} (took {time.time() - start_time:.1f}s)"
+        return self._estimate_timed_metric(
+            metric_key,
+            lambda: self.estimators[self.method].mutual_information(x, y),
         )
-        return value
 
     def _estimate_cmi(
         self,
@@ -45,15 +57,12 @@ class InformationMutualInformationMixin(InformationValidationMixin):
         condition: np.ndarray,
     ) -> float:
         """Compute one conditional MI metric with the existing debug timing format."""
-        self.logger.debug(f"  Computing {metric_key}...")
-        start_time = time.time()
-        value = self.estimators[self.method].conditional_mutual_information(
-            x, y, condition
+        return self._estimate_timed_metric(
+            metric_key,
+            lambda: self.estimators[self.method].conditional_mutual_information(
+                x, y, condition
+            ),
         )
-        self.logger.debug(
-            f"  {metric_key} = {value:.4f} (took {time.time() - start_time:.1f}s)"
-        )
-        return value
 
     def _estimate_cmi_or_zero(
         self,
@@ -63,19 +72,20 @@ class InformationMutualInformationMixin(InformationValidationMixin):
         condition: np.ndarray,
     ) -> float:
         """Compute one conditional MI metric, returning zero on estimator failure."""
-        self.logger.debug(f"  Computing {metric_key}...")
-        start_time = time.time()
-        try:
-            value = self.estimators[self.method].conditional_mutual_information(
-                x, y, condition
-            )
-        except Exception as e:
-            self.logger.warning(f"  Failed to compute {metric_key}: {e}")
-            value = 0.0
-        self.logger.debug(
-            f"  {metric_key} = {value:.4f} (took {time.time() - start_time:.1f}s)"
+
+        def estimate() -> float:
+            try:
+                return self.estimators[self.method].conditional_mutual_information(
+                    x, y, condition
+                )
+            except Exception as e:
+                self.logger.warning(f"  Failed to compute {metric_key}: {e}")
+                return 0.0
+
+        return self._estimate_timed_metric(
+            metric_key,
+            estimate,
         )
-        return value
 
     def _add_mi_metrics(
         self,

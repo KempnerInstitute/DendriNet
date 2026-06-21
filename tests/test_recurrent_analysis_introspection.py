@@ -9,7 +9,12 @@ from dendritic_modeling.analysis.tools.dendritic_timetraces import (
 from dendritic_modeling.analysis.tools.inhibitory_specialization import (
     InhibitorySpecializationAnalyzer,
 )
-from dendritic_modeling.analysis.tools.routing_analysis import RoutingAnalyzer
+from dendritic_modeling.analysis.tools.routing_analysis import (
+    RoutingAnalyzer,
+    _append_masked_routing_values,
+    _extract_seq_lengths,
+    _valid_timestep_mask,
+)
 from dendritic_modeling.analysis.tools.synaptic_activation import (
     SynapticActivationAnalyzer,
 )
@@ -105,6 +110,51 @@ def test_routing_analyzer_collects_population_network_entries():
     assert "microcircuit/pyr" in results
     assert "microcircuit/pv" in results
     assert results["microcircuit/pyr"]["n_levels"] == 2
+
+
+def test_routing_helpers_extract_and_mask_sequence_lengths():
+    seq_lengths = torch.tensor([1, 3])
+    batch = (torch.zeros(2, 3, 5), torch.zeros(2), seq_lengths)
+
+    assert _extract_seq_lengths(batch) is seq_lengths
+    assert _extract_seq_lengths(batch[:2]) is None
+
+    valid_mask, should_process = _valid_timestep_mask(None, timestep_idx=5)
+    assert valid_mask is None
+    assert should_process
+
+    valid_mask, should_process = _valid_timestep_mask(seq_lengths, timestep_idx=1)
+    assert valid_mask.tolist() == [False, True]
+    assert should_process
+
+    valid_mask, should_process = _valid_timestep_mask(seq_lengths, timestep_idx=3)
+    assert valid_mask.tolist() == [False, False]
+    assert not should_process
+
+
+def test_append_masked_routing_values_filters_detached_cpu_rows():
+    values = torch.arange(6, dtype=torch.float32, requires_grad=True).reshape(2, 3)
+    accumulator: dict[str, list[torch.Tensor]] = {}
+
+    _append_masked_routing_values(
+        accumulator,
+        "layer/pyr",
+        values,
+        torch.tensor([False, True]),
+    )
+
+    collected = accumulator["layer/pyr"][0]
+    assert collected.device.type == "cpu"
+    assert not collected.requires_grad
+    assert torch.equal(collected, values.detach()[1:].cpu())
+
+    _append_masked_routing_values(
+        accumulator,
+        "empty",
+        values,
+        torch.tensor([False, False]),
+    )
+    assert "empty" not in accumulator
 
 
 def test_dendritic_timetraces_collects_population_network_excitatory_population():

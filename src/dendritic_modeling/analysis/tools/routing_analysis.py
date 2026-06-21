@@ -32,6 +32,31 @@ def _extract_seq_lengths(batch) -> Optional[torch.Tensor]:
     return None
 
 
+def _valid_timestep_mask(
+    seq_lengths: Optional[torch.Tensor],
+    timestep_idx: int,
+) -> tuple[Optional[torch.Tensor], bool]:
+    if seq_lengths is None:
+        return None, True
+
+    valid_mask = (seq_lengths > timestep_idx).detach().cpu()
+    return valid_mask, bool(valid_mask.any())
+
+
+def _append_masked_routing_values(
+    accumulator: dict[str, list[torch.Tensor]],
+    key: str,
+    values: torch.Tensor,
+    valid_mask: Optional[torch.Tensor],
+) -> None:
+    values = values.detach().cpu()
+    if valid_mask is not None:
+        values = values[valid_mask]
+    if values.numel() == 0:
+        return
+    accumulator.setdefault(key, []).append(values)
+
+
 class RoutingAnalyzer(AbstractAnalyzer):
     """Analyzes per-level routing in recurrent dendritic E-I networks.
 
@@ -117,35 +142,29 @@ class RoutingAnalyzer(AbstractAnalyzer):
                         for timestep_idx, timestep_info in enumerate(
                             core._routing_info
                         ):
-                            valid_mask = None
-                            if seq_lengths is not None:
-                                valid_mask = (seq_lengths > timestep_idx).detach().cpu()
-                                if not bool(valid_mask.any()):
-                                    continue
+                            valid_mask, should_process = _valid_timestep_mask(
+                                seq_lengths, timestep_idx
+                            )
+                            if not should_process:
+                                continue
                             for full_key, pop_info in iter_routing_entries(
                                 timestep_info
                             ):
                                 if "level_contributions" in pop_info:
-                                    values = (
-                                        pop_info["level_contributions"].detach().cpu()
+                                    _append_masked_routing_values(
+                                        level_contribs,
+                                        full_key,
+                                        pop_info["level_contributions"],
+                                        valid_mask,
                                     )
-                                    if valid_mask is not None:
-                                        values = values[valid_mask]
-                                    if values.numel() == 0:
-                                        continue
-                                    if full_key not in level_contribs:
-                                        level_contribs[full_key] = []
-                                    level_contribs[full_key].append(values)
 
                                 if "ff_rec_ratios" in pop_info:
-                                    ratios = pop_info["ff_rec_ratios"].detach().cpu()
-                                    if valid_mask is not None:
-                                        ratios = ratios[valid_mask]
-                                    if ratios.numel() == 0:
-                                        continue
-                                    if full_key not in ff_rec_ratios:
-                                        ff_rec_ratios[full_key] = []
-                                    ff_rec_ratios[full_key].append(ratios)
+                                    _append_masked_routing_values(
+                                        ff_rec_ratios,
+                                        full_key,
+                                        pop_info["ff_rec_ratios"],
+                                        valid_mask,
+                                    )
         finally:
             core.store_routing = original_store_routing
 

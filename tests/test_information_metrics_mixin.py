@@ -201,6 +201,17 @@ def test_estimate_mi_and_cmi_dispatch_to_active_estimator():
     assert "I(E;I|C) = 2.0000" in harness.logger.debug_messages[-1]
 
 
+def test_estimate_timed_metric_preserves_debug_message_shape():
+    harness = _MetricHarness()
+
+    value = harness._estimate_timed_metric("I(custom;C)", lambda: 3.25)
+
+    assert value == 3.25
+    assert harness.logger.debug_messages[0] == "  Computing I(custom;C)..."
+    assert harness.logger.debug_messages[1].startswith("  I(custom;C) = 3.2500 (took ")
+    assert harness.logger.debug_messages[1].endswith("s)")
+
+
 def test_add_mi_metrics_preserves_spec_order_and_existing_entries():
     harness = _MetricHarness()
     arrays = _arrays()

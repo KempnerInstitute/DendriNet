@@ -1,9 +1,17 @@
 """Tests for spike-train analysis on opt-in LIF recurrent populations."""
 
+import pytest
 import torch
 from torch.utils.data import TensorDataset
 
-from dendritic_modeling.analysis.tools.spike_trains import SpikeTrainAnalyzer
+from dendritic_modeling.analysis.tools.spike_trains import (
+    SpikeTrainAnalyzer,
+    _binarize_spike_sequences,
+    _isi_stats,
+    _sequence_dimensions,
+    _spike_count_stats,
+    _total_spike_stats,
+)
 from dendritic_modeling.config.analysis import SpikeTrainAnalysisParams
 from dendritic_modeling.networks.architectures.recurrent import (
     PopulationLayerConfig,
@@ -113,3 +121,51 @@ def test_spike_train_summary_helpers_match_loop_semantics():
         {"sample": 1, "time": 1, "unit": 2},
         {"sample": 1, "time": 3, "unit": 2},
     ]
+
+
+def test_spike_train_summary_stat_helpers_match_tensor_semantics():
+    seq = torch.tensor(
+        [
+            [[0.8, 0.1], [0.2, 0.1], [0.9, 0.0]],
+            [[0.0, 0.7], [0.1, 0.2], [0.0, 0.1]],
+        ]
+    )
+    binary = _binarize_spike_sequences([seq], threshold=0.5)
+
+    assert torch.equal(
+        binary[0],
+        torch.tensor(
+            [
+                [[1.0, 0.0], [0.0, 0.0], [1.0, 0.0]],
+                [[0.0, 1.0], [0.0, 0.0], [0.0, 0.0]],
+            ]
+        ),
+    )
+    assert _sequence_dimensions(binary) == (2, 3, 2)
+    total_bins, total_spikes, mean_rate_hz, spike_probability = _total_spike_stats(
+        binary, dt=0.1
+    )
+    assert total_bins == 12
+    assert total_spikes == 3.0
+    assert mean_rate_hz == pytest.approx(2.5)
+    assert spike_probability == 0.25
+
+    counts, count_stats = _spike_count_stats(binary)
+    assert torch.equal(counts, torch.tensor([[2.0, 0.0], [0.0, 1.0]]))
+    assert count_stats["fraction_silent_units"] == 0.0
+    assert count_stats["fraction_silent_trials"] == 0.0
+    assert count_stats["spike_count_mean"] == pytest.approx(0.75)
+    assert count_stats["spike_count_std"] == pytest.approx(0.829156, rel=1e-5)
+    assert count_stats["fano_factor_mean"] == pytest.approx(0.75)
+    assert count_stats["fano_factor_max"] == pytest.approx(1.0)
+
+    assert _isi_stats(torch.tensor([1, 3]), dt=0.2) == {
+        "isi_mean": pytest.approx(0.4),
+        "isi_std": pytest.approx(0.2),
+        "isi_cv": pytest.approx(0.5),
+    }
+    assert _isi_stats(torch.empty(0), dt=0.2) == {
+        "isi_mean": 0.0,
+        "isi_std": 0.0,
+        "isi_cv": 0.0,
+    }

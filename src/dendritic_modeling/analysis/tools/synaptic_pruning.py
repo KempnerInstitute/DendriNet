@@ -26,6 +26,63 @@ from dendritic_modeling.plotting.visualizations import (
 logger = logging.getLogger(__name__)
 
 
+def _format_pruning_event_row(event: dict[str, Any]) -> str:
+    epoch = event["epoch"]
+    pruned = event["pruning_stats"].get("pruned_params", 0)
+    ratio = event["pruning_stats"].get("pruning_ratio", 0)
+    sparsity_inc = event.get("connectivity_changes", {}).get("sparsity_increase", 0)
+    return f"{epoch:<8} {pruned:<12,} {ratio:<8.4f} {sparsity_inc:<12.4f}"
+
+
+def _format_pruning_summary(
+    pruning_events: list[dict[str, Any]],
+    initial_connectivity_stats: dict[str, Any],
+    data_dict_list: list[dict[str, Any]],
+) -> list[str]:
+    if not pruning_events:
+        return ["No pruning events recorded."]
+
+    total_events = len(pruning_events)
+    total_pruned = sum(
+        event["pruning_stats"].get("pruned_params", 0) for event in pruning_events
+    )
+    avg_pruning_ratio = np.mean(
+        [event["pruning_stats"].get("pruning_ratio", 0) for event in pruning_events]
+    )
+
+    lines = [
+        "\n" + "=" * 60,
+        "SYNAPTIC PRUNING ANALYSIS SUMMARY",
+        "=" * 60,
+        f"Total pruning events: {total_events}",
+        f"Total synapses pruned: {total_pruned:,}",
+        f"Average pruning ratio per event: {avg_pruning_ratio:.4f}",
+    ]
+
+    if initial_connectivity_stats and data_dict_list:
+        initial_active = initial_connectivity_stats["active_synapses"]
+        initial_total = initial_connectivity_stats["total_synapses"]
+        initial_sparsity = initial_connectivity_stats["overall_sparsity"]
+        lines.extend(
+            [
+                "\nInitial connectivity:",
+                f"  Active synapses: {initial_active:,} / {initial_total:,}",
+                f"  Initial sparsity: {initial_sparsity:.4f}",
+            ]
+        )
+
+    lines.extend(
+        [
+            "\nPruning events:",
+            f"{'Epoch':<8} {'Pruned':<12} {'Ratio':<8} {'Sparsity Inc':<12}",
+            "-" * 45,
+        ]
+    )
+    lines.extend(_format_pruning_event_row(event) for event in pruning_events)
+    lines.append("=" * 60)
+    return lines
+
+
 class SynapticPruningAnalyzer(SynapticTurnoverAnalyzer):
     """
     Enhanced synaptic turnover analyzer that includes pruning-specific metrics.
@@ -479,53 +536,12 @@ class SynapticPruningAnalyzer(SynapticTurnoverAnalyzer):
             print("No pruning events recorded.")
             return
 
-        print("\n" + "=" * 60)
-        print("SYNAPTIC PRUNING ANALYSIS SUMMARY")
-        print("=" * 60)
-
-        # Overall statistics
-        total_events = len(self.pruning_events)
-        total_pruned = sum(
-            event["pruning_stats"].get("pruned_params", 0)
-            for event in self.pruning_events
-        )
-        avg_pruning_ratio = np.mean(
-            [
-                event["pruning_stats"].get("pruning_ratio", 0)
-                for event in self.pruning_events
-            ]
-        )
-
-        print(f"Total pruning events: {total_events}")
-        print(f"Total synapses pruned: {total_pruned:,}")
-        print(f"Average pruning ratio per event: {avg_pruning_ratio:.4f}")
-
-        # Initial vs final connectivity
-        if self.initial_connectivity_stats and self.data_dict_list:
-            initial_active = self.initial_connectivity_stats["active_synapses"]
-            initial_total = self.initial_connectivity_stats["total_synapses"]
-            initial_sparsity = self.initial_connectivity_stats["overall_sparsity"]
-
-            print("\nInitial connectivity:")
-            print(f"  Active synapses: {initial_active:,} / {initial_total:,}")
-            print(f"  Initial sparsity: {initial_sparsity:.4f}")
-
-        # Event-by-event summary
-        print("\nPruning events:")
-        print(f"{'Epoch':<8} {'Pruned':<12} {'Ratio':<8} {'Sparsity Inc':<12}")
-        print("-" * 45)
-
-        for event in self.pruning_events:
-            epoch = event["epoch"]
-            pruned = event["pruning_stats"].get("pruned_params", 0)
-            ratio = event["pruning_stats"].get("pruning_ratio", 0)
-            sparsity_inc = event.get("connectivity_changes", {}).get(
-                "sparsity_increase", 0
-            )
-
-            print(f"{epoch:<8} {pruned:<12,} {ratio:<8.4f} {sparsity_inc:<12.4f}")
-
-        print("=" * 60)
+        for line in _format_pruning_summary(
+            self.pruning_events,
+            self.initial_connectivity_stats,
+            self.data_dict_list,
+        ):
+            print(line)
 
     def plot_active_synapses_per_branch(
         self,

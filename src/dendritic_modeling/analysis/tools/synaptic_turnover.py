@@ -23,6 +23,29 @@ from dendritic_modeling.utils import save_dict
 logger = logging.getLogger(__name__)
 
 
+def _update_turnover_counts(
+    prev_mask: torch.Tensor,
+    curr_mask: torch.Tensor,
+    total_active: int,
+    total_stable: int,
+    total_transient: int,
+) -> tuple[int, int, int]:
+    """Update active/stable/transient counts for two consecutive masks."""
+    if prev_mask.dtype != torch.bool:
+        prev_mask = prev_mask.bool()
+    if curr_mask.dtype != torch.bool:
+        curr_mask = curr_mask.bool()
+
+    curr_active = curr_mask.sum().item()
+    curr_transient = (curr_mask & ~prev_mask).sum().item()
+    curr_stable = curr_active - curr_transient
+
+    total_active += curr_active
+    total_stable += curr_stable
+    total_transient += curr_transient
+    return total_active, total_stable, total_transient
+
+
 class SynapticTurnoverAnalyzer:
     """
     Analyzer for tracking synaptic turnover and plasticity during training.
@@ -175,43 +198,6 @@ class SynapticTurnoverAnalyzer:
                 f"Analyzing synaptic turnover from {len(self.data_dict_list)} snapshots"
             )
 
-            def turnover_helper(
-                prev_mask: torch.Tensor,
-                curr_mask: torch.Tensor,
-                total_active: int,
-                total_stable: int,
-                total_transient: int,
-            ) -> tuple[int, int, int]:
-                """
-                Helper function to compute turnover statistics between two masks.
-
-                Args:
-                    prev_mask: Previous time step's weight mask
-                    curr_mask: Current time step's weight mask
-                    total_active: Running total of active synapses
-                    total_stable: Running total of stable synapses
-                    total_transient: Running total of transient synapses
-
-                Returns:
-                    Tuple of updated (total_active, total_stable, total_transient)
-                """
-                # Convert to bool if not already (for older snapshots)
-                if prev_mask.dtype != torch.bool:
-                    prev_mask = prev_mask.bool()
-                if curr_mask.dtype != torch.bool:
-                    curr_mask = curr_mask.bool()
-
-                # Use bitwise operations for efficiency
-                curr_active = curr_mask.sum().item()
-                # Transient = newly activated (curr & ~prev)
-                curr_transient = (curr_mask & ~prev_mask).sum().item()
-                curr_stable = curr_active - curr_transient
-
-                total_active += curr_active
-                total_stable += curr_stable
-                total_transient += curr_transient
-                return total_active, total_stable, total_transient
-
             # Initialize turnover statistics dictionaries
             # Incremental: comparing each timepoint with previous (t vs t-1)
             incremental_turnover = {
@@ -278,7 +264,7 @@ class SynapticTurnoverAnalyzer:
                             inc_exc_active,
                             inc_exc_stable,
                             inc_exc_transient,
-                        ) = turnover_helper(
+                        ) = _update_turnover_counts(
                             prev_exc_mask,
                             curr_exc_mask,
                             inc_exc_active,
@@ -292,7 +278,7 @@ class SynapticTurnoverAnalyzer:
                             cum_exc_active,
                             cum_exc_stable,
                             cum_exc_transient,
-                        ) = turnover_helper(
+                        ) = _update_turnover_counts(
                             initial_exc_mask,
                             curr_exc_mask,
                             cum_exc_active,
@@ -310,7 +296,7 @@ class SynapticTurnoverAnalyzer:
                             inc_inh_active,
                             inc_inh_stable,
                             inc_inh_transient,
-                        ) = turnover_helper(
+                        ) = _update_turnover_counts(
                             prev_inh_mask,
                             curr_inh_mask,
                             inc_inh_active,
@@ -324,7 +310,7 @@ class SynapticTurnoverAnalyzer:
                             cum_inh_active,
                             cum_inh_stable,
                             cum_inh_transient,
-                        ) = turnover_helper(
+                        ) = _update_turnover_counts(
                             initial_inh_mask,
                             curr_inh_mask,
                             cum_inh_active,
