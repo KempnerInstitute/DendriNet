@@ -110,13 +110,20 @@ class CompartmentSNRAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
             for key, module in iter_named_modules_of_type(
                 exc_dendrinet, DendriticBranchLayer
             ):
-                self._initialize_branch_records(key, module)
-                handles.extend(self._attach_layer_capture_hooks(key, module))
+                handles.extend(self._collect_layer_raw_data(key, module))
 
             with torch.no_grad():
                 _ = model(x)
         finally:
             self.remove_forward_hooks(handles)
+
+    def _collect_layer_raw_data(
+        self,
+        key: str,
+        module: DendriticBranchLayer,
+    ) -> list[torch.utils.hooks.RemovableHandle]:
+        self._initialize_branch_records(key, module)
+        return self._attach_layer_capture_hooks(key, module)
 
     def _initialize_branch_records(
         self, key: str, module: DendriticBranchLayer

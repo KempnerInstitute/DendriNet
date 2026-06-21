@@ -21,6 +21,7 @@ from dendritic_modeling.utils import save_dict
 from dendritic_modeling.utils.hooks import (
     ForwardHookRemovalMixin,
     iter_named_modules_of_type,
+    register_named_forward_hook_groups,
 )
 
 
@@ -174,11 +175,12 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         handles = []
 
         try:
-            for module_name, module in iter_named_modules_of_type(
-                model, DendriticBranchLayer
-            ):
-                self._initialize_activation_records(module_name, module)
-                handles.extend(self._attach_activation_hooks(module_name, module))
+            handles = register_named_forward_hook_groups(
+                model,
+                DendriticBranchLayer,
+                self._attach_activation_hooks,
+                prepare=self._initialize_activation_records,
+            )
 
             with torch.no_grad():
                 _ = model(x)

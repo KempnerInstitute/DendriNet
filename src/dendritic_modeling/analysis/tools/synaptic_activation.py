@@ -25,7 +25,7 @@ from dendritic_modeling.utils import save_dict
 from dendritic_modeling.utils.hooks import (
     ForwardHookRemovalMixin,
     iter_modules_of_type,
-    iter_named_modules_of_type,
+    register_named_forward_hook_groups,
 )
 
 
@@ -69,16 +69,11 @@ class SynapticActivationAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         Returns:
             List of hook handles for later removal
         """
-        handles = []
-        try:
-            for layer_name, module in iter_named_modules_of_type(
-                model, DendriticBranchLayer
-            ):
-                handles.extend(self._attach_layer_hooks(layer_name, module))
-            return handles
-        except Exception:
-            self.remove_forward_hooks(handles)
-            raise
+        return register_named_forward_hook_groups(
+            model,
+            DendriticBranchLayer,
+            self._attach_layer_hooks,
+        )
 
     def _attach_layer_hooks(
         self, layer_name: str, module: DendriticBranchLayer

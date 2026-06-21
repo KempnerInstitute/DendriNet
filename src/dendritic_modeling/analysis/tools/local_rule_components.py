@@ -505,19 +505,35 @@ class LocalRuleComponentAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
             for module_name, module in iter_named_modules_of_type(
                 model, DendriticBranchLayer
             ):
-                rec = self._branch_record(module_name, module)
-                handles.append(self._register_reactivation_hook(module, rec))
-                handles.extend(self._register_topk_hooks(module, rec))
-                blk_layer = getattr(module, "branches_to_output", None)
-                if blk_layer is not None:
-                    handles.append(self._register_block_output_hook(blk_layer, rec))
-
+                rec, branch_handles = self._attach_branch_recorders(
+                    module_name,
+                    module,
+                )
                 records.append(rec)
+                handles.extend(branch_handles)
         except Exception:
             self.remove_forward_hooks(handles)
             raise
 
         return records, handles, decoder_cache
+
+    def _attach_branch_recorders(
+        self,
+        module_name: str,
+        module: DendriticBranchLayer,
+    ) -> tuple[dict[str, Any], list[torch.utils.hooks.RemovableHandle]]:
+        rec = self._branch_record(module_name, module)
+        handles: list[torch.utils.hooks.RemovableHandle] = []
+        try:
+            handles.append(self._register_reactivation_hook(module, rec))
+            handles.extend(self._register_topk_hooks(module, rec))
+            blk_layer = getattr(module, "branches_to_output", None)
+            if blk_layer is not None:
+                handles.append(self._register_block_output_hook(blk_layer, rec))
+        except Exception:
+            self.remove_forward_hooks(handles)
+            raise
+        return rec, handles
 
     def _register_decoder_input_hook(
         self,

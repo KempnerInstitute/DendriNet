@@ -157,14 +157,7 @@ class CompartmentStatisticsAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         handles = []
         try:
             for key, module in iter_named_modules_of_type(model, DendriticBranchLayer):
-                self._initialize_branch_records(key, module)
-                synapse_modules = self._iter_synapse_modules(module)
-                self._collect_layer_static_data(key, module, synapse_modules)
-
-                if self.inputs or self.activations:
-                    handles.extend(
-                        self._attach_synapse_capture_hooks(key, synapse_modules)
-                    )
+                handles.extend(self._collect_layer_raw_data(key, module))
 
             if self.inputs or self.activations:
                 if self.n_samples is not None:
@@ -180,6 +173,19 @@ class CompartmentStatisticsAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
                     _ = model(x)
         finally:
             self.remove_forward_hooks(handles)
+
+    def _collect_layer_raw_data(
+        self,
+        key: str,
+        module: DendriticBranchLayer,
+    ) -> list[torch.utils.hooks.RemovableHandle]:
+        self._initialize_branch_records(key, module)
+        synapse_modules = self._iter_synapse_modules(module)
+        self._collect_layer_static_data(key, module, synapse_modules)
+
+        if not (self.inputs or self.activations):
+            return []
+        return self._attach_synapse_capture_hooks(key, synapse_modules)
 
     def _initialize_branch_records(
         self, key: str, module: DendriticBranchLayer
