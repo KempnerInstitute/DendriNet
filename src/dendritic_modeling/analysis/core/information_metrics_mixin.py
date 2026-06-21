@@ -12,15 +12,14 @@ from dendritic_modeling.analysis.core.information_helpers import (
     discrete_entropy_nats,
     ensure_2d,
     extract_metric_tokens,
-    fisher_dprime2_binary,
-    fisher_dprime2_pairwise_avg,
-    fisher_mi_from_f,
-    gaussian_fisher_proxy,
     is_discrete_class_labels,
     keep_metric_key_given_availability,
     metric_targets_class,
     rename_metric_key_tokens,
     should_convert_information_key_to_bits,
+)
+from dendritic_modeling.analysis.core.information_pid_mixin import (
+    InformationPidMetricsMixin,
 )
 from dendritic_modeling.analysis.core.information_results import (
     average_mi_results,
@@ -28,7 +27,6 @@ from dendritic_modeling.analysis.core.information_results import (
     compute_variance_analysis,
     filter_result_metrics_in_place,
 )
-from dendritic_modeling.utils.information.pid import pid_synergy_redundancy
 
 ParsedMiKey = tuple[list[str], str, list[str]]
 
@@ -82,7 +80,7 @@ def _metric_variable_for_null_baseline(
     return None
 
 
-class InformationMetricsMixin:
+class InformationMetricsMixin(InformationPidMetricsMixin):
     """Computes MI/CMI/PID/Fisher metrics and result summaries."""
 
     def _estimate_mi(
@@ -389,186 +387,6 @@ class InformationMetricsMixin:
 
         self.logger.debug("  Conditional MI computation completed.")
         return metrics
-
-    def _gaussian_fisher_proxy(
-        self, x: np.ndarray, labels: np.ndarray
-    ) -> tuple[float, float]:
-        """Return (F, I_proxy) for I(X;C) under a Gaussian/Fisher proxy."""
-        return gaussian_fisher_proxy(
-            x,
-            labels,
-            eps=float(getattr(self, "gaussian_fisher_eps", 1e-8)),
-            aggregation=str(getattr(self, "gaussian_fisher_aggregation", "sum")),
-            mi_transform=str(
-                getattr(self, "gaussian_fisher_mi_transform", "half_log1p")
-            ),
-        )
-
-    def _fisher_mi_from_f(self, f: float) -> float:
-        """Map a Fisher/discriminability-like scalar to an MI-like proxy."""
-        return fisher_mi_from_f(
-            f,
-            mi_transform=str(
-                getattr(self, "gaussian_fisher_mi_transform", "half_log1p")
-            ),
-        )
-
-    def _fisher_dprime2_binary(self, x: np.ndarray, labels: np.ndarray) -> float:
-        """Binary-class Fisher discriminability: d'^2 = Δμᵀ Σ^{-1} Δμ (ridge-regularized)."""
-        return fisher_dprime2_binary(
-            x, labels, eps=float(getattr(self, "gaussian_fisher_eps", 1e-8))
-        )
-
-    def _fisher_dprime2_pairwise_avg(self, x: np.ndarray, labels: np.ndarray) -> float:
-        """Multi-class surrogate: average binary d'^2 over all class pairs."""
-        return fisher_dprime2_pairwise_avg(
-            x, labels, eps=float(getattr(self, "gaussian_fisher_eps", 1e-8))
-        )
-
-    def _compute_gaussian_fisher(
-        self,
-        E: np.ndarray,
-        I_var: np.ndarray,
-        Vout: np.ndarray,
-        C: np.ndarray,
-        Vinf: np.ndarray | None = None,
-        Vb: np.ndarray | None = None,
-    ) -> dict[str, float]:
-        """Compute Gaussian/Fisher proxy metrics for available variables."""
-        metrics: dict[str, float] = {}
-
-        for name, X in [
-            ("E", E),
-            ("I", I_var),
-            ("Vb", Vb),
-            ("Vout", Vout),
-            ("Vinf", Vinf if (Vinf is not None and self.include_vinf) else None),
-        ]:
-            if X is None:
-                continue
-            F, I_proxy = self._gaussian_fisher_proxy(X, C)
-            # Use an I(.;.) prefix so LDA/shuffled variants get token-renamed.
-            metrics[f"I({name};C)_fisher_F"] = float(F)
-            metrics[f"I({name};C)_fisher"] = float(I_proxy)
-
-        # Information-flow-style increment from upstream branches (Vb) beyond local synapses (E,I).
-        # This mirrors the Schur-complement increment in the theory draft (Sec. 'Multi-branch Trees
-        # and Information Flow') but uses a Fisher/geometry surrogate (d'^2) computed from moments.
-        if Vb is not None:
-            try:
-                EI = np.hstack([E, I_var])
-                EIVb = np.hstack([E, I_var, Vb])
-                d2_full = self._fisher_dprime2_pairwise_avg(EIVb, C)
-                d2_base = self._fisher_dprime2_pairwise_avg(EI, C)
-                inc = float(max(0.0, d2_full - d2_base))
-                metrics["I(Vb;C|E,I)_fisher_F"] = inc
-                metrics["I(Vb;C|E,I)_fisher"] = float(self._fisher_mi_from_f(inc))
-            except Exception as e:
-                self.logger.warning(
-                    f"Failed to compute Fisher flow increment I(Vb;C|E,I)_fisher: {e}"
-                )
-                metrics["I(Vb;C|E,I)_fisher_F"] = 0.0
-                metrics["I(Vb;C|E,I)_fisher"] = 0.0
-
-        return metrics
-
-    def _compute_pid(
-        self, E: np.ndarray, I_var: np.ndarray, Vout: np.ndarray, C: np.ndarray
-    ) -> dict[str, Any]:
-        """Compute Partial Information Decomposition."""
-        self.logger.info("Computing Partial Information Decomposition (PID)...")
-        pid_results = {}
-
-        # Prepare data for PID (may need binarization)
-        self.logger.info(f"  Data preprocessing: binarize={self.pid_binarize}")
-        if self.pid_binarize:
-            self.logger.info(
-                f"  Binarizing data using method: {self.pid_binarize_method}"
-            )
-            start_time = time.time()
-            E_pid = self._binarize(E)
-            I_pid = self._binarize(I_var)
-            Vout_pid = self._binarize(Vout)
-            C_pid = self._binarize(C.reshape(-1, 1))
-            self.logger.info(
-                f"  Data binarization completed (took {time.time() - start_time:.1f}s)"
-            )
-        else:
-            E_pid = E
-            I_pid = I_var
-            Vout_pid = Vout
-            C_pid = C.reshape(-1, 1)
-
-        def _pid_helper(
-            source1_array: np.ndarray,
-            source1_name: str,
-            source2_array: np.ndarray,
-            source2_name: str,
-            target_array: np.ndarray,
-            target_name: str,
-        ) -> None:
-            """Helper function to compute PID."""
-            pid_key = f"PID({source1_name},{source2_name}->{target_name})"
-            self.logger.info(f"  Computing {pid_key}...")
-            start_time = time.time()
-            try:
-                synergy, redundancy = pid_synergy_redundancy(
-                    [source1_array, source2_array], target_array
-                )
-
-                # Compute unique information
-                unique_1 = (
-                    self.estimators[self.method].mutual_information(
-                        source1_array, target_array
-                    )
-                    - redundancy
-                )
-                unique_2 = (
-                    self.estimators[self.method].mutual_information(
-                        source2_array, target_array
-                    )
-                    - redundancy
-                )
-
-                pid_results[pid_key] = {
-                    "synergy": synergy,
-                    "redundancy": redundancy,
-                    f"unique_{source1_name}": unique_1,
-                    f"unique_{source2_name}": unique_2,
-                }
-                self.logger.info(
-                    f"  {pid_key}: synergy={synergy:.4f}, redundancy={redundancy:.4f}, unique_{source1_name}={unique_1:.4f}, unique_{source2_name}={unique_2:.4f} (took {time.time() - start_time:.1f}s)"
-                )
-            except Exception as e:
-                self.logger.warning(
-                    f"  {pid_key} computation failed: {e} (took {time.time() - start_time:.1f}s)"
-                )
-
-        # PID: (E, I) -> C
-        _pid_helper(E_pid, "E", I_pid, "I", C_pid, "C")
-        # PID: (E, Vout) -> C
-        _pid_helper(E_pid, "E", Vout_pid, "Vout", C_pid, "C")
-        # PID: (I, Vout) -> C
-        _pid_helper(I_pid, "I", Vout_pid, "Vout", C_pid, "C")
-        # PID: (E, I) -> Vout
-        _pid_helper(E_pid, "E", I_pid, "I", Vout_pid, "Vout")
-
-        self.logger.info("  PID computation completed.")
-        return pid_results
-
-    def _binarize(self, data: np.ndarray) -> np.ndarray:
-        """Binarize data for PID computation."""
-        if self.pid_binarize_method == "median":
-            threshold = np.median(data, axis=0)
-        elif self.pid_binarize_method == "mean":
-            threshold = np.mean(data, axis=0)
-        elif self.pid_binarize_method == "quantile":
-            threshold = np.quantile(data, self.pid_binarize_threshold, axis=0)
-        else:
-            raise ValueError(f"Unknown binarization method: {self.pid_binarize_method}")
-
-        binarized: np.ndarray = data > threshold
-        return binarized.astype(int)
 
     def _validate_inputs(
         self,

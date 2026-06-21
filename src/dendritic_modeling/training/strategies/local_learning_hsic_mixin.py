@@ -9,10 +9,26 @@ import torch
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
     TopKLinear,
 )
+from dendritic_modeling.training.strategies.local_learning_hsic import (
+    compute_hsic_gradient,
+    compute_kernel_matrix,
+)
 
 
 class LocalLearningHSICMixin:
     """Stateful HSIC gradient helpers used by ``LocalCreditAssignment``."""
+
+    def _compute_kernel_matrix(self, X: torch.Tensor, Y: torch.Tensor) -> torch.Tensor:
+        """Compute kernel matrix K(X, Y) based on configured kernel type."""
+
+        return compute_kernel_matrix(self.local_cfg, X, Y)
+
+    def _compute_hsic_gradient(
+        self, z: torch.Tensor, y: torch.Tensor, weight: float, grad_type: str
+    ) -> torch.Tensor:
+        """Compute HSIC gradient with respect to z using specified kernel."""
+
+        return compute_hsic_gradient(self.local_cfg, z, y, weight, grad_type)
 
     def _apply_hsic_auxiliary_gradients(
         self,
