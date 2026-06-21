@@ -23,6 +23,7 @@ from dendritic_modeling.utils.hooks import (
     ForwardHookRemovalMixin,
     iter_named_modules_of_type,
     register_named_forward_hooks,
+    run_with_forward_hooks,
 )
 
 
@@ -166,10 +167,15 @@ class SpikeTrainAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
             return {}
 
         sample_cap = getattr(self.params, "max_samples", None)
-        try:
+
+        def _collect_sequences() -> None:
             self._collect_spike_sequences(model, data, device, runtime, sample_cap)
-        finally:
-            self.remove_forward_hooks(handles)
+
+        run_with_forward_hooks(
+            attach=lambda: handles,
+            remove=self.remove_forward_hooks,
+            body=_collect_sequences,
+        )
 
         results = {
             "dt": float(self.params.dt),

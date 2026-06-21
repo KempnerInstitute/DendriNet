@@ -7,6 +7,7 @@ replace the transpose of forward weights during error backpropagation.
 """
 
 import logging
+from functools import partial
 
 import torch
 import torch.nn as nn
@@ -20,6 +21,7 @@ from dendritic_modeling.training.strategies.standard import Trainer
 from dendritic_modeling.utils.hooks import (
     ForwardHookRemovalMixin,
     iter_modules_of_type,
+    run_with_forward_hooks,
 )
 
 logger = logging.getLogger(__name__)
@@ -158,11 +160,11 @@ class FeedbackAlignmentTrainer(ForwardHookRemovalMixin, Trainer):
 
             # --- forward with activation caching ---
             activations: dict[int, torch.Tensor] = {}
-            handles = self._attach_activation_hooks(activations)
-            try:
-                y_hat = model(x_batch)
-            finally:
-                self.remove_forward_hooks(handles)
+            y_hat = run_with_forward_hooks(
+                attach=partial(self._attach_activation_hooks, activations),
+                remove=self.remove_forward_hooks,
+                body=partial(model, x_batch),
+            )
 
             # --- loss (for logging only) ---
             loss = self.loss_function(model, x_batch, y_batch)
@@ -453,12 +455,13 @@ class ShuntingFeedbackAlignmentTrainer(FeedbackAlignmentTrainer):
                 activations: dict[int, torch.Tensor] = {}
                 self._layer_voltages.clear()
                 self._layer_g_tot.clear()
-                handles = self._attach_shunting_hooks(activations, branch_layers)
-
-                try:
-                    y_hat = model(x_batch)
-                finally:
-                    self.remove_forward_hooks(handles)
+                y_hat = run_with_forward_hooks(
+                    attach=partial(
+                        self._attach_shunting_hooks, activations, branch_layers
+                    ),
+                    remove=self.remove_forward_hooks,
+                    body=partial(model, x_batch),
+                )
 
                 # --- loss (for logging only) ---
                 loss = self.loss_function(model, x_batch, y_batch)

@@ -6,6 +6,7 @@ and other advanced training techniques for dendritic networks.
 """
 
 import logging
+from functools import partial
 
 import torch
 
@@ -17,7 +18,7 @@ from dendritic_modeling.training.loss.functions import (
     VoltageStabilizationLoss,
 )
 from dendritic_modeling.training.strategies.standard import Trainer
-from dendritic_modeling.utils.hooks import iter_modules_of_type
+from dendritic_modeling.utils.hooks import iter_modules_of_type, run_with_forward_hooks
 
 logger = logging.getLogger(__name__)
 
@@ -88,10 +89,12 @@ def _run_warmup_then_standard_training(
         f"Starting pretraining phase for {trainer.pretrain_epochs} epochs ==="
     )
     try:
-        pretrain_results = train_fn(model, train_data, valid_data)
+        pretrain_results = run_with_forward_hooks(
+            attach=lambda: handles,
+            remove=warmup_loss.remove_forward_hooks,
+            body=partial(train_fn, model, train_data, valid_data),
+        )
     finally:
-        warmup_loss.remove_forward_hooks(handles)
-
         if trainer.freeze_reactivation:
             _set_parametric_activation_trainability(model, True)
 

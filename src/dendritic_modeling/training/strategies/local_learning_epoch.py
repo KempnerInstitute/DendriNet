@@ -1,5 +1,6 @@
 """Epoch-level helpers for local learning training."""
 
+from functools import partial
 from typing import Any, Optional
 
 import torch
@@ -19,6 +20,7 @@ from dendritic_modeling.training.strategies.local_learning_gradient_utils import
 from dendritic_modeling.utils.hooks import (
     iter_modules_of_type,
     remove_hook_handles,
+    run_with_forward_hooks,
 )
 
 
@@ -417,11 +419,18 @@ def _forward_with_local_recorders(
     layer_records, handles = trainer._attach_local_recorders(model)
     topk_modules = _collect_topk_modules(model)
     _enable_topk_mask_cache(topk_modules)
-    try:
-        y_hat: torch.Tensor = model(x_batch)
-    finally:
-        _remove_local_recorders(trainer, handles)
+
+    def _cleanup_recorders(
+        active_handles: list[torch.utils.hooks.RemovableHandle],
+    ) -> None:
+        _remove_local_recorders(trainer, active_handles)
         _clear_topk_mask_cache(topk_modules)
+
+    y_hat: torch.Tensor = run_with_forward_hooks(
+        attach=lambda: handles,
+        remove=_cleanup_recorders,
+        body=partial(model, x_batch),
+    )
 
     return y_hat, layer_records
 

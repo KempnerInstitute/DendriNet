@@ -734,6 +734,32 @@ def test_dataloader_config_helpers_preserve_resolved_kwargs():
     assert tuning.as_kwargs()["in_order"] is False
 
 
+def test_dataloader_tuning_omits_unsupported_in_order_kwarg(monkeypatch):
+    """Resolved ordering should not be passed to older DataLoader signatures."""
+    from dendritic_modeling.training import dataloader_utils
+
+    tuning = dataloader_utils.DataLoaderTuning(
+        num_workers=2,
+        pin_memory=True,
+        persistent_workers=True,
+        prefetch_factor=4,
+        in_order=False,
+        available_cpus=8,
+        auto_num_workers=True,
+    )
+    monkeypatch.setattr(
+        dataloader_utils,
+        "dataloader_supports_kwarg",
+        lambda name: name != "in_order",
+    )
+
+    kwargs = tuning.as_kwargs()
+
+    assert tuning.in_order is False
+    assert "in_order" not in kwargs
+    assert kwargs["prefetch_factor"] == 4
+
+
 def test_dataloader_tuning_omits_default_in_order_kwarg():
     """Default tuning should not pass PyTorch's optional in_order kwarg."""
     from dendritic_modeling.training.dataloader_utils import resolve_dataloader_tuning
@@ -751,6 +777,21 @@ def test_dataloader_tuning_omits_default_in_order_kwarg():
 
     assert tuning.in_order is None
     assert "in_order" not in tuning.as_kwargs()
+
+
+def test_dataloader_tuning_auto_pins_cuda_tensor_cache_batches():
+    """CUDA tensor-cache loaders should pin memory even with main-process loading."""
+    from dendritic_modeling.training.dataloader_utils import resolve_dataloader_tuning
+
+    dataset = torch.utils.data.TensorDataset(
+        torch.randn(8, 3), torch.randint(0, 2, (8,))
+    )
+
+    tuning = resolve_dataloader_tuning(dataset, device="cuda")
+
+    assert tuning.num_workers == 0
+    assert tuning.pin_memory is True
+    assert tuning.persistent_workers is False
 
 
 def test_dataloader_config_helper_accepts_default_num_workers():

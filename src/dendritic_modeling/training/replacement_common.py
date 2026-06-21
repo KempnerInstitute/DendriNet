@@ -222,6 +222,20 @@ def _infinite_loader(loader: Any):
         yield from loader
 
 
+def _move_replacement_batch_tensors(
+    inputs: torch.Tensor,
+    target: torch.Tensor,
+    *,
+    device: torch.device,
+    dtype: torch.dtype,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Move a replacement input/target pair using the shared loop convention."""
+    return (
+        inputs.to(device=device, dtype=dtype),
+        target.to(device=device, dtype=dtype),
+    )
+
+
 def _load_tensor_payload(
     path: str,
     *,
@@ -306,6 +320,7 @@ __all__ = [
     "_load_tensor_payload",
     "_make_cuda_grad_scaler",
     "_make_replacement_loader",
+    "_move_replacement_batch_tensors",
     "_resolve_device",
     "_resolve_dtype",
     "_resolve_replacement_loader_tuning",

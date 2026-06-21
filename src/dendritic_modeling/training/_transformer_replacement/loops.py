@@ -27,6 +27,7 @@ from dendritic_modeling.training._transformer_replacement.common import (
     TransformerReplacementTrainingResult,
     _compute_distillation_loss,
     _make_tensor_loader,
+    _move_replacement_batch_tensors,
     _replacement_forward_modules,
     _resolve_device,
     _resolve_dtype,
@@ -129,8 +130,12 @@ def _train_tensor_dataset_source(
         for module, loader in zip(forward_modules, loaders):
             module.train()
             x, target = next(loader)
-            x = x.to(device=device, dtype=dtype)
-            target = target.to(device=device, dtype=dtype)
+            x, target = _move_replacement_batch_tensors(
+                x,
+                target,
+                device=device,
+                dtype=dtype,
+            )
             with autocast("cuda", enabled=scaler.is_enabled()):
                 prediction = module(x)
                 loss = _compute_distillation_loss(

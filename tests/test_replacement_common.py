@@ -16,6 +16,7 @@ from dendritic_modeling.training.replacement_common import (
     _load_tensor_payload,
     _make_cuda_grad_scaler,
     _make_replacement_loader,
+    _move_replacement_batch_tensors,
     _resolve_dtype,
     _should_run_periodic_step,
     _write_metrics_json,
@@ -220,6 +221,23 @@ def test_shared_infinite_loader_restarts_without_cycle_cache():
     observed = [int(next(iterator)[0].item()) for _ in range(5)]
 
     assert observed == [1, 2, 3, 1, 2]
+
+
+def test_shared_replacement_batch_tensor_move_preserves_values_and_casts_dtype():
+    inputs = torch.tensor([[1, 2], [3, 4]], dtype=torch.int64)
+    target = torch.tensor([[0.25, 0.5], [0.75, 1.0]], dtype=torch.float64)
+
+    moved_inputs, moved_target = _move_replacement_batch_tensors(
+        inputs,
+        target,
+        device=torch.device("cpu"),
+        dtype=torch.float32,
+    )
+
+    assert moved_inputs.dtype is torch.float32
+    assert moved_target.dtype is torch.float32
+    torch.testing.assert_close(moved_inputs, inputs.float())
+    torch.testing.assert_close(moved_target, target.float())
 
 
 def test_shared_tensor_payload_loader_preserves_loaded_payload(tmp_path):

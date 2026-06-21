@@ -17,6 +17,7 @@ from dendritic_modeling.analysis.utils.dataset_runtime import (
     subset_dataset_for_runtime,
 )
 from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
+from dendritic_modeling.training.dataloader_utils import dataloader_supports_kwarg
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +73,7 @@ def analysis_loader_kwargs_from_runtime(
     if prefetch_factor is not None:
         loader_kwargs["prefetch_factor"] = prefetch_factor
     in_order = getattr(runtime, "in_order", None)
-    if in_order is not None:
+    if in_order is not None and dataloader_supports_kwarg("in_order"):
         loader_kwargs["in_order"] = bool(in_order)
     return loader_kwargs
 

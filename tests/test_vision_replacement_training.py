@@ -207,6 +207,24 @@ def test_vision_replacement_loader_uses_configured_worker_options():
     assert loader.prefetch_factor == 3
 
 
+def test_vision_replacement_loader_auto_pins_cuda_tensor_cache():
+    dataset = torch.utils.data.TensorDataset(
+        torch.arange(8).float().unsqueeze(1), torch.arange(8).float().unsqueeze(1)
+    )
+    cfg = VisionReplacementTrainingConfig(batch_size=2)
+
+    loader = _make_vision_loader(
+        dataset,
+        cfg,
+        device=torch.device("cuda"),
+        shuffle=False,
+    )
+
+    assert loader.num_workers == 0
+    assert loader.pin_memory is True
+    assert loader.persistent_workers is False
+
+
 def test_vision_replacement_loader_logs_tuning_when_requested(caplog):
     dataset = torch.utils.data.TensorDataset(
         torch.arange(8).float().unsqueeze(1), torch.arange(8).float().unsqueeze(1)

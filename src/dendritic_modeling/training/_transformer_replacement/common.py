@@ -15,6 +15,7 @@ from torch.utils.data import DataLoader, TensorDataset
 from dendritic_modeling.training.replacement_common import (
     _compute_transformer_distillation_loss as _compute_distillation_loss,
     _make_replacement_loader,
+    _move_replacement_batch_tensors,
     _resolve_device,
     _resolve_dtype,
     _to_plain_mapping,
@@ -182,6 +183,7 @@ __all__ = [
     "_activation",
     "_compute_distillation_loss",
     "_make_tensor_loader",
+    "_move_replacement_batch_tensors",
     "_replacement_forward_modules",
     "_resolve_device",
     "_resolve_dtype",

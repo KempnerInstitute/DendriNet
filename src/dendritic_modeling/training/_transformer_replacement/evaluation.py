@@ -25,6 +25,7 @@ from dendritic_modeling.training._transformer_replacement.common import (
     TransformerReplacementBenchmarkResult,
     _compute_distillation_loss,
     _make_tensor_loader,
+    _move_replacement_batch_tensors,
     _resolve_device,
     _resolve_dtype,
     _to_plain_mapping,
@@ -70,8 +71,12 @@ def _evaluate_tensor_datasets(
         for module, loader in zip(modules, loaders):
             module.eval()
             for x, target in loader:
-                x = x.to(device=device, dtype=dtype)
-                target = target.to(device=device, dtype=dtype)
+                x, target = _move_replacement_batch_tensors(
+                    x,
+                    target,
+                    device=device,
+                    dtype=dtype,
+                )
                 loss = _compute_distillation_loss(
                     module(x),
                     target,

@@ -38,6 +38,7 @@ from dendritic_modeling.utils.hooks import (
     ForwardHookRemovalMixin,
     register_named_forward_hook_groups,
     register_named_forward_hooks,
+    run_with_forward_hooks,
 )
 
 logger = logging.getLogger(__name__)
@@ -1017,12 +1018,15 @@ class CorrelationAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
                 inputs = items[0].to(analysis_device)
                 labels_np = items[1].numpy()
 
-                handles = self.attach_forward_hooks(model)
-                try:
+                def _forward_pass() -> None:
                     with torch.no_grad():
                         _ = model(inputs)
-                finally:
-                    self.remove_forward_hooks(handles)
+
+                run_with_forward_hooks(
+                    attach=lambda: self.attach_forward_hooks(model),
+                    remove=self.remove_forward_hooks,
+                    body=_forward_pass,
+                )
 
             # Initialize results
             results = {

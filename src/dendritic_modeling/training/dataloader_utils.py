@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import inspect
 from dataclasses import dataclass
 from typing import Any
 
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import DataLoader, Dataset
 
 from dendritic_modeling.training.dataloader_profiles import (
     DatasetLoaderProfile,
@@ -23,6 +24,11 @@ _IMAGE_DATASET_PREFETCH_FACTOR = 4
 _CUDA_WORKER_CAP = 16
 _CPU_WORKER_CAP = 8
 _CPU_RESERVED_MAIN_PROCESS_WORKERS = 1
+
+
+def dataloader_supports_kwarg(name: str) -> bool:
+    """Return whether the installed PyTorch DataLoader accepts ``name``."""
+    return name in inspect.signature(DataLoader).parameters
 
 
 @dataclass(frozen=True)
@@ -45,7 +51,7 @@ class DataLoaderTuning:
         }
         if self.prefetch_factor is not None:
             kwargs["prefetch_factor"] = self.prefetch_factor
-        if self.in_order is not None:
+        if self.in_order is not None and dataloader_supports_kwarg("in_order"):
             kwargs["in_order"] = self.in_order
         return kwargs
 
@@ -130,14 +136,9 @@ def _resolve_pin_memory(
     *,
     device: torch.device | str | None,
     pin_memory: bool | None,
-    num_workers: int,
 ) -> bool:
     device_type = _resolve_device_type(device)
-    return (
-        bool(pin_memory)
-        if pin_memory is not None
-        else device_type == "cuda" and num_workers > 0
-    )
+    return bool(pin_memory) if pin_memory is not None else device_type == "cuda"
 
 
 def _resolve_persistent_workers(
@@ -212,7 +213,6 @@ def resolve_dataloader_tuning(
     resolved_pin_memory = _resolve_pin_memory(
         device=device,
         pin_memory=pin_memory,
-        num_workers=resolved_workers,
     )
     resolved_persistent = _resolve_persistent_workers(
         persistent_workers,
@@ -280,6 +280,7 @@ __all__ = [
     "DataLoaderTuning",
     "auto_num_workers_for_dataset",
     "dataloader_kwargs_from_config",
+    "dataloader_supports_kwarg",
     "prefers_main_process_loading",
     "resolve_dataloader_tuning",
     "resolve_dataloader_tuning_from_config",

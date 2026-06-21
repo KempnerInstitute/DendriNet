@@ -24,6 +24,7 @@ from dendritic_modeling.training.replacement_common import (
     _load_required_tensor,
     _make_cuda_grad_scaler,
     _make_replacement_loader,
+    _move_replacement_batch_tensors,
     _resolve_device,
     _resolve_dtype,
     _resolve_replacement_loader_tuning,
@@ -193,8 +194,12 @@ def _evaluate_dataset(
     count = 0
     with torch.no_grad():
         for x, target in loader:
-            x = x.to(device=device, dtype=dtype)
-            target = target.to(device=device, dtype=dtype)
+            x, target = _move_replacement_batch_tensors(
+                x,
+                target,
+                device=device,
+                dtype=dtype,
+            )
             prediction = forward_fn(x)
             loss = _compute_distillation_loss(
                 prediction,
@@ -304,8 +309,12 @@ def run_vision_replacement_training(
     for step in range(1, int(train_cfg.max_steps) + 1):
         optimizer.zero_grad(set_to_none=True)
         x, target = next(loader)
-        x = x.to(device=device, dtype=dtype)
-        target = target.to(device=device, dtype=dtype)
+        x, target = _move_replacement_batch_tensors(
+            x,
+            target,
+            device=device,
+            dtype=dtype,
+        )
         model.train()
         if teacher_source == "tensor_cache":
             model.encoder_network.eval()

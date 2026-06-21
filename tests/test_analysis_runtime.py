@@ -162,6 +162,27 @@ def test_analysis_loader_kwargs_omit_default_in_order():
     assert "in_order" not in kwargs
 
 
+def test_analysis_loader_kwargs_omit_unsupported_in_order(monkeypatch):
+    monkeypatch.setattr(
+        "dendritic_modeling.analysis.utils.runtime.dataloader_supports_kwarg",
+        lambda name: name != "in_order",
+    )
+    runtime = EvaluationRuntimeConfig(
+        mode="stream",
+        batch_size=16,
+        num_workers=2,
+        pin_memory=False,
+        persistent_workers=True,
+        prefetch_factor=5,
+        in_order=False,
+    )
+
+    kwargs = analysis_loader_kwargs_from_runtime(runtime, device="cpu")
+
+    assert "in_order" not in kwargs
+    assert kwargs["prefetch_factor"] == 5
+
+
 def test_evaluation_kwargs_omit_default_in_order():
     kwargs = evaluation_kwargs_from_runtime(EvaluationRuntimeConfig())
 
