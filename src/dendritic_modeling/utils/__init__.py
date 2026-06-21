@@ -23,6 +23,7 @@ from .hooks import (
     iter_modules_of_type,
     iter_named_modules_matching,
     iter_named_modules_of_type,
+    register_named_forward_hook_groups,
     register_named_forward_hooks,
     remove_hook_handles,
 )
@@ -77,6 +78,7 @@ __all__ = [
     "iter_named_modules_matching",
     "iter_named_modules_of_type",
     "normalize_sparse_layer_type",
+    "register_named_forward_hook_groups",
     "register_named_forward_hooks",
     "remove_hook_handles",
     "roc_auc_score",

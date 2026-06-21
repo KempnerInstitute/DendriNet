@@ -9,8 +9,7 @@ from dendritic_modeling.networks import DendriticBranchLayer
 from dendritic_modeling.utils.hooks import (
     ForwardHookRemovalMixin,
     HookHandle,
-    iter_named_modules_of_type,
-    remove_hook_handles,
+    register_named_forward_hooks,
 )
 
 
@@ -123,20 +122,20 @@ def _attach_analyzable_branch_hooks(
     hook_modules: list[tuple[DendriticBranchLayer, object]],
     hook,
 ) -> list[HookHandle]:
-    handles: list[HookHandle] = []
     try:
-        for _name, module in iter_named_modules_of_type(model, DendriticBranchLayer):
-            if _has_analyzable_branch_signals(module):
-                _prepare_branch_hook_capture(
-                    data_dict,
-                    hook_modules,
-                    _name,
-                    module,
-                )
-                handles.append(module.register_forward_hook(hook))
-        return handles
+        return register_named_forward_hooks(
+            model,
+            DendriticBranchLayer,
+            hook,
+            predicate=lambda _name, module: _has_analyzable_branch_signals(module),
+            prepare=lambda name, module: _prepare_branch_hook_capture(
+                data_dict,
+                hook_modules,
+                name,
+                module,
+            ),
+        )
     except Exception:
-        remove_hook_handles(handles)
         _restore_branch_hook_capture(hook_modules)
         raise
 

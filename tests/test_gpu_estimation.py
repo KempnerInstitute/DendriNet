@@ -5,6 +5,7 @@ Tests for utils gpu_estimation module to improve coverage.
 import json
 import os
 import tempfile
+from types import SimpleNamespace
 
 import pytest
 import torch
@@ -26,6 +27,7 @@ from dendritic_modeling.utils.gpu_estimation import (
     _find_einet_activation_config,
     _iter_leaf_modules,
     _module_parameter_category,
+    _resolve_estimation_input_shape,
     estimate_from_config,
 )
 
@@ -505,6 +507,46 @@ class TestGPUMemoryEstimator:
         )
 
         assert activation_gb == pytest.approx(expected_bytes / BYTES_PER_GIB)
+
+    def test_resolve_estimation_input_shape_uses_real_dataset_sample(self, monkeypatch):
+        dataset = torch.utils.data.TensorDataset(
+            torch.zeros(3, 2, 5),
+            torch.zeros(3, dtype=torch.long),
+        )
+
+        def fake_get_unified_datasets(*, task_cfg):
+            assert task_cfg.dataset == "custom"
+            return dataset, None, None
+
+        monkeypatch.setattr(
+            "dendritic_modeling.datasets.get_unified_datasets",
+            fake_get_unified_datasets,
+        )
+
+        shape = _resolve_estimation_input_shape(
+            SimpleNamespace(dataset="custom"),
+            {"input_dim": 99},
+        )
+
+        assert shape == torch.Size([2, 5])
+
+    def test_resolve_estimation_input_shape_falls_back_to_canonical_shape(
+        self, monkeypatch
+    ):
+        def missing_dataset(*, task_cfg):
+            raise RuntimeError(f"missing {task_cfg.dataset}")
+
+        monkeypatch.setattr(
+            "dendritic_modeling.datasets.get_unified_datasets",
+            missing_dataset,
+        )
+
+        shape = _resolve_estimation_input_shape(
+            SimpleNamespace(dataset="mnist"),
+            {"flatten": True},
+        )
+
+        assert shape == (784,)
 
     def test_estimate_memory_breakdown(self):
         """Test total memory estimation."""

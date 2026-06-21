@@ -132,6 +132,190 @@ def _reactivation_calibration_safeguards(layer) -> tuple[float, float, bool]:
     return min_width, max_m, revert_on_invalid
 
 
+def _resolve_occupancy_spec(
+    layer, layer_name: str
+) -> tuple[float, float, float, float]:
+    """Return the quantile and target occupancy pair for one layer."""
+    q_low = getattr(layer, "reactivation_occupancy_quantile_low", None)
+    q_high = getattr(layer, "reactivation_occupancy_quantile_high", None)
+    r_low = getattr(layer, "reactivation_occupancy_target_low", None)
+    r_high = getattr(layer, "reactivation_occupancy_target_high", None)
+
+    q_low = 0.10 if q_low is None else float(q_low)
+    q_high = 0.90 if q_high is None else float(q_high)
+    r_low = 0.10 if r_low is None else float(r_low)
+    r_high = 0.90 if r_high is None else float(r_high)
+
+    if not (0.0 < q_low < q_high < 1.0):
+        raise ValueError(
+            f"Invalid occupancy quantiles ({q_low}, {q_high}) for layer {layer_name}"
+        )
+    if not (0.0 < r_low < r_high < 1.0):
+        raise ValueError(
+            f"Invalid occupancy targets ({r_low}, {r_high}) for layer {layer_name}"
+        )
+    return q_low, q_high, r_low, r_high
+
+
+def _fit_occupancy_quantile(
+    *,
+    layer,
+    layer_name: str,
+    v: torch.Tensor,
+    flattened_chunks: list[torch.Tensor],
+    sigma_mad_std: float,
+    quantile_aggregation: str,
+) -> dict[str, float | bool | str]:
+    """Fit an occupancy-quantile reactivation gate for one layer."""
+    q_low_p, q_high_p, r_low, r_high = _resolve_occupancy_spec(layer, layer_name)
+    q_vals = torch.tensor([q_low_p, q_high_p], dtype=v.dtype, device=v.device)
+    occ_q_vals, _ = _aggregate_quantiles_from_chunks(
+        flattened_chunks, q_vals, aggregation=quantile_aggregation
+    )
+    q_low_v, q_high_v = [float(x.item()) for x in occ_q_vals]
+    delta_q_raw = float(q_high_v - q_low_v)
+    z_low = atanh(2.0 * r_low - 1.0)
+    z_high = atanh(2.0 * r_high - 1.0)
+    delta_z = z_high - z_low
+    min_width, max_m, revert_on_invalid = _reactivation_calibration_safeguards(layer)
+    current_m, current_b = _current_reactivation_state(layer)
+
+    if not all(
+        isfinite(val)
+        for val in (q_low_v, q_high_v, delta_q_raw, z_low, z_high, delta_z)
+    ):
+        warnings.warn(
+            f"Reactivation occupancy calibration for layer {layer_name} produced "
+            "non-finite quantiles; reverting to the previous gate state.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        return {
+            "b": current_b,
+            "m": current_m,
+            "sigma": sigma_mad_std,
+            "q_low_prob": q_low_p,
+            "q_high_prob": q_high_p,
+            "r_low": r_low,
+            "r_high": r_high,
+            "delta_q_raw": delta_q_raw,
+            "delta_q_used": float("nan"),
+            "m_raw": float("nan"),
+            "m_clamped": False,
+            "reverted": True,
+            "revert_reason": "nonfinite_quantiles",
+        }
+
+    delta_q_used = max(delta_q_raw, min_width)
+    if delta_q_raw < min_width:
+        if revert_on_invalid:
+            warnings.warn(
+                f"Reactivation occupancy calibration for layer {layer_name} saw a tiny "
+                f"quantile span ({delta_q_raw:.4e}); reverting to the previous "
+                "gate state instead of forcing a saturated fit.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            return {
+                "b": current_b,
+                "m": current_m,
+                "sigma": sigma_mad_std,
+                "q_low_prob": q_low_p,
+                "q_high_prob": q_high_p,
+                "r_low": r_low,
+                "r_high": r_high,
+                "delta_q_raw": delta_q_raw,
+                "delta_q_used": delta_q_used,
+                "m_raw": float("nan"),
+                "m_clamped": False,
+                "reverted": True,
+                "revert_reason": "tiny_quantile_span",
+            }
+        warnings.warn(
+            f"Reactivation occupancy calibration for layer {layer_name} saw a tiny "
+            f"quantile span ({delta_q_raw:.4e}); using floor {min_width:.4e}.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+
+    m_raw = delta_z / delta_q_used
+    if not isfinite(m_raw) or m_raw <= 0.0:
+        if revert_on_invalid:
+            warnings.warn(
+                f"Reactivation occupancy calibration for layer {layer_name} produced "
+                f"invalid slope {m_raw}; reverting to the previous gate state.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+            return {
+                "b": current_b,
+                "m": current_m,
+                "sigma": sigma_mad_std,
+                "q_low_prob": q_low_p,
+                "q_high_prob": q_high_p,
+                "r_low": r_low,
+                "r_high": r_high,
+                "delta_q_raw": delta_q_raw,
+                "delta_q_used": delta_q_used,
+                "m_raw": m_raw,
+                "m_clamped": False,
+                "reverted": True,
+                "revert_reason": "invalid_slope",
+            }
+        m_raw = max_m
+
+    if m_raw > max_m and revert_on_invalid:
+        warnings.warn(
+            f"Reactivation occupancy calibration for layer {layer_name} would clamp "
+            f"slope from {m_raw:.4f} to {max_m:.4f}; reverting to the previous "
+            "gate state instead of forcing a saturated fit.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        return {
+            "b": current_b,
+            "m": current_m,
+            "sigma": sigma_mad_std,
+            "q_low_prob": q_low_p,
+            "q_high_prob": q_high_p,
+            "r_low": r_low,
+            "r_high": r_high,
+            "delta_q_raw": delta_q_raw,
+            "delta_q_used": delta_q_used,
+            "m_raw": m_raw,
+            "m_clamped": False,
+            "reverted": True,
+            "revert_reason": "would_exceed_max_m",
+        }
+
+    m_fit = min(max(m_raw, 1e-6), max_m)
+    m_clamped = abs(m_fit - m_raw) > 1e-12
+    if m_clamped:
+        warnings.warn(
+            f"Reactivation occupancy calibration for layer {layer_name} clamped "
+            f"slope from {m_raw:.4f} to {m_fit:.4f} (max_m={max_m:.4f}).",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+    b_fit = q_low_v - (z_low / m_fit)
+    sigma_fit = 0.5 * max(delta_q_raw, 0.0)
+    return {
+        "b": b_fit,
+        "m": m_fit,
+        "sigma": sigma_fit,
+        "q_low_prob": q_low_p,
+        "q_high_prob": q_high_p,
+        "r_low": r_low,
+        "r_high": r_high,
+        "delta_q_raw": delta_q_raw,
+        "delta_q_used": delta_q_used,
+        "m_raw": m_raw,
+        "m_clamped": m_clamped,
+        "reverted": False,
+        "revert_reason": "none",
+    }
+
+
 def calibrate_reactivation_from_data(
     model: torch.nn.Module,
     batches,
@@ -324,196 +508,6 @@ def calibrate_reactivation_from_data(
             if sigma_mad_std > 0
             else max(layer_k, 1e-6)
         )
-        current_layer = layer
-        layer_name = name
-        v_ref = v
-        flattened_chunks_ref = flattened_chunks
-        sigma_mad_std_ref = sigma_mad_std
-
-        def _resolve_occupancy_spec(
-            current_layer=current_layer,
-            layer_name=layer_name,
-        ) -> tuple[float, float, float, float]:
-            q_low = getattr(current_layer, "reactivation_occupancy_quantile_low", None)
-            q_high = getattr(
-                current_layer, "reactivation_occupancy_quantile_high", None
-            )
-            r_low = getattr(current_layer, "reactivation_occupancy_target_low", None)
-            r_high = getattr(current_layer, "reactivation_occupancy_target_high", None)
-
-            q_low = 0.10 if q_low is None else float(q_low)
-            q_high = 0.90 if q_high is None else float(q_high)
-            r_low = 0.10 if r_low is None else float(r_low)
-            r_high = 0.90 if r_high is None else float(r_high)
-
-            if not (0.0 < q_low < q_high < 1.0):
-                raise ValueError(
-                    f"Invalid occupancy quantiles ({q_low}, {q_high}) for layer {layer_name}"
-                )
-            if not (0.0 < r_low < r_high < 1.0):
-                raise ValueError(
-                    f"Invalid occupancy targets ({r_low}, {r_high}) for layer {layer_name}"
-                )
-            return q_low, q_high, r_low, r_high
-
-        def _fit_occupancy_quantile(
-            v_ref=v_ref,
-            flattened_chunks_ref=flattened_chunks_ref,
-            current_layer=current_layer,
-            layer_name=layer_name,
-            sigma_mad_std_ref=sigma_mad_std_ref,
-        ) -> dict[str, float | bool]:
-            q_low_p, q_high_p, r_low, r_high = _resolve_occupancy_spec()
-            q_vals = torch.tensor(
-                [q_low_p, q_high_p], dtype=v_ref.dtype, device=v_ref.device
-            )
-            occ_q_vals, _ = _aggregate_quantiles_from_chunks(
-                flattened_chunks_ref, q_vals, aggregation=quantile_aggregation
-            )
-            q_low_v, q_high_v = [float(x.item()) for x in occ_q_vals]
-            delta_q_raw = float(q_high_v - q_low_v)
-            z_low = atanh(2.0 * r_low - 1.0)
-            z_high = atanh(2.0 * r_high - 1.0)
-            delta_z = z_high - z_low
-            min_width, max_m, revert_on_invalid = _reactivation_calibration_safeguards(
-                current_layer
-            )
-            current_m, current_b = _current_reactivation_state(current_layer)
-
-            if not all(
-                isfinite(val)
-                for val in (q_low_v, q_high_v, delta_q_raw, z_low, z_high, delta_z)
-            ):
-                warnings.warn(
-                    f"Reactivation occupancy calibration for layer {layer_name} produced "
-                    "non-finite quantiles; reverting to the previous gate state.",
-                    RuntimeWarning,
-                    stacklevel=2,
-                )
-                return {
-                    "b": current_b,
-                    "m": current_m,
-                    "sigma": sigma_mad_std_ref,
-                    "q_low_prob": q_low_p,
-                    "q_high_prob": q_high_p,
-                    "r_low": r_low,
-                    "r_high": r_high,
-                    "delta_q_raw": delta_q_raw,
-                    "delta_q_used": float("nan"),
-                    "m_raw": float("nan"),
-                    "m_clamped": False,
-                    "reverted": True,
-                    "revert_reason": "nonfinite_quantiles",
-                }
-
-            delta_q_used = max(delta_q_raw, min_width)
-            if delta_q_raw < min_width:
-                if revert_on_invalid:
-                    warnings.warn(
-                        f"Reactivation occupancy calibration for layer {layer_name} saw a tiny "
-                        f"quantile span ({delta_q_raw:.4e}); reverting to the previous "
-                        "gate state instead of forcing a saturated fit.",
-                        RuntimeWarning,
-                        stacklevel=2,
-                    )
-                    return {
-                        "b": current_b,
-                        "m": current_m,
-                        "sigma": sigma_mad_std_ref,
-                        "q_low_prob": q_low_p,
-                        "q_high_prob": q_high_p,
-                        "r_low": r_low,
-                        "r_high": r_high,
-                        "delta_q_raw": delta_q_raw,
-                        "delta_q_used": delta_q_used,
-                        "m_raw": float("nan"),
-                        "m_clamped": False,
-                        "reverted": True,
-                        "revert_reason": "tiny_quantile_span",
-                    }
-                warnings.warn(
-                    f"Reactivation occupancy calibration for layer {layer_name} saw a tiny "
-                    f"quantile span ({delta_q_raw:.4e}); using floor {min_width:.4e}.",
-                    RuntimeWarning,
-                    stacklevel=2,
-                )
-
-            m_raw = delta_z / delta_q_used
-            if not isfinite(m_raw) or m_raw <= 0.0:
-                if revert_on_invalid:
-                    warnings.warn(
-                        f"Reactivation occupancy calibration for layer {layer_name} produced "
-                        f"invalid slope {m_raw}; reverting to the previous gate state.",
-                        RuntimeWarning,
-                        stacklevel=2,
-                    )
-                    return {
-                        "b": current_b,
-                        "m": current_m,
-                        "sigma": sigma_mad_std_ref,
-                        "q_low_prob": q_low_p,
-                        "q_high_prob": q_high_p,
-                        "r_low": r_low,
-                        "r_high": r_high,
-                        "delta_q_raw": delta_q_raw,
-                        "delta_q_used": delta_q_used,
-                        "m_raw": m_raw,
-                        "m_clamped": False,
-                        "reverted": True,
-                        "revert_reason": "invalid_slope",
-                    }
-                m_raw = max_m
-
-            if m_raw > max_m and revert_on_invalid:
-                warnings.warn(
-                    f"Reactivation occupancy calibration for layer {layer_name} would clamp "
-                    f"slope from {m_raw:.4f} to {max_m:.4f}; reverting to the previous "
-                    "gate state instead of forcing a saturated fit.",
-                    RuntimeWarning,
-                    stacklevel=2,
-                )
-                return {
-                    "b": current_b,
-                    "m": current_m,
-                    "sigma": sigma_mad_std_ref,
-                    "q_low_prob": q_low_p,
-                    "q_high_prob": q_high_p,
-                    "r_low": r_low,
-                    "r_high": r_high,
-                    "delta_q_raw": delta_q_raw,
-                    "delta_q_used": delta_q_used,
-                    "m_raw": m_raw,
-                    "m_clamped": False,
-                    "reverted": True,
-                    "revert_reason": "would_exceed_max_m",
-                }
-
-            m_fit = min(max(m_raw, 1e-6), max_m)
-            m_clamped = abs(m_fit - m_raw) > 1e-12
-            if m_clamped:
-                warnings.warn(
-                    f"Reactivation occupancy calibration for layer {layer_name} clamped "
-                    f"slope from {m_raw:.4f} to {m_fit:.4f} (max_m={max_m:.4f}).",
-                    RuntimeWarning,
-                    stacklevel=2,
-                )
-            b_fit = q_low_v - (z_low / m_fit)
-            sigma_fit = 0.5 * max(delta_q_raw, 0.0)
-            return {
-                "b": b_fit,
-                "m": m_fit,
-                "sigma": sigma_fit,
-                "q_low_prob": q_low_p,
-                "q_high_prob": q_high_p,
-                "r_low": r_low,
-                "r_high": r_high,
-                "delta_q_raw": delta_q_raw,
-                "delta_q_used": delta_q_used,
-                "m_raw": m_raw,
-                "m_clamped": m_clamped,
-                "reverted": False,
-                "revert_reason": "none",
-            }
 
         occ_q_low = occ_q_high = occ_r_low = occ_r_high = None
         occ_delta_q_raw = occ_delta_q_used = occ_m_raw = None
@@ -521,7 +515,14 @@ def calibrate_reactivation_from_data(
         calibration_reverted = False
 
         if active_mode == "occupancy_quantile":
-            occ_fit = _fit_occupancy_quantile()
+            occ_fit = _fit_occupancy_quantile(
+                layer=layer,
+                layer_name=name,
+                v=v,
+                flattened_chunks=flattened_chunks,
+                sigma_mad_std=sigma_mad_std,
+                quantile_aggregation=quantile_aggregation,
+            )
             b_emp = float(occ_fit["b"])
             m_emp = float(occ_fit["m"])
             occ_q_low = float(occ_fit["q_low_prob"])
@@ -603,7 +604,9 @@ __all__ = [
     "_apply_reactivation_calibration",
     "_apply_reactivation_init",
     "_current_reactivation_state",
+    "_fit_occupancy_quantile",
     "_reactivation_calibration_safeguards",
+    "_resolve_occupancy_spec",
     "calibrate_reactivation_empirical",
     "calibrate_reactivation_from_data",
 ]

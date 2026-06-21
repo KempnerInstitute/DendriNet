@@ -94,6 +94,34 @@ def register_named_forward_hooks(
         raise
 
 
+def register_named_forward_hook_groups(
+    model: torch.nn.Module,
+    module_type: type[ModuleT],
+    register: Callable[[str, ModuleT], Iterable[HookHandle]],
+    *,
+    predicate: Callable[[str, ModuleT], bool] | None = None,
+    prepare: Callable[[str, ModuleT], None] | None = None,
+) -> list[HookHandle]:
+    """Register one or more forward hooks per matching module.
+
+    The per-module ``register`` callback should return handles for hooks it
+    successfully attached. If a later module fails, all earlier handles are
+    removed before re-raising.
+    """
+    handles: list[HookHandle] = []
+    try:
+        for name, module in iter_named_modules_of_type(model, module_type):
+            if predicate is not None and not predicate(name, module):
+                continue
+            if prepare is not None:
+                prepare(name, module)
+            handles.extend(register(name, module))
+        return handles
+    except Exception:
+        remove_hook_handles(handles)
+        raise
+
+
 class ForwardHookRemovalMixin:
     """Mixin for analyzers whose hook teardown only removes handles."""
 
@@ -110,6 +138,7 @@ __all__ = [
     "iter_modules_of_type",
     "iter_named_modules_matching",
     "iter_named_modules_of_type",
+    "register_named_forward_hook_groups",
     "register_named_forward_hooks",
     "remove_hook_handles",
 ]

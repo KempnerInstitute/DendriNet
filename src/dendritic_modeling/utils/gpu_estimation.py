@@ -53,6 +53,7 @@ FSDP_CONFIG_ACTIVATION_FACTOR = 0.8
 FSDP_CONFIG_OVERHEAD_FACTOR = 0.1
 DEFAULT_BATCH_SIZE = 32
 DEFAULT_TRAINING_DTYPE = "fp16"
+DEFAULT_ESTIMATION_OPTIMIZER = "adam"
 DEFAULT_CLASS_COUNT = 10
 REGRESSION_OUTPUT_DIM = 1
 DEFAULT_TRAIN_VALID_SPLIT = 0.8
@@ -205,6 +206,107 @@ def _resolve_trainer_params(config: Any) -> dict[str, Any]:
 def _resolve_training_dtype(config: Any) -> str:
     """Resolve training dtype used by the memory estimator."""
     return _resolve_trainer_params(config).get("dtype", DEFAULT_TRAINING_DTYPE)
+
+
+def _resolve_estimation_input_shape(
+    task_cfg: Any,
+    task_params: dict[str, Any],
+) -> tuple[int, ...] | torch.Size:
+    """Resolve input shape from data, falling back to canonical dataset dimensions."""
+    from dendritic_modeling.datasets import get_unified_datasets
+
+    try:
+        train_ds, _, _ = get_unified_datasets(task_cfg=task_cfg)
+        sample_input = train_ds[0][0]
+        input_shape = sample_input.shape
+        logger.info(f"Using real dataset input shape: {input_shape}")
+        return input_shape
+    except Exception as e:
+        logger.warning(
+            "Failed to load dataset, falling back to canonical built-in shapes: %s", e
+        )
+        return _fallback_input_shape(task_cfg, task_params)
+
+
+def _build_estimation_encoder(model_config: Any, input_shape: tuple[int, ...]):
+    """Build the encoder used for memory estimation."""
+    from dendritic_modeling.networks import Identity
+    from dendritic_modeling.networks.architectures.factory import get_architecture
+
+    encoder_config = (
+        getattr(model_config, "encoder_network", None) or model_config.encoder
+    )
+    if encoder_config.type.lower() == "identity":
+        return Identity(_flat_input_dim(input_shape))
+
+    encoder_params = _config_params(encoder_config)
+    encoder_params["input_dim"] = _flat_input_dim(input_shape)
+    return get_architecture(encoder_config.type, encoder_params)
+
+
+def _build_estimation_core(model_config: Any, encoder: torch.nn.Module):
+    """Build the core network used for memory estimation."""
+    from dendritic_modeling.networks.architectures.factory import get_architecture
+
+    core_config = getattr(model_config, "core_network", None) or model_config.core
+    if core_config.type.lower() == "einet" and hasattr(core_config, "architecture"):
+        return get_architecture(core_config.type, core_config, encoder.output_dim)
+
+    core_params = _core_params_from_config(core_config)
+    core_params["input_dim"] = encoder.output_dim
+    return get_architecture(core_config.type, core_params)
+
+
+def _build_estimation_decoder(
+    model_config: Any,
+    core_network: torch.nn.Module,
+    n_classes: int,
+):
+    """Build the decoder used for memory estimation."""
+    from dendritic_modeling.networks import Identity
+    from dendritic_modeling.networks.architectures.factory import get_architecture
+
+    decoder_config = (
+        getattr(model_config, "decoder_network", None) or model_config.decoder
+    )
+    if decoder_config.type.lower() == "identity":
+        return Identity(core_network.output_dim)
+
+    decoder_params = _config_params(decoder_config)
+    decoder_params["input_dim"] = core_network.output_dim
+    decoder_params["output_dim"] = n_classes
+    return get_architecture(decoder_config.type, decoder_params)
+
+
+def _build_estimation_model(
+    config: Any,
+    input_shape: tuple[int, ...],
+    task_cfg: Any,
+    task_params: dict[str, Any],
+):
+    """Build the model used for GPU-memory estimation."""
+    from dendritic_modeling.models import Classifier, Regressor
+
+    model_config = config.model
+    encoder = _build_estimation_encoder(model_config, input_shape)
+    core_network = _build_estimation_core(model_config, encoder)
+
+    task_type = model_config.task
+    n_classes = _resolve_n_classes(task_type, task_cfg, task_params)
+    decoder = _build_estimation_decoder(model_config, core_network, n_classes)
+
+    if task_type == "classification":
+        return Classifier(
+            encoder_network=encoder,
+            core_network=core_network,
+            decoder_network=decoder,
+        )
+
+    return Regressor(
+        encoder_network=encoder,
+        core_network=core_network,
+        decoder_network=decoder,
+    )
 
 
 def _is_leaf_module(module: torch.nn.Module) -> bool:
@@ -842,102 +944,15 @@ def estimate_from_config(config_path: str, batch_size: Optional[int] = None):
         batch_size: Override batch size (uses config value if None)
     """
     from dendritic_modeling.config import load_config
-    from dendritic_modeling.datasets import get_unified_datasets
-    from dendritic_modeling.models import Classifier, Regressor
-    from dendritic_modeling.networks import Identity
-    from dendritic_modeling.networks.architectures.factory import get_architecture
 
-    # Load configuration
     config = load_config(config_path)
-
     batch_size = _resolve_batch_size(config, batch_size)
     task_cfg, task_params = _resolve_task_config(config)
-
-    # Load real dataset to get accurate input shape (like train_experiments.py)
-    try:
-        # Get datasets using the same method as training scripts
-        train_ds, _, _ = get_unified_datasets(
-            task_cfg=task_cfg,
-        )
-
-        # Get sample input shape from real data
-        sample_input = train_ds[0][0]  # First sample, input only
-        input_shape = sample_input.shape  # This is the real shape from dataset
-
-        logger.info(f"Using real dataset input shape: {input_shape}")
-
-    except Exception as e:
-        logger.warning(
-            "Failed to load dataset, falling back to canonical built-in shapes: %s", e
-        )
-
-        input_shape = _fallback_input_shape(task_cfg, task_params)
-
-    # Create model (similar to train scripts)
-    model_config = config.model
-
-    # Create encoder - handle both old (encoder_network) and new (encoder) structure
-    encoder_config = (
-        getattr(model_config, "encoder_network", None) or model_config.encoder
-    )
-    if encoder_config.type.lower() == "identity":
-        encoder = Identity(_flat_input_dim(input_shape))
-    else:
-        encoder_params = _config_params(encoder_config)
-        encoder_params["input_dim"] = _flat_input_dim(input_shape)
-        encoder = get_architecture(encoder_config.type, encoder_params)
-
-    # Create core network - handle both old (core_network) and new (core) structure
-    core_config = getattr(model_config, "core_network", None) or model_config.core
-
-    if core_config.type.lower() == "einet" and hasattr(core_config, "architecture"):
-        # For EINet with structured config, pass the entire config
-        core_network = get_architecture(
-            core_config.type, core_config, encoder.output_dim
-        )
-    else:
-        # Handle parameter structure - combine architecture, connectivity, etc.
-        core_params = _core_params_from_config(core_config)
-        core_params["input_dim"] = encoder.output_dim
-        core_network = get_architecture(core_config.type, core_params)
-
-    # Get task type and number of classes
-    task_type = model_config.task  # task is on model config, not task config
-    n_classes = _resolve_n_classes(task_type, task_cfg, task_params)
-
-    # Create decoder - handle both old (decoder_network) and new (decoder) structure
-    decoder_config = (
-        getattr(model_config, "decoder_network", None) or model_config.decoder
-    )
-    if decoder_config.type.lower() == "identity":
-        decoder = Identity(core_network.output_dim)
-    else:
-        decoder_params = _config_params(decoder_config)
-        decoder_params["input_dim"] = core_network.output_dim
-        decoder_params["output_dim"] = n_classes
-        decoder = get_architecture(decoder_config.type, decoder_params)
-
-    # Create full model
-    if task_type == "classification":
-        model = Classifier(
-            encoder_network=encoder,
-            core_network=core_network,
-            decoder_network=decoder,
-        )
-    else:
-        model = Regressor(
-            encoder_network=encoder,
-            core_network=core_network,
-            decoder_network=decoder,
-        )
+    input_shape = _resolve_estimation_input_shape(task_cfg, task_params)
+    model = _build_estimation_model(config, input_shape, task_cfg, task_params)
 
     dtype = _resolve_training_dtype(config)
-
-    # Get optimizer type - it's not directly specified in the config, default to adam
-    optimizer_type = "adam"  # Default optimizer for dendritic models
-
-    # Create estimator and print report
-    estimator = GPUMemoryEstimator(dtype=dtype, optimizer=optimizer_type)
+    estimator = GPUMemoryEstimator(dtype=dtype, optimizer=DEFAULT_ESTIMATION_OPTIMIZER)
     estimator.print_estimation_report(model, batch_size, input_shape, config)
 
     return estimator, model

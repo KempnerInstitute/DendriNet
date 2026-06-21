@@ -45,6 +45,7 @@ def test_utils_reexports_hook_helpers():
         iter_modules_of_type,
         iter_named_modules_matching,
         iter_named_modules_of_type,
+        register_named_forward_hook_groups,
         register_named_forward_hooks,
     )
 
@@ -54,6 +55,9 @@ def test_utils_reexports_hook_helpers():
     assert utils.iter_modules_of_type is iter_modules_of_type
     assert utils.iter_named_modules_matching is iter_named_modules_matching
     assert utils.iter_named_modules_of_type is iter_named_modules_of_type
+    assert (
+        utils.register_named_forward_hook_groups is register_named_forward_hook_groups
+    )
     assert utils.register_named_forward_hooks is register_named_forward_hooks
 
 
@@ -195,6 +199,71 @@ def test_register_named_forward_hooks_removes_partial_registration_on_failure(
         register_named_forward_hooks(model, nn.Linear, lambda *_args: None)
 
     assert call_count == 2
+    assert sum(len(module._forward_hooks) for module in model.modules()) == 0
+
+
+def test_register_named_forward_hook_groups_preserves_order_and_predicate():
+    from dendritic_modeling.utils.hooks import (
+        register_named_forward_hook_groups,
+        remove_hook_handles,
+    )
+
+    model = nn.Sequential(nn.Linear(2, 3), nn.ReLU(), nn.Linear(3, 1))
+    prepared = []
+    captured = []
+
+    def prepare(name, module):
+        prepared.append((name, module.out_features))
+
+    def register_group(name, module):
+        return [
+            module.register_forward_hook(
+                lambda _module, _inputs, output, name=name: captured.append(
+                    (name, "first", tuple(output.shape))
+                )
+            ),
+            module.register_forward_hook(
+                lambda _module, _inputs, output, name=name: captured.append(
+                    (name, "second", tuple(output.shape))
+                )
+            ),
+        ]
+
+    handles = register_named_forward_hook_groups(
+        model,
+        nn.Linear,
+        register_group,
+        predicate=lambda name, _module: name == "0",
+        prepare=prepare,
+    )
+
+    try:
+        assert len(handles) == 2
+        assert prepared == [("0", 3)]
+        model(torch.ones(2, 2))
+        assert captured == [
+            ("0", "first", (2, 3)),
+            ("0", "second", (2, 3)),
+        ]
+    finally:
+        remove_hook_handles(handles)
+
+    assert sum(len(module._forward_hooks) for module in model.modules()) == 0
+
+
+def test_register_named_forward_hook_groups_removes_prior_groups_on_failure():
+    from dendritic_modeling.utils.hooks import register_named_forward_hook_groups
+
+    model = nn.Sequential(nn.Linear(2, 3), nn.Linear(3, 1))
+
+    def register_group(name, module):
+        if name == "1":
+            raise RuntimeError("hook group registration failed")
+        return [module.register_forward_hook(lambda *_args: None)]
+
+    with pytest.raises(RuntimeError, match="hook group registration failed"):
+        register_named_forward_hook_groups(model, nn.Linear, register_group)
+
     assert sum(len(module._forward_hooks) for module in model.modules()) == 0
 
 
