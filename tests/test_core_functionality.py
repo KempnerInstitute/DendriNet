@@ -392,6 +392,32 @@ def test_dataloader_auto_prefetches_torchvision_image_datasets(monkeypatch):
     assert tuning.as_kwargs()["prefetch_factor"] == 4
 
 
+def test_dataloader_auto_prefetches_torchvision_image_dataset_subclasses(monkeypatch):
+    """Custom ImageFolder subclasses should keep the ImageNet loader profile."""
+
+    from torchvision.datasets.folder import DatasetFolder
+
+    from dendritic_modeling.training.dataloader_utils import resolve_dataloader_tuning
+
+    class CustomImageFolder(DatasetFolder):
+        pass
+
+    dataset = object.__new__(CustomImageFolder)
+
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(
+        "dendritic_modeling.training.dataloader_utils.visible_cpu_count",
+        lambda: 8,
+    )
+
+    tuning = resolve_dataloader_tuning(dataset, device="cuda")
+
+    assert tuning.num_workers == 8
+    assert tuning.pin_memory is True
+    assert tuning.persistent_workers is True
+    assert tuning.prefetch_factor == 4
+
+
 def test_dataloader_auto_tuning_unwraps_dataset_adapters(monkeypatch):
     """Wrapped tensor and ImageNet-style datasets should keep their tuning profile."""
 

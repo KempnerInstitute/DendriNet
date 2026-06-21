@@ -22,6 +22,7 @@ from dendritic_modeling.config.multi_stage_training import (
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.training.optimizers.custom import CustomWeightDecayOptimizer
 from dendritic_modeling.training.strategies.standard import Trainer
+from dendritic_modeling.utils.epoch_files import epoch_files_by_number
 
 logger = logging.getLogger(__name__)
 
@@ -33,23 +34,7 @@ def _remove_epoch_files(epochs_dir: str) -> None:
 
 
 def _epoch_files_by_local_epoch(epochs_dir: str) -> list[tuple[int, str]]:
-    if not os.path.exists(epochs_dir):
-        return []
-
-    epoch_files = []
-    for filename in os.listdir(epochs_dir):
-        if not filename.startswith("epoch"):
-            continue
-
-        epoch_str = filename.replace("epoch", "")
-        if epoch_str.endswith(".json"):
-            epoch_str = epoch_str[:-5]
-
-        if epoch_str.isdigit():
-            epoch_files.append((int(epoch_str), filename))
-
-    epoch_files.sort(key=lambda item: item[0])
-    return epoch_files
+    return epoch_files_by_number(epochs_dir, require_json=False)
 
 
 def _json_file_has_payload(path: str) -> bool:

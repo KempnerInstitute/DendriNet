@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from torch.utils.data import Dataset, Subset, TensorDataset
 
+try:
+    from torchvision.datasets.folder import DatasetFolder as TorchvisionDatasetFolder
+except Exception:  # pragma: no cover - torchvision is an optional runtime dependency
+    TorchvisionDatasetFolder = None
+
 _TORCHVISION_IMAGE_DATASET_NAMES = {
     "DatasetFolder",
     "ImageFolder",
@@ -33,7 +38,14 @@ def base_dataset(dataset: Dataset) -> Dataset:
 
 def is_torchvision_image_dataset(dataset: Dataset) -> bool:
     """Return True for torchvision image datasets that are usually I/O-bound."""
-    dataset_cls = type(base_dataset(dataset))
+    resolved_dataset = base_dataset(dataset)
+    if TorchvisionDatasetFolder is not None and isinstance(
+        resolved_dataset,
+        TorchvisionDatasetFolder,
+    ):
+        return True
+
+    dataset_cls = type(resolved_dataset)
     return (
         dataset_cls.__name__ in _TORCHVISION_IMAGE_DATASET_NAMES
         and dataset_cls.__module__.startswith("torchvision.datasets")

@@ -1361,7 +1361,7 @@ def plot_branch_sweep_results(results_csv_path, split="test"):
     )
     save_plot(fig, os.path.dirname(results_csv_path), f"branch_sweep_results_{split}")
 
-    print(f"Plot saved to: {save_path_final}")
+    logger.info("Plot saved to: %s", save_path_final)
     return fig, axes
 
 
@@ -1402,7 +1402,7 @@ def plot_ei_sweep_results(results_csv_path, ei_ratio_range=None, split="test"):
     )
     save_plot(fig, os.path.dirname(results_csv_path), f"ei_sweep_results_{split}")
 
-    print(f"Plot saved to: {save_path_final}")
+    logger.info("Plot saved to: %s", save_path_final)
     return fig, axes
 
 
@@ -1483,7 +1483,7 @@ def plot_noise_sweep_branch_results(results_csv_path, noise_type="gaussian"):
         f"noise_sweep_branch_results_{noise_type}",
     )
 
-    print(f"Plot saved to: {save_path_final}")
+    logger.info("Plot saved to: %s", save_path_final)
     return fig, axes
 
 
@@ -1557,7 +1557,7 @@ def plot_noise_sweep_ei_results(results_csv_path, noise_type="gaussian"):
         fig, os.path.dirname(results_csv_path), f"noise_sweep_ei_results_{noise_type}"
     )
 
-    print(f"Plot saved to: {save_path_final}")
+    logger.info("Plot saved to: %s", save_path_final)
     return fig, axes
 
 

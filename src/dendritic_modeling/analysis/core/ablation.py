@@ -8,7 +8,6 @@ disabling or ablating different network components to understand their contribut
 import json
 import logging
 import os
-import re
 from copy import deepcopy
 from typing import Callable, Optional
 
@@ -44,6 +43,7 @@ from dendritic_modeling.training.utils.evaluation import (
     evaluate_pred_label_mi,
 )
 from dendritic_modeling.utils import save_dict
+from dendritic_modeling.utils.epoch_files import epoch_files_by_number
 
 logger = logging.getLogger(__name__)
 
@@ -911,21 +911,10 @@ def create_video_layer_ablation_vs_training(
     if not os.path.exists(epochs_dir):
         raise ValueError(f"Epochs directory not found: {epochs_dir}")
 
-    # Collect and sort epoch JSON files
-    epoch_files = []
-    for filename in os.listdir(epochs_dir):
-        if filename.startswith("epoch") and filename.endswith(".json"):
-            # Extract epoch number from filename (e.g., "epoch0.json" -> 0)
-            match = re.match(r"epoch(\d+)\.json", filename)
-            if match:
-                epoch_number = int(match.group(1))
-                epoch_files.append((epoch_number, filename))
+    epoch_files = epoch_files_by_number(epochs_dir)
 
     if not epoch_files:
         raise ValueError(f"No epoch JSON files found in {epochs_dir}")
-
-    # Sort by epoch number
-    epoch_files.sort(key=lambda x: x[0])
 
     # Load all epoch data (flatten 3-level schema to 2-level for plotting)
     epoch_data_list = []

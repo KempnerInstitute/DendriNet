@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 from math import log
@@ -11,6 +10,11 @@ import torch.nn.functional as F
 from torch.utils.data import TensorDataset
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
+from dendritic_modeling.analysis.tools.epoch_aggregation import (
+    initialize_epoch_aggregation_structure,
+    load_epoch_aggregation,
+    populate_epoch_aggregation,
+)
 from dendritic_modeling.analysis.utils.runtime import (
     analysis_device_context,
     evaluation_kwargs_from_runtime,
@@ -385,17 +389,10 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
         Returns:
             Dictionary with same structure but empty lists at leaf nodes
         """
-        agg_structure = {}
-        for key, value in data.items():
-            if isinstance(value, dict):
-                agg_structure[key] = self._initialize_agg_structure(value)
-            else:
-                # Leaf node - initialize as empty list
-                if key == "gain_factors":
-                    agg_structure[key] = data[key]
-                else:
-                    agg_structure[key] = []
-        return agg_structure
+        return initialize_epoch_aggregation_structure(
+            data,
+            preserved_leaf_keys={"gain_factors"},
+        )
 
     def _populate_agg_dict(self, agg_dict: dict, epoch_data: dict):
         """
@@ -405,61 +402,14 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
             agg_dict: The aggregate dictionary to populate (modified in place)
             epoch_data: The epoch data dictionary to extract values from
         """
-        for key, value in epoch_data.items():
-            if isinstance(value, dict):
-                if key in agg_dict:
-                    self._populate_agg_dict(agg_dict[key], value)
-            else:
-                # Leaf node - append value to list
-                if key in agg_dict and key != "gain_factors":
-                    agg_dict[key].append(value)
+        populate_epoch_aggregation(
+            agg_dict,
+            epoch_data,
+            preserved_leaf_keys={"gain_factors"},
+        )
 
     def load_epochs_data(self, save_path: str):
-        training_path = os.path.join(save_path, "epochs")
-
-        if not os.path.exists(training_path):
-            return None, None
-
-        agg_dict_initialized = False
-        agg_dict = {}
-
-        # Collect all epoch files and sort by epoch number
-        epoch_files = []
-        for filename in os.listdir(training_path):
-            # Check if file matches the "epoch#" naming convention
-            if filename.startswith("epoch") and filename.endswith(".json"):
-                # Extract the number part (everything between "epoch" and ".json")
-                epoch_number_str = filename[
-                    5:-5
-                ]  # Remove "epoch" prefix and ".json" suffix
-                try:
-                    epoch_number = int(epoch_number_str)
-                    epoch_files.append((epoch_number, filename))
-                except ValueError:
-                    # Skip files that don't have numeric epoch numbers
-                    continue
-
-        # Sort by epoch number to process in order
-        epoch_files.sort(key=lambda x: x[0])
-
-        # Iterate through epoch files in sorted order
-        epoch_numbers = []
-        for epoch_number, filename in epoch_files:
-            epoch_numbers.append(epoch_number)
-            # Load the JSON file
-            file_path = os.path.join(training_path, filename)
-            with open(file_path) as f:
-                epoch_data = json.load(f)
-
-            if not agg_dict_initialized:
-                # Initialize aggregate dictionary with same structure, empty lists at leaves
-                agg_dict = self._initialize_agg_structure(epoch_data)
-                agg_dict_initialized = True
-
-            # Populate aggregate dictionary by appending values from this epoch
-            self._populate_agg_dict(agg_dict, epoch_data)
-
-        return agg_dict, epoch_numbers
+        return load_epoch_aggregation(save_path, preserved_leaf_keys={"gain_factors"})
 
 
 def plot_performance_vs_gain_final(

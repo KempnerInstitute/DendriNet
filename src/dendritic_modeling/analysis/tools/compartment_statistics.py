@@ -460,25 +460,43 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
 
         return branch_statistics
 
+    def _aggregate_branch_stat_values(
+        self,
+        branch_records,
+    ) -> dict[str, list[Any]]:
+        aggregated: dict[str, list[Any]] = {}
+        for branch_data in branch_records:
+            for field, value in branch_data.items():
+                if field not in aggregated.keys() and field != "depth":
+                    aggregated[field] = []
+                if field != "depth":
+                    aggregated[field].append(value)
+        return aggregated
+
+    def _compute_aggregated_statistics(
+        self,
+        aggregated_values: dict[str, list[Any]],
+        stats_dict: dict[str, float],
+    ) -> dict[str, float]:
+        for prefix, values in aggregated_values.items():
+            data_tensor = torch.tensor(values)
+            stats_dict = self._compute_statistics(data_tensor, prefix, stats_dict)
+        return stats_dict
+
     def _compute_layer_statistics(
         self, branch_statistics: dict[str, dict[int, dict[str, float]]]
     ):
         """Compute layer statistics from branch statistics."""
         layer_statistics = {}
         for layer_key, layer_data in branch_statistics.items():
-            layer_aggregated: dict[str, list[float]] = {}
-
+            layer_aggregated = self._aggregate_branch_stat_values(layer_data.values())
             for branch_data in layer_data.values():
-                for field, value in branch_data.items():
-                    if field not in layer_aggregated.keys() and field != "depth":
-                        layer_aggregated[field] = []
-                    if field != "depth":
-                        layer_aggregated[field].append(value)
-
-            layer_stats = {"depth": branch_data["depth"]}
-            for prefix, values in layer_aggregated.items():
-                data_tensor = torch.tensor(values)
-                layer_stats = self._compute_statistics(data_tensor, prefix, layer_stats)
+                depth = branch_data["depth"]
+            layer_stats = {"depth": depth}
+            layer_stats = self._compute_aggregated_statistics(
+                layer_aggregated,
+                layer_stats,
+            )
 
             layer_statistics[layer_key] = layer_stats
         return layer_statistics
@@ -487,22 +505,15 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
         self, branch_statistics: dict[str, dict[int, dict[str, float]]]
     ):
         """Compute global statistics from branch statistics."""
-        global_aggregated: dict[str, list[float]] = {}
+        global_aggregated: dict[str, list[Any]] = {}
         for layer_data in branch_statistics.values():
-            for branch_data in layer_data.values():
-                for field, value in branch_data.items():
-                    if field not in global_aggregated.keys() and field != "depth":
-                        global_aggregated[field] = []
-                    if field != "depth":
-                        global_aggregated[field].append(value)
+            layer_aggregated = self._aggregate_branch_stat_values(layer_data.values())
+            for field, values in layer_aggregated.items():
+                if field not in global_aggregated:
+                    global_aggregated[field] = []
+                global_aggregated[field].extend(values)
 
-        global_statistics = {}
-        for prefix, values in global_aggregated.items():
-            data_tensor = torch.tensor(values)
-            global_statistics = self._compute_statistics(
-                data_tensor, prefix, global_statistics
-            )
-        return global_statistics
+        return self._compute_aggregated_statistics(global_aggregated, {})
 
     def analyze(
         self,
