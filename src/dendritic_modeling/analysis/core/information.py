@@ -844,6 +844,95 @@ class InformationAnalyzer(
 
         return layer_E, layer_I, layer_Vout, layer_Vb, missing_vb
 
+    def _concatenate_all_branch_tensors_for_metrics(
+        self,
+        *,
+        layer_excitation: list[torch.Tensor],
+        layer_inhibition: list[torch.Tensor],
+        layer_output: list[torch.Tensor],
+        layer_branch_input: list[torch.Tensor],
+        missing_vb_in_any_layer: bool,
+        C: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray | None]:
+        """Concatenate per-layer tensors for full-network information metrics."""
+        C_for_metrics = C
+        if self.branch_aggregation == "sample":
+            E = torch.cat(layer_excitation, dim=0).detach().cpu().numpy()
+            I_var = torch.cat(layer_inhibition, dim=0).detach().cpu().numpy()
+            Vb = (
+                torch.cat(layer_branch_input, dim=0).detach().cpu().numpy()
+                if (layer_branch_input and not missing_vb_in_any_layer)
+                else None
+            )
+            Vout = torch.cat(layer_output, dim=0).detach().cpu().numpy()
+            total_samples = E.shape[0]
+            original_samples = C.shape[0]
+            expansion_factor = total_samples // original_samples
+            C_for_metrics = np.repeat(C, expansion_factor, axis=0)
+        else:
+            E = torch.cat(layer_excitation, dim=1).detach().cpu().numpy()
+            I_var = torch.cat(layer_inhibition, dim=1).detach().cpu().numpy()
+            Vb = (
+                torch.cat(layer_branch_input, dim=1).detach().cpu().numpy()
+                if layer_branch_input
+                else None
+            )
+            Vout = torch.cat(layer_output, dim=1).detach().cpu().numpy()
+
+        return E, I_var, Vout, C_for_metrics, Vb
+
+    def _compute_final_output_signal(
+        self,
+        *,
+        model: BaseModel,
+        inputs: torch.Tensor,
+    ) -> np.ndarray | None:
+        """Run the model and return final output only when the model exposes final_fc."""
+        with torch.no_grad():
+            final_output: torch.Tensor = model(inputs)
+            if hasattr(model, "final_fc"):
+                return final_output.detach().cpu().numpy()
+        return None
+
+    def _try_add_label_shuffle_null_baselines_in_place(
+        self,
+        results: dict[str, Any],
+        *,
+        E: np.ndarray,
+        I_var: np.ndarray,
+        Vout: np.ndarray,
+        C: np.ndarray,
+        Vb: np.ndarray | None,
+        Vinf: np.ndarray | None,
+        has_exc_synapses: bool,
+        has_inh_synapses: bool,
+        has_branch_input: bool,
+        seed_offset: int,
+        failure_context: str,
+    ) -> None:
+        """Add label-shuffle null baselines when enabled, logging failures."""
+        if self.mi_null_shuffles <= 0:
+            return
+
+        try:
+            self._add_label_shuffle_null_baselines_in_place(
+                results,
+                E=E,
+                I_var=I_var,
+                Vout=Vout,
+                C=C,
+                Vb=Vb,
+                Vinf=Vinf,
+                has_exc_synapses=has_exc_synapses,
+                has_inh_synapses=has_inh_synapses,
+                has_branch_input=has_branch_input,
+                seed_offset=seed_offset,
+            )
+        except Exception as e:
+            self.logger.warning(
+                f"Null (label-shuffle) baseline failed for {failure_context}: {e}"
+            )
+
     def _compute_single_branch_results(
         self,
         C: np.ndarray,
@@ -951,26 +1040,20 @@ class InformationAnalyzer(
                 branch_results = self.compute_metrics(
                     E_branch, I_branch, Vout_branch, C, None, Vb_branch
                 )
-                if self.mi_null_shuffles > 0:
-                    try:
-                        self._add_label_shuffle_null_baselines_in_place(
-                            branch_results,
-                            E=E_branch,
-                            I_var=I_branch,
-                            Vout=Vout_branch,
-                            C=C,
-                            Vb=Vb_branch,
-                            Vinf=None,
-                            has_exc_synapses=has_exc_synapses,
-                            has_inh_synapses=has_inh_synapses,
-                            has_branch_input=has_branch_input
-                            and (Vb_branch is not None),
-                            seed_offset=int(layer_count * 10_000 + branch_idx),
-                        )
-                    except Exception as e:
-                        self.logger.warning(
-                            f"Null (label-shuffle) baseline failed for branch {branch_idx}: {e}"
-                        )
+                self._try_add_label_shuffle_null_baselines_in_place(
+                    branch_results,
+                    E=E_branch,
+                    I_var=I_branch,
+                    Vout=Vout_branch,
+                    C=C,
+                    Vb=Vb_branch,
+                    Vinf=None,
+                    has_exc_synapses=has_exc_synapses,
+                    has_inh_synapses=has_inh_synapses,
+                    has_branch_input=has_branch_input and (Vb_branch is not None),
+                    seed_offset=int(layer_count * 10_000 + branch_idx),
+                    failure_context=f"branch {branch_idx}",
+                )
                 all_results.append(branch_results)
                 layer_branch_results.append(branch_results)
                 branch_names.append(f"{layer_name}_branch_{branch_idx}")
@@ -993,28 +1076,21 @@ class InformationAnalyzer(
                         None,
                         Vb_branch_lin,
                     )
-                    if self.mi_null_shuffles > 0:
-                        try:
-                            self._add_label_shuffle_null_baselines_in_place(
-                                branch_results_lin,
-                                E=E_branch_lin,
-                                I_var=I_branch_lin,
-                                Vout=Vout_branch_lin,
-                                C=C,
-                                Vb=Vb_branch_lin,
-                                Vinf=None,
-                                has_exc_synapses=has_exc_synapses,
-                                has_inh_synapses=has_inh_synapses,
-                                has_branch_input=has_branch_input
-                                and (Vb_branch_lin is not None),
-                                seed_offset=int(
-                                    1_000_000 + layer_count * 10_000 + branch_idx
-                                ),
-                            )
-                        except Exception as e:
-                            self.logger.warning(
-                                f"Null (label-shuffle) baseline failed for LDA branch {branch_idx}: {e}"
-                            )
+                    self._try_add_label_shuffle_null_baselines_in_place(
+                        branch_results_lin,
+                        E=E_branch_lin,
+                        I_var=I_branch_lin,
+                        Vout=Vout_branch_lin,
+                        C=C,
+                        Vb=Vb_branch_lin,
+                        Vinf=None,
+                        has_exc_synapses=has_exc_synapses,
+                        has_inh_synapses=has_inh_synapses,
+                        has_branch_input=has_branch_input
+                        and (Vb_branch_lin is not None),
+                        seed_offset=int(1_000_000 + layer_count * 10_000 + branch_idx),
+                        failure_context=f"LDA branch {branch_idx}",
+                    )
                     self._merge_renamed_metric_dicts_in_place(
                         target=branch_results,
                         source=branch_results_lin,
@@ -1152,25 +1228,20 @@ class InformationAnalyzer(
                 has_inh_synapses=has_inh_synapses,
                 has_branch_input=has_branch_input,
             )
-            if self.mi_null_shuffles > 0:
-                try:
-                    self._add_label_shuffle_null_baselines_in_place(
-                        layer_results,
-                        E=E_layer,
-                        I_var=I_layer,
-                        Vout=Vout_layer,
-                        C=C_for_layer,
-                        Vb=Vb_layer,
-                        Vinf=None,
-                        has_exc_synapses=has_exc_synapses,
-                        has_inh_synapses=has_inh_synapses,
-                        has_branch_input=has_branch_input and (Vb_layer is not None),
-                        seed_offset=len(all_results),
-                    )
-                except Exception as e:
-                    self.logger.warning(
-                        f"Null (label-shuffle) baseline failed for layer {layer_name}: {e}"
-                    )
+            self._try_add_label_shuffle_null_baselines_in_place(
+                layer_results,
+                E=E_layer,
+                I_var=I_layer,
+                Vout=Vout_layer,
+                C=C_for_layer,
+                Vb=Vb_layer,
+                Vinf=None,
+                has_exc_synapses=has_exc_synapses,
+                has_inh_synapses=has_inh_synapses,
+                has_branch_input=has_branch_input and (Vb_layer is not None),
+                seed_offset=len(all_results),
+                failure_context=f"layer {layer_name}",
+            )
             all_results.append(layer_results)
             layer_names.append(layer_name)
 
@@ -1233,73 +1304,67 @@ class InformationAnalyzer(
             )
             return None
 
-        C_for_metrics = C
-        if self.branch_aggregation == "sample":
-            E = torch.cat(layer_excitation, dim=0).detach().cpu().numpy()
-            I_var = torch.cat(layer_inhibition, dim=0).detach().cpu().numpy()
-            Vb = (
-                torch.cat(layer_branch_input, dim=0).detach().cpu().numpy()
-                if (layer_branch_input and not missing_vb_in_any_layer)
-                else None
+        E, I_var, Vout, C_for_metrics, Vb = (
+            self._concatenate_all_branch_tensors_for_metrics(
+                layer_excitation=layer_excitation,
+                layer_inhibition=layer_inhibition,
+                layer_output=layer_output,
+                layer_branch_input=layer_branch_input,
+                missing_vb_in_any_layer=missing_vb_in_any_layer,
+                C=C,
             )
-            Vout = torch.cat(layer_output, dim=0).detach().cpu().numpy()
-            total_samples = E.shape[0]
-            original_samples = C.shape[0]
-            expansion_factor = total_samples // original_samples
-            C_for_metrics = np.repeat(C, expansion_factor, axis=0)
-        elif self.branch_aggregation == "multivariate":
-            E = torch.cat(layer_excitation, dim=1).detach().cpu().numpy()
-            I_var = torch.cat(layer_inhibition, dim=1).detach().cpu().numpy()
-            Vb = (
-                torch.cat(layer_branch_input, dim=1).detach().cpu().numpy()
-                if layer_branch_input
-                else None
-            )
-            Vout = torch.cat(layer_output, dim=1).detach().cpu().numpy()
-        else:
-            E = torch.cat(layer_excitation, dim=1).detach().cpu().numpy()
-            I_var = torch.cat(layer_inhibition, dim=1).detach().cpu().numpy()
-            Vb = (
-                torch.cat(layer_branch_input, dim=1).detach().cpu().numpy()
-                if layer_branch_input
-                else None
-            )
-            Vout = torch.cat(layer_output, dim=1).detach().cpu().numpy()
+        )
 
         self.logger.info(
             "Aggregated data shapes - "
             f"E: {E.shape}, I: {I_var.shape}, Vb: {None if Vb is None else Vb.shape}, Vout: {Vout.shape}, C: {C_for_metrics.shape}"
         )
 
-        Vinf = None
-        with torch.no_grad():
-            final_output: torch.Tensor = model(inputs)
-            if hasattr(model, "final_fc"):
-                Vinf = final_output.detach().cpu().numpy()
+        Vinf = self._compute_final_output_signal(model=model, inputs=inputs)
 
         results = self.compute_metrics(E, I_var, Vout, C_for_metrics, Vinf, Vb)
-        if self.mi_null_shuffles > 0:
-            try:
-                self._add_label_shuffle_null_baselines_in_place(
-                    results,
-                    E=E,
-                    I_var=I_var,
-                    Vout=Vout,
-                    C=C_for_metrics,
-                    Vb=Vb,
-                    Vinf=Vinf,
-                    has_exc_synapses=True,
-                    has_inh_synapses=True,
-                    has_branch_input=Vb is not None,
-                    seed_offset=999_999,
-                )
-            except Exception as e:
-                self.logger.warning(
-                    f"Null (label-shuffle) baseline failed for all-branch analysis: {e}"
-                )
+        self._try_add_label_shuffle_null_baselines_in_place(
+            results,
+            E=E,
+            I_var=I_var,
+            Vout=Vout,
+            C=C_for_metrics,
+            Vb=Vb,
+            Vinf=Vinf,
+            has_exc_synapses=True,
+            has_inh_synapses=True,
+            has_branch_input=Vb is not None,
+            seed_offset=999_999,
+            failure_context="all-branch analysis",
+        )
         results["aggregation_method"] = self.branch_aggregation
         results["computation_level"] = "all_branch"
         return results
+
+    def _collect_enhanced_analysis_arrays(
+        self,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
+        """Collect concatenated E/I/Vout arrays for enhanced analysis modes."""
+        all_E_data = []
+        all_I_data = []
+        all_Vout_data = []
+
+        for layer_data in self.data_dict.values():
+            if "excitation" in layer_data:
+                E_filtered, I_filtered = self.ensure_inhibitory_data(
+                    layer_data["excitation"], layer_data["inhibition"]
+                )
+                all_E_data.append(E_filtered.detach().cpu().numpy())
+                all_I_data.append(I_filtered.detach().cpu().numpy())
+                all_Vout_data.append(layer_data["output"].detach().cpu().numpy())
+
+        if not all_E_data:
+            return None
+
+        E_all = np.concatenate(all_E_data, axis=1)
+        I_all = np.concatenate(all_I_data, axis=1)
+        Vout_all = np.concatenate(all_Vout_data, axis=1)
+        return E_all, I_all, Vout_all
 
     def _add_enhanced_analysis_results(
         self, results: dict[str, Any], C: np.ndarray
@@ -1321,25 +1386,11 @@ class InformationAnalyzer(
         if not (self.per_neuron_analysis or self.per_einet_analysis):
             return
 
-        all_E_data = []
-        all_I_data = []
-        all_Vout_data = []
-
-        for layer_data in self.data_dict.values():
-            if "excitation" in layer_data:
-                E_filtered, I_filtered = self.ensure_inhibitory_data(
-                    layer_data["excitation"], layer_data["inhibition"]
-                )
-                all_E_data.append(E_filtered.detach().cpu().numpy())
-                all_I_data.append(I_filtered.detach().cpu().numpy())
-                all_Vout_data.append(layer_data["output"].detach().cpu().numpy())
-
-        if not all_E_data:
+        enhanced_arrays = self._collect_enhanced_analysis_arrays()
+        if enhanced_arrays is None:
             return
 
-        E_all = np.concatenate(all_E_data, axis=1)
-        I_all = np.concatenate(all_I_data, axis=1)
-        Vout_all = np.concatenate(all_Vout_data, axis=1)
+        E_all, I_all, Vout_all = enhanced_arrays
 
         if self.per_neuron_analysis:
             per_neuron_results = self.compute_per_neuron_mi(E_all, I_all, Vout_all, C)
@@ -1362,22 +1413,10 @@ class InformationAnalyzer(
         filename: str,
     ) -> dict[str, Any]:
         """Add metadata, finalize units/plots, save outputs, and return results."""
-        results["per_neuron_analysis_enabled"] = self.per_neuron_analysis
-        results["per_einet_analysis_enabled"] = self.per_einet_analysis
-        results["per_layer_analysis_enabled"] = self.per_layer_analysis
-        results["has_inhibitory_data"] = self.has_inhibitory_data(self.data_dict)
+        self._add_analysis_metadata(results)
 
         total_analysis_time = time.time() - analysis_start_time
-        self.logger.info("Information analysis completed successfully!")
-        self.logger.info("Analysis summary:")
-        self.logger.info(f"   - Total time: {total_analysis_time:.1f}s")
-        self.logger.info(f"   - Computation level: {self.computation_level}")
-        self.logger.info(f"   - Method: {self.method}")
-        self.logger.info(f"   - Sample size: {results.get('n_samples', 'unknown')}")
-        if "num_branches" in results:
-            self.logger.info(f"   - Branches processed: {results['num_branches']}")
-        if "num_layers" in results:
-            self.logger.info(f"   - Layers processed: {results['num_layers']}")
+        self._log_analysis_summary(results, total_analysis_time)
 
         somatic_synapses = self._add_synthetic_soma_entry_if_needed(results, model)
         self._finalize_information_units_and_variance(results)
@@ -1396,6 +1435,28 @@ class InformationAnalyzer(
             somatic_synapses=somatic_synapses,
         )
         return results
+
+    def _add_analysis_metadata(self, results: dict[str, Any]) -> None:
+        """Attach analyzer configuration metadata to result dictionaries."""
+        results["per_neuron_analysis_enabled"] = self.per_neuron_analysis
+        results["per_einet_analysis_enabled"] = self.per_einet_analysis
+        results["per_layer_analysis_enabled"] = self.per_layer_analysis
+        results["has_inhibitory_data"] = self.has_inhibitory_data(self.data_dict)
+
+    def _log_analysis_summary(
+        self, results: dict[str, Any], total_analysis_time: float
+    ) -> None:
+        """Log a concise summary of completed information analysis."""
+        self.logger.info("Information analysis completed successfully!")
+        self.logger.info("Analysis summary:")
+        self.logger.info(f"   - Total time: {total_analysis_time:.1f}s")
+        self.logger.info(f"   - Computation level: {self.computation_level}")
+        self.logger.info(f"   - Method: {self.method}")
+        self.logger.info(f"   - Sample size: {results.get('n_samples', 'unknown')}")
+        if "num_branches" in results:
+            self.logger.info(f"   - Branches processed: {results['num_branches']}")
+        if "num_layers" in results:
+            self.logger.info(f"   - Layers processed: {results['num_layers']}")
 
     def _finalize_information_units_and_variance(self, results: dict[str, Any]) -> None:
         results["information_units"] = getattr(self, "output_units", "nats")

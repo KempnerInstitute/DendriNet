@@ -423,6 +423,89 @@ class TestInformationAnalyzer(unittest.TestCase):
         self.assertEqual(mock_ei.call_args.args[0].shape, (4, 3))
         np.testing.assert_array_equal(mock_ei.call_args.args[3], C)
 
+    def test_enhanced_analysis_array_helper_concatenates_layer_arrays(self):
+        """Enhanced analysis array helper should concatenate only activation layers."""
+        self.analyzer.data_dict = {
+            "layer0": {
+                "excitation": torch.tensor([[1.0, 2.0], [3.0, 4.0]]),
+                "inhibition": torch.tensor([[5.0, 6.0], [7.0, 8.0]]),
+                "output": torch.tensor([[9.0, 10.0], [11.0, 12.0]]),
+            },
+            "metadata": {"output": torch.ones(2, 1)},
+            "layer1": {
+                "excitation": torch.tensor([[13.0], [14.0]]),
+                "inhibition": torch.tensor([[15.0], [16.0]]),
+                "output": torch.tensor([[17.0], [18.0]]),
+            },
+        }
+
+        arrays = self.analyzer._collect_enhanced_analysis_arrays()
+
+        self.assertIsNotNone(arrays)
+        E_all, I_all, Vout_all = arrays
+        np.testing.assert_array_equal(
+            E_all,
+            np.array([[1.0, 2.0, 13.0], [3.0, 4.0, 14.0]], dtype=np.float32),
+        )
+        np.testing.assert_array_equal(
+            I_all,
+            np.array([[5.0, 6.0, 15.0], [7.0, 8.0, 16.0]], dtype=np.float32),
+        )
+        np.testing.assert_array_equal(
+            Vout_all,
+            np.array([[9.0, 10.0, 17.0], [11.0, 12.0, 18.0]], dtype=np.float32),
+        )
+
+    def test_enhanced_analysis_array_helper_returns_none_without_excitation(self):
+        """Enhanced analysis array helper should return None when no activations exist."""
+        self.analyzer.data_dict = {
+            "metadata": {"output": torch.ones(2, 1)},
+            "empty": {},
+        }
+
+        arrays = self.analyzer._collect_enhanced_analysis_arrays()
+
+        self.assertIsNone(arrays)
+
+    def test_analysis_metadata_helper_adds_configuration_flags(self):
+        """Analysis metadata helper should stamp enabled modes and inhibition state."""
+        self.analyzer.per_neuron_analysis = True
+        self.analyzer.per_einet_analysis = False
+        self.analyzer.per_layer_analysis = True
+        self.analyzer.data_dict = {"layer0": {"inhibition": torch.ones(2, 1)}}
+        results = {}
+
+        with patch.object(
+            self.analyzer,
+            "has_inhibitory_data",
+            return_value=True,
+        ) as mock_has_inhibitory:
+            self.analyzer._add_analysis_metadata(results)
+
+        self.assertTrue(results["per_neuron_analysis_enabled"])
+        self.assertFalse(results["per_einet_analysis_enabled"])
+        self.assertTrue(results["per_layer_analysis_enabled"])
+        self.assertTrue(results["has_inhibitory_data"])
+        mock_has_inhibitory.assert_called_once_with(self.analyzer.data_dict)
+
+    def test_analysis_summary_helper_logs_optional_counts(self):
+        """Analysis summary helper should include branch and layer counts when present."""
+        self.analyzer.computation_level = "single_branch"
+        self.analyzer.method = "mock_method"
+        results = {"n_samples": 12, "num_branches": 5, "num_layers": 2}
+
+        with patch.object(self.analyzer.logger, "info") as mock_info:
+            self.analyzer._log_analysis_summary(results, total_analysis_time=1.25)
+
+        mock_info.assert_any_call("Information analysis completed successfully!")
+        mock_info.assert_any_call("Analysis summary:")
+        mock_info.assert_any_call("   - Total time: 1.2s")
+        mock_info.assert_any_call("   - Computation level: single_branch")
+        mock_info.assert_any_call("   - Method: mock_method")
+        mock_info.assert_any_call("   - Sample size: 12")
+        mock_info.assert_any_call("   - Branches processed: 5")
+        mock_info.assert_any_call("   - Layers processed: 2")
+
     def test_all_branch_helper_sample_aggregation_expands_labels(self):
         """All-branch sample aggregation should flatten branches and repeat labels."""
         self.analyzer.branch_aggregation = "sample"
@@ -553,6 +636,237 @@ class TestInformationAnalyzer(unittest.TestCase):
         )
         self.assertIsNone(layer_Vb)
         self.assertTrue(missing_vb)
+
+    def test_all_branch_concatenation_helper_sample_expands_labels_and_drops_vb(self):
+        """All-branch sample concatenation should repeat labels and drop partial Vb."""
+        self.analyzer.branch_aggregation = "sample"
+        C = np.array([0, 1, 2])
+
+        E, I_var, Vout, C_for_metrics, Vb = (
+            self.analyzer._concatenate_all_branch_tensors_for_metrics(
+                layer_excitation=[
+                    torch.tensor([[1.0], [2.0], [3.0]]),
+                    torch.tensor([[4.0], [5.0], [6.0]]),
+                ],
+                layer_inhibition=[
+                    torch.tensor([[10.0], [20.0], [30.0]]),
+                    torch.tensor([[40.0], [50.0], [60.0]]),
+                ],
+                layer_output=[
+                    torch.tensor([[100.0], [200.0], [300.0]]),
+                    torch.tensor([[400.0], [500.0], [600.0]]),
+                ],
+                layer_branch_input=[torch.tensor([[7.0], [8.0], [9.0]])],
+                missing_vb_in_any_layer=True,
+                C=C,
+            )
+        )
+
+        np.testing.assert_array_equal(
+            E,
+            np.array([[1.0], [2.0], [3.0], [4.0], [5.0], [6.0]]),
+        )
+        np.testing.assert_array_equal(
+            I_var,
+            np.array([[10.0], [20.0], [30.0], [40.0], [50.0], [60.0]]),
+        )
+        np.testing.assert_array_equal(
+            Vout,
+            np.array([[100.0], [200.0], [300.0], [400.0], [500.0], [600.0]]),
+        )
+        np.testing.assert_array_equal(C_for_metrics, np.repeat(C, 2, axis=0))
+        self.assertIsNone(Vb)
+
+    def test_all_branch_concatenation_helper_non_sample_preserves_labels_and_vb(self):
+        """All-branch non-sample concatenation should concatenate feature axes."""
+        self.analyzer.branch_aggregation = "multivariate"
+        C = np.array([0, 1])
+
+        E, I_var, Vout, C_for_metrics, Vb = (
+            self.analyzer._concatenate_all_branch_tensors_for_metrics(
+                layer_excitation=[
+                    torch.tensor([[1.0, 2.0], [3.0, 4.0]]),
+                    torch.tensor([[5.0], [6.0]]),
+                ],
+                layer_inhibition=[
+                    torch.tensor([[10.0, 20.0], [30.0, 40.0]]),
+                    torch.tensor([[50.0], [60.0]]),
+                ],
+                layer_output=[
+                    torch.tensor([[100.0, 200.0], [300.0, 400.0]]),
+                    torch.tensor([[500.0], [600.0]]),
+                ],
+                layer_branch_input=[
+                    torch.tensor([[7.0, 8.0], [9.0, 10.0]]),
+                    torch.tensor([[11.0], [12.0]]),
+                ],
+                missing_vb_in_any_layer=False,
+                C=C,
+            )
+        )
+
+        np.testing.assert_array_equal(
+            E,
+            np.array([[1.0, 2.0, 5.0], [3.0, 4.0, 6.0]]),
+        )
+        np.testing.assert_array_equal(
+            I_var,
+            np.array([[10.0, 20.0, 50.0], [30.0, 40.0, 60.0]]),
+        )
+        np.testing.assert_array_equal(
+            Vout,
+            np.array([[100.0, 200.0, 500.0], [300.0, 400.0, 600.0]]),
+        )
+        np.testing.assert_array_equal(
+            Vb,
+            np.array([[7.0, 8.0, 11.0], [9.0, 10.0, 12.0]]),
+        )
+        np.testing.assert_array_equal(C_for_metrics, C)
+
+    def test_final_output_signal_returns_numpy_when_final_fc_exists(self):
+        """Final output signal helper should expose model output for final_fc models."""
+
+        class FinalFcModel(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.final_fc = torch.nn.Identity()
+
+            def forward(self, inputs):
+                return inputs * 2.0
+
+        inputs = torch.tensor([[1.0, 2.0], [3.0, 4.0]], requires_grad=True)
+        model = FinalFcModel()
+
+        Vinf = self.analyzer._compute_final_output_signal(model=model, inputs=inputs)
+
+        np.testing.assert_array_equal(
+            Vinf,
+            np.array([[2.0, 4.0], [6.0, 8.0]], dtype=np.float32),
+        )
+
+    def test_final_output_signal_calls_model_without_final_fc_under_no_grad(self):
+        """Final output signal helper should preserve call side effects without final_fc."""
+
+        class NoFinalFcModel(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.called = False
+                self.grad_enabled_in_forward = None
+
+            def forward(self, inputs):
+                self.called = True
+                self.grad_enabled_in_forward = torch.is_grad_enabled()
+                return inputs + 1.0
+
+        inputs = torch.tensor([[1.0, 2.0]], requires_grad=True)
+        model = NoFinalFcModel()
+
+        Vinf = self.analyzer._compute_final_output_signal(model=model, inputs=inputs)
+
+        self.assertIsNone(Vinf)
+        self.assertTrue(model.called)
+        self.assertFalse(model.grad_enabled_in_forward)
+
+    def test_null_baseline_helper_skips_when_disabled(self):
+        """Null baseline helper should not call estimator work when disabled."""
+        self.analyzer.mi_null_shuffles = 0
+        results = {}
+        signal = np.ones((3, 1))
+
+        with patch.object(
+            self.analyzer, "_add_label_shuffle_null_baselines_in_place"
+        ) as mock_add:
+            self.analyzer._try_add_label_shuffle_null_baselines_in_place(
+                results,
+                E=signal,
+                I_var=signal,
+                Vout=signal,
+                C=np.array([0, 1, 0]),
+                Vb=None,
+                Vinf=None,
+                has_exc_synapses=True,
+                has_inh_synapses=True,
+                has_branch_input=False,
+                seed_offset=123,
+                failure_context="branch 0",
+            )
+
+        mock_add.assert_not_called()
+
+    def test_null_baseline_helper_forwards_arguments_when_enabled(self):
+        """Null baseline helper should forward the exact metric context."""
+        self.analyzer.mi_null_shuffles = 2
+        results = {"basic_mi": {"I(E;C)": 0.1}}
+        E = np.ones((3, 1))
+        I_var = np.ones((3, 1)) * 2.0
+        Vout = np.ones((3, 1)) * 3.0
+        C = np.array([0, 1, 0])
+        Vb = np.ones((3, 1)) * 4.0
+        Vinf = np.ones((3, 2)) * 5.0
+
+        with patch.object(
+            self.analyzer, "_add_label_shuffle_null_baselines_in_place"
+        ) as mock_add:
+            self.analyzer._try_add_label_shuffle_null_baselines_in_place(
+                results,
+                E=E,
+                I_var=I_var,
+                Vout=Vout,
+                C=C,
+                Vb=Vb,
+                Vinf=Vinf,
+                has_exc_synapses=True,
+                has_inh_synapses=False,
+                has_branch_input=True,
+                seed_offset=456,
+                failure_context="layer layer0",
+            )
+
+        mock_add.assert_called_once()
+        call_args = mock_add.call_args
+        self.assertIs(call_args.args[0], results)
+        self.assertIs(call_args.kwargs["E"], E)
+        self.assertIs(call_args.kwargs["I_var"], I_var)
+        self.assertIs(call_args.kwargs["Vout"], Vout)
+        self.assertIs(call_args.kwargs["C"], C)
+        self.assertIs(call_args.kwargs["Vb"], Vb)
+        self.assertIs(call_args.kwargs["Vinf"], Vinf)
+        self.assertTrue(call_args.kwargs["has_exc_synapses"])
+        self.assertFalse(call_args.kwargs["has_inh_synapses"])
+        self.assertTrue(call_args.kwargs["has_branch_input"])
+        self.assertEqual(call_args.kwargs["seed_offset"], 456)
+
+    def test_null_baseline_helper_logs_context_on_failure(self):
+        """Null baseline helper should preserve contextual warning messages."""
+        self.analyzer.mi_null_shuffles = 1
+        signal = np.ones((3, 1))
+
+        with (
+            patch.object(
+                self.analyzer,
+                "_add_label_shuffle_null_baselines_in_place",
+                side_effect=RuntimeError("boom"),
+            ),
+            patch.object(self.analyzer.logger, "warning") as mock_warning,
+        ):
+            self.analyzer._try_add_label_shuffle_null_baselines_in_place(
+                {},
+                E=signal,
+                I_var=signal,
+                Vout=signal,
+                C=np.array([0, 1, 0]),
+                Vb=None,
+                Vinf=None,
+                has_exc_synapses=True,
+                has_inh_synapses=True,
+                has_branch_input=False,
+                seed_offset=789,
+                failure_context="all-branch analysis",
+            )
+
+        mock_warning.assert_called_once_with(
+            "Null (label-shuffle) baseline failed for all-branch analysis: boom"
+        )
 
     def test_layer_branch_helper_sample_aggregation_expands_labels(self):
         """Layer-branch sample aggregation should flatten each layer independently."""
