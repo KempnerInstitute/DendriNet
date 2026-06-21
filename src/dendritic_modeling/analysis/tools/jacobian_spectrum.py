@@ -130,21 +130,8 @@ class JacobianSpectrumAnalyzer(AbstractAnalyzer):
         self.log_analysis_start("jacobian_spectrum")
 
         core = getattr(model, "core_network", model)
-
         top_k = int(self.params.top_k)
-        per_layer: dict[str, dict[str, Any]] = {}
-        for record in iter_recurrent_populations(core):
-            if record.polarity != "excitatory":
-                continue
-            entry = _spectra_for_population(record.population, top_k=top_k)
-            if entry is not None:
-                key = (
-                    f"layer_{record.layer_index}"
-                    if record.layer_index is not None
-                    and record.population_name == "excitatory"
-                    else record.key
-                )
-                per_layer[key] = entry
+        per_layer = self._collect_layer_spectra(core, top_k)
 
         if not per_layer:
             self.logger.info(
@@ -152,21 +139,51 @@ class JacobianSpectrumAnalyzer(AbstractAnalyzer):
             )
             return {}
 
-        results: dict[str, Any] = {"top_k": top_k, "layers": per_layer}
+        results = self._build_results(top_k, per_layer)
 
         if save_path is not None:
-            os.makedirs(save_path, exist_ok=True)
-            save_dict(results, save_path, f"{filename}.json")
-            if self.params.save_figures:
-                try:
-                    self._save_figures(results, save_path, filename)
-                except Exception as e:  # pragma: no cover - plotting is best-effort
-                    self.logger.warning(
-                        "Figure generation failed for jacobian spectrum: %s", e
-                    )
+            self._save_results(results, save_path, filename)
 
         self.log_analysis_end("jacobian_spectrum", num_results=len(per_layer))
         return results
+
+    def _collect_layer_spectra(
+        self, core: torch.nn.Module, top_k: int
+    ) -> dict[str, dict[str, Any]]:
+        per_layer: dict[str, dict[str, Any]] = {}
+        for record in iter_recurrent_populations(core):
+            if record.polarity != "excitatory":
+                continue
+            entry = _spectra_for_population(record.population, top_k=top_k)
+            if entry is None:
+                continue
+            per_layer[self._entry_key(record)] = entry
+        return per_layer
+
+    @staticmethod
+    def _entry_key(record) -> str:
+        if record.layer_index is not None and record.population_name == "excitatory":
+            return f"layer_{record.layer_index}"
+        return record.key
+
+    @staticmethod
+    def _build_results(
+        top_k: int, per_layer: dict[str, dict[str, Any]]
+    ) -> dict[str, Any]:
+        return {"top_k": top_k, "layers": per_layer}
+
+    def _save_results(
+        self, results: dict[str, Any], save_path: str, filename: str
+    ) -> None:
+        os.makedirs(save_path, exist_ok=True)
+        save_dict(results, save_path, f"{filename}.json")
+        if self.params.save_figures:
+            try:
+                self._save_figures(results, save_path, filename)
+            except Exception as e:  # pragma: no cover - plotting is best-effort
+                self.logger.warning(
+                    "Figure generation failed for jacobian spectrum: %s", e
+                )
 
     def _save_figures(
         self, results: dict[str, Any], save_path: str, filename: str

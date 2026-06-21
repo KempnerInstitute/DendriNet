@@ -134,6 +134,40 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
         training: bool = False,
         runtime: Optional[EvaluationRuntimeConfig] = None,
     ):
+        self._disable_incompatible_metrics(model)
+        gain_factors = self._gain_factors()
+        gain_factor_values = gain_factors.tolist()
+        data_dict = {"gain_factors": gain_factor_values}
+        metric_funcs = self._metric_functions(data_dict)
+        train_g_min, train_g_max = self._training_gain_bounds(test_dataset)
+
+        id_dict, ood_lower_dict, ood_upper_dict = self._evaluate_gain_metrics(
+            model,
+            test_dataset,
+            gain_factors,
+            gain_factor_values,
+            data_dict,
+            metric_funcs,
+            train_g_min,
+            train_g_max,
+            device,
+            runtime,
+        )
+
+        self._add_metric_summaries(
+            data_dict,
+            metric_funcs,
+            id_dict,
+            ood_lower_dict,
+            ood_upper_dict,
+        )
+
+        if save_path is not None:
+            self._save_results(data_dict, save_path, filename, training, metric_funcs)
+
+        return data_dict
+
+    def _disable_incompatible_metrics(self, model: BaseModel) -> None:
         if not isinstance(model, Classifier):
             self.accuracy = False
             self.auc = False
@@ -143,55 +177,66 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
             self.mse = False
             self.cosine_similarity = False
 
-        if self.logspace:
-            log_gain_max = log(self.gain_max)
+    def _gain_factors(self) -> torch.Tensor:
+        if not self.logspace:
+            return torch.linspace(self.gain_min, self.gain_max, self.n_steps)
 
-            if self.gain_min > 0:
-                log_gain_min = log(self.gain_min)
-            else:
-                log_gain_min = -log_gain_max
-
-            gain_factors = torch.linspace(
-                log_gain_min, log_gain_max, self.n_steps
-            ).exp()
-
+        log_gain_max = log(self.gain_max)
+        if self.gain_min > 0:
+            log_gain_min = log(self.gain_min)
         else:
-            gain_factors = torch.linspace(self.gain_min, self.gain_max, self.n_steps)
+            log_gain_min = -log_gain_max
+        return torch.linspace(log_gain_min, log_gain_max, self.n_steps).exp()
 
-        gain_factor_values = gain_factors.tolist()
-        data_dict = {"gain_factors": gain_factor_values}
+    def _metric_functions(self, data_dict: dict) -> list[tuple[str, Callable]]:
         metric_funcs: list[tuple[str, Callable]] = []
+        for enabled, key, func in [
+            (self.accuracy, "accuracy", evaluate_accuracy),
+            (self.auc, "auc", evaluate_auc),
+            (
+                self.categorical_loglikelihood,
+                "categorical_loglikelihood",
+                evaluate_categorical_loglikelihood,
+            ),
+            (self.mse, "mse", evaluate_mse),
+            (self.cosine_similarity, "cosine_similarity", evaluate_cosine_similarity),
+        ]:
+            if enabled:
+                data_dict[key] = []
+                metric_funcs.append((key, func))
+        return metric_funcs
 
-        if self.accuracy:
-            data_dict["accuracy"] = []
-            metric_funcs.append(("accuracy", evaluate_accuracy))
-        if self.auc:
-            data_dict["auc"] = []
-            metric_funcs.append(("auc", evaluate_auc))
-        if self.categorical_loglikelihood:
-            data_dict["categorical_loglikelihood"] = []
-            metric_funcs.append(
-                ("categorical_loglikelihood", evaluate_categorical_loglikelihood)
-            )
-        if self.mse:
-            data_dict["mse"] = []
-            metric_funcs.append(("mse", evaluate_mse))
-        if self.cosine_similarity:
-            data_dict["cosine_similarity"] = []
-            metric_funcs.append(("cosine_similarity", evaluate_cosine_similarity))
-
+    @staticmethod
+    def _training_gain_bounds(
+        test_dataset: torch.utils.data.Dataset,
+    ) -> tuple[float, float]:
         train_g_min = 1.0
         train_g_max = 1.0
-        if (
+        if not (
             isinstance(test_dataset, PoissonGeneratorDataset)
             and test_dataset.multiplicative_gain
         ):
-            if test_dataset.fixed_gain_factor is not None:
-                train_g_min = float(test_dataset.fixed_gain_factor)
-                train_g_max = float(test_dataset.fixed_gain_factor)
-            elif test_dataset.max_gain_factor is not None:
-                train_g_max = float(test_dataset.max_gain_factor)
+            return train_g_min, train_g_max
+        if test_dataset.fixed_gain_factor is not None:
+            train_g_min = float(test_dataset.fixed_gain_factor)
+            train_g_max = float(test_dataset.fixed_gain_factor)
+        elif test_dataset.max_gain_factor is not None:
+            train_g_max = float(test_dataset.max_gain_factor)
+        return train_g_min, train_g_max
 
+    def _evaluate_gain_metrics(
+        self,
+        model: BaseModel,
+        test_dataset: torch.utils.data.Dataset,
+        gain_factors: torch.Tensor,
+        gain_factor_values: list[float],
+        data_dict: dict,
+        metric_funcs: list[tuple[str, Callable]],
+        train_g_min: float,
+        train_g_max: float,
+        device: str,
+        runtime: Optional[EvaluationRuntimeConfig],
+    ) -> tuple[dict[str, float], dict[str, float], dict[str, float]]:
         eval_kwargs = evaluation_kwargs_from_runtime(runtime)
         with analysis_device_context(model, device) as analysis_device:
             base_items = materialize_dataset(
@@ -279,6 +324,16 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
                     (gain_factors > train_g_max) & (gain_factors <= self.gain_max)
                 )
 
+        return id_dict, ood_lower_dict, ood_upper_dict
+
+    @staticmethod
+    def _add_metric_summaries(
+        data_dict: dict,
+        metric_funcs: list[tuple[str, Callable]],
+        id_dict: dict[str, float],
+        ood_lower_dict: dict[str, float],
+        ood_upper_dict: dict[str, float],
+    ) -> None:
         if metric_funcs:
             data_dict["raw_scores"] = {
                 metric_key: list(data_dict[metric_key])
@@ -288,32 +343,37 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
             data_dict["OOD_lower"] = ood_lower_dict
             data_dict["OOD_upper"] = ood_upper_dict
 
-        if save_path is not None:
-            if training:
-                save_path = os.path.join(save_path, "epochs")
-            else:
+    def _save_results(
+        self,
+        data_dict: dict,
+        save_path: str,
+        filename: str,
+        training: bool,
+        metric_funcs: list[tuple[str, Callable]],
+    ) -> None:
+        if training:
+            save_path = os.path.join(save_path, "epochs")
+        else:
+            for metric, _metric_func in metric_funcs:
+                plot_performance_vs_gain_final(
+                    data_dict=data_dict,
+                    metric=metric,
+                    logspace=self.logspace,
+                    save_path=save_path,
+                )
+
+            epochs_data, epoch_numbers = self.load_epochs_data(save_path)
+            if epochs_data:
                 for metric, _metric_func in metric_funcs:
-                    plot_performance_vs_gain_final(
-                        data_dict=data_dict,
+                    plot_performance_vs_gain_training(
+                        epochs_data=epochs_data,
+                        epoch_numbers=epoch_numbers,
                         metric=metric,
                         logspace=self.logspace,
                         save_path=save_path,
                     )
 
-                epochs_data, epoch_numbers = self.load_epochs_data(save_path)
-                if epochs_data:
-                    for metric, _metric_func in metric_funcs:
-                        plot_performance_vs_gain_training(
-                            epochs_data=epochs_data,
-                            epoch_numbers=epoch_numbers,
-                            metric=metric,
-                            logspace=self.logspace,
-                            save_path=save_path,
-                        )
-
-            save_dict(data_dict, save_path, f"{filename}.json")
-
-        return data_dict
+        save_dict(data_dict, save_path, f"{filename}.json")
 
     def _initialize_agg_structure(self, data: dict) -> dict:
         """

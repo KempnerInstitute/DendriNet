@@ -163,248 +163,182 @@ class SynapticTurnoverAnalyzer:
         Returns:
             Dictionary containing turnover statistics if training=False and save_path is None
         """
-        if not self.enabled or not isinstance(
-            getattr(model, "core_network", None), ExcitationInhibitionNetwork
-        ):
+        if not self._supports_model(model):
             return
 
         if training:
-            # Training mode: collect a snapshot of current synaptic masks
-            self.epoch_counter += 1
+            self._record_training_snapshot(model)
+            return
 
-            # Only collect snapshot at specified intervals
-            if (self.epoch_counter - 1) % self.snapshot_interval != 0:
-                return
-
-            data_dict = {}
-            # Use torch.no_grad() to avoid storing gradients
-            with torch.no_grad():
-                for _name, module in model.named_modules():
-                    if isinstance(module, DendriticBranchLayer):
-                        data_dict[_name] = {}
-                        if module.branch_excitation is not None:
-                            # Get mask, convert to bool for memory efficiency (1 byte vs 4 bytes)
-                            # and move to CPU. No deep copy needed - just tensor operations
-                            mask = module.branch_excitation.weight_mask()
-                            data_dict[_name]["exc_mask"] = mask.bool().cpu()
-                        if module.branch_inhibition is not None:
-                            mask = module.branch_inhibition.weight_mask()
-                            data_dict[_name]["inh_mask"] = mask.bool().cpu()
-
-            self.data_dict_list.append(data_dict)
+        turnover_dict = self._compute_turnover_statistics()
+        if save_path is not None:
+            save_dict(turnover_dict, save_path, filename)
+            self._plot_turnover_results(turnover_dict, save_path, filename)
         else:
-            # Analysis mode: compute turnover statistics from collected snapshots
-            logger.info(
-                f"Analyzing synaptic turnover from {len(self.data_dict_list)} snapshots"
+            return turnover_dict
+
+    def _supports_model(self, model: BaseModel) -> bool:
+        return self.enabled and isinstance(
+            getattr(model, "core_network", None), ExcitationInhibitionNetwork
+        )
+
+    def _record_training_snapshot(self, model: BaseModel) -> None:
+        self.epoch_counter += 1
+        if (self.epoch_counter - 1) % self.snapshot_interval != 0:
+            return
+        self.data_dict_list.append(self._collect_synaptic_mask_snapshot(model))
+
+    def _collect_synaptic_mask_snapshot(self, model: BaseModel) -> dict:
+        data_dict = {}
+        with torch.no_grad():
+            for name, module in model.named_modules():
+                if isinstance(module, DendriticBranchLayer):
+                    data_dict[name] = self._collect_layer_masks(module)
+        return data_dict
+
+    @staticmethod
+    def _collect_layer_masks(module: DendriticBranchLayer) -> dict:
+        layer_masks = {}
+        if module.branch_excitation is not None:
+            mask = module.branch_excitation.weight_mask()
+            layer_masks["exc_mask"] = mask.bool().cpu()
+        if module.branch_inhibition is not None:
+            mask = module.branch_inhibition.weight_mask()
+            layer_masks["inh_mask"] = mask.bool().cpu()
+        return layer_masks
+
+    def _compute_turnover_statistics(self) -> dict:
+        logger.info(
+            f"Analyzing synaptic turnover from {len(self.data_dict_list)} snapshots"
+        )
+        incremental_turnover = self._empty_turnover_stats()
+        cumulative_turnover = self._empty_turnover_stats()
+        layer_stats = self._empty_layer_stats()
+        initial_data_dict = self.data_dict_list[0] if self.data_dict_list else None
+
+        for i in range(1, len(self.data_dict_list)):
+            prev_data_dict: dict = self.data_dict_list[i - 1]
+            curr_data_dict: dict = self.data_dict_list[i]
+            incremental_counts, cumulative_counts = self._compare_snapshots(
+                prev_data_dict=prev_data_dict,
+                curr_data_dict=curr_data_dict,
+                initial_data_dict=initial_data_dict,
+            )
+            self._append_turnover_counts(incremental_turnover, incremental_counts)
+            self._append_layer_averages(
+                layer_stats,
+                "incremental",
+                incremental_counts["exc"][0],
+                incremental_counts["inh"][0],
+            )
+            self._append_turnover_counts(cumulative_turnover, cumulative_counts)
+            self._append_layer_averages(
+                layer_stats,
+                "cumulative",
+                cumulative_counts["exc"][0],
+                cumulative_counts["inh"][0],
             )
 
-            # Initialize turnover statistics dictionaries
-            # Incremental: comparing each timepoint with previous (t vs t-1)
-            incremental_turnover = {
-                "exc": {"active": [], "stable": [], "transient": []},
-                "inh": {"active": [], "stable": [], "transient": []},
-                "both": {"active": [], "stable": [], "transient": []},
-            }
+        return {
+            "incremental": incremental_turnover,
+            "cumulative": cumulative_turnover,
+            "layer_statistics": layer_stats,
+            "n_snapshots": len(self.data_dict_list),
+        }
 
-            # Cumulative: comparing each timepoint with initial (t vs t=0)
-            cumulative_turnover = {
-                "exc": {"active": [], "stable": [], "transient": []},
-                "inh": {"active": [], "stable": [], "transient": []},
-                "both": {"active": [], "stable": [], "transient": []},
-            }
+    @staticmethod
+    def _empty_turnover_stats() -> dict:
+        return {
+            "exc": {"active": [], "stable": [], "transient": []},
+            "inh": {"active": [], "stable": [], "transient": []},
+            "both": {"active": [], "stable": [], "transient": []},
+        }
 
-            # Initialize per-layer synapse type statistics
-            # Collect layer-wise statistics for ee, ei, ie, ii synapses
-            layer_stats = {
-                "incremental": {
-                    "per_layer_avg": {"ee": [], "ei": [], "ie": [], "ii": []}
-                },
-                "cumulative": {
-                    "per_layer_avg": {"ee": [], "ei": [], "ie": [], "ii": []}
-                },
-            }
+    @staticmethod
+    def _empty_layer_stats() -> dict:
+        return {
+            "incremental": {"per_layer_avg": {"ee": [], "ei": [], "ie": [], "ii": []}},
+            "cumulative": {"per_layer_avg": {"ee": [], "ei": [], "ie": [], "ii": []}},
+        }
 
-            # Get initial snapshot for cumulative comparison
-            initial_data_dict = (
-                self.data_dict_list[0] if len(self.data_dict_list) > 0 else None
+    def _compare_snapshots(
+        self,
+        prev_data_dict: dict,
+        curr_data_dict: dict,
+        initial_data_dict: Optional[dict],
+    ) -> tuple[dict[str, tuple[int, int, int]], dict[str, tuple[int, int, int]]]:
+        incremental_counts = {"exc": (0, 0, 0), "inh": (0, 0, 0)}
+        cumulative_counts = {"exc": (0, 0, 0), "inh": (0, 0, 0)}
+
+        for name in curr_data_dict.keys():
+            prev_module_dict: dict = prev_data_dict[name]
+            curr_module_dict: dict = curr_data_dict[name]
+            initial_module_dict: dict = (
+                initial_data_dict[name] if initial_data_dict else prev_module_dict
+            )
+            incremental_counts, cumulative_counts = self._compare_layer_masks(
+                prev_module_dict=prev_module_dict,
+                curr_module_dict=curr_module_dict,
+                initial_module_dict=initial_module_dict,
+                incremental_counts=incremental_counts,
+                cumulative_counts=cumulative_counts,
             )
 
-            # Compare consecutive snapshots for incremental turnover
-            for i in range(1, len(self.data_dict_list)):
-                prev_data_dict: dict = self.data_dict_list[i - 1]
-                curr_data_dict: dict = self.data_dict_list[i]
+        return incremental_counts, cumulative_counts
 
-                # Initialize counters for incremental comparison (t vs t-1)
-                inc_exc_active = inc_exc_stable = inc_exc_transient = 0
-                inc_inh_active = inc_inh_stable = inc_inh_transient = 0
+    @staticmethod
+    def _compare_layer_masks(
+        prev_module_dict: dict,
+        curr_module_dict: dict,
+        initial_module_dict: dict,
+        incremental_counts: dict[str, tuple[int, int, int]],
+        cumulative_counts: dict[str, tuple[int, int, int]],
+    ) -> tuple[dict[str, tuple[int, int, int]], dict[str, tuple[int, int, int]]]:
+        for label, mask_key in (("exc", "exc_mask"), ("inh", "inh_mask")):
+            if mask_key not in curr_module_dict.keys():
+                continue
+            incremental_counts[label] = _update_turnover_counts(
+                prev_module_dict[mask_key],
+                curr_module_dict[mask_key],
+                *incremental_counts[label],
+            )
+            cumulative_counts[label] = _update_turnover_counts(
+                initial_module_dict[mask_key],
+                curr_module_dict[mask_key],
+                *cumulative_counts[label],
+            )
+        return incremental_counts, cumulative_counts
 
-                # Initialize counters for cumulative comparison (t vs t=0)
-                cum_exc_active = cum_exc_stable = cum_exc_transient = 0
-                cum_inh_active = cum_inh_stable = cum_inh_transient = 0
+    @staticmethod
+    def _append_turnover_counts(
+        turnover: dict,
+        counts: dict[str, tuple[int, int, int]],
+    ) -> None:
+        exc_active, exc_stable, exc_transient = counts["exc"]
+        inh_active, inh_stable, inh_transient = counts["inh"]
+        for label, (active, stable, transient) in counts.items():
+            turnover[label]["active"].append(active)
+            turnover[label]["stable"].append(stable)
+            turnover[label]["transient"].append(transient)
+        turnover["both"]["active"].append(exc_active + inh_active)
+        turnover["both"]["stable"].append(exc_stable + inh_stable)
+        turnover["both"]["transient"].append(exc_transient + inh_transient)
 
-                # Initialize per-layer synapse type counters
-
-                # Process each dendritic branch layer
-                for name in curr_data_dict.keys():
-                    prev_module_dict: dict = prev_data_dict[name]
-                    curr_module_dict: dict = curr_data_dict[name]
-                    initial_module_dict: dict = (
-                        initial_data_dict[name]
-                        if initial_data_dict
-                        else prev_module_dict
-                    )
-
-                    # Process excitatory synapses
-                    if "exc_mask" in curr_module_dict.keys():
-                        curr_exc_mask = curr_module_dict["exc_mask"]
-
-                        # Incremental comparison (t vs t-1)
-                        prev_exc_mask = prev_module_dict["exc_mask"]
-                        (
-                            inc_exc_active,
-                            inc_exc_stable,
-                            inc_exc_transient,
-                        ) = _update_turnover_counts(
-                            prev_exc_mask,
-                            curr_exc_mask,
-                            inc_exc_active,
-                            inc_exc_stable,
-                            inc_exc_transient,
-                        )
-
-                        # Cumulative comparison (t vs t=0)
-                        initial_exc_mask = initial_module_dict["exc_mask"]
-                        (
-                            cum_exc_active,
-                            cum_exc_stable,
-                            cum_exc_transient,
-                        ) = _update_turnover_counts(
-                            initial_exc_mask,
-                            curr_exc_mask,
-                            cum_exc_active,
-                            cum_exc_stable,
-                            cum_exc_transient,
-                        )
-
-                    # Process inhibitory synapses
-                    if "inh_mask" in curr_module_dict.keys():
-                        curr_inh_mask = curr_module_dict["inh_mask"]
-
-                        # Incremental comparison (t vs t-1)
-                        prev_inh_mask = prev_module_dict["inh_mask"]
-                        (
-                            inc_inh_active,
-                            inc_inh_stable,
-                            inc_inh_transient,
-                        ) = _update_turnover_counts(
-                            prev_inh_mask,
-                            curr_inh_mask,
-                            inc_inh_active,
-                            inc_inh_stable,
-                            inc_inh_transient,
-                        )
-
-                        # Cumulative comparison (t vs t=0)
-                        initial_inh_mask = initial_module_dict["inh_mask"]
-                        (
-                            cum_inh_active,
-                            cum_inh_stable,
-                            cum_inh_transient,
-                        ) = _update_turnover_counts(
-                            initial_inh_mask,
-                            curr_inh_mask,
-                            cum_inh_active,
-                            cum_inh_stable,
-                            cum_inh_transient,
-                        )
-
-                # Store incremental turnover statistics
-                incremental_turnover["exc"]["active"].append(inc_exc_active)
-                incremental_turnover["exc"]["stable"].append(inc_exc_stable)
-                incremental_turnover["exc"]["transient"].append(inc_exc_transient)
-
-                incremental_turnover["inh"]["active"].append(inc_inh_active)
-                incremental_turnover["inh"]["stable"].append(inc_inh_stable)
-                incremental_turnover["inh"]["transient"].append(inc_inh_transient)
-
-                incremental_turnover["both"]["active"].append(
-                    inc_exc_active + inc_inh_active
-                )
-                incremental_turnover["both"]["stable"].append(
-                    inc_exc_stable + inc_inh_stable
-                )
-                incremental_turnover["both"]["transient"].append(
-                    inc_exc_transient + inc_inh_transient
-                )
-
-                # Compute per-layer averages for synapse types
-                inc_layer_avg = self._compute_layer_synapse_averages(
-                    inc_exc_active, inc_inh_active
-                )
-                layer_stats["incremental"]["per_layer_avg"]["ee"].append(
-                    inc_layer_avg["ee"]
-                )
-                layer_stats["incremental"]["per_layer_avg"]["ei"].append(
-                    inc_layer_avg["ei"]
-                )
-                layer_stats["incremental"]["per_layer_avg"]["ie"].append(
-                    inc_layer_avg["ie"]
-                )
-                layer_stats["incremental"]["per_layer_avg"]["ii"].append(
-                    inc_layer_avg["ii"]
-                )
-
-                # Store cumulative turnover statistics
-                cumulative_turnover["exc"]["active"].append(cum_exc_active)
-                cumulative_turnover["exc"]["stable"].append(cum_exc_stable)
-                cumulative_turnover["exc"]["transient"].append(cum_exc_transient)
-
-                cumulative_turnover["inh"]["active"].append(cum_inh_active)
-                cumulative_turnover["inh"]["stable"].append(cum_inh_stable)
-                cumulative_turnover["inh"]["transient"].append(cum_inh_transient)
-
-                cumulative_turnover["both"]["active"].append(
-                    cum_exc_active + cum_inh_active
-                )
-                cumulative_turnover["both"]["stable"].append(
-                    cum_exc_stable + cum_inh_stable
-                )
-                cumulative_turnover["both"]["transient"].append(
-                    cum_exc_transient + cum_inh_transient
-                )
-
-                # Compute cumulative per-layer averages for synapse types
-                cum_layer_avg = self._compute_layer_synapse_averages(
-                    cum_exc_active, cum_inh_active
-                )
-                layer_stats["cumulative"]["per_layer_avg"]["ee"].append(
-                    cum_layer_avg["ee"]
-                )
-                layer_stats["cumulative"]["per_layer_avg"]["ei"].append(
-                    cum_layer_avg["ei"]
-                )
-                layer_stats["cumulative"]["per_layer_avg"]["ie"].append(
-                    cum_layer_avg["ie"]
-                )
-                layer_stats["cumulative"]["per_layer_avg"]["ii"].append(
-                    cum_layer_avg["ii"]
-                )
-
-            # Return both types of turnover statistics
-            turnover_dict = {
-                "incremental": incremental_turnover,
-                "cumulative": cumulative_turnover,
-                "layer_statistics": layer_stats,
-                "n_snapshots": len(self.data_dict_list),
-            }
-
-            if save_path is not None:
-                save_dict(turnover_dict, save_path, filename)
-
-                # Generate turnover plots
-                self._plot_turnover_results(turnover_dict, save_path, filename)
-            else:
-                return turnover_dict
+    def _append_layer_averages(
+        self,
+        layer_stats: dict,
+        mode: str,
+        total_exc_active: int,
+        total_inh_active: int,
+    ) -> None:
+        layer_avg = self._compute_layer_synapse_averages(
+            total_exc_active,
+            total_inh_active,
+        )
+        for synapse_type in ("ee", "ei", "ie", "ii"):
+            layer_stats[mode]["per_layer_avg"][synapse_type].append(
+                layer_avg[synapse_type]
+            )
 
     def _plot_turnover_results(self, results: dict, save_path: str, filename: str):
         """Generate plots for synaptic turnover results."""
