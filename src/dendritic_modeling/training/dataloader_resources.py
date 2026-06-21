@@ -24,19 +24,24 @@ def visible_cpu_count() -> int:
     return max(1, available_cpus)
 
 
+def _leading_positive_int(raw_value: str) -> int | None:
+    digits = []
+    for char in raw_value.strip():
+        if not char.isdigit():
+            break
+        digits.append(char)
+    if not digits:
+        return None
+    value = int("".join(digits))
+    return value if value > 0 else None
+
+
 def _parse_local_process_count(raw_value: str) -> int | None:
     """Parse local process counts from simple integers or SLURM node specs."""
     values = []
     for chunk in raw_value.split(","):
-        digits = []
-        for char in chunk.strip():
-            if not char.isdigit():
-                break
-            digits.append(char)
-        if not digits:
-            continue
-        value = int("".join(digits))
-        if value > 0:
+        value = _leading_positive_int(chunk)
+        if value is not None:
             values.append(value)
     return max(values) if values else None
 

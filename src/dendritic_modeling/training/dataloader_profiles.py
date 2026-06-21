@@ -76,6 +76,15 @@ def _is_torchvision_image_dataset_leaf(dataset: Dataset) -> bool:
     )
 
 
+def _module_qualified_type_name(dataset: Dataset) -> str:
+    dataset_cls = type(dataset)
+    return f"{dataset_cls.__module__}.{dataset_cls.__name__}"
+
+
+def _prefers_main_process_loading_for_leaves(leaves: list[Dataset]) -> bool:
+    return bool(leaves) and all(isinstance(leaf, TensorDataset) for leaf in leaves)
+
+
 def is_torchvision_image_dataset(dataset: Dataset) -> bool:
     """Return True for torchvision image datasets that are usually I/O-bound."""
     return dataset_loader_profile(dataset).is_torchvision_image_dataset
@@ -95,14 +104,12 @@ def dataset_loader_profile(dataset: Dataset) -> DatasetLoaderProfile:
     """Return the dataset properties used by DataLoader tuning."""
     resolved_dataset = base_dataset(dataset)
     leaves = _leaf_datasets(dataset)
-    type_name = f"{type(resolved_dataset).__module__}.{type(resolved_dataset).__name__}"
     return DatasetLoaderProfile(
-        type_name=type_name,
+        type_name=_module_qualified_type_name(resolved_dataset),
         is_torchvision_image_dataset=any(
             _is_torchvision_image_dataset_leaf(leaf) for leaf in leaves
         ),
-        prefers_main_process_loading=bool(leaves)
-        and all(isinstance(leaf, TensorDataset) for leaf in leaves),
+        prefers_main_process_loading=_prefers_main_process_loading_for_leaves(leaves),
     )
 
 

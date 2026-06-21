@@ -31,6 +31,21 @@ def _resolve_analysis_prefetch_factor(
     return None
 
 
+def _resolve_analysis_num_workers(runtime: EvaluationRuntimeConfig) -> int:
+    return max(0, int(getattr(runtime, "num_workers", 0)))
+
+
+def _resolve_analysis_persistent_workers(
+    persistent_workers: bool,
+    *,
+    num_workers: int,
+) -> bool:
+    resolved_persistent = bool(persistent_workers)
+    if resolved_persistent and num_workers == 0:
+        raise ValueError("persistent_workers=True requires num_workers > 0")
+    return resolved_persistent
+
+
 def analysis_loader_kwargs_from_runtime(
     runtime: EvaluationRuntimeConfig | None,
     device: str | torch.device | None = None,
@@ -39,10 +54,11 @@ def analysis_loader_kwargs_from_runtime(
     if runtime is None:
         runtime = EvaluationRuntimeConfig()
     pin = resolve_analysis_pin_memory(runtime, device)
-    num_workers = max(0, int(getattr(runtime, "num_workers", 0)))
-    persistent_workers = bool(getattr(runtime, "persistent_workers", False))
-    if persistent_workers and num_workers == 0:
-        raise ValueError("persistent_workers=True requires num_workers > 0")
+    num_workers = _resolve_analysis_num_workers(runtime)
+    persistent_workers = _resolve_analysis_persistent_workers(
+        getattr(runtime, "persistent_workers", False),
+        num_workers=num_workers,
+    )
 
     loader_kwargs: dict[str, object] = {
         "num_workers": num_workers,

@@ -28,6 +28,12 @@ from dendritic_modeling.datasets import (
 from dendritic_modeling.datasets.imagenet_loading import (
     _load_imagefolder_dataset_triplet,
 )
+from dendritic_modeling.datasets.imagenet_paths import _imagefolder_root_candidates
+from dendritic_modeling.datasets.imagenet_transforms import (
+    _legacy_resize_transform_steps,
+    _pretrained_eval_transform_steps,
+    _pretrained_train_transform_steps,
+)
 from dendritic_modeling.datasets.sequence.builders.common import explicit_split
 from dendritic_modeling.datasets.sequence_datasets import (
     register_sequence_dataset_builder,
@@ -522,6 +528,27 @@ class TestRealDatasets(unittest.TestCase):
         self.assertEqual(train_root, os.path.join(self.temp_dir, "train"))
         self.assertEqual(val_root, os.path.join(self.temp_dir, "val"))
 
+    def test_imagefolder_root_candidates_preserve_layout_order(self):
+        self.assertEqual(
+            _imagefolder_root_candidates("/imagenet"),
+            [
+                ("/imagenet/train", "/imagenet/val"),
+                ("/imagenet/ILSVRC2012_img_train", "/imagenet/val"),
+            ],
+        )
+
+    def test_resolve_imagefolder_roots_detects_ilsvrc_train_tree(self):
+        os.makedirs(os.path.join(self.temp_dir, "ILSVRC2012_img_train", "class_a"))
+        os.makedirs(os.path.join(self.temp_dir, "val", "class_a"))
+
+        train_root, val_root = _resolve_imagefolder_roots(self.temp_dir)
+
+        self.assertEqual(
+            train_root,
+            os.path.join(self.temp_dir, "ILSVRC2012_img_train"),
+        )
+        self.assertEqual(val_root, os.path.join(self.temp_dir, "val"))
+
     def test_is_official_imagenet_root_requires_metadata_and_splits(self):
         os.makedirs(os.path.join(self.temp_dir, "ILSVRC2012_img_train", "class_a"))
         os.makedirs(os.path.join(self.temp_dir, "val", "class_a"))
@@ -662,6 +689,20 @@ class TestRealDatasets(unittest.TestCase):
         )
         with self.assertRaisesRegex(ValueError, "loader_backend"):
             _normalized_imagenet_loader_backend("synthetic")
+
+    def test_imagenet_transform_step_helpers_preserve_operation_order(self):
+        self.assertEqual(
+            [type(t).__name__ for t in _legacy_resize_transform_steps()],
+            ["Resize", "ToTensor"],
+        )
+        self.assertEqual(
+            [type(t).__name__ for t in _pretrained_train_transform_steps()],
+            ["RandomResizedCrop", "RandomHorizontalFlip", "ToTensor"],
+        )
+        self.assertEqual(
+            [type(t).__name__ for t in _pretrained_eval_transform_steps()],
+            ["Resize", "CenterCrop", "ToTensor"],
+        )
 
     def test_build_imagenet_transforms_legacy_uses_shared_resize_transform(self):
         train_transform, eval_transform = _build_imagenet_transforms(

@@ -8,16 +8,19 @@ from .paths import get_data_directory
 _logger = logging.getLogger(__name__)
 
 
+def _imagefolder_root_candidates(root: str) -> list[tuple[str, str]]:
+    return [
+        (os.path.join(root, "train"), os.path.join(root, "val")),
+        (os.path.join(root, "ILSVRC2012_img_train"), os.path.join(root, "val")),
+    ]
+
+
 def _resolve_imagefolder_roots(root: str | None) -> tuple[str | None, str | None]:
     """Return ``(train_root, val_root)`` for ImageFolder-style ImageNet layouts."""
     if not root or not os.path.isdir(root):
         return None, None
 
-    candidates = [
-        (os.path.join(root, "train"), os.path.join(root, "val")),
-        (os.path.join(root, "ILSVRC2012_img_train"), os.path.join(root, "val")),
-    ]
-    for train_root, val_root in candidates:
+    for train_root, val_root in _imagefolder_root_candidates(root):
         if os.path.isdir(train_root) and os.path.isdir(val_root):
             return train_root, val_root
     return None, None

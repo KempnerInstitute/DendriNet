@@ -21,6 +21,26 @@ def _normalized_imagenet_preset_name(transform_preset: str | None) -> str:
     return str(transform_preset or "legacy_resize").strip().lower().replace("-", "_")
 
 
+def _legacy_resize_transform_steps() -> list:
+    return [transforms.Resize((224, 224)), transforms.ToTensor()]
+
+
+def _pretrained_train_transform_steps() -> list:
+    return [
+        transforms.RandomResizedCrop(224),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+    ]
+
+
+def _pretrained_eval_transform_steps() -> list:
+    return [
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+    ]
+
+
 def _build_imagenet_transforms(
     *,
     normalize: bool,
@@ -31,7 +51,7 @@ def _build_imagenet_transforms(
     if preset in {"legacy", "legacy_resize", "resize", "resize_224"}:
         transform = transforms.Compose(
             _append_imagenet_normalize(
-                [transforms.Resize((224, 224)), transforms.ToTensor()],
+                _legacy_resize_transform_steps(),
                 normalize=normalize,
             )
         )
@@ -40,21 +60,13 @@ def _build_imagenet_transforms(
     if preset in {"pretrained", "torchvision", "imagenet", "standard"}:
         train_transform = transforms.Compose(
             _append_imagenet_normalize(
-                [
-                    transforms.RandomResizedCrop(224),
-                    transforms.RandomHorizontalFlip(),
-                    transforms.ToTensor(),
-                ],
+                _pretrained_train_transform_steps(),
                 normalize=normalize,
             )
         )
         eval_transform = transforms.Compose(
             _append_imagenet_normalize(
-                [
-                    transforms.Resize(256),
-                    transforms.CenterCrop(224),
-                    transforms.ToTensor(),
-                ],
+                _pretrained_eval_transform_steps(),
                 normalize=normalize,
             )
         )

@@ -1,6 +1,7 @@
 import json
 import warnings
 
+import pytest
 import torch
 import yaml
 from torch import nn
@@ -8,6 +9,8 @@ from torch.utils.data import DataLoader, Dataset, TensorDataset
 
 from dendritic_modeling.analysis.metrics.performance import PerformanceAnalyzer
 from dendritic_modeling.analysis.utils.runtime import (
+    _resolve_analysis_num_workers,
+    _resolve_analysis_persistent_workers,
     _resolve_analysis_prefetch_factor,
     analysis_device_context,
     analysis_loader_kwargs_from_runtime,
@@ -144,6 +147,15 @@ def test_analysis_prefetch_resolver_preserves_worker_gating_and_clamp():
     assert _resolve_analysis_prefetch_factor(5, num_workers=0) is None
     assert _resolve_analysis_prefetch_factor(0, num_workers=2) == 1
     assert _resolve_analysis_prefetch_factor(5, num_workers=2) == 5
+
+
+def test_analysis_worker_resolvers_preserve_clamp_and_persistent_guard():
+    assert _resolve_analysis_num_workers(EvaluationRuntimeConfig(num_workers=-3)) == 0
+    assert _resolve_analysis_num_workers(EvaluationRuntimeConfig(num_workers=2)) == 2
+    assert _resolve_analysis_persistent_workers(False, num_workers=0) is False
+    assert _resolve_analysis_persistent_workers(True, num_workers=2) is True
+    with pytest.raises(ValueError, match="persistent_workers=True"):
+        _resolve_analysis_persistent_workers(True, num_workers=0)
 
 
 def test_single_gpu_without_runtime_defaults_to_materialize(tmp_path):

@@ -388,6 +388,21 @@ def test_dataloader_auto_workers_parse_slurm_tasks_per_node(monkeypatch):
     assert tuning.persistent_workers is True
 
 
+def test_dataloader_local_process_count_parser_preserves_slurm_prefix_rules():
+    from dendritic_modeling.training.dataloader_resources import (
+        _leading_positive_int,
+        _parse_local_process_count,
+    )
+
+    assert _leading_positive_int("8(x2)") == 8
+    assert _leading_positive_int(" 04 ") == 4
+    assert _leading_positive_int("0") is None
+    assert _leading_positive_int("x8") is None
+    assert _parse_local_process_count("8(x2),4") == 8
+    assert _parse_local_process_count("0,2(x3),bad") == 2
+    assert _parse_local_process_count("bad,0") is None
+
+
 def test_dataloader_auto_prefetches_torchvision_image_datasets(monkeypatch):
     """ImageNet/ImageFolder-style datasets should prefetch more worker batches."""
 
@@ -484,6 +499,8 @@ def test_dataloader_dataset_profile_preserves_legacy_helpers():
 
     from dendritic_modeling.datasets.indexing import SliceSafeDataset
     from dendritic_modeling.training.dataloader_profiles import (
+        _module_qualified_type_name,
+        _prefers_main_process_loading_for_leaves,
         dataset_loader_profile,
         dataset_type_name,
         is_torchvision_image_dataset,
@@ -508,10 +525,13 @@ def test_dataloader_dataset_profile_preserves_legacy_helpers():
     imagenet_profile = dataset_loader_profile(wrapped_imagenet)
 
     assert tensor_profile.type_name == dataset_type_name(tensor_dataset)
+    assert tensor_profile.type_name == _module_qualified_type_name(tensor_dataset)
     assert tensor_profile.prefers_main_process_loading is True
     assert tensor_profile.is_torchvision_image_dataset is False
     assert prefers_main_process_loading(tensor_dataset) is True
     assert is_torchvision_image_dataset(tensor_dataset) is False
+    assert _prefers_main_process_loading_for_leaves([tensor_dataset]) is True
+    assert _prefers_main_process_loading_for_leaves([]) is False
 
     assert imagenet_profile.type_name == dataset_type_name(wrapped_imagenet)
     assert imagenet_profile.type_name == "torchvision.datasets.imagenet.ImageNet"
@@ -519,6 +539,7 @@ def test_dataloader_dataset_profile_preserves_legacy_helpers():
     assert imagenet_profile.is_torchvision_image_dataset is True
     assert prefers_main_process_loading(wrapped_imagenet) is False
     assert is_torchvision_image_dataset(wrapped_imagenet) is True
+    assert _prefers_main_process_loading_for_leaves([wrapped_imagenet.dataset]) is False
 
 
 def test_dataloader_auto_tuning_profiles_concat_dataset_leaves(monkeypatch):
