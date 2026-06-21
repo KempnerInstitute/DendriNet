@@ -9,13 +9,18 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.top
 )
 from dendritic_modeling.training.strategies.local_learning import (
     _accumulate_backprop_gradients,
+    _apply_decoder_local_gradients,
+    _apply_path_propagation_factor,
     _clear_topk_mask_cache,
+    _clip_model_gradients,
     _collect_backprop_param_groups,
     _collect_topk_modules,
     _enable_topk_mask_cache,
+    _forward_with_local_recorders,
     _has_dendritic_branch_layers,
     _prepare_hsic_target,
     _resolve_epoch_update_modes,
+    _resolve_stdp_error_signals,
     _supports_local_learning_train,
     _zero_optimizer_gradients,
 )
@@ -38,6 +43,14 @@ def _local_cfg(**overrides):
 def _hsic_cfg(*, enabled=True, target_source="labels"):
     return SimpleNamespace(
         hsic=SimpleNamespace(enabled=enabled, target_source=target_source)
+    )
+
+
+def _path_cfg(*, use_path_propagation=True):
+    return SimpleNamespace(
+        morphology_aware=SimpleNamespace(
+            use_path_propagation=use_path_propagation,
+        )
     )
 
 
@@ -298,3 +311,208 @@ def test_accumulate_backprop_gradients_preserves_old_accumulation_semantics():
     assert p1.grad.requires_grad is False
     assert unused.grad is None
     assert torch.equal(p2.grad, torch.tensor(12.0))
+
+
+def test_apply_decoder_local_gradients_preserves_exact_accumulation_semantics():
+    lin = nn.Linear(2, 2, bias=True)
+    lin.weight.grad = torch.full_like(lin.weight, 10.0)
+    lin.bias.grad = torch.full_like(lin.bias, -1.0)
+    h_in = torch.tensor([[1.0, 2.0], [3.0, 4.0]], requires_grad=True)
+    delta_out = torch.tensor([[0.5, 1.0], [1.5, -0.5]], requires_grad=True)
+
+    _apply_decoder_local_gradients(
+        lin_mod=lin,
+        h_in=h_in,
+        delta_out=delta_out,
+        normalize_by_batch=True,
+    )
+
+    expected_grad_w = 0.5 * (delta_out.detach().t() @ h_in.detach())
+    expected_grad_b = 0.5 * delta_out.detach().sum(dim=0)
+    assert torch.equal(
+        lin.weight.grad, torch.full_like(lin.weight, 10.0) + expected_grad_w
+    )
+    assert torch.equal(lin.bias.grad, torch.full_like(lin.bias, -1.0) + expected_grad_b)
+    assert lin.weight.grad.requires_grad is False
+    assert lin.bias.grad.requires_grad is False
+
+
+def test_apply_decoder_local_gradients_is_noop_for_invalid_cache_entries():
+    lin = nn.Linear(2, 2, bias=True)
+
+    _apply_decoder_local_gradients(
+        lin_mod=lin,
+        h_in=None,
+        delta_out=torch.ones(1, 2),
+        normalize_by_batch=False,
+    )
+
+    assert lin.weight.grad is None
+    assert lin.bias.grad is None
+
+
+def test_clip_model_gradients_clamps_existing_gradients():
+    model = nn.Linear(2, 1)
+    model.weight.grad = torch.tensor([[2.0, -3.0]])
+    model.bias.grad = torch.tensor([0.1])
+
+    _clip_model_gradients(model, clip_grad_value=0.25)
+
+    assert torch.equal(model.weight.grad, torch.tensor([[0.25, -0.25]]))
+    assert torch.equal(model.bias.grad, torch.tensor([0.1]))
+
+
+@pytest.mark.parametrize("clip_grad_value", [None, 0, -0.25])
+def test_clip_model_gradients_preserves_disabled_guard_behavior(clip_grad_value):
+    model = nn.Linear(2, 1)
+    model.weight.grad = torch.tensor([[2.0, -3.0]])
+    before = model.weight.grad.clone()
+
+    _clip_model_gradients(model, clip_grad_value=clip_grad_value)
+
+    assert torch.equal(model.weight.grad, before)
+
+
+def test_forward_with_local_recorders_cleans_hooks_and_topk_cache_on_success():
+    class _Handle:
+        def __init__(self):
+            self.removed = False
+
+        def remove(self):
+            self.removed = True
+
+    class _Trainer:
+        def __init__(self):
+            self.handle = _Handle()
+            self.records = [{"v_n": torch.ones(1, 2)}]
+
+        def _attach_local_recorders(self, model):
+            return self.records, [self.handle]
+
+    class _Model(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.topk = TopKLinear(in_features=2, out_features=1, K=1)
+
+        def forward(self, x):
+            assert self.topk.cache_mask is True
+            self.topk._last_forward_weight_mask = torch.ones_like(
+                self.topk.pre_w,
+                dtype=torch.bool,
+            )
+            return x + 1.0
+
+    trainer = _Trainer()
+    model = _Model()
+    x_batch = torch.zeros(1, 2)
+
+    y_hat, records = _forward_with_local_recorders(trainer, model, x_batch)
+
+    assert torch.equal(y_hat, torch.ones(1, 2))
+    assert records is trainer.records
+    assert trainer.handle.removed is True
+    assert model.topk.cache_mask is False
+    assert model.topk._last_forward_weight_mask is None
+
+
+def test_forward_with_local_recorders_cleans_hooks_and_topk_cache_on_exception():
+    class _Handle:
+        def __init__(self):
+            self.removed = False
+
+        def remove(self):
+            self.removed = True
+
+    class _Trainer:
+        def __init__(self):
+            self.handle = _Handle()
+
+        def _attach_local_recorders(self, model):
+            return [], [self.handle]
+
+    class _Model(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.topk = TopKLinear(in_features=2, out_features=1, K=1)
+
+        def forward(self, x):
+            assert self.topk.cache_mask is True
+            self.topk._last_forward_weight_mask = torch.ones_like(
+                self.topk.pre_w,
+                dtype=torch.bool,
+            )
+            raise RuntimeError("forward failed")
+
+    trainer = _Trainer()
+    model = _Model()
+
+    with pytest.raises(RuntimeError, match="forward failed"):
+        _forward_with_local_recorders(trainer, model, torch.zeros(1, 2))
+
+    assert trainer.handle.removed is True
+    assert model.topk.cache_mask is False
+    assert model.topk._last_forward_weight_mask is None
+
+
+def test_resolve_stdp_error_signals_keeps_error_for_non_stdp_rules():
+    e_n = torch.tensor([[1.0, -2.0]])
+
+    resolved_e_n, stdp_error_signal = _resolve_stdp_error_signals(
+        SimpleNamespace(rule_variant="hebbian"),
+        e_n,
+    )
+
+    assert resolved_e_n is e_n
+    assert stdp_error_signal is e_n
+
+
+def test_resolve_stdp_error_signals_zeroes_local_error_for_stdp_rules():
+    e_n = torch.tensor([[1.0, -2.0]])
+
+    resolved_e_n, stdp_error_signal = _resolve_stdp_error_signals(
+        SimpleNamespace(rule_variant="STDP"),
+        e_n,
+    )
+
+    assert torch.equal(resolved_e_n, torch.zeros_like(e_n))
+    assert resolved_e_n is not e_n
+    assert stdp_error_signal is e_n
+
+
+def test_apply_path_propagation_factor_multiplies_enabled_tensor_factor():
+    e_n = torch.tensor([[2.0, -3.0]])
+    path_factor = torch.tensor([[0.5, 2.0]])
+
+    resolved_e_n = _apply_path_propagation_factor(
+        local_cfg=_path_cfg(use_path_propagation=True),
+        broadcast_state=SimpleNamespace(mode="broadcast"),
+        rec={"path_factor": path_factor},
+        e_n=e_n,
+    )
+
+    assert torch.equal(resolved_e_n, e_n * path_factor)
+
+
+@pytest.mark.parametrize(
+    ("use_path_propagation", "mode", "path_factor"),
+    [
+        (False, "broadcast", torch.tensor([[0.5, 2.0]])),
+        (True, "path_transport", torch.tensor([[0.5, 2.0]])),
+        (True, "broadcast", 0.5),
+    ],
+)
+def test_apply_path_propagation_factor_preserves_noop_cases(
+    use_path_propagation,
+    mode,
+    path_factor,
+):
+    e_n = torch.tensor([[2.0, -3.0]])
+
+    resolved_e_n = _apply_path_propagation_factor(
+        local_cfg=_path_cfg(use_path_propagation=use_path_propagation),
+        broadcast_state=SimpleNamespace(mode=mode),
+        rec={"path_factor": path_factor},
+        e_n=e_n,
+    )
+
+    assert resolved_e_n is e_n
