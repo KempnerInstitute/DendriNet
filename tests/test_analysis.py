@@ -1101,7 +1101,7 @@ class TestInformationAnalyzer(unittest.TestCase):
 
         with (
             patch(
-                "dendritic_modeling.analysis.core.information.time.time",
+                "dendritic_modeling.analysis.core.information_finalization_mixin.time.time",
                 return_value=12.5,
             ),
             patch.object(self.analyzer, "_add_analysis_metadata") as mock_metadata,
