@@ -26,6 +26,7 @@ from dendritic_modeling.training.strategies.local_learning import (
 )
 from dendritic_modeling.training.strategies.local_learning_gradients_mixin import (
     _accumulate_parameter_grad,
+    _apply_optional_alignment,
     _reactivation_output_slope,
     _scale_reactivation_error,
 )
@@ -118,6 +119,22 @@ def test_reactivation_output_slope_matches_existing_formula():
     slope = _reactivation_output_slope(output)
 
     torch.testing.assert_close(slope, 1 - (2 * output - 1) ** 2)
+
+
+def test_apply_optional_alignment_matches_existing_formula():
+    grad = torch.tensor([[1.0, -2.0], [0.5, 3.0]], dtype=torch.float32)
+    alignment = torch.tensor([[0.5, -1.0], [2.0, 0.25]], dtype=torch.float64)
+
+    aligned = _apply_optional_alignment(grad, alignment)
+
+    torch.testing.assert_close(aligned, grad * alignment.to(dtype=grad.dtype))
+
+
+def test_apply_optional_alignment_ignores_missing_or_mismatched_alignment():
+    grad = torch.tensor([[1.0, -2.0], [0.5, 3.0]], dtype=torch.float32)
+
+    assert _apply_optional_alignment(grad, None) is grad
+    assert _apply_optional_alignment(grad, torch.ones(2, 1)) is grad
 
 
 def test_resolve_epoch_update_modes_uses_base_modes_after_freeze_window():

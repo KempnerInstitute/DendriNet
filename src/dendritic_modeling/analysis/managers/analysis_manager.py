@@ -106,6 +106,27 @@ class _TestDatasetAnalysisRunner:
         return _registered_analyzer_spec(self.registry_name).save_subdir
 
 
+@dataclass(frozen=True)
+class _ModelOnlyAnalysisRunner:
+    """Execution metadata for analyzers sharing the model-only signature."""
+
+    registry_name: str
+    start_message: str
+    complete_message: str
+
+    @property
+    def config_field(self) -> str:
+        return _registered_analyzer_spec(self.registry_name).config_field
+
+    @property
+    def analyzer_attr(self) -> str:
+        return _registered_analyzer_spec(self.registry_name).attribute_name
+
+    @property
+    def save_subdir(self) -> str:
+        return _registered_analyzer_spec(self.registry_name).save_subdir
+
+
 _ANALYZER_INITIALIZERS = (
     _AnalyzerInitializer("performance", PerformanceAnalyzer),
     _AnalyzerInitializer("information", InformationAnalyzer),
@@ -129,6 +150,28 @@ _ANALYZER_INITIALIZERS = (
     _AnalyzerInitializer("dendritic_timetraces", DendriticTimetracesAnalyzer),
     _AnalyzerInitializer("spike_train", SpikeTrainAnalyzer),
     _AnalyzerInitializer("adversarial_robustness", AdversarialRobustnessAnalyzer),
+)
+
+
+_INHIBITORY_SPECIALIZATION_ANALYSIS = _ModelOnlyAnalysisRunner(
+    "inhibitory_specialization",
+    start_message="Starting inhibitory specialization analysis...",
+    complete_message="Inhibitory specialization analysis completed successfully",
+)
+_JACOBIAN_SPECTRUM_ANALYSIS = _ModelOnlyAnalysisRunner(
+    "jacobian_spectrum",
+    start_message="Starting jacobian spectrum analysis...",
+    complete_message="Jacobian spectrum analysis completed successfully",
+)
+_DENDRITIC_TIMETRACES_ANALYSIS = _ModelOnlyAnalysisRunner(
+    "dendritic_timetraces",
+    start_message="Starting dendritic timetraces analysis...",
+    complete_message="Dendritic timetraces analysis completed successfully",
+)
+_MODEL_ONLY_ANALYSES = (
+    _INHIBITORY_SPECIALIZATION_ANALYSIS,
+    _JACOBIAN_SPECTRUM_ANALYSIS,
+    _DENDRITIC_TIMETRACES_ANALYSIS,
 )
 
 
@@ -550,38 +593,63 @@ class AnalysisManager:
         )
         self.logger.info(complete_message)
 
+    def _run_model_only_analysis_runner(
+        self,
+        runner: _ModelOnlyAnalysisRunner,
+        *,
+        filename: str,
+        training: bool,
+    ) -> None:
+        """Run a table-declared model-only analyzer."""
+        self._run_model_only_analysis(
+            registry_name=runner.registry_name,
+            filename=filename,
+            training=training,
+            start_message=runner.start_message,
+            complete_message=runner.complete_message,
+        )
+
+    def _run_model_only_analysis_runners(
+        self,
+        runners: tuple[_ModelOnlyAnalysisRunner, ...],
+        *,
+        filename: str,
+        training: bool,
+    ) -> None:
+        """Run a table of model-only analyzers in declaration order."""
+        for runner in runners:
+            self._run_model_only_analysis_runner(
+                runner,
+                filename=filename,
+                training=training,
+            )
+
     def _run_inhibitory_specialization_analysis(
         self, *, filename: str, training: bool
     ) -> None:
         """Run inhibitory specialization analysis."""
-        self._run_model_only_analysis(
-            registry_name="inhibitory_specialization",
+        self._run_model_only_analysis_runner(
+            _INHIBITORY_SPECIALIZATION_ANALYSIS,
             filename=filename,
             training=training,
-            start_message="Starting inhibitory specialization analysis...",
-            complete_message="Inhibitory specialization analysis completed successfully",
         )
 
     def _run_jacobian_spectrum_analysis(self, *, filename: str, training: bool) -> None:
         """Run jacobian spectrum analysis."""
-        self._run_model_only_analysis(
-            registry_name="jacobian_spectrum",
+        self._run_model_only_analysis_runner(
+            _JACOBIAN_SPECTRUM_ANALYSIS,
             filename=filename,
             training=training,
-            start_message="Starting jacobian spectrum analysis...",
-            complete_message="Jacobian spectrum analysis completed successfully",
         )
 
     def _run_dendritic_timetraces_analysis(
         self, *, filename: str, training: bool
     ) -> None:
         """Run dendritic timetraces analysis."""
-        self._run_model_only_analysis(
-            registry_name="dendritic_timetraces",
+        self._run_model_only_analysis_runner(
+            _DENDRITIC_TIMETRACES_ANALYSIS,
             filename=filename,
             training=training,
-            start_message="Starting dendritic timetraces analysis...",
-            complete_message="Dendritic timetraces analysis completed successfully",
         )
 
     def _run_spike_train_analysis(
@@ -665,11 +733,11 @@ class AnalysisManager:
             filename=filename, training=training, runtime=runtime
         )
         self._run_routing_analysis(filename=filename, training=training)
-        self._run_inhibitory_specialization_analysis(
-            filename=filename, training=training
+        self._run_model_only_analysis_runners(
+            _MODEL_ONLY_ANALYSES,
+            filename=filename,
+            training=training,
         )
-        self._run_jacobian_spectrum_analysis(filename=filename, training=training)
-        self._run_dendritic_timetraces_analysis(filename=filename, training=training)
         self._run_spike_train_analysis(
             filename=filename, training=training, runtime=runtime
         )

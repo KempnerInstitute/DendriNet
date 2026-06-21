@@ -13,35 +13,11 @@ import tempfile
 import unittest
 from contextlib import ExitStack
 from pathlib import Path
-from unittest.mock import patch
-
-import pytest
-import torch
-
-try:
-    import os
-    import sys
-
-    experiments_path = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "experiments"
-    )
-    if experiments_path not in sys.path:
-        sys.path.insert(0, experiments_path)
-    from data_generation.synthetic_datasets import generate_synthetic_data
-except ImportError:
-    # Create a dummy function if synthetic datasets not available
-    import torch
-    from torch.utils.data import TensorDataset
-
-    def generate_synthetic_data(num_samples=100, num_features=10):
-        data = torch.randn(num_samples, num_features)
-        labels = torch.randint(0, 4, (num_samples,))
-        return TensorDataset(data, labels)
-
-
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import numpy as np
+import pytest
+import torch
 
 from dendritic_modeling.analysis import (
     AnalysisManager,
@@ -568,6 +544,77 @@ class TestInformationAnalyzer(unittest.TestCase):
 
         self.assertIsNone(results)
         mock_all.assert_called_once_with(model=self.model, inputs=inputs, C=C)
+
+    def test_analysis_pipeline_delegates_collection_computation_and_completion(self):
+        """Analysis pipeline should preserve analyze() orchestration handoffs."""
+        inputs = torch.ones(3, 8)
+        labels = torch.tensor([0, 1, 0])
+        C = np.array([0, 1, 0])
+        analysis_data = Mock(
+            inputs=inputs,
+            labels=labels,
+            C=C,
+            entropy_C=0.75,
+        )
+        computed_results = {"basic_mi": {"I(E;C)": 1.0}}
+        completed_results = {"done": True}
+        runtime = Mock()
+
+        with (
+            patch.object(
+                self.analyzer,
+                "_collect_analysis_data",
+                return_value=analysis_data,
+            ) as mock_collect,
+            patch.object(
+                self.analyzer,
+                "_compute_results_for_level",
+                return_value=computed_results,
+            ) as mock_compute,
+            patch.object(
+                self.analyzer,
+                "_add_enhanced_analysis_results",
+            ) as mock_enhanced,
+            patch.object(
+                self.analyzer,
+                "_complete_analysis_results",
+                return_value=completed_results,
+            ) as mock_complete,
+        ):
+            result = self.analyzer._run_analysis_pipeline(
+                model=self.model,
+                test_dataset=self.test_data,
+                device="cpu",
+                save_path="/tmp/results",
+                filename="final_eval",
+                runtime=runtime,
+                analysis_start_time=10.0,
+            )
+
+        self.assertIs(result, completed_results)
+        mock_collect.assert_called_once_with(
+            model=self.model,
+            test_dataset=self.test_data,
+            device="cpu",
+            runtime=runtime,
+        )
+        mock_compute.assert_called_once_with(
+            model=self.model,
+            inputs=inputs,
+            C=C,
+            entropy_C=0.75,
+        )
+        mock_enhanced.assert_called_once_with(computed_results, C)
+        mock_complete.assert_called_once_with(
+            results=computed_results,
+            model=self.model,
+            inputs=inputs,
+            labels=labels,
+            analysis_start_time=10.0,
+            device="cpu",
+            save_path="/tmp/results",
+            filename="final_eval",
+        )
 
     def test_branch_metric_helper_computes_metrics_and_preserves_null_flags(self):
         """Branch metric helper should attach null baselines with availability flags."""
@@ -2637,6 +2684,7 @@ class TestAnalysisManager(unittest.TestCase):
     def test_common_test_dataset_runners_resolve_registry_metadata(self):
         """Common runner tables should stay synchronized with the registry."""
         from dendritic_modeling.analysis.managers.analysis_manager import (
+            _MODEL_ONLY_ANALYSES,
             _POST_REACTIVATION_TEST_DATASET_ANALYSES,
             _PRE_WEIGHT_TEST_DATASET_ANALYSES,
         )
@@ -2644,6 +2692,7 @@ class TestAnalysisManager(unittest.TestCase):
         runners = (
             *_PRE_WEIGHT_TEST_DATASET_ANALYSES,
             *_POST_REACTIVATION_TEST_DATASET_ANALYSES,
+            *_MODEL_ONLY_ANALYSES,
         )
         for runner in runners:
             spec = get_analyzer_spec(runner.registry_name)
@@ -2688,6 +2737,7 @@ class TestAnalysisManager(unittest.TestCase):
     def test_run_analysis_preserves_orchestration_order(self):
         """Top-level analysis orchestration should preserve the established order."""
         from dendritic_modeling.analysis.managers.analysis_manager import (
+            _MODEL_ONLY_ANALYSES,
             _POST_REACTIVATION_TEST_DATASET_ANALYSES,
             _PRE_WEIGHT_TEST_DATASET_ANALYSES,
         )
@@ -2715,6 +2765,12 @@ class TestAnalysisManager(unittest.TestCase):
             self.assertIs(kwargs["runtime"], runtime)
             calls.append(f"runner:{runner.registry_name}")
 
+        def record_model_only_runner(runner, **kwargs):
+            self.assertEqual(kwargs["filename"], filename)
+            self.assertIs(kwargs["training"], training)
+            self.assertNotIn("runtime", kwargs)
+            calls.append(runner.registry_name)
+
         patched_steps = (
             ("_run_performance_analysis", "performance", True),
             ("_run_information_analysis", "information", True),
@@ -2724,13 +2780,6 @@ class TestAnalysisManager(unittest.TestCase):
             ("_run_local_rule_component_analysis", "local_rule_components", True),
             ("_run_correlation_analysis", "correlation", True),
             ("_run_routing_analysis", "routing", False),
-            (
-                "_run_inhibitory_specialization_analysis",
-                "inhibitory_specialization",
-                False,
-            ),
-            ("_run_jacobian_spectrum_analysis", "jacobian_spectrum", False),
-            ("_run_dendritic_timetraces_analysis", "dendritic_timetraces", False),
             ("_run_spike_train_analysis", "spike_train", True),
             ("_run_adversarial_robustness_analysis", "adversarial_robustness", True),
         )
@@ -2744,6 +2793,13 @@ class TestAnalysisManager(unittest.TestCase):
                     self.manager,
                     "_run_test_dataset_analysis_runner",
                     side_effect=record_runner,
+                )
+            )
+            stack.enter_context(
+                patch.object(
+                    self.manager,
+                    "_run_model_only_analysis_runner",
+                    side_effect=record_model_only_runner,
                 )
             )
             for method_name, call_name, expects_runtime in patched_steps:
@@ -2778,9 +2834,7 @@ class TestAnalysisManager(unittest.TestCase):
             "local_rule_components",
             "correlation",
             "routing",
-            "inhibitory_specialization",
-            "jacobian_spectrum",
-            "dendritic_timetraces",
+            *[runner.registry_name for runner in _MODEL_ONLY_ANALYSES],
             "spike_train",
             "adversarial_robustness",
         ]
@@ -2870,7 +2924,10 @@ def sample_analyzer():
 
 @pytest.fixture
 def sample_data():
-    return generate_synthetic_data(num_samples=100, num_features=10)  # Adjust as needed
+    generator = torch.Generator().manual_seed(0)
+    data = torch.randn(100, 10, generator=generator)
+    labels = torch.randint(0, 4, (100,), generator=generator)
+    return torch.utils.data.TensorDataset(data, labels)
 
 
 def test_compute_class_mi(sample_analyzer, sample_data):

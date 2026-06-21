@@ -51,6 +51,16 @@ def _reactivation_output_slope(output: torch.Tensor) -> torch.Tensor:
     return 1 - (2 * output - 1) ** 2
 
 
+def _apply_optional_alignment(
+    grad: torch.Tensor,
+    alignment: torch.Tensor | None,
+) -> torch.Tensor:
+    """Apply a same-shaped alignment tensor to a local gradient."""
+    if isinstance(alignment, torch.Tensor) and alignment.size() == grad.size():
+        return grad * alignment.to(device=grad.device, dtype=grad.dtype)
+    return grad
+
+
 class LocalLearningGradientMixin:
     """Gradient writeback helpers used by ``LocalCreditAssignment``."""
 
@@ -212,13 +222,7 @@ class LocalLearningGradientMixin:
                 grad_homeo = grad_homeo / float(batch_size)
             grad_g = grad_g + grad_homeo
 
-        if (
-            isinstance(role_synaptic_alignment, torch.Tensor)
-            and role_synaptic_alignment.size() == grad_g.size()
-        ):
-            grad_g = grad_g * role_synaptic_alignment.to(
-                device=grad_g.device, dtype=grad_g.dtype
-            )
+        grad_g = _apply_optional_alignment(grad_g, role_synaptic_alignment)
 
         chain = self._weight_transform_derivative(
             layer.pre_w.detach(),
@@ -294,13 +298,7 @@ class LocalLearningGradientMixin:
         if self.local_cfg.normalize_by_batch:
             grad_g = grad_g / float(batch_size)
 
-        if (
-            isinstance(role_synaptic_alignment, torch.Tensor)
-            and role_synaptic_alignment.size() == grad_g.size()
-        ):
-            grad_g = grad_g * role_synaptic_alignment.to(
-                device=grad_g.device, dtype=grad_g.dtype
-            )
+        grad_g = _apply_optional_alignment(grad_g, role_synaptic_alignment)
 
         voltage_homeo_error = self._compute_voltage_homeostasis_error(v_n)
         if voltage_homeo_error is not None:
@@ -417,13 +415,7 @@ class LocalLearningGradientMixin:
                 grad_homeo_den = grad_homeo_den * float(batch_size)
             grad_g_den = grad_g_den + grad_homeo_den
 
-        if (
-            isinstance(role_block_alignment, torch.Tensor)
-            and role_block_alignment.size() == grad_g_den.size()
-        ):
-            grad_g_den = grad_g_den * role_block_alignment.to(
-                device=grad_g_den.device, dtype=grad_g_den.dtype
-            )
+        grad_g_den = _apply_optional_alignment(grad_g_den, role_block_alignment)
 
         if self.local_cfg.morphology_aware.use_dendritic_normalization:
             grad_g_den = self._compute_dendritic_normalization(rec, grad_g_den)

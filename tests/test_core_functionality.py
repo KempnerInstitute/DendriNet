@@ -289,6 +289,9 @@ def test_dataloader_optimization_uses_workers_for_lazy_datasets(monkeypatch):
         def __getitem__(self, idx):
             return torch.zeros(3, 224, 224), torch.tensor(idx % 2)
 
+    monkeypatch.delenv("LOCAL_WORLD_SIZE", raising=False)
+    monkeypatch.delenv("OMPI_COMM_WORLD_LOCAL_SIZE", raising=False)
+    monkeypatch.delenv("MV2_COMM_WORLD_LOCAL_SIZE", raising=False)
     monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
     monkeypatch.setattr(
         "dendritic_modeling.training.dataloader_utils.visible_cpu_count",
@@ -299,6 +302,32 @@ def test_dataloader_optimization_uses_workers_for_lazy_datasets(monkeypatch):
 
     assert tuning.num_workers == 3
     assert tuning.pin_memory is False
+    assert tuning.persistent_workers is True
+
+
+def test_dataloader_auto_workers_share_cpus_across_local_ranks(monkeypatch):
+    """Auto worker selection should avoid multiplying workers by local DDP ranks."""
+
+    from dendritic_modeling.training.dataloader_utils import resolve_dataloader_tuning
+
+    class LazyDataset(torch.utils.data.Dataset):
+        def __len__(self):
+            return 16
+
+        def __getitem__(self, idx):
+            return torch.zeros(3, 224, 224), torch.tensor(idx % 2)
+
+    monkeypatch.setenv("LOCAL_WORLD_SIZE", "4")
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(
+        "dendritic_modeling.training.dataloader_utils.visible_cpu_count",
+        lambda: 16,
+    )
+
+    tuning = resolve_dataloader_tuning(LazyDataset(), device="cuda")
+
+    assert tuning.num_workers == 4
+    assert tuning.pin_memory is True
     assert tuning.persistent_workers is True
 
 

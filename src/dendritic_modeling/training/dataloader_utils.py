@@ -9,6 +9,12 @@ from typing import Any
 import torch
 from torch.utils.data import Dataset, Subset, TensorDataset
 
+_LOCAL_WORLD_SIZE_ENV_VARS = (
+    "LOCAL_WORLD_SIZE",
+    "OMPI_COMM_WORLD_LOCAL_SIZE",
+    "MV2_COMM_WORLD_LOCAL_SIZE",
+)
+
 
 @dataclass(frozen=True)
 class DataLoaderTuning:
@@ -43,6 +49,29 @@ def visible_cpu_count() -> int:
     return max(1, available_cpus)
 
 
+def _local_process_count() -> int:
+    """Return the number of training processes sharing this node, if known."""
+    for env_name in _LOCAL_WORLD_SIZE_ENV_VARS:
+        raw_value = os.environ.get(env_name)
+        if raw_value is None:
+            continue
+        try:
+            value = int(raw_value)
+        except ValueError:
+            continue
+        if value > 0:
+            return value
+    return 1
+
+
+def _auto_worker_cpu_budget(available_cpus: int) -> int:
+    """Return the CPU budget for auto worker selection on the current process."""
+    local_processes = _local_process_count()
+    if local_processes <= 1:
+        return max(1, available_cpus)
+    return max(0, available_cpus // local_processes)
+
+
 def _base_dataset(dataset: Dataset) -> Dataset:
     while isinstance(dataset, Subset):
         dataset = dataset.dataset
@@ -65,10 +94,11 @@ def auto_num_workers_for_dataset(
         return 0
 
     cpus = visible_cpu_count() if available_cpus is None else max(1, available_cpus)
+    worker_cpu_budget = _auto_worker_cpu_budget(cpus)
     use_cuda = torch.cuda.is_available() if cuda_available is None else cuda_available
     if use_cuda:
-        return min(16, cpus)
-    return min(8, max(0, cpus - 1))
+        return min(16, worker_cpu_budget)
+    return min(8, max(0, worker_cpu_budget - 1))
 
 
 def _resolve_num_workers(
