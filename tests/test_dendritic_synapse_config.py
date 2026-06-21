@@ -5,6 +5,9 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic i
     DendriNet,
     DendriticBranchLayer,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.ei_layer import (
+    ExcitationInhibitionLayer,
+)
 from dendritic_modeling.networks.architectures.recurrent.ei_config import (
     PopulationConfig,
 )
@@ -224,6 +227,55 @@ def test_population_config_builds_equivalent_synapse_config():
         if hasattr(population, key):
             assert value == getattr(population, key)
     assert kwargs["dendritic_activation"] is None
+
+
+def test_ei_layer_typed_config_matches_legacy_kwargs_numerically():
+    geometry_kwargs = {
+        "n_excitatory_cells": 4,
+        "n_inhibitory_cells": 3,
+        "excitatory_branch_factors": [1],
+        "inhibitory_branch_factors": [1],
+        "excitatory_input_dim": 6,
+        "inhibitory_input_dim": 6,
+        "ee_synapses_per_branch": 2,
+        "ei_synapses_per_branch": 2,
+        "ie_synapses_per_branch": 1,
+        "ii_synapses_per_branch": 1,
+        "build_inhibitory_cells": True,
+        "inhibitory_network_type": "dendritic",
+        "somatic_synapses": True,
+    }
+    legacy_synapse_kwargs = {
+        "topk_type": "standard",
+        "topk_init_method": "xavier_normal",
+        "topk_gamma": 0.9,
+        "reactivate": False,
+        "use_shunting": False,
+        "weight_transform": "softplus",
+        "dbl_init_method": "default",
+        "adaptive_initialization": False,
+    }
+
+    torch.manual_seed(456)
+    legacy_layer = ExcitationInhibitionLayer(
+        **geometry_kwargs,
+        **legacy_synapse_kwargs,
+    )
+    torch.manual_seed(456)
+    typed_layer = ExcitationInhibitionLayer(
+        **geometry_kwargs,
+        synapse_config=DendriticSynapseConfig.from_kwargs(legacy_synapse_kwargs),
+    )
+
+    _assert_state_dict_exact(legacy_layer.state_dict(), typed_layer.state_dict())
+
+    x = torch.rand(5, 6)
+    inhibitory = torch.rand(5, 6)
+    legacy_exc, legacy_inh = legacy_layer(x, inhibitory)
+    typed_exc, typed_inh = typed_layer(x, inhibitory)
+
+    torch.testing.assert_close(legacy_exc, typed_exc, rtol=0.0, atol=0.0)
+    torch.testing.assert_close(legacy_inh, typed_inh, rtol=0.0, atol=0.0)
 
 
 def test_dendrinet_passes_legacy_synapse_kwargs_through_typed_config():

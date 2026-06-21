@@ -11,6 +11,7 @@ This module tests all analysis functionality including:
 
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -48,6 +49,7 @@ from dendritic_modeling.analysis import (
 )
 from dendritic_modeling.analysis.core.ablation import AblationAnalyzer
 from dendritic_modeling.analysis.core.information import InformationAnalyzer
+from dendritic_modeling.analysis.registry import get_analyzer_spec
 from dendritic_modeling.analysis.tools import SynapticActivationAnalyzer
 from dendritic_modeling.config import (
     AblationAnalysisParams,
@@ -490,6 +492,90 @@ class TestAnalysisManager(unittest.TestCase):
         self.assertIsInstance(self.manager, AnalysisManager)
         self.assertEqual(self.manager.model, self.model)
         self.assertEqual(self.manager.data, self.data)
+
+    def test_manager_initializer_uses_registered_attribute_names(self):
+        """Enabled analyzers should be exposed at registry-declared attributes."""
+        spec = get_analyzer_spec("performance")
+
+        assert spec is not None
+        self.assertTrue(hasattr(self.manager, spec.attribute_name))
+        self.assertIs(
+            self.manager.performance_analyzer,
+            getattr(self.manager, spec.attribute_name),
+        )
+        self.assertFalse(self.manager.correlation_analysis_enabled)
+
+    def test_manager_initializes_optional_analyzer_constructor_styles(self):
+        """Registry-backed initialization supports params, model+params, and no params."""
+        config = AnalysisConfig()
+        config.synapse_turnover_analysis.enabled = True
+        config.correlation_analysis.enabled = True
+        config.routing_analysis.enabled = True
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manager = AnalysisManager(
+                model=self.model,
+                data=self.data,
+                analysis_config=config,
+                save_root=tmpdir,
+            )
+
+        self.assertTrue(hasattr(manager, "syn_turnover_analyzer"))
+        self.assertTrue(hasattr(manager, "correlation_analyzer"))
+        self.assertTrue(hasattr(manager, "routing_analyzer"))
+        self.assertTrue(manager.correlation_analysis_enabled)
+
+    def test_should_run_config_matches_training_phase_rules(self):
+        """Shared analysis gate should preserve final/training behavior."""
+        cfg = self.analysis_config.performance_analysis
+        cfg.enabled = True
+        cfg.training = False
+
+        self.assertTrue(AnalysisManager._should_run_config(cfg, training=False))
+        self.assertFalse(AnalysisManager._should_run_config(cfg, training=True))
+
+        cfg.training = True
+        self.assertTrue(AnalysisManager._should_run_config(cfg, training=True))
+
+        cfg.enabled = False
+        self.assertFalse(AnalysisManager._should_run_config(cfg, training=False))
+        self.assertFalse(AnalysisManager._should_run_config(None, training=False))
+
+    def test_training_performance_analysis_uses_epoch_path_and_gate(self):
+        """Training analysis should remain opt-in and keep the epoch save path."""
+        config = AnalysisConfig()
+        config.performance_analysis.enabled = True
+        config.performance_analysis.training = False
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manager = AnalysisManager(
+                model=self.model,
+                data=self.data,
+                analysis_config=config,
+                save_root=tmpdir,
+            )
+
+            with patch.object(manager, "performance_analyzer") as mock_analyzer:
+                manager.run_analysis(filename="epoch_0", training=True)
+                mock_analyzer.analyze.assert_not_called()
+
+            config.performance_analysis.training = True
+            manager = AnalysisManager(
+                model=self.model,
+                data=self.data,
+                analysis_config=config,
+                save_root=tmpdir,
+            )
+
+            with patch.object(manager, "performance_analyzer") as mock_analyzer:
+                manager.run_analysis(filename="epoch_0", training=True)
+
+            expected_path = Path(tmpdir) / "performance" / "epochs"
+            mock_analyzer.analyze.assert_called_once()
+            call_kwargs = mock_analyzer.analyze.call_args.kwargs
+            self.assertEqual(call_kwargs["save_path"], str(expected_path))
+            self.assertTrue(expected_path.is_dir())
+            self.assertTrue(call_kwargs["training"])
 
     def test_run_performance_analysis(self):
         """Test running performance analysis through manager."""

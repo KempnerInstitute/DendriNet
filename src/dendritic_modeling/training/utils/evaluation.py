@@ -327,7 +327,7 @@ def _make_eval_loader(
     pin_memory: bool = True,
     device: str = "cpu",
     persistent_workers: bool = False,
-    prefetch_factor: int = 2,
+    prefetch_factor: Optional[int] = 2,
     **_extra,
 ) -> DataLoader:
     """Build a DataLoader suitable for evaluation (no shuffle, no drop_last)."""
@@ -407,7 +407,7 @@ def _evaluate_metric_generic(
     eval_num_workers: int = 4,
     eval_pin_memory: bool = True,
     eval_persistent_workers: bool = False,
-    eval_prefetch_factor: int = 2,
+    eval_prefetch_factor: Optional[int] = 2,
     eval_max_batches: Optional[int] = None,
     eval_materialize_threshold_mb: float = 1024,
     **metric_kwargs,

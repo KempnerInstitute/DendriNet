@@ -9,6 +9,7 @@ import torch.nn as nn
 
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic import (
     DendriNet,
+    DendriticSynapseConfig,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.ei_layer import (
     ExcitationInhibitionLayer,
@@ -101,6 +102,64 @@ class DendriticFFNReplacement(TokenReplacementCell):
         branch_factors = _as_list(branch_factors)
         synapses_per_branch = int(synapses_per_branch)
         input_dim = transformed_feature_dim(hidden_size, input_transform)
+        synapse_config = DendriticSynapseConfig.from_kwargs(
+            {
+                "topk_init_method": topk_init_method,
+                "topk_noise_level": topk_noise_level,
+                "topk_type": topk_type,
+                "topk_temperature": topk_temperature,
+                "topk_ultrafast": topk_ultrafast,
+                "topk_weight_norm_order": topk_weight_norm_order,
+                "topk_gamma": topk_gamma,
+                "dense_to_sparse_initial_density": (dense_to_sparse_initial_density),
+                "dense_to_sparse_initial_k": dense_to_sparse_initial_k,
+                "dense_to_sparse_start_step": dense_to_sparse_start_step,
+                "dense_to_sparse_end_step": dense_to_sparse_end_step,
+                "dense_to_sparse_update_interval": (dense_to_sparse_update_interval),
+                "dense_to_sparse_schedule": dense_to_sparse_schedule,
+                "dense_to_sparse_freeze_on_end": dense_to_sparse_freeze_on_end,
+                "dense_to_sparse_advance_on_forward": (
+                    dense_to_sparse_advance_on_forward
+                ),
+                "dense_to_sparse_prune_metric": dense_to_sparse_prune_metric,
+                "indexed_seed": indexed_seed,
+                "indexed_candidate_size": indexed_candidate_size,
+                "indexed_selection": indexed_selection,
+                "indexed_output_chunk_size": indexed_output_chunk_size,
+                "indexed_rewire_frequency": indexed_rewire_frequency,
+                "indexed_rewire_quantile": indexed_rewire_quantile,
+                "indexed_rewire_until_step": indexed_rewire_until_step,
+                "use_shunting": use_shunting,
+                "use_additive_normalization": use_additive_normalization,
+                "reactivate": reactivate,
+                "reactivation_type": reactivation_type,
+                "reactivation_init_m": reactivation_init_m,
+                "reactivation_init_b": reactivation_init_b,
+                "reactivation_init_policy": reactivation_init_policy,
+                "reactivation_occupancy_quantile_low": (
+                    reactivation_occupancy_quantile_low
+                ),
+                "reactivation_occupancy_quantile_high": (
+                    reactivation_occupancy_quantile_high
+                ),
+                "reactivation_occupancy_target_low": (
+                    reactivation_occupancy_target_low
+                ),
+                "reactivation_occupancy_target_high": (
+                    reactivation_occupancy_target_high
+                ),
+                "reactivation_calibration_min_quantile_width": (
+                    reactivation_calibration_min_quantile_width
+                ),
+                "reactivation_calibration_max_m": reactivation_calibration_max_m,
+                "reactivation_calibration_revert_on_invalid": (
+                    reactivation_calibration_revert_on_invalid
+                ),
+                "reactivation_sigma_aware_k": reactivation_sigma_aware_k,
+                "weight_transform": weight_transform,
+                "efficient_blocklinear": bool(efficient_blocklinear),
+            }
+        )
         core = DendriNet(
             n_soma=dendritic_units,
             branch_factors=branch_factors,
@@ -108,51 +167,8 @@ class DendriticFFNReplacement(TokenReplacementCell):
             excitatory_synapses_per_branch=synapses_per_branch,
             inhibitory_input_dim=None,
             inhibitory_synapses_per_branch=None,
-            reactivate=reactivate,
             somatic_synapses=bool(somatic_synapses),
-            topk_init_method=topk_init_method,
-            topk_noise_level=topk_noise_level,
-            topk_type=topk_type,
-            topk_temperature=topk_temperature,
-            topk_ultrafast=topk_ultrafast,
-            topk_weight_norm_order=topk_weight_norm_order,
-            topk_gamma=topk_gamma,
-            dense_to_sparse_initial_density=dense_to_sparse_initial_density,
-            dense_to_sparse_initial_k=dense_to_sparse_initial_k,
-            dense_to_sparse_start_step=dense_to_sparse_start_step,
-            dense_to_sparse_end_step=dense_to_sparse_end_step,
-            dense_to_sparse_update_interval=dense_to_sparse_update_interval,
-            dense_to_sparse_schedule=dense_to_sparse_schedule,
-            dense_to_sparse_freeze_on_end=dense_to_sparse_freeze_on_end,
-            dense_to_sparse_advance_on_forward=dense_to_sparse_advance_on_forward,
-            dense_to_sparse_prune_metric=dense_to_sparse_prune_metric,
-            weight_transform=weight_transform,
-            use_shunting=use_shunting,
-            use_additive_normalization=use_additive_normalization,
-            reactivation_type=reactivation_type,
-            reactivation_init_m=reactivation_init_m,
-            reactivation_init_b=reactivation_init_b,
-            reactivation_init_policy=reactivation_init_policy,
-            reactivation_occupancy_quantile_low=reactivation_occupancy_quantile_low,
-            reactivation_occupancy_quantile_high=reactivation_occupancy_quantile_high,
-            reactivation_occupancy_target_low=reactivation_occupancy_target_low,
-            reactivation_occupancy_target_high=reactivation_occupancy_target_high,
-            reactivation_calibration_min_quantile_width=(
-                reactivation_calibration_min_quantile_width
-            ),
-            reactivation_calibration_max_m=reactivation_calibration_max_m,
-            reactivation_calibration_revert_on_invalid=(
-                reactivation_calibration_revert_on_invalid
-            ),
-            reactivation_sigma_aware_k=reactivation_sigma_aware_k,
-            indexed_seed=indexed_seed,
-            indexed_candidate_size=indexed_candidate_size,
-            indexed_selection=indexed_selection,
-            indexed_output_chunk_size=indexed_output_chunk_size,
-            indexed_rewire_frequency=indexed_rewire_frequency,
-            indexed_rewire_quantile=indexed_rewire_quantile,
-            indexed_rewire_until_step=indexed_rewire_until_step,
-            efficient_blocklinear=bool(efficient_blocklinear),
+            synapse_config=synapse_config,
         )
 
         super().__init__(

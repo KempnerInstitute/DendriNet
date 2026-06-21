@@ -10,6 +10,7 @@ from unittest.mock import Mock, patch
 import pytest
 import torch
 import torch.nn as nn
+from torch.utils.data import TensorDataset
 
 from dendritic_modeling.scripts.training.train_experiments_fsdp import (
     _dataloader_kwargs_from_common,
@@ -42,6 +43,56 @@ def test_fsdp_dataloader_kwargs_from_common_config():
         "pin_memory": False,
         "persistent_workers": True,
         "prefetch_factor": 3,
+    }
+
+
+def test_fsdp_dataloader_kwargs_auto_avoids_workers_for_tensor_data():
+    """FSDP auto tuning should avoid worker overhead for tensor-backed datasets."""
+    common = SimpleNamespace(
+        num_workers=None,
+        pin_memory=None,
+        persistent_workers=None,
+        prefetch_factor=None,
+    )
+    dataset = TensorDataset(torch.randn(8, 3), torch.randint(0, 2, (8,)))
+
+    kwargs = _dataloader_kwargs_from_common(common, dataset, device="cpu")
+
+    assert kwargs == {
+        "num_workers": 0,
+        "pin_memory": False,
+        "persistent_workers": False,
+    }
+
+
+def test_fsdp_dataloader_kwargs_auto_keeps_workers_for_lazy_data(monkeypatch):
+    """FSDP auto tuning should keep workers for lazy image/file-backed datasets."""
+
+    class LazyDataset(torch.utils.data.Dataset):
+        def __len__(self):
+            return 16
+
+        def __getitem__(self, idx):
+            return torch.zeros(3, 224, 224), torch.tensor(idx % 2)
+
+    common = SimpleNamespace(
+        num_workers=None,
+        pin_memory=None,
+        persistent_workers=None,
+        prefetch_factor=None,
+    )
+    monkeypatch.setattr(
+        "dendritic_modeling.training.dataloader_utils.visible_cpu_count",
+        lambda: 4,
+    )
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+
+    kwargs = _dataloader_kwargs_from_common(common, LazyDataset(), device="cpu")
+
+    assert kwargs == {
+        "num_workers": 3,
+        "pin_memory": False,
+        "persistent_workers": True,
     }
 
 

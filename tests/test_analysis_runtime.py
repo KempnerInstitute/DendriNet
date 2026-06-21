@@ -3,11 +3,12 @@ import warnings
 import torch
 import yaml
 from torch import nn
-from torch.utils.data import Dataset, TensorDataset
+from torch.utils.data import DataLoader, Dataset, TensorDataset
 
 from dendritic_modeling.analysis.metrics.performance import PerformanceAnalyzer
 from dendritic_modeling.analysis.utils.runtime import (
     analysis_device_context,
+    evaluation_kwargs_from_runtime,
     iter_analysis_batches,
     materialize_dataset,
 )
@@ -15,6 +16,7 @@ from dendritic_modeling.config import load_config
 from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.models.classifier import Classifier
 from dendritic_modeling.networks.architectures.classical.identity import Identity
+from dendritic_modeling.training.utils import evaluation as evaluation_utils
 
 
 class NoSliceDataset(Dataset):
@@ -67,6 +69,32 @@ def test_legacy_performance_runtime_maps_to_shared_runtime(tmp_path):
     assert cfg.analysis.runtime.final.mode == "materialize"
     assert cfg.analysis.performance_analysis.training_splits == ["valid"]
     assert cfg.analysis.performance_analysis.final_splits == ["test"]
+
+
+def test_evaluation_kwargs_preserve_worker_runtime_options():
+    runtime = EvaluationRuntimeConfig(
+        mode="stream",
+        batch_size=16,
+        num_workers=2,
+        pin_memory=False,
+        persistent_workers=True,
+        prefetch_factor=5,
+        max_batches=3,
+        materialize_threshold_mb=128,
+    )
+
+    kwargs = evaluation_kwargs_from_runtime(runtime)
+
+    assert kwargs == {
+        "eval_mode": "stream",
+        "eval_batch_size": 16,
+        "eval_num_workers": 2,
+        "eval_pin_memory": False,
+        "eval_persistent_workers": True,
+        "eval_prefetch_factor": 5,
+        "eval_max_batches": 3,
+        "eval_materialize_threshold_mb": 128,
+    }
 
 
 def test_single_gpu_without_runtime_defaults_to_materialize(tmp_path):
@@ -255,6 +283,59 @@ def test_performance_stream_on_cpu_emits_no_pin_memory_warning():
         str(w.message) for w in caught if "pin_memory" in str(w.message)
     ]
     assert not pin_memory_warnings
+
+
+def test_performance_stream_forwards_worker_runtime_options(monkeypatch):
+    x = torch.randn(32, 3)
+    y = x.argmax(dim=-1)
+    dataset = TensorDataset(x, y)
+    model = Classifier(
+        encoder_network=Identity(3),
+        core_network=Identity(3),
+        decoder_network=Identity(3),
+    )
+    analyzer = PerformanceAnalyzer(
+        type(
+            "Params",
+            (),
+            {
+                "accuracy": True,
+                "auc": False,
+                "categorical_loglikelihood": False,
+                "mse": False,
+                "cosine_similarity": False,
+            },
+        )()
+    )
+    recorded_kwargs = {}
+
+    def recording_loader(dataset, **kwargs):
+        recorded_kwargs.update(kwargs)
+        return DataLoader(dataset, batch_size=kwargs["batch_size"], shuffle=False)
+
+    monkeypatch.setattr(evaluation_utils, "_make_eval_loader", recording_loader)
+
+    runtime = EvaluationRuntimeConfig(
+        mode="stream",
+        batch_size=8,
+        num_workers=2,
+        pin_memory=False,
+        persistent_workers=True,
+        prefetch_factor=5,
+    )
+    analyzer.analyze(
+        model=model,
+        test_ds=dataset,
+        device="cpu",
+        runtime=runtime,
+        splits=["test"],
+    )
+
+    assert recorded_kwargs["batch_size"] == 8
+    assert recorded_kwargs["num_workers"] == 2
+    assert recorded_kwargs["pin_memory"] is False
+    assert recorded_kwargs["persistent_workers"] is True
+    assert recorded_kwargs["prefetch_factor"] == 5
 
 
 def test_iter_analysis_batches_materialize_yields_single_full_batch():

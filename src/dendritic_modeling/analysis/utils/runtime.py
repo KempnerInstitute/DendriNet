@@ -172,6 +172,8 @@ def evaluation_kwargs_from_runtime(
         "eval_batch_size": runtime.batch_size,
         "eval_num_workers": runtime.num_workers,
         "eval_pin_memory": runtime.pin_memory,
+        "eval_persistent_workers": runtime.persistent_workers,
+        "eval_prefetch_factor": runtime.prefetch_factor,
         "eval_max_batches": runtime.max_batches,
         "eval_materialize_threshold_mb": runtime.materialize_threshold_mb,
     }

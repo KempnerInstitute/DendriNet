@@ -36,7 +36,7 @@ os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
 import torch
 import torch.distributed as dist
-from torch.utils.data import DataLoader, DistributedSampler
+from torch.utils.data import DataLoader, Dataset, DistributedSampler
 
 from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.config import load_config
@@ -56,6 +56,10 @@ from dendritic_modeling.scripts.script_utils.setup_utils import (
 )
 from dendritic_modeling.scripts.training.train_encoder_network import (
     load_train_encoder_network,
+)
+from dendritic_modeling.training.dataloader_utils import (
+    resolve_dataloader_tuning,
+    visible_cpu_count,
 )
 from dendritic_modeling.training.fsdp_utils import get_fsdp_config, save_fsdp_checkpoint
 from dendritic_modeling.training.strategies.fsdp_standard import (
@@ -304,49 +308,39 @@ def _get_analysis_encoder_network(encoder_network):
     return encoder_network
 
 
-def _dataloader_kwargs_from_common(common_config) -> dict:
+class _FSDPLoaderTuningDataset(Dataset):
+    """Placeholder used only for backwards-compatible helper calls."""
+
+    def __len__(self) -> int:
+        return 1
+
+    def __getitem__(self, index: int) -> tuple[torch.Tensor, torch.Tensor]:
+        del index
+        return torch.empty(0), torch.empty(0, dtype=torch.long)
+
+
+def _dataloader_kwargs_from_common(
+    common_config,
+    dataset: Dataset | None = None,
+    *,
+    device: torch.device | str | None = None,
+) -> dict:
     """Build validated DataLoader kwargs from training.main.common."""
-    available_cpus = os.cpu_count() or 1
-    if hasattr(os, "sched_getaffinity"):
-        try:
-            available_cpus = len(os.sched_getaffinity(0))
-        except OSError:
-            pass
-
     num_workers = getattr(common_config, "num_workers", None)
-    if num_workers is None:
-        num_workers = min(4, available_cpus)
-    else:
-        num_workers = max(0, int(num_workers))
-        num_workers = min(num_workers, available_cpus)
+    if dataset is None and num_workers is None:
+        # Preserve the historical standalone helper default.  Real call sites
+        # pass a dataset so shared tuning can choose tensor-vs-file loading.
+        num_workers = min(4, visible_cpu_count())
 
-    pin_memory_cfg = getattr(common_config, "pin_memory", None)
-    pin_memory = (
-        bool(pin_memory_cfg)
-        if pin_memory_cfg is not None
-        else torch.cuda.is_available() and num_workers > 0
+    tuning = resolve_dataloader_tuning(
+        dataset if dataset is not None else _FSDPLoaderTuningDataset(),
+        device=device,
+        num_workers=num_workers,
+        pin_memory=getattr(common_config, "pin_memory", None),
+        persistent_workers=getattr(common_config, "persistent_workers", None),
+        prefetch_factor=getattr(common_config, "prefetch_factor", None),
     )
-
-    persistent_cfg = getattr(common_config, "persistent_workers", None)
-    if persistent_cfg is None:
-        persistent_workers = num_workers > 0
-    else:
-        persistent_workers = bool(persistent_cfg)
-        if persistent_workers and num_workers == 0:
-            raise ValueError("persistent_workers=True requires num_workers > 0")
-
-    prefetch_factor = getattr(common_config, "prefetch_factor", None)
-    if prefetch_factor is not None and num_workers == 0:
-        raise ValueError("prefetch_factor requires num_workers > 0")
-
-    kwargs = {
-        "num_workers": num_workers,
-        "pin_memory": pin_memory,
-        "persistent_workers": persistent_workers,
-    }
-    if prefetch_factor is not None:
-        kwargs["prefetch_factor"] = max(1, int(prefetch_factor))
-    return kwargs
+    return tuning.as_kwargs()
 
 
 def setup_data_loaders(config, rank, world_size):
@@ -399,7 +393,11 @@ def setup_data_loaders(config, rank, world_size):
 
     # Create data loaders
     batch_size = config.training.main.common.batch_size
-    loader_kwargs = _dataloader_kwargs_from_common(config.training.main.common)
+    loader_kwargs = _dataloader_kwargs_from_common(
+        config.training.main.common,
+        train_ds,
+        device="cuda" if torch.cuda.is_available() else "cpu",
+    )
 
     train_loader = DataLoader(
         train_ds,

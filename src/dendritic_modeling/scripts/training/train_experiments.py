@@ -37,6 +37,7 @@ import torch.distributed as dist
 import torchinfo
 import wandb
 from omegaconf import DictConfig, OmegaConf
+from torch.utils.data import DataLoader
 
 from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.config import load_config
@@ -57,6 +58,7 @@ from dendritic_modeling.scripts.training.train_encoder_network import (
     load_train_encoder_network,
 )
 from dendritic_modeling.training import CustomWeightDecayOptimizer, get_trainer
+from dendritic_modeling.training.dataloader_utils import resolve_dataloader_tuning
 from dendritic_modeling.training.optimizers import create_optimizer
 from dendritic_modeling.utils import save_dict
 from dendritic_modeling.utils.training_stability_validator import (
@@ -173,15 +175,28 @@ def _maybe_calibrate_data_driven_reactivation(
 
     print(f"[reactivation-calibration] init_policy={policy_msg}", flush=True)
 
-    from torch.utils.data import DataLoader
-
     device = next(model.parameters()).device
     # Don't pass a global k — let each layer use its own
     # reactivation_sigma_aware_k (threaded by the factory from config).
     # This respects per-population overrides in unified_ei / recurrent configs.
 
+    common_config = getattr(
+        getattr(getattr(config, "training", None), "main", None), "common", None
+    )
+    loader_tuning = resolve_dataloader_tuning(
+        train_dataset,
+        device=device,
+        num_workers=getattr(common_config, "num_workers", None),
+        pin_memory=getattr(common_config, "pin_memory", None),
+        persistent_workers=getattr(common_config, "persistent_workers", None),
+        prefetch_factor=getattr(common_config, "prefetch_factor", None),
+    )
     loader = DataLoader(
-        train_dataset, batch_size=batch_size, shuffle=True, drop_last=True
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        drop_last=True,
+        **loader_tuning.as_kwargs(),
     )
     is_recurrent = getattr(model, "_is_recurrent_core", False)
     batches = []

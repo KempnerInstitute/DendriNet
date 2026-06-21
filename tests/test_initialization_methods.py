@@ -510,6 +510,84 @@ class TestEmpiricalCalibration:
         mock_calibrate.assert_called_once()
         assert mock_calibrate.call_args.kwargs["mode"] is None
 
+    def test_maybe_calibrate_tunes_loader_for_lazy_dataset(self, monkeypatch):
+        """Init calibration should use worker loading for lazy image/file data."""
+
+        class DummyCore:
+            pass
+
+        class DummyModelCfg:
+            core = DummyCore()
+
+        class DummyCommon:
+            num_workers = None
+            pin_memory = None
+            persistent_workers = None
+            prefetch_factor = None
+
+        class DummyMain:
+            common = DummyCommon()
+
+        class DummyTraining:
+            main = DummyMain()
+
+        class DummyConfig:
+            model = DummyModelCfg()
+            training = DummyTraining()
+
+        class PolicyModule(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.reactivation_init_policy = "quantile"
+                self.weight = torch.nn.Parameter(torch.zeros(1))
+
+        class LazyDataset(torch.utils.data.Dataset):
+            def __len__(self):
+                return 16
+
+            def __getitem__(self, idx):
+                return torch.zeros(4), torch.tensor(idx % 2)
+
+        recorded_kwargs = {}
+
+        class RecordingDataLoader:
+            def __init__(self, dataset, **kwargs):
+                del dataset
+                recorded_kwargs.update(kwargs)
+
+            def __iter__(self):
+                yield torch.zeros(4, 4), torch.zeros(4, dtype=torch.long)
+
+        monkeypatch.setattr(
+            "dendritic_modeling.training.dataloader_utils.visible_cpu_count",
+            lambda: 4,
+        )
+        monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+        monkeypatch.setattr(
+            "dendritic_modeling.scripts.training.train_experiments.DataLoader",
+            RecordingDataLoader,
+        )
+
+        with patch(
+            "dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize.calibrate_reactivation_from_data"
+        ) as mock_calibrate:
+            mock_calibrate.return_value = {"layer": {"m": 1.0, "b": 0.0, "V_std": 1.0}}
+            _maybe_calibrate_data_driven_reactivation(
+                config=DummyConfig(),
+                model=PolicyModule(),
+                train_dataset=LazyDataset(),
+                is_main=False,
+                n_batches=1,
+                batch_size=4,
+                n_iterations=1,
+            )
+
+        mock_calibrate.assert_called_once()
+        assert recorded_kwargs["num_workers"] == 3
+        assert recorded_kwargs["pin_memory"] is False
+        assert recorded_kwargs["persistent_workers"] is True
+        assert "prefetch_factor" not in recorded_kwargs
+
     def test_maybe_calibrate_ignores_stale_config_when_layer_policies_exist(self):
         """Built module policies should override stale YAML-level init policy."""
 
