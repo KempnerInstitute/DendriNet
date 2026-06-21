@@ -10,9 +10,15 @@ from torch.utils.data import TensorDataset
 from dendritic_modeling.analysis.tools.local_rule_components import (
     LocalRuleComponentAnalyzer,
     _activation_derivative_for_record,
+    _active_presynaptic_values_for_layer,
+    _add_component_values,
     _branch_record_for_module,
+    _component_key_from_record,
+    _ComponentKey,
+    _delta_out_for_outputs,
     _depth_labels_for_records,
     _population_label_for_module_name,
+    _total_conductance_for_record,
 )
 from dendritic_modeling.config.analysis import LocalRuleComponentAnalysisParams
 from dendritic_modeling.networks import DendriticBranchLayer, TopKLinear
@@ -24,6 +30,21 @@ class _LayerWithReactivation(nn.Module):
         super().__init__()
         if reactivation is not None:
             self.reactivation = reactivation
+
+
+class _LayerWithShunting(nn.Module):
+    def __init__(self, use_shunting: bool) -> None:
+        super().__init__()
+        self.use_shunting = use_shunting
+
+
+class _BlockConductanceModule(nn.Module):
+    def __init__(self, conductances: torch.Tensor) -> None:
+        super().__init__()
+        self.conductances = nn.Parameter(conductances)
+
+    def sum_conductances(self) -> torch.Tensor:
+        return self.conductances
 
 
 class _FeedforwardBranchModel(nn.Module):
@@ -59,6 +80,19 @@ def _branch_at_depth(depth: int) -> DendriticBranchLayer:
     )
     layer.layer_idx = depth
     return layer
+
+
+def _component_key(component: str = "branch_voltage") -> _ComponentKey:
+    return _ComponentKey(
+        module_name="branch",
+        population="excitatory",
+        branch_module_index=0,
+        dendritic_depth=1,
+        depth_label="distal",
+        synapse_type="branch",
+        component=component,
+        used_in_rule=True,
+    )
 
 
 def test_local_rule_component_depth_labels_preserve_depth_ordering() -> None:
@@ -225,6 +259,347 @@ def test_local_rule_component_activation_derivative_method_uses_shared_helper() 
     assert torch.equal(
         analyzer._activation_derivative(rec),
         _activation_derivative_for_record(rec),
+    )
+
+
+def test_local_rule_component_total_conductance_preserves_non_shunting() -> None:
+    v_n = torch.zeros(2, 3)
+    rec = {
+        "layer": _LayerWithShunting(False),
+        "exc_out": torch.tensor([[10.0, 0.0, -1.0], [2.0, 3.0, 4.0]]),
+        "inh_out": torch.tensor([[1.0, 2.0, 3.0], [-1.0, -2.0, -3.0]]),
+    }
+
+    conductance = _total_conductance_for_record(rec, v_n)
+
+    assert torch.equal(conductance, torch.ones_like(v_n))
+
+
+def test_local_rule_component_total_conductance_preserves_shunting_terms() -> None:
+    v_n = torch.zeros(2, 3)
+    exc_out = torch.tensor([[0.5, -0.5, 2.0], [1.0, -2.0, 3.0]])
+    inh_out = torch.tensor([[-1.0, 0.25, 0.0], [4.0, -5.0, 0.5]])
+    rec = {
+        "layer": _LayerWithShunting(True),
+        "exc_out": exc_out,
+        "inh_out": inh_out,
+    }
+
+    conductance = _total_conductance_for_record(rec, v_n)
+
+    assert torch.equal(
+        conductance, torch.ones_like(v_n) + exc_out.relu() + inh_out.relu()
+    )
+
+
+def test_local_rule_component_total_conductance_broadcasts_block_conductances() -> None:
+    v_n = torch.zeros(2, 3)
+    block = _BlockConductanceModule(torch.tensor([-1.0, 0.5, 2.0]))
+    rec = {
+        "layer": _LayerWithShunting(True),
+        "blk_module": block,
+    }
+
+    conductance = _total_conductance_for_record(rec, v_n)
+
+    expected = torch.ones_like(v_n) + torch.tensor([[0.0, 0.5, 2.0]]).expand_as(v_n)
+    assert torch.equal(conductance, expected)
+    assert not conductance.requires_grad
+
+
+def test_local_rule_component_total_conductance_method_uses_shared_helper() -> None:
+    analyzer = LocalRuleComponentAnalyzer(LocalRuleComponentAnalysisParams())
+    v_n = torch.zeros(1, 2)
+    rec = {
+        "layer": _LayerWithShunting(True),
+        "exc_out": torch.tensor([[0.25, 0.5]]),
+    }
+
+    assert torch.equal(
+        analyzer._total_conductance(rec, v_n),
+        _total_conductance_for_record(rec, v_n),
+    )
+
+
+def test_local_rule_component_active_presynaptic_values_preserve_topk_order() -> None:
+    layer = TopKLinear(in_features=4, out_features=2, K=2)
+    x = torch.tensor([[10.0, 20.0, 30.0, 40.0], [1.0, 2.0, 3.0, 4.0]])
+    mask = torch.tensor([[0.0, 2.0, 0.0, 1.0], [1.0, 0.0, 3.0, 0.0]])
+
+    active_values, active_mask = _active_presynaptic_values_for_layer(x, layer, mask)
+
+    expected_values = torch.tensor(
+        [
+            [[20.0, 40.0], [30.0, 10.0]],
+            [[2.0, 4.0], [3.0, 1.0]],
+        ]
+    )
+    assert torch.equal(active_values, expected_values)
+    assert torch.equal(active_mask, torch.ones(2, 2, dtype=torch.bool))
+
+
+def test_local_rule_component_active_presynaptic_values_preserve_inactive_padding() -> (
+    None
+):
+    layer = TopKLinear(in_features=4, out_features=2, K=2)
+    x = torch.tensor([[10.0, 20.0, 30.0, 40.0]])
+    mask = torch.tensor([[0.0, 2.0, 0.0, 1.0], [0.0, 0.0, 3.0, 0.0]])
+
+    active_values, active_mask = _active_presynaptic_values_for_layer(x, layer, mask)
+
+    assert active_values.shape == (1, 2, 2)
+    assert torch.equal(active_values[:, 0], torch.tensor([[20.0, 40.0]]))
+    assert torch.equal(active_values[:, 1, 0], torch.tensor([30.0]))
+    assert torch.equal(
+        active_mask,
+        torch.tensor([[True, True], [True, False]]),
+    )
+
+
+def test_local_rule_component_active_presynaptic_values_flattens_inputs() -> None:
+    layer = TopKLinear(in_features=4, out_features=1, K=2)
+    x = torch.tensor([[[1.0, 2.0], [3.0, 4.0]]])
+    mask = torch.tensor([[0.0, 1.0, 0.0, 2.0]])
+
+    active_values, active_mask = _active_presynaptic_values_for_layer(x, layer, mask)
+
+    assert torch.equal(active_values, torch.tensor([[[4.0, 2.0]]]))
+    assert torch.equal(active_mask, torch.tensor([[True, True]]))
+
+
+def test_local_rule_component_active_presynaptic_values_handles_missing_active_inputs() -> (
+    None
+):
+    layer = TopKLinear(in_features=4, out_features=2, K=2)
+    x = torch.ones(2, 4)
+
+    active_values, active_mask = _active_presynaptic_values_for_layer(
+        x, layer, torch.zeros(2, 4)
+    )
+    assert active_values is None
+    assert active_mask is None
+
+    active_values, active_mask = _active_presynaptic_values_for_layer(
+        torch.ones(2, 3), layer, torch.ones(2, 4)
+    )
+    assert active_values is None
+    assert active_mask is None
+
+
+def test_local_rule_component_active_presynaptic_method_uses_shared_helper() -> None:
+    analyzer = LocalRuleComponentAnalyzer(LocalRuleComponentAnalysisParams())
+    layer = TopKLinear(in_features=4, out_features=1, K=2)
+    x = torch.tensor([[1.0, 2.0, 3.0, 4.0]])
+    mask = torch.tensor([[0.0, 2.0, 0.0, 1.0]])
+
+    method_values, method_mask = analyzer._active_presynaptic_values(x, layer, mask)
+    helper_values, helper_mask = _active_presynaptic_values_for_layer(x, layer, mask)
+
+    assert torch.equal(method_values, helper_values)
+    assert torch.equal(method_mask, helper_mask)
+
+
+def test_local_rule_component_add_component_values_preserves_detached_cpu_append() -> (
+    None
+):
+    key = _component_key()
+    accum: dict[_ComponentKey, list[torch.Tensor]] = {}
+    values = torch.tensor([1.0, 2.0, 3.0], requires_grad=True)
+
+    _add_component_values(accum, key, values)
+
+    assert list(accum) == [key]
+    assert torch.equal(accum[key][0], values.detach())
+    assert accum[key][0].device.type == "cpu"
+    assert not accum[key][0].requires_grad
+
+
+def test_local_rule_component_add_component_values_preserves_noop_cases() -> None:
+    key = _component_key()
+    accum: dict[_ComponentKey, list[torch.Tensor]] = {}
+
+    _add_component_values(accum, key, None)
+    _add_component_values(accum, key, torch.empty(0))
+    _add_component_values(accum, key, torch.tensor([1.0]), torch.tensor([False]))
+
+    assert accum == {}
+
+
+def test_local_rule_component_add_component_values_preserves_expanded_mask() -> None:
+    key = _component_key()
+    accum: dict[_ComponentKey, list[torch.Tensor]] = {}
+    values = torch.arange(8, dtype=torch.float32).reshape(2, 2, 2)
+    mask = torch.tensor([[True, False], [False, True]])
+
+    _add_component_values(accum, key, values, mask)
+
+    assert torch.equal(accum[key][0], torch.tensor([0.0, 3.0, 4.0, 7.0]))
+
+
+def test_local_rule_component_add_component_values_preserves_broadcast_mask() -> None:
+    key = _component_key()
+    accum: dict[_ComponentKey, list[torch.Tensor]] = {}
+    values = torch.arange(6, dtype=torch.float32).reshape(2, 3)
+    mask = torch.tensor([True, False, True])
+
+    _add_component_values(accum, key, values, mask)
+
+    assert torch.equal(accum[key][0], torch.tensor([0.0, 2.0, 3.0, 5.0]))
+
+
+def test_local_rule_component_add_component_method_uses_shared_helper() -> None:
+    analyzer = LocalRuleComponentAnalyzer(LocalRuleComponentAnalysisParams())
+    key = _component_key()
+    method_accum: dict[_ComponentKey, list[torch.Tensor]] = {}
+    helper_accum: dict[_ComponentKey, list[torch.Tensor]] = {}
+    values = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
+    mask = torch.tensor([True, False])
+
+    analyzer._add_component(method_accum, key, values, mask)
+    _add_component_values(helper_accum, key, values, mask)
+
+    assert torch.equal(method_accum[key][0], helper_accum[key][0])
+
+
+def test_local_rule_component_key_helper_preserves_record_fields() -> None:
+    rec = {
+        "module_name": "core.branch_layers.3",
+        "population": "explicit_inhibitory",
+        "branch_module_index": 3,
+        "dendritic_depth": 2,
+    }
+
+    key = _component_key_from_record(
+        rec,
+        {2: "distal"},
+        synapse_type="excitatory",
+        component="local_update_factor",
+        used_in_rule=1,
+    )
+
+    assert key == _ComponentKey(
+        module_name="core.branch_layers.3",
+        population="explicit_inhibitory",
+        branch_module_index=3,
+        dendritic_depth=2,
+        depth_label="distal",
+        synapse_type="excitatory",
+        component="local_update_factor",
+        used_in_rule=True,
+    )
+
+
+def test_local_rule_component_key_helper_preserves_missing_field_defaults() -> None:
+    key = _component_key_from_record(
+        {},
+        {},
+        synapse_type="branch",
+        component="total_conductance",
+        used_in_rule=False,
+    )
+
+    assert key == _ComponentKey(
+        module_name="",
+        population="unknown",
+        branch_module_index=-1,
+        dendritic_depth=-1,
+        depth_label="unknown",
+        synapse_type="branch",
+        component="total_conductance",
+        used_in_rule=False,
+    )
+
+
+def test_local_rule_component_key_method_uses_shared_helper() -> None:
+    analyzer = LocalRuleComponentAnalyzer(LocalRuleComponentAnalysisParams())
+    rec = {
+        "module_name": "branch",
+        "population": "excitatory",
+        "branch_module_index": -1,
+        "dendritic_depth": 0,
+    }
+
+    assert analyzer._base_key(
+        rec,
+        {0: "soma"},
+        "branch",
+        "branch_voltage",
+        True,
+    ) == _component_key_from_record(
+        rec,
+        {0: "soma"},
+        "branch",
+        "branch_voltage",
+        True,
+    )
+
+
+def test_local_rule_component_delta_out_preserves_none_mode() -> None:
+    y_hat = torch.tensor([[1.0, -1.0]])
+    y = torch.tensor([[0.0, 1.0]])
+
+    assert _delta_out_for_outputs(y_hat, y, "none") is None
+
+
+def test_local_rule_component_delta_out_preserves_mse_modes() -> None:
+    y_hat = torch.tensor([[1.0, 2.0], [3.0, 4.0]], dtype=torch.float32)
+    y = torch.tensor([[0.5, 1.0], [2.0, 3.0]], dtype=torch.float64)
+
+    expected = y_hat - y.to(dtype=y_hat.dtype)
+
+    assert torch.equal(_delta_out_for_outputs(y_hat, y, "mse"), expected)
+    assert torch.equal(_delta_out_for_outputs(y_hat, y, "auto"), expected)
+
+
+def test_local_rule_component_delta_out_preserves_soft_target_ce() -> None:
+    y_hat = torch.tensor([[1.0, 2.0], [3.0, 1.0]], dtype=torch.float32)
+    y = torch.tensor([[0.25, 0.75], [1.0, 0.0]], dtype=torch.float32)
+
+    delta = _delta_out_for_outputs(y_hat, y, "ce")
+
+    assert torch.equal(delta, torch.softmax(y_hat, dim=-1) - y)
+
+
+def test_local_rule_component_delta_out_preserves_index_label_fallback() -> None:
+    y_hat = torch.tensor([[1.0, 2.0, 3.0], [0.5, -0.5, 1.5]])
+    y = torch.tensor([2, 0])
+    expected = torch.softmax(y_hat, dim=-1) - torch.nn.functional.one_hot(
+        y, num_classes=3
+    ).to(y_hat.dtype)
+
+    assert torch.equal(_delta_out_for_outputs(y_hat, y, "auto"), expected)
+    assert torch.equal(_delta_out_for_outputs(y_hat, y[:, None], "ce"), expected)
+    assert torch.equal(_delta_out_for_outputs(y_hat, y, "custom"), expected)
+
+
+def test_local_rule_component_delta_out_preserves_same_shape_fallback() -> None:
+    y_hat = torch.tensor([[1.0, 2.0]], dtype=torch.float32)
+    y = torch.tensor([[1, 0]], dtype=torch.int64)
+
+    delta = _delta_out_for_outputs(y_hat, y, "custom")
+
+    assert torch.equal(delta, y_hat - y.to(dtype=y_hat.dtype))
+
+
+def test_local_rule_component_delta_out_preserves_none_for_incompatible_shapes() -> (
+    None
+):
+    y_hat = torch.tensor([[1.0, 2.0]])
+    y = torch.tensor([3])
+
+    assert _delta_out_for_outputs(y_hat, y, "auto") is None
+
+
+def test_local_rule_component_delta_out_method_uses_shared_helper() -> None:
+    analyzer = LocalRuleComponentAnalyzer(
+        LocalRuleComponentAnalysisParams(error_mode="ce")
+    )
+    y_hat = torch.tensor([[1.0, 2.0]])
+    y = torch.tensor([1])
+
+    assert torch.equal(
+        analyzer._compute_delta_out(y_hat, y),
+        _delta_out_for_outputs(y_hat, y, "ce"),
     )
 
 

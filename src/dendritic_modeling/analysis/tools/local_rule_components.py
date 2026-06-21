@@ -231,6 +231,116 @@ def _activation_derivative_for_record(rec: dict[str, Any]) -> torch.Tensor:
     return torch.ones_like(v_n)
 
 
+def _total_conductance_for_record(
+    rec: dict[str, Any], v_n: torch.Tensor
+) -> torch.Tensor:
+    layer = rec["layer"]
+    if not bool(getattr(layer, "use_shunting", False)):
+        return torch.ones_like(v_n)
+
+    g_tot = torch.ones_like(v_n)
+    exc_out = rec.get("exc_out")
+    if isinstance(exc_out, torch.Tensor):
+        g_tot = g_tot + functional.relu(exc_out)
+    inh_out = rec.get("inh_out")
+    if isinstance(inh_out, torch.Tensor):
+        g_tot = g_tot + functional.relu(inh_out)
+    blk_module = rec.get("blk_module")
+    if blk_module is not None and hasattr(blk_module, "sum_conductances"):
+        g_blk = blk_module.sum_conductances().detach()[None, :].expand_as(v_n)
+        g_tot = g_tot + functional.relu(g_blk)
+    return g_tot
+
+
+def _active_presynaptic_values_for_layer(
+    x: torch.Tensor,
+    layer: TopKLinear,
+    mask: torch.Tensor | None,
+) -> tuple[torch.Tensor | None, torch.Tensor | None]:
+    if x.dim() != 2:
+        x = x.reshape(x.size(0), -1)
+    if x.size(1) != layer.in_features:
+        return None, None
+    if mask is None:
+        mask = layer.weight_mask().detach()
+    mask = mask.to(device=x.device)
+    active_counts = mask.gt(0).sum(dim=1)
+    if int(active_counts.max().item()) <= 0:
+        return None, None
+    k = int(active_counts.max().item())
+    active_idx = torch.topk(mask, k=k, dim=1).indices
+    active_mask = mask.gather(dim=1, index=active_idx).gt(0)
+    active_values = x[:, active_idx]
+    return active_values, active_mask
+
+
+def _add_component_values(
+    accum: dict[_ComponentKey, list[torch.Tensor]],
+    key: _ComponentKey,
+    values: Any,
+    mask: torch.Tensor | None = None,
+) -> None:
+    if not isinstance(values, torch.Tensor) or values.numel() == 0:
+        return
+    if mask is not None:
+        if mask.dim() == values.dim() - 1:
+            mask = mask.unsqueeze(0).expand_as(values)
+        elif mask.shape != values.shape:
+            mask = torch.broadcast_to(mask, values.shape)
+        values = values[mask.to(device=values.device)]
+    if values.numel() == 0:
+        return
+    accum.setdefault(key, []).append(values.detach().cpu())
+
+
+def _component_key_from_record(
+    rec: dict[str, Any],
+    depth_labels: dict[int, str],
+    synapse_type: str,
+    component: str,
+    used_in_rule: bool,
+) -> _ComponentKey:
+    depth = int(rec.get("dendritic_depth", -1))
+    return _ComponentKey(
+        module_name=str(rec.get("module_name", "")),
+        population=str(rec.get("population", "unknown")),
+        branch_module_index=int(rec.get("branch_module_index", -1)),
+        dendritic_depth=depth,
+        depth_label=depth_labels.get(depth, "unknown"),
+        synapse_type=synapse_type,
+        component=component,
+        used_in_rule=bool(used_in_rule),
+    )
+
+
+def _delta_out_for_outputs(
+    y_hat: torch.Tensor,
+    y: torch.Tensor,
+    error_mode: Any,
+) -> torch.Tensor | None:
+    mode = str(error_mode).lower()
+    if mode == "none":
+        return None
+    if mode == "mse" or (
+        mode == "auto" and y.shape == y_hat.shape and y_hat.dtype.is_floating_point
+    ):
+        return y_hat - y.to(device=y_hat.device, dtype=y_hat.dtype)
+    if mode == "ce" and y.shape == y_hat.shape:
+        return functional.softmax(y_hat, dim=-1) - y.to(
+            device=y_hat.device, dtype=y_hat.dtype
+        )
+    if y_hat.dim() == 2 and (y.dim() == 1 or (y.dim() == 2 and y.size(1) == 1)):
+        y_idx = y.view(-1).to(device=y_hat.device, dtype=torch.long)
+        if y_idx.numel() == y_hat.size(0) and int(y_idx.max().item()) < y_hat.size(1):
+            y_onehot = functional.one_hot(y_idx, num_classes=y_hat.size(1)).to(
+                y_hat.dtype
+            )
+            return functional.softmax(y_hat, dim=-1) - y_onehot
+    if y.shape == y_hat.shape:
+        return y_hat - y.to(device=y_hat.device, dtype=y_hat.dtype)
+    return None
+
+
 class LocalRuleComponentAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
     """Record LocalCA eligibility factors by E/I type and dendritic depth."""
 
@@ -352,22 +462,7 @@ class LocalRuleComponentAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
     def _total_conductance(
         self, rec: dict[str, Any], v_n: torch.Tensor
     ) -> torch.Tensor:
-        layer = rec["layer"]
-        if not bool(getattr(layer, "use_shunting", False)):
-            return torch.ones_like(v_n)
-
-        g_tot = torch.ones_like(v_n)
-        exc_out = rec.get("exc_out")
-        if isinstance(exc_out, torch.Tensor):
-            g_tot = g_tot + functional.relu(exc_out)
-        inh_out = rec.get("inh_out")
-        if isinstance(inh_out, torch.Tensor):
-            g_tot = g_tot + functional.relu(inh_out)
-        blk_module = rec.get("blk_module")
-        if blk_module is not None and hasattr(blk_module, "sum_conductances"):
-            g_blk = blk_module.sum_conductances().detach()[None, :].expand_as(v_n)
-            g_tot = g_tot + functional.relu(g_blk)
-        return g_tot
+        return _total_conductance_for_record(rec, v_n)
 
     def _active_presynaptic_values(
         self,
@@ -375,21 +470,7 @@ class LocalRuleComponentAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         layer: TopKLinear,
         mask: torch.Tensor | None,
     ) -> tuple[torch.Tensor | None, torch.Tensor | None]:
-        if x.dim() != 2:
-            x = x.reshape(x.size(0), -1)
-        if x.size(1) != layer.in_features:
-            return None, None
-        if mask is None:
-            mask = layer.weight_mask().detach()
-        mask = mask.to(device=x.device)
-        active_counts = mask.gt(0).sum(dim=1)
-        if int(active_counts.max().item()) <= 0:
-            return None, None
-        k = int(active_counts.max().item())
-        active_idx = torch.topk(mask, k=k, dim=1).indices
-        active_mask = mask.gather(dim=1, index=active_idx).gt(0)
-        active_values = x[:, active_idx]
-        return active_values, active_mask
+        return _active_presynaptic_values_for_layer(x, layer, mask)
 
     def _add_component(
         self,
@@ -398,17 +479,7 @@ class LocalRuleComponentAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         values: torch.Tensor,
         mask: torch.Tensor | None = None,
     ) -> None:
-        if not isinstance(values, torch.Tensor) or values.numel() == 0:
-            return
-        if mask is not None:
-            if mask.dim() == values.dim() - 1:
-                mask = mask.unsqueeze(0).expand_as(values)
-            elif mask.shape != values.shape:
-                mask = torch.broadcast_to(mask, values.shape)
-            values = values[mask.to(device=values.device)]
-        if values.numel() == 0:
-            return
-        accum.setdefault(key, []).append(values.detach().cpu())
+        _add_component_values(accum, key, values, mask)
 
     def _base_key(
         self,
@@ -418,44 +489,22 @@ class LocalRuleComponentAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         component: str,
         used_in_rule: bool,
     ) -> _ComponentKey:
-        depth = int(rec.get("dendritic_depth", -1))
-        return _ComponentKey(
-            module_name=str(rec.get("module_name", "")),
-            population=str(rec.get("population", "unknown")),
-            branch_module_index=int(rec.get("branch_module_index", -1)),
-            dendritic_depth=depth,
-            depth_label=depth_labels.get(depth, "unknown"),
-            synapse_type=synapse_type,
-            component=component,
-            used_in_rule=bool(used_in_rule),
+        return _component_key_from_record(
+            rec,
+            depth_labels,
+            synapse_type,
+            component,
+            used_in_rule,
         )
 
     def _compute_delta_out(
         self, y_hat: torch.Tensor, y: torch.Tensor
     ) -> torch.Tensor | None:
-        mode = str(getattr(self.params, "error_mode", "auto")).lower()
-        if mode == "none":
-            return None
-        if mode == "mse" or (
-            mode == "auto" and y.shape == y_hat.shape and y_hat.dtype.is_floating_point
-        ):
-            return y_hat - y.to(device=y_hat.device, dtype=y_hat.dtype)
-        if mode == "ce" and y.shape == y_hat.shape:
-            return functional.softmax(y_hat, dim=-1) - y.to(
-                device=y_hat.device, dtype=y_hat.dtype
-            )
-        if y_hat.dim() == 2 and (y.dim() == 1 or (y.dim() == 2 and y.size(1) == 1)):
-            y_idx = y.view(-1).to(device=y_hat.device, dtype=torch.long)
-            if y_idx.numel() == y_hat.size(0) and int(y_idx.max().item()) < y_hat.size(
-                1
-            ):
-                y_onehot = functional.one_hot(y_idx, num_classes=y_hat.size(1)).to(
-                    y_hat.dtype
-                )
-                return functional.softmax(y_hat, dim=-1) - y_onehot
-        if y.shape == y_hat.shape:
-            return y_hat - y.to(device=y_hat.device, dtype=y_hat.dtype)
-        return None
+        return _delta_out_for_outputs(
+            y_hat,
+            y,
+            getattr(self.params, "error_mode", "auto"),
+        )
 
     def _compute_soma_error(
         self,
