@@ -57,6 +57,140 @@ from dendritic_modeling.training.strategies.standard import Trainer
 logger = logging.getLogger(__name__)
 
 
+def _has_dendritic_branch_layers(model: BaseModel) -> bool:
+    try:
+        return any(isinstance(m, DendriticBranchLayer) for m in model.modules())
+    except Exception:
+        return False
+
+
+def _supports_local_learning_train(model: BaseModel) -> bool:
+    has_ei = hasattr(model, "core_network") and isinstance(
+        model.core_network, ExcitationInhibitionNetwork
+    )
+    return has_ei or _has_dendritic_branch_layers(model)
+
+
+def _resolve_epoch_update_modes(
+    local_cfg,
+    epoch_counter: int,
+) -> tuple[bool, str, str]:
+    update_reactivation = local_cfg.update_reactivation
+    encoder_update_mode = local_cfg.encoder_update_mode
+    decoder_update_mode = local_cfg.decoder_update_mode
+
+    if epoch_counter <= max(0, int(local_cfg.freeze_encoder_epochs)):
+        encoder_update_mode = "none"
+    if epoch_counter <= max(0, int(local_cfg.freeze_reactivation_epochs)):
+        update_reactivation = False
+    if epoch_counter <= max(0, int(local_cfg.freeze_decoder_epochs)):
+        decoder_update_mode = "none"
+
+    if local_cfg.training_schedule:
+        for sched in local_cfg.training_schedule:
+            try:
+                start_epoch = int(sched.get("start_epoch", 1))
+                end_epoch = int(sched.get("end_epoch", 10**9))
+            except Exception:
+                start_epoch, end_epoch = 1, 10**9
+            if start_epoch <= epoch_counter <= end_epoch:
+                if "update_reactivation" in sched:
+                    update_reactivation = bool(sched["update_reactivation"])
+                if "encoder_update_mode" in sched:
+                    encoder_update_mode = str(sched["encoder_update_mode"]).lower()
+                if "decoder_update_mode" in sched:
+                    decoder_update_mode = str(sched["decoder_update_mode"]).lower()
+                break
+
+    return update_reactivation, encoder_update_mode, decoder_update_mode
+
+
+def _collect_topk_modules(model: BaseModel) -> list[TopKLinear]:
+    return [m for m in model.modules() if isinstance(m, TopKLinear)]
+
+
+def _enable_topk_mask_cache(topk_modules: list[TopKLinear]) -> None:
+    for module in topk_modules:
+        module.cache_mask = True
+
+
+def _clear_topk_mask_cache(topk_modules: list[TopKLinear]) -> None:
+    for module in topk_modules:
+        module.cache_mask = False
+        module._last_forward_weight_mask = None
+
+
+def _prepare_hsic_target(
+    local_cfg,
+    y_batch: torch.Tensor,
+    y_hat: torch.Tensor,
+) -> Optional[torch.Tensor]:
+    if not local_cfg.hsic.enabled:
+        return None
+
+    if local_cfg.hsic.target_source == "labels":
+        if y_batch.dim() == 1 or (y_batch.dim() == 2 and y_batch.size(1) == 1):
+            num_classes = y_hat.size(-1)
+            return torch.nn.functional.one_hot(
+                y_batch.view(-1),
+                num_classes=num_classes,
+            ).to(y_hat.dtype)
+        return y_batch.to(y_hat.dtype)
+
+    return y_hat.detach()
+
+
+def _zero_optimizer_gradients(optimizer: torch.optim.Optimizer) -> None:
+    try:
+        optimizer.zero_grad(set_to_none=True)
+    except TypeError:
+        optimizer.zero_grad()
+
+
+def _collect_backprop_param_groups(
+    model: BaseModel,
+    encoder_update_mode: str,
+    decoder_update_mode: str,
+) -> list[list[torch.nn.Parameter]]:
+    backprop_param_groups: list[list[torch.nn.Parameter]] = []
+    if (
+        encoder_update_mode == "backprop"
+        and hasattr(model, "encoder_network")
+        and model.encoder_network is not None
+    ):
+        enc_params = [p for p in model.encoder_network.parameters() if p.requires_grad]
+        if enc_params:
+            backprop_param_groups.append(enc_params)
+
+    if hasattr(model, "decoder_network") and decoder_update_mode == "backprop":
+        dec_params = [p for p in model.decoder_network.parameters() if p.requires_grad]
+        if dec_params:
+            backprop_param_groups.append(dec_params)
+
+    return backprop_param_groups
+
+
+def _accumulate_backprop_gradients(
+    loss: torch.Tensor,
+    backprop_param_groups: list[list[torch.nn.Parameter]],
+) -> None:
+    for group_idx, params in enumerate(backprop_param_groups):
+        grads = torch.autograd.grad(
+            loss,
+            params,
+            retain_graph=group_idx < len(backprop_param_groups) - 1,
+            allow_unused=True,
+        )
+        for param, grad_value in zip(params, grads):
+            if grad_value is None:
+                continue
+            grad = grad_value.detach()
+            if param.grad is None:
+                param.grad = grad.clone()
+            else:
+                param.grad = param.grad + grad
+
+
 class LocalCreditAssignment(
     LocalLearningSignalMixin,
     LocalLearningRecorderMixin,
@@ -146,51 +280,18 @@ class LocalCreditAssignment(
         train_loss_reg = 0.0
 
         # Fallback: if model has no dendritic branch layers, use standard epoch_train
-        try:
-            has_branch_layers = any(
-                isinstance(m, DendriticBranchLayer) for m in model.modules()
-            )
-        except Exception:
-            has_branch_layers = False
-        if not has_branch_layers:
+        if not _has_dendritic_branch_layers(model):
             # Defer to base implementation
             return super()._epoch_train(model, train_loader)
 
         for batch in train_loader:
             x_batch, y_batch = batch[0], batch[1]
             # Resolve per-epoch schedule for reactivation/decoder behavior
-            update_reactivation = self.local_cfg.update_reactivation
-            encoder_update_mode = self.local_cfg.encoder_update_mode
-            decoder_update_mode = self.local_cfg.decoder_update_mode
-            # Freeze phases by epoch index
-            if self.epoch_counter <= max(0, int(self.local_cfg.freeze_encoder_epochs)):
-                encoder_update_mode = "none"
-            if self.epoch_counter <= max(
-                0, int(self.local_cfg.freeze_reactivation_epochs)
-            ):
-                update_reactivation = False
-            if self.epoch_counter <= max(0, int(self.local_cfg.freeze_decoder_epochs)):
-                decoder_update_mode = "none"
-            # Optional schedule entries override
-            if self.local_cfg.training_schedule:
-                for sched in self.local_cfg.training_schedule:
-                    try:
-                        s = int(sched.get("start_epoch", 1))
-                        e = int(sched.get("end_epoch", 10**9))
-                    except Exception:
-                        s, e = 1, 10**9
-                    if s <= self.epoch_counter <= e:
-                        if "update_reactivation" in sched:
-                            update_reactivation = bool(sched["update_reactivation"])
-                        if "encoder_update_mode" in sched:
-                            encoder_update_mode = str(
-                                sched["encoder_update_mode"]
-                            ).lower()
-                        if "decoder_update_mode" in sched:
-                            decoder_update_mode = str(
-                                sched["decoder_update_mode"]
-                            ).lower()
-                        break
+            (
+                update_reactivation,
+                encoder_update_mode,
+                decoder_update_mode,
+            ) = _resolve_epoch_update_modes(self.local_cfg, self.epoch_counter)
             update_reactivation = self._resolve_local_reactivation_update_flag(
                 update_reactivation
             )
@@ -199,18 +300,15 @@ class LocalCreditAssignment(
 
             # Capture layer-wise local signals via forward hooks
             layer_records, handles = self._attach_local_recorders(model)
-            topk_modules = [m for m in model.modules() if isinstance(m, TopKLinear)]
-            for m in topk_modules:
-                m.cache_mask = True
+            topk_modules = _collect_topk_modules(model)
+            _enable_topk_mask_cache(topk_modules)
             try:
                 # Forward once to obtain outputs and local signals
                 y_hat: torch.Tensor = model(x_batch)
             finally:
                 for h in handles:
                     h.remove()
-                for m in topk_modules:
-                    m.cache_mask = False
-                    m._last_forward_weight_mask = None
+                _clear_topk_mask_cache(topk_modules)
 
             # Compute scalar loss for logging (no backward)
             loss = self._compute_logging_loss(model, x_batch, y_batch)
@@ -229,26 +327,10 @@ class LocalCreditAssignment(
             )
 
             # Prepare HSIC targets if needed
-            y_target: Optional[torch.Tensor] = None
-            if self.local_cfg.hsic.enabled:
-                if self.local_cfg.hsic.target_source == "labels":
-                    if y_batch.dim() == 1 or (
-                        y_batch.dim() == 2 and y_batch.size(1) == 1
-                    ):
-                        num_classes = y_hat.size(-1)
-                        y_target = torch.nn.functional.one_hot(
-                            y_batch.view(-1), num_classes=num_classes
-                        ).to(y_hat.dtype)
-                    else:
-                        y_target = y_batch.to(y_hat.dtype)
-                else:
-                    y_target = y_hat.detach()
+            y_target = _prepare_hsic_target(self.local_cfg, y_batch, y_hat)
 
             # Zero gradients (we will set param.grads directly)
-            try:
-                self.optimizer.zero_grad(set_to_none=True)
-            except TypeError:
-                self.optimizer.zero_grad()
+            _zero_optimizer_gradients(self.optimizer)
 
             # Apply local learning updates as gradients on parameters
             self._apply_local_rule_gradients(
@@ -260,40 +342,12 @@ class LocalCreditAssignment(
                 update_reactivation=update_reactivation,
             )
 
-            backprop_param_groups: list[list[torch.nn.Parameter]] = []
-            if (
-                encoder_update_mode == "backprop"
-                and hasattr(model, "encoder_network")
-                and model.encoder_network is not None
-            ):
-                enc_params = [
-                    p for p in model.encoder_network.parameters() if p.requires_grad
-                ]
-                if enc_params:
-                    backprop_param_groups.append(enc_params)
-
-            if hasattr(model, "decoder_network") and decoder_update_mode == "backprop":
-                dec_params = [
-                    p for p in model.decoder_network.parameters() if p.requires_grad
-                ]
-                if dec_params:
-                    backprop_param_groups.append(dec_params)
-
-            for group_idx, params in enumerate(backprop_param_groups):
-                grads = torch.autograd.grad(
-                    loss,
-                    params,
-                    retain_graph=group_idx < len(backprop_param_groups) - 1,
-                    allow_unused=True,
-                )
-                for p, g in zip(params, grads):
-                    if g is None:
-                        continue
-                    grad = g.detach()
-                    if p.grad is None:
-                        p.grad = grad.clone()
-                    else:
-                        p.grad = p.grad + grad
+            backprop_param_groups = _collect_backprop_param_groups(
+                model=model,
+                encoder_update_mode=encoder_update_mode,
+                decoder_update_mode=decoder_update_mode,
+            )
+            _accumulate_backprop_gradients(loss, backprop_param_groups)
 
             # Decoder update mode
             if hasattr(model, "decoder_network") and decoder_update_mode == "local":
@@ -439,11 +493,7 @@ class LocalCreditAssignment(
         valid_data: torch.utils.data.Dataset,
     ):
         # Standard training loop but with local rule gradient computation
-        has_ei = hasattr(model, "core_network") and isinstance(
-            model.core_network, ExcitationInhibitionNetwork
-        )
-        has_branches = any(isinstance(m, DendriticBranchLayer) for m in model.modules())
-        if not (has_ei or has_branches):
+        if not _supports_local_learning_train(model):
             logger.info(
                 "No EI/dendritic branch layers detected; falling back to standard training."
             )
