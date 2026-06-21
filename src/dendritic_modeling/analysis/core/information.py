@@ -151,6 +151,33 @@ _build_information_estimator_method_params = (
 )
 
 
+def _build_information_estimators(
+    *,
+    params: Any,
+    estimator_cfg: Any,
+    method: str,
+    n_neighbors: int,
+    n_bins: int,
+    copula_type: str,
+    verbose: bool,
+) -> dict[str, Any]:
+    """Build the estimator registry used by the analyzer."""
+    method_params = _build_information_estimator_method_params(
+        params=params,
+        estimator_cfg=estimator_cfg,
+        method=method,
+    )
+    estimator_config = EstimatorConfig(
+        method=method,
+        n_neighbors=n_neighbors,
+        n_bins=n_bins,
+        copula_type=copula_type,
+        verbose=verbose,
+        method_params=method_params,
+    )
+    return {method: InformationEstimatorFactory.create(estimator_config)}
+
+
 class InformationAnalyzer(
     InformationMetricsMixin,
     InformationHooksMixin,
@@ -346,23 +373,14 @@ class InformationAnalyzer(
             self.logger.setLevel(logging.DEBUG)
 
         # Create estimators for each method
-        self.estimators = {}
-        # For now, just use the single method specified, but keep the dict structure for compatibility
-        method_params = _build_information_estimator_method_params(
+        self.estimators = _build_information_estimators(
             params=params,
             estimator_cfg=estimator_cfg,
-            method=self.method,
-        )
-        estimator_config = EstimatorConfig(
             method=self.method,
             n_neighbors=self.n_neighbors,
             n_bins=self.n_bins,
             copula_type=self.copula_type,
             verbose=self.verbose,
-            method_params=method_params,
-        )
-        self.estimators[self.method] = InformationEstimatorFactory.create(
-            estimator_config
         )
 
         # Check if PID is available

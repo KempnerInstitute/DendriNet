@@ -28,10 +28,12 @@ from dendritic_modeling.datasets.standard_datasets import (
     _apply_imagenet_local_override,
     _build_imagenet_transforms,
     _class_subset_indices,
+    _dataset_mapping_to_triplet,
     _is_official_imagenet_root,
     _load_imagenet_dataset_triplet,
     _load_torchvision_train_test_pair,
     _materialize_flattened_tensor_dataset,
+    _maybe_apply_label_noise_to_triplet,
     _normalized_imagenet_preset_name,
     _resolve_imagefolder_roots,
     _resolve_imagenet_data_location,
@@ -872,6 +874,57 @@ class TestDatasetUtilities(unittest.TestCase):
         import shutil
 
         shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_maybe_apply_label_noise_only_changes_training_tensor_labels(self):
+        """Label noise should not touch validation/test datasets."""
+        train_ds = TensorDataset(torch.zeros(4, 2), torch.arange(4, dtype=torch.long))
+        valid_ds = TensorDataset(torch.ones(2, 2), torch.ones(2, dtype=torch.long))
+        test_ds = TensorDataset(
+            torch.full((2, 2), 2.0), torch.ones(2, dtype=torch.long)
+        )
+
+        noisy_train, out_valid, out_test = _maybe_apply_label_noise_to_triplet(
+            train_ds,
+            valid_ds,
+            test_ds,
+            label_noise_rate=1.0,
+            label_noise_seed=0,
+        )
+
+        self.assertIs(out_valid, valid_ds)
+        self.assertIs(out_test, test_ds)
+        self.assertTrue(torch.equal(noisy_train.tensors[0], train_ds.tensors[0]))
+        self.assertFalse(torch.equal(noisy_train.tensors[1], train_ds.tensors[1]))
+
+    def test_dataset_mapping_to_triplet_uses_missing_valid_fallback(self):
+        """Mapping conversion should preserve the modulo-MNIST valid fallback."""
+        train_ds = TensorDataset(torch.zeros(1, 2), torch.zeros(1, dtype=torch.long))
+        test_ds = TensorDataset(torch.ones(1, 2), torch.ones(1, dtype=torch.long))
+
+        out_train, out_valid, out_test = _dataset_mapping_to_triplet(
+            {"train": train_ds, "test": test_ds},
+            valid_fallback_to_test=True,
+        )
+
+        self.assertIs(out_train, train_ds)
+        self.assertIs(out_valid, test_ds)
+        self.assertIs(out_test, test_ds)
+
+    def test_dataset_mapping_to_triplet_uses_explicit_valid_when_required(self):
+        """Mapping conversion should require and return the explicit valid split."""
+        train_ds = TensorDataset(torch.zeros(1, 2), torch.zeros(1, dtype=torch.long))
+        valid_ds = TensorDataset(torch.ones(1, 2), torch.ones(1, dtype=torch.long))
+        test_ds = TensorDataset(
+            torch.full((1, 2), 2.0), torch.ones(1, dtype=torch.long)
+        )
+
+        out_train, out_valid, out_test = _dataset_mapping_to_triplet(
+            {"train": train_ds, "valid": valid_ds, "test": test_ds},
+        )
+
+        self.assertIs(out_train, train_ds)
+        self.assertIs(out_valid, valid_ds)
+        self.assertIs(out_test, test_ds)
 
     def test_get_data_directory(self):
         """Test data directory creation and path handling."""

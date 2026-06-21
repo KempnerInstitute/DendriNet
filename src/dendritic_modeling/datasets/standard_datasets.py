@@ -84,6 +84,27 @@ def _infer_num_classes(dataset: TensorDataset) -> int:
     return int(y.max().item()) + 1
 
 
+def _maybe_apply_label_noise_to_triplet(
+    train_ds: Dataset,
+    valid_ds: Dataset,
+    test_ds: Dataset,
+    *,
+    label_noise_rate: float,
+    label_noise_seed: int,
+) -> tuple[Dataset, Dataset, Dataset]:
+    """Apply label noise to the training TensorDataset only when configured."""
+    if label_noise_rate > 0.0 and isinstance(train_ds, TensorDataset):
+        num_classes = _infer_num_classes(train_ds)
+        if num_classes > 0:
+            train_ds = _apply_label_noise(
+                train_ds,
+                label_noise_rate,
+                num_classes,
+                seed=label_noise_seed,
+            )
+    return train_ds, valid_ds, test_ds
+
+
 def _get_config_value(
     config: Union[dict, object], key: str, default: Any = None
 ) -> Any:
@@ -286,6 +307,25 @@ def _ensure_slice_safe_triplet(
         _ensure_slice_safe_dataset(valid_ds),
         _ensure_slice_safe_dataset(test_ds),
     )
+
+
+def _dataset_mapping_to_triplet(
+    data: dict[str, Dataset],
+    *,
+    valid_fallback_to_test: bool = False,
+    slice_safe: bool = False,
+) -> tuple[Dataset, Dataset, Dataset]:
+    """Convert a dataset mapping into a train/valid/test triplet."""
+    train_ds = data["train"]
+    if valid_fallback_to_test:
+        valid_ds = data["valid"] if "valid" in data else data["test"]
+    else:
+        valid_ds = data["valid"]
+    test_ds = data["test"]
+
+    if slice_safe:
+        return _ensure_slice_safe_triplet(train_ds, valid_ds, test_ds)
+    return train_ds, valid_ds, test_ds
 
 
 def _resolve_imagefolder_roots(root: str | None) -> tuple[str | None, str | None]:
@@ -514,6 +554,52 @@ def _load_imagenet_dataset_triplet(
         datasets.ImageNet(root=imagenet_dir, split="train", transform=eval_transform),
         datasets.ImageNet(root=imagenet_dir, split="val", transform=eval_transform),
     )
+
+
+def _prepare_imagenet_dataset_triplet(
+    *,
+    train_dataset: Dataset,
+    train_eval_dataset: Dataset,
+    test_dataset: Dataset,
+    train_valid_split: float,
+    train_samples_per_class: int | None,
+    val_samples_per_class: int | None,
+    split_seed: int,
+    flatten: bool,
+) -> tuple[Dataset, Dataset, Dataset]:
+    """Apply ImageNet subsetting, validation split, and optional flattening."""
+    train_indices = _class_subset_indices(
+        train_dataset,
+        train_samples_per_class,
+        split_name="train",
+        seed=int(split_seed),
+    )
+    train_dataset = _subset_by_indices(train_dataset, train_indices)
+    train_eval_dataset = _subset_by_indices(train_eval_dataset, train_indices)
+    test_indices = _class_subset_indices(
+        test_dataset,
+        val_samples_per_class,
+        split_name="val",
+        seed=int(split_seed) + 1,
+    )
+    test_dataset = _subset_by_indices(test_dataset, test_indices)
+
+    if hasattr(train_dataset, "__len__"):
+        train_dataset, valid_dataset = _split_train_valid_pair(
+            train_dataset,
+            train_eval_dataset,
+            train_valid_split=train_valid_split,
+            split_seed=split_seed,
+        )
+    else:
+        valid_dataset = test_dataset
+
+    if flatten:
+        train_dataset = _materialize_flattened_tensor_dataset(train_dataset)
+        valid_dataset = _materialize_flattened_tensor_dataset(valid_dataset)
+        test_dataset = _materialize_flattened_tensor_dataset(test_dataset)
+
+    return train_dataset, valid_dataset, test_dataset
 
 
 IMAGENET_FLATTEN_MATERIALIZATION_LIMIT = 50_000
@@ -1446,40 +1532,53 @@ def load_imagenet_as_datasets(
             "to a valid ImageNet root."
         ) from e
 
-    train_indices = _class_subset_indices(
-        train_dataset,
-        train_samples_per_class,
-        split_name="train",
-        seed=int(split_seed),
+    return _prepare_imagenet_dataset_triplet(
+        train_dataset=train_dataset,
+        train_eval_dataset=train_eval_dataset,
+        test_dataset=test_dataset,
+        train_valid_split=train_valid_split,
+        train_samples_per_class=train_samples_per_class,
+        val_samples_per_class=val_samples_per_class,
+        split_seed=split_seed,
+        flatten=flatten,
     )
-    train_dataset = _subset_by_indices(train_dataset, train_indices)
-    train_eval_dataset = _subset_by_indices(train_eval_dataset, train_indices)
-    test_indices = _class_subset_indices(
-        test_dataset,
-        val_samples_per_class,
-        split_name="val",
-        seed=int(split_seed) + 1,
+
+
+def _load_standard_vision_dataset_triplet(
+    *,
+    dataset_name: str,
+    train_valid_split: float,
+    flatten: bool,
+    normalize: bool,
+    task_data_path: str | None,
+    split_seed: int,
+    label_noise_rate: float,
+    label_noise_seed: int,
+) -> tuple[Dataset, Dataset, Dataset] | None:
+    """Load MNIST/Fashion-MNIST/CIFAR-10 with shared post-processing."""
+    loaders = {
+        "mnist": load_mnist_as_datasets,
+        "fashion_mnist": load_fashion_mnist_as_datasets,
+        "cifar10": load_cifar10_as_datasets,
+    }
+    loader = loaders.get(dataset_name)
+    if loader is None:
+        return None
+
+    train_ds, valid_ds, test_ds = loader(
+        train_valid_split=train_valid_split,
+        flatten=flatten,
+        normalize=normalize,
+        task_data_path=task_data_path,
+        split_seed=split_seed,
     )
-    test_dataset = _subset_by_indices(test_dataset, test_indices)
-
-    # Split training data into train and validation
-    if hasattr(train_dataset, "__len__"):
-        train_dataset, valid_dataset = _split_train_valid_pair(
-            train_dataset,
-            train_eval_dataset,
-            train_valid_split=train_valid_split,
-            split_seed=split_seed,
-        )
-    else:
-        # Fallback for when we can't determine size
-        valid_dataset = test_dataset
-
-    if flatten:
-        train_dataset = _materialize_flattened_tensor_dataset(train_dataset)
-        valid_dataset = _materialize_flattened_tensor_dataset(valid_dataset)
-        test_dataset = _materialize_flattened_tensor_dataset(test_dataset)
-
-    return train_dataset, valid_dataset, test_dataset
+    return _maybe_apply_label_noise_to_triplet(
+        train_ds,
+        valid_ds,
+        test_ds,
+        label_noise_rate=label_noise_rate,
+        label_noise_seed=label_noise_seed,
+    )
 
 
 def get_unified_datasets(task_cfg):
@@ -1520,45 +1619,21 @@ def get_unified_datasets(task_cfg):
     label_noise_rate = p.get("label_noise_rate", 0.0)
     label_noise_seed = p.get("label_noise_seed", 0)
 
-    def _maybe_inject_label_noise(train_ds, valid_ds, test_ds):
-        """Apply label noise to training set only if configured."""
-        if label_noise_rate > 0.0 and isinstance(train_ds, TensorDataset):
-            num_classes = _infer_num_classes(train_ds)
-            if num_classes > 0:
-                train_ds = _apply_label_noise(
-                    train_ds, label_noise_rate, num_classes, seed=label_noise_seed
-                )
-        return train_ds, valid_ds, test_ds
-
     # Handle standard datasets directly
-    if dataset_name == "mnist":
-        train_ds, valid_ds, test_ds = load_mnist_as_datasets(
-            train_valid_split=train_valid_split,
-            flatten=flatten,
-            normalize=normalize,
-            task_data_path=task_data_path,
-            split_seed=split_seed,
-        )
-        return _maybe_inject_label_noise(train_ds, valid_ds, test_ds)
-    elif dataset_name == "fashion_mnist":
-        train_ds, valid_ds, test_ds = load_fashion_mnist_as_datasets(
-            train_valid_split=train_valid_split,
-            flatten=flatten,
-            normalize=normalize,
-            task_data_path=task_data_path,
-            split_seed=split_seed,
-        )
-        return _maybe_inject_label_noise(train_ds, valid_ds, test_ds)
-    elif dataset_name == "cifar10":
-        train_ds, valid_ds, test_ds = load_cifar10_as_datasets(
-            train_valid_split=train_valid_split,
-            flatten=flatten,
-            normalize=normalize,
-            task_data_path=task_data_path,
-            split_seed=split_seed,
-        )
-        return _maybe_inject_label_noise(train_ds, valid_ds, test_ds)
-    elif dataset_name == "poisson_generator":
+    standard_vision_datasets = _load_standard_vision_dataset_triplet(
+        dataset_name=dataset_name,
+        train_valid_split=train_valid_split,
+        flatten=flatten,
+        normalize=normalize,
+        task_data_path=task_data_path,
+        split_seed=split_seed,
+        label_noise_rate=label_noise_rate,
+        label_noise_seed=label_noise_seed,
+    )
+    if standard_vision_datasets is not None:
+        return standard_vision_datasets
+
+    if dataset_name == "poisson_generator":
         return load_poisson_generator_datasets(
             base_dataset=base_dataset,
             multiplicative_gain=multiplicative_gain,
@@ -1595,13 +1670,7 @@ def get_unified_datasets(task_cfg):
             split_seed=split_seed,
             pair_seed=p.get("pair_seed", 0),
         )
-        train_ds = data["train"]
-        if "valid" in data:
-            valid_ds = data["valid"]
-        else:
-            valid_ds = data["test"]
-        test_ds = data["test"]
-        return train_ds, valid_ds, test_ds
+        return _dataset_mapping_to_triplet(data, valid_fallback_to_test=True)
     elif dataset_name == "cifar10_modulo10":
         data = load_cifar10_modulo10(
             train_valid_split=train_valid_split,
@@ -1612,10 +1681,7 @@ def get_unified_datasets(task_cfg):
             pair_seed=p.get("pair_seed", 0),
             split_seed=split_seed,
         )
-        train_ds = data["train"]
-        valid_ds = data["valid"]
-        test_ds = data["test"]
-        return _ensure_slice_safe_triplet(train_ds, valid_ds, test_ds)
+        return _dataset_mapping_to_triplet(data, slice_safe=True)
     elif dataset_name == "double_cifar10_contextual_mod10":
         data = load_double_cifar10_contextual_mod10(
             train_valid_split=train_valid_split,
@@ -1627,10 +1693,7 @@ def get_unified_datasets(task_cfg):
             context_seed=p.get("context_seed", 123),
             split_seed=split_seed,
         )
-        train_ds = data["train"]
-        valid_ds = data["valid"]
-        test_ds = data["test"]
-        return _ensure_slice_safe_triplet(train_ds, valid_ds, test_ds)
+        return _dataset_mapping_to_triplet(data, slice_safe=True)
     elif dataset_name == "double_mnist_contextual_mod10":
         data = load_double_mnist_contextual_mod10(
             train_valid_split=train_valid_split,
@@ -1642,10 +1705,7 @@ def get_unified_datasets(task_cfg):
             context_seed=p.get("context_seed", 123),
             split_seed=split_seed,
         )
-        train_ds = data["train"]
-        valid_ds = data["valid"]
-        test_ds = data["test"]
-        return _ensure_slice_safe_triplet(train_ds, valid_ds, test_ds)
+        return _dataset_mapping_to_triplet(data, slice_safe=True)
     elif dataset_name in [
         "correlated_gaussian",
         "nonlinear_interaction",
