@@ -14,6 +14,9 @@ from torch.utils.data import TensorDataset
 
 from dendritic_modeling.scripts.training.train_experiments_fsdp import (
     _dataloader_kwargs_from_common,
+    _maybe_calibrate_fsdp_data_driven_reactivation,
+    _requested_data_driven_reactivation_policies,
+    _run_final_analysis_on_plain_model,
 )
 from dendritic_modeling.training.fsdp_utils import (
     _apply_gradient_checkpointing,
@@ -107,6 +110,183 @@ def test_fsdp_dataloader_kwargs_reject_invalid_persistent_workers():
 
     with pytest.raises(ValueError, match="persistent_workers"):
         _dataloader_kwargs_from_common(common)
+
+
+def test_run_final_analysis_on_plain_model_reloads_checkpoint(monkeypatch):
+    """FSDP final analysis should run on a fresh non-sharded model."""
+
+    class PlainModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.loaded_state = None
+            self.to_device = None
+            self.eval_called = False
+            self.encoder_network = None
+
+        def load_state_dict(self, state_dict):
+            self.loaded_state = state_dict
+
+        def to(self, device):
+            self.to_device = device
+            return self
+
+        def eval(self):
+            self.eval_called = True
+
+    class AnalysisManagerStub:
+        def __init__(self):
+            self.model = None
+            self.run_calls = []
+
+        def run_analysis(self, *, filename, training):
+            self.run_calls.append({"filename": filename, "training": training})
+
+    config = SimpleNamespace(name="config")
+    plain_model = PlainModel()
+    analysis_manager = AnalysisManagerStub()
+    encoder = object()
+    state = {"weight": torch.ones(1)}
+    load_calls = []
+
+    monkeypatch.setattr(
+        "dendritic_modeling.scripts.training.train_experiments_fsdp.create_large_model",
+        lambda received_config: plain_model,
+    )
+
+    def fake_load(path, *, map_location):
+        load_calls.append({"path": path, "map_location": map_location})
+        return {"model_state_dict": state}
+
+    monkeypatch.setattr(
+        "dendritic_modeling.scripts.training.train_experiments_fsdp.torch.load",
+        fake_load,
+    )
+
+    _run_final_analysis_on_plain_model(
+        config=config,
+        analysis_manager=analysis_manager,
+        full_ckpt_path="/tmp/final_full.pt",
+        encoder_network=encoder,
+        local_rank=2,
+    )
+
+    assert plain_model.loaded_state is state
+    assert plain_model.to_device == "cuda:2"
+    assert plain_model.eval_called
+    assert plain_model.encoder_network is encoder
+    assert analysis_manager.model is plain_model
+    assert analysis_manager.run_calls == [{"filename": "final", "training": False}]
+    assert load_calls == [{"path": "/tmp/final_full.pt", "map_location": "cuda:2"}]
+
+
+class _PolicyLayer(nn.Module):
+    """Minimal module carrying a branch-layer reactivation policy attribute."""
+
+    def __init__(self, policy):
+        super().__init__()
+        self.reactivation_init_policy = policy
+
+
+class _PolicyModel(nn.Module):
+    """Minimal nested model for FSDP reactivation policy discovery tests."""
+
+    def __init__(self, *policies):
+        super().__init__()
+        self.layers = nn.ModuleList(_PolicyLayer(policy) for policy in policies)
+
+
+def test_requested_data_driven_reactivation_policies_collects_config_and_layers():
+    """FSDP calibration should detect data-driven config and layer policies."""
+    config = SimpleNamespace(
+        model=SimpleNamespace(
+            core=SimpleNamespace(
+                reactivation=SimpleNamespace(init_policy="occupancy_quantile")
+            )
+        )
+    )
+    model = _PolicyModel("fixed", "empirical")
+
+    policies = _requested_data_driven_reactivation_policies(config, model)
+
+    assert policies == {"occupancy_quantile", "empirical"}
+
+
+def test_requested_data_driven_reactivation_policies_ignores_missing_config_and_fixed_layers():
+    """FSDP calibration discovery should be quiet when no data-driven policy exists."""
+    config = SimpleNamespace()
+    model = _PolicyModel("fixed", "analytical")
+
+    policies = _requested_data_driven_reactivation_policies(config, model)
+
+    assert policies == set()
+
+
+def test_maybe_calibrate_fsdp_data_driven_reactivation_calls_single_gpu_helper(
+    monkeypatch,
+):
+    """FSDP helper should delegate calibration with the same public contract."""
+    from dendritic_modeling.scripts.training import train_experiments
+
+    config = SimpleNamespace(
+        model=SimpleNamespace(
+            core=SimpleNamespace(reactivation=SimpleNamespace(init_policy="empirical"))
+        )
+    )
+    model = _PolicyModel()
+    train_dataset = object()
+    calls = []
+
+    def fake_calibrate(**kwargs):
+        calls.append(kwargs)
+
+    monkeypatch.setattr(
+        train_experiments,
+        "_maybe_calibrate_data_driven_reactivation",
+        fake_calibrate,
+    )
+
+    _maybe_calibrate_fsdp_data_driven_reactivation(
+        config=config,
+        model=model,
+        train_dataset=train_dataset,
+    )
+
+    assert calls == [
+        {
+            "config": config,
+            "model": model,
+            "train_dataset": train_dataset,
+            "is_main": True,
+        }
+    ]
+
+
+def test_maybe_calibrate_fsdp_data_driven_reactivation_skips_when_not_requested(
+    monkeypatch,
+):
+    """FSDP helper should not import/delegate calibration for fixed policies."""
+    from dendritic_modeling.scripts.training import train_experiments
+
+    config = SimpleNamespace(
+        model=SimpleNamespace(
+            core=SimpleNamespace(reactivation=SimpleNamespace(init_policy="fixed"))
+        )
+    )
+    calls = []
+
+    monkeypatch.setattr(
+        train_experiments,
+        "_maybe_calibrate_data_driven_reactivation",
+        lambda **kwargs: calls.append(kwargs),
+    )
+
+    _maybe_calibrate_fsdp_data_driven_reactivation(
+        config=config,
+        model=_PolicyModel("analytical"),
+        train_dataset=object(),
+    )
+
+    assert calls == []
 
 
 class MockDendriticBranchLayer(nn.Module):

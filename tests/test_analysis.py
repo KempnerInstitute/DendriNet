@@ -11,6 +11,7 @@ This module tests all analysis functionality including:
 
 import tempfile
 import unittest
+from contextlib import ExitStack
 from pathlib import Path
 from unittest.mock import patch
 
@@ -2414,6 +2415,107 @@ class TestAnalysisManager(unittest.TestCase):
             self.assertEqual(runner.config_field, spec.config_field)
             self.assertEqual(runner.analyzer_attr, spec.attribute_name)
             self.assertEqual(runner.save_subdir, spec.save_subdir)
+
+    def test_run_analysis_preserves_orchestration_order(self):
+        """Top-level analysis orchestration should preserve the established order."""
+        from dendritic_modeling.analysis.managers.analysis_manager import (
+            _POST_REACTIVATION_TEST_DATASET_ANALYSES,
+            _PRE_WEIGHT_TEST_DATASET_ANALYSES,
+        )
+
+        filename = "epoch_order"
+        training = True
+        runtime = object()
+        calls = []
+
+        def record_step(name, *, expects_runtime):
+            def _recorder(**kwargs):
+                self.assertEqual(kwargs["filename"], filename)
+                self.assertIs(kwargs["training"], training)
+                if expects_runtime:
+                    self.assertIs(kwargs["runtime"], runtime)
+                else:
+                    self.assertNotIn("runtime", kwargs)
+                calls.append(name)
+
+            return _recorder
+
+        def record_runner(runner, **kwargs):
+            self.assertEqual(kwargs["filename"], filename)
+            self.assertIs(kwargs["training"], training)
+            self.assertIs(kwargs["runtime"], runtime)
+            calls.append(f"runner:{runner.registry_name}")
+
+        patched_steps = (
+            ("_run_performance_analysis", "performance", True),
+            ("_run_information_analysis", "information", True),
+            ("_run_synaptic_turnover_analysis", "synapse_turnover", False),
+            ("_run_weight_analysis", "weight", False),
+            ("_run_reactivation_dynamics_analysis", "reactivation_dynamics", True),
+            ("_run_local_rule_component_analysis", "local_rule_components", True),
+            ("_run_correlation_analysis", "correlation", True),
+            ("_run_routing_analysis", "routing", False),
+            (
+                "_run_inhibitory_specialization_analysis",
+                "inhibitory_specialization",
+                False,
+            ),
+            ("_run_jacobian_spectrum_analysis", "jacobian_spectrum", False),
+            ("_run_dendritic_timetraces_analysis", "dendritic_timetraces", False),
+            ("_run_spike_train_analysis", "spike_train", True),
+            ("_run_adversarial_robustness_analysis", "adversarial_robustness", True),
+        )
+
+        with ExitStack() as stack:
+            runtime_mock = stack.enter_context(
+                patch.object(self.manager, "_analysis_runtime", return_value=runtime)
+            )
+            stack.enter_context(
+                patch.object(
+                    self.manager,
+                    "_run_test_dataset_analysis_runner",
+                    side_effect=record_runner,
+                )
+            )
+            for method_name, call_name, expects_runtime in patched_steps:
+                stack.enter_context(
+                    patch.object(
+                        self.manager,
+                        method_name,
+                        side_effect=record_step(
+                            call_name,
+                            expects_runtime=expects_runtime,
+                        ),
+                    )
+                )
+
+            self.manager.run_analysis(filename=filename, training=training)
+
+        runtime_mock.assert_called_once_with(training)
+        expected_calls = [
+            "performance",
+            "information",
+            "synapse_turnover",
+            *[
+                f"runner:{runner.registry_name}"
+                for runner in _PRE_WEIGHT_TEST_DATASET_ANALYSES
+            ],
+            "weight",
+            "reactivation_dynamics",
+            *[
+                f"runner:{runner.registry_name}"
+                for runner in _POST_REACTIVATION_TEST_DATASET_ANALYSES
+            ],
+            "local_rule_components",
+            "correlation",
+            "routing",
+            "inhibitory_specialization",
+            "jacobian_spectrum",
+            "dendritic_timetraces",
+            "spike_train",
+            "adversarial_robustness",
+        ]
+        self.assertEqual(calls, expected_calls)
 
     def test_common_test_dataset_analysis_path_preserves_training_kwarg(self):
         """Shared runner should preserve training-aware analyzer calls."""

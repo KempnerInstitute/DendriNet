@@ -374,6 +374,69 @@ def normalize_optimizer_config(optimizer_cfg) -> OptimizerConfig:
     return OptimizerConfig(**sanitized)
 
 
+def _maybe_attach_pruning_results(
+    analysis_manager: AnalysisManager,
+    training_results: dict | None,
+) -> None:
+    """Attach pruning metrics to analysis when the training result includes them."""
+    if training_results and (
+        "pre_pruning_performance" in training_results
+        or "post_pruning_performance" in training_results
+    ):
+        analysis_manager.set_pruning_results(training_results)
+
+
+def _resolve_final_epoch_for_performance_plot(training_config) -> int | None:
+    """Return final epoch metadata from the training config when available."""
+    if (
+        training_config is not None
+        and hasattr(training_config, "main")
+        and hasattr(training_config.main, "common")
+        and hasattr(training_config.main.common, "epochs")
+    ):
+        return training_config.main.common.epochs
+    return None
+
+
+def _maybe_plot_performance_evolution(
+    *,
+    run_save_path: str,
+    analysis_manager: AnalysisManager,
+    training_config=None,
+) -> None:
+    """Generate final performance-evolution plots when epoch tracking exists."""
+    if not analysis_manager.config.performance_analysis.training:
+        return
+
+    performance_dir = os.path.join(run_save_path, "performance", "epochs")
+    logger.info(f"Checking for performance evolution data in: {performance_dir}")
+    if not os.path.exists(performance_dir):
+        logger.warning(f"Performance directory does not exist: {performance_dir}")
+        return
+
+    logger.info(
+        "Performance directory exists. Generating performance evolution plots..."
+    )
+    try:
+        final_epoch = _resolve_final_epoch_for_performance_plot(training_config)
+        pruning_performance = getattr(analysis_manager, "pruning_results", None)
+        logger.info(f"Pruning results available: {pruning_performance is not None}")
+
+        plotter = PerformancePlotter()
+        plotter.plot_performance_evolution(
+            performance_dir=performance_dir,
+            save_path=os.path.join(run_save_path, "performance"),
+            pruning_performance=pruning_performance,
+            final_epoch=final_epoch,
+        )
+        logger.info("Performance evolution plots generated successfully")
+    except Exception as e:
+        logger.error(f"Failed to generate performance evolution plots: {e}")
+        import traceback
+
+        logger.error(traceback.format_exc())
+
+
 def run_analysis(
     train_ds: torch.utils.data.Dataset,
     valid_ds: torch.utils.data.Dataset,
@@ -387,61 +450,16 @@ def run_analysis(
     """Run analysis using the AnalysisManager."""
     logger.info("Running analyses...")
     if analysis_manager is not None:
-        # Set pruning results if available
-        if training_results and (
-            "pre_pruning_performance" in training_results
-            or "post_pruning_performance" in training_results
-        ):
-            analysis_manager.set_pruning_results(training_results)
+        _maybe_attach_pruning_results(analysis_manager, training_results)
 
         analysis_manager.run_analysis(filename="final", training=training)
 
-        # Generate performance evolution plots if this is final analysis and training tracking was enabled
-        if not training and analysis_manager.config.performance_analysis.training:
-            performance_dir = os.path.join(run_save_path, "performance", "epochs")
-            logger.info(
-                f"Checking for performance evolution data in: {performance_dir}"
+        if not training:
+            _maybe_plot_performance_evolution(
+                run_save_path=run_save_path,
+                analysis_manager=analysis_manager,
+                training_config=training_config,
             )
-            if os.path.exists(performance_dir):
-                logger.info(
-                    "Performance directory exists. Generating performance evolution plots..."
-                )
-                try:
-                    # Get final epoch from training config if available
-                    final_epoch = None
-                    if (
-                        training_config is not None
-                        and hasattr(training_config, "main")
-                        and hasattr(training_config.main, "common")
-                        and hasattr(training_config.main.common, "epochs")
-                    ):
-                        final_epoch = training_config.main.common.epochs
-
-                    # Get pruning results if available
-                    pruning_performance = getattr(
-                        analysis_manager, "pruning_results", None
-                    )
-                    logger.info(
-                        f"Pruning results available: {pruning_performance is not None}"
-                    )
-
-                    plotter = PerformancePlotter()
-                    plotter.plot_performance_evolution(
-                        performance_dir=performance_dir,
-                        save_path=os.path.join(run_save_path, "performance"),
-                        pruning_performance=pruning_performance,
-                        final_epoch=final_epoch,
-                    )
-                    logger.info("Performance evolution plots generated successfully")
-                except Exception as e:
-                    logger.error(f"Failed to generate performance evolution plots: {e}")
-                    import traceback
-
-                    logger.error(traceback.format_exc())
-            else:
-                logger.warning(
-                    f"Performance directory does not exist: {performance_dir}"
-                )
 
         logger.info("Analysis completed")
 

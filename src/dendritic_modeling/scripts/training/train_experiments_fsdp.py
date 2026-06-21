@@ -308,6 +308,92 @@ def _get_analysis_encoder_network(encoder_network):
     return encoder_network
 
 
+def _run_final_analysis_on_plain_model(
+    *,
+    config,
+    analysis_manager: AnalysisManager,
+    full_ckpt_path: str,
+    encoder_network,
+    local_rank: int,
+) -> None:
+    """Reload the gathered FSDP checkpoint into a plain model before analysis."""
+    try:
+        logger.info("Running final analysis on non-FSDP model...")
+        plain_model = create_large_model(config)
+        ckpt = torch.load(full_ckpt_path, map_location=f"cuda:{local_rank}")
+        plain_model.load_state_dict(ckpt["model_state_dict"])
+        plain_model = plain_model.to(f"cuda:{local_rank}")
+        plain_model.eval()
+
+        plain_model.encoder_network = _get_analysis_encoder_network(encoder_network)
+
+        analysis_manager.model = plain_model
+        analysis_manager.run_analysis(filename="final", training=False)
+        logger.info("Final analysis completed - figures saved to performance folder")
+    except Exception as e:
+        logger.error(f"Final analysis failed: {e}")
+        import traceback
+
+        logger.error(traceback.format_exc())
+
+
+def _requested_data_driven_reactivation_policies(config, model) -> set[str]:
+    """Return data-driven reactivation policies requested by config or layers."""
+    requested_policies = set()
+    try:
+        reactivation_cfg = config.model.core.reactivation
+        init_policy = normalize_reactivation_init_policy(
+            getattr(reactivation_cfg, "init_policy", "analytical")
+        )
+        if is_data_driven_reactivation_policy(init_policy):
+            requested_policies.add(init_policy)
+    except AttributeError:
+        logger.debug(
+            "Reactivation config path missing (config.model.core.reactivation); "
+            "skipping config-level data-driven init policy detection."
+        )
+
+    for module in model.modules():
+        layer_policy = getattr(module, "reactivation_init_policy", None)
+        if layer_policy is None:
+            continue
+        layer_policy = normalize_reactivation_init_policy(layer_policy)
+        if is_data_driven_reactivation_policy(layer_policy):
+            requested_policies.add(layer_policy)
+
+    return requested_policies
+
+
+def _maybe_calibrate_fsdp_data_driven_reactivation(
+    *,
+    config,
+    model,
+    train_dataset,
+) -> None:
+    """Run FSDP rank-0 data-driven reactivation calibration when requested."""
+    requested_policies = _requested_data_driven_reactivation_policies(config, model)
+    if not requested_policies:
+        return
+
+    logger.warning(
+        "FSDP + init_policy=%r: running calibration on rank 0 only. "
+        "Parameter writes may not propagate perfectly across ranks "
+        "depending on sharding strategy. Verify with the "
+        "ReactivationDynamicsAnalyzer if in doubt.",
+        ", ".join(sorted(requested_policies)),
+    )
+    from dendritic_modeling.scripts.training.train_experiments import (
+        _maybe_calibrate_data_driven_reactivation,
+    )
+
+    _maybe_calibrate_data_driven_reactivation(
+        config=config,
+        model=model,
+        train_dataset=train_dataset,
+        is_main=True,
+    )
+
+
 class _FSDPLoaderTuningDataset(Dataset):
     """Placeholder used only for backwards-compatible helper calls."""
 
@@ -565,54 +651,11 @@ def main(config_path):
             f"Performance analysis training: {config.analysis.performance_analysis.training}"
         )
 
-        # Parity with the single-GPU launcher: if the config requests
-        # data-driven reactivation calibration, run it here before training
-        # starts. Under FSDP the model is already sharded by this point;
-        # calibration runs on rank 0's shard-view of the model and writes
-        # back to the ParametricTanh parameters, which then get
-        # synchronized across ranks via FSDP's standard parameter-sharing
-        # on the first forward pass. We log a warning so users can spot
-        # divergence if it occurs.
-        from dendritic_modeling.scripts.training.train_experiments import (
-            _maybe_calibrate_data_driven_reactivation,
+        _maybe_calibrate_fsdp_data_driven_reactivation(
+            config=config,
+            model=model,
+            train_dataset=encoded_train_ds,
         )
-
-        requested_policies = set()
-        try:
-            reactivation_cfg = config.model.core.reactivation
-            init_policy = normalize_reactivation_init_policy(
-                getattr(reactivation_cfg, "init_policy", "analytical")
-            )
-            if is_data_driven_reactivation_policy(init_policy):
-                requested_policies.add(init_policy)
-        except AttributeError:
-            logger.debug(
-                "Reactivation config path missing (config.model.core.reactivation); "
-                "skipping config-level data-driven init policy detection."
-            )
-
-        for module in model.modules():
-            layer_policy = getattr(module, "reactivation_init_policy", None)
-            if layer_policy is None:
-                continue
-            layer_policy = normalize_reactivation_init_policy(layer_policy)
-            if is_data_driven_reactivation_policy(layer_policy):
-                requested_policies.add(layer_policy)
-
-        if requested_policies:
-            logger.warning(
-                "FSDP + init_policy=%r: running calibration on rank 0 only. "
-                "Parameter writes may not propagate perfectly across ranks "
-                "depending on sharding strategy. Verify with the "
-                "ReactivationDynamicsAnalyzer if in doubt.",
-                ", ".join(sorted(requested_policies)),
-            )
-            _maybe_calibrate_data_driven_reactivation(
-                config=config,
-                model=model,
-                train_dataset=encoded_train_ds,
-                is_main=True,
-            )
 
     # Create FSDP trainer
     trainer = FSDPTrainer(
@@ -681,28 +724,13 @@ def main(config_path):
         logger.info(f"Full checkpoint saved to {full_ckpt_path}")
 
     if rank == 0 and analysis_manager:
-        try:
-            logger.info("Running final analysis on non-FSDP model...")
-            # Create a fresh non-FSDP model and load the gathered state dict
-            plain_model = create_large_model(config)
-            ckpt = torch.load(full_ckpt_path, map_location=f"cuda:{local_rank}")
-            plain_model.load_state_dict(ckpt["model_state_dict"])
-            plain_model = plain_model.to(f"cuda:{local_rank}")
-            plain_model.eval()
-
-            # Set the encoder for analysis
-            plain_model.encoder_network = _get_analysis_encoder_network(encoder_network)
-
-            analysis_manager.model = plain_model
-            analysis_manager.run_analysis(filename="final", training=False)
-            logger.info(
-                "Final analysis completed - figures saved to performance folder"
-            )
-        except Exception as e:
-            logger.error(f"Final analysis failed: {e}")
-            import traceback
-
-            logger.error(traceback.format_exc())
+        _run_final_analysis_on_plain_model(
+            config=config,
+            analysis_manager=analysis_manager,
+            full_ckpt_path=full_ckpt_path,
+            encoder_network=encoder_network,
+            local_rank=local_rank,
+        )
 
     # Clean up distributed
     if wandb_run:

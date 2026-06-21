@@ -323,6 +323,23 @@ class AnalysisManager:
             require_analyzer=runner.require_analyzer,
         )
 
+    def _run_test_dataset_analysis_runners(
+        self,
+        runners: tuple[_TestDatasetAnalysisRunner, ...],
+        *,
+        filename: str,
+        training: bool,
+        runtime: object | None,
+    ) -> None:
+        """Run a table of test-dataset analyzers in declaration order."""
+        for runner in runners:
+            self._run_test_dataset_analysis_runner(
+                runner,
+                filename=filename,
+                training=training,
+                runtime=runtime,
+            )
+
     def set_pruning_results(self, pruning_results: dict):
         """Set pruning results for inclusion in performance plots."""
         self.pruning_results = pruning_results
@@ -602,16 +619,10 @@ class AnalysisManager:
         )
         self.logger.info("Adversarial robustness analysis completed successfully")
 
-    def run_analysis(self, filename: str = "final", training: bool = False):
-        """
-        Run all enabled analysis tools.
-
-        Args:
-            filename: Base filename for saving analysis results
-            training: Whether this is being called during training (affects which analyses run)
-        """
-        runtime = self._analysis_runtime(training)
-
+    def _run_ordered_analysis_sequence(
+        self, *, filename: str, training: bool, runtime: object | None
+    ) -> None:
+        """Run analyzer wrappers in the historically defined order."""
         self._run_performance_analysis(
             filename=filename, training=training, runtime=runtime
         )
@@ -620,26 +631,24 @@ class AnalysisManager:
         )
         self._run_synaptic_turnover_analysis(filename=filename, training=training)
 
-        for runner in _PRE_WEIGHT_TEST_DATASET_ANALYSES:
-            self._run_test_dataset_analysis_runner(
-                runner,
-                filename=filename,
-                training=training,
-                runtime=runtime,
-            )
+        self._run_test_dataset_analysis_runners(
+            _PRE_WEIGHT_TEST_DATASET_ANALYSES,
+            filename=filename,
+            training=training,
+            runtime=runtime,
+        )
 
         self._run_weight_analysis(filename=filename, training=training)
         self._run_reactivation_dynamics_analysis(
             filename=filename, training=training, runtime=runtime
         )
 
-        for runner in _POST_REACTIVATION_TEST_DATASET_ANALYSES:
-            self._run_test_dataset_analysis_runner(
-                runner,
-                filename=filename,
-                training=training,
-                runtime=runtime,
-            )
+        self._run_test_dataset_analysis_runners(
+            _POST_REACTIVATION_TEST_DATASET_ANALYSES,
+            filename=filename,
+            training=training,
+            runtime=runtime,
+        )
 
         self._run_local_rule_component_analysis(
             filename=filename, training=training, runtime=runtime
@@ -658,4 +667,19 @@ class AnalysisManager:
         )
         self._run_adversarial_robustness_analysis(
             filename=filename, training=training, runtime=runtime
+        )
+
+    def run_analysis(self, filename: str = "final", training: bool = False):
+        """
+        Run all enabled analysis tools.
+
+        Args:
+            filename: Base filename for saving analysis results
+            training: Whether this is being called during training (affects which analyses run)
+        """
+        runtime = self._analysis_runtime(training)
+        self._run_ordered_analysis_sequence(
+            filename=filename,
+            training=training,
+            runtime=runtime,
         )

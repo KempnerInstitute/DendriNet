@@ -255,80 +255,101 @@ class LocalCreditAssignment(
             delta_scalar=delta_scalar,
         )
 
-        # Iterate in the order records were captured
         for layer_idx, rec in enumerate(layer_records):
-            if not self._should_update_local_record(rec):
-                # In freeze mode, explicit inhibitory-cell dendrites are held
-                # fixed. The E-cell I-to-E synapses still learn locally because
-                # they are part of excitatory dendrite records.
-                continue
-
-            v_n: Optional[torch.Tensor] = rec.get("v_n")  # [B, out]
-            if v_n is None:
-                continue
-
-            # Layer depth scaling (1-indexed)
-            layer_depth = layer_idx + 1
-            out_features = v_n.size(1)
-
-            e_n = self._compute_local_broadcast_error(
-                rec=rec,
-                layer_idx=layer_idx,
-                out_features=out_features,
-                v_n=v_n,
-                delta=delta,
-                delta_scalar=delta_scalar,
-                broadcast_state=broadcast_state,
-            )
-            e_n, stdp_error_signal = _resolve_stdp_error_signals(
-                self.local_cfg,
-                e_n,
-            )
-
-            layer_dynamics_mode = self._resolve_layer_dynamics_mode(rec)
-            R_tot = self._compute_local_input_resistance(
-                rec=rec,
-                v_n=v_n,
-                layer_dynamics_mode=layer_dynamics_mode,
-            )
-
-            # Apply path-integrated attenuation if enabled.
-            e_n = _apply_path_propagation_factor(
-                self.local_cfg,
-                broadcast_state,
-                rec,
-                e_n,
-            )
-
-            modulators = self._compute_local_layer_modulators(
-                rec=rec,
-                v0=v0,
-                layer_depth=layer_depth,
-            )
-            post_factors = self._compute_local_post_factors(
-                rec=rec,
-                e_n=e_n,
-                v_n=v_n,
-                r_tot=R_tot,
-                layer_dynamics_mode=layer_dynamics_mode,
-                layer_idx=layer_idx,
-                modulators=modulators,
-            )
-            self._apply_layer_local_gradients(
+            self._apply_local_rule_record_gradients(
                 rec=rec,
                 layer_idx=layer_idx,
                 num_layers=len(layer_records),
-                y_target=y_target,
+                v0=v0,
+                delta=delta,
+                delta_scalar=delta_scalar,
                 batch_size=batch_size,
-                e_n=e_n,
-                stdp_error_signal=stdp_error_signal,
-                v_n=v_n,
-                r_tot=R_tot,
-                layer_dynamics_mode=layer_dynamics_mode,
-                modulators=modulators,
-                post_factors=post_factors,
+                broadcast_state=broadcast_state,
+                y_target=y_target,
                 update_reactivation=update_reactivation,
             )
+
+    def _apply_local_rule_record_gradients(
+        self,
+        *,
+        rec: dict[str, Any],
+        layer_idx: int,
+        num_layers: int,
+        v0: torch.Tensor,
+        delta: torch.Tensor,
+        delta_scalar: torch.Tensor,
+        batch_size: int,
+        broadcast_state: Any,
+        y_target: Optional[torch.Tensor],
+        update_reactivation: bool,
+    ) -> None:
+        """Prepare one recorded layer and apply its local-rule gradients."""
+        if not self._should_update_local_record(rec):
+            # In freeze mode, explicit inhibitory-cell dendrites are held fixed.
+            # E-cell I-to-E synapses still learn through excitatory records.
+            return
+
+        v_n: Optional[torch.Tensor] = rec.get("v_n")
+        if v_n is None:
+            return
+
+        layer_depth = layer_idx + 1
+        e_n = self._compute_local_broadcast_error(
+            rec=rec,
+            layer_idx=layer_idx,
+            out_features=v_n.size(1),
+            v_n=v_n,
+            delta=delta,
+            delta_scalar=delta_scalar,
+            broadcast_state=broadcast_state,
+        )
+        e_n, stdp_error_signal = _resolve_stdp_error_signals(
+            self.local_cfg,
+            e_n,
+        )
+
+        layer_dynamics_mode = self._resolve_layer_dynamics_mode(rec)
+        r_tot = self._compute_local_input_resistance(
+            rec=rec,
+            v_n=v_n,
+            layer_dynamics_mode=layer_dynamics_mode,
+        )
+        e_n = _apply_path_propagation_factor(
+            self.local_cfg,
+            broadcast_state,
+            rec,
+            e_n,
+        )
+
+        modulators = self._compute_local_layer_modulators(
+            rec=rec,
+            v0=v0,
+            layer_depth=layer_depth,
+        )
+        post_factors = self._compute_local_post_factors(
+            rec=rec,
+            e_n=e_n,
+            v_n=v_n,
+            r_tot=r_tot,
+            layer_dynamics_mode=layer_dynamics_mode,
+            layer_idx=layer_idx,
+            modulators=modulators,
+        )
+        self._apply_layer_local_gradients(
+            rec=rec,
+            layer_idx=layer_idx,
+            num_layers=num_layers,
+            y_target=y_target,
+            batch_size=batch_size,
+            e_n=e_n,
+            stdp_error_signal=stdp_error_signal,
+            v_n=v_n,
+            r_tot=r_tot,
+            layer_dynamics_mode=layer_dynamics_mode,
+            modulators=modulators,
+            post_factors=post_factors,
+            update_reactivation=update_reactivation,
+        )
 
     def train(
         self,

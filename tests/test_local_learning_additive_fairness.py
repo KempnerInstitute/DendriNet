@@ -120,6 +120,56 @@ def _run_local_update(
     return exc_grad, inh_grad, den_grad
 
 
+def test_local_rule_gradient_dispatch_passes_records_in_order(monkeypatch) -> None:
+    """Batch-level local-rule dispatch should preserve per-record call context."""
+    trainer = _make_trainer(dynamics_mode="additive")
+    records = [
+        {"v_n": torch.zeros(2, 2)},
+        {"v_n": torch.zeros(2, 3)},
+    ]
+    v0 = torch.zeros(2, 2)
+    delta = torch.tensor([[0.2, -0.1], [0.4, 0.3]], dtype=torch.float32)
+    y_target = torch.tensor([0, 1])
+    model = object()
+    broadcast_state = object()
+    captured = []
+
+    def fake_prepare(**kwargs):
+        assert kwargs["model"] is model
+        assert kwargs["layer_records"] is records
+        assert kwargs["delta"] is delta
+        torch.testing.assert_close(
+            kwargs["delta_scalar"],
+            trainer._reduce_error_to_scalar(delta),
+        )
+        return broadcast_state
+
+    def fake_apply(**kwargs):
+        captured.append(kwargs)
+
+    monkeypatch.setattr(trainer, "_prepare_local_rule_broadcast_state", fake_prepare)
+    monkeypatch.setattr(trainer, "_apply_local_rule_record_gradients", fake_apply)
+
+    trainer._apply_local_rule_gradients(
+        model=model,
+        layer_records=records,
+        v0=v0,
+        delta=delta,
+        y_target=y_target,
+        update_reactivation=False,
+    )
+
+    assert [entry["rec"] for entry in captured] == records
+    assert [entry["layer_idx"] for entry in captured] == [0, 1]
+    assert [entry["num_layers"] for entry in captured] == [2, 2]
+    assert [entry["batch_size"] for entry in captured] == [2, 2]
+    assert all(entry["v0"] is v0 for entry in captured)
+    assert all(entry["delta"] is delta for entry in captured)
+    assert all(entry["broadcast_state"] is broadcast_state for entry in captured)
+    assert all(entry["y_target"] is y_target for entry in captured)
+    assert all(entry["update_reactivation"] is False for entry in captured)
+
+
 def test_additive_auto_uses_additive_derivatives() -> None:
     """Auto mode should use additive-consistent derivatives for additive layers."""
     torch.manual_seed(0)
