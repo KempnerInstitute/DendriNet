@@ -14,6 +14,8 @@ from dendritic_modeling.analysis.core.information import (
     _build_information_signal_variant_selection,
     _get_config_path,
     _get_config_value,
+    _get_grouped_or_legacy_value,
+    _get_grouped_path_or_legacy_value,
     _normalize_config_token,
     _normalize_config_tokens,
     _parse_information_component_selection,
@@ -77,6 +79,76 @@ def test_get_config_path_preserves_nested_fallback_behavior():
         == 10
     )
     assert _get_config_path(None, ("estimator",), "fallback") == "fallback"
+
+
+def test_get_grouped_or_legacy_value_preserves_precedence_and_none_fallbacks():
+    params = SimpleNamespace(value="legacy")
+
+    assert (
+        _get_grouped_or_legacy_value(
+            grouped_cfg={"value": "grouped"},
+            grouped_key="value",
+            params=params,
+            legacy_key="value",
+            default="default",
+        )
+        == "grouped"
+    )
+    assert (
+        _get_grouped_or_legacy_value(
+            grouped_cfg={"value": None},
+            grouped_key="value",
+            params=params,
+            legacy_key="value",
+            default="default",
+        )
+        == "legacy"
+    )
+    assert (
+        _get_grouped_or_legacy_value(
+            grouped_cfg=None,
+            grouped_key="value",
+            params=SimpleNamespace(value=None),
+            legacy_key="value",
+            default="default",
+        )
+        == "default"
+    )
+
+
+def test_get_grouped_path_or_legacy_value_preserves_nested_none_fallbacks():
+    params = SimpleNamespace(value="legacy")
+
+    assert (
+        _get_grouped_path_or_legacy_value(
+            grouped_cfg={"outer": {"inner": "grouped"}},
+            grouped_path=("outer", "inner"),
+            params=params,
+            legacy_key="value",
+            default="default",
+        )
+        == "grouped"
+    )
+    assert (
+        _get_grouped_path_or_legacy_value(
+            grouped_cfg={"outer": {"inner": None}},
+            grouped_path=("outer", "inner"),
+            params=params,
+            legacy_key="value",
+            default="default",
+        )
+        == "legacy"
+    )
+    assert (
+        _get_grouped_path_or_legacy_value(
+            grouped_cfg={"outer": None},
+            grouped_path=("outer", "inner"),
+            params=SimpleNamespace(value=None),
+            legacy_key="value",
+            default="default",
+        )
+        == "default"
+    )
 
 
 def test_normalize_config_token_preserves_legacy_selector_normalization():
@@ -198,6 +270,26 @@ def test_build_information_signal_variant_selection_uses_legacy_fallbacks():
     assert signal_shuffle_selection.compute_lda_weights is True
     assert signal_shuffle_selection.lda_n_shuffles == 5
     assert signal_shuffle_selection.random_weights_seed == 13
+
+
+def test_build_information_signal_variant_selection_grouped_none_uses_legacy_fields():
+    params = SimpleNamespace(
+        compute_lda_weights=True,
+        signal_variants=["shuffle"],
+        lda_n_shuffles=2,
+        random_weights_seed=3,
+    )
+
+    selection = _build_information_signal_variant_selection(
+        params=params,
+        selection_cfg={"signal_variants": None},
+        compute_cfg={"compute_lda_weights": None},
+        baselines_cfg=None,
+    )
+
+    assert selection.compute_lda_weights is True
+    assert selection.lda_n_shuffles == 2
+    assert selection.random_weights_seed == 3
 
 
 def test_build_information_signal_variant_selection_applies_variant_overrides():
@@ -650,6 +742,53 @@ def test_build_information_estimator_core_config_uses_legacy_fallbacks():
     assert estimator_core.copula_type == "legacy"
 
 
+def test_grouped_none_values_fall_back_to_legacy_config_fields():
+    params = SimpleNamespace(
+        computation_level="layer_branch",
+        branch_aggregation="multivariate",
+        per_neuron_analysis=True,
+        per_einet_analysis=True,
+        per_layer_analysis=False,
+        method="binned",
+        max_samples=128,
+        n_neighbors=3,
+        n_bins=12,
+        copula_type="legacy",
+    )
+
+    granularity_config = _build_information_granularity_config(
+        params=params,
+        compute_cfg={
+            "computation_level": None,
+            "branch_aggregation": None,
+            "per_neuron_analysis": None,
+            "per_einet_analysis": None,
+            "per_layer_analysis": None,
+        },
+    )
+    estimator_core = _build_information_estimator_core_config(
+        params=params,
+        estimator_cfg={
+            "method": None,
+            "kraskov": {"n_neighbors": None},
+            "binned": {"n_bins": None},
+            "copula": {"type": None},
+        },
+        compute_cfg={"max_samples": None},
+    )
+
+    assert granularity_config.computation_level == "layer_branch"
+    assert granularity_config.branch_aggregation == "multivariate"
+    assert granularity_config.per_neuron_analysis is True
+    assert granularity_config.per_einet_analysis is True
+    assert granularity_config.per_layer_analysis is False
+    assert estimator_core.method == "binned"
+    assert estimator_core.max_samples == 128
+    assert estimator_core.n_neighbors == 3
+    assert estimator_core.n_bins == 12
+    assert estimator_core.copula_type == "legacy"
+
+
 def test_build_information_estimator_core_config_preserves_mapping_behavior():
     estimator_core = _build_information_estimator_core_config(
         params={
@@ -749,6 +888,55 @@ def test_build_information_estimator_method_params_decoder_uses_legacy_fallbacks
     method_params = _build_information_estimator_method_params(
         params=params,
         estimator_cfg=None,
+        method="decoder",
+    )
+
+    assert method_params == {
+        "cv_folds": 4,
+        "C": 0.75,
+        "standardize": False,
+        "seed": 11,
+        "continuous_strategy": "binned",
+        "continuous_max_dim": 5,
+        "gaussian_ridge": 3e-6,
+        "binning_strategy": "uniform",
+        "bias_correction": "pt",
+    }
+
+
+def test_build_information_estimator_method_params_grouped_none_uses_legacy_fields():
+    params = SimpleNamespace(
+        decoder_cv_folds=4,
+        decoder_C=0.75,
+        decoder_standardize=False,
+        decoder_seed=11,
+        decoder_continuous_strategy="binned",
+        decoder_continuous_max_total_dim=5,
+        decoder_gaussian_ridge=3e-6,
+        binning_strategy="uniform",
+        binning_bias_correction="pt",
+    )
+    estimator_cfg = {
+        "decoder": {
+            "cv_folds": None,
+            "C": None,
+            "standardize": None,
+            "seed": None,
+            "continuous": {
+                "strategy": None,
+                "max_total_dim": None,
+                "gaussian_ridge": None,
+            },
+        },
+        "binned": {
+            "binning_strategy": None,
+            "bias_correction": None,
+        },
+    }
+
+    method_params = _build_information_estimator_method_params(
+        params=params,
+        estimator_cfg=estimator_cfg,
         method="decoder",
     )
 

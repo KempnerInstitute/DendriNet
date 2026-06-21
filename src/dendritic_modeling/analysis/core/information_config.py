@@ -135,6 +135,38 @@ def _get_config_path(
     return cur
 
 
+def _get_grouped_or_legacy_value(
+    *,
+    grouped_cfg: Any,
+    grouped_key: str,
+    params: Any,
+    legacy_key: str,
+    default: Any = None,
+) -> Any:
+    """Get a grouped config value, falling back to its legacy flat key."""
+    return _get_config_value(
+        grouped_cfg,
+        grouped_key,
+        _get_config_value(params, legacy_key, default),
+    )
+
+
+def _get_grouped_path_or_legacy_value(
+    *,
+    grouped_cfg: Any,
+    grouped_path: tuple[str, ...],
+    params: Any,
+    legacy_key: str,
+    default: Any = None,
+) -> Any:
+    """Get a nested grouped config value, falling back to its legacy flat key."""
+    return _get_config_path(
+        grouped_cfg,
+        grouped_path,
+        _get_config_value(params, legacy_key, default),
+    )
+
+
 def _normalize_config_token(value: Any) -> str:
     """Normalize config selector tokens for legacy and grouped configs."""
     return str(value).strip().lower().replace("-", "_").replace(" ", "_")
@@ -207,10 +239,12 @@ def _build_information_signal_variant_selection(
 ) -> _InformationSignalVariantSelection:
     """Build LDA/random-weight signal settings from grouped or legacy config."""
     compute_lda_weights = bool(
-        _get_config_value(
-            compute_cfg,
-            "compute_lda_weights",
-            _get_config_value(params, "compute_lda_weights", False),
+        _get_grouped_or_legacy_value(
+            grouped_cfg=compute_cfg,
+            grouped_key="compute_lda_weights",
+            params=params,
+            legacy_key="compute_lda_weights",
+            default=False,
         )
     )
     lda_n_shuffles = int(
@@ -239,10 +273,12 @@ def _build_information_signal_variant_selection(
     )
 
     variants_raw = list(
-        _get_config_value(
-            selection_cfg,
-            "signal_variants",
-            _get_config_value(params, "signal_variants", []),
+        _get_grouped_or_legacy_value(
+            grouped_cfg=selection_cfg,
+            grouped_key="signal_variants",
+            params=params,
+            legacy_key="signal_variants",
+            default=[],
         )
         or []
     )
@@ -267,26 +303,32 @@ def _build_information_label_shuffle_null_config(
 ) -> _InformationLabelShuffleNullConfig:
     """Build label-shuffle null baseline settings from grouped or legacy config."""
     mi_null_shuffles = int(
-        _get_config_path(
-            baselines_cfg,
-            ("label_shuffle_null", "n_shuffles"),
-            _get_config_value(params, "mi_null_shuffles", 0),
+        _get_grouped_path_or_legacy_value(
+            grouped_cfg=baselines_cfg,
+            grouped_path=("label_shuffle_null", "n_shuffles"),
+            params=params,
+            legacy_key="mi_null_shuffles",
+            default=0,
         )
         or 0
     )
     mi_null_seed = int(
-        _get_config_path(
-            baselines_cfg,
-            ("label_shuffle_null", "seed"),
-            _get_config_value(params, "mi_null_seed", 0),
+        _get_grouped_path_or_legacy_value(
+            grouped_cfg=baselines_cfg,
+            grouped_path=("label_shuffle_null", "seed"),
+            params=params,
+            legacy_key="mi_null_seed",
+            default=0,
         )
         or 0
     )
     null_components_raw = list(
-        _get_config_path(
-            baselines_cfg,
-            ("label_shuffle_null", "components"),
-            _get_config_value(params, "mi_null_components", ["basic"]),
+        _get_grouped_path_or_legacy_value(
+            grouped_cfg=baselines_cfg,
+            grouped_path=("label_shuffle_null", "components"),
+            params=params,
+            legacy_key="mi_null_components",
+            default=["basic"],
         )
         or ["basic"]
     )
@@ -305,24 +347,30 @@ def _build_information_pid_config(
     """Build PID preprocessing settings from grouped or legacy config."""
     return _InformationPidConfig(
         pid_binarize=bool(
-            _get_config_value(
-                pid_cfg,
-                "binarize",
-                _get_config_value(params, "pid_binarize", False),
+            _get_grouped_or_legacy_value(
+                grouped_cfg=pid_cfg,
+                grouped_key="binarize",
+                params=params,
+                legacy_key="pid_binarize",
+                default=False,
             )
         ),
         pid_binarize_method=str(
-            _get_config_value(
-                pid_cfg,
-                "binarize_method",
-                _get_config_value(params, "pid_binarize_method", "median"),
+            _get_grouped_or_legacy_value(
+                grouped_cfg=pid_cfg,
+                grouped_key="binarize_method",
+                params=params,
+                legacy_key="pid_binarize_method",
+                default="median",
             )
         ),
         pid_binarize_threshold=float(
-            _get_config_value(
-                pid_cfg,
-                "binarize_threshold",
-                _get_config_value(params, "pid_binarize_threshold", 0.5),
+            _get_grouped_or_legacy_value(
+                grouped_cfg=pid_cfg,
+                grouped_key="binarize_threshold",
+                params=params,
+                legacy_key="pid_binarize_threshold",
+                default=0.5,
             )
         ),
     )
@@ -386,10 +434,12 @@ def _build_information_runtime_config(
 ) -> _InformationRuntimeConfig:
     """Build runtime/reporting settings from grouped or legacy config."""
     output_units = _normalize_config_token(
-        _get_config_value(
-            compute_cfg,
-            "output_units",
-            _get_config_value(params, "output_units", "bits"),
+        _get_grouped_or_legacy_value(
+            grouped_cfg=compute_cfg,
+            grouped_key="output_units",
+            params=params,
+            legacy_key="output_units",
+            default="bits",
         )
     )
     invalid_output_units = None
@@ -400,25 +450,31 @@ def _build_information_runtime_config(
 
     return _InformationRuntimeConfig(
         include_vinf=bool(
-            _get_config_value(
-                compute_cfg,
-                "include_vinf",
-                _get_config_value(params, "include_vinf", False),
+            _get_grouped_or_legacy_value(
+                grouped_cfg=compute_cfg,
+                grouped_key="include_vinf",
+                params=params,
+                legacy_key="include_vinf",
+                default=False,
             )
         ),
         normalize_mi=bool(
-            _get_config_value(
-                compute_cfg,
-                "normalize_mi",
-                _get_config_value(params, "normalize_mi", False),
+            _get_grouped_or_legacy_value(
+                grouped_cfg=compute_cfg,
+                grouped_key="normalize_mi",
+                params=params,
+                legacy_key="normalize_mi",
+                default=False,
             )
         ),
         output_units=output_units,
         verbose=bool(
-            _get_config_value(
-                compute_cfg,
-                "verbose",
-                _get_config_value(params, "verbose", False),
+            _get_grouped_or_legacy_value(
+                grouped_cfg=compute_cfg,
+                grouped_key="verbose",
+                params=params,
+                legacy_key="verbose",
+                default=False,
             )
         ),
         invalid_output_units=invalid_output_units,
@@ -433,38 +489,48 @@ def _build_information_granularity_config(
     """Build granularity and enhanced-view settings from grouped/legacy config."""
     return _InformationGranularityConfig(
         computation_level=str(
-            _get_config_value(
-                compute_cfg,
-                "computation_level",
-                _get_config_value(params, "computation_level", "single_branch"),
+            _get_grouped_or_legacy_value(
+                grouped_cfg=compute_cfg,
+                grouped_key="computation_level",
+                params=params,
+                legacy_key="computation_level",
+                default="single_branch",
             )
         ),
         branch_aggregation=str(
-            _get_config_value(
-                compute_cfg,
-                "branch_aggregation",
-                _get_config_value(params, "branch_aggregation", "mean"),
+            _get_grouped_or_legacy_value(
+                grouped_cfg=compute_cfg,
+                grouped_key="branch_aggregation",
+                params=params,
+                legacy_key="branch_aggregation",
+                default="mean",
             )
         ),
         per_neuron_analysis=bool(
-            _get_config_value(
-                compute_cfg,
-                "per_neuron_analysis",
-                _get_config_value(params, "per_neuron_analysis", False),
+            _get_grouped_or_legacy_value(
+                grouped_cfg=compute_cfg,
+                grouped_key="per_neuron_analysis",
+                params=params,
+                legacy_key="per_neuron_analysis",
+                default=False,
             )
         ),
         per_einet_analysis=bool(
-            _get_config_value(
-                compute_cfg,
-                "per_einet_analysis",
-                _get_config_value(params, "per_einet_analysis", False),
+            _get_grouped_or_legacy_value(
+                grouped_cfg=compute_cfg,
+                grouped_key="per_einet_analysis",
+                params=params,
+                legacy_key="per_einet_analysis",
+                default=False,
             )
         ),
         per_layer_analysis=bool(
-            _get_config_value(
-                compute_cfg,
-                "per_layer_analysis",
-                _get_config_value(params, "per_layer_analysis", False),
+            _get_grouped_or_legacy_value(
+                grouped_cfg=compute_cfg,
+                grouped_key="per_layer_analysis",
+                params=params,
+                legacy_key="per_layer_analysis",
+                default=False,
             )
         ),
     )
@@ -479,36 +545,46 @@ def _build_information_estimator_core_config(
     """Build estimator identity/sample/bin settings from grouped or legacy config."""
     return _InformationEstimatorCoreConfig(
         method=str(
-            _get_config_value(
-                estimator_cfg,
-                "method",
-                _get_config_value(params, "method", "kraskov"),
+            _get_grouped_or_legacy_value(
+                grouped_cfg=estimator_cfg,
+                grouped_key="method",
+                params=params,
+                legacy_key="method",
+                default="kraskov",
             )
         ),
-        max_samples=_get_config_value(
-            compute_cfg,
-            "max_samples",
-            _get_config_value(params, "max_samples", None),
+        max_samples=_get_grouped_or_legacy_value(
+            grouped_cfg=compute_cfg,
+            grouped_key="max_samples",
+            params=params,
+            legacy_key="max_samples",
+            default=None,
         ),
         n_neighbors=int(
-            _get_config_path(
-                estimator_cfg,
-                ("kraskov", "n_neighbors"),
-                _get_config_value(params, "n_neighbors", 10),
+            _get_grouped_path_or_legacy_value(
+                grouped_cfg=estimator_cfg,
+                grouped_path=("kraskov", "n_neighbors"),
+                params=params,
+                legacy_key="n_neighbors",
+                default=10,
             )
         ),
         n_bins=int(
-            _get_config_path(
-                estimator_cfg,
-                ("binned", "n_bins"),
-                _get_config_value(params, "n_bins", 20),
+            _get_grouped_path_or_legacy_value(
+                grouped_cfg=estimator_cfg,
+                grouped_path=("binned", "n_bins"),
+                params=params,
+                legacy_key="n_bins",
+                default=20,
             )
         ),
         copula_type=str(
-            _get_config_path(
-                estimator_cfg,
-                ("copula", "type"),
-                _get_config_value(params, "copula_type", "gaussian"),
+            _get_grouped_path_or_legacy_value(
+                grouped_cfg=estimator_cfg,
+                grouped_path=("copula", "type"),
+                params=params,
+                legacy_key="copula_type",
+                default="gaussian",
             )
         ),
     )
@@ -529,66 +605,84 @@ def _build_information_estimator_method_params(
     if normalized_method == "decoder":
         return {
             "cv_folds": int(
-                _get_config_value(
-                    decoder_cfg,
-                    "cv_folds",
-                    _get_config_value(params, "decoder_cv_folds", 5),
+                _get_grouped_or_legacy_value(
+                    grouped_cfg=decoder_cfg,
+                    grouped_key="cv_folds",
+                    params=params,
+                    legacy_key="decoder_cv_folds",
+                    default=5,
                 )
             ),
             "C": float(
-                _get_config_value(
-                    decoder_cfg,
-                    "C",
-                    _get_config_value(params, "decoder_C", 1.0),
+                _get_grouped_or_legacy_value(
+                    grouped_cfg=decoder_cfg,
+                    grouped_key="C",
+                    params=params,
+                    legacy_key="decoder_C",
+                    default=1.0,
                 )
             ),
             "standardize": bool(
-                _get_config_value(
-                    decoder_cfg,
-                    "standardize",
-                    _get_config_value(params, "decoder_standardize", True),
+                _get_grouped_or_legacy_value(
+                    grouped_cfg=decoder_cfg,
+                    grouped_key="standardize",
+                    params=params,
+                    legacy_key="decoder_standardize",
+                    default=True,
                 )
             ),
             "seed": int(
-                _get_config_value(
-                    decoder_cfg,
-                    "seed",
-                    _get_config_value(params, "decoder_seed", 0),
+                _get_grouped_or_legacy_value(
+                    grouped_cfg=decoder_cfg,
+                    grouped_key="seed",
+                    params=params,
+                    legacy_key="decoder_seed",
+                    default=0,
                 )
             ),
             "continuous_strategy": str(
-                _get_config_value(
-                    decoder_cont_cfg,
-                    "strategy",
-                    _get_config_value(params, "decoder_continuous_strategy", "none"),
+                _get_grouped_or_legacy_value(
+                    grouped_cfg=decoder_cont_cfg,
+                    grouped_key="strategy",
+                    params=params,
+                    legacy_key="decoder_continuous_strategy",
+                    default="none",
                 )
             ),
             "continuous_max_dim": int(
-                _get_config_value(
-                    decoder_cont_cfg,
-                    "max_total_dim",
-                    _get_config_value(params, "decoder_continuous_max_total_dim", 2),
+                _get_grouped_or_legacy_value(
+                    grouped_cfg=decoder_cont_cfg,
+                    grouped_key="max_total_dim",
+                    params=params,
+                    legacy_key="decoder_continuous_max_total_dim",
+                    default=2,
                 )
             ),
             "gaussian_ridge": float(
-                _get_config_value(
-                    decoder_cont_cfg,
-                    "gaussian_ridge",
-                    _get_config_value(params, "decoder_gaussian_ridge", 1e-6),
+                _get_grouped_or_legacy_value(
+                    grouped_cfg=decoder_cont_cfg,
+                    grouped_key="gaussian_ridge",
+                    params=params,
+                    legacy_key="decoder_gaussian_ridge",
+                    default=1e-6,
                 )
             ),
             "binning_strategy": str(
-                _get_config_value(
-                    binned_cfg,
-                    "binning_strategy",
-                    _get_config_value(params, "binning_strategy", "quantile"),
+                _get_grouped_or_legacy_value(
+                    grouped_cfg=binned_cfg,
+                    grouped_key="binning_strategy",
+                    params=params,
+                    legacy_key="binning_strategy",
+                    default="quantile",
                 )
             ),
             "bias_correction": str(
-                _get_config_value(
-                    binned_cfg,
-                    "bias_correction",
-                    _get_config_value(params, "binning_bias_correction", "none"),
+                _get_grouped_or_legacy_value(
+                    grouped_cfg=binned_cfg,
+                    grouped_key="bias_correction",
+                    params=params,
+                    legacy_key="binning_bias_correction",
+                    default="none",
                 )
             ),
         }
@@ -596,17 +690,21 @@ def _build_information_estimator_method_params(
     if normalized_method == "binned":
         return {
             "binning_strategy": str(
-                _get_config_value(
-                    binned_cfg,
-                    "binning_strategy",
-                    _get_config_value(params, "binning_strategy", "quantile"),
+                _get_grouped_or_legacy_value(
+                    grouped_cfg=binned_cfg,
+                    grouped_key="binning_strategy",
+                    params=params,
+                    legacy_key="binning_strategy",
+                    default="quantile",
                 )
             ),
             "bias_correction": str(
-                _get_config_value(
-                    binned_cfg,
-                    "bias_correction",
-                    _get_config_value(params, "binning_bias_correction", "none"),
+                _get_grouped_or_legacy_value(
+                    grouped_cfg=binned_cfg,
+                    grouped_key="bias_correction",
+                    params=params,
+                    legacy_key="binning_bias_correction",
+                    default="none",
                 )
             ),
         }

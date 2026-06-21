@@ -30,6 +30,8 @@ from dendritic_modeling.analysis.core.information_config import (
     _build_information_signal_variant_selection as _build_information_signal_variant_selection,
     _get_config_path as _get_config_path,
     _get_config_value as _get_config_value,
+    _get_grouped_or_legacy_value as _get_grouped_or_legacy_value,
+    _get_grouped_path_or_legacy_value as _get_grouped_path_or_legacy_value,
     _InformationAblationAlignedConfig as _InformationAblationAlignedConfig,
     _InformationComponentSelection as _InformationComponentSelection,
     _InformationEstimatorCoreConfig as _InformationEstimatorCoreConfig,
