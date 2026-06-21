@@ -46,6 +46,12 @@ from dendritic_modeling.networks.base import BaseNetwork
 logger = logging.getLogger(__name__)
 
 _DEFAULT_INPUT_SIZE = (1, 3, 224, 224)
+_SPATIAL_MODULE_TYPES = (
+    nn.Conv2d,
+    nn.MaxPool2d,
+    nn.AvgPool2d,
+    nn.AdaptiveAvgPool2d,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -136,44 +142,60 @@ def _extract_layers(
     """
     all_layers = _flatten_model_layers(model)
     all_names = [name for name, _ in all_layers]
-    drop_set = set(drop_layers or [])
-
-    if split_after is not None:
-        if split_after not in all_names:
-            raise ValueError(
-                f"split_after='{split_after}' not found. "
-                f"Available layers: {all_names}"
-            )
-        cut_idx = all_names.index(split_after) + 1
-        selected = all_layers[:cut_idx]
-    elif split_from is not None:
-        if split_from not in all_names:
-            raise ValueError(
-                f"split_from='{split_from}' not found. "
-                f"Available layers: {all_names}"
-            )
-        cut_idx = all_names.index(split_from)
-        selected = all_layers[cut_idx:]
-    else:
-        raise ValueError("Either split_after or split_from must be specified")
-
-    modules = []
-    names = []
-    for name, mod in selected:
-        if name not in drop_set:
-            modules.append(mod)
-            names.append(name)
+    selected = _select_layers_for_boundary(
+        all_layers,
+        all_names,
+        split_after=split_after,
+        split_from=split_from,
+    )
+    filtered = _filter_omitted_layers(selected, drop_layers)
+    names, modules = _names_and_modules(filtered)
 
     return modules, names
 
 
+def _select_layers_for_boundary(
+    all_layers: list[tuple[str, nn.Module]],
+    all_names: list[str],
+    *,
+    split_after: str | None = None,
+    split_from: str | None = None,
+) -> list[tuple[str, nn.Module]]:
+    """Select layers before or after a named split boundary."""
+    if split_after is not None:
+        cut_idx = _require_split_index(all_names, split_after, arg_name="split_after")
+        return all_layers[: cut_idx + 1]
+
+    if split_from is not None:
+        cut_idx = _require_split_index(all_names, split_from, arg_name="split_from")
+        return all_layers[cut_idx:]
+
+    raise ValueError("Either split_after or split_from must be specified")
+
+
+def _require_split_index(
+    all_names: list[str], layer_name: str, *, arg_name: str
+) -> int:
+    """Return a split boundary index while preserving legacy error text."""
+    if layer_name not in all_names:
+        raise ValueError(
+            f"{arg_name}='{layer_name}' not found. " f"Available layers: {all_names}"
+        )
+    return all_names.index(layer_name)
+
+
+def _has_spatial_module(modules: list[nn.Module]) -> bool:
+    """Return whether a module list contains spatial operators."""
+    return any(isinstance(module, _SPATIAL_MODULE_TYPES) for module in modules)
+
+
+def _has_linear_module(modules: list[nn.Module]) -> bool:
+    """Return whether a module list contains a linear layer."""
+    return any(isinstance(module, nn.Linear) for module in modules)
+
+
 def _needs_flatten(modules: list[nn.Module]) -> bool:
-    has_spatial = any(
-        isinstance(m, (nn.Conv2d, nn.MaxPool2d, nn.AvgPool2d, nn.AdaptiveAvgPool2d))
-        for m in modules
-    )
-    has_linear = any(isinstance(m, nn.Linear) for m in modules)
-    return has_spatial and has_linear
+    return _has_spatial_module(modules) and _has_linear_module(modules)
 
 
 def _insert_flatten(modules: list[nn.Module]) -> list[nn.Module]:
@@ -185,6 +207,60 @@ def _insert_flatten(modules: list[nn.Module]) -> list[nn.Module]:
             inserted = True
         result.append(m)
     return result
+
+
+def _tensor_spec_from_spatial_output(out: torch.Tensor) -> TensorSpec:
+    """Build a spatial tensor spec from a 4D ``(B, C, H, W)`` tensor."""
+    return TensorSpec(
+        channels=out.shape[1],
+        height=out.shape[2],
+        width=out.shape[3],
+    )
+
+
+def _segment_output_metadata(out: torch.Tensor) -> tuple[TensorSpec | None, int]:
+    """Return optional spatial spec and flattened output dimension for a segment."""
+    if out.dim() == 4:
+        output_spec = _tensor_spec_from_spatial_output(out)
+        return output_spec, output_spec.numel
+
+    return None, out.shape[-1]
+
+
+def _prepare_segment_input(
+    x: torch.Tensor, *, auto_flatten: bool
+) -> tuple[torch.Tensor, torch.Size, bool]:
+    """Prepare input for a backbone segment and return restore metadata."""
+    if not auto_flatten:
+        return x, torch.Size(), False
+
+    squeezed = False
+    if x.dim() == 3:
+        x = x.unsqueeze(0)
+        squeezed = True
+
+    batch_shape = x.shape[:-3] if x.dim() > 2 else x.shape[:-1]
+    if x.dim() > 2:
+        x = x.reshape(-1, *x.shape[-3:])
+
+    return x, batch_shape, squeezed
+
+
+def _restore_segment_output(
+    out: torch.Tensor,
+    *,
+    auto_flatten: bool,
+    batch_shape: torch.Size,
+    squeezed: bool,
+) -> torch.Tensor:
+    """Restore a backbone segment output to the input batch shape."""
+    if not auto_flatten:
+        return out
+
+    out = out.reshape(*batch_shape, -1)
+    if squeezed:
+        return out.squeeze(0)
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -225,41 +301,22 @@ class BackboneSegment(BaseNetwork):
             self.layers.append(nn.Flatten(start_dim=1))
             out = out.flatten(start_dim=1)
 
-        # Store spatial spec if output is 4D (spatial mode)
-        if out.dim() == 4:
-            self.output_spec = TensorSpec(
-                channels=out.shape[1],
-                height=out.shape[2],
-                width=out.shape[3],
-            )
-            self.output_dim = out.shape[1] * out.shape[2] * out.shape[3]
-        else:
-            self.output_spec = None
-            self.output_dim = out.shape[-1]
+        self.output_spec, self.output_dim = _segment_output_metadata(out)
 
         if freeze:
             self.requires_grad_(False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        squeezed = False
-        if x.dim() == 3 and self._auto_flatten:
-            # 3D input (C, H, W) — add batch dim
-            x = x.unsqueeze(0)
-            squeezed = True
-
-        if self._auto_flatten:
-            batch_shape = x.shape[:-3] if x.dim() > 2 else x.shape[:-1]
-            if x.dim() > 2:
-                x = x.reshape(-1, *x.shape[-3:])
-
+        x, batch_shape, squeezed = _prepare_segment_input(
+            x, auto_flatten=self._auto_flatten
+        )
         out = self.layers(x)
-
-        if self._auto_flatten:
-            out = out.reshape(*batch_shape, -1)
-            if squeezed:
-                out = out.squeeze(0)
-
-        return out
+        return _restore_segment_output(
+            out,
+            auto_flatten=self._auto_flatten,
+            batch_shape=batch_shape,
+            squeezed=squeezed,
+        )
 
     def get_output_dim(self):
         return self.output_dim
@@ -477,11 +534,7 @@ def _infer_suffix_output_dim(
 
 def _tensor_spec_from_prefix_output(raw_out: torch.Tensor) -> TensorSpec | None:
     if raw_out.dim() == 4:  # (B, C, H, W)
-        return TensorSpec(
-            channels=raw_out.shape[1],
-            height=raw_out.shape[2],
-            width=raw_out.shape[3],
-        )
+        return _tensor_spec_from_spatial_output(raw_out)
     if raw_out.dim() == 2:  # (B, D) — already flat
         logger.warning(
             "spatial=True but prefix output is 2D (shape=%s). "
@@ -525,17 +578,12 @@ def _compute_spatial_specs(
 
     if prefix_output_spec is not None:
         replaced_mods = [module for _, module in replaced_layers]
-        has_linear = any(isinstance(module, nn.Linear) for module in replaced_mods)
-        if not has_linear:
+        if not _has_linear_module(replaced_mods):
             raw_replaced = nn.Sequential(*list(prefix_modules), *replaced_mods)
             with torch.no_grad():
                 replaced_out = raw_replaced(torch.zeros(*input_size))
             if replaced_out.dim() == 4:
-                suffix_input_spec = TensorSpec(
-                    channels=replaced_out.shape[1],
-                    height=replaced_out.shape[2],
-                    width=replaced_out.shape[3],
-                )
+                suffix_input_spec = _tensor_spec_from_spatial_output(replaced_out)
 
     return prefix_output_spec, suffix_input_spec
 

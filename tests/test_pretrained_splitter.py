@@ -11,11 +11,21 @@ from dendritic_modeling.networks.architectures.classical.pretrained import (
     _extract_layers,
     _filter_omitted_layers,
     _flatten_model_layers,
+    _has_linear_module,
+    _has_spatial_module,
+    _insert_flatten,
     _load_backbone,
     _names_and_modules,
+    _needs_flatten,
+    _prepare_segment_input,
     _require_layer_index,
+    _require_split_index,
     _resolve_target_module_span,
+    _restore_segment_output,
+    _segment_output_metadata,
+    _select_layers_for_boundary,
     _slice_layers_by_span,
+    _tensor_spec_from_spatial_output,
     build_encoder_decoder_from_plan,
     build_split_plan,
     list_backbone_layers,
@@ -154,6 +164,73 @@ class TestExtractLayers:
 
         assert names[-1] == "avgpool"
         assert "classifier.0" not in names
+
+    def test_select_layers_for_boundary_uses_split_after(self):
+        layers = [(f"layer.{idx}", nn.Identity()) for idx in range(4)]
+        names = [name for name, _ in layers]
+
+        selected = _select_layers_for_boundary(layers, names, split_after="layer.1")
+
+        assert [name for name, _ in selected] == ["layer.0", "layer.1"]
+
+    def test_select_layers_for_boundary_uses_split_from(self):
+        layers = [(f"layer.{idx}", nn.Identity()) for idx in range(4)]
+        names = [name for name, _ in layers]
+
+        selected = _select_layers_for_boundary(layers, names, split_from="layer.2")
+
+        assert [name for name, _ in selected] == ["layer.2", "layer.3"]
+
+    def test_select_layers_for_boundary_preserves_split_after_precedence(self):
+        layers = [(f"layer.{idx}", nn.Identity()) for idx in range(4)]
+        names = [name for name, _ in layers]
+
+        selected = _select_layers_for_boundary(
+            layers,
+            names,
+            split_after="layer.1",
+            split_from="layer.3",
+        )
+
+        assert [name for name, _ in selected] == ["layer.0", "layer.1"]
+
+    def test_require_split_index_returns_index_or_legacy_error(self):
+        names = ["layer.0", "layer.1"]
+
+        assert _require_split_index(names, "layer.1", arg_name="split_after") == 1
+        with pytest.raises(ValueError, match="split_from='missing' not found"):
+            _require_split_index(names, "missing", arg_name="split_from")
+
+
+# ---------------------------------------------------------------------------
+# Tests for flatten insertion helpers
+# ---------------------------------------------------------------------------
+class TestFlattenHelpers:
+    def test_module_type_predicates_detect_spatial_and_linear_layers(self):
+        spatial_modules = [nn.Conv2d(3, 4, 1), nn.ReLU()]
+        linear_modules = [nn.ReLU(), nn.Linear(4, 2)]
+
+        assert _has_spatial_module(spatial_modules)
+        assert not _has_spatial_module(linear_modules)
+        assert _has_linear_module(linear_modules)
+        assert not _has_linear_module(spatial_modules)
+
+    def test_needs_flatten_only_for_mixed_spatial_and_linear_stacks(self):
+        assert _needs_flatten([nn.Conv2d(3, 4, 1), nn.Flatten(), nn.Linear(4, 2)])
+        assert not _needs_flatten([nn.Conv2d(3, 4, 1), nn.ReLU()])
+        assert not _needs_flatten([nn.Linear(4, 2), nn.ReLU()])
+
+    def test_insert_flatten_before_first_linear_only(self):
+        conv = nn.Conv2d(3, 4, 1)
+        linear1 = nn.Linear(4, 3)
+        linear2 = nn.Linear(3, 2)
+
+        modules = _insert_flatten([conv, linear1, nn.ReLU(), linear2])
+
+        assert modules[0] is conv
+        assert isinstance(modules[1], nn.Flatten)
+        assert modules[2] is linear1
+        assert modules[4] is linear2
 
 
 # ---------------------------------------------------------------------------
@@ -408,6 +485,89 @@ class TestLayerSplitHelpers:
 # Tests for BackboneSegment
 # ---------------------------------------------------------------------------
 class TestBackboneSegment:
+    def test_tensor_spec_from_spatial_output_uses_channel_height_width(self):
+        spec = _tensor_spec_from_spatial_output(torch.zeros(2, 3, 4, 5))
+
+        assert spec.channels == 3
+        assert spec.height == 4
+        assert spec.width == 5
+        assert spec.numel == 60
+
+    def test_segment_output_metadata_for_flat_output(self):
+        output_spec, output_dim = _segment_output_metadata(torch.zeros(2, 10))
+
+        assert output_spec is None
+        assert output_dim == 10
+
+    def test_segment_output_metadata_for_spatial_output(self):
+        output_spec, output_dim = _segment_output_metadata(torch.zeros(2, 3, 4, 5))
+
+        assert output_spec is not None
+        assert output_spec.channels == 3
+        assert output_spec.height == 4
+        assert output_spec.width == 5
+        assert output_dim == 60
+
+    def test_prepare_segment_input_preserves_flat_input_batch_shape(self):
+        x = torch.zeros(2, 8)
+
+        prepared, batch_shape, squeezed = _prepare_segment_input(x, auto_flatten=True)
+
+        assert prepared.shape == (2, 8)
+        assert batch_shape == torch.Size([2])
+        assert squeezed is False
+
+    def test_prepare_segment_input_batches_single_spatial_input(self):
+        x = torch.zeros(3, 4, 5)
+
+        prepared, batch_shape, squeezed = _prepare_segment_input(x, auto_flatten=True)
+
+        assert prepared.shape == (1, 3, 4, 5)
+        assert batch_shape == torch.Size([1])
+        assert squeezed is True
+
+    def test_prepare_segment_input_flattens_leading_spatial_batches(self):
+        x = torch.zeros(2, 4, 3, 5, 7)
+
+        prepared, batch_shape, squeezed = _prepare_segment_input(x, auto_flatten=True)
+
+        assert prepared.shape == (8, 3, 5, 7)
+        assert batch_shape == torch.Size([2, 4])
+        assert squeezed is False
+
+    def test_prepare_segment_input_is_noop_without_auto_flatten(self):
+        x = torch.zeros(3, 4, 5)
+
+        prepared, batch_shape, squeezed = _prepare_segment_input(x, auto_flatten=False)
+
+        assert prepared is x
+        assert batch_shape == torch.Size()
+        assert squeezed is False
+
+    def test_restore_segment_output_restores_batch_shape_and_squeeze(self):
+        restored = _restore_segment_output(
+            torch.zeros(8, 6),
+            auto_flatten=True,
+            batch_shape=torch.Size([2, 4]),
+            squeezed=False,
+        )
+        single = _restore_segment_output(
+            torch.zeros(1, 6),
+            auto_flatten=True,
+            batch_shape=torch.Size([1]),
+            squeezed=True,
+        )
+        unchanged = _restore_segment_output(
+            torch.zeros(3, 6),
+            auto_flatten=False,
+            batch_shape=torch.Size(),
+            squeezed=False,
+        )
+
+        assert restored.shape == (2, 4, 6)
+        assert single.shape == (6,)
+        assert unchanged.shape == (3, 6)
+
     def test_linear_segment(self):
         """Simple linear segment with known dims."""
         mods = [nn.Linear(32, 16), nn.ReLU(), nn.Linear(16, 10)]
