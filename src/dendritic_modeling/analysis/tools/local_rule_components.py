@@ -503,15 +503,23 @@ class LocalRuleComponentAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
                     )
                 )
 
-            for module_name, module in iter_named_modules_of_type(
-                model, DendriticBranchLayer
+            def _register_branch_entry(
+                module_entry: tuple[str, DendriticBranchLayer],
             ):
+                module_name, module = module_entry
                 rec, branch_handles = self._attach_branch_recorders(
                     module_name,
                     module,
                 )
                 records.append(rec)
-                handles.extend(branch_handles)
+                return branch_handles
+
+            handles.extend(
+                register_hook_groups(
+                    iter_named_modules_of_type(model, DendriticBranchLayer),
+                    _register_branch_entry,
+                )
+            )
         except Exception:
             self.remove_forward_hooks(handles)
             raise
@@ -524,16 +532,21 @@ class LocalRuleComponentAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         module: DendriticBranchLayer,
     ) -> tuple[dict[str, Any], list[torch.utils.hooks.RemovableHandle]]:
         rec = self._branch_record(module_name, module)
-        handles: list[torch.utils.hooks.RemovableHandle] = []
-        try:
-            handles.append(self._register_reactivation_hook(module, rec))
-            handles.extend(self._register_topk_hooks(module, rec))
+
+        def _register_hook_group(hook_group: str):
+            if hook_group == "reactivation":
+                return [self._register_reactivation_hook(module, rec)]
+            if hook_group == "topk":
+                return self._register_topk_hooks(module, rec)
             blk_layer = getattr(module, "branches_to_output", None)
-            if blk_layer is not None:
-                handles.append(self._register_block_output_hook(blk_layer, rec))
-        except Exception:
-            self.remove_forward_hooks(handles)
-            raise
+            if blk_layer is None:
+                return []
+            return [self._register_block_output_hook(blk_layer, rec)]
+
+        handles = register_hook_groups(
+            ("reactivation", "topk", "block"),
+            _register_hook_group,
+        )
         return rec, handles
 
     def _register_decoder_input_hook(

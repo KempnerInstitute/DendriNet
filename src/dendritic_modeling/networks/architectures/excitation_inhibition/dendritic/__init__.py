@@ -16,6 +16,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.b
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet import (
     DendriNet,
+    DendriNetConfig,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.gradient_scaling import (
     GradientScaler,
@@ -48,6 +49,7 @@ __all__ = [
     "BlockLinear",
     "DeepSTConfig",
     "DendriNet",
+    "DendriNetConfig",
     "DendriticBranchConfig",
     "DendriticBranchLayer",
     "DendriticSynapseConfig",

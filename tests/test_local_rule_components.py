@@ -76,6 +76,35 @@ class _FeedforwardBranchModel(nn.Module):
         return self.branch(x, inhibitory_input=inhibitory_input)
 
 
+class _FeedforwardBranchWithBlockModel(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.branch = DendriticBranchLayer(
+            output_dim=2,
+            excitatory_input_dim=3,
+            excitatory_synapses_per_branch=2,
+            inhibitory_input_dim=3,
+            inhibitory_synapses_per_branch=2,
+            input_branch_factor=1,
+            use_shunting=False,
+            reactivate=False,
+            topk_noise_level=0.0,
+            weight_transform="identity",
+        )
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        inhibitory_input: torch.Tensor,
+        branch_input: torch.Tensor,
+    ) -> torch.Tensor:
+        return self.branch(
+            x,
+            inhibitory_input=inhibitory_input,
+            branch_input=branch_input,
+        )
+
+
 def _branch_at_depth(depth: int) -> DendriticBranchLayer:
     layer = DendriticBranchLayer(
         output_dim=1,
@@ -842,6 +871,29 @@ def test_local_rule_component_recorders_remove_hooks_after_failed_registration(
     )
 
     with pytest.raises(RuntimeError, match="local-rule hook registration failed"):
+        analyzer._attach_recorders(model)
+
+    assert sum(len(module._forward_hooks) for module in model.modules()) == 0
+
+
+def test_local_rule_component_recorders_remove_hooks_after_block_registration_failure(
+    monkeypatch,
+) -> None:
+    model = _FeedforwardBranchWithBlockModel()
+    analyzer = LocalRuleComponentAnalyzer(
+        LocalRuleComponentAnalysisParams(include_broadcast=False)
+    )
+
+    def _failing_register(*args, **kwargs):
+        raise RuntimeError("local-rule block hook registration failed")
+
+    monkeypatch.setattr(
+        model.branch.branches_to_output,
+        "register_forward_hook",
+        _failing_register,
+    )
+
+    with pytest.raises(RuntimeError, match="local-rule block hook registration failed"):
         analyzer._attach_recorders(model)
 
     assert sum(len(module._forward_hooks) for module in model.modules()) == 0

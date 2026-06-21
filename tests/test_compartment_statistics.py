@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 import torch
 from scipy.stats import differential_entropy
 
@@ -8,6 +9,11 @@ from dendritic_modeling.analysis.tools.compartment_statistics import (
     _tensor_statistics,
 )
 from dendritic_modeling.config.analysis import CompartmentStatisticsAnalysisParams
+from dendritic_modeling.networks import DendriticBranchLayer
+
+
+def _count_forward_hooks(module: torch.nn.Module) -> int:
+    return sum(len(child._forward_hooks) for child in module.modules())
 
 
 def _expected_tensor_stats(prefix, values):
@@ -222,3 +228,36 @@ def test_compartment_statistics_per_class_entropy_matches_current_estimator():
         branch_stats["exc_activations_per_class_class_1_entropy"],
         expected_one,
     )
+
+
+def test_compartment_statistics_synapse_capture_hooks_remove_partial_hooks(
+    monkeypatch,
+) -> None:
+    analyzer = CompartmentStatisticsAnalyzer(CompartmentStatisticsAnalysisParams())
+    layer = DendriticBranchLayer(
+        output_dim=2,
+        excitatory_input_dim=3,
+        excitatory_synapses_per_branch=2,
+        inhibitory_input_dim=3,
+        inhibitory_synapses_per_branch=2,
+        reactivate=False,
+        topk_noise_level=0.0,
+    )
+    synapse_modules = analyzer._iter_synapse_modules(layer)
+
+    def _failing_register(*args, **kwargs):
+        raise RuntimeError("compartment statistics hook registration failed")
+
+    monkeypatch.setattr(
+        layer.branch_inhibition,
+        "register_forward_hook",
+        _failing_register,
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="compartment statistics hook registration failed",
+    ):
+        analyzer._attach_synapse_capture_hooks("layer", synapse_modules)
+
+    assert _count_forward_hooks(layer) == 0

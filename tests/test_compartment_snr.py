@@ -1,3 +1,4 @@
+import pytest
 import torch
 
 from dendritic_modeling.analysis.tools.compartment_snr import (
@@ -6,6 +7,14 @@ from dendritic_modeling.analysis.tools.compartment_snr import (
     _summarize_population_values,
 )
 from dendritic_modeling.config.analysis import CompartmentSNRAnalysisParams
+from dendritic_modeling.networks import DendriticBranchLayer
+
+
+def _count_forward_and_pre_hooks(module: torch.nn.Module) -> int:
+    return sum(
+        len(child._forward_hooks) + len(child._forward_pre_hooks)
+        for child in module.modules()
+    )
 
 
 def _expected_population_stats(prefix, values):
@@ -113,3 +122,32 @@ def test_compartment_snr_univariate_discriminability_alias_is_numerically_identi
 
     assert corrected == legacy
     assert corrected["exc_d'^2"] > 0.0
+
+
+def test_compartment_snr_layer_capture_hooks_remove_partial_hooks(
+    monkeypatch,
+) -> None:
+    analyzer = CompartmentSNRAnalyzer(CompartmentSNRAnalysisParams(input_analysis=True))
+    layer = DendriticBranchLayer(
+        output_dim=2,
+        excitatory_input_dim=3,
+        excitatory_synapses_per_branch=2,
+        inhibitory_input_dim=3,
+        inhibitory_synapses_per_branch=2,
+        reactivate=False,
+        topk_noise_level=0.0,
+    )
+
+    def _failing_register(*args, **kwargs):
+        raise RuntimeError("compartment snr hook registration failed")
+
+    monkeypatch.setattr(
+        layer.branch_inhibition,
+        "register_forward_hook",
+        _failing_register,
+    )
+
+    with pytest.raises(RuntimeError, match="compartment snr hook registration failed"):
+        analyzer._attach_layer_capture_hooks("layer", layer)
+
+    assert _count_forward_and_pre_hooks(layer) == 0

@@ -88,8 +88,10 @@ class LocalLearningRecorderMixin(ForwardHookRemovalMixin):
 
         try:
             if hasattr(model, "decoder_network"):
-                self._attach_decoder_recorders(model.decoder_network, handles)
-            records.extend(self._attach_branch_recorders(model, handles))
+                handles.extend(self._attach_decoder_recorders(model.decoder_network))
+            branch_records, branch_handles = self._attach_branch_recorders(model)
+            records.extend(branch_records)
+            handles.extend(branch_handles)
             return records, handles
         except Exception:
             self.remove_forward_hooks(handles)
@@ -98,18 +100,22 @@ class LocalLearningRecorderMixin(ForwardHookRemovalMixin):
     def _attach_decoder_recorders(
         self,
         decoder_network: nn.Module,
-        handles: list[torch.utils.hooks.RemovableHandle],
-    ) -> None:
+    ) -> list[torch.utils.hooks.RemovableHandle]:
         def _decoder_pre_hook(mod, inputs):
             if inputs and isinstance(inputs[0], torch.Tensor):
                 self._decoder_cache["decoder_input"] = inputs[0]
 
-        handles.append(decoder_network.register_forward_pre_hook(_decoder_pre_hook))
+        def _register_decoder_hook(target: nn.Module | None):
+            if target is None:
+                return [decoder_network.register_forward_pre_hook(_decoder_pre_hook)]
+            return [self._register_decoder_linear_hook(target)]
 
         # Hook decoder input for local decoder updates (capture input to the last
         # Linear specifically).
-        for module in iter_modules_of_type(decoder_network, nn.Linear):
-            handles.append(self._register_decoder_linear_hook(module))
+        return register_hook_groups(
+            (None, *iter_modules_of_type(decoder_network, nn.Linear)),
+            _register_decoder_hook,
+        )
 
     def _register_decoder_linear_hook(
         self,
@@ -124,20 +130,36 @@ class LocalLearningRecorderMixin(ForwardHookRemovalMixin):
     def _attach_branch_recorders(
         self,
         model: BaseModel,
-        handles: list[torch.utils.hooks.RemovableHandle],
-    ) -> list[dict[str, Any]]:
+    ) -> tuple[
+        list[dict[str, Any]],
+        list[torch.utils.hooks.RemovableHandle],
+    ]:
         records: list[dict[str, Any]] = []
-        for module_name, module in iter_named_modules_of_type(
-            model, DendriticBranchLayer
-        ):
+        handles: list[torch.utils.hooks.RemovableHandle] = []
+
+        def _register_branch_hooks(module_entry: tuple[str, DendriticBranchLayer]):
+            module_name, module = module_entry
             rec = _branch_record(module_name, module)
-            handles.append(self._register_reactivation_hook(module, rec))
-            handles.extend(self._register_topk_hooks(module, rec))
-            block_hook = self._register_block_output_hook(module, rec)
-            if block_hook is not None:
-                handles.append(block_hook)
             records.append(rec)
-        return records
+
+            def _register_hook_group(hook_group: str):
+                if hook_group == "reactivation":
+                    return [self._register_reactivation_hook(module, rec)]
+                if hook_group == "topk":
+                    return self._register_topk_hooks(module, rec)
+                block_hook = self._register_block_output_hook(module, rec)
+                return [] if block_hook is None else [block_hook]
+
+            return register_hook_groups(
+                ("reactivation", "topk", "block"),
+                _register_hook_group,
+            )
+
+        handles = register_hook_groups(
+            iter_named_modules_of_type(model, DendriticBranchLayer),
+            _register_branch_hooks,
+        )
+        return records, handles
 
     def _register_reactivation_hook(
         self,

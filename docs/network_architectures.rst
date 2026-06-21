@@ -449,6 +449,11 @@ The architecture is built from distal to soma:
 If ``somatic_synapses`` is ``True``, the soma level also receives direct
 synaptic input in addition to branch aggregation.
 
+Programmatic construction can use either the historical keyword arguments or
+``DendriNetConfig``.  The config object groups tree geometry, optional structured
+connectivity metadata, and the shared ``DendriticSynapseConfig`` used by all
+branch layers; both entry points normalize through the same branch-layer builder.
+
 Two implementation details are easy to miss:
 
 - each branch layer receives the same external ``x_E`` and optional ``x_I``;

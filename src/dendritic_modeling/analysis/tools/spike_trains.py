@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 from typing import Any
 
 import torch
@@ -106,6 +107,17 @@ class SpikeTrainAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
             prepare=self._prepare_spike_hook,
         )
 
+    def _run_with_attached_hooks(
+        self,
+        handles: list[torch.utils.hooks.RemovableHandle],
+        body: Callable[[], Any],
+    ) -> Any:
+        return run_with_forward_hooks(
+            attach=lambda: handles,
+            remove=self.remove_forward_hooks,
+            body=body,
+        )
+
     def _iter_lif_somas(self, model: BaseModel):
         yield from iter_named_modules_of_type(model, LIFSoma)
 
@@ -159,20 +171,19 @@ class SpikeTrainAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
             self.logger.info("Skipping spike-train analysis: no LIFSoma modules found")
             return {}
         if data is None:
-            self.logger.info("Skipping spike-train analysis: no dataset provided")
-            self.remove_forward_hooks(handles)
-            return {}
+
+            def _skip_missing_data() -> dict[str, Any]:
+                self.logger.info("Skipping spike-train analysis: no dataset provided")
+                return {}
+
+            return self._run_with_attached_hooks(handles, _skip_missing_data)
 
         sample_cap = getattr(self.params, "max_samples", None)
 
         def _collect_sequences() -> None:
             self._collect_spike_sequences(model, data, device, runtime, sample_cap)
 
-        run_with_forward_hooks(
-            attach=lambda: handles,
-            remove=self.remove_forward_hooks,
-            body=_collect_sequences,
-        )
+        self._run_with_attached_hooks(handles, _collect_sequences)
 
         results = {
             "dt": float(self.params.dt),

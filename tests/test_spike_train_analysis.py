@@ -139,6 +139,31 @@ def test_spike_train_analyzer_removes_hooks_when_dataset_missing(monkeypatch):
     assert removed == ["removed"]
 
 
+def test_spike_train_analyzer_removes_hooks_when_collection_fails(monkeypatch):
+    analyzer = SpikeTrainAnalyzer()
+    removed = []
+
+    class Handle:
+        def remove(self):
+            removed.append("removed")
+
+    def _raise_collection_failure(*args, **kwargs):
+        raise RuntimeError("spike collection failed")
+
+    monkeypatch.setattr(analyzer, "_attach_hooks", lambda model: [Handle()])
+    monkeypatch.setattr(
+        analyzer,
+        "_collect_spike_sequences",
+        _raise_collection_failure,
+    )
+
+    dataset = TensorDataset(torch.ones(1, 1), torch.zeros(1))
+    with pytest.raises(RuntimeError, match="spike collection failed"):
+        analyzer.analyze(model=object(), data=dataset)
+
+    assert removed == ["removed"]
+
+
 def test_spike_train_summary_helpers_match_loop_semantics():
     seq_a = torch.zeros(2, 4, 3)
     seq_a[0, [0, 2], 0] = 1

@@ -3,7 +3,12 @@ from unittest.mock import call, patch
 
 import torch
 
-from dendritic_modeling.networks import BlockLinear, DendriNet, DendriticBranchLayer
+from dendritic_modeling.networks import (
+    BlockLinear,
+    DendriNet,
+    DendriNetConfig,
+    DendriticBranchLayer,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet import (
     _build_dendrinet_branch_layers,
     _plan_dendrinet_branch_layout,
@@ -13,6 +18,11 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.d
 
 
 class TestDendriNet(unittest.TestCase):
+    def assert_state_dicts_equal(self, left, right):
+        self.assertEqual(left.keys(), right.keys())
+        for key in left:
+            torch.testing.assert_close(left[key], right[key], rtol=0, atol=0)
+
     def test_branch_layout_plan_matches_construction_order(self):
         """Test DendriNet branch layout planning."""
         layer_sizes, input_branch_factors = _plan_dendrinet_branch_layout(
@@ -257,6 +267,76 @@ class TestDendriNet(unittest.TestCase):
 
         # Check that the soma layer is correctly initialized (last layer)
         self.assertIsInstance(model.branch_layers[-1], DendriticBranchLayer)
+
+    def test_config_path_matches_legacy_constructor_numerically(self):
+        """Typed DendriNetConfig construction should preserve legacy behavior."""
+        kwargs = {
+            "n_soma": 2,
+            "branch_factors": [2, 1],
+            "excitatory_input_dim": 8,
+            "excitatory_synapses_per_branch": 3,
+            "inhibitory_input_dim": 5,
+            "inhibitory_synapses_per_branch": 2,
+            "reactivate": True,
+            "reactivation_type": "param_tanh",
+            "reactivation_init_m": 0.75,
+            "reactivation_init_b": 0.25,
+            "topk_type": "standard",
+            "topk_init_method": "xavier_normal",
+            "use_shunting": False,
+            "weight_transform": "softplus",
+            "efficient_blocklinear": True,
+        }
+
+        torch.manual_seed(123)
+        legacy = DendriNet(**kwargs)
+        torch.manual_seed(123)
+        configured = DendriNet(config=DendriNetConfig.from_kwargs(kwargs))
+
+        self.assertEqual(configured.branch_factors, legacy.branch_factors)
+        self.assertEqual(configured.branch_configs, legacy.branch_configs)
+        self.assertEqual(configured.synapse_config, legacy.synapse_config)
+        self.assertEqual(configured.efficient_blocklinear, legacy.efficient_blocklinear)
+        self.assert_state_dicts_equal(configured.state_dict(), legacy.state_dict())
+
+        x = torch.rand(4, kwargs["excitatory_input_dim"])
+        inhibitory = torch.rand(4, kwargs["inhibitory_input_dim"])
+        torch.testing.assert_close(
+            configured(x, inhibitory),
+            legacy(x, inhibitory),
+            rtol=0,
+            atol=0,
+        )
+
+    def test_config_mapping_accepts_nested_synapse_sections(self):
+        """Nested synapse sections should feed the same typed synapse config."""
+        config = DendriNetConfig.from_config(
+            {
+                "n_soma": 1,
+                "branch_factors": [2],
+                "excitatory_input_dim": 6,
+                "excitatory_synapses_per_branch": 2,
+                "synapse": {
+                    "topk": {"type": "indexed_rewire"},
+                    "morphology": {
+                        "weight_transform": "softplus",
+                        "efficient_blocklinear": True,
+                    },
+                    "reactivation": {
+                        "enabled": True,
+                        "type": "relu",
+                    },
+                },
+            }
+        )
+
+        model = DendriNet(config=config)
+
+        self.assertEqual(model.synapse_config.topk.type, "indexed_rewire")
+        self.assertEqual(model.synapse_config.morphology.weight_transform, "softplus")
+        self.assertTrue(model.synapse_config.morphology.efficient_blocklinear)
+        self.assertEqual(model.dendritic_activation, "relu")
+        self.assertTrue(model.efficient_blocklinear)
 
     @property
     def soma_layer(self):

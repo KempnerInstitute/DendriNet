@@ -19,6 +19,9 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.b
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_options import (
     resolve_dendrinet_synapse_config,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet_config import (
+    DendriNetConfig,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.synapse_config import (
     DendriticSynapseConfig,
 )
@@ -278,10 +281,10 @@ class DendriNet(nn.Module):
 
     def __init__(
         self,
-        n_soma,
-        branch_factors,
-        excitatory_input_dim,
-        excitatory_synapses_per_branch,
+        n_soma=None,
+        branch_factors=None,
+        excitatory_input_dim=None,
+        excitatory_synapses_per_branch=None,
         inhibitory_input_dim=None,
         inhibitory_synapses_per_branch=None,
         reactivate=False,
@@ -327,9 +330,34 @@ class DendriNet(nn.Module):
         structured_excitatory_pathway: str = "ee",
         structured_inhibitory_pathway: str = "ie",
         synapse_config=None,
+        config=None,
         **kwargs,
     ):
         super().__init__()
+
+        if config is not None:
+            dendrinet_config = DendriNetConfig.from_config(config)
+            config_kwargs = dendrinet_config.to_kwargs()
+            n_soma = config_kwargs["n_soma"]
+            branch_factors = config_kwargs["branch_factors"]
+            excitatory_input_dim = config_kwargs["excitatory_input_dim"]
+            excitatory_synapses_per_branch = config_kwargs[
+                "excitatory_synapses_per_branch"
+            ]
+            inhibitory_input_dim = config_kwargs["inhibitory_input_dim"]
+            inhibitory_synapses_per_branch = config_kwargs[
+                "inhibitory_synapses_per_branch"
+            ]
+            somatic_synapses = config_kwargs["somatic_synapses"]
+            structured_connectivity = config_kwargs["structured_connectivity"]
+            structured_layer_idx = config_kwargs["structured_layer_idx"]
+            structured_excitatory_pathway = config_kwargs[
+                "structured_excitatory_pathway"
+            ]
+            structured_inhibitory_pathway = config_kwargs[
+                "structured_inhibitory_pathway"
+            ]
+            synapse_config = dendrinet_config.synapse_config
 
         _validate_dendrinet_dimensions(
             n_soma=n_soma,
@@ -393,7 +421,9 @@ class DendriNet(nn.Module):
         self.input_inhibitory = inhibitory_input_dim is not None
         self.n_soma = n_soma
         self.somatic_synapses = somatic_synapses
-        self.efficient_blocklinear = efficient_blocklinear
+        self.efficient_blocklinear = (
+            self.synapse_config.morphology.efficient_blocklinear
+        )
 
     def apply_rewiring(self):
         for layer in self.branch_layers:
@@ -463,4 +493,4 @@ class DendriNet(nn.Module):
             return (exc_total + 1e-8).log()
 
 
-__all__ = ["DendriNet"]
+__all__ = ["DendriNet", "DendriNetConfig"]

@@ -43,6 +43,7 @@ from dendritic_modeling.utils import save_dict
 from dendritic_modeling.utils.hooks import (
     ForwardHookRemovalMixin,
     iter_named_modules_of_type,
+    register_hook_groups,
     register_named_forward_hook_groups,
     run_with_forward_hooks,
 )
@@ -253,20 +254,20 @@ class CompartmentStatisticsAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         key: str,
         synapse_modules: list[tuple[str, TopKLinear | None]],
     ) -> list[torch.utils.hooks.RemovableHandle]:
-        handles = []
-        try:
-            for synapse_type, synapse_module in synapse_modules:
-                if synapse_module is None:
-                    continue
-                handles.append(
-                    self._register_synapse_capture_hook(
-                        key, synapse_type, synapse_module
-                    )
-                )
-            return handles
-        except Exception:
-            self.remove_forward_hooks(handles)
-            raise
+        def _register_synapse_hook(
+            synapse_entry: tuple[str, TopKLinear | None],
+        ) -> list[torch.utils.hooks.RemovableHandle]:
+            synapse_type, synapse_module = synapse_entry
+            if synapse_module is None:
+                return []
+            return [
+                self._register_synapse_capture_hook(key, synapse_type, synapse_module)
+            ]
+
+        return register_hook_groups(
+            synapse_modules,
+            _register_synapse_hook,
+        )
 
     def forward_hook(
         self,

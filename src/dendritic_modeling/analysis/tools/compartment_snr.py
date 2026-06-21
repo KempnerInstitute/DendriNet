@@ -39,6 +39,7 @@ from dendritic_modeling.networks import (
 from dendritic_modeling.utils import save_dict
 from dendritic_modeling.utils.hooks import (
     ForwardHookRemovalMixin,
+    register_hook_groups,
     register_named_forward_hook_groups,
     run_with_forward_hooks,
 )
@@ -153,44 +154,36 @@ class CompartmentSNRAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
     def _attach_layer_capture_hooks(
         self, key: str, module: DendriticBranchLayer
     ) -> list[torch.utils.hooks.RemovableHandle]:
-        handles = []
-
-        try:
+        def _hook_specs():
             if self.input_analysis:
-                handle = module.register_forward_pre_hook(
-                    lambda module, input, layer_key=key: self.branch_input_hook(
-                        module, input, layer_key
-                    )
-                )
-                handles.append(handle)
-
+                yield ("input", module, "")
             if module.branch_excitation is not None:
-                handles.append(
-                    self._register_activation_hook(module.branch_excitation, key, "exc")
-                )
-
+                yield ("activation", module.branch_excitation, "exc")
             if module.branch_inhibition is not None:
-                handles.append(
-                    self._register_activation_hook(module.branch_inhibition, key, "inh")
-                )
-
+                yield ("activation", module.branch_inhibition, "inh")
             if hasattr(module, "branches_to_output"):
-                handles.append(
-                    self._register_activation_hook(
-                        module.branches_to_output, key, "upstream"
-                    )
-                )
+                yield ("activation", module.branches_to_output, "upstream")
+            yield ("activation", module.reactivation, "vinf")
+            yield ("activation", module.reactivation, "vout")
 
-            handles.append(
-                self._register_activation_hook(module.reactivation, key, "vinf")
-            )
-            handles.append(
-                self._register_activation_hook(module.reactivation, key, "vout")
-            )
-            return handles
-        except Exception:
-            self.remove_forward_hooks(handles)
-            raise
+        def _register_hook(
+            hook_spec: tuple[str, torch.nn.Module, str],
+        ) -> list[torch.utils.hooks.RemovableHandle]:
+            hook_kind, hook_module, activation_type = hook_spec
+            if hook_kind == "input":
+                return [
+                    hook_module.register_forward_pre_hook(
+                        lambda module, input, layer_key=key: self.branch_input_hook(
+                            module, input, layer_key
+                        )
+                    )
+                ]
+            return [self._register_activation_hook(hook_module, key, activation_type)]
+
+        return register_hook_groups(
+            _hook_specs(),
+            _register_hook,
+        )
 
     def _capture_input_once(self, name: str, tensor: torch.Tensor | None) -> None:
         if tensor is None or hasattr(self, name):

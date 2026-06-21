@@ -47,6 +47,24 @@ class _DualSynapseBranchModel(nn.Module):
         return self.branch(x, inhibitory_x)
 
 
+class _DecoderOnlyModel(nn.Module):
+    """Model with a decoder network for decoder-recorder cleanup checks."""
+
+    def __init__(self):
+        super().__init__()
+        self.decoder_network = nn.Sequential(nn.Linear(3, 2))
+
+    def forward(self, x):
+        return self.decoder_network(x)
+
+
+def _count_forward_and_pre_hooks(model: nn.Module) -> int:
+    return sum(
+        len(module._forward_hooks) + len(module._forward_pre_hooks)
+        for module in model.modules()
+    )
+
+
 def test_topk_forward_does_not_cache_by_default():
     """Forward pass should NOT cache the mask when cache_mask is False."""
     torch.manual_seed(7)
@@ -123,6 +141,26 @@ def test_local_recorders_remove_hooks_after_failed_registration(monkeypatch):
         trainer._attach_local_recorders(model)
 
     assert sum(len(module._forward_hooks) for module in model.modules()) == 0
+
+
+def test_local_recorders_remove_decoder_pre_hook_after_linear_registration_failure(
+    monkeypatch,
+):
+    model = _DecoderOnlyModel()
+    decoder_linear = model.decoder_network[0]
+
+    trainer = LocalCreditAssignment.__new__(LocalCreditAssignment)
+    trainer._decoder_cache = {}
+
+    def _failing_register(*args, **kwargs):
+        raise RuntimeError("decoder recorder hook registration failed")
+
+    monkeypatch.setattr(decoder_linear, "register_forward_hook", _failing_register)
+
+    with pytest.raises(RuntimeError, match="decoder recorder hook registration failed"):
+        trainer._attach_local_recorders(model)
+
+    assert _count_forward_and_pre_hooks(model) == 0
 
 
 def test_local_recorders_remove_partial_topk_hooks_after_failed_registration(
