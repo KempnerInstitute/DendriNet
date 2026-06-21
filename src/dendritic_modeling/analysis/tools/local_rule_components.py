@@ -200,24 +200,30 @@ class LocalRuleComponentAnalyzer(AbstractAnalyzer):
         handles: list[torch.utils.hooks.RemovableHandle] = []
         decoder_cache: dict[str, torch.Tensor] = {}
 
-        if getattr(self.params, "include_broadcast", True) and hasattr(
-            model, "decoder_network"
-        ):
-            handles.append(
-                self._register_decoder_input_hook(model.decoder_network, decoder_cache)
-            )
+        try:
+            if getattr(self.params, "include_broadcast", True) and hasattr(
+                model, "decoder_network"
+            ):
+                handles.append(
+                    self._register_decoder_input_hook(
+                        model.decoder_network, decoder_cache
+                    )
+                )
 
-        for module_name, module in model.named_modules():
-            if not isinstance(module, DendriticBranchLayer):
-                continue
-            rec = self._branch_record(module_name, module)
-            handles.append(self._register_reactivation_hook(module, rec))
-            handles.extend(self._register_topk_hooks(module, rec))
-            blk_layer = getattr(module, "branches_to_output", None)
-            if blk_layer is not None:
-                handles.append(self._register_block_output_hook(blk_layer, rec))
+            for module_name, module in model.named_modules():
+                if not isinstance(module, DendriticBranchLayer):
+                    continue
+                rec = self._branch_record(module_name, module)
+                handles.append(self._register_reactivation_hook(module, rec))
+                handles.extend(self._register_topk_hooks(module, rec))
+                blk_layer = getattr(module, "branches_to_output", None)
+                if blk_layer is not None:
+                    handles.append(self._register_block_output_hook(blk_layer, rec))
 
-            records.append(rec)
+                records.append(rec)
+        except Exception:
+            remove_hook_handles(handles)
+            raise
 
         return records, handles, decoder_cache
 
@@ -265,9 +271,15 @@ class LocalRuleComponentAnalyzer(AbstractAnalyzer):
         rec: dict[str, Any],
     ) -> list[torch.utils.hooks.RemovableHandle]:
         handles = []
-        for path, topk_layer in iter_topk_path_modules(module, _LOCAL_RULE_TOPK_PATHS):
-            handles.append(self._register_topk_hook(rec, path, topk_layer))
-        return handles
+        try:
+            for path, topk_layer in iter_topk_path_modules(
+                module, _LOCAL_RULE_TOPK_PATHS
+            ):
+                handles.append(self._register_topk_hook(rec, path, topk_layer))
+            return handles
+        except Exception:
+            remove_hook_handles(handles)
+            raise
 
     def _register_topk_hook(
         self,

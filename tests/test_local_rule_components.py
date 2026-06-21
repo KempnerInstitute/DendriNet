@@ -2,6 +2,7 @@
 
 import json
 
+import pytest
 import torch
 import torch.nn as nn
 from torch.utils.data import TensorDataset
@@ -64,6 +65,29 @@ def test_local_rule_component_recorders_preserve_topk_keys() -> None:
     assert rec["inh_out"].shape == (2, 2)
     assert rec["exc_mask"].shape == model.branch.branch_excitation.pre_w.shape
     assert rec["inh_mask"].shape == model.branch.branch_inhibition.pre_w.shape
+
+
+def test_local_rule_component_recorders_remove_hooks_after_failed_registration(
+    monkeypatch,
+) -> None:
+    model = _FeedforwardBranchModel()
+    analyzer = LocalRuleComponentAnalyzer(
+        LocalRuleComponentAnalysisParams(include_broadcast=False)
+    )
+
+    def _failing_register(*args, **kwargs):
+        raise RuntimeError("local-rule hook registration failed")
+
+    monkeypatch.setattr(
+        model.branch.branch_inhibition,
+        "register_forward_hook",
+        _failing_register,
+    )
+
+    with pytest.raises(RuntimeError, match="local-rule hook registration failed"):
+        analyzer._attach_recorders(model)
+
+    assert sum(len(module._forward_hooks) for module in model.modules()) == 0
 
 
 def test_local_rule_component_dataset_selection_priority() -> None:

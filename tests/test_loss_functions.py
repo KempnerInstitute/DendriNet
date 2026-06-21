@@ -21,6 +21,8 @@ from dendritic_modeling.training.loss.functions import (
     BCELoss,
     CategoricalNLLLoss,
     CrossEntropyLoss,
+    ExcitationInhibitionBalanceLoss,
+    HomeostaticControlLoss,
     LogAdjustedNegativeCosineSimilarityLoss,
     LogMSELoss,
     LossFunction,
@@ -560,6 +562,66 @@ class TestVoltageStabilizationLoss:
         low_val = loss_low_target._gate_occupancy_loss(x)
 
         assert high_val < low_val
+
+    def test_voltage_hooks_removed_after_failed_registration(self, monkeypatch):
+        model = self.TinyDendriticModel()
+        loss_fn = VoltageStabilizationLoss()
+
+        def _failing_register(*args, **kwargs):
+            raise RuntimeError("voltage hook registration failed")
+
+        monkeypatch.setattr(
+            model.identity.reactivation,
+            "register_forward_hook",
+            _failing_register,
+        )
+
+        with pytest.raises(RuntimeError, match="voltage hook registration failed"):
+            loss_fn.attach_forward_hooks(model)
+
+        assert sum(len(module._forward_hooks) for module in model.modules()) == 0
+
+    def test_ei_balance_hooks_removed_after_failed_registration(self, monkeypatch):
+        model = nn.Module()
+        model.branch = DendriticBranchLayer(
+            output_dim=2,
+            excitatory_input_dim=3,
+            excitatory_synapses_per_branch=1,
+            inhibitory_input_dim=3,
+            inhibitory_synapses_per_branch=1,
+            reactivate=False,
+        )
+        loss_fn = ExcitationInhibitionBalanceLoss()
+
+        def _failing_register(*args, **kwargs):
+            raise RuntimeError("ei hook registration failed")
+
+        monkeypatch.setattr(
+            model.branch.branch_inhibition,
+            "register_forward_hook",
+            _failing_register,
+        )
+
+        with pytest.raises(RuntimeError, match="ei hook registration failed"):
+            loss_fn.attach_forward_hooks(model)
+
+        assert sum(len(module._forward_hooks) for module in model.modules()) == 0
+
+    def test_homeostatic_hooks_removed_after_second_loss_registration_fails(
+        self, monkeypatch
+    ):
+        model = self.TinyDendriticModel()
+        loss_fn = HomeostaticControlLoss()
+
+        def _failing_attach(_model):
+            raise RuntimeError("homeostatic hook registration failed")
+
+        monkeypatch.setattr(loss_fn.ei_balance, "attach_forward_hooks", _failing_attach)
+
+        with pytest.raises(RuntimeError, match="homeostatic hook registration failed"):
+            loss_fn.attach_forward_hooks(model)
+
+        assert sum(len(module._forward_hooks) for module in model.modules()) == 0
 
 
 class TestGetLossFunction:

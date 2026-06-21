@@ -319,11 +319,15 @@ class ReactivationDynamicsAnalyzer(AbstractAnalyzer):
         captured: dict[str, torch.Tensor],
     ) -> list[torch.utils.hooks.RemovableHandle]:
         handles = []
-        for name, layer in layers:
-            handles.append(
-                layer.register_forward_pre_hook(self._make_hook(name, captured))
-            )
-        return handles
+        try:
+            for name, layer in layers:
+                handles.append(
+                    layer.register_forward_pre_hook(self._make_hook(name, captured))
+                )
+            return handles
+        except Exception:
+            remove_hook_handles(handles)
+            raise
 
     @staticmethod
     def _make_hook(layer_name: str, captured: dict[str, torch.Tensor]):

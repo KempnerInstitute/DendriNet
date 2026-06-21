@@ -2,6 +2,7 @@
 
 from types import SimpleNamespace
 
+import pytest
 import torch
 from torch import nn
 
@@ -14,6 +15,7 @@ from dendritic_modeling.analysis.core.information_hooks_mixin import (
     _resolve_synaptic_branch_currents,
     _restore_analysis_current_capture,
 )
+from dendritic_modeling.networks import DendriticBranchLayer
 
 
 class _Scale(nn.Module):
@@ -23,6 +25,28 @@ class _Scale(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return x * self.factor
+
+
+def _branch_layer() -> DendriticBranchLayer:
+    return DendriticBranchLayer(
+        output_dim=2,
+        excitatory_input_dim=3,
+        excitatory_synapses_per_branch=2,
+        inhibitory_input_dim=3,
+        inhibitory_synapses_per_branch=2,
+        use_shunting=False,
+        reactivate=False,
+        topk_noise_level=0.0,
+        weight_transform="identity",
+    )
+
+
+class _InformationHookModel(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.core_network = SimpleNamespace(somatic_synapses=True)
+        self.layer_a = _branch_layer()
+        self.layer_b = _branch_layer()
 
 
 def test_resolve_synaptic_branch_currents_no_synapses_preserves_zero_behavior():
@@ -229,3 +253,23 @@ def test_information_hook_stores_resolved_currents_and_flags():
     assert layer_data["has_exc_synapses"] is True
     assert layer_data["has_inh_synapses"] is False
     assert layer_data["has_branch_input"] is True
+
+
+def test_information_hooks_restore_state_after_failed_registration(monkeypatch):
+    model = _InformationHookModel()
+    hook = InformationHooksMixin()
+    model.layer_a._store_analysis_currents = "previous_a"
+    model.layer_b._store_analysis_currents = "previous_b"
+
+    def _failing_register(*args, **kwargs):
+        raise RuntimeError("information hook registration failed")
+
+    monkeypatch.setattr(model.layer_b, "register_forward_hook", _failing_register)
+
+    with pytest.raises(RuntimeError, match="information hook registration failed"):
+        hook.attach_forward_hooks(model)
+
+    assert sum(len(module._forward_hooks) for module in model.modules()) == 0
+    assert model.layer_a._store_analysis_currents == "previous_a"
+    assert model.layer_b._store_analysis_currents == "previous_b"
+    assert hook._analysis_hook_modules == []

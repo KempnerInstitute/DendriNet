@@ -104,17 +104,20 @@ class InformationHooksMixin:
         )
 
         handles = []
-        for _name, module in model.named_modules():
-            if isinstance(module, DendriticBranchLayer):
-                if _has_analyzable_branch_signals(module):
-                    self.data_dict[_name] = {}
-                    module._name = _name
-                    previous_store = _enable_analysis_current_capture(module)
-                    self._analysis_hook_modules.append((module, previous_store))
-                    handle = module.register_forward_hook(self.forward_hook)
-                    handles.append(handle)
-
-        return handles
+        try:
+            for _name, module in model.named_modules():
+                if isinstance(module, DendriticBranchLayer):
+                    if _has_analyzable_branch_signals(module):
+                        self.data_dict[_name] = {}
+                        module._name = _name
+                        previous_store = _enable_analysis_current_capture(module)
+                        self._analysis_hook_modules.append((module, previous_store))
+                        handle = module.register_forward_hook(self.forward_hook)
+                        handles.append(handle)
+            return handles
+        except Exception:
+            self.remove_forward_hooks(handles)
+            raise
 
     def forward_hook(
         self,

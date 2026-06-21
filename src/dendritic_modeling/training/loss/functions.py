@@ -298,15 +298,21 @@ class VoltageStabilizationLoss(LossFunction):
 
     def attach_forward_hooks(self, model: BaseModel):
         handles = []
-        for module in model.modules():
-            if isinstance(module, DendriticBranchLayer):
-                if self.stabilize_mode == "gate_occupancy" and not isinstance(
-                    module.reactivation, ParametricActivation
-                ):
-                    continue
-                handle = module.reactivation.register_forward_hook(self.forward_hook)
-                handles.append(handle)
-        return handles
+        try:
+            for module in model.modules():
+                if isinstance(module, DendriticBranchLayer):
+                    if self.stabilize_mode == "gate_occupancy" and not isinstance(
+                        module.reactivation, ParametricActivation
+                    ):
+                        continue
+                    handle = module.reactivation.register_forward_hook(
+                        self.forward_hook
+                    )
+                    handles.append(handle)
+            return handles
+        except Exception:
+            self.remove_forward_hooks(handles)
+            raise
 
     def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
         remove_hook_handles(handles)
@@ -437,25 +443,29 @@ class ExcitationInhibitionBalanceLoss(LossFunction):
 
     def attach_forward_hooks(self, model: BaseModel):
         handles = []
-        for module in model.modules():
-            if isinstance(module, DendriticBranchLayer):
-                if (
-                    module.branch_excitation is not None
-                    and module.branch_inhibition is not None
-                ):
-                    handle = module.branch_excitation.register_forward_hook(
-                        lambda module, inputs, outputs: self.forward_hook(
-                            module, inputs, outputs, "exc"
+        try:
+            for module in model.modules():
+                if isinstance(module, DendriticBranchLayer):
+                    if (
+                        module.branch_excitation is not None
+                        and module.branch_inhibition is not None
+                    ):
+                        handle = module.branch_excitation.register_forward_hook(
+                            lambda module, inputs, outputs: self.forward_hook(
+                                module, inputs, outputs, "exc"
+                            )
                         )
-                    )
-                    handles.append(handle)
-                    handle = module.branch_inhibition.register_forward_hook(
-                        lambda module, inputs, outputs: self.forward_hook(
-                            module, inputs, outputs, "inh"
+                        handles.append(handle)
+                        handle = module.branch_inhibition.register_forward_hook(
+                            lambda module, inputs, outputs: self.forward_hook(
+                                module, inputs, outputs, "inh"
+                            )
                         )
-                    )
-                    handles.append(handle)
-        return handles
+                        handles.append(handle)
+            return handles
+        except Exception:
+            self.remove_forward_hooks(handles)
+            raise
 
     def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
         remove_hook_handles(handles)
@@ -521,9 +531,13 @@ class HomeostaticControlLoss(LossFunction):
 
     def attach_forward_hooks(self, model: BaseModel):
         handles = []
-        handles.extend(self.voltage_stabilization.attach_forward_hooks(model))
-        handles.extend(self.ei_balance.attach_forward_hooks(model))
-        return handles
+        try:
+            handles.extend(self.voltage_stabilization.attach_forward_hooks(model))
+            handles.extend(self.ei_balance.attach_forward_hooks(model))
+            return handles
+        except Exception:
+            self.remove_forward_hooks(handles)
+            raise
 
     def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
         remove_hook_handles(handles)

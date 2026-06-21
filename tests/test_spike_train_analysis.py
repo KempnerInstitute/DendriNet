@@ -13,6 +13,7 @@ from dendritic_modeling.analysis.tools.spike_trains import (
     _total_spike_stats,
 )
 from dendritic_modeling.config.analysis import SpikeTrainAnalysisParams
+from dendritic_modeling.networks import LIFSoma
 from dendritic_modeling.networks.architectures.recurrent import (
     PopulationLayerConfig,
     PopulationNetwork,
@@ -67,6 +68,13 @@ def _spiking_population_network() -> PopulationNetwork:
     )
 
 
+class _TwoSomaModel(torch.nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.soma_a = LIFSoma()
+        self.soma_b = LIFSoma()
+
+
 def test_spike_train_analyzer_reports_population_statistics():
     torch.manual_seed(0)
     model = _spiking_population_network()
@@ -100,6 +108,21 @@ def test_spike_train_hook_registration_tags_lif_somas():
         assert module._analysis_name == name
     finally:
         analyzer._remove_hooks(handles)
+
+
+def test_spike_train_hook_registration_removes_hooks_after_failure(monkeypatch):
+    model = _TwoSomaModel()
+    analyzer = SpikeTrainAnalyzer()
+
+    def _failing_register(*args, **kwargs):
+        raise RuntimeError("spike hook registration failed")
+
+    monkeypatch.setattr(model.soma_b, "register_forward_hook", _failing_register)
+
+    with pytest.raises(RuntimeError, match="spike hook registration failed"):
+        analyzer._attach_hooks(model)
+
+    assert sum(len(module._forward_hooks) for module in model.modules()) == 0
 
 
 def test_spike_train_summary_helpers_match_loop_semantics():

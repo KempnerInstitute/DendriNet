@@ -98,9 +98,13 @@ class SpikeTrainAnalyzer(AbstractAnalyzer):
         self, model: BaseModel
     ) -> list[torch.utils.hooks.RemovableHandle]:
         handles = []
-        for name, module in self._iter_lif_somas(model):
-            handles.append(self._register_spike_hook(name, module))
-        return handles
+        try:
+            for name, module in self._iter_lif_somas(model):
+                handles.append(self._register_spike_hook(name, module))
+            return handles
+        except Exception:
+            self._remove_hooks(handles)
+            raise
 
     def _iter_lif_somas(self, model: BaseModel):
         for name, module in model.named_modules():
