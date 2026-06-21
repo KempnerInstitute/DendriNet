@@ -38,6 +38,22 @@ def _split_train_valid(
     return train_ds, valid_ds, test_ds
 
 
+def _registered_sequence_dataset_task_config(
+    *,
+    dataset_name: str,
+    data_path: str | None,
+    train_valid_split: float,
+    kwargs: dict[str, Any],
+) -> dict[str, Any]:
+    """Build the config payload used by external sequence dataset registries."""
+    return {
+        "dataset": dataset_name,
+        "data_path": data_path,
+        "train_valid_split": train_valid_split,
+        "parameters": dict(kwargs),
+    }
+
+
 def get_sequence_datasets(
     dataset_name: str,
     data_path: str | None = None,
@@ -57,12 +73,12 @@ def get_sequence_datasets(
     """
     registered = build_registered_dataset(
         dataset_name,
-        {
-            "dataset": dataset_name,
-            "data_path": data_path,
-            "train_valid_split": train_valid_split,
-            "parameters": dict(kwargs),
-        },
+        _registered_sequence_dataset_task_config(
+            dataset_name=dataset_name,
+            data_path=data_path,
+            train_valid_split=train_valid_split,
+            kwargs=kwargs,
+        ),
     )
     if registered is not None:
         return registered

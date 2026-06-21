@@ -268,6 +268,19 @@ def _load_torchvision_train_test_pair(dataset_cls, *, root, transform, dataset_n
             return train_dataset, test_dataset
 
 
+def _build_to_tensor_transform(
+    *,
+    normalize: bool,
+    mean: tuple[float, ...],
+    std: tuple[float, ...],
+):
+    """Build the common torchvision ToTensor plus optional Normalize transform."""
+    transform_steps = [transforms.ToTensor()]
+    if normalize:
+        transform_steps.append(transforms.Normalize(mean, std))
+    return transforms.Compose(transform_steps)
+
+
 def _materialize_mnist_style_tensor_triplet(
     train_dataset: Dataset,
     test_dataset: Dataset,
@@ -332,11 +345,11 @@ def load_mnist_as_datasets(
         tuple: (train_dataset, valid_dataset, test_dataset)
     """
     mnist_dir = get_data_directory("mnist", task_data_path)
-
-    tf_list = [transforms.ToTensor()]
-    if normalize:
-        tf_list.append(transforms.Normalize((0.1307,), (0.3081,)))
-    transform = transforms.Compose(tf_list)
+    transform = _build_to_tensor_transform(
+        normalize=normalize,
+        mean=(0.1307,),
+        std=(0.3081,),
+    )
 
     train_dataset, test_dataset = _load_torchvision_train_test_pair(
         datasets.MNIST,
@@ -374,11 +387,11 @@ def load_fashion_mnist_as_datasets(
         tuple: (train_dataset, valid_dataset, test_dataset)
     """
     fmnist_dir = get_data_directory("fashion_mnist", task_data_path)
-
-    tf_list = [transforms.ToTensor()]
-    if normalize:
-        tf_list.append(transforms.Normalize((0.2860,), (0.3530,)))
-    transform = transforms.Compose(tf_list)
+    transform = _build_to_tensor_transform(
+        normalize=normalize,
+        mean=(0.2860,),
+        std=(0.3530,),
+    )
 
     train_dataset, test_dataset = _load_torchvision_train_test_pair(
         datasets.FashionMNIST,
@@ -517,13 +530,11 @@ def load_cifar10_as_datasets(
     Returns:
         tuple: (train_dataset, valid_dataset, test_dataset)
     """
-    tf_list = [transforms.ToTensor()]
-    if normalize:
-        tf_list.append(
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616))
-        )
-
-    transform = transforms.Compose(tf_list)
+    transform = _build_to_tensor_transform(
+        normalize=normalize,
+        mean=(0.4914, 0.4822, 0.4465),
+        std=(0.2470, 0.2435, 0.2616),
+    )
 
     cifar_dir = get_data_directory("cifar", task_data_path)
     train_dataset, test_dataset = _load_torchvision_train_test_pair(
@@ -874,6 +885,41 @@ def _load_theoretical_synthetic_dataset_triplet(
     return get_synthetic_datasets(dataset_config)
 
 
+def _experimental_dataset_import_path_candidates() -> list[str]:
+    """Return historical experiments-package import roots in legacy order."""
+    repo_root = os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    )
+    experiments_root = os.path.join(repo_root, "experiments")
+    return [
+        experiments_root,
+        os.path.join(experiments_root, "experiments"),
+    ]
+
+
+def _ensure_experimental_dataset_import_paths(path_candidates: list[str]) -> None:
+    """Add existing experiments-package roots to ``sys.path`` with legacy insertion."""
+    import sys
+
+    for candidate_path in path_candidates:
+        if os.path.isdir(candidate_path) and candidate_path not in sys.path:
+            sys.path.insert(0, candidate_path)
+
+
+def _resolve_experimental_dataset_loader() -> tuple[Callable | None, Exception | None]:
+    """Resolve the optional experiments dataset loader plus the final import error."""
+    last_error: Exception | None = None
+    get_experimental_datasets = None
+    for module_name in _EXPERIMENTAL_DATASET_IMPORT_CANDIDATES:
+        try:
+            module = importlib.import_module(module_name)
+            get_experimental_datasets = module.get_unified_datasets
+            break
+        except Exception as e:  # pragma: no cover - fallback path
+            last_error = e
+    return get_experimental_datasets, last_error
+
+
 def _load_experimental_dataset_triplet(
     *,
     dataset_name: str,
@@ -884,31 +930,12 @@ def _load_experimental_dataset_triplet(
     # Keep this robust to both layouts:
     #   <repo>/experiments/experiments/data_generation/synthetic_datasets.py
     #   <repo>/experiments/data_generation/synthetic_datasets.py
-    repo_root = os.path.dirname(
-        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    )
-    experiments_root = os.path.join(repo_root, "experiments")
-
-    import sys
-
     # Ensure both candidate roots are importable regardless launch cwd/PYTHONPATH.
-    path_candidates = [
-        experiments_root,
-        os.path.join(experiments_root, "experiments"),
-    ]
-    for candidate_path in path_candidates:
-        if os.path.isdir(candidate_path) and candidate_path not in sys.path:
-            sys.path.insert(0, candidate_path)
+    _ensure_experimental_dataset_import_paths(
+        _experimental_dataset_import_path_candidates()
+    )
 
-    last_error: Exception | None = None
-    get_experimental_datasets = None
-    for module_name in _EXPERIMENTAL_DATASET_IMPORT_CANDIDATES:
-        try:
-            module = importlib.import_module(module_name)
-            get_experimental_datasets = module.get_unified_datasets
-            break
-        except Exception as e:  # pragma: no cover - fallback path
-            last_error = e
+    get_experimental_datasets, last_error = _resolve_experimental_dataset_loader()
 
     if get_experimental_datasets is None:
         raise ValueError(

@@ -6,10 +6,9 @@ from typing import Any
 
 from dendritic_modeling.datasets.sequence.builders.common import (
     SequenceDatasetBuild,
+    build_deferred_train_test_split,
     build_explicit_or_deferred_split,
-    deferred_split,
     positive_input_encoding,
-    test_size,
 )
 from dendritic_modeling.datasets.sequence.decision_tasks import (
     ContextDependentDecisionDataset,
@@ -34,9 +33,11 @@ def build_hierarchical_temporal(
         "signal_dim": kwargs.get("signal_dim", 16),
         "noise_std": kwargs.get("noise_std", 0.5),
     }
-    return deferred_split(
-        HierarchicalTemporalDataset(n_samples=n_train, **common),
-        HierarchicalTemporalDataset(n_samples=test_size(n_train, 2000), **common),
+    return build_deferred_train_test_split(
+        dataset_cls=HierarchicalTemporalDataset,
+        n_train=n_train,
+        common_defaults=common,
+        min_test_size=2000,
     )
 
 
@@ -71,9 +72,11 @@ def build_context_dependent_decision(
         "return_seq_lengths": kwargs.get("return_seq_lengths", False),
         "positive_input_encoding": positive_input_encoding(dataset_name, kwargs),
     }
-    return deferred_split(
-        ContextDependentDecisionDataset(n_samples=n_train, **common),
-        ContextDependentDecisionDataset(n_samples=test_size(n_train, 2000), **common),
+    return build_deferred_train_test_split(
+        dataset_cls=ContextDependentDecisionDataset,
+        n_train=n_train,
+        common_defaults=common,
+        min_test_size=2000,
     )
 
 
@@ -104,9 +107,11 @@ def build_switching_context_decision(
         "min_blocks": kwargs.get("min_blocks", 2),
         "positive_input_encoding": positive_input_encoding(dataset_name, kwargs),
     }
-    return deferred_split(
-        SwitchingContextDecisionDataset(n_samples=n_train, **common),
-        SwitchingContextDecisionDataset(n_samples=test_size(n_train, 2000), **common),
+    return build_deferred_train_test_split(
+        dataset_cls=SwitchingContextDecisionDataset,
+        n_train=n_train,
+        common_defaults=common,
+        min_test_size=2000,
     )
 
 

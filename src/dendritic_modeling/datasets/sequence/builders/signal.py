@@ -6,6 +6,7 @@ from typing import Any
 
 from dendritic_modeling.datasets.sequence.builders.common import (
     SequenceDatasetBuild,
+    build_deferred_train_test_split,
     deferred_split,
     test_size,
 )
@@ -29,9 +30,11 @@ def build_multi_frequency(
         "base_freq": kwargs.get("base_freq", 0.01),
         "noise_std": kwargs.get("noise_std", 0.1),
     }
-    return deferred_split(
-        MultiFrequencyDataset(n_samples=n_train, **common),
-        MultiFrequencyDataset(n_samples=test_size(n_train, 1000), **common),
+    return build_deferred_train_test_split(
+        dataset_cls=MultiFrequencyDataset,
+        n_train=n_train,
+        common_defaults=common,
+        min_test_size=1000,
     )
 
 

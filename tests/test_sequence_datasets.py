@@ -5,7 +5,11 @@ import numpy as np
 import pytest
 import torch
 
-from dendritic_modeling.datasets.sequence.builders.common import explicit_split
+from dendritic_modeling.datasets.sequence.builders.common import (
+    build_deferred_train_test_split,
+    build_explicit_or_deferred_split,
+    explicit_split,
+)
 from dendritic_modeling.datasets.sequence.builders.registry import (
     SEQUENCE_DATASET_BUILDERS,
     get_registered_sequence_dataset_names,
@@ -14,6 +18,9 @@ from dendritic_modeling.datasets.sequence.builders.registry import (
     merge_sequence_dataset_builders,
     register_sequence_dataset_builder,
     unregister_sequence_dataset_builder,
+)
+from dendritic_modeling.datasets.sequence.factory import (
+    _registered_sequence_dataset_task_config,
 )
 from dendritic_modeling.datasets.sequence_datasets import (
     AddingProblemDataset,
@@ -111,6 +118,83 @@ def test_sequence_builder_registry_adds_custom_builder():
             register_sequence_dataset_builder("unit_test_sequence", builder)
     finally:
         unregister_sequence_dataset_builder("unit_test_sequence")
+
+
+def test_registered_sequence_dataset_task_config_copies_parameters():
+    kwargs = {"seed": 3, "length": 5}
+
+    task_config = _registered_sequence_dataset_task_config(
+        dataset_name="unit_sequence",
+        data_path="memory://unit",
+        train_valid_split=0.7,
+        kwargs=kwargs,
+    )
+    kwargs["seed"] = 99
+
+    assert task_config == {
+        "dataset": "unit_sequence",
+        "data_path": "memory://unit",
+        "train_valid_split": 0.7,
+        "parameters": {"seed": 3, "length": 5},
+    }
+
+
+def test_sequence_builder_explicit_split_merges_common_and_split_kwargs():
+    created = []
+
+    class RecordingDataset:
+        def __init__(self, *, n_samples, **params):
+            self.n_samples = n_samples
+            self.params = params
+            created.append(self)
+
+    common_defaults = {"noise_std": 0.1, "seed": 1}
+    build = build_explicit_or_deferred_split(
+        dataset_cls=RecordingDataset,
+        kwargs={
+            "train": {"n_samples": 5, "seed": 10},
+            "valid": {"noise_std": 0.3},
+            "test": {"n_samples": 7},
+        },
+        common_defaults=common_defaults,
+        n_train=20,
+        min_test_size=3,
+    )
+
+    assert build.split_datasets == tuple(created)
+    assert [dataset.n_samples for dataset in created] == [5, 4, 7]
+    assert [dataset.params for dataset in created] == [
+        {"noise_std": 0.1, "seed": 10},
+        {"noise_std": 0.3, "seed": 1},
+        {"noise_std": 0.1, "seed": 1},
+    ]
+    assert common_defaults == {"noise_std": 0.1, "seed": 1}
+
+
+def test_sequence_builder_deferred_split_uses_derived_test_size():
+    created = []
+
+    class RecordingDataset:
+        def __init__(self, *, n_samples, **params):
+            self.n_samples = n_samples
+            self.params = params
+            created.append(self)
+
+    common_defaults = {"seq_len": 8, "seed": 4}
+    build = build_deferred_train_test_split(
+        dataset_cls=RecordingDataset,
+        n_train=30,
+        common_defaults=common_defaults,
+        min_test_size=5,
+    )
+
+    assert build.train_full is created[0]
+    assert build.test_ds is created[1]
+    assert [dataset.n_samples for dataset in created] == [30, 6]
+    assert [dataset.params for dataset in created] == [
+        {"seq_len": 8, "seed": 4},
+        {"seq_len": 8, "seed": 4},
+    ]
 
 
 def test_sequence_builder_registry_rejects_non_callable_builder():

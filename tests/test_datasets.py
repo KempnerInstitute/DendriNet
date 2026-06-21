@@ -46,9 +46,12 @@ from dendritic_modeling.datasets.standard_datasets import (
     _apply_imagenet_class_subsets,
     _apply_imagenet_local_override,
     _build_imagenet_transforms,
+    _build_to_tensor_transform,
     _class_subset_indices,
     _copy_dataset_with_transform,
     _dataset_mapping_to_triplet,
+    _ensure_experimental_dataset_import_paths,
+    _experimental_dataset_import_path_candidates,
     _is_official_imagenet_root,
     _load_experimental_dataset_triplet,
     _load_imagenet_dataset_triplet,
@@ -62,6 +65,7 @@ from dendritic_modeling.datasets.standard_datasets import (
     _normalized_imagenet_loader_backend,
     _normalized_imagenet_preset_name,
     _paired_arithmetic_option_kwargs,
+    _resolve_experimental_dataset_loader,
     _resolve_imagefolder_roots,
     _resolve_imagenet_data_location,
     _split_imagenet_train_valid_or_use_test,
@@ -382,6 +386,23 @@ class TestRealDatasets(unittest.TestCase):
             sample = torch.full(self.sample_shape, float(idx % 7), dtype=torch.float32)
             label = int(idx % self.num_classes)
             return sample, label
+
+    def test_build_to_tensor_transform_adds_optional_normalization(self):
+        plain_transform = _build_to_tensor_transform(
+            normalize=False,
+            mean=(0.1,),
+            std=(0.2,),
+        )
+        normalized_transform = _build_to_tensor_transform(
+            normalize=True,
+            mean=(0.1,),
+            std=(0.2,),
+        )
+
+        self.assertEqual(len(plain_transform.transforms), 1)
+        self.assertEqual(len(normalized_transform.transforms), 2)
+        self.assertEqual(tuple(normalized_transform.transforms[1].mean), (0.1,))
+        self.assertEqual(tuple(normalized_transform.transforms[1].std), (0.2,))
 
     @patch(
         "dendritic_modeling.datasets.standard_datasets._load_torchvision_train_test_pair"
@@ -1528,6 +1549,50 @@ class TestGetUnifiedDatasets(unittest.TestCase):
             {"n_samples": 12, "seed": 5, "type": "correlated_gaussian"}
         )
         self.assertNotIn("type", parameters)
+
+    def test_experimental_dataset_import_path_candidates_preserve_layouts(self):
+        candidates = _experimental_dataset_import_path_candidates()
+
+        self.assertEqual(len(candidates), 2)
+        self.assertTrue(candidates[0].endswith("experiments"))
+        self.assertEqual(candidates[1], os.path.join(candidates[0], "experiments"))
+
+    def test_ensure_experimental_dataset_import_paths_adds_existing_roots_once(self):
+        import sys
+
+        first = os.path.join(self.temp_dir, "experiments")
+        second = os.path.join(first, "experiments")
+        os.makedirs(second)
+        original_path = list(sys.path)
+        try:
+            _ensure_experimental_dataset_import_paths([first, second, first])
+
+            self.assertEqual(sys.path.count(first), 1)
+            self.assertEqual(sys.path.count(second), 1)
+            self.assertLess(sys.path.index(second), sys.path.index(first))
+        finally:
+            sys.path[:] = original_path
+
+    @patch("dendritic_modeling.datasets.standard_datasets.importlib.import_module")
+    def test_resolve_experimental_dataset_loader_preserves_last_import_error(
+        self,
+        mock_import_module,
+    ):
+        first_error = ImportError("missing canonical layout")
+        second_error = RuntimeError("missing fallback layout")
+        mock_import_module.side_effect = [first_error, second_error]
+
+        loader, last_error = _resolve_experimental_dataset_loader()
+
+        self.assertIsNone(loader)
+        self.assertIs(last_error, second_error)
+        self.assertEqual(
+            [call_args.args[0] for call_args in mock_import_module.call_args_list],
+            [
+                "experiments.data_generation.synthetic_datasets",
+                "data_generation.synthetic_datasets",
+            ],
+        )
 
     @patch("dendritic_modeling.datasets.standard_datasets.os.path.isdir")
     @patch("dendritic_modeling.datasets.standard_datasets.importlib.import_module")
