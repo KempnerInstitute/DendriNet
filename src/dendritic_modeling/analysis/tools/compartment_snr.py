@@ -40,6 +40,7 @@ from dendritic_modeling.utils import save_dict
 from dendritic_modeling.utils.hooks import (
     ForwardHookRemovalMixin,
     register_named_forward_hook_groups,
+    run_with_forward_hooks,
 )
 
 logger = logging.getLogger(__name__)
@@ -102,21 +103,25 @@ class CompartmentSNRAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
     def collect_raw_data(self, model: BaseModel, x: torch.Tensor):
         """Collect raw data from the model."""
         self.raw_dict = {}
-        handles = []
 
         exc_dendrinet = model.core_network.layers[-1].excitatory_cells
 
-        try:
-            handles = register_named_forward_hook_groups(
+        def _attach_hooks():
+            return register_named_forward_hook_groups(
                 exc_dendrinet,
                 DendriticBranchLayer,
                 self._collect_layer_raw_data,
             )
 
+        def _run_model():
             with torch.no_grad():
                 _ = model(x)
-        finally:
-            self.remove_forward_hooks(handles)
+
+        run_with_forward_hooks(
+            attach=_attach_hooks,
+            remove=self.remove_forward_hooks,
+            body=_run_model,
+        )
 
     def _collect_layer_raw_data(
         self,

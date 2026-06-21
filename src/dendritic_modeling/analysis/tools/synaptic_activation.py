@@ -22,6 +22,7 @@ from dendritic_modeling.utils import save_dict
 from dendritic_modeling.utils.hooks import (
     ForwardHookRemovalMixin,
     iter_modules_of_type,
+    register_hook_groups,
     register_named_forward_hook_groups,
 )
 
@@ -76,20 +77,21 @@ class SynapticActivationAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         self, layer_name: str, module: DendriticBranchLayer
     ) -> list[torch.utils.hooks.RemovableHandle]:
         self.data_dict.setdefault(layer_name, {})
-        handles = []
-        try:
-            for path, synapse_module in iter_topk_path_modules(module):
-                handles.append(
-                    self._register_synapse_hook(
-                        layer_name,
-                        path.pathway,
-                        synapse_module,
-                    )
+
+        def _register_path_hooks(path_entry):
+            path, synapse_module = path_entry
+            return [
+                self._register_synapse_hook(
+                    layer_name,
+                    path.pathway,
+                    synapse_module,
                 )
-            return handles
-        except Exception:
-            self.remove_forward_hooks(handles)
-            raise
+            ]
+
+        return register_hook_groups(
+            iter_topk_path_modules(module),
+            _register_path_hooks,
+        )
 
     def _register_synapse_hook(
         self,

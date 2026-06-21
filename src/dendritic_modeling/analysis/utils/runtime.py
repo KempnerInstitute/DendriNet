@@ -345,6 +345,8 @@ __all__ = [
     "make_analysis_loader",
     "materialize_dataset",
     "resolve_analysis_pin_memory",
+    "run_model_over_analysis_batches",
+    "run_no_grad_analysis_batches",
     "should_materialize_dataset",
     "subset_dataset_for_runtime",
 ]

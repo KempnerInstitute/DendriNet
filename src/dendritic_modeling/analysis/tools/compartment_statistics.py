@@ -44,6 +44,7 @@ from dendritic_modeling.utils.hooks import (
     ForwardHookRemovalMixin,
     iter_named_modules_of_type,
     register_named_forward_hook_groups,
+    run_with_forward_hooks,
 )
 
 logger = logging.getLogger(__name__)
@@ -155,28 +156,34 @@ class CompartmentStatisticsAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         """Collect raw data from the model."""
         self.raw_dict = {}
         self.class_labels = y if self.per_class_analysis and y is not None else None
-        handles = []
-        try:
-            handles = register_named_forward_hook_groups(
+
+        def _attach_hooks():
+            return register_named_forward_hook_groups(
                 model,
                 DendriticBranchLayer,
                 self._collect_layer_raw_data,
             )
 
+        def _run_model():
             if self.inputs or self.activations:
+                batch_x = x
                 if self.n_samples is not None:
-                    generator = torch.Generator(device=x.device)
+                    generator = torch.Generator(device=batch_x.device)
                     generator.manual_seed(self.seed)
                     indices = torch.randperm(
-                        x.shape[0], generator=generator, device=x.device
+                        batch_x.shape[0], generator=generator, device=batch_x.device
                     )[: self.n_samples]
-                    x = x[indices]
+                    batch_x = batch_x[indices]
                     if self.class_labels is not None:
                         self.class_labels = self.class_labels[indices]
                 with torch.no_grad():
-                    _ = model(x)
-        finally:
-            self.remove_forward_hooks(handles)
+                    _ = model(batch_x)
+
+        run_with_forward_hooks(
+            attach=_attach_hooks,
+            remove=self.remove_forward_hooks,
+            body=_run_model,
+        )
 
     def _collect_layer_raw_data(
         self,

@@ -8,6 +8,7 @@ from torch import nn
 from torch.utils.data import DataLoader, Dataset, TensorDataset
 
 from dendritic_modeling.analysis.metrics.performance import PerformanceAnalyzer
+from dendritic_modeling.analysis.utils import runtime as runtime_utils
 from dendritic_modeling.analysis.utils.runtime import (
     _resolve_analysis_num_workers,
     _resolve_analysis_persistent_workers,
@@ -39,6 +40,11 @@ class NoSliceDataset(Dataset):
         if isinstance(idx, slice):
             raise TypeError("slice access disabled")
         return self.x[idx], self.y[idx]
+
+
+def test_runtime_public_exports_include_shared_batch_helpers():
+    assert "run_model_over_analysis_batches" in runtime_utils.__all__
+    assert "run_no_grad_analysis_batches" in runtime_utils.__all__
 
 
 def test_legacy_performance_runtime_maps_to_shared_runtime(tmp_path):
