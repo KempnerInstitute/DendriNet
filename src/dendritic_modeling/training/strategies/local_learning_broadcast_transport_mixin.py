@@ -1,0 +1,427 @@
+"""Path propagation and transport helpers for local credit assignment."""
+
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+import torch
+
+from dendritic_modeling.training.strategies.local_learning_broadcast import (
+    expand_parent_signal_to_children,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class LocalLearningPathTransportBroadcastMixin:
+    """Recursive transport of local-rule feedback through dendritic trees."""
+
+    @staticmethod
+    def _expand_parent_signal_to_children(
+        signal: torch.Tensor, block_size: int, child_out_features: int
+    ) -> torch.Tensor:
+        """Broadcast a parent-layer signal to its grouped child branches."""
+
+        return expand_parent_signal_to_children(signal, block_size, child_out_features)
+
+    def _precompute_path_propagation_factors(
+        self,
+        layer_records: list[dict[str, Any]],
+        include_parent_activation_derivative: bool = False,
+    ) -> list[torch.Tensor | float]:
+        """Approximate path attenuation from each compartment to the soma.
+
+
+
+        DendriNet records layers from distal to proximal. The attenuation for a
+
+        child layer therefore depends on the *next* (more proximal) layer in the
+
+        record list, not the previous one.
+
+        """
+
+        if not layer_records:
+
+            return []
+
+        mode = str(
+            getattr(self.local_cfg.morphology_aware, "path_factor_mode", "per_branch")
+        ).lower()
+
+        path_factors: list[torch.Tensor | float] = [1.0] * len(layer_records)
+
+        soma_v = layer_records[-1].get("v_n")
+
+        if isinstance(soma_v, torch.Tensor):
+
+            if mode == "scalar_mean":
+
+                path_factors[-1] = torch.ones(
+                    soma_v.size(0), 1, device=soma_v.device, dtype=soma_v.dtype
+                )
+
+            else:
+
+                path_factors[-1] = torch.ones_like(soma_v)
+
+        for layer_idx in range(len(layer_records) - 2, -1, -1):
+
+            child_rec = layer_records[layer_idx]
+
+            parent_rec = layer_records[layer_idx + 1]
+
+            child_v = child_rec.get("v_n")
+
+            parent_v = parent_rec.get("v_n")
+
+            blk_module = parent_rec.get("blk_module")
+
+            if not (
+                isinstance(child_v, torch.Tensor)
+                and isinstance(parent_v, torch.Tensor)
+                and blk_module is not None
+                and hasattr(blk_module, "weight")
+            ):
+
+                path_factors[layer_idx] = (
+                    torch.ones(
+                        child_v.size(0), 1, device=child_v.device, dtype=child_v.dtype
+                    )
+                    if isinstance(child_v, torch.Tensor) and mode == "scalar_mean"
+                    else (
+                        torch.ones_like(child_v)
+                        if isinstance(child_v, torch.Tensor)
+                        else 1.0
+                    )
+                )
+
+                continue
+
+            parent_path = path_factors[layer_idx + 1]
+
+            if not isinstance(parent_path, torch.Tensor):
+
+                parent_path = torch.ones_like(parent_v)
+
+            elif parent_path.size(1) == 1 and parent_v.size(1) > 1:
+
+                parent_path = parent_path.expand(-1, parent_v.size(1))
+
+            parent_act_deriv = torch.ones_like(parent_v)
+
+            if include_parent_activation_derivative:
+
+                parent_act_deriv_candidate = self._get_layer_activation_derivative(
+                    parent_rec, parent_v
+                )
+
+                if isinstance(parent_act_deriv_candidate, torch.Tensor):
+
+                    parent_act_deriv = parent_act_deriv_candidate.to(
+                        device=parent_v.device, dtype=parent_v.dtype
+                    )
+
+            parent_g_tot = self._compute_layer_total_conductance(parent_rec, parent_v)
+
+            parent_r_tot = 1.0 / (parent_g_tot + 1e-8)
+
+            block_size = int(getattr(blk_module, "block_size", 1))
+
+            edge_weights = (
+                blk_module.weight()
+                .detach()
+                .to(device=child_v.device, dtype=child_v.dtype)
+            )
+
+            expected_child_out = edge_weights.numel()
+
+            if child_v.size(1) != expected_child_out:
+
+                logger.warning(
+                    "Path propagation shape mismatch: child_out=%s, expected=%s. "
+                    "Falling back to scalar averaging.",
+                    child_v.size(1),
+                    expected_child_out,
+                )
+
+                scalar_factor = (parent_path * parent_act_deriv * parent_r_tot).mean(
+                    dim=1, keepdim=True
+                ) * edge_weights.mean()
+
+                path_factors[layer_idx] = scalar_factor
+
+                continue
+
+            expanded_parent_path = self._expand_parent_signal_to_children(
+                parent_path, block_size, child_v.size(1)
+            )
+
+            expanded_parent_act = self._expand_parent_signal_to_children(
+                parent_act_deriv, block_size, child_v.size(1)
+            )
+
+            expanded_parent_r_tot = self._expand_parent_signal_to_children(
+                parent_r_tot, block_size, child_v.size(1)
+            )
+
+            edge_gain = edge_weights.reshape(1, -1)
+
+            branch_factor = (
+                expanded_parent_path
+                * expanded_parent_act
+                * expanded_parent_r_tot
+                * edge_gain
+            )
+
+            if mode == "scalar_mean":
+
+                branch_factor = branch_factor.mean(dim=1, keepdim=True)
+
+            path_factors[layer_idx] = branch_factor
+
+        return path_factors
+
+    def _precompute_path_transport_errors(
+        self,
+        layer_records: list[dict[str, Any]],
+        delta: torch.Tensor,
+        delta_scalar: torch.Tensor,
+    ) -> list[torch.Tensor | None]:
+        """Recursively transport soma-space activation errors through the tree.
+
+
+
+        This is the operational form of the tree recursion:
+
+
+
+            dL/da_child = dL/da_parent * f'_parent(V_parent) * R_parent_tot * g_child->parent
+
+
+
+        It preserves vector-valued soma errors where dimensions remain aligned,
+
+        rather than collapsing transport to a scalar gain. The resulting tensor
+
+        approximates activation-space error at each layer; conductance updates
+
+        convert it locally to voltage-space by multiplying by f'(V_n).
+
+        """
+
+        if not layer_records:
+
+            return []
+
+        transported: list[torch.Tensor | None] = [None] * len(layer_records)
+
+        soma_v = layer_records[-1].get("v_n")
+
+        if isinstance(soma_v, torch.Tensor):
+
+            if delta.dim() == 1:
+
+                delta = delta.unsqueeze(-1)
+
+            elif delta.dim() != 2:
+
+                delta = delta.view(delta.size(0), -1)
+
+            if delta.size(1) == soma_v.size(1):
+
+                transported[-1] = delta.to(device=soma_v.device, dtype=soma_v.dtype)
+
+            else:
+
+                transported[-1] = delta_scalar.to(
+                    device=soma_v.device, dtype=soma_v.dtype
+                ).expand(-1, soma_v.size(1))
+
+        for layer_idx in range(len(layer_records) - 2, -1, -1):
+
+            child_rec = layer_records[layer_idx]
+
+            parent_rec = layer_records[layer_idx + 1]
+
+            child_v = child_rec.get("v_n")
+
+            parent_v = parent_rec.get("v_n")
+
+            parent_error = transported[layer_idx + 1]
+
+            blk_module = parent_rec.get("blk_module")
+
+            if not (
+                isinstance(child_v, torch.Tensor)
+                and isinstance(parent_v, torch.Tensor)
+                and isinstance(parent_error, torch.Tensor)
+                and blk_module is not None
+                and hasattr(blk_module, "weight")
+            ):
+
+                if isinstance(child_v, torch.Tensor):
+
+                    transported[layer_idx] = delta_scalar.to(
+                        device=child_v.device, dtype=child_v.dtype
+                    ).expand(-1, child_v.size(1))
+
+                continue
+
+            edge_weights = (
+                blk_module.weight()
+                .detach()
+                .to(device=child_v.device, dtype=child_v.dtype)
+            )
+
+            expected_child_out = edge_weights.numel()
+
+            if child_v.size(1) != expected_child_out:
+
+                logger.warning(
+                    "Path transport shape mismatch: child_out=%s, expected=%s. "
+                    "Falling back to scalar averaging.",
+                    child_v.size(1),
+                    expected_child_out,
+                )
+
+                parent_act_deriv = self._get_layer_activation_derivative(
+                    parent_rec, parent_v
+                )
+
+                if not isinstance(parent_act_deriv, torch.Tensor):
+
+                    parent_act_deriv = torch.ones_like(parent_v)
+
+                parent_r_tot = 1.0 / (
+                    self._compute_layer_total_conductance(parent_rec, parent_v) + 1e-8
+                )
+
+                transported[layer_idx] = (
+                    (parent_error * parent_act_deriv * parent_r_tot).mean(
+                        dim=1, keepdim=True
+                    )
+                    * edge_weights.mean()
+                ).expand(-1, child_v.size(1))
+
+                continue
+
+            block_size = int(getattr(blk_module, "block_size", 1))
+
+            parent_act_deriv = self._get_layer_activation_derivative(
+                parent_rec, parent_v
+            )
+
+            if not isinstance(parent_act_deriv, torch.Tensor):
+
+                parent_act_deriv = torch.ones_like(parent_v)
+
+            parent_r_tot = 1.0 / (
+                self._compute_layer_total_conductance(parent_rec, parent_v) + 1e-8
+            )
+
+            expanded_parent_error = self._expand_parent_signal_to_children(
+                (
+                    parent_error.to(device=child_v.device, dtype=child_v.dtype)
+                    * parent_act_deriv.to(device=child_v.device, dtype=child_v.dtype)
+                ),
+                block_size,
+                child_v.size(1),
+            )
+
+            expanded_parent_r_tot = self._expand_parent_signal_to_children(
+                parent_r_tot.to(device=child_v.device, dtype=child_v.dtype),
+                block_size,
+                child_v.size(1),
+            )
+
+            transported[layer_idx] = (
+                expanded_parent_error
+                * expanded_parent_r_tot
+                * edge_weights.reshape(1, -1)
+            )
+
+        return transported
+
+    def _precompute_feedback_seeds(
+        self,
+        layer_records: list[dict[str, Any]],
+        delta: torch.Tensor,
+        delta_scalar: torch.Tensor,
+    ) -> list[torch.Tensor | None]:
+        """Precompute hierarchical feedback vectors from proximal to distal layers."""
+
+        if not layer_records:
+
+            return []
+
+        feedback: list[torch.Tensor | None] = [None] * len(layer_records)
+
+        soma_v = layer_records[-1].get("v_n")
+
+        if isinstance(soma_v, torch.Tensor):
+
+            if delta.dim() == 1:
+
+                delta = delta.unsqueeze(-1)
+
+            elif delta.dim() != 2:
+
+                delta = delta.view(delta.size(0), -1)
+
+            if delta.size(1) == soma_v.size(1):
+
+                feedback[-1] = delta.to(device=soma_v.device, dtype=soma_v.dtype)
+
+            else:
+
+                feedback[-1] = delta_scalar.to(
+                    device=soma_v.device, dtype=soma_v.dtype
+                ).expand(-1, soma_v.size(1))
+
+        for layer_idx in range(len(layer_records) - 2, -1, -1):
+
+            child_rec = layer_records[layer_idx]
+
+            parent_rec = layer_records[layer_idx + 1]
+
+            child_v = child_rec.get("v_n")
+
+            parent_feedback = feedback[layer_idx + 1]
+
+            blk_module = parent_rec.get("blk_module")
+
+            if not (
+                isinstance(child_v, torch.Tensor)
+                and isinstance(parent_feedback, torch.Tensor)
+                and blk_module is not None
+                and hasattr(blk_module, "weight")
+            ):
+
+                if isinstance(child_v, torch.Tensor):
+
+                    feedback[layer_idx] = delta_scalar.to(
+                        device=child_v.device, dtype=child_v.dtype
+                    ).expand(-1, child_v.size(1))
+
+                continue
+
+            edge_weights = (
+                blk_module.weight()
+                .detach()
+                .to(device=child_v.device, dtype=child_v.dtype)
+            )
+
+            expanded_parent = self._expand_parent_signal_to_children(
+                parent_feedback.to(device=child_v.device, dtype=child_v.dtype),
+                int(getattr(blk_module, "block_size", 1)),
+                child_v.size(1),
+            )
+
+            feedback[layer_idx] = expanded_parent * edge_weights.reshape(1, -1)
+
+        return feedback
+
+
+__all__ = ["LocalLearningPathTransportBroadcastMixin"]
