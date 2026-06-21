@@ -365,6 +365,41 @@ class TestDendriticBranchLayerAdditional:
         rows = torch.arange(forbidden.numel())
         assert not bool(mask[rows, forbidden].any())
 
+    def test_all_sparse_pathways_construct_and_toggle_dynamic_scaling(self):
+        layer = DendriticBranchLayer(
+            output_dim=3,
+            excitatory_input_dim=5,
+            excitatory_synapses_per_branch=2,
+            inhibitory_input_dim=4,
+            inhibitory_synapses_per_branch=2,
+            recurrent_input_dim=3,
+            recurrent_synapses_per_branch=2,
+            rec_inhibitory_input_dim=3,
+            rec_inhibitory_synapses_per_branch=1,
+            topk_type="standard",
+            reactivate=False,
+            input_branch_factor=None,
+            weight_transform="identity",
+            dbl_init_method="default",
+            adaptive_initialization=False,
+        )
+
+        sparse_attrs = (
+            "branch_excitation",
+            "branch_inhibition",
+            "branch_recurrent",
+            "branch_rec_inhibition",
+        )
+        for attr in sparse_attrs:
+            pathway = getattr(layer, attr)
+            assert isinstance(pathway, TopKLinear)
+            assert pathway._use_forward_dynamic_grad_scaling is False
+
+        layer.set_forward_dynamic_grad_scaling(True)
+
+        for attr in sparse_attrs:
+            assert getattr(layer, attr)._use_forward_dynamic_grad_scaling is True
+
 
 if __name__ == "__main__":
     unittest.main()

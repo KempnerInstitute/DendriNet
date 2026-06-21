@@ -15,7 +15,12 @@ from .config_validation import (
 
 # Core utilities
 from .general import Shaper, convert_to_serializable, save_dict, set_seed
-from .hooks import ForwardHookRemovalMixin, HookHandle, remove_hook_handles
+from .hooks import (
+    ForwardHookRemovalMixin,
+    HookHandle,
+    iter_named_modules_of_type,
+    remove_hook_handles,
+)
 from .lda import (
     apply_nonnegative_lda,
     apply_random_weights,
@@ -61,6 +66,7 @@ __all__ = [
     "generate_random_nonnegative_weights",
     "get_logger",
     "get_validation_summary",
+    "iter_named_modules_of_type",
     "normalize_sparse_layer_type",
     "remove_hook_handles",
     "roc_auc_score",

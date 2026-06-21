@@ -6,7 +6,10 @@ import torch
 
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import DendriticBranchLayer
-from dendritic_modeling.utils.hooks import ForwardHookRemovalMixin
+from dendritic_modeling.utils.hooks import (
+    ForwardHookRemovalMixin,
+    iter_named_modules_of_type,
+)
 
 
 def _has_no_branch_synapses(module: DendriticBranchLayer) -> bool:
@@ -105,15 +108,16 @@ class InformationHooksMixin(ForwardHookRemovalMixin):
 
         handles = []
         try:
-            for _name, module in model.named_modules():
-                if isinstance(module, DendriticBranchLayer):
-                    if _has_analyzable_branch_signals(module):
-                        self.data_dict[_name] = {}
-                        module._name = _name
-                        previous_store = _enable_analysis_current_capture(module)
-                        self._analysis_hook_modules.append((module, previous_store))
-                        handle = module.register_forward_hook(self.forward_hook)
-                        handles.append(handle)
+            for _name, module in iter_named_modules_of_type(
+                model, DendriticBranchLayer
+            ):
+                if _has_analyzable_branch_signals(module):
+                    self.data_dict[_name] = {}
+                    module._name = _name
+                    previous_store = _enable_analysis_current_capture(module)
+                    self._analysis_hook_modules.append((module, previous_store))
+                    handle = module.register_forward_hook(self.forward_hook)
+                    handles.append(handle)
             return handles
         except Exception:
             self.remove_forward_hooks(handles)

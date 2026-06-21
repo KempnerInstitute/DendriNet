@@ -207,4 +207,36 @@ def create_branch_sparse_layer(
     )
 
 
-__all__ = ["create_branch_sparse_layer"]
+def create_registered_branch_sparse_layer(
+    owner: Any,
+    gradient_scaler: Any,
+    *,
+    in_features: int,
+    out_features: int,
+    K: int | None,
+    init_method: str,
+    noise_level: float,
+    synapse_type: str = "exc",
+    forbidden_input_index_per_output: Any = None,
+    connection_mask: Any = None,
+):
+    """Create a sparse branch pathway and register its dynamic gradient scaler."""
+    layer = create_branch_sparse_layer(
+        owner,
+        in_features=in_features,
+        out_features=out_features,
+        K=K,
+        init_method=init_method,
+        noise_level=noise_level,
+        synapse_type=synapse_type,
+        forbidden_input_index_per_output=forbidden_input_index_per_output,
+        connection_mask=connection_mask,
+    )
+    gradient_scaler.register_topk_dynamic(layer)
+    return layer
+
+
+__all__ = [
+    "create_branch_sparse_layer",
+    "create_registered_branch_sparse_layer",
+]

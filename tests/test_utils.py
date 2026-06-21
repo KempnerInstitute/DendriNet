@@ -37,9 +37,26 @@ from dendritic_modeling.utils.information.estimators import (
 
 def test_utils_reexports_hook_helpers():
     from dendritic_modeling import utils
-    from dendritic_modeling.utils.hooks import ForwardHookRemovalMixin
+    from dendritic_modeling.utils.hooks import (
+        ForwardHookRemovalMixin,
+        iter_named_modules_of_type,
+    )
 
     assert utils.ForwardHookRemovalMixin is ForwardHookRemovalMixin
+    assert utils.iter_named_modules_of_type is iter_named_modules_of_type
+
+
+def test_iter_named_modules_of_type_preserves_model_order():
+    from dendritic_modeling.utils.hooks import iter_named_modules_of_type
+
+    model = nn.Module()
+    model.first = nn.Linear(2, 3)
+    model.block = nn.Sequential(nn.ReLU(), nn.Linear(3, 1))
+
+    matches = list(iter_named_modules_of_type(model, nn.Linear))
+
+    assert [name for name, _module in matches] == ["first", "block.1"]
+    assert [module.out_features for _name, module in matches] == [3, 1]
 
 
 class TestShaper(unittest.TestCase):

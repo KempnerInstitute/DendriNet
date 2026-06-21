@@ -207,6 +207,7 @@ class DendriNet(nn.Module):
             reactivate=reactivate,
             reactivation_type=reactivation_type,
         )
+        self.synapse_config = synapse_config
 
         for i in range(self.n_branch_layers):
             excitatory_connection_mask = _sample_dendrinet_structured_mask(
@@ -293,6 +294,7 @@ class DendriNet(nn.Module):
             )
 
         self.branch_layers = nn.ModuleList(branch_layers)
+        self.branch_configs = tuple(layer.branch_config for layer in branch_layers)
 
         self.reactivate = reactivate
         self.layer_sizes = layer_sizes

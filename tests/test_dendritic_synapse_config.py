@@ -17,6 +17,12 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic i
     DendriticBranchLayer,
     synapse_config as synapse_config_module,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_options import (
+    resolve_branch_config,
+    resolve_branch_options,
+    resolve_synapse_config,
+    resolve_synapse_options,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.ei_layer import (
     ExcitationInhibitionLayer,
 )
@@ -219,6 +225,35 @@ def test_dendritic_synapse_config_from_config_ignores_non_section_extras():
     assert kwargs["topk_type"] == "indexed_rewire"
 
 
+def test_synapse_options_resolve_typed_config_and_legacy_kwargs():
+    formal_kwargs = {
+        "topk_type": "indexed_rewire",
+        "topk_gamma": 0.75,
+        "reactivate": True,
+        "reactivation_type": "param_tanh",
+        "weight_transform": "softplus",
+    }
+    extra_kwargs = {
+        "indexed_seed": 123,
+        "non_synapse_option": "keep",
+    }
+
+    config, remaining = resolve_synapse_config(
+        formal_synapse_kwargs=formal_kwargs,
+        extra_kwargs=extra_kwargs,
+        synapse_config=None,
+    )
+    options, legacy_remaining = resolve_synapse_options(
+        formal_synapse_kwargs=formal_kwargs,
+        extra_kwargs=extra_kwargs,
+        synapse_config=None,
+    )
+
+    assert options == config.to_kwargs()
+    assert remaining == legacy_remaining == {"non_synapse_option": "keep"}
+    assert config.to_kwargs()["indexed_seed"] == 123
+
+
 def test_dendritic_branch_config_round_trips_legacy_kwargs():
     connection_mask = torch.ones(4, 7, dtype=torch.bool)
     legacy_kwargs = {
@@ -242,6 +277,20 @@ def test_dendritic_branch_config_round_trips_legacy_kwargs():
 def test_dendritic_branch_config_requires_output_dim():
     with pytest.raises(ValueError, match="output_dim"):
         DendriticBranchConfig.from_kwargs(excitatory_input_dim=3)
+
+
+def test_branch_options_resolve_typed_config_and_legacy_kwargs():
+    config = DendriticBranchConfig(
+        output_dim=4,
+        excitatory_input_dim=7,
+        excitatory_synapses_per_branch=3,
+        layer_idx=2,
+    )
+
+    assert resolve_branch_config(None) is None
+    assert resolve_branch_config(config) is config
+    assert resolve_branch_options(config) == config.to_kwargs()
+    assert resolve_branch_options(config.to_kwargs()) == config.to_kwargs()
 
 
 def test_branch_layer_typed_branch_config_matches_legacy_kwargs_numerically():
@@ -280,6 +329,14 @@ def test_branch_layer_typed_branch_config_matches_legacy_kwargs_numerically():
         **synapse_kwargs,
     )
 
+    assert (
+        legacy_layer.branch_config.to_kwargs() == typed_layer.branch_config.to_kwargs()
+    )
+    assert (
+        legacy_layer.synapse_config.to_kwargs()
+        == typed_layer.synapse_config.to_kwargs()
+    )
+
     _assert_state_dict_exact(legacy_layer.state_dict(), typed_layer.state_dict())
 
     x = torch.rand(3, 7)
@@ -292,6 +349,25 @@ def test_branch_layer_typed_branch_config_matches_legacy_kwargs_numerically():
         rtol=0.0,
         atol=0.0,
     )
+
+
+def test_branch_layer_stored_synapse_config_reflects_activation_alias():
+    layer = DendriticBranchLayer(
+        output_dim=3,
+        excitatory_input_dim=5,
+        excitatory_synapses_per_branch=2,
+        dendritic_activation="tanh",
+        topk_type="standard",
+        weight_transform="identity",
+        dbl_init_method="default",
+        adaptive_initialization=False,
+    )
+
+    kwargs = layer.synapse_config.to_kwargs()
+    assert kwargs["dendritic_activation"] == "tanh"
+    assert kwargs["reactivate"] is True
+    assert kwargs["reactivation_type"] == "tanh"
+    assert layer.dendritic_activation == "tanh"
 
 
 def test_branch_layer_typed_config_matches_legacy_kwargs_numerically():
@@ -380,6 +456,13 @@ def test_dendrinet_typed_config_matches_legacy_kwargs_numerically():
         **geometry_kwargs,
         synapse_config=DendriticSynapseConfig.from_kwargs(legacy_synapse_kwargs),
     )
+
+    assert legacy_net.synapse_config.to_kwargs() == typed_net.synapse_config.to_kwargs()
+    assert len(legacy_net.branch_configs) == len(legacy_net.branch_layers)
+    assert len(typed_net.branch_configs) == len(typed_net.branch_layers)
+    assert [cfg.to_kwargs() for cfg in typed_net.branch_configs] == [
+        layer.branch_config.to_kwargs() for layer in typed_net.branch_layers
+    ]
 
     _assert_state_dict_exact(legacy_net.state_dict(), typed_net.state_dict())
 

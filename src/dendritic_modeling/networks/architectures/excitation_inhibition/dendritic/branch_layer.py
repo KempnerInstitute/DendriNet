@@ -17,6 +17,9 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.b
     BlockLinear,
     EfficientBlockLinear,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_config import (
+    DendriticBranchConfig,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_dynamics import (
     compute_branch_raw_currents,
     compute_branch_voltage_from_currents,
@@ -32,11 +35,12 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.b
     decay_branch_synapse_weights,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_options import (
-    resolve_branch_options,
-    resolve_synapse_options,
+    resolve_branch_config,
+    resolve_synapse_config,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_synapses import (
     create_branch_sparse_layer,
+    create_registered_branch_sparse_layer,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.gradient_scaling import (
     GradientScaler,
@@ -168,49 +172,77 @@ class DendriticBranchLayer(nn.Module):
         **kwargs,
     ):
         super().__init__()
-        branch_options = resolve_branch_options(branch_config)
-        if branch_options:
-            output_dim = branch_options["output_dim"]
-            excitatory_input_dim = branch_options["excitatory_input_dim"]
-            excitatory_synapses_per_branch = branch_options[
-                "excitatory_synapses_per_branch"
-            ]
-            inhibitory_input_dim = branch_options["inhibitory_input_dim"]
-            inhibitory_synapses_per_branch = branch_options[
-                "inhibitory_synapses_per_branch"
-            ]
-            input_branch_factor = branch_options["input_branch_factor"]
-            recurrent_input_dim = branch_options["recurrent_input_dim"]
-            recurrent_synapses_per_branch = branch_options[
-                "recurrent_synapses_per_branch"
-            ]
-            recurrent_forbidden_input_index_per_output = branch_options[
-                "recurrent_forbidden_input_index_per_output"
-            ]
-            rec_inhibitory_input_dim = branch_options["rec_inhibitory_input_dim"]
-            rec_inhibitory_synapses_per_branch = branch_options[
-                "rec_inhibitory_synapses_per_branch"
-            ]
-            rec_inhibitory_forbidden_input_index_per_output = branch_options[
-                "rec_inhibitory_forbidden_input_index_per_output"
-            ]
-            layer_idx = branch_options["layer_idx"]
-            excitatory_connection_mask = branch_options["excitatory_connection_mask"]
-            inhibitory_connection_mask = branch_options["inhibitory_connection_mask"]
-            recurrent_connection_mask = branch_options["recurrent_connection_mask"]
-            rec_inhibitory_connection_mask = branch_options[
-                "rec_inhibitory_connection_mask"
-            ]
+        provided_branch_config = resolve_branch_config(branch_config)
+        if provided_branch_config is not None:
+            output_dim = provided_branch_config.output_dim
+            excitatory_input_dim = provided_branch_config.excitatory_input_dim
+            excitatory_synapses_per_branch = (
+                provided_branch_config.excitatory_synapses_per_branch
+            )
+            inhibitory_input_dim = provided_branch_config.inhibitory_input_dim
+            inhibitory_synapses_per_branch = (
+                provided_branch_config.inhibitory_synapses_per_branch
+            )
+            input_branch_factor = provided_branch_config.input_branch_factor
+            recurrent_input_dim = provided_branch_config.recurrent_input_dim
+            recurrent_synapses_per_branch = (
+                provided_branch_config.recurrent_synapses_per_branch
+            )
+            recurrent_forbidden_input_index_per_output = (
+                provided_branch_config.recurrent_forbidden_input_index_per_output
+            )
+            rec_inhibitory_input_dim = provided_branch_config.rec_inhibitory_input_dim
+            rec_inhibitory_synapses_per_branch = (
+                provided_branch_config.rec_inhibitory_synapses_per_branch
+            )
+            rec_inhibitory_forbidden_input_index_per_output = (
+                provided_branch_config.rec_inhibitory_forbidden_input_index_per_output
+            )
+            layer_idx = provided_branch_config.layer_idx
+            excitatory_connection_mask = (
+                provided_branch_config.excitatory_connection_mask
+            )
+            inhibitory_connection_mask = (
+                provided_branch_config.inhibitory_connection_mask
+            )
+            recurrent_connection_mask = provided_branch_config.recurrent_connection_mask
+            rec_inhibitory_connection_mask = (
+                provided_branch_config.rec_inhibitory_connection_mask
+            )
         if output_dim is None:
             raise ValueError("DendriticBranchLayer requires output_dim")
+        self.branch_config = DendriticBranchConfig.from_kwargs(
+            output_dim=output_dim,
+            excitatory_input_dim=excitatory_input_dim,
+            excitatory_synapses_per_branch=excitatory_synapses_per_branch,
+            inhibitory_input_dim=inhibitory_input_dim,
+            inhibitory_synapses_per_branch=inhibitory_synapses_per_branch,
+            input_branch_factor=input_branch_factor,
+            recurrent_input_dim=recurrent_input_dim,
+            recurrent_synapses_per_branch=recurrent_synapses_per_branch,
+            recurrent_forbidden_input_index_per_output=(
+                recurrent_forbidden_input_index_per_output
+            ),
+            rec_inhibitory_input_dim=rec_inhibitory_input_dim,
+            rec_inhibitory_synapses_per_branch=rec_inhibitory_synapses_per_branch,
+            rec_inhibitory_forbidden_input_index_per_output=(
+                rec_inhibitory_forbidden_input_index_per_output
+            ),
+            layer_idx=layer_idx,
+            excitatory_connection_mask=excitatory_connection_mask,
+            inhibitory_connection_mask=inhibitory_connection_mask,
+            recurrent_connection_mask=recurrent_connection_mask,
+            rec_inhibitory_connection_mask=rec_inhibitory_connection_mask,
+        )
         formal_synapse_kwargs = DendriticSynapseConfig.legacy_kwargs_from_mapping(
             locals()
         )
-        synapse_options, kwargs = resolve_synapse_options(
+        self.synapse_config, kwargs = resolve_synapse_config(
             formal_synapse_kwargs=formal_synapse_kwargs,
             extra_kwargs=kwargs,
             synapse_config=synapse_config,
         )
+        synapse_options = self.synapse_config.to_kwargs()
 
         topk_init_method = synapse_options["topk_init_method"]
         topk_noise_level = synapse_options["topk_noise_level"]
@@ -306,6 +338,9 @@ class DendriticBranchLayer(nn.Module):
             reactivate,
             reactivation_type,
         )
+        synapse_options["reactivate"] = reactivate
+        synapse_options["reactivation_type"] = reactivation_type
+        self.synapse_config = DendriticSynapseConfig.from_kwargs(synapse_options)
         self.layer_idx = layer_idx
         self.n_branches = output_dim
         self.reactivation_strategy = reactivation_strategy
@@ -368,16 +403,16 @@ class DendriticBranchLayer(nn.Module):
         )
 
         if self.input_excitatory:
-            self.branch_excitation = self._create_topk_layer(
+            self.branch_excitation = self._create_registered_topk_layer(
                 in_features=excitatory_input_dim,
                 out_features=output_dim,
                 K=excitatory_synapses_per_branch,
                 init_method=topk_init_method,
                 noise_level=topk_noise_level,
+                gradient_scaler=gradient_scaler,
                 synapse_type="exc",
                 connection_mask=excitatory_connection_mask,
             )
-            gradient_scaler.register_topk_dynamic(self.branch_excitation)
             self.excitatory_input_dim = excitatory_input_dim
         else:
             self.branch_excitation = None
@@ -395,16 +430,16 @@ class DendriticBranchLayer(nn.Module):
             and inhibitory_synapses_per_branch > 0
         )
         if self.input_inhibitory:
-            self.branch_inhibition = self._create_topk_layer(
+            self.branch_inhibition = self._create_registered_topk_layer(
                 in_features=inhibitory_input_dim,
                 out_features=output_dim,
                 K=inhibitory_synapses_per_branch,
                 init_method=topk_init_method,
                 noise_level=topk_noise_level,
+                gradient_scaler=gradient_scaler,
                 synapse_type="inh",
                 connection_mask=inhibitory_connection_mask,
             )
-            gradient_scaler.register_topk_dynamic(self.branch_inhibition)
             self.inhibitory_input_dim = inhibitory_input_dim
         else:
             self.branch_inhibition = None
@@ -418,17 +453,17 @@ class DendriticBranchLayer(nn.Module):
             and recurrent_synapses_per_branch > 0
         )
         if self.input_recurrent:
-            self.branch_recurrent = self._create_topk_layer(
+            self.branch_recurrent = self._create_registered_topk_layer(
                 in_features=recurrent_input_dim,
                 out_features=output_dim,
                 K=recurrent_synapses_per_branch,
                 init_method=topk_init_method,
                 noise_level=topk_noise_level,
+                gradient_scaler=gradient_scaler,
                 synapse_type="exc",
                 forbidden_input_index_per_output=recurrent_forbidden_input_index_per_output,
                 connection_mask=recurrent_connection_mask,
             )
-            gradient_scaler.register_topk_dynamic(self.branch_recurrent)
             self.recurrent_input_dim = recurrent_input_dim
         else:
             self.branch_recurrent = None
@@ -442,17 +477,17 @@ class DendriticBranchLayer(nn.Module):
             and rec_inhibitory_synapses_per_branch > 0
         )
         if self.input_rec_inhibitory:
-            self.branch_rec_inhibition = self._create_topk_layer(
+            self.branch_rec_inhibition = self._create_registered_topk_layer(
                 in_features=rec_inhibitory_input_dim,
                 out_features=output_dim,
                 K=rec_inhibitory_synapses_per_branch,
                 init_method=topk_init_method,
                 noise_level=topk_noise_level,
+                gradient_scaler=gradient_scaler,
                 synapse_type="inh",
                 forbidden_input_index_per_output=rec_inhibitory_forbidden_input_index_per_output,
                 connection_mask=rec_inhibitory_connection_mask,
             )
-            gradient_scaler.register_topk_dynamic(self.branch_rec_inhibition)
             self.rec_inhibitory_input_dim = rec_inhibitory_input_dim
         else:
             self.branch_rec_inhibition = None
@@ -536,6 +571,32 @@ class DendriticBranchLayer(nn.Module):
         """Helper function that picks which topk class to use based on strategy."""
         return create_branch_sparse_layer(
             self,
+            in_features=in_features,
+            out_features=out_features,
+            K=K,
+            init_method=init_method,
+            noise_level=noise_level,
+            synapse_type=synapse_type,
+            forbidden_input_index_per_output=forbidden_input_index_per_output,
+            connection_mask=connection_mask,
+        )
+
+    def _create_registered_topk_layer(
+        self,
+        in_features,
+        out_features,
+        K,
+        init_method,
+        noise_level,
+        gradient_scaler,
+        synapse_type="exc",
+        forbidden_input_index_per_output=None,
+        connection_mask=None,
+    ):
+        """Create a sparse synapse layer and register gradient scaling hooks."""
+        return create_registered_branch_sparse_layer(
+            self,
+            gradient_scaler,
             in_features=in_features,
             out_features=out_features,
             K=K,

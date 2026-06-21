@@ -21,7 +21,10 @@ from dendritic_modeling.networks import (
     ExcitationInhibitionNetwork,
 )
 from dendritic_modeling.utils import save_dict
-from dendritic_modeling.utils.hooks import ForwardHookRemovalMixin
+from dendritic_modeling.utils.hooks import (
+    ForwardHookRemovalMixin,
+    iter_named_modules_of_type,
+)
 
 
 class BranchActivationAnalyzer(ForwardHookRemovalMixin):
@@ -69,13 +72,14 @@ class BranchActivationAnalyzer(ForwardHookRemovalMixin):
         """
         handles = []
         try:
-            for _name, module in model.named_modules():
-                if isinstance(module, DendriticBranchLayer):
-                    if _name not in self.data_dict.keys():
-                        self.data_dict[_name] = {}
-                        module._name = _name
-                        handle = module.register_forward_hook(self.forward_hook)
-                        handles.append(handle)
+            for _name, module in iter_named_modules_of_type(
+                model, DendriticBranchLayer
+            ):
+                if _name not in self.data_dict.keys():
+                    self.data_dict[_name] = {}
+                    module._name = _name
+                    handle = module.register_forward_hook(self.forward_hook)
+                    handles.append(handle)
             return handles
         except Exception:
             self.remove_forward_hooks(handles)
