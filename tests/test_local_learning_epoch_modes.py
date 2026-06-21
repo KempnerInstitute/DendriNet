@@ -26,6 +26,7 @@ from dendritic_modeling.training.strategies.local_learning import (
 )
 from dendritic_modeling.training.strategies.local_learning_epoch import (
     _accumulate_detached_parameter_grad,
+    _apply_local_decoder_update,
     _apply_training_schedule_update_modes,
     _collect_trainable_parameters,
     _compute_decoder_local_gradients,
@@ -775,6 +776,49 @@ def test_apply_decoder_local_gradients_is_noop_for_invalid_cache_entries():
 
     assert lin.weight.grad is None
     assert lin.bias.grad is None
+
+
+def test_apply_local_decoder_update_preserves_local_mode_gradients():
+    decoder = nn.Linear(2, 1, bias=True)
+    model = SimpleNamespace(decoder_network=decoder)
+    h_in = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
+    delta_out = torch.tensor([[0.5], [1.5]])
+
+    _apply_local_decoder_update(
+        model=model,
+        decoder_update_mode="local",
+        decoder_cache={"module": decoder, "input": h_in},
+        delta_out=delta_out,
+        normalize_by_batch=True,
+    )
+
+    torch.testing.assert_close(
+        decoder.weight.grad,
+        0.5 * (delta_out.t() @ h_in),
+    )
+    torch.testing.assert_close(decoder.bias.grad, torch.tensor([1.0]))
+
+
+@pytest.mark.parametrize(
+    ("model", "decoder_update_mode"),
+    [
+        (SimpleNamespace(), "local"),
+        (SimpleNamespace(decoder_network=nn.Identity()), "backprop"),
+    ],
+)
+def test_apply_local_decoder_update_preserves_noop_modes(model, decoder_update_mode):
+    decoder = nn.Linear(2, 1, bias=True)
+
+    _apply_local_decoder_update(
+        model=model,
+        decoder_update_mode=decoder_update_mode,
+        decoder_cache={"module": decoder, "input": torch.ones(1, 2)},
+        delta_out=torch.ones(1, 1),
+        normalize_by_batch=False,
+    )
+
+    assert decoder.weight.grad is None
+    assert decoder.bias.grad is None
 
 
 def test_clip_model_gradients_clamps_existing_gradients():

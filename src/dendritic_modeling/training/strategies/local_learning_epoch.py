@@ -290,6 +290,27 @@ def _apply_decoder_local_gradients(
         _accumulate_parameter_grad(lin_mod.bias, grad_b)
 
 
+def _apply_local_decoder_update(
+    *,
+    model: BaseModel,
+    decoder_update_mode: str,
+    decoder_cache: dict[str, Any],
+    delta_out: torch.Tensor,
+    normalize_by_batch: bool,
+) -> None:
+    """Apply decoder-local gradients when the current epoch mode requests them."""
+
+    if not (hasattr(model, "decoder_network") and decoder_update_mode == "local"):
+        return
+
+    _apply_decoder_local_gradients(
+        lin_mod=decoder_cache.get("module"),
+        h_in=decoder_cache.get("input"),
+        delta_out=delta_out,
+        normalize_by_batch=normalize_by_batch,
+    )
+
+
 def _should_clip_gradients(clip_grad_value: Any) -> bool:
     """Return whether value-wise gradient clipping is enabled."""
 

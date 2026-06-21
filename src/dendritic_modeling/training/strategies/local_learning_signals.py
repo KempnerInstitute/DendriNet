@@ -46,6 +46,74 @@ def _prepare_bce_prediction(y_hat: torch.Tensor) -> torch.Tensor:
     return torch.clamp(y_hat, min=1e-6, max=1.0 - 1e-6)
 
 
+def _error_mode_from_loss_name(loss_name: str) -> str | None:
+    """Infer soma-error mode from a normalized loss name."""
+
+    if (
+        "cross entropy" in loss_name
+        or "negative log likelihood" in loss_name
+        or "nll" in loss_name
+        or "categorical" in loss_name
+    ):
+        return "ce"
+
+    if "binary cross entropy" in loss_name:
+        return "bce"
+
+    return None
+
+
+def _looks_like_class_index_logits(y_hat: torch.Tensor, y: torch.Tensor) -> bool:
+    """Return whether tensors match the legacy class-index/logits heuristic."""
+
+    return (
+        y_hat.dim() >= 2
+        and _is_class_index_target(y)
+        and y.dtype in (torch.long, torch.int64)
+    )
+
+
+def _resolve_soma_error_mode(
+    mode: str,
+    loss_name: str,
+    y_hat: torch.Tensor,
+    y: torch.Tensor,
+) -> str:
+    """Resolve the local soma-error mode without computing the tensor error."""
+
+    mode = mode.lower()
+    if mode in {"mse", "bce", "ce"}:
+        return mode
+
+    loss_mode = _error_mode_from_loss_name(loss_name)
+    if loss_mode is not None:
+        return loss_mode
+
+    if _looks_like_class_index_logits(y_hat, y):
+        return "ce"
+
+    return "mse"
+
+
+def _dynamics_mode_from_config(cfg_mode: str) -> str | None:
+    """Return an explicit dynamics mode from config, if one was requested."""
+
+    if cfg_mode in {"conductance", "legacy"}:
+        return "conductance"
+
+    if cfg_mode == "additive":
+        return "additive"
+
+    return None
+
+
+def _dynamics_mode_from_layer(layer: Any) -> str:
+    """Infer dynamics mode from layer shunting metadata."""
+
+    uses_shunting = bool(getattr(layer, "use_shunting", True))
+    return "conductance" if uses_shunting else "additive"
+
+
 def _decoder_linear_layers(decoder_network: nn.Module) -> list[nn.Linear]:
     """Return decoder linear layers, preserving legacy traversal failure handling."""
 
@@ -142,44 +210,14 @@ class LocalLearningSignalMixin:
 
         """
 
-        mode = self.local_cfg.error_mode.lower()
-
-        # If explicit mode is selected
-
-        if mode in {"mse", "bce", "ce"}:
-
-            return self._error_by_mode(y_hat, y, mode)
-
-        # Auto-detect based on loss name or shapes
-
         loss_name = getattr(self.loss_function, "_loss_name", "").lower()
-
-        if (
-            "cross entropy" in loss_name
-            or "negative log likelihood" in loss_name
-            or "nll" in loss_name
-            or "categorical" in loss_name
-        ):
-
-            return self._error_by_mode(y_hat, y, "ce")
-
-        if "binary cross entropy" in loss_name:
-
-            return self._error_by_mode(y_hat, y, "bce")
-
-        # Heuristic: if y are class indices (Long) and y_hat are logits
-
-        if (
-            y_hat.dim() >= 2
-            and (y.dim() == 1 or (y.dim() == 2 and y.size(1) == 1))
-            and y.dtype in (torch.long, torch.int64)
-        ):
-
-            return self._error_by_mode(y_hat, y, "ce")
-
-        # Default: MSE-like
-
-        return self._error_by_mode(y_hat, y, "mse")
+        mode = _resolve_soma_error_mode(
+            self.local_cfg.error_mode,
+            loss_name,
+            y_hat,
+            y,
+        )
+        return self._error_by_mode(y_hat, y, mode)
 
     def _resolve_local_soma_signals(
         self,
@@ -338,13 +376,9 @@ class LocalLearningSignalMixin:
             getattr(self.local_cfg.three_factor, "dynamics_mode", "auto")
         ).lower()
 
-        if cfg_mode in {"conductance", "legacy"}:
-
-            return "conductance"
-
-        if cfg_mode == "additive":
-
-            return "additive"
+        resolved_mode = _dynamics_mode_from_config(cfg_mode)
+        if resolved_mode is not None:
+            return resolved_mode
 
         if cfg_mode != "auto":
 
@@ -352,11 +386,7 @@ class LocalLearningSignalMixin:
                 f"Unknown three_factor.dynamics_mode='{cfg_mode}', falling back to auto."
             )
 
-        layer = rec.get("layer")
-
-        uses_shunting = bool(getattr(layer, "use_shunting", True))
-
-        return "conductance" if uses_shunting else "additive"
+        return _dynamics_mode_from_layer(rec.get("layer"))
 
     @staticmethod
     def _error_by_mode(y_hat: torch.Tensor, y: torch.Tensor, mode: str) -> torch.Tensor:

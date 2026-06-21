@@ -83,6 +83,44 @@ def _scalar_edge_mean_factor(
     ) * edge_weights.mean()
 
 
+def _expected_child_out_features(edge_weights: torch.Tensor) -> int:
+    """Return the child feature count implied by edge weights."""
+
+    return edge_weights.numel()
+
+
+def _warn_child_out_mismatch(
+    context: str,
+    *,
+    child_v: torch.Tensor,
+    expected_child_out: int,
+) -> None:
+    """Log a path transport shape mismatch with legacy wording."""
+
+    logger.warning(
+        "%s shape mismatch: child_out=%s, expected=%s. "
+        "Falling back to scalar averaging.",
+        context,
+        child_v.size(1),
+        expected_child_out,
+    )
+
+
+def _default_path_factor(child_v: Any, mode: str) -> torch.Tensor | float:
+    """Return the missing-link path factor with legacy scalar-mode behavior."""
+
+    if isinstance(child_v, torch.Tensor) and mode == "scalar_mean":
+        return torch.ones(
+            child_v.size(0),
+            1,
+            device=child_v.device,
+            dtype=child_v.dtype,
+        )
+    if isinstance(child_v, torch.Tensor):
+        return torch.ones_like(child_v)
+    return 1.0
+
+
 class LocalLearningPathTransportBroadcastMixin:
     """Recursive transport of local-rule feedback through dendritic trees."""
 
@@ -181,17 +219,7 @@ class LocalLearningPathTransportBroadcastMixin:
                 and hasattr(blk_module, "weight")
             ):
 
-                path_factors[layer_idx] = (
-                    torch.ones(
-                        child_v.size(0), 1, device=child_v.device, dtype=child_v.dtype
-                    )
-                    if isinstance(child_v, torch.Tensor) and mode == "scalar_mean"
-                    else (
-                        torch.ones_like(child_v)
-                        if isinstance(child_v, torch.Tensor)
-                        else 1.0
-                    )
-                )
+                path_factors[layer_idx] = _default_path_factor(child_v, mode)
 
                 continue
 
@@ -209,15 +237,14 @@ class LocalLearningPathTransportBroadcastMixin:
 
             edge_weights = _edge_weights_like_child(blk_module, child_v)
 
-            expected_child_out = edge_weights.numel()
+            expected_child_out = _expected_child_out_features(edge_weights)
 
             if child_v.size(1) != expected_child_out:
 
-                logger.warning(
-                    "Path propagation shape mismatch: child_out=%s, expected=%s. "
-                    "Falling back to scalar averaging.",
-                    child_v.size(1),
-                    expected_child_out,
+                _warn_child_out_mismatch(
+                    "Path propagation",
+                    child_v=child_v,
+                    expected_child_out=expected_child_out,
                 )
 
                 scalar_factor = _scalar_edge_mean_factor(
@@ -328,15 +355,14 @@ class LocalLearningPathTransportBroadcastMixin:
 
             edge_weights = _edge_weights_like_child(blk_module, child_v)
 
-            expected_child_out = edge_weights.numel()
+            expected_child_out = _expected_child_out_features(edge_weights)
 
             if child_v.size(1) != expected_child_out:
 
-                logger.warning(
-                    "Path transport shape mismatch: child_out=%s, expected=%s. "
-                    "Falling back to scalar averaging.",
-                    child_v.size(1),
-                    expected_child_out,
+                _warn_child_out_mismatch(
+                    "Path transport",
+                    child_v=child_v,
+                    expected_child_out=expected_child_out,
                 )
 
                 parent_act_deriv = self._parent_activation_derivative_or_ones(
@@ -449,8 +475,11 @@ __all__ = [
     "LocalLearningPathTransportBroadcastMixin",
     "_align_parent_path",
     "_block_size",
+    "_default_path_factor",
     "_edge_weights_like_child",
     "_expand_scalar_like",
+    "_expected_child_out_features",
     "_scalar_edge_mean_factor",
     "_soma_seed_from_delta",
+    "_warn_child_out_mismatch",
 ]

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import math
 from types import SimpleNamespace
 
@@ -21,10 +22,13 @@ from dendritic_modeling.training.strategies.local_learning_broadcast_transport_m
     LocalLearningPathTransportBroadcastMixin,
     _align_parent_path,
     _block_size,
+    _default_path_factor,
     _edge_weights_like_child,
     _expand_scalar_like,
+    _expected_child_out_features,
     _scalar_edge_mean_factor,
     _soma_seed_from_delta,
+    _warn_child_out_mismatch,
 )
 
 
@@ -148,6 +152,18 @@ def test_align_parent_path_preserves_legacy_alignment_branches():
     assert _align_parent_path(vector_path, parent_v) is vector_path
 
 
+def test_default_path_factor_preserves_scalar_tensor_and_missing_paths():
+    child_v = torch.zeros(2, 3, dtype=torch.float64)
+
+    scalar_factor = _default_path_factor(child_v, "scalar_mean")
+    torch.testing.assert_close(scalar_factor, torch.ones(2, 1, dtype=child_v.dtype))
+
+    vector_factor = _default_path_factor(child_v, "per_branch")
+    torch.testing.assert_close(vector_factor, torch.ones_like(child_v))
+
+    assert _default_path_factor(None, "per_branch") == 1.0
+
+
 def test_expand_scalar_like_matches_reference_shape_dtype_and_device():
     reference = torch.zeros(2, 4, dtype=torch.float64)
     scalar = torch.tensor([[0.25], [-0.5]], dtype=torch.float32)
@@ -185,6 +201,31 @@ def test_edge_weights_like_child_detaches_and_matches_child_dtype_device():
     assert edge_weights.requires_grad is False
     assert edge_weights.dtype == child_v.dtype
     assert edge_weights.device == child_v.device
+
+
+def test_expected_child_out_features_uses_edge_weight_count():
+    assert _expected_child_out_features(torch.zeros(5)) == 5
+    assert _expected_child_out_features(torch.zeros(2, 3)) == 6
+
+
+def test_warn_child_out_mismatch_preserves_legacy_message(caplog):
+    child_v = torch.zeros(2, 3)
+    logger_name = (
+        "dendritic_modeling.training.strategies."
+        "local_learning_broadcast_transport_mixin"
+    )
+
+    with caplog.at_level(logging.WARNING, logger=logger_name):
+        _warn_child_out_mismatch(
+            "Path transport",
+            child_v=child_v,
+            expected_child_out=5,
+        )
+
+    assert (
+        "Path transport shape mismatch: child_out=3, expected=5. "
+        "Falling back to scalar averaging."
+    ) in caplog.text
 
 
 def test_parent_activation_derivative_helper_preserves_disabled_and_fallback_paths():

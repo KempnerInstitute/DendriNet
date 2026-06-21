@@ -24,7 +24,8 @@ from dendritic_modeling.training.strategies.local_learning_broadcast_mixin impor
 )
 from dendritic_modeling.training.strategies.local_learning_epoch import (
     _accumulate_backprop_gradients,
-    _apply_decoder_local_gradients,
+    _apply_decoder_local_gradients as _apply_decoder_local_gradients,
+    _apply_local_decoder_update,
     _apply_path_propagation_factor as _apply_path_propagation_factor,
     _clear_topk_mask_cache as _clear_topk_mask_cache,
     _clip_model_gradients,
@@ -219,15 +220,13 @@ class LocalCreditAssignment(
             )
             _accumulate_backprop_gradients(loss, backprop_param_groups)
 
-            # Decoder update mode
-            if hasattr(model, "decoder_network") and decoder_update_mode == "local":
-                # Simple local 3-factor on last Linear: grad_W = e_out^T @ h_in; grad_b = sum(e_out)
-                _apply_decoder_local_gradients(
-                    lin_mod=self._decoder_cache.get("module"),
-                    h_in=self._decoder_cache.get("input"),
-                    delta_out=delta_out,
-                    normalize_by_batch=self.local_cfg.normalize_by_batch,
-                )
+            _apply_local_decoder_update(
+                model=model,
+                decoder_update_mode=decoder_update_mode,
+                decoder_cache=self._decoder_cache,
+                delta_out=delta_out,
+                normalize_by_batch=self.local_cfg.normalize_by_batch,
+            )
 
             # Optional gradient clipping (value-wise)
             _clip_model_gradients(model, self.local_cfg.clip_grad_value)

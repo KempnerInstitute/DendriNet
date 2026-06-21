@@ -1,6 +1,7 @@
 """Tests for local-learning soma-error mapping behavior."""
 
 import logging
+from types import SimpleNamespace
 
 import torch
 import torch.nn as nn
@@ -12,12 +13,17 @@ from dendritic_modeling.networks.activations.parametric import (
 from dendritic_modeling.training.strategies.local_learning import LocalCreditAssignment
 from dendritic_modeling.training.strategies.local_learning_signals import (
     _decoder_linear_layers,
+    _dynamics_mode_from_config,
+    _dynamics_mode_from_layer,
+    _error_mode_from_loss_name,
     _has_single_linear_decoder,
     _linear_decoder_shapes_compatible,
+    _looks_like_class_index_logits,
     _map_decoder_input_error,
     _parametric_tanh_derivative,
     _prepare_bce_prediction,
     _prepare_ce_target,
+    _resolve_soma_error_mode,
 )
 
 
@@ -298,3 +304,68 @@ def test_error_by_mode_uses_extracted_ce_and_bce_helpers():
     expected_bce = _prepare_bce_prediction(y_hat) - y_binary
     torch.testing.assert_close(ce_error, expected_ce)
     torch.testing.assert_close(bce_error, expected_bce)
+
+
+def test_soma_error_mode_helpers_preserve_legacy_resolution_order():
+    y_hat = torch.zeros(2, 3)
+    class_target = torch.tensor([2, 0])
+    soft_target = torch.tensor([[0.0, 0.0, 1.0], [1.0, 0.0, 0.0]])
+
+    assert _error_mode_from_loss_name("categorical cross entropy") == "ce"
+    assert _error_mode_from_loss_name("negative log likelihood") == "ce"
+    assert _error_mode_from_loss_name("nll") == "ce"
+    assert _error_mode_from_loss_name("binary cross entropy") == "ce"
+    assert _error_mode_from_loss_name("mean squared error") is None
+
+    assert _looks_like_class_index_logits(y_hat, class_target)
+    assert _looks_like_class_index_logits(y_hat, class_target.view(-1, 1))
+    assert not _looks_like_class_index_logits(y_hat, soft_target)
+    assert not _looks_like_class_index_logits(torch.zeros(2), class_target)
+
+    assert _resolve_soma_error_mode("bce", "", y_hat, soft_target) == "bce"
+    assert _resolve_soma_error_mode("auto", "categorical", y_hat, soft_target) == "ce"
+    assert _resolve_soma_error_mode("auto", "", y_hat, class_target) == "ce"
+    assert _resolve_soma_error_mode("auto", "", y_hat, soft_target) == "mse"
+
+
+def test_compute_soma_error_uses_resolved_mode():
+    y_hat = torch.tensor([[2.0, 0.0], [0.0, 2.0]])
+    y = torch.tensor([0, 1])
+    trainer = _make_trainer()
+    trainer.local_cfg = SimpleNamespace(error_mode="auto")
+    trainer.loss_function = SimpleNamespace(_loss_name="negative log likelihood")
+
+    error = trainer._compute_soma_error(y_hat, y)
+    expected = torch.softmax(y_hat, dim=-1) - _prepare_ce_target(y_hat, y)
+
+    torch.testing.assert_close(error, expected)
+
+
+def test_dynamics_mode_helpers_preserve_config_and_layer_resolution(caplog):
+    assert _dynamics_mode_from_config("conductance") == "conductance"
+    assert _dynamics_mode_from_config("legacy") == "conductance"
+    assert _dynamics_mode_from_config("additive") == "additive"
+    assert _dynamics_mode_from_config("auto") is None
+    assert _dynamics_mode_from_config("unknown") is None
+
+    assert (
+        _dynamics_mode_from_layer(SimpleNamespace(use_shunting=True)) == "conductance"
+    )
+    assert _dynamics_mode_from_layer(SimpleNamespace(use_shunting=False)) == "additive"
+    assert _dynamics_mode_from_layer(None) == "conductance"
+
+    trainer = _make_trainer()
+    trainer.local_cfg = SimpleNamespace(
+        three_factor=SimpleNamespace(dynamics_mode="unknown")
+    )
+    caplog.set_level(
+        logging.WARNING,
+        logger="dendritic_modeling.training.strategies.local_learning_signals",
+    )
+
+    mode = trainer._resolve_layer_dynamics_mode(
+        {"layer": SimpleNamespace(use_shunting=False)}
+    )
+
+    assert mode == "additive"
+    assert "Unknown three_factor.dynamics_mode='unknown'" in caplog.text
