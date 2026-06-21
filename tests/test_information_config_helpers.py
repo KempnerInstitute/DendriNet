@@ -3,10 +3,14 @@
 from types import SimpleNamespace
 
 from dendritic_modeling.analysis.core.information import (
+    _build_information_ablation_aligned_config,
+    _build_information_estimator_core_config,
     _build_information_estimator_method_params,
     _build_information_gaussian_fisher_config,
+    _build_information_granularity_config,
     _build_information_label_shuffle_null_config,
     _build_information_pid_config,
+    _build_information_runtime_config,
     _build_information_signal_variant_selection,
     _get_config_path,
     _get_config_value,
@@ -393,6 +397,284 @@ def test_build_information_gaussian_fisher_config_preserves_defaults():
     assert gaussian_fisher_config.gaussian_fisher_aggregation == "sum"
     assert gaussian_fisher_config.gaussian_fisher_mi_transform == "half_log1p"
     assert gaussian_fisher_config.gaussian_fisher_eps == 1e-8
+
+
+def test_build_information_ablation_aligned_config_uses_legacy_flags():
+    params = SimpleNamespace(
+        compute_ablation_aligned_mi=False,
+        compute_upstream_unique_cmi=True,
+        compute_layer_total_proxies=False,
+        layer_total_topk=7,
+    )
+
+    ablation_config = _build_information_ablation_aligned_config(
+        params=params,
+        compute_cfg=None,
+    )
+
+    assert ablation_config.compute_ablation_aligned_mi is False
+    assert ablation_config.compute_upstream_unique_cmi is True
+    assert ablation_config.compute_layer_total_proxies is False
+    assert ablation_config.layer_total_topk == 7
+
+
+def test_build_information_ablation_aligned_config_prefers_grouped_topk():
+    params = SimpleNamespace(layer_total_topk=7)
+
+    ablation_config = _build_information_ablation_aligned_config(
+        params=params,
+        compute_cfg={"layer_total_topk": 13},
+    )
+
+    assert ablation_config.compute_ablation_aligned_mi is True
+    assert ablation_config.compute_upstream_unique_cmi is False
+    assert ablation_config.compute_layer_total_proxies is True
+    assert ablation_config.layer_total_topk == 13
+
+
+def test_build_information_ablation_aligned_config_preserves_mapping_behavior():
+    ablation_config = _build_information_ablation_aligned_config(
+        params={
+            "compute_ablation_aligned_mi": False,
+            "compute_upstream_unique_cmi": True,
+            "compute_layer_total_proxies": False,
+            "layer_total_topk": 5,
+        },
+        compute_cfg=None,
+    )
+
+    assert ablation_config.compute_ablation_aligned_mi is True
+    assert ablation_config.compute_upstream_unique_cmi is False
+    assert ablation_config.compute_layer_total_proxies is True
+    assert ablation_config.layer_total_topk == 5
+
+
+def test_build_information_runtime_config_prefers_grouped_config():
+    params = SimpleNamespace(
+        include_vinf=False,
+        normalize_mi=False,
+        output_units="bits",
+        verbose=False,
+    )
+
+    runtime_config = _build_information_runtime_config(
+        params=params,
+        compute_cfg={
+            "include_vinf": True,
+            "normalize_mi": True,
+            "output_units": " Nat ",
+            "verbose": True,
+        },
+    )
+
+    assert runtime_config.include_vinf is True
+    assert runtime_config.normalize_mi is True
+    assert runtime_config.output_units == "nats"
+    assert runtime_config.verbose is True
+    assert runtime_config.invalid_output_units is None
+
+
+def test_build_information_runtime_config_uses_legacy_fallbacks():
+    params = SimpleNamespace(
+        include_vinf=True,
+        normalize_mi=True,
+        output_units="bit",
+        verbose=True,
+    )
+
+    runtime_config = _build_information_runtime_config(params=params, compute_cfg=None)
+
+    assert runtime_config.include_vinf is True
+    assert runtime_config.normalize_mi is True
+    assert runtime_config.output_units == "bits"
+    assert runtime_config.verbose is True
+    assert runtime_config.invalid_output_units is None
+
+
+def test_build_information_runtime_config_preserves_invalid_output_units_fallback():
+    runtime_config = _build_information_runtime_config(
+        params=SimpleNamespace(output_units="bits"),
+        compute_cfg={"output_units": " Bad Units "},
+    )
+
+    assert runtime_config.output_units == "bits"
+    assert runtime_config.invalid_output_units == "bad_units"
+
+
+def test_build_information_runtime_config_preserves_defaults():
+    runtime_config = _build_information_runtime_config(
+        params=SimpleNamespace(),
+        compute_cfg=None,
+    )
+
+    assert runtime_config.include_vinf is False
+    assert runtime_config.normalize_mi is False
+    assert runtime_config.output_units == "bits"
+    assert runtime_config.verbose is False
+    assert runtime_config.invalid_output_units is None
+
+
+def test_build_information_granularity_config_prefers_grouped_config():
+    params = SimpleNamespace(
+        computation_level="single_branch",
+        branch_aggregation="mean",
+        per_neuron_analysis=False,
+        per_einet_analysis=False,
+        per_layer_analysis=False,
+    )
+
+    granularity_config = _build_information_granularity_config(
+        params=params,
+        compute_cfg={
+            "computation_level": "all_branch",
+            "branch_aggregation": "sample",
+            "per_neuron_analysis": True,
+            "per_einet_analysis": True,
+            "per_layer_analysis": True,
+        },
+    )
+
+    assert granularity_config.computation_level == "all_branch"
+    assert granularity_config.branch_aggregation == "sample"
+    assert granularity_config.per_neuron_analysis is True
+    assert granularity_config.per_einet_analysis is True
+    assert granularity_config.per_layer_analysis is True
+
+
+def test_build_information_granularity_config_uses_legacy_fallbacks():
+    params = SimpleNamespace(
+        computation_level="layer_branch",
+        branch_aggregation="multivariate",
+        per_neuron_analysis=True,
+        per_einet_analysis=False,
+        per_layer_analysis=True,
+    )
+
+    granularity_config = _build_information_granularity_config(
+        params=params,
+        compute_cfg=None,
+    )
+
+    assert granularity_config.computation_level == "layer_branch"
+    assert granularity_config.branch_aggregation == "multivariate"
+    assert granularity_config.per_neuron_analysis is True
+    assert granularity_config.per_einet_analysis is False
+    assert granularity_config.per_layer_analysis is True
+
+
+def test_build_information_granularity_config_preserves_mapping_behavior():
+    granularity_config = _build_information_granularity_config(
+        params={
+            "computation_level": "all_branch",
+            "branch_aggregation": "sample",
+            "per_neuron_analysis": True,
+            "per_einet_analysis": True,
+            "per_layer_analysis": False,
+        },
+        compute_cfg=None,
+    )
+
+    assert granularity_config.computation_level == "all_branch"
+    assert granularity_config.branch_aggregation == "sample"
+    assert granularity_config.per_neuron_analysis is True
+    assert granularity_config.per_einet_analysis is True
+    assert granularity_config.per_layer_analysis is False
+
+
+def test_build_information_granularity_config_preserves_defaults():
+    granularity_config = _build_information_granularity_config(
+        params=SimpleNamespace(),
+        compute_cfg=None,
+    )
+
+    assert granularity_config.computation_level == "single_branch"
+    assert granularity_config.branch_aggregation == "mean"
+    assert granularity_config.per_neuron_analysis is False
+    assert granularity_config.per_einet_analysis is False
+    assert granularity_config.per_layer_analysis is False
+
+
+def test_build_information_estimator_core_config_prefers_grouped_config():
+    params = SimpleNamespace(
+        method="binned",
+        max_samples=100,
+        n_neighbors=3,
+        n_bins=12,
+        copula_type="legacy",
+    )
+
+    estimator_core = _build_information_estimator_core_config(
+        params=params,
+        estimator_cfg={
+            "method": "decoder",
+            "kraskov": {"n_neighbors": 9},
+            "binned": {"n_bins": 21},
+            "copula": {"type": "student"},
+        },
+        compute_cfg={"max_samples": 250},
+    )
+
+    assert estimator_core.method == "decoder"
+    assert estimator_core.max_samples == 250
+    assert estimator_core.n_neighbors == 9
+    assert estimator_core.n_bins == 21
+    assert estimator_core.copula_type == "student"
+
+
+def test_build_information_estimator_core_config_uses_legacy_fallbacks():
+    params = SimpleNamespace(
+        method="binned",
+        max_samples=100,
+        n_neighbors=3,
+        n_bins=12,
+        copula_type="legacy",
+    )
+
+    estimator_core = _build_information_estimator_core_config(
+        params=params,
+        estimator_cfg=None,
+        compute_cfg=None,
+    )
+
+    assert estimator_core.method == "binned"
+    assert estimator_core.max_samples == 100
+    assert estimator_core.n_neighbors == 3
+    assert estimator_core.n_bins == 12
+    assert estimator_core.copula_type == "legacy"
+
+
+def test_build_information_estimator_core_config_preserves_mapping_behavior():
+    estimator_core = _build_information_estimator_core_config(
+        params={
+            "method": "decoder",
+            "max_samples": 111,
+            "n_neighbors": 4,
+            "n_bins": 8,
+            "copula_type": "rank",
+        },
+        estimator_cfg=None,
+        compute_cfg=None,
+    )
+
+    assert estimator_core.method == "decoder"
+    assert estimator_core.max_samples == 111
+    assert estimator_core.n_neighbors == 4
+    assert estimator_core.n_bins == 8
+    assert estimator_core.copula_type == "rank"
+
+
+def test_build_information_estimator_core_config_preserves_defaults():
+    estimator_core = _build_information_estimator_core_config(
+        params=SimpleNamespace(),
+        estimator_cfg=None,
+        compute_cfg=None,
+    )
+
+    assert estimator_core.method == "kraskov"
+    assert estimator_core.max_samples is None
+    assert estimator_core.n_neighbors == 10
+    assert estimator_core.n_bins == 20
+    assert estimator_core.copula_type == "gaussian"
 
 
 def test_build_information_estimator_method_params_decoder_prefers_nested_config():
