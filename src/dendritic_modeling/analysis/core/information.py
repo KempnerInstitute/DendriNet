@@ -8,7 +8,7 @@ with the main configuration system.
 import logging
 import time
 import traceback
-from typing import Any, Optional
+from typing import Optional
 
 import torch
 
@@ -20,6 +20,9 @@ from dendritic_modeling.analysis.core.information_all_branch_mixin import (
 from dendritic_modeling.analysis.core.information_branch_mixin import (
     InformationBranchAnalysisMixin,
 )
+from dendritic_modeling.analysis.core.information_config_setup_mixin import (
+    InformationConfigSetupMixin,
+)
 from dendritic_modeling.analysis.core.information_data_mixin import (
     InformationDataMixin,
     _InformationAnalysisData as _InformationAnalysisData,
@@ -29,6 +32,9 @@ from dendritic_modeling.analysis.core.information_dispatch_mixin import (
 )
 from dendritic_modeling.analysis.core.information_enhanced_mixin import (
     InformationEnhancedAnalysisMixin,
+)
+from dendritic_modeling.analysis.core.information_estimator_setup import (
+    _build_information_estimators,
 )
 from dendritic_modeling.analysis.core.information_finalization_mixin import (
     InformationFinalizationMixin,
@@ -45,6 +51,9 @@ from dendritic_modeling.analysis.core.information_lifecycle_mixin import (
 from dendritic_modeling.analysis.core.information_metrics_mixin import (
     InformationMetricsMixin,
 )
+from dendritic_modeling.analysis.core.information_pipeline_mixin import (
+    InformationPipelineMixin,
+)
 from dendritic_modeling.analysis.core.information_plotting_mixin import (
     InformationPlottingMixin,
 )
@@ -60,13 +69,6 @@ from dendritic_modeling.analysis.core.information_synthetic_soma_mixin import (
 from dendritic_modeling.config import InformationAnalysisParams
 from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.models import BaseModel
-from dendritic_modeling.utils.information.estimators import (
-    EstimatorConfig,
-    InformationEstimatorFactory,
-)
-from dendritic_modeling.utils.information.pid import (
-    check_pid_available,
-)
 
 # Backward-compatible aliases for config helpers that moved out of this module.
 _InformationComponentSelection = _information_config._InformationComponentSelection
@@ -121,38 +123,13 @@ _build_information_estimator_method_params = (
 )
 
 
-def _build_information_estimators(
-    *,
-    params: Any,
-    estimator_cfg: Any,
-    method: str,
-    n_neighbors: int,
-    n_bins: int,
-    copula_type: str,
-    verbose: bool,
-) -> dict[str, Any]:
-    """Build the estimator registry used by the analyzer."""
-    method_params = _build_information_estimator_method_params(
-        params=params,
-        estimator_cfg=estimator_cfg,
-        method=method,
-    )
-    estimator_config = EstimatorConfig(
-        method=method,
-        n_neighbors=n_neighbors,
-        n_bins=n_bins,
-        copula_type=copula_type,
-        verbose=verbose,
-        method_params=method_params,
-    )
-    return {method: InformationEstimatorFactory.create(estimator_config)}
-
-
 class InformationAnalyzer(
     InformationMetricsMixin,
+    InformationConfigSetupMixin,
     InformationHooksMixin,
     InformationDataMixin,
     InformationDispatchMixin,
+    InformationPipelineMixin,
     InformationSyntheticSomaMixin,
     InformationSignalAggregationMixin,
     InformationLifecycleMixin,
@@ -194,24 +171,16 @@ class InformationAnalyzer(
         # ------------------------------------------------------------------
         # Extract configuration parameters (support both new nested and legacy flat keys).
         # ------------------------------------------------------------------
-        estimator_core_config = _build_information_estimator_core_config(
+        self._configure_estimator_core(
             params=params,
             estimator_cfg=estimator_cfg,
             compute_cfg=compute_cfg,
         )
-        self.method = estimator_core_config.method
-        self.max_samples = estimator_core_config.max_samples
-        self.n_neighbors = estimator_core_config.n_neighbors
-        self.n_bins = estimator_core_config.n_bins
-        self.copula_type = estimator_core_config.copula_type
 
-        label_shuffle_null = _build_information_label_shuffle_null_config(
+        self._configure_label_shuffle_null(
             params=params,
             baselines_cfg=baselines_cfg,
         )
-        self.mi_null_shuffles = label_shuffle_null.mi_null_shuffles
-        self.mi_null_seed = label_shuffle_null.mi_null_seed
-        self.mi_null_components = label_shuffle_null.mi_null_components
 
         # ------------------------------------------------------------------
         # Legacy boolean selection (still supported).
@@ -364,17 +333,7 @@ class InformationAnalyzer(
             verbose=self.verbose,
         )
 
-        # Check if PID is available
-        self.pid_available = False
-        if self.compute_pid:
-            try:
-                check_pid_available()
-                self.pid_available = True
-                self.logger.info("PID computation available")
-            except ImportError:
-                self.logger.warning(
-                    "PID package not available. PID metrics will be skipped."
-                )
+        self._check_pid_available()
 
     def analyze(
         self,
@@ -436,47 +395,3 @@ class InformationAnalyzer(
                 model=model,
                 lifecycle_state=lifecycle_state,
             )
-
-    def _run_analysis_pipeline(
-        self,
-        *,
-        model: BaseModel,
-        test_dataset: torch.utils.data.Dataset,
-        device: str,
-        save_path: Optional[str],
-        filename: str,
-        runtime: Optional[EvaluationRuntimeConfig],
-        analysis_start_time: float,
-    ) -> dict[str, Any] | None:
-        """Run data collection, metric dispatch, enhanced outputs, and finalization."""
-        analysis_data = self._collect_analysis_data(
-            model=model,
-            test_dataset=test_dataset,
-            device=device,
-            runtime=runtime,
-        )
-        inputs = analysis_data.inputs
-        labels = analysis_data.labels
-        C = analysis_data.C
-        entropy_C = analysis_data.entropy_C
-
-        results = self._compute_results_for_level(
-            model=model,
-            inputs=inputs,
-            C=C,
-            entropy_C=entropy_C,
-        )
-        if results is None:
-            return None
-
-        self._add_enhanced_analysis_results(results, C)
-        return self._complete_analysis_results(
-            results=results,
-            model=model,
-            inputs=inputs,
-            labels=labels,
-            analysis_start_time=analysis_start_time,
-            device=device,
-            save_path=save_path,
-            filename=filename,
-        )

@@ -10,11 +10,27 @@ import numpy as np
 from dendritic_modeling.analysis.core.information_fisher_mixin import (
     InformationFisherMetricsMixin,
 )
-from dendritic_modeling.utils.information.pid import pid_synergy_redundancy
+from dendritic_modeling.utils.information.pid import (
+    check_pid_available,
+    pid_synergy_redundancy,
+)
 
 
 class InformationPidMetricsMixin(InformationFisherMetricsMixin):
     """Computes PID metrics and PID-specific preprocessing."""
+
+    def _check_pid_available(self) -> None:
+        """Set whether the optional PID backend is available."""
+        self.pid_available = False
+        if self.compute_pid:
+            try:
+                check_pid_available()
+                self.pid_available = True
+                self.logger.info("PID computation available")
+            except ImportError:
+                self.logger.warning(
+                    "PID package not available. PID metrics will be skipped."
+                )
 
     def _compute_pid(
         self, E: np.ndarray, I_var: np.ndarray, Vout: np.ndarray, C: np.ndarray
