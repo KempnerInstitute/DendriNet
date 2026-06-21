@@ -25,15 +25,21 @@ from dendritic_modeling.training.strategies.local_learning import (
     _zero_optimizer_gradients,
 )
 from dendritic_modeling.training.strategies.local_learning_epoch import (
+    _accumulate_backprop_update_gradients,
     _accumulate_detached_parameter_grad,
+    _accumulate_local_logging_loss,
     _apply_local_decoder_update,
     _apply_training_schedule_update_modes,
+    _average_local_epoch_losses,
     _collect_trainable_parameters,
     _compute_decoder_local_gradients,
     _decoder_local_scale,
     _is_class_index_target,
+    _move_batch_to_device,
     _prepare_label_hsic_target,
     _resolve_freeze_update_modes,
+    _resolve_local_epoch_update_modes,
+    _resolve_reactivation_update_enabled,
     _resolve_schedule_epoch_range,
     _set_topk_mask_cache,
     _should_clip_gradients,
@@ -78,6 +84,12 @@ def _path_cfg(*, use_path_propagation=True):
             use_path_propagation=use_path_propagation,
         )
     )
+
+
+class _OneParamModule(nn.Module):
+    def __init__(self, value: float):
+        super().__init__()
+        self.param = nn.Parameter(torch.tensor(value))
 
 
 def test_accumulate_parameter_grad_initializes_with_parameter_dtype():
@@ -455,6 +467,79 @@ def test_resolve_epoch_update_modes_bad_schedule_range_matches_all_epochs():
     )
 
 
+def test_resolve_reactivation_update_enabled_preserves_backprop_gate():
+    assert _resolve_reactivation_update_enabled(True, "backprop") is True
+    assert _resolve_reactivation_update_enabled(False, "backprop") is False
+    assert _resolve_reactivation_update_enabled(True, "BackProp") is True
+    assert _resolve_reactivation_update_enabled(True, "quantile") is False
+    assert _resolve_reactivation_update_enabled(True, "none") is False
+
+
+def test_resolve_local_epoch_update_modes_applies_schedule_and_backprop_gate():
+    cfg = _local_cfg(
+        training_schedule=[
+            {
+                "start_epoch": 2,
+                "end_epoch": 4,
+                "update_reactivation": True,
+                "encoder_update_mode": "none",
+                "decoder_update_mode": "BackProp",
+            }
+        ],
+    )
+
+    assert _resolve_local_epoch_update_modes(
+        cfg,
+        epoch_counter=3,
+        reactivation_update_mode="backprop",
+    ) == (True, "none", "backprop")
+
+
+def test_resolve_local_epoch_update_modes_gates_non_backprop_reactivation():
+    cfg = _local_cfg(update_reactivation=True)
+
+    assert _resolve_local_epoch_update_modes(
+        cfg,
+        epoch_counter=1,
+        reactivation_update_mode="quantile",
+    ) == (False, "backprop", "local")
+
+
+def test_move_batch_to_device_moves_input_and_target_tensors():
+    x_batch = torch.tensor([[1.0, 2.0]])
+    y_batch = torch.tensor([1])
+    device = torch.device("cpu")
+
+    moved_x, moved_y = _move_batch_to_device(x_batch, y_batch, device)
+
+    assert moved_x.device == device
+    assert moved_y.device == device
+    torch.testing.assert_close(moved_x, x_batch.to(device))
+    torch.testing.assert_close(moved_y, y_batch.to(device))
+
+
+def test_accumulate_local_logging_loss_updates_total_and_base_only():
+    train_loss, train_loss_base, train_loss_reg = _accumulate_local_logging_loss(
+        train_loss=1.0,
+        train_loss_base=2.0,
+        train_loss_reg=3.0,
+        loss=torch.tensor(0.25),
+    )
+
+    assert train_loss == 1.25
+    assert train_loss_base == 2.25
+    assert train_loss_reg == 3.0
+
+
+def test_average_local_epoch_losses_preserves_legacy_division():
+    assert _average_local_epoch_losses(
+        train_loss=6.0,
+        train_loss_base=3.0,
+        train_loss_reg=0.0,
+        n_batches=3,
+    ) == (2.0, 1.0, 0.0)
+
+
 def test_has_dendritic_branch_layers_returns_false_when_model_iteration_fails():
     class _BrokenModules(nn.Module):
         def modules(self):
@@ -674,6 +759,40 @@ def test_accumulate_backprop_gradients_preserves_old_accumulation_semantics():
     assert p1.grad.requires_grad is False
     assert unused.grad is None
     assert torch.equal(p2.grad, torch.tensor(12.0))
+
+
+def test_accumulate_backprop_update_gradients_uses_requested_mode_groups():
+    encoder = _OneParamModule(2.0)
+    decoder = _OneParamModule(3.0)
+    model = SimpleNamespace(encoder_network=encoder, decoder_network=decoder)
+    loss = encoder.param * decoder.param + encoder.param.square()
+
+    _accumulate_backprop_update_gradients(
+        loss=loss,
+        model=model,
+        encoder_update_mode="backprop",
+        decoder_update_mode="backprop",
+    )
+
+    assert torch.equal(encoder.param.grad, torch.tensor(7.0))
+    assert torch.equal(decoder.param.grad, torch.tensor(2.0))
+
+
+def test_accumulate_backprop_update_gradients_preserves_disabled_modes():
+    encoder = _OneParamModule(2.0)
+    decoder = _OneParamModule(3.0)
+    model = SimpleNamespace(encoder_network=encoder, decoder_network=decoder)
+    loss = encoder.param * decoder.param + encoder.param.square()
+
+    _accumulate_backprop_update_gradients(
+        loss=loss,
+        model=model,
+        encoder_update_mode="none",
+        decoder_update_mode="local",
+    )
+
+    assert encoder.param.grad is None
+    assert decoder.param.grad is None
 
 
 def test_accumulate_detached_parameter_grad_preserves_clone_and_add_semantics():

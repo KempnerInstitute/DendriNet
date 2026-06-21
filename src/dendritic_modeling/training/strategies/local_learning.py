@@ -23,19 +23,25 @@ from dendritic_modeling.training.strategies.local_learning_broadcast_mixin impor
     LocalLearningBroadcastMixin,
 )
 from dendritic_modeling.training.strategies.local_learning_epoch import (
-    _accumulate_backprop_gradients,
+    _accumulate_backprop_gradients as _accumulate_backprop_gradients,
+    _accumulate_backprop_update_gradients,
+    _accumulate_local_logging_loss,
     _apply_decoder_local_gradients as _apply_decoder_local_gradients,
     _apply_local_decoder_update,
     _apply_path_propagation_factor as _apply_path_propagation_factor,
+    _average_local_epoch_losses,
     _clear_topk_mask_cache as _clear_topk_mask_cache,
     _clip_model_gradients,
-    _collect_backprop_param_groups,
+    _collect_backprop_param_groups as _collect_backprop_param_groups,
     _collect_topk_modules as _collect_topk_modules,
     _enable_topk_mask_cache as _enable_topk_mask_cache,
     _forward_with_local_recorders,
     _has_dendritic_branch_layers,
+    _move_batch_to_device,
     _prepare_hsic_target,
-    _resolve_epoch_update_modes,
+    _resolve_epoch_update_modes as _resolve_epoch_update_modes,
+    _resolve_local_epoch_update_modes,
+    _resolve_reactivation_update_enabled,
     _resolve_stdp_error_signals as _resolve_stdp_error_signals,
     _supports_local_learning_train,
     _zero_optimizer_gradients,
@@ -146,9 +152,10 @@ class LocalCreditAssignment(
         self, update_reactivation: bool
     ) -> bool:
         """Disable local reactivation updates when the shared trainer mode does not use learned b,m."""
-        if self._normalize_reactivation_update_mode() == "backprop":
-            return bool(update_reactivation)
-        return False
+        return _resolve_reactivation_update_enabled(
+            update_reactivation,
+            self._normalize_reactivation_update_mode(),
+        )
 
     # ----------------------- Core training overrides -----------------------
     def _epoch_train(
@@ -167,26 +174,28 @@ class LocalCreditAssignment(
         for batch in train_loader:
             x_batch, y_batch = batch[0], batch[1]
             # Resolve per-epoch schedule for reactivation/decoder behavior
-            (
-                update_reactivation,
-                encoder_update_mode,
-                decoder_update_mode,
-            ) = _resolve_epoch_update_modes(self.local_cfg, self.epoch_counter)
-            update_reactivation = self._resolve_local_reactivation_update_flag(
-                update_reactivation
+            update_reactivation, encoder_update_mode, decoder_update_mode = (
+                _resolve_local_epoch_update_modes(
+                    self.local_cfg,
+                    self.epoch_counter,
+                    self._normalize_reactivation_update_mode(),
+                )
             )
-            x_batch = x_batch.to(self.device)
-            y_batch = y_batch.to(self.device)
+            x_batch, y_batch = _move_batch_to_device(x_batch, y_batch, self.device)
 
             # Forward once to obtain outputs and local signals.
             y_hat, layer_records = _forward_with_local_recorders(self, model, x_batch)
 
             # Compute scalar loss for logging (no backward)
             loss = self._compute_logging_loss(model, x_batch, y_batch)
-            loss_item = loss.item()
-            train_loss += loss_item
-            train_loss_base += loss_item  # Local learning doesn't separate base/reg
-            # train_loss_reg remains 0
+            train_loss, train_loss_base, train_loss_reg = (
+                _accumulate_local_logging_loss(
+                    train_loss=train_loss,
+                    train_loss_base=train_loss_base,
+                    train_loss_reg=train_loss_reg,
+                    loss=loss,
+                )
+            )
 
             # Compute output-space error (dL/dy_hat) then resolve local soma-space
             # signals for local dendritic updates.
@@ -213,12 +222,12 @@ class LocalCreditAssignment(
                 update_reactivation=update_reactivation,
             )
 
-            backprop_param_groups = _collect_backprop_param_groups(
+            _accumulate_backprop_update_gradients(
+                loss=loss,
                 model=model,
                 encoder_update_mode=encoder_update_mode,
                 decoder_update_mode=decoder_update_mode,
             )
-            _accumulate_backprop_gradients(loss, backprop_param_groups)
 
             _apply_local_decoder_update(
                 model=model,
@@ -234,10 +243,12 @@ class LocalCreditAssignment(
             # Step optimizer
             self.optimizer.step()
 
-        train_loss /= len(train_loader)
-        train_loss_base /= len(train_loader)
-        train_loss_reg /= len(train_loader)
-        return train_loss, train_loss_base, train_loss_reg
+        return _average_local_epoch_losses(
+            train_loss=train_loss,
+            train_loss_base=train_loss_base,
+            train_loss_reg=train_loss_reg,
+            n_batches=len(train_loader),
+        )
 
     def train(
         self,

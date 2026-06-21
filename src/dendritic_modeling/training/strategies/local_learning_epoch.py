@@ -110,6 +110,73 @@ def _resolve_epoch_update_modes(
     return update_reactivation, encoder_update_mode, decoder_update_mode
 
 
+def _resolve_reactivation_update_enabled(
+    update_reactivation: bool,
+    reactivation_update_mode: str,
+) -> bool:
+    """Gate local reactivation updates by the shared trainer update mode."""
+
+    if str(reactivation_update_mode).lower() == "backprop":
+        return bool(update_reactivation)
+    return False
+
+
+def _resolve_local_epoch_update_modes(
+    local_cfg: Any,
+    epoch_counter: int,
+    reactivation_update_mode: str,
+) -> tuple[bool, str, str]:
+    """Resolve epoch update modes after applying the local reactivation gate."""
+
+    update_reactivation, encoder_update_mode, decoder_update_mode = (
+        _resolve_epoch_update_modes(local_cfg, epoch_counter)
+    )
+    update_reactivation = _resolve_reactivation_update_enabled(
+        update_reactivation,
+        reactivation_update_mode,
+    )
+    return update_reactivation, encoder_update_mode, decoder_update_mode
+
+
+def _move_batch_to_device(
+    x_batch: torch.Tensor,
+    y_batch: torch.Tensor,
+    device: torch.device | str,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Move the local-learning input and target tensors to the trainer device."""
+
+    return x_batch.to(device), y_batch.to(device)
+
+
+def _accumulate_local_logging_loss(
+    *,
+    train_loss: float,
+    train_loss_base: float,
+    train_loss_reg: float,
+    loss: torch.Tensor,
+) -> tuple[float, float, float]:
+    """Accumulate local-learning logging loss totals for one batch."""
+
+    loss_item = loss.item()
+    return train_loss + loss_item, train_loss_base + loss_item, train_loss_reg
+
+
+def _average_local_epoch_losses(
+    *,
+    train_loss: float,
+    train_loss_base: float,
+    train_loss_reg: float,
+    n_batches: int,
+) -> tuple[float, float, float]:
+    """Average local-learning epoch loss totals with legacy division semantics."""
+
+    return (
+        train_loss / n_batches,
+        train_loss_base / n_batches,
+        train_loss_reg / n_batches,
+    )
+
+
 def _collect_topk_modules(model: BaseModel) -> list[TopKLinear]:
     return [m for m in model.modules() if isinstance(m, TopKLinear)]
 
@@ -242,6 +309,23 @@ def _accumulate_backprop_gradients(
         )
         for param, grad_value in zip(params, grads):
             _accumulate_detached_parameter_grad(param, grad_value)
+
+
+def _accumulate_backprop_update_gradients(
+    *,
+    loss: torch.Tensor,
+    model: BaseModel,
+    encoder_update_mode: str,
+    decoder_update_mode: str,
+) -> None:
+    """Accumulate autograd gradients requested by encoder/decoder update modes."""
+
+    backprop_param_groups = _collect_backprop_param_groups(
+        model=model,
+        encoder_update_mode=encoder_update_mode,
+        decoder_update_mode=decoder_update_mode,
+    )
+    _accumulate_backprop_gradients(loss, backprop_param_groups)
 
 
 def _decoder_local_scale(
