@@ -24,6 +24,56 @@ from dendritic_modeling.training.strategies.local_learning_state import (
 )
 
 
+def _apply_output_modulator(
+    factor: torch.Tensor,
+    modulator: torch.Tensor | float,
+) -> torch.Tensor:
+    """Apply a neuron-wise or scalar output modulator."""
+    if isinstance(modulator, torch.Tensor):
+        return factor * modulator.unsqueeze(0)
+    return factor * float(modulator)
+
+
+def _apply_topk_rho_modulator(
+    factor: torch.Tensor,
+    rho: torch.Tensor | float,
+    *,
+    rule_variant: str,
+) -> torch.Tensor:
+    """Apply the historical rho rule for inhibitory TopK factors."""
+    if isinstance(rho, torch.Tensor):
+        return factor * rho.unsqueeze(0)
+    if rule_variant in {"4f", "5f"}:
+        return factor * float(rho)
+    return factor
+
+
+def _apply_topk_phi_modulator(
+    factor: torch.Tensor,
+    phi: float,
+    *,
+    rule_variant: str,
+) -> torch.Tensor:
+    """Apply the historical phi rule for inhibitory TopK factors."""
+    if rule_variant == "5f":
+        return factor * float(phi)
+    return factor
+
+
+def _apply_inhibitory_topk_modulators(
+    factor: torch.Tensor,
+    *,
+    rho: torch.Tensor | float,
+    phi: float,
+    branch_scale: torch.Tensor | float,
+    rule_variant: str,
+) -> torch.Tensor:
+    """Apply inhibitory TopK modulators in the legacy order."""
+    factor = _apply_topk_rho_modulator(factor, rho, rule_variant=rule_variant)
+    factor = _apply_topk_phi_modulator(factor, phi, rule_variant=rule_variant)
+    return _apply_output_modulator(factor, branch_scale)
+
+
 class LocalLearningTopKGradientMixin:
     """Gradient writeback for TopK feedforward and recurrent pathways."""
 
@@ -241,6 +291,33 @@ class LocalLearningTopKGradientMixin:
         branch_scale: Any,
         layer_dynamics_mode: str,
     ) -> torch.Tensor:
+        inh_factor = self._compute_base_inhibitory_topk_factor(
+            rec=rec,
+            e_v=e_v,
+            post_factor_raw=post_factor_raw,
+            v_n=v_n,
+            r_tot=r_tot,
+            layer_dynamics_mode=layer_dynamics_mode,
+        )
+        return _apply_inhibitory_topk_modulators(
+            inh_factor,
+            rho=rho,
+            phi=phi,
+            branch_scale=branch_scale,
+            rule_variant=self.local_cfg.rule_variant,
+        )
+
+    def _compute_base_inhibitory_topk_factor(
+        self,
+        *,
+        rec: dict[str, Any],
+        e_v: torch.Tensor,
+        post_factor_raw: torch.Tensor,
+        v_n: torch.Tensor,
+        r_tot: Any,
+        layer_dynamics_mode: str,
+    ) -> torch.Tensor:
+        """Compute the inhibitory TopK factor before rho/phi/branch modulation."""
         if layer_dynamics_mode == "conductance":
             if self.local_cfg.three_factor.use_driving_force:
                 inh_post = self.local_cfg.three_factor.e_rev_inh - v_n
@@ -260,25 +337,6 @@ class LocalLearningTopKGradientMixin:
             else:
                 inh_factor = -e_v
 
-        if isinstance(rho, torch.Tensor):
-            inh_factor = inh_factor * rho.unsqueeze(0)
-        else:
-            inh_factor = (
-                inh_factor * float(rho)
-                if self.local_cfg.rule_variant in {"4f", "5f"}
-                else inh_factor
-            )
-
-        inh_factor = (
-            inh_factor * float(phi)
-            if self.local_cfg.rule_variant == "5f"
-            else inh_factor
-        )
-
-        if isinstance(branch_scale, torch.Tensor):
-            inh_factor = inh_factor * branch_scale.unsqueeze(0)
-        else:
-            inh_factor = inh_factor * float(branch_scale)
         return inh_factor
 
     def _add_topk_transformed_grad(
