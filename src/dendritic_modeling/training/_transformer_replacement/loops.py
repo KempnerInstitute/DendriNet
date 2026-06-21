@@ -9,7 +9,7 @@ from collections.abc import Sequence
 import torch
 import torch.nn as nn
 from torch.amp import GradScaler, autocast
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import TensorDataset
 
 from dendritic_modeling.config import Config
 from dendritic_modeling.networks.architectures.transformer import (
@@ -26,6 +26,7 @@ from dendritic_modeling.training._transformer_replacement.common import (
     DistillationUnit,
     TransformerReplacementTrainingResult,
     _compute_distillation_loss,
+    _make_tensor_loader,
     _replacement_forward_modules,
     _resolve_device,
     _resolve_dtype,
@@ -89,11 +90,12 @@ def _train_tensor_dataset_source(
     train_cfg = config.training.transformer_replacement
     loaders = [
         _infinite_loader(
-            DataLoader(
+            _make_tensor_loader(
                 dataset,
                 batch_size=train_cfg.batch_size,
                 shuffle=True,
-                drop_last=False,
+                train_cfg=train_cfg,
+                device=device,
             )
         )
         for dataset in train_datasets
@@ -116,6 +118,7 @@ def _train_tensor_dataset_source(
         loss_name=train_cfg.loss,
         cosine_weight=train_cfg.cosine_weight,
         forward_modules=forward_modules,
+        train_cfg=train_cfg,
     )
     best_valid = initial_valid
     best_step = 0
@@ -154,6 +157,7 @@ def _train_tensor_dataset_source(
                 loss_name=train_cfg.loss,
                 cosine_weight=train_cfg.cosine_weight,
                 forward_modules=forward_modules,
+                train_cfg=train_cfg,
             )
             valid_losses.append(valid)
             if valid < best_valid:

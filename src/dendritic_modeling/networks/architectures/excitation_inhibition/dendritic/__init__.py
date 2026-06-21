@@ -24,7 +24,14 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.i
     analytical_expectation_dbl_init,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.synapse_config import (
+    AdaptiveInitConfig,
+    DeepSTConfig,
     DendriticSynapseConfig,
+    DenseToSparseConfig,
+    IndexedSynapseConfig,
+    MorphologyConfig,
+    ReactivationConfig,
+    TopKConfig,
 )
 
 # Vision neuron factories
@@ -37,12 +44,19 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.v
 )
 
 __all__ = [
+    "AdaptiveInitConfig",
     "BlockLinear",
+    "DeepSTConfig",
     "DendriNet",
     "DendriticBranchConfig",
     "DendriticBranchLayer",
     "DendriticSynapseConfig",
+    "DenseToSparseConfig",
     "GradientScaler",
+    "IndexedSynapseConfig",
+    "MorphologyConfig",
+    "ReactivationConfig",
+    "TopKConfig",
     "analytical_expectation_dbl_init",
     "build_neuron_from_yaml",
     "create_center_surround_unit",

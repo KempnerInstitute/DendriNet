@@ -1,10 +1,21 @@
 import pytest
 import torch
 
-from dendritic_modeling.networks import DendriticBranchConfig, DendriticSynapseConfig
+from dendritic_modeling.networks import (
+    AdaptiveInitConfig,
+    DeepSTConfig,
+    DendriticBranchConfig,
+    DendriticSynapseConfig,
+    DenseToSparseConfig,
+    IndexedSynapseConfig,
+    MorphologyConfig,
+    ReactivationConfig,
+    TopKConfig,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic import (
     DendriNet,
     DendriticBranchLayer,
+    synapse_config as synapse_config_module,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.ei_layer import (
     ExcitationInhibitionLayer,
@@ -18,6 +29,16 @@ def _assert_state_dict_exact(left, right):
     assert left.keys() == right.keys()
     for key in left:
         torch.testing.assert_close(left[key], right[key], rtol=0.0, atol=0.0)
+
+
+def test_dendritic_synapse_section_configs_are_public_reexports():
+    assert AdaptiveInitConfig is synapse_config_module.AdaptiveInitConfig
+    assert DeepSTConfig is synapse_config_module.DeepSTConfig
+    assert DenseToSparseConfig is synapse_config_module.DenseToSparseConfig
+    assert IndexedSynapseConfig is synapse_config_module.IndexedSynapseConfig
+    assert MorphologyConfig is synapse_config_module.MorphologyConfig
+    assert ReactivationConfig is synapse_config_module.ReactivationConfig
+    assert TopKConfig is synapse_config_module.TopKConfig
 
 
 def test_dendritic_synapse_config_round_trips_legacy_kwargs():
@@ -127,6 +148,75 @@ def test_dendritic_synapse_config_round_trips_every_legacy_key():
     assert set(round_trip) == set(legacy_kwargs)
     for key, value in legacy_kwargs.items():
         assert round_trip[key] == value
+
+
+def test_dendritic_synapse_config_accepts_nested_section_mapping():
+    config = DendriticSynapseConfig.from_config(
+        {
+            "topk": {"type": "indexed_rewire", "gamma": 0.5},
+            "morphology": MorphologyConfig(
+                use_shunting=False,
+                weight_transform="softplus",
+                efficient_blocklinear=True,
+            ),
+            "reactivation": ReactivationConfig(
+                enabled=True,
+                type="param_tanh",
+                init_m=1.2,
+                init_b=0.25,
+            ),
+            "print_hooks": True,
+        }
+    )
+
+    kwargs = config.to_kwargs()
+    assert kwargs["topk_type"] == "indexed_rewire"
+    assert kwargs["topk_gamma"] == 0.5
+    assert kwargs["use_shunting"] is False
+    assert kwargs["weight_transform"] == "softplus"
+    assert kwargs["efficient_blocklinear"] is True
+    assert kwargs["reactivate"] is True
+    assert kwargs["reactivation_init_m"] == 1.2
+    assert kwargs["reactivation_init_b"] == 0.25
+    assert kwargs["print_hooks"] is True
+
+
+def test_dendritic_synapse_config_nested_sections_preserve_flat_defaults():
+    config = DendriticSynapseConfig.from_sections(
+        {
+            "topk_type": "standard",
+            "topk_gamma": 0.75,
+            "topk": {"type": "indexed_rewire"},
+            "morphology": {"weight_transform": "softplus"},
+        }
+    )
+
+    kwargs = config.to_kwargs()
+    assert kwargs["topk_type"] == "indexed_rewire"
+    assert kwargs["topk_gamma"] == 0.75
+    assert kwargs["weight_transform"] == "softplus"
+    assert kwargs["use_shunting"] is True
+
+
+def test_dendritic_synapse_config_accepts_nested_section_objects():
+    config = DendriticSynapseConfig.from_sections(
+        topk=TopKConfig(type="indexed_rewire", gamma=0.4),
+        morphology={"use_shunting": False},
+    )
+
+    kwargs = config.to_kwargs()
+    assert kwargs["topk_type"] == "indexed_rewire"
+    assert kwargs["topk_gamma"] == 0.4
+    assert kwargs["use_shunting"] is False
+
+
+def test_dendritic_synapse_config_from_config_ignores_non_section_extras():
+    config = DendriticSynapseConfig.from_config(
+        {"topk": "not a section payload", "topk_type": "indexed_rewire"}
+    )
+
+    kwargs = config.to_kwargs()
+    assert kwargs["topk_type"] == "indexed_rewire"
 
 
 def test_dendritic_branch_config_round_trips_legacy_kwargs():

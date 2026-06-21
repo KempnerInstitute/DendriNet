@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import torch
 
 from dendritic_modeling.config import Config
@@ -10,6 +12,9 @@ from dendritic_modeling.networks.architectures.transformer import (
 from dendritic_modeling.training import (
     benchmark_saved_transformer_replacement,
     run_transformer_replacement_training,
+)
+from dendritic_modeling.training._transformer_replacement.common import (
+    _make_tensor_loader,
 )
 from dendritic_modeling.training._transformer_replacement.loops import (
     _infinite_loader,
@@ -106,6 +111,43 @@ def test_transformer_replacement_infinite_loader_restarts_without_cycle_cache():
     batches = [next(iterator)[0].squeeze(1).tolist() for _ in range(4)]
 
     assert batches == [[0, 1], [2], [0, 1], [2]]
+
+
+def test_transformer_replacement_tensor_loader_preserves_tail_batch():
+    dataset = torch.utils.data.TensorDataset(
+        torch.arange(3).unsqueeze(1), torch.arange(3).unsqueeze(1)
+    )
+
+    loader = _make_tensor_loader(dataset, batch_size=2, shuffle=False)
+    batches = [batch[0].squeeze(1).tolist() for batch in loader]
+
+    assert batches == [[0, 1], [2]]
+
+
+def test_transformer_replacement_tensor_loader_honors_explicit_tuning():
+    dataset = torch.utils.data.TensorDataset(
+        torch.arange(3).unsqueeze(1), torch.arange(3).unsqueeze(1)
+    )
+    train_cfg = SimpleNamespace(
+        num_workers=2,
+        pin_memory=True,
+        persistent_workers=False,
+        prefetch_factor=3,
+    )
+
+    loader = _make_tensor_loader(
+        dataset,
+        batch_size=2,
+        shuffle=False,
+        train_cfg=train_cfg,
+        device="cuda",
+    )
+
+    assert loader.num_workers == 2
+    assert loader.pin_memory is True
+    assert loader.persistent_workers is False
+    assert loader.prefetch_factor == 3
+    assert loader.drop_last is False
 
 
 def test_layerwise_replacement_factory_honors_ei_stack_kind(tmp_path):

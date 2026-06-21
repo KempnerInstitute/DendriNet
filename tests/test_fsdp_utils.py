@@ -2,6 +2,7 @@
 Tests for training FSDP utils module to improve coverage.
 """
 
+import logging
 import os
 import tempfile
 from dataclasses import dataclass
@@ -113,6 +114,77 @@ def test_fsdp_dataloader_kwargs_auto_keeps_workers_for_lazy_data(monkeypatch):
         "pin_memory": False,
         "persistent_workers": True,
     }
+
+
+def test_fsdp_dataloader_tuning_summary_reports_dataset_type():
+    """FSDP helper should expose the same tuning summary used by loader setup."""
+    common = SimpleNamespace(
+        num_workers=0,
+        pin_memory=False,
+        persistent_workers=False,
+        prefetch_factor=None,
+    )
+    dataset = TensorDataset(torch.randn(8, 3), torch.randint(0, 2, (8,)))
+
+    tuning = fsdp_script._dataloader_tuning_from_common(
+        common,
+        dataset,
+        device="cpu",
+    )
+
+    summary = tuning.summary(dataset)
+    assert "dataset=torch.utils.data.dataset.TensorDataset" in summary
+    assert "num_workers=0" in summary
+    assert "pin_memory=False" in summary
+
+
+def test_fsdp_setup_data_loaders_logs_tuning_on_rank0(monkeypatch, caplog):
+    """FSDP data-loader setup should log resolved tuning once on rank 0."""
+    train_ds = TensorDataset(torch.randn(8, 3), torch.randint(0, 2, (8,)))
+    valid_ds = TensorDataset(torch.randn(4, 3), torch.randint(0, 2, (4,)))
+    test_ds = TensorDataset(torch.randn(4, 3), torch.randint(0, 2, (4,)))
+
+    monkeypatch.setattr(
+        fsdp_script,
+        "get_unified_datasets",
+        lambda task_cfg: (train_ds, valid_ds, test_ds),
+    )
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+
+    common = SimpleNamespace(
+        batch_size=2,
+        num_workers=0,
+        pin_memory=False,
+        persistent_workers=False,
+        prefetch_factor=None,
+    )
+    config = SimpleNamespace(
+        data=SimpleNamespace(
+            base_dir="",
+            dataset_name="unit",
+            dataset_params=None,
+            processing=None,
+        ),
+        experiment=SimpleNamespace(train_valid_split=0.8, seed=7),
+        training=SimpleNamespace(main=SimpleNamespace(common=common)),
+    )
+
+    with caplog.at_level(
+        logging.INFO,
+        logger="dendritic_modeling.scripts.training.train_experiments_fsdp",
+    ):
+        train_loader, valid_loader, returned_test, returned_train, returned_valid = (
+            fsdp_script.setup_data_loaders(config, rank=0, world_size=1)
+        )
+
+    assert train_loader.num_workers == 0
+    assert valid_loader.num_workers == 0
+    assert returned_test is test_ds
+    assert returned_train is train_ds
+    assert returned_valid is valid_ds
+    assert "FSDP DataLoader tuning:" in caplog.text
+    assert "dataset=torch.utils.data.dataset.TensorDataset" in caplog.text
+    assert "num_workers=0" in caplog.text
 
 
 @pytest.mark.parametrize(

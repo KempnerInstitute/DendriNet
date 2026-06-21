@@ -59,6 +59,7 @@ from dendritic_modeling.scripts.training.train_encoder_network import (
     load_train_encoder_network,
 )
 from dendritic_modeling.training.dataloader_utils import (
+    DataLoaderTuning,
     resolve_dataloader_tuning,
     visible_cpu_count,
 )
@@ -638,13 +639,27 @@ def _dataloader_kwargs_from_common(
     device: torch.device | str | None = None,
 ) -> dict:
     """Build validated DataLoader kwargs from training.main.common."""
+    return _dataloader_tuning_from_common(
+        common_config,
+        dataset,
+        device=device,
+    ).as_kwargs()
+
+
+def _dataloader_tuning_from_common(
+    common_config,
+    dataset: Dataset | None = None,
+    *,
+    device: torch.device | str | None = None,
+) -> DataLoaderTuning:
+    """Resolve DataLoader tuning from training.main.common."""
     num_workers = getattr(common_config, "num_workers", None)
     if dataset is None and num_workers is None:
         # Preserve the historical standalone helper default.  Real call sites
         # pass a dataset so shared tuning can choose tensor-vs-file loading.
         num_workers = min(4, visible_cpu_count())
 
-    tuning = resolve_dataloader_tuning(
+    return resolve_dataloader_tuning(
         dataset if dataset is not None else _FSDPLoaderTuningDataset(),
         device=device,
         num_workers=num_workers,
@@ -652,7 +667,6 @@ def _dataloader_kwargs_from_common(
         persistent_workers=getattr(common_config, "persistent_workers", None),
         prefetch_factor=getattr(common_config, "prefetch_factor", None),
     )
-    return tuning.as_kwargs()
 
 
 def setup_data_loaders(config, rank, world_size):
@@ -705,11 +719,14 @@ def setup_data_loaders(config, rank, world_size):
 
     # Create data loaders
     batch_size = config.training.main.common.batch_size
-    loader_kwargs = _dataloader_kwargs_from_common(
+    loader_tuning = _dataloader_tuning_from_common(
         config.training.main.common,
         train_ds,
         device="cuda" if torch.cuda.is_available() else "cpu",
     )
+    if rank == 0:
+        logger.info("FSDP DataLoader tuning: %s", loader_tuning.summary(train_ds))
+    loader_kwargs = loader_tuning.as_kwargs()
 
     train_loader = DataLoader(
         train_ds,

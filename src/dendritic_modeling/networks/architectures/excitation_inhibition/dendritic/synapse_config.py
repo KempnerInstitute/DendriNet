@@ -340,6 +340,32 @@ def _deepst_kwargs(config: DeepSTConfig) -> dict[str, Any]:
     }
 
 
+def _coerce_section_config(
+    section_type,
+    value: Any,
+    *,
+    section_name: str,
+    base_config: Any,
+):
+    """Normalize a nested section config object or mapping."""
+    if isinstance(value, section_type):
+        return value
+    if isinstance(value, Mapping):
+        return replace(base_config, **value)
+    raise TypeError(
+        f"{section_name} config must be a {section_type.__name__} or mapping"
+    )
+
+
+def _has_nested_section_config(mapping: Mapping[str, Any]) -> bool:
+    """Return whether a mapping carries any nested typed section payload."""
+    return any(
+        key in SECTION_CONFIG_TYPES
+        and (isinstance(value, Mapping) or isinstance(value, SECTION_CONFIG_TYPES[key]))
+        for key, value in mapping.items()
+    )
+
+
 @dataclass(frozen=True)
 class DendriticSynapseConfig:
     """Grouped branch-layer options with legacy-kwarg conversion helpers."""
@@ -362,6 +388,8 @@ class DendriticSynapseConfig:
         if isinstance(config, cls):
             return config
         if isinstance(config, Mapping):
+            if _has_nested_section_config(config):
+                return cls.from_sections(config)
             return cls.from_kwargs(config)
         raise TypeError("synapse_config must be a DendriticSynapseConfig or mapping")
 
@@ -404,6 +432,31 @@ class DendriticSynapseConfig:
                 if hasattr(population_config, key)
             }
         )
+
+    @classmethod
+    def from_sections(
+        cls,
+        mapping: Mapping[str, Any] | None = None,
+        /,
+        **kwargs: Any,
+    ) -> DendriticSynapseConfig:
+        """Build from nested typed sections, with flat legacy kwargs as defaults."""
+        source = dict(mapping or {})
+        source.update(kwargs)
+        config = cls.from_kwargs(source)
+        replacements = {
+            section_name: _coerce_section_config(
+                section_type,
+                source[section_name],
+                section_name=section_name,
+                base_config=getattr(config, section_name),
+            )
+            for section_name, section_type in SECTION_CONFIG_TYPES.items()
+            if section_name in source
+        }
+        if "print_hooks" in source:
+            replacements["print_hooks"] = bool(source["print_hooks"])
+        return replace(config, **replacements)
 
     @classmethod
     def split_kwargs(
@@ -451,6 +504,15 @@ class DendriticSynapseConfig:
 LEGACY_KEY_ORDER = tuple(DendriticSynapseConfig().to_kwargs())
 LEGACY_KEYS = frozenset(LEGACY_KEY_ORDER)
 POPULATION_SYNAPSE_KEYS = tuple(sorted(LEGACY_KEYS - {"dendritic_activation"}))
+SECTION_CONFIG_TYPES = {
+    "topk": TopKConfig,
+    "dense_to_sparse": DenseToSparseConfig,
+    "indexed": IndexedSynapseConfig,
+    "reactivation": ReactivationConfig,
+    "morphology": MorphologyConfig,
+    "initialization": AdaptiveInitConfig,
+    "deepst": DeepSTConfig,
+}
 
 
 __all__ = [

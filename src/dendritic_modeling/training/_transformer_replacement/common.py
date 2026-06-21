@@ -10,7 +10,11 @@ from typing import Any
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.utils.data import DataLoader, TensorDataset
 
+from dendritic_modeling.training.dataloader_utils import (
+    resolve_dataloader_tuning_from_config,
+)
 from dendritic_modeling.training.replacement_common import (
     _compute_distillation_loss as _shared_compute_distillation_loss,
     _resolve_device,
@@ -171,6 +175,33 @@ def _compute_distillation_loss(
     )
 
 
+def _make_tensor_loader(
+    dataset: TensorDataset,
+    *,
+    batch_size: int,
+    shuffle: bool,
+    train_cfg: Any | None = None,
+    device: torch.device | str | None = None,
+) -> DataLoader:
+    """Build the tensor-cache loader used by transformer replacement paths."""
+    loader_kwargs = (
+        resolve_dataloader_tuning_from_config(
+            dataset,
+            train_cfg,
+            device=device,
+        ).as_kwargs()
+        if train_cfg is not None
+        else {}
+    )
+    return DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        drop_last=False,
+        **loader_kwargs,
+    )
+
+
 __all__ = [
     "DistillationUnit",
     "SyntheticTransformerMLP",
@@ -178,6 +209,7 @@ __all__ = [
     "TransformerReplacementTrainingResult",
     "_activation",
     "_compute_distillation_loss",
+    "_make_tensor_loader",
     "_replacement_forward_modules",
     "_resolve_device",
     "_resolve_dtype",

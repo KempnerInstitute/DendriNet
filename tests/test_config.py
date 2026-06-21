@@ -730,6 +730,10 @@ class TestConfigLoading(unittest.TestCase):
                     "hidden_size": 8,
                     "intermediate_size": 32,
                     "max_steps": 25,
+                    "num_workers": 3,
+                    "pin_memory": False,
+                    "persistent_workers": True,
+                    "prefetch_factor": 2,
                     "synthetic_teacher": {"kind": "linear"},
                 }
             },
@@ -748,6 +752,10 @@ class TestConfigLoading(unittest.TestCase):
         self.assertEqual(training.train_target, "replacement_only")
         self.assertEqual(training.layers, [0])
         self.assertEqual(training.hidden_size, 8)
+        self.assertEqual(training.num_workers, 3)
+        self.assertFalse(training.pin_memory)
+        self.assertTrue(training.persistent_workers)
+        self.assertEqual(training.prefetch_factor, 2)
         self.assertEqual(training.synthetic_teacher["kind"], "linear")
 
     def test_load_config_preserves_vision_replacement_training(self):

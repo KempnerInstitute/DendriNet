@@ -8,7 +8,7 @@ from collections.abc import Sequence
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import TensorDataset
 
 from dendritic_modeling.config import Config
 from dendritic_modeling.networks.architectures.transformer import (
@@ -24,6 +24,7 @@ from dendritic_modeling.training._transformer_replacement.common import (
     DistillationUnit,
     TransformerReplacementBenchmarkResult,
     _compute_distillation_loss,
+    _make_tensor_loader,
     _resolve_device,
     _resolve_dtype,
     _to_plain_mapping,
@@ -46,6 +47,7 @@ def _evaluate_tensor_datasets(
     loss_name: str,
     cosine_weight: float,
     forward_modules: Sequence[nn.Module] | None = None,
+    train_cfg: object | None = None,
 ) -> float:
     total = 0.0
     count = 0
@@ -55,7 +57,13 @@ def _evaluate_tensor_datasets(
         else [unit.replacement for unit in units]
     )
     loaders = [
-        DataLoader(dataset, batch_size=batch_size, shuffle=False)
+        _make_tensor_loader(
+            dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            train_cfg=train_cfg,
+            device=device,
+        )
         for dataset in datasets
     ]
     with torch.no_grad():
@@ -105,11 +113,18 @@ def _evaluate_tensor_dataset_metrics(
     batch_size: int,
     device: torch.device,
     dtype: torch.dtype,
+    train_cfg: object | None = None,
 ) -> dict[str, float]:
     predictions = []
     targets = []
     loaders = [
-        DataLoader(dataset, batch_size=batch_size, shuffle=False)
+        _make_tensor_loader(
+            dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            train_cfg=train_cfg,
+            device=device,
+        )
         for dataset in datasets
     ]
     with torch.no_grad():
@@ -335,6 +350,7 @@ def benchmark_saved_transformer_replacement(
         batch_size=train_cfg.batch_size,
         device=device,
         dtype=dtype,
+        train_cfg=train_cfg,
     )
 
     for unit in units:
@@ -354,6 +370,7 @@ def benchmark_saved_transformer_replacement(
         batch_size=train_cfg.batch_size,
         device=device,
         dtype=dtype,
+        train_cfg=train_cfg,
     )
 
     estimates = [unit.replacement.parameter_estimate() for unit in units]

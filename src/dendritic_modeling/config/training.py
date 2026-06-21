@@ -334,6 +334,12 @@ class TransformerReplacementTrainingConfig(BaseConfig):
     eval_every: int = 50
     log_every: int = 25
     batch_size: int = 32
+    # DataLoader controls for layerwise tensor-cache distillation. None keeps
+    # the current auto behavior: in-memory tensor caches stay single-process.
+    num_workers: Optional[int] = None
+    pin_memory: Optional[bool] = None
+    persistent_workers: Optional[bool] = None
+    prefetch_factor: Optional[int] = None
     sequence_length: int = 8
     train_samples: int = 2048
     valid_samples: int = 512
