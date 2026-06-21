@@ -7,7 +7,12 @@ from dataclasses import dataclass
 from typing import Any
 
 import torch
-from torch.utils.data import Dataset, Subset, TensorDataset
+from torch.utils.data import Dataset
+
+from dendritic_modeling.training.dataloader_profiles import (
+    is_torchvision_image_dataset,
+    prefers_main_process_loading,
+)
 
 _LOCAL_WORLD_SIZE_ENV_VARS = (
     "LOCAL_WORLD_SIZE",
@@ -15,11 +20,6 @@ _LOCAL_WORLD_SIZE_ENV_VARS = (
     "MV2_COMM_WORLD_LOCAL_SIZE",
 )
 _IMAGE_DATASET_PREFETCH_FACTOR = 4
-_TORCHVISION_IMAGE_DATASET_NAMES = {
-    "DatasetFolder",
-    "ImageFolder",
-    "ImageNet",
-}
 
 
 @dataclass(frozen=True)
@@ -76,39 +76,6 @@ def _auto_worker_cpu_budget(available_cpus: int) -> int:
     if local_processes <= 1:
         return max(1, available_cpus)
     return max(0, available_cpus // local_processes)
-
-
-def _base_dataset(dataset: Dataset) -> Dataset:
-    seen: set[int] = set()
-    while id(dataset) not in seen:
-        seen.add(id(dataset))
-        if isinstance(dataset, Subset):
-            dataset = dataset.dataset
-            continue
-        base_dataset = getattr(dataset, "base_dataset", None)
-        if isinstance(base_dataset, Dataset):
-            dataset = base_dataset
-            continue
-        wrapped_dataset = getattr(dataset, "dataset", None)
-        if isinstance(wrapped_dataset, Dataset):
-            dataset = wrapped_dataset
-            continue
-        break
-    return dataset
-
-
-def _is_torchvision_image_dataset(dataset: Dataset) -> bool:
-    """Return True for torchvision image datasets that are usually I/O-bound."""
-    dataset_cls = type(_base_dataset(dataset))
-    return (
-        dataset_cls.__name__ in _TORCHVISION_IMAGE_DATASET_NAMES
-        and dataset_cls.__module__.startswith("torchvision.datasets")
-    )
-
-
-def prefers_main_process_loading(dataset: Dataset) -> bool:
-    """Return True for in-memory tensor datasets where workers add overhead."""
-    return isinstance(_base_dataset(dataset), TensorDataset)
 
 
 def auto_num_workers_for_dataset(
@@ -189,7 +156,7 @@ def _resolve_prefetch_factor(
     num_workers: int,
 ) -> int | None:
     if prefetch_factor is None:
-        if num_workers > 0 and _is_torchvision_image_dataset(dataset):
+        if num_workers > 0 and is_torchvision_image_dataset(dataset):
             return _IMAGE_DATASET_PREFETCH_FACTOR
         return None
     if num_workers == 0:
