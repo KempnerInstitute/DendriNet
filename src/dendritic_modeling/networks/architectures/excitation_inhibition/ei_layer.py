@@ -19,6 +19,86 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.s
 )
 
 
+def _build_common_synapse_config(
+    dendrinet_extra_kwargs: dict[str, Any],
+    *,
+    provided_synapse_config,
+    reactivate,
+    reactivation_init_m,
+    reactivation_init_b,
+    reactivation_init_policy,
+    reactivation_sigma_aware_k,
+    dbl_init_method,
+    topk_init_method,
+    use_shunting,
+    reactivation_type,
+    reactivation_strategy,
+    blocklinear_strategy,
+    topk_noise_level,
+    topk_strategy,
+    topk_type,
+    topk_weight_norm_order,
+    topk_gamma,
+    weight_transform,
+    print_hooks,
+    excitatory_target_density,
+    inhibitory_target_density,
+    use_noise,
+    sigma,
+    rewiring_mode,
+    rewire_frequency,
+    synapses_per_branch,
+    freeze_excitatory_connectivity,
+    freeze_inhibitory_connectivity,
+    init_method,
+    weight_threshold,
+    adaptive_initialization,
+    adaptive_initialization_policy,
+    adaptive_target_conductance,
+) -> DendriticSynapseConfig:
+    """Normalize EI-layer synapse kwargs into the shared typed config."""
+    if provided_synapse_config is not None:
+        return DendriticSynapseConfig.from_config(provided_synapse_config)
+
+    return DendriticSynapseConfig.from_kwargs(
+        {
+            **dendrinet_extra_kwargs,
+            "reactivate": reactivate,
+            "reactivation_init_m": reactivation_init_m,
+            "reactivation_init_b": reactivation_init_b,
+            "reactivation_init_policy": reactivation_init_policy,
+            "reactivation_sigma_aware_k": reactivation_sigma_aware_k,
+            "dbl_init_method": dbl_init_method,
+            "topk_init_method": topk_init_method,
+            "use_shunting": use_shunting,
+            "reactivation_type": reactivation_type,
+            "reactivation_strategy": reactivation_strategy,
+            "blocklinear_strategy": blocklinear_strategy,
+            "topk_noise_level": topk_noise_level,
+            "topk_strategy": topk_strategy,
+            "topk_type": topk_type,
+            "topk_weight_norm_order": topk_weight_norm_order,
+            "topk_gamma": topk_gamma,
+            "weight_transform": weight_transform,
+            "print_hooks": print_hooks,
+            "excitatory_target_density": excitatory_target_density,
+            "inhibitory_target_density": inhibitory_target_density,
+            "use_noise": use_noise,
+            "sigma": sigma,
+            "rewiring_mode": rewiring_mode,
+            "rewire_frequency": rewire_frequency,
+            "synapses_per_branch": synapses_per_branch,
+            "freeze_excitatory_connectivity": freeze_excitatory_connectivity,
+            "freeze_inhibitory_connectivity": freeze_inhibitory_connectivity,
+            "init_method": init_method,
+            "weight_threshold": weight_threshold,
+            "adaptive_initialization": adaptive_initialization,
+            "adaptive_initialization_policy": adaptive_initialization_policy,
+            "adaptive_target_conductance": adaptive_target_conductance,
+        }
+    )
+
+
 class ExcitationInhibitionLayer(nn.Module):
     def __init__(
         self,
@@ -89,48 +169,42 @@ class ExcitationInhibitionLayer(nn.Module):
             )
         dendrinet_extra_kwargs = dict(kwargs)
         provided_synapse_config = dendrinet_extra_kwargs.pop("synapse_config", None)
-        if provided_synapse_config is None:
-            common_synapse_config = DendriticSynapseConfig.from_kwargs(
-                {
-                    **dendrinet_extra_kwargs,
-                    "reactivate": reactivate,
-                    "reactivation_init_m": reactivation_init_m,
-                    "reactivation_init_b": reactivation_init_b,
-                    "reactivation_init_policy": reactivation_init_policy,
-                    "reactivation_sigma_aware_k": reactivation_sigma_aware_k,
-                    "dbl_init_method": dbl_init_method,
-                    "topk_init_method": topk_init_method,
-                    "use_shunting": use_shunting,
-                    "reactivation_type": reactivation_type,
-                    "reactivation_strategy": reactivation_strategy,
-                    "blocklinear_strategy": blocklinear_strategy,
-                    "topk_noise_level": topk_noise_level,
-                    "topk_strategy": topk_strategy,
-                    "topk_type": topk_type,
-                    "topk_weight_norm_order": topk_weight_norm_order,
-                    "topk_gamma": topk_gamma,
-                    "weight_transform": weight_transform,
-                    "print_hooks": print_hooks,
-                    "excitatory_target_density": excitatory_target_density,
-                    "inhibitory_target_density": inhibitory_target_density,
-                    "use_noise": use_noise,
-                    "sigma": sigma,
-                    "rewiring_mode": rewiring_mode,
-                    "rewire_frequency": rewire_frequency,
-                    "synapses_per_branch": synapses_per_branch,
-                    "freeze_excitatory_connectivity": freeze_excitatory_connectivity,
-                    "freeze_inhibitory_connectivity": freeze_inhibitory_connectivity,
-                    "init_method": init_method,
-                    "weight_threshold": weight_threshold,
-                    "adaptive_initialization": adaptive_initialization,
-                    "adaptive_initialization_policy": adaptive_initialization_policy,
-                    "adaptive_target_conductance": adaptive_target_conductance,
-                }
-            )
-        else:
-            common_synapse_config = DendriticSynapseConfig.from_config(
-                provided_synapse_config
-            )
+        common_synapse_config = _build_common_synapse_config(
+            dendrinet_extra_kwargs,
+            provided_synapse_config=provided_synapse_config,
+            reactivate=reactivate,
+            reactivation_init_m=reactivation_init_m,
+            reactivation_init_b=reactivation_init_b,
+            reactivation_init_policy=reactivation_init_policy,
+            reactivation_sigma_aware_k=reactivation_sigma_aware_k,
+            dbl_init_method=dbl_init_method,
+            topk_init_method=topk_init_method,
+            use_shunting=use_shunting,
+            reactivation_type=reactivation_type,
+            reactivation_strategy=reactivation_strategy,
+            blocklinear_strategy=blocklinear_strategy,
+            topk_noise_level=topk_noise_level,
+            topk_strategy=topk_strategy,
+            topk_type=topk_type,
+            topk_weight_norm_order=topk_weight_norm_order,
+            topk_gamma=topk_gamma,
+            weight_transform=weight_transform,
+            print_hooks=print_hooks,
+            excitatory_target_density=excitatory_target_density,
+            inhibitory_target_density=inhibitory_target_density,
+            use_noise=use_noise,
+            sigma=sigma,
+            rewiring_mode=rewiring_mode,
+            rewire_frequency=rewire_frequency,
+            synapses_per_branch=synapses_per_branch,
+            freeze_excitatory_connectivity=freeze_excitatory_connectivity,
+            freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
+            init_method=init_method,
+            weight_threshold=weight_threshold,
+            adaptive_initialization=adaptive_initialization,
+            adaptive_initialization_policy=adaptive_initialization_policy,
+            adaptive_target_conductance=adaptive_target_conductance,
+        )
 
         # Only build inhibitory cells if n_inhibitory_cells is not None and build_inhibitory_cells is True
         if build_inhibitory_cells and n_inhibitory_cells is not None:

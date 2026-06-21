@@ -15,6 +15,9 @@ import torch
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
     TopKLinear,
 )
+from dendritic_modeling.training.strategies.local_learning_pathways import (
+    STDP_TOPK_PATHS,
+)
 from dendritic_modeling.training.strategies.local_learning_stdp import (
     stdp_activity,
     stdp_decay,
@@ -272,18 +275,11 @@ class LocalLearningSTDPMixin:
     ) -> None:
         """Apply configured STDP updates to all recorded TopK pathways."""
 
-        pathway_keys = {
-            "exc": ("exc_module", "x_exc", "exc_mask"),
-            "inh": ("inh_module", "x_inh", "inh_mask"),
-            "rec_exc": ("rec_exc_module", "x_rec_exc", "rec_exc_mask"),
-            "rec_inh": ("rec_inh_module", "x_rec_inh", "rec_inh_mask"),
-        }
+        for path in STDP_TOPK_PATHS:
 
-        for pathway, (layer_key, input_key, mask_key) in pathway_keys.items():
+            layer = rec.get(path.module_key)
 
-            layer = rec.get(layer_key)
-
-            pre = rec.get(input_key)
+            pre = rec.get(path.input_key)
 
             if isinstance(layer, TopKLinear) and isinstance(pre, torch.Tensor):
 
@@ -291,8 +287,8 @@ class LocalLearningSTDPMixin:
                     layer=layer,
                     pre=pre,
                     post=post_signal,
-                    mask=rec.get(mask_key),
-                    pathway=pathway,
+                    mask=rec.get(path.mask_key),
+                    pathway=path.pathway,
                     error_signal=error_signal,
                 )
 

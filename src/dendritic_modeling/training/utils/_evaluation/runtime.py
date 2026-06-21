@@ -5,6 +5,7 @@ from __future__ import annotations
 import inspect
 import logging
 from collections.abc import Callable
+from dataclasses import dataclass
 
 import torch
 from torch.utils.data import DataLoader
@@ -21,6 +22,19 @@ from dendritic_modeling.utils.general import save_dict
 logger = logging.getLogger("dendritic_modeling.training.utils.evaluation")
 
 
+@dataclass(frozen=True)
+class _MetricEvaluationRuntime:
+    """Runtime view shared by metric evaluation and analysis DataLoader helpers."""
+
+    mode: str = "auto"
+    materialize_threshold_mb: float = 1024
+    batch_size: int = 256
+    num_workers: int = 4
+    pin_memory: bool = True
+    persistent_workers: bool = False
+    prefetch_factor: int | None = 2
+
+
 def _should_materialize(
     dataset: torch.utils.data.Dataset,
     mode: str = "auto",
@@ -28,12 +42,11 @@ def _should_materialize(
 ) -> bool:
     """Decide whether to materialize *dataset* into a single tensor."""
 
-    class _Runtime:
-        def __init__(self):
-            self.mode = mode
-            self.materialize_threshold_mb = threshold_mb
-
-    return should_materialize_dataset(dataset, _Runtime())
+    runtime = _MetricEvaluationRuntime(
+        mode=mode,
+        materialize_threshold_mb=threshold_mb,
+    )
+    return should_materialize_dataset(dataset, runtime)
 
 
 def _stream_model_outputs(
@@ -102,17 +115,16 @@ def _make_eval_loader(
 ) -> DataLoader:
     """Build a DataLoader suitable for evaluation (no shuffle, no drop_last)."""
 
-    class _Runtime:
-        def __init__(self):
-            self.batch_size = batch_size
-            self.num_workers = num_workers
-            self.pin_memory = pin_memory
-            self.persistent_workers = persistent_workers
-            self.prefetch_factor = prefetch_factor
-
+    runtime = _MetricEvaluationRuntime(
+        batch_size=batch_size,
+        num_workers=num_workers,
+        pin_memory=pin_memory,
+        persistent_workers=persistent_workers,
+        prefetch_factor=prefetch_factor,
+    )
     return make_analysis_loader(
         dataset=dataset,
-        runtime=_Runtime(),
+        runtime=runtime,
         device=device,
     )
 
@@ -348,6 +360,7 @@ def _evaluate_metric_generic(
 
 __all__ = [
     "_CachedOutputModel",
+    "_MetricEvaluationRuntime",
     "_evaluate_metric_generic",
     "_make_eval_loader",
     "_should_materialize",

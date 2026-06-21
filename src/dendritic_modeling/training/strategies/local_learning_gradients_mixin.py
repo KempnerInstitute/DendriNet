@@ -10,6 +10,10 @@ from dendritic_modeling.networks import ParametricActivation
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
     TopKLinear,
 )
+from dendritic_modeling.training.strategies.local_learning_pathways import (
+    EXCITATORY_TOPK_PATHS,
+    INHIBITORY_TOPK_PATHS,
+)
 from dendritic_modeling.training.strategies.local_learning_state import (
     _LayerModulators,
     _PostFactors,
@@ -81,64 +85,24 @@ class LocalLearningGradientMixin:
         post_factors: _PostFactors,
         update_reactivation: bool,
     ) -> None:
-        exc_layer = self._apply_excitatory_topk_local_grad(
+        exc_layer = self._apply_excitatory_topk_pathways(
             rec=rec,
-            module_key="exc_module",
-            input_key="x_exc",
-            mask_key="exc_mask",
-            post_factor=post_factors.post_factor,
             v_n=v_n,
             r_tot=r_tot,
             layer_dynamics_mode=layer_dynamics_mode,
             batch_size=batch_size,
-            role_synaptic_alignment=modulators.role_synaptic_alignment,
+            modulators=modulators,
+            post_factors=post_factors,
         )
 
-        self._apply_excitatory_topk_local_grad(
+        self._apply_inhibitory_topk_pathways(
             rec=rec,
-            module_key="rec_exc_module",
-            input_key="x_rec_exc",
-            mask_key="rec_exc_mask",
-            post_factor=post_factors.post_factor,
             v_n=v_n,
             r_tot=r_tot,
             layer_dynamics_mode=layer_dynamics_mode,
             batch_size=batch_size,
-            role_synaptic_alignment=modulators.role_synaptic_alignment,
-        )
-
-        self._apply_inhibitory_topk_local_grad(
-            rec=rec,
-            module_key="inh_module",
-            input_key="x_inh",
-            mask_key="inh_mask",
-            e_v=post_factors.e_v,
-            post_factor_raw=post_factors.post_factor_raw,
-            v_n=v_n,
-            r_tot=r_tot,
-            rho=modulators.rho,
-            phi=modulators.phi,
-            branch_scale=modulators.branch_scale,
-            layer_dynamics_mode=layer_dynamics_mode,
-            batch_size=batch_size,
-            role_synaptic_alignment=modulators.role_synaptic_alignment,
-        )
-
-        self._apply_inhibitory_topk_local_grad(
-            rec=rec,
-            module_key="rec_inh_module",
-            input_key="x_rec_inh",
-            mask_key="rec_inh_mask",
-            e_v=post_factors.e_v,
-            post_factor_raw=post_factors.post_factor_raw,
-            v_n=v_n,
-            r_tot=r_tot,
-            rho=modulators.rho,
-            phi=modulators.phi,
-            branch_scale=modulators.branch_scale,
-            layer_dynamics_mode=layer_dynamics_mode,
-            batch_size=batch_size,
-            role_synaptic_alignment=modulators.role_synaptic_alignment,
+            modulators=modulators,
+            post_factors=post_factors,
         )
 
         self._apply_dendritic_block_local_grad(
@@ -183,6 +147,66 @@ class LocalLearningGradientMixin:
             y_target=y_target,
             batch_size=batch_size,
         )
+
+    def _apply_excitatory_topk_pathways(
+        self,
+        *,
+        rec: dict[str, Any],
+        v_n: torch.Tensor,
+        r_tot: torch.Tensor | float,
+        layer_dynamics_mode: str,
+        batch_size: int,
+        modulators: _LayerModulators,
+        post_factors: _PostFactors,
+    ) -> TopKLinear | None:
+        """Apply local gradients to feedforward and recurrent excitatory paths."""
+        exc_layer = None
+        for path_idx, path in enumerate(EXCITATORY_TOPK_PATHS):
+            layer = self._apply_excitatory_topk_local_grad(
+                rec=rec,
+                module_key=path.module_key,
+                input_key=path.input_key,
+                mask_key=path.mask_key,
+                post_factor=post_factors.post_factor,
+                v_n=v_n,
+                r_tot=r_tot,
+                layer_dynamics_mode=layer_dynamics_mode,
+                batch_size=batch_size,
+                role_synaptic_alignment=modulators.role_synaptic_alignment,
+            )
+            if path_idx == 0:
+                exc_layer = layer
+        return exc_layer
+
+    def _apply_inhibitory_topk_pathways(
+        self,
+        *,
+        rec: dict[str, Any],
+        v_n: torch.Tensor,
+        r_tot: torch.Tensor | float,
+        layer_dynamics_mode: str,
+        batch_size: int,
+        modulators: _LayerModulators,
+        post_factors: _PostFactors,
+    ) -> None:
+        """Apply local gradients to feedforward and recurrent inhibitory paths."""
+        for path in INHIBITORY_TOPK_PATHS:
+            self._apply_inhibitory_topk_local_grad(
+                rec=rec,
+                module_key=path.module_key,
+                input_key=path.input_key,
+                mask_key=path.mask_key,
+                e_v=post_factors.e_v,
+                post_factor_raw=post_factors.post_factor_raw,
+                v_n=v_n,
+                r_tot=r_tot,
+                rho=modulators.rho,
+                phi=modulators.phi,
+                branch_scale=modulators.branch_scale,
+                layer_dynamics_mode=layer_dynamics_mode,
+                batch_size=batch_size,
+                role_synaptic_alignment=modulators.role_synaptic_alignment,
+            )
 
     def _apply_excitatory_topk_local_grad(
         self,

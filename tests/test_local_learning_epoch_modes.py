@@ -25,10 +25,15 @@ from dendritic_modeling.training.strategies.local_learning import (
     _zero_optimizer_gradients,
 )
 from dendritic_modeling.training.strategies.local_learning_gradients_mixin import (
+    LocalLearningGradientMixin,
     _accumulate_parameter_grad,
     _apply_optional_alignment,
     _reactivation_output_slope,
     _scale_reactivation_error,
+)
+from dendritic_modeling.training.strategies.local_learning_state import (
+    _LayerModulators,
+    _PostFactors,
 )
 
 
@@ -135,6 +140,93 @@ def test_apply_optional_alignment_ignores_missing_or_mismatched_alignment():
 
     assert _apply_optional_alignment(grad, None) is grad
     assert _apply_optional_alignment(grad, torch.ones(2, 1)) is grad
+
+
+def test_apply_layer_local_gradients_dispatches_topk_paths_in_order():
+    class _Probe(LocalLearningGradientMixin):
+        def __init__(self):
+            self.calls = []
+
+        def _apply_excitatory_topk_local_grad(self, **kwargs):
+            self.calls.append(
+                (
+                    "exc",
+                    kwargs["module_key"],
+                    kwargs["input_key"],
+                    kwargs["mask_key"],
+                )
+            )
+            if kwargs["module_key"] == "exc_module":
+                return "feedforward-exc"
+            return "recurrent-exc"
+
+        def _apply_inhibitory_topk_local_grad(self, **kwargs):
+            self.calls.append(
+                (
+                    "inh",
+                    kwargs["module_key"],
+                    kwargs["input_key"],
+                    kwargs["mask_key"],
+                )
+            )
+
+        def _apply_dendritic_block_local_grad(self, **_kwargs):
+            self.calls.append(("block",))
+
+        def _apply_reactivation_local_grad(self, **_kwargs):
+            self.calls.append(("reactivation",))
+
+        def _stdp_enabled(self):
+            return True
+
+        def _apply_stdp_pathways(self, **_kwargs):
+            self.calls.append(("stdp",))
+
+        def _apply_hsic_auxiliary_gradients(self, **kwargs):
+            self.calls.append(("hsic", kwargs["exc_layer"]))
+
+    trainer = _Probe()
+    tensor = torch.ones(2, 3)
+    modulators = _LayerModulators(
+        rho=1.0,
+        phi=1.0,
+        branch_scale=1.0,
+        dendritic_branch_scale=1.0,
+        role_synaptic_alignment=None,
+        role_block_alignment=None,
+    )
+    post_factors = _PostFactors(
+        e_v=tensor,
+        post_factor=tensor,
+        post_factor_raw=tensor,
+    )
+
+    trainer._apply_layer_local_gradients(
+        rec={},
+        layer_idx=0,
+        num_layers=1,
+        y_target=None,
+        batch_size=2,
+        e_n=tensor,
+        stdp_error_signal=tensor,
+        v_n=tensor,
+        r_tot=1.0,
+        layer_dynamics_mode="conductance",
+        modulators=modulators,
+        post_factors=post_factors,
+        update_reactivation=True,
+    )
+
+    assert trainer.calls == [
+        ("exc", "exc_module", "x_exc", "exc_mask"),
+        ("exc", "rec_exc_module", "x_rec_exc", "rec_exc_mask"),
+        ("inh", "inh_module", "x_inh", "inh_mask"),
+        ("inh", "rec_inh_module", "x_rec_inh", "rec_inh_mask"),
+        ("block",),
+        ("reactivation",),
+        ("stdp",),
+        ("hsic", "feedforward-exc"),
+    ]
 
 
 def test_resolve_epoch_update_modes_uses_base_modes_after_freeze_window():

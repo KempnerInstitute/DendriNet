@@ -7,6 +7,9 @@ from types import SimpleNamespace
 
 import torch
 
+from dendritic_modeling.training.strategies.local_learning_pathways import (
+    STDP_TOPK_PATHS,
+)
 from dendritic_modeling.training.strategies.local_learning_stdp import (
     stdp_activity,
     stdp_decay,
@@ -69,3 +72,15 @@ def test_stdp_pathway_enabled_predicate():
     )
     # default apply_to when unset
     assert stdp_pathway_enabled(SimpleNamespace(stdp=None), "exc")
+
+
+def test_stdp_path_descriptors_preserve_dispatch_order():
+    assert [
+        (path.pathway, path.module_key, path.input_key, path.mask_key)
+        for path in STDP_TOPK_PATHS
+    ] == [
+        ("exc", "exc_module", "x_exc", "exc_mask"),
+        ("inh", "inh_module", "x_inh", "inh_mask"),
+        ("rec_exc", "rec_exc_module", "x_rec_exc", "rec_exc_mask"),
+        ("rec_inh", "rec_inh_module", "x_rec_inh", "rec_inh_mask"),
+    ]
