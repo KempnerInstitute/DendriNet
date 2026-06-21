@@ -1445,6 +1445,71 @@ class TestInformationAnalyzer(unittest.TestCase):
         )
         mock_plots.assert_called_once_with(results, "/tmp/out", False)
 
+    def test_per_layer_ei_summary_helper_writes_expected_artifacts(self):
+        """Per-layer E/I summaries should preserve filenames and skipped payloads."""
+        excitatory_results = {"method": "kraskov", "n_samples": 8}
+        combined_results = {"method": "kraskov", "n_samples": 16}
+        per_layer_data = {
+            "blocks.0/layer": {
+                "per_einet_analysis": {
+                    "excitatory_results": excitatory_results,
+                    "inhibitory_results": None,
+                    "combined_results": combined_results,
+                }
+            },
+            "layer_without_ei": {"metric": 1.0},
+        }
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch.object(
+                self.analyzer,
+                "get_summary",
+                side_effect=lambda results: f"summary {results['n_samples']}",
+            ) as mock_summary:
+                self.analyzer._save_per_layer_ei_summaries(
+                    per_layer_data, tmpdir, "analysis"
+                )
+
+            output_dir = Path(tmpdir) / "per_layer_results"
+            excitatory_summary = (
+                output_dir / "analysis_blocks_0_layer_excitatory_summary.txt"
+            )
+            inhibitory_summary = (
+                output_dir / "analysis_blocks_0_layer_inhibitory_summary.txt"
+            )
+            combined_summary = (
+                output_dir / "analysis_blocks_0_layer_combined_summary.txt"
+            )
+
+            self.assertTrue(excitatory_summary.exists())
+            self.assertFalse(inhibitory_summary.exists())
+            self.assertTrue(combined_summary.exists())
+            self.assertEqual(
+                excitatory_summary.read_text(),
+                "Excitatory Network Summary - blocks.0/layer\n"
+                "==================================================\n\n"
+                "summary 8",
+            )
+            self.assertEqual(
+                combined_summary.read_text(),
+                "Combined E+I Network Summary - blocks.0/layer\n"
+                "==================================================\n\n"
+                "summary 16",
+            )
+            self.assertTrue(
+                (output_dir / "analysis_blocks_0_layer_excitatory_results").exists()
+            )
+            self.assertFalse(
+                (output_dir / "analysis_blocks_0_layer_inhibitory_results").exists()
+            )
+            self.assertTrue(
+                (output_dir / "analysis_blocks_0_layer_combined_results").exists()
+            )
+            self.assertEqual(
+                mock_summary.call_args_list,
+                [call(excitatory_results), call(combined_results)],
+            )
+
     def test_post_save_visualization_helper_logs_failures(self):
         """Post-save visualization helper should preserve plotting failure logging."""
         results = {}

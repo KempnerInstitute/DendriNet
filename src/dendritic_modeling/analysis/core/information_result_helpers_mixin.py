@@ -29,6 +29,9 @@ from dendritic_modeling.analysis.core.information_results import (
     compute_variance_analysis,
     filter_result_metrics_in_place,
 )
+from dendritic_modeling.analysis.core.information_summary import (
+    format_information_summary,
+)
 
 
 class InformationResultHelpersMixin(InformationNullBaselineMixin):
@@ -36,42 +39,7 @@ class InformationResultHelpersMixin(InformationNullBaselineMixin):
 
     def get_summary(self, results: dict[str, dict[str, dict | float]]) -> str:
         """Generate a summary string of the results."""
-        summary_lines = [
-            "Information Analysis Summary",
-            f"Method: {results['method']}",
-            f"Samples: {results['n_samples']}",
-            "",
-        ]
-
-        if "basic_mi" in results:
-            summary_lines.append("Basic MI with C:")
-            for key, value in results["basic_mi"].items():
-                if not key.endswith("_normalized"):
-                    summary_lines.append(f"  {key}: {value:.4f}")
-
-        if "pairwise_mi" in results:
-            summary_lines.append("\nPairwise MI:")
-            for key, value in results["pairwise_mi"].items():
-                summary_lines.append(f"  {key}: {value:.4f}")
-
-        if "conditional_mi" in results:
-            summary_lines.append("\nConditional MI given C:")
-            for key, value in results["conditional_mi"].items():
-                summary_lines.append(f"  {key}: {value:.4f}")
-
-        if "gaussian_fisher" in results:
-            summary_lines.append("\nGaussian/Fisher proxy:")
-            for key, value in results["gaussian_fisher"].items():
-                summary_lines.append(f"  {key}: {value:.4f}")
-
-        if "pid" in results:
-            summary_lines.append("\nPID Results:")
-            for pid_key, pid_values in results["pid"].items():
-                summary_lines.append(f"  {pid_key}:")
-                for metric, value in pid_values.items():
-                    summary_lines.append(f"    {metric}: {value:.4f}")
-
-        return "\n".join(summary_lines)
+        return format_information_summary(results)
 
     def _average_mi_results(
         self, results_list: list[dict[str, dict[str, dict | float]]]

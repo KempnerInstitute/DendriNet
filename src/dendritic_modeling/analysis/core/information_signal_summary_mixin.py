@@ -9,6 +9,12 @@ import torch
 
 from dendritic_modeling.utils import save_dict
 
+_EI_SUMMARY_SPECS = (
+    ("excitatory_results", "excitatory", "Excitatory Network Summary", True),
+    ("inhibitory_results", "inhibitory", "Inhibitory Network Summary", False),
+    ("combined_results", "combined", "Combined E+I Network Summary", False),
+)
+
 
 class InformationSignalSummaryMixin:
     """Compute per-neuron, per-layer, and E/I-specific information summaries."""
@@ -241,66 +247,66 @@ class InformationSignalSummaryMixin:
                 # Clean layer name for filename
                 clean_layer_name = layer_name.replace(".", "_").replace("/", "_")
 
-                # Generate excitatory network summary
-                if "excitatory_results" in ei_analysis:
-                    exc_summary = self.get_summary(ei_analysis["excitatory_results"])
-                    exc_summary_path = os.path.join(
-                        per_layer_path,
-                        f"{base_filename}_{clean_layer_name}_excitatory_summary.txt",
-                    )
-                    with open(exc_summary_path, "w") as f:
-                        f.write(f"Excitatory Network Summary - {layer_name}\n")
-                        f.write("=" * 50 + "\n\n")
-                        f.write(exc_summary)
+                for result_key, filename_suffix, title, allow_none in _EI_SUMMARY_SPECS:
+                    if not _should_save_ei_summary(
+                        ei_analysis,
+                        result_key=result_key,
+                        allow_none=allow_none,
+                    ):
+                        continue
 
-                    # Also save the results as JSON for plotting
-                    save_dict(
-                        ei_analysis["excitatory_results"],
-                        per_layer_path,
-                        f"{base_filename}_{clean_layer_name}_excitatory_results",
-                    )
-
-                # Generate inhibitory network summary
-                if ei_analysis.get("inhibitory_results") is not None:
-                    inh_summary = self.get_summary(ei_analysis["inhibitory_results"])
-                    inh_summary_path = os.path.join(
-                        per_layer_path,
-                        f"{base_filename}_{clean_layer_name}_inhibitory_summary.txt",
-                    )
-                    with open(inh_summary_path, "w") as f:
-                        f.write(f"Inhibitory Network Summary - {layer_name}\n")
-                        f.write("=" * 50 + "\n\n")
-                        f.write(inh_summary)
-
-                    # Also save the results as JSON for plotting
-                    save_dict(
-                        ei_analysis["inhibitory_results"],
-                        per_layer_path,
-                        f"{base_filename}_{clean_layer_name}_inhibitory_results",
-                    )
-
-                # Generate combined network summary
-                if ei_analysis.get("combined_results") is not None:
-                    combined_summary = self.get_summary(ei_analysis["combined_results"])
-                    combined_summary_path = os.path.join(
-                        per_layer_path,
-                        f"{base_filename}_{clean_layer_name}_combined_summary.txt",
-                    )
-                    with open(combined_summary_path, "w") as f:
-                        f.write(f"Combined E+I Network Summary - {layer_name}\n")
-                        f.write("=" * 50 + "\n\n")
-                        f.write(combined_summary)
-
-                    # Also save the results as JSON for plotting
-                    save_dict(
-                        ei_analysis["combined_results"],
-                        per_layer_path,
-                        f"{base_filename}_{clean_layer_name}_combined_results",
+                    self._save_ei_summary_artifact(
+                        results=ei_analysis[result_key],
+                        per_layer_path=per_layer_path,
+                        base_filename=base_filename,
+                        clean_layer_name=clean_layer_name,
+                        layer_name=layer_name,
+                        filename_suffix=filename_suffix,
+                        title=title,
                     )
 
         self.logger.info(
             f"Generated individual summaries for {len(per_layer_data)} layers"
         )
+
+    def _save_ei_summary_artifact(
+        self,
+        *,
+        results: dict,
+        per_layer_path: str,
+        base_filename: str,
+        clean_layer_name: str,
+        layer_name: str,
+        filename_suffix: str,
+        title: str,
+    ) -> None:
+        """Write one per-layer E/I summary text file and matching JSON payload."""
+        summary = self.get_summary(results)
+        summary_path = os.path.join(
+            per_layer_path,
+            f"{base_filename}_{clean_layer_name}_{filename_suffix}_summary.txt",
+        )
+        with open(summary_path, "w") as f:
+            f.write(f"{title} - {layer_name}\n")
+            f.write("=" * 50 + "\n\n")
+            f.write(summary)
+
+        save_dict(
+            results,
+            per_layer_path,
+            f"{base_filename}_{clean_layer_name}_{filename_suffix}_results",
+        )
+
+
+def _should_save_ei_summary(
+    ei_analysis: dict,
+    *,
+    result_key: str,
+    allow_none: bool,
+) -> bool:
+    if allow_none:
+        return result_key in ei_analysis
+    return ei_analysis.get(result_key) is not None
 
 
 __all__ = ["InformationSignalSummaryMixin"]

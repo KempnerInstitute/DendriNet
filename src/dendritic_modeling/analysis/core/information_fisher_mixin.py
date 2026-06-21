@@ -11,6 +11,40 @@ from dendritic_modeling.analysis.core.information_helpers import (
     gaussian_fisher_proxy,
 )
 
+FisherVariableSpec = tuple[str, np.ndarray]
+
+
+def _gaussian_fisher_variable_specs(
+    E: np.ndarray,
+    I_var: np.ndarray,
+    Vout: np.ndarray,
+    Vinf: np.ndarray | None,
+    Vb: np.ndarray | None,
+    *,
+    include_vinf: bool,
+) -> list[FisherVariableSpec]:
+    specs = [
+        ("E", E),
+        ("I", I_var),
+    ]
+    if Vb is not None:
+        specs.append(("Vb", Vb))
+    specs.append(("Vout", Vout))
+    if Vinf is not None and include_vinf:
+        specs.append(("Vinf", Vinf))
+    return specs
+
+
+def _store_gaussian_fisher_proxy(
+    metrics: dict[str, float],
+    name: str,
+    F: float,
+    I_proxy: float,
+) -> None:
+    # Use an I(.;.) prefix so LDA/shuffled variants get token-renamed.
+    metrics[f"I({name};C)_fisher_F"] = float(F)
+    metrics[f"I({name};C)_fisher"] = float(I_proxy)
+
 
 class InformationFisherMetricsMixin:
     """Computes Gaussian/Fisher proxy metrics and flow increments."""
@@ -62,19 +96,16 @@ class InformationFisherMetricsMixin:
         """Compute Gaussian/Fisher proxy metrics for available variables."""
         metrics: dict[str, float] = {}
 
-        for name, X in [
-            ("E", E),
-            ("I", I_var),
-            ("Vb", Vb),
-            ("Vout", Vout),
-            ("Vinf", Vinf if (Vinf is not None and self.include_vinf) else None),
-        ]:
-            if X is None:
-                continue
+        for name, X in _gaussian_fisher_variable_specs(
+            E,
+            I_var,
+            Vout,
+            Vinf,
+            Vb,
+            include_vinf=self.include_vinf,
+        ):
             F, I_proxy = self._gaussian_fisher_proxy(X, C)
-            # Use an I(.;.) prefix so LDA/shuffled variants get token-renamed.
-            metrics[f"I({name};C)_fisher_F"] = float(F)
-            metrics[f"I({name};C)_fisher"] = float(I_proxy)
+            _store_gaussian_fisher_proxy(metrics, name, F, I_proxy)
 
         # Information-flow-style increment from upstream branches (Vb) beyond local synapses (E,I).
         # This mirrors the Schur-complement increment in the theory draft (Sec. 'Multi-branch Trees

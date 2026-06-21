@@ -11,6 +11,14 @@ from dendritic_modeling.analysis.core.information_helpers import (
     metric_targets_class,
 )
 
+_AVERAGED_METRIC_CATEGORIES = (
+    "basic_mi",
+    "pairwise_mi",
+    "conditional_mi",
+    "gaussian_fisher",
+)
+_LAYER_STATISTIC_CATEGORIES = ("basic_mi", "pairwise_mi", "conditional_mi")
+
 
 def average_mi_results(
     results_list: list[dict[str, dict[str, dict | float]]],
@@ -26,28 +34,8 @@ def average_mi_results(
         "n_samples": results_list[0].get("n_samples", 0),
     }
 
-    for metric_category in (
-        "basic_mi",
-        "pairwise_mi",
-        "conditional_mi",
-        "gaussian_fisher",
-    ):
-        all_keys: set[str] = set()
-        for result in results_list:
-            category = result.get(metric_category)
-            if isinstance(category, dict):
-                all_keys.update(category.keys())
-
-        if not all_keys:
-            continue
-
-        averaged_category: dict[str, float] = {}
-        for key in all_keys:
-            values = _finite_numeric_values(results_list, metric_category, key)
-            if values:
-                averaged_category[key] = float(np.mean(values))
-                averaged_category[f"{key}_std"] = float(np.std(values))
-
+    for metric_category in _AVERAGED_METRIC_CATEGORIES:
+        averaged_category = _average_metric_category(results_list, metric_category)
         if averaged_category:
             averaged_results[metric_category] = averaged_category
 
@@ -69,14 +57,8 @@ def compute_layer_statistics(
     if not results_list:
         return layer_stats
 
-    for metric_category in ["basic_mi", "pairwise_mi", "conditional_mi"]:
-        all_keys: set[str] = set()
-        for result in results_list:
-            category = result.get(metric_category)
-            if isinstance(category, dict):
-                all_keys.update(category.keys())
-
-        for key in all_keys:
+    for metric_category in _LAYER_STATISTIC_CATEGORIES:
+        for key in _metric_keys(results_list, metric_category):
             values = _finite_numeric_values(results_list, metric_category, key)
             if not values:
                 continue
@@ -115,12 +97,7 @@ def filter_result_metrics_in_place(
     has_branch_input: bool,
 ) -> None:
     """Remove metrics that depend on variables absent from the analyzed layer."""
-    for metric_category in (
-        "basic_mi",
-        "pairwise_mi",
-        "conditional_mi",
-        "gaussian_fisher",
-    ):
+    for metric_category in _AVERAGED_METRIC_CATEGORIES:
         category = result.get(metric_category)
         if not isinstance(category, dict):
             continue
@@ -165,6 +142,28 @@ def compute_variance_analysis(results: dict[str, Any]) -> dict[str, Any]:
     return variance_analysis
 
 
+def _metric_keys(results_list: list[dict[str, Any]], metric_category: str) -> set[str]:
+    keys: set[str] = set()
+    for result in results_list:
+        category = result.get(metric_category)
+        if isinstance(category, dict):
+            keys.update(category.keys())
+    return keys
+
+
+def _average_metric_category(
+    results_list: list[dict[str, Any]],
+    metric_category: str,
+) -> dict[str, float]:
+    averaged_category: dict[str, float] = {}
+    for key in _metric_keys(results_list, metric_category):
+        values = _finite_numeric_values(results_list, metric_category, key)
+        if values:
+            averaged_category[key] = float(np.mean(values))
+            averaged_category[f"{key}_std"] = float(np.std(values))
+    return averaged_category
+
+
 def _finite_numeric_values(
     results_list: list[dict[str, Any]],
     metric_category: str,
@@ -184,47 +183,61 @@ def _finite_numeric_values(
 def _average_pid_results(
     results_list: list[dict[str, Any]],
 ) -> dict[str, dict[str, float]]:
-    pid_keys: set[str] = set()
-    for result in results_list:
-        pid = result.get("pid")
-        if isinstance(pid, dict):
-            pid_keys.update(pid.keys())
-
     averaged_pid: dict[str, dict[str, float]] = {}
-    for pid_key in pid_keys:
-        metric_keys: set[str] = set()
-        for result in results_list:
-            pid = result.get("pid")
-            if (
-                isinstance(pid, dict)
-                and pid_key in pid
-                and isinstance(pid[pid_key], dict)
-            ):
-                metric_keys.update(pid[pid_key].keys())
-
+    for pid_key in _pid_keys(results_list):
+        metric_keys = _pid_metric_keys(results_list, pid_key)
         if not metric_keys:
             continue
 
         averaged_pid[pid_key] = {}
         for metric in metric_keys:
-            values: list[float] = []
-            for result in results_list:
-                pid = result.get("pid")
-                if not (
-                    isinstance(pid, dict)
-                    and pid_key in pid
-                    and isinstance(pid[pid_key], dict)
-                    and metric in pid[pid_key]
-                ):
-                    continue
-                value = pid[pid_key][metric]
-                if isinstance(value, (int, float, np.number)) and np.isfinite(value):
-                    values.append(float(value))
+            values = _finite_pid_metric_values(results_list, pid_key, metric)
             if values:
                 averaged_pid[pid_key][metric] = float(np.mean(values))
                 averaged_pid[pid_key][f"{metric}_std"] = float(np.std(values))
 
     return averaged_pid
+
+
+def _pid_keys(results_list: list[dict[str, Any]]) -> set[str]:
+    pid_keys: set[str] = set()
+    for result in results_list:
+        pid = result.get("pid")
+        if isinstance(pid, dict):
+            pid_keys.update(pid.keys())
+    return pid_keys
+
+
+def _pid_metric_keys(results_list: list[dict[str, Any]], pid_key: str) -> set[str]:
+    metric_keys: set[str] = set()
+    for result in results_list:
+        pid_payload = _pid_payload(result, pid_key)
+        if isinstance(pid_payload, dict):
+            metric_keys.update(pid_payload.keys())
+    return metric_keys
+
+
+def _finite_pid_metric_values(
+    results_list: list[dict[str, Any]],
+    pid_key: str,
+    metric: str,
+) -> list[float]:
+    values: list[float] = []
+    for result in results_list:
+        pid_payload = _pid_payload(result, pid_key)
+        if not isinstance(pid_payload, dict) or metric not in pid_payload:
+            continue
+        value = pid_payload[metric]
+        if isinstance(value, (int, float, np.number)) and np.isfinite(value):
+            values.append(float(value))
+    return values
+
+
+def _pid_payload(result: dict[str, Any], pid_key: str) -> Any:
+    pid = result.get("pid")
+    if not isinstance(pid, dict) or pid_key not in pid:
+        return None
+    return pid[pid_key]
 
 
 def _metric_std(

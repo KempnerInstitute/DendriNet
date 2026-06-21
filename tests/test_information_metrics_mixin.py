@@ -463,6 +463,60 @@ def test_compute_pid_preserves_metric_order_and_reshaped_class_target(monkeypatc
     assert [call[0] for call in harness.estimator.calls] == ["mi"] * 8
 
 
+def test_compute_pid_preserves_binarized_preprocessing_order(monkeypatch):
+    harness = _PidHarness()
+    harness.pid_binarize = True
+    harness.pid_binarize_method = "mean"
+    arrays = {
+        "E": np.array([[0.0], [2.0], [4.0]]),
+        "I": np.array([[1.0], [3.0], [5.0]]),
+        "Vout": np.array([[2.0], [4.0], [6.0]]),
+        "C": np.array([0.0, 1.0, 3.0]),
+    }
+    pid_calls = []
+
+    def fake_pid(sources, target):
+        pid_calls.append((sources[0].copy(), sources[1].copy(), target.copy()))
+        return float(len(pid_calls)), 0.0
+
+    monkeypatch.setattr(information_pid_mixin, "pid_synergy_redundancy", fake_pid)
+
+    results = harness._compute_pid(
+        arrays["E"],
+        arrays["I"],
+        arrays["Vout"],
+        arrays["C"],
+    )
+
+    E_pid = np.array([[0], [0], [1]])
+    I_pid = np.array([[0], [0], [1]])
+    Vout_pid = np.array([[0], [0], [1]])
+    C_pid = np.array([[0], [0], [1]])
+
+    assert list(results) == [
+        "PID(E,I->C)",
+        "PID(E,Vout->C)",
+        "PID(I,Vout->C)",
+        "PID(E,I->Vout)",
+    ]
+    np.testing.assert_array_equal(pid_calls[0][0], E_pid)
+    np.testing.assert_array_equal(pid_calls[0][1], I_pid)
+    np.testing.assert_array_equal(pid_calls[0][2], C_pid)
+    np.testing.assert_array_equal(pid_calls[1][0], E_pid)
+    np.testing.assert_array_equal(pid_calls[1][1], Vout_pid)
+    np.testing.assert_array_equal(pid_calls[1][2], C_pid)
+    np.testing.assert_array_equal(pid_calls[2][0], I_pid)
+    np.testing.assert_array_equal(pid_calls[2][1], Vout_pid)
+    np.testing.assert_array_equal(pid_calls[2][2], C_pid)
+    np.testing.assert_array_equal(pid_calls[3][0], E_pid)
+    np.testing.assert_array_equal(pid_calls[3][1], I_pid)
+    np.testing.assert_array_equal(pid_calls[3][2], Vout_pid)
+    assert any(
+        message.startswith("  Data binarization completed")
+        for message in harness.logger.info_messages
+    )
+
+
 def test_compute_basic_mi_preserves_keys_order_and_joint_input():
     harness = _MetricHarness()
     arrays = _arrays()

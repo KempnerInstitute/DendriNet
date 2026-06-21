@@ -15,6 +15,9 @@ from dendritic_modeling.utils.information.pid import (
     pid_synergy_redundancy,
 )
 
+PidArraySet = tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]
+PidMetricSpec = tuple[np.ndarray, str, np.ndarray, str, np.ndarray, str]
+
 
 class InformationPidMetricsMixin(InformationFisherMetricsMixin):
     """Computes PID metrics and PID-specific preprocessing."""
@@ -79,6 +82,38 @@ class InformationPidMetricsMixin(InformationFisherMetricsMixin):
                 f"  {pid_key} computation failed: {e} (took {time.time() - start_time:.1f}s)"
             )
 
+    def _pid_arrays(
+        self, E: np.ndarray, I_var: np.ndarray, Vout: np.ndarray, C: np.ndarray
+    ) -> PidArraySet:
+        self.logger.info(f"  Data preprocessing: binarize={self.pid_binarize}")
+        if not self.pid_binarize:
+            return E, I_var, Vout, C.reshape(-1, 1)
+
+        self.logger.info(f"  Binarizing data using method: {self.pid_binarize_method}")
+        start_time = time.time()
+        E_pid = self._binarize(E)
+        I_pid = self._binarize(I_var)
+        Vout_pid = self._binarize(Vout)
+        C_pid = self._binarize(C.reshape(-1, 1))
+        self.logger.info(
+            f"  Data binarization completed (took {time.time() - start_time:.1f}s)"
+        )
+        return E_pid, I_pid, Vout_pid, C_pid
+
+    @staticmethod
+    def _pid_metric_specs(
+        E_pid: np.ndarray,
+        I_pid: np.ndarray,
+        Vout_pid: np.ndarray,
+        C_pid: np.ndarray,
+    ) -> tuple[PidMetricSpec, ...]:
+        return (
+            (E_pid, "E", I_pid, "I", C_pid, "C"),
+            (E_pid, "E", Vout_pid, "Vout", C_pid, "C"),
+            (I_pid, "I", Vout_pid, "Vout", C_pid, "C"),
+            (E_pid, "E", I_pid, "I", Vout_pid, "Vout"),
+        )
+
     def _compute_pid(
         self, E: np.ndarray, I_var: np.ndarray, Vout: np.ndarray, C: np.ndarray
     ) -> dict[str, Any]:
@@ -87,65 +122,25 @@ class InformationPidMetricsMixin(InformationFisherMetricsMixin):
         pid_results = {}
 
         # Prepare data for PID (may need binarization)
-        self.logger.info(f"  Data preprocessing: binarize={self.pid_binarize}")
-        if self.pid_binarize:
-            self.logger.info(
-                f"  Binarizing data using method: {self.pid_binarize_method}"
-            )
-            start_time = time.time()
-            E_pid = self._binarize(E)
-            I_pid = self._binarize(I_var)
-            Vout_pid = self._binarize(Vout)
-            C_pid = self._binarize(C.reshape(-1, 1))
-            self.logger.info(
-                f"  Data binarization completed (took {time.time() - start_time:.1f}s)"
-            )
-        else:
-            E_pid = E
-            I_pid = I_var
-            Vout_pid = Vout
-            C_pid = C.reshape(-1, 1)
+        E_pid, I_pid, Vout_pid, C_pid = self._pid_arrays(E, I_var, Vout, C)
 
-        # PID: (E, I) -> C
-        self._add_pid_metric(
-            pid_results,
-            source1_array=E_pid,
-            source1_name="E",
-            source2_array=I_pid,
-            source2_name="I",
-            target_array=C_pid,
-            target_name="C",
-        )
-        # PID: (E, Vout) -> C
-        self._add_pid_metric(
-            pid_results,
-            source1_array=E_pid,
-            source1_name="E",
-            source2_array=Vout_pid,
-            source2_name="Vout",
-            target_array=C_pid,
-            target_name="C",
-        )
-        # PID: (I, Vout) -> C
-        self._add_pid_metric(
-            pid_results,
-            source1_array=I_pid,
-            source1_name="I",
-            source2_array=Vout_pid,
-            source2_name="Vout",
-            target_array=C_pid,
-            target_name="C",
-        )
-        # PID: (E, I) -> Vout
-        self._add_pid_metric(
-            pid_results,
-            source1_array=E_pid,
-            source1_name="E",
-            source2_array=I_pid,
-            source2_name="I",
-            target_array=Vout_pid,
-            target_name="Vout",
-        )
+        for (
+            source1_array,
+            source1_name,
+            source2_array,
+            source2_name,
+            target_array,
+            target_name,
+        ) in self._pid_metric_specs(E_pid, I_pid, Vout_pid, C_pid):
+            self._add_pid_metric(
+                pid_results,
+                source1_array=source1_array,
+                source1_name=source1_name,
+                source2_array=source2_array,
+                source2_name=source2_name,
+                target_array=target_array,
+                target_name=target_name,
+            )
 
         self.logger.info("  PID computation completed.")
         return pid_results
