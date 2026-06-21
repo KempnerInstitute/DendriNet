@@ -17,6 +17,8 @@ from dendritic_modeling.analysis.utils.runtime import (
     evaluation_kwargs_from_runtime,
     iter_analysis_batches,
     materialize_dataset,
+    run_model_over_analysis_batches,
+    run_no_grad_analysis_batches,
 )
 from dendritic_modeling.config import load_config
 from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
@@ -563,6 +565,145 @@ def test_analysis_device_context_supports_parameterless_models():
         assert not model.training
 
     assert model.training
+
+
+def test_run_model_over_analysis_batches_manages_hooks_and_model_state():
+    class RecordingModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.linear = nn.Linear(2, 2, bias=False)
+            self.seen_batches = []
+            with torch.no_grad():
+                self.linear.weight.copy_(torch.eye(2))
+
+        def forward(self, x):
+            self.seen_batches.append((self.training, x.detach().cpu().clone()))
+            return self.linear(x)
+
+    x = torch.arange(12, dtype=torch.float32).reshape(6, 2)
+    y = torch.arange(6)
+    dataset = TensorDataset(x, y)
+    runtime = EvaluationRuntimeConfig(mode="stream", batch_size=2, num_workers=0)
+    model = RecordingModel()
+    model.train()
+
+    hook_outputs = []
+    removed_counts = []
+
+    def _hook(_module, _inputs, output):
+        hook_outputs.append(output.detach().cpu().clone())
+
+    def _attach():
+        return [model.linear.register_forward_hook(_hook)]
+
+    def _remove(handles):
+        handle_list = list(handles)
+        removed_counts.append(len(handle_list))
+        for handle in handle_list:
+            handle.remove()
+
+    run_model_over_analysis_batches(
+        model=model,
+        dataset=dataset,
+        device="cpu",
+        runtime=runtime,
+        explicit_max_samples=None,
+        attach_hooks=_attach,
+        remove_hooks=_remove,
+    )
+
+    assert model.training
+    assert len(model.seen_batches) == 3
+    assert [training for training, _batch in model.seen_batches] == [False] * 3
+    torch.testing.assert_close(
+        torch.cat([batch for _training, batch in model.seen_batches], dim=0),
+        x,
+    )
+    torch.testing.assert_close(torch.cat(hook_outputs, dim=0), x)
+    assert removed_counts == [1]
+    assert len(model.linear._forward_hooks) == 0
+
+
+def test_run_no_grad_analysis_batches_restores_state_and_batches_runtime():
+    class RecordingModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.linear = nn.Linear(2, 2)
+            self.records = []
+
+        def forward(self, x):
+            self.records.append((self.training, torch.is_grad_enabled(), x.cpu()))
+            return self.linear(x)
+
+    x = torch.arange(16, dtype=torch.float32).reshape(8, 2)
+    y = torch.arange(8)
+    dataset = TensorDataset(x, y)
+    runtime = EvaluationRuntimeConfig(mode="stream", batch_size=3, num_workers=0)
+    model = RecordingModel()
+    model.train()
+
+    def _process(batch, device):
+        _ = model(batch[0].to(device))
+
+    run_no_grad_analysis_batches(
+        model=model,
+        dataset=dataset,
+        device="cpu",
+        runtime=runtime,
+        explicit_max_samples=7,
+        process_batch=_process,
+    )
+
+    assert model.training
+    assert [record[0] for record in model.records] == [False, False, False]
+    assert [record[1] for record in model.records] == [False, False, False]
+    torch.testing.assert_close(
+        torch.cat([record[2] for record in model.records], dim=0),
+        x[:7],
+    )
+
+
+def test_run_model_over_analysis_batches_removes_hooks_after_forward_error():
+    class FailingModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.linear = nn.Linear(2, 2)
+            self.calls = 0
+
+        def forward(self, x):
+            self.calls += 1
+            output = self.linear(x)
+            if self.calls == 2:
+                raise RuntimeError("batch failed")
+            return output
+
+    x = torch.arange(12, dtype=torch.float32).reshape(6, 2)
+    y = torch.arange(6)
+    dataset = TensorDataset(x, y)
+    runtime = EvaluationRuntimeConfig(mode="stream", batch_size=2, num_workers=0)
+    model = FailingModel()
+    model.train()
+
+    def _attach():
+        return [model.linear.register_forward_hook(lambda *_args: None)]
+
+    def _remove(handles):
+        for handle in handles:
+            handle.remove()
+
+    with pytest.raises(RuntimeError, match="batch failed"):
+        run_model_over_analysis_batches(
+            model=model,
+            dataset=dataset,
+            device="cpu",
+            runtime=runtime,
+            explicit_max_samples=None,
+            attach_hooks=_attach,
+            remove_hooks=_remove,
+        )
+
+    assert model.training
+    assert len(model.linear._forward_hooks) == 0
 
 
 def test_performance_stream_on_cpu_emits_no_pin_memory_warning():

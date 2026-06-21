@@ -613,6 +613,23 @@ class TestInformationAnalyzer(unittest.TestCase):
         input_model.to.assert_called_once_with("cpu")
         moved_model.eval.assert_called_once_with()
 
+    def test_handle_analysis_exception_preserves_logging_and_traceback(self):
+        """Exception handling should preserve the previous analyze() reporting."""
+        exc = RuntimeError("analysis failed")
+
+        with (
+            patch.object(self.analyzer.logger, "error") as mock_error,
+            patch(
+                "dendritic_modeling.analysis.core.information_lifecycle_mixin.traceback.print_exc"
+            ) as mock_traceback,
+        ):
+            self.analyzer._handle_analysis_exception(exc)
+
+        mock_error.assert_called_once_with(
+            "Error in information analysis: analysis failed"
+        )
+        mock_traceback.assert_called_once_with()
+
     def test_model_lifecycle_state_records_original_device_and_training(self):
         """Lifecycle state should preserve the pre-analysis model state."""
         self.model.train()
@@ -1269,6 +1286,38 @@ class TestInformationAnalyzer(unittest.TestCase):
             device="cpu",
             save_path="/tmp/results",
         )
+
+    def test_lda_finalization_reports_errors_with_traceback_helper(self):
+        """LDA finalization should preserve traceback-style exception reporting."""
+        self.analyzer.compute_lda_weights = True
+        results = {"n_samples": 3}
+        inputs = torch.ones(3, 2)
+        labels = torch.tensor([0, 1, 0])
+        error = RuntimeError("lda failed")
+
+        with (
+            patch.object(
+                self.analyzer,
+                "compare_lda_vs_trained_performance",
+                side_effect=error,
+            ) as mock_compare,
+            patch.object(self.analyzer, "_log_exception_with_traceback") as mock_log,
+        ):
+            self.analyzer._maybe_add_lda_vs_trained_performance(
+                results=results,
+                model=self.model,
+                inputs=inputs,
+                labels=labels,
+                device="cpu",
+                save_path="/tmp/results",
+            )
+
+        mock_compare.assert_called_once_with(self.model, inputs, labels, "cpu")
+        mock_log.assert_called_once_with(
+            "Error computing LDA vs trained performance",
+            error,
+        )
+        self.assertNotIn("lda_vs_trained_performance", results)
 
     def test_complete_analysis_results_delegates_payload_and_save(self):
         """Completion helper should pass finalized soma state into persistence."""

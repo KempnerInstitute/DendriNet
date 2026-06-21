@@ -10,10 +10,7 @@ from typing import Optional
 import torch
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
-from dendritic_modeling.analysis.utils.runtime import (
-    analysis_device_context,
-    iter_analysis_batches,
-)
+from dendritic_modeling.analysis.utils.runtime import run_model_over_analysis_batches
 from dendritic_modeling.config import BranchActivationAnalysisParams
 from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.models import BaseModel
@@ -158,20 +155,15 @@ class BranchActivationAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         self.data_dict = {}
 
         sample_cap = self.samples if self.downsample else None
-        handles = []
-        with analysis_device_context(model, device) as analysis_device:
-            handles = self.attach_forward_hooks(model)
-            try:
-                with torch.no_grad():
-                    for batch in iter_analysis_batches(
-                        test_dataset,
-                        runtime,
-                        sample_cap,
-                        device=analysis_device,
-                    ):
-                        _ = model(batch[0].to(analysis_device))
-            finally:
-                self.remove_forward_hooks(handles)
+        run_model_over_analysis_batches(
+            model=model,
+            dataset=test_dataset,
+            device=device,
+            runtime=runtime,
+            explicit_max_samples=sample_cap,
+            attach_hooks=lambda: self.attach_forward_hooks(model),
+            remove_hooks=self.remove_forward_hooks,
+        )
 
         for module_dict in self.data_dict.values():
             for key, value in list(module_dict.items()):

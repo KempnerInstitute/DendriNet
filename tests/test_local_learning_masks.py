@@ -28,6 +28,25 @@ class _SingleBranchModel(nn.Module):
         return self.branch(x)
 
 
+class _DualSynapseBranchModel(nn.Module):
+    """Branch layer with E and I TopK paths for partial-registration checks."""
+
+    def __init__(self):
+        super().__init__()
+        self.branch = DendriticBranchLayer(
+            output_dim=4,
+            excitatory_input_dim=8,
+            excitatory_synapses_per_branch=2,
+            inhibitory_input_dim=8,
+            inhibitory_synapses_per_branch=2,
+            topk_noise_level=0.5,
+            reactivate=False,
+        )
+
+    def forward(self, x, inhibitory_x):
+        return self.branch(x, inhibitory_x)
+
+
 def test_topk_forward_does_not_cache_by_default():
     """Forward pass should NOT cache the mask when cache_mask is False."""
     torch.manual_seed(7)
@@ -101,6 +120,31 @@ def test_local_recorders_remove_hooks_after_failed_registration(monkeypatch):
     monkeypatch.setattr(topk, "register_forward_hook", _failing_register)
 
     with pytest.raises(RuntimeError, match="local recorder hook registration failed"):
+        trainer._attach_local_recorders(model)
+
+    assert sum(len(module._forward_hooks) for module in model.modules()) == 0
+
+
+def test_local_recorders_remove_partial_topk_hooks_after_failed_registration(
+    monkeypatch,
+):
+    model = _DualSynapseBranchModel()
+    trainer = LocalCreditAssignment.__new__(LocalCreditAssignment)
+    trainer._decoder_cache = {}
+
+    def _failing_register(*args, **kwargs):
+        raise RuntimeError("local recorder inhibitory hook registration failed")
+
+    monkeypatch.setattr(
+        model.branch.branch_inhibition,
+        "register_forward_hook",
+        _failing_register,
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="local recorder inhibitory hook registration failed",
+    ):
         trainer._attach_local_recorders(model)
 
     assert sum(len(module._forward_hooks) for module in model.modules()) == 0

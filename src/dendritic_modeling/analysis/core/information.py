@@ -6,7 +6,6 @@ with the main configuration system.
 """
 
 import logging
-import traceback
 from typing import Optional
 
 import torch
@@ -278,8 +277,7 @@ class InformationAnalyzer(
             )
 
         except Exception as e:
-            self.logger.error(f"Error in information analysis: {e}")
-            traceback.print_exc()
+            self._handle_analysis_exception(e)
         finally:
             self._restore_model_after_analysis(
                 model=model,

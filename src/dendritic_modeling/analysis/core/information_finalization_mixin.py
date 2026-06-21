@@ -2,7 +2,6 @@
 
 import os
 import time
-import traceback
 from typing import Any
 
 import torch
@@ -129,8 +128,10 @@ class InformationFinalizationMixin:
                 save_path=save_path,
             )
         except Exception as e:
-            self.logger.error(f"Error computing LDA vs trained performance: {e}")
-            traceback.print_exc()
+            self._log_exception_with_traceback(
+                "Error computing LDA vs trained performance",
+                e,
+            )
 
     def _plot_lda_vs_trained_performance_if_available(
         self,

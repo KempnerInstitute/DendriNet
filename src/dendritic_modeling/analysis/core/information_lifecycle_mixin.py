@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+import traceback
 from dataclasses import dataclass, replace
 
 import torch
@@ -62,6 +63,15 @@ class InformationLifecycleMixin:
         model = model.to(device)
         model.eval()
         return model
+
+    def _handle_analysis_exception(self, exc: Exception) -> None:
+        """Preserve the public information-analysis exception reporting behavior."""
+        self._log_exception_with_traceback("Error in information analysis", exc)
+
+    def _log_exception_with_traceback(self, message: str, exc: Exception) -> None:
+        """Log an exception and print the active traceback."""
+        self.logger.error(f"{message}: {exc}")
+        traceback.print_exc()
 
     def _restore_model_after_analysis(
         self,

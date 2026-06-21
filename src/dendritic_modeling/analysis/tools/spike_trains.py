@@ -8,10 +8,7 @@ from typing import Any
 import torch
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
-from dendritic_modeling.analysis.utils.runtime import (
-    analysis_device_context,
-    iter_analysis_batches,
-)
+from dendritic_modeling.analysis.utils.runtime import run_no_grad_analysis_batches
 from dendritic_modeling.config.analysis import (
     EvaluationRuntimeConfig,
     SpikeTrainAnalysisParams,
@@ -201,15 +198,18 @@ class SpikeTrainAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         runtime: EvaluationRuntimeConfig | None,
         sample_cap: int | None,
     ) -> None:
-        with analysis_device_context(model, device) as analysis_device:
-            with torch.no_grad():
-                for batch in iter_analysis_batches(
-                    data,
-                    runtime,
-                    sample_cap,
-                    device=analysis_device,
-                ):
-                    self._collect_batch_spikes(model, batch, analysis_device)
+        run_no_grad_analysis_batches(
+            model=model,
+            dataset=data,
+            device=device,
+            runtime=runtime,
+            explicit_max_samples=sample_cap,
+            process_batch=lambda batch, analysis_device: self._collect_batch_spikes(
+                model,
+                batch,
+                analysis_device,
+            ),
+        )
 
     def _collect_batch_spikes(
         self,

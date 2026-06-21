@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 
 import torch
 import torch.nn as nn
@@ -18,8 +18,10 @@ from dendritic_modeling.analysis.utils.dataset_runtime import (
 )
 from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.training.dataloader_utils import dataloader_supports_kwarg
+from dendritic_modeling.utils.hooks import HookHandle, run_with_forward_hooks
 
 logger = logging.getLogger(__name__)
+AnalysisBatchProcessor = Callable[[tuple[torch.Tensor, ...], torch.device], None]
 
 
 def _resolve_analysis_prefetch_factor(
@@ -247,6 +249,73 @@ def analysis_device_context(
     finally:
         model.to(original_device)
         model.train(was_training)
+
+
+def run_no_grad_analysis_batches(
+    *,
+    model: nn.Module,
+    dataset: Dataset,
+    device: str | torch.device,
+    runtime: EvaluationRuntimeConfig | None,
+    explicit_max_samples: int | None,
+    process_batch: AnalysisBatchProcessor,
+) -> None:
+    """Run a no-grad analysis pass over runtime-governed dataset batches."""
+    with analysis_device_context(model, device) as analysis_device:
+        _run_no_grad_batches(
+            dataset=dataset,
+            runtime=runtime,
+            explicit_max_samples=explicit_max_samples,
+            device=analysis_device,
+            process_batch=process_batch,
+        )
+
+
+def _run_no_grad_batches(
+    *,
+    dataset: Dataset,
+    runtime: EvaluationRuntimeConfig | None,
+    explicit_max_samples: int | None,
+    device: torch.device,
+    process_batch: AnalysisBatchProcessor,
+) -> None:
+    with torch.no_grad():
+        for batch in iter_analysis_batches(
+            dataset,
+            runtime,
+            explicit_max_samples,
+            device=device,
+        ):
+            process_batch(batch, device)
+
+
+def run_model_over_analysis_batches(
+    *,
+    model: nn.Module,
+    dataset: Dataset,
+    device: str | torch.device,
+    runtime: EvaluationRuntimeConfig | None,
+    explicit_max_samples: int | None,
+    attach_hooks: Callable[[], Iterable[HookHandle]],
+    remove_hooks: Callable[[Iterable[HookHandle]], None],
+) -> None:
+    """Run a model over analysis batches with managed hooks and device state."""
+
+    def _process_batch(batch: tuple[torch.Tensor, ...], analysis_device) -> None:
+        _ = model(batch[0].to(analysis_device))
+
+    with analysis_device_context(model, device) as analysis_device:
+        run_with_forward_hooks(
+            attach=attach_hooks,
+            remove=remove_hooks,
+            body=lambda: _run_no_grad_batches(
+                dataset=dataset,
+                runtime=runtime,
+                explicit_max_samples=explicit_max_samples,
+                device=analysis_device,
+                process_batch=_process_batch,
+            ),
+        )
 
 
 def resolve_analysis_pin_memory(

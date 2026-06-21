@@ -1,7 +1,5 @@
 """Plot generation helpers for information analysis."""
 
-import traceback
-
 from dendritic_modeling.plotting.visualizations.information_plots import (
     plot_fully_aggregated_analysis,
     plot_info_vs_ei_depth_per_dendritic_layer,
@@ -123,8 +121,10 @@ class InformationPlottingMixin:
                     )
                     self.logger.info("Variance plots completed successfully!")
                 except Exception as e:
-                    self.logger.error(f"Error generating variance plots: {e}")
-                    traceback.print_exc()
+                    self._log_exception_with_traceback(
+                        "Error generating variance plots",
+                        e,
+                    )
             else:
                 self.logger.warning(
                     "No variance_analysis found in results - skipping variance plots"
