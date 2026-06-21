@@ -701,8 +701,8 @@ class TestRealDatasets(unittest.TestCase):
         self.assertIs(copied.transforms.transform, eval_transform)
         self.assertIs(copied.transforms.target_transform, target_transform)
 
-    @patch("dendritic_modeling.datasets.standard_datasets.datasets.ImageNet")
-    @patch("dendritic_modeling.datasets.standard_datasets.datasets.ImageFolder")
+    @patch("dendritic_modeling.datasets.imagenet.datasets.ImageNet")
+    @patch("dendritic_modeling.datasets.imagenet.datasets.ImageFolder")
     def test_load_imagenet_dataset_triplet_uses_imagefolder_roots(
         self, mock_imagefolder, mock_imagenet
     ):
@@ -741,8 +741,8 @@ class TestRealDatasets(unittest.TestCase):
         self.assertEqual(mock_imagefolder.call_count, 2)
         mock_imagenet.assert_not_called()
 
-    @patch("dendritic_modeling.datasets.standard_datasets.datasets.ImageNet")
-    @patch("dendritic_modeling.datasets.standard_datasets.datasets.ImageFolder")
+    @patch("dendritic_modeling.datasets.imagenet.datasets.ImageNet")
+    @patch("dendritic_modeling.datasets.imagenet.datasets.ImageFolder")
     def test_load_imagenet_dataset_triplet_uses_official_loader(
         self, mock_imagefolder, mock_imagenet
     ):
@@ -783,8 +783,8 @@ class TestRealDatasets(unittest.TestCase):
         self.assertEqual(mock_imagenet.call_count, 2)
         mock_imagefolder.assert_not_called()
 
-    @patch("dendritic_modeling.datasets.standard_datasets.datasets.ImageNet")
-    @patch("dendritic_modeling.datasets.standard_datasets.datasets.ImageFolder")
+    @patch("dendritic_modeling.datasets.imagenet.datasets.ImageNet")
+    @patch("dendritic_modeling.datasets.imagenet.datasets.ImageFolder")
     def test_load_imagenet_dataset_triplet_forced_imagefolder_requires_roots(
         self, mock_imagefolder, mock_imagenet
     ):
@@ -814,8 +814,8 @@ class TestRealDatasets(unittest.TestCase):
         self.assertTrue(torch.equal(data_tensor[0], images[0].view(-1)))
         self.assertTrue(torch.equal(label_tensor, torch.tensor([0, 1, 2])))
 
-    @patch("dendritic_modeling.datasets.standard_datasets.datasets.ImageNet")
-    @patch("dendritic_modeling.datasets.standard_datasets.datasets.ImageFolder")
+    @patch("dendritic_modeling.datasets.imagenet.datasets.ImageNet")
+    @patch("dendritic_modeling.datasets.imagenet.datasets.ImageFolder")
     def test_load_imagenet_prefers_imagefolder_for_direct_tree(
         self, mock_imagefolder, mock_imagenet
     ):
@@ -846,8 +846,8 @@ class TestRealDatasets(unittest.TestCase):
         self.assertEqual(len(valid_ds), 2)
         self.assertIs(test_ds, test_mock)
 
-    @patch("dendritic_modeling.datasets.standard_datasets.datasets.ImageNet")
-    @patch("dendritic_modeling.datasets.standard_datasets.datasets.ImageFolder")
+    @patch("dendritic_modeling.datasets.imagenet.datasets.ImageNet")
+    @patch("dendritic_modeling.datasets.imagenet.datasets.ImageFolder")
     def test_load_imagenet_prefers_official_loader_when_metadata_exists(
         self, mock_imagefolder, mock_imagenet
     ):
@@ -876,8 +876,8 @@ class TestRealDatasets(unittest.TestCase):
         self.assertEqual(len(valid_ds), 2)
         self.assertIs(test_ds, test_mock)
 
-    @patch("dendritic_modeling.datasets.standard_datasets.datasets.ImageNet")
-    @patch("dendritic_modeling.datasets.standard_datasets.datasets.ImageFolder")
+    @patch("dendritic_modeling.datasets.imagenet.datasets.ImageNet")
+    @patch("dendritic_modeling.datasets.imagenet.datasets.ImageFolder")
     def test_load_imagenet_pretrained_preset_uses_training_only_augmentations(
         self, mock_imagefolder, mock_imagenet
     ):
@@ -916,7 +916,7 @@ class TestRealDatasets(unittest.TestCase):
         mock_imagenet.assert_not_called()
 
     @patch(
-        "dendritic_modeling.datasets.standard_datasets.datasets.ImageNet",
+        "dendritic_modeling.datasets.imagenet.datasets.ImageNet",
         side_effect=RuntimeError("missing devkit"),
     )
     def test_load_imagenet_missing_raises_without_fakedata_fallback(
@@ -941,7 +941,7 @@ class TestRealDatasets(unittest.TestCase):
                 task_data_path=self.temp_dir,
             )
 
-    @patch("dendritic_modeling.datasets.standard_datasets.datasets.ImageNet")
+    @patch("dendritic_modeling.datasets.imagenet.datasets.ImageNet")
     def test_load_imagenet_applies_per_class_subset(self, mock_imagenet):
         """ImageNet loader should support config-driven per-class smoke subsets."""
 
