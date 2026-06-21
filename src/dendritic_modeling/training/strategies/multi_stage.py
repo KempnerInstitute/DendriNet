@@ -5,6 +5,7 @@ This module implements a trainer that can execute multiple training stages
 sequentially, each with different learning strategies and configurations.
 """
 
+import json
 import logging
 import os
 import shutil
@@ -23,6 +24,140 @@ from dendritic_modeling.training.optimizers.custom import CustomWeightDecayOptim
 from dendritic_modeling.training.strategies.standard import Trainer
 
 logger = logging.getLogger(__name__)
+
+
+def _remove_epoch_files(epochs_dir: str) -> None:
+    existing_files = [f for f in os.listdir(epochs_dir) if f.startswith("epoch")]
+    for filename in existing_files:
+        os.remove(os.path.join(epochs_dir, filename))
+
+
+def _epoch_files_by_local_epoch(epochs_dir: str) -> list[tuple[int, str]]:
+    if not os.path.exists(epochs_dir):
+        return []
+
+    epoch_files = []
+    for filename in os.listdir(epochs_dir):
+        if not filename.startswith("epoch"):
+            continue
+
+        epoch_str = filename.replace("epoch", "")
+        if epoch_str.endswith(".json"):
+            epoch_str = epoch_str[:-5]
+
+        if epoch_str.isdigit():
+            epoch_files.append((int(epoch_str), filename))
+
+    epoch_files.sort(key=lambda item: item[0])
+    return epoch_files
+
+
+def _json_file_has_payload(path: str) -> bool:
+    try:
+        with open(path) as f:
+            data = json.load(f)
+        return bool(data)
+    except Exception:
+        return False
+
+
+def _copy_valid_epoch_file(src_path: str, dest_path: str) -> bool:
+    try:
+        if not os.path.exists(src_path):
+            return False
+        if not _json_file_has_payload(src_path):
+            return False
+        shutil.copy(src_path, dest_path)
+        return True
+    except Exception:
+        return False
+
+
+def _concatenate_stage_performance_epochs(
+    stages: list[TrainingStageConfig],
+    original_save_root: str,
+) -> None:
+    main_epochs_dir = os.path.join(original_save_root, "performance", "epochs")
+    os.makedirs(main_epochs_dir, exist_ok=True)
+    _remove_epoch_files(main_epochs_dir)
+
+    global_epoch = 1
+    for stage_idx, _stage_config in enumerate(stages):
+        stage_name = f"stage_{stage_idx + 1}"
+        stage_dir = os.path.join(original_save_root, stage_name)
+        stage_epochs_dir = os.path.join(stage_dir, "performance", "epochs")
+
+        for _local_epoch, epoch_file in _epoch_files_by_local_epoch(stage_epochs_dir):
+            src_path = os.path.join(stage_epochs_dir, epoch_file)
+            dest_file = f"epoch{global_epoch}.json"
+            dest_path = os.path.join(main_epochs_dir, dest_file)
+
+            if _copy_valid_epoch_file(src_path, dest_path):
+                global_epoch += 1
+
+
+def _prepare_stage_analysis_root(
+    analysis_manager,
+    original_save_root: str,
+    stage_name: str,
+) -> None:
+    if analysis_manager is None or original_save_root is None:
+        return
+
+    stage_save_root = os.path.join(original_save_root, stage_name)
+    os.makedirs(stage_save_root, exist_ok=True)
+    analysis_manager.save_root = stage_save_root
+
+    stage_epochs_dir = os.path.join(stage_save_root, "performance", "epochs")
+    if os.path.exists(stage_epochs_dir):
+        _remove_epoch_files(stage_epochs_dir)
+
+
+def _run_between_stage_analysis(
+    analysis_manager,
+    stage_name: str,
+    original_save_root: str,
+) -> None:
+    logger.info(f"Running analysis after stage {stage_name}")
+    if original_save_root is not None:
+        stage_save_root = os.path.join(original_save_root, stage_name)
+        analysis_manager.save_root = stage_save_root
+
+    analysis_manager.run_analysis(filename=f"{stage_name}", training=False)
+
+    if original_save_root is not None:
+        analysis_manager.save_root = original_save_root
+
+
+def _build_stage_trainer_config(
+    base_trainer_config: dict[str, Any],
+    multi_stage_config: MultiStageTrainingConfig,
+    stage_config: TrainingStageConfig,
+) -> dict[str, Any]:
+    stage_trainer_config = base_trainer_config.copy()
+    stage_trainer_config.update(stage_config.trainer_config)
+
+    if stage_config.epochs is not None:
+        stage_trainer_config["epochs"] = stage_config.epochs
+    if stage_config.batch_size is not None:
+        stage_trainer_config["batch_size"] = stage_config.batch_size
+    elif multi_stage_config.global_batch_size is not None:
+        stage_trainer_config["batch_size"] = multi_stage_config.global_batch_size
+
+    if stage_config.param_groups is not None:
+        stage_trainer_config["param_groups"] = stage_config.param_groups
+
+    stage_trainer_config["shuffle"] = stage_trainer_config.get(
+        "shuffle", multi_stage_config.global_shuffle
+    )
+    stage_trainer_config["grad_clip_value"] = stage_trainer_config.get(
+        "grad_clip_value", multi_stage_config.global_grad_clip_value
+    )
+
+    if stage_config.local_rule_config is not None:
+        stage_trainer_config["local_rule_config"] = stage_config.local_rule_config
+
+    return stage_trainer_config
 
 
 class MultiStageTrainer(Trainer):
@@ -146,17 +281,11 @@ class MultiStageTrainer(Trainer):
                     self.multi_stage_config.analyze_between_stages
                     and self.analysis_manager is not None
                 ):
-                    logger.info(f"Running analysis after stage {stage_name}")
-                    if original_save_root is not None:
-                        stage_save_root = os.path.join(original_save_root, stage_name)
-                        self.analysis_manager.save_root = stage_save_root
-
-                    self.analysis_manager.run_analysis(
-                        filename=f"{stage_name}", training=False
+                    _run_between_stage_analysis(
+                        self.analysis_manager,
+                        stage_name,
+                        original_save_root,
                     )
-
-                    if original_save_root is not None:
-                        self.analysis_manager.save_root = original_save_root
 
             except Exception as e:
                 logger.error(f"Error in stage {stage_name}: {e!s}")
@@ -185,61 +314,10 @@ class MultiStageTrainer(Trainer):
             and original_save_root is not None
         ):
             logger.info("Concatenating performance data across stages")
-            main_epochs_dir = os.path.join(original_save_root, "performance", "epochs")
-            os.makedirs(main_epochs_dir, exist_ok=True)
-
-            existing_files = [
-                f for f in os.listdir(main_epochs_dir) if f.startswith("epoch")
-            ]
-            if existing_files:
-                for f in existing_files:
-                    os.remove(os.path.join(main_epochs_dir, f))
-
-            global_epoch = 1
-
-            for stage_idx, _stage_config in enumerate(self.multi_stage_config.stages):
-                stage_name = f"stage_{stage_idx + 1}"
-                stage_dir = os.path.join(original_save_root, stage_name)
-                stage_epochs_dir = os.path.join(stage_dir, "performance", "epochs")
-
-                if os.path.exists(stage_epochs_dir):
-                    epoch_files = []
-                    for f in os.listdir(stage_epochs_dir):
-                        if f.startswith("epoch"):
-                            epoch_str = f.replace("epoch", "")
-                            if epoch_str.endswith(".json"):
-                                epoch_str = epoch_str[:-5]
-
-                            if epoch_str.isdigit():
-                                local_epoch = int(epoch_str)
-                                epoch_files.append((local_epoch, f))
-
-                    epoch_files.sort(key=lambda x: x[0])
-
-                    for _local_epoch, epoch_file in epoch_files:
-                        try:
-                            src_path = os.path.join(stage_epochs_dir, epoch_file)
-                            dest_file = f"epoch{global_epoch}.json"
-                            dest_path = os.path.join(main_epochs_dir, dest_file)
-
-                            if not os.path.exists(src_path):
-                                continue
-
-                            try:
-                                import json
-
-                                with open(src_path) as f:
-                                    data = json.load(f)
-                                if not data:
-                                    continue
-                            except Exception:
-                                continue
-
-                            shutil.copy(src_path, dest_path)
-                            global_epoch += 1
-
-                        except Exception:
-                            continue
+            _concatenate_stage_performance_epochs(
+                self.multi_stage_config.stages,
+                original_save_root,
+            )
 
         return all_results
 
@@ -255,42 +333,17 @@ class MultiStageTrainer(Trainer):
     ) -> dict[str, Any]:
         """Execute a single training stage."""
 
-        if self.analysis_manager is not None and original_save_root is not None:
-            stage_save_root = os.path.join(original_save_root, stage_name)
-            os.makedirs(stage_save_root, exist_ok=True)
-            self.analysis_manager.save_root = stage_save_root
-
-            stage_epochs_dir = os.path.join(stage_save_root, "performance", "epochs")
-            if os.path.exists(stage_epochs_dir):
-                existing_files = [
-                    f for f in os.listdir(stage_epochs_dir) if f.startswith("epoch")
-                ]
-                for f in existing_files:
-                    os.remove(os.path.join(stage_epochs_dir, f))
-
-        stage_trainer_config = self.base_trainer_config.copy()
-        stage_trainer_config.update(stage_config.trainer_config)
-        if stage_config.epochs is not None:
-            stage_trainer_config["epochs"] = stage_config.epochs
-        if stage_config.batch_size is not None:
-            stage_trainer_config["batch_size"] = stage_config.batch_size
-        elif self.multi_stage_config.global_batch_size is not None:
-            stage_trainer_config["batch_size"] = (
-                self.multi_stage_config.global_batch_size
-            )
-
-        if stage_config.param_groups is not None:
-            stage_trainer_config["param_groups"] = stage_config.param_groups
-
-        stage_trainer_config["shuffle"] = stage_trainer_config.get(
-            "shuffle", self.multi_stage_config.global_shuffle
-        )
-        stage_trainer_config["grad_clip_value"] = stage_trainer_config.get(
-            "grad_clip_value", self.multi_stage_config.global_grad_clip_value
+        _prepare_stage_analysis_root(
+            self.analysis_manager,
+            original_save_root,
+            stage_name,
         )
 
-        if stage_config.local_rule_config is not None:
-            stage_trainer_config["local_rule_config"] = stage_config.local_rule_config
+        stage_trainer_config = _build_stage_trainer_config(
+            self.base_trainer_config,
+            self.multi_stage_config,
+            stage_config,
+        )
 
         if stage_config.load_checkpoint is not None:
             logger.info(f"Loading checkpoint: {stage_config.load_checkpoint}")

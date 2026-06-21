@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 from collections.abc import Sequence
@@ -50,13 +49,12 @@ from dendritic_modeling.training._transformer_replacement.joint import (
     _select_joint_trainable_parameters,
 )
 from dendritic_modeling.training.optimizers import create_optimizer
+from dendritic_modeling.training.replacement_common import (
+    _infinite_loader,
+    _write_metrics_json,
+)
 
 logger = logging.getLogger(__name__)
-
-
-def _infinite_loader(loader: DataLoader):
-    while True:
-        yield from loader
 
 
 def _save_result(
@@ -65,11 +63,7 @@ def _save_result(
     *,
     save_replacements: bool,
 ) -> None:
-    os.makedirs(result.save_dir, exist_ok=True)
-    with open(
-        os.path.join(result.save_dir, "metrics.json"), "w", encoding="utf-8"
-    ) as handle:
-        json.dump(result.asdict(), handle, indent=2)
+    _write_metrics_json(result)
     if not save_replacements:
         return
     for unit in units:

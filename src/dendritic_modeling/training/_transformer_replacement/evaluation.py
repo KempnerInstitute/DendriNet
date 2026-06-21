@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import os
 from collections.abc import Sequence
 
@@ -34,6 +33,7 @@ from dendritic_modeling.training._transformer_replacement.data import (
     _build_synthetic_datasets,
     _read_token_source,
 )
+from dendritic_modeling.training.replacement_common import _write_metrics_json
 
 
 def _evaluate_tensor_datasets(
@@ -270,13 +270,9 @@ def _benchmark_hf_text_replacement(
         initial_label="original_teacher_model",
         trained_label="trained_replacement_model",
     )
-    os.makedirs(checkpoint_dir, exist_ok=True)
-    with open(
-        os.path.join(checkpoint_dir, "benchmark_metrics.json"),
-        "w",
-        encoding="utf-8",
-    ) as handle:
-        json.dump(result.asdict(), handle, indent=2)
+    _write_metrics_json(
+        result, output_dir=checkpoint_dir, filename="benchmark_metrics.json"
+    )
     return result
 
 
@@ -384,11 +380,5 @@ def benchmark_saved_transformer_replacement(
         ),
     )
 
-    os.makedirs(ckpt_dir, exist_ok=True)
-    with open(
-        os.path.join(ckpt_dir, "benchmark_metrics.json"),
-        "w",
-        encoding="utf-8",
-    ) as handle:
-        json.dump(result.asdict(), handle, indent=2)
+    _write_metrics_json(result, output_dir=ckpt_dir, filename="benchmark_metrics.json")
     return result

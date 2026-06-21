@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import os
 from typing import Any, Literal
 
 import torch
@@ -104,9 +106,30 @@ def _compute_distillation_loss(
     return loss + float(cosine_weight) * cosine_loss
 
 
+def _infinite_loader(loader: Any):
+    """Yield batches from a loader forever without caching an epoch."""
+    while True:
+        yield from loader
+
+
+def _write_metrics_json(
+    result: Any,
+    *,
+    output_dir: str | os.PathLike[str] | None = None,
+    filename: str = "metrics.json",
+) -> None:
+    """Write a replacement-training result object to a metrics JSON file."""
+    save_dir = output_dir if output_dir is not None else result.save_dir
+    os.makedirs(save_dir, exist_ok=True)
+    with open(os.path.join(save_dir, filename), "w", encoding="utf-8") as handle:
+        json.dump(result.asdict(), handle, indent=2)
+
+
 __all__ = [
     "_compute_distillation_loss",
+    "_infinite_loader",
     "_resolve_device",
     "_resolve_dtype",
     "_to_plain_mapping",
+    "_write_metrics_json",
 ]

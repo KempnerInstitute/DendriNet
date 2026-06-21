@@ -1,3 +1,5 @@
+import json
+
 import pytest
 import torch
 import torch.nn.functional as F
@@ -7,7 +9,9 @@ from dendritic_modeling.training._transformer_replacement.common import (
 )
 from dendritic_modeling.training.replacement_common import (
     _compute_distillation_loss as _compute_shared_distillation_loss,
+    _infinite_loader,
     _resolve_dtype,
+    _write_metrics_json,
 )
 from dendritic_modeling.training.vision_replacement import (
     _compute_distillation_loss as _compute_vision_distillation_loss,
@@ -187,3 +191,41 @@ def test_shared_distillation_loss_skips_cosine_validation_when_weight_is_zero():
     )
 
     torch.testing.assert_close(actual, F.mse_loss(prediction, target))
+
+
+def test_shared_infinite_loader_restarts_without_cycle_cache():
+    dataset = torch.utils.data.TensorDataset(torch.tensor([1, 2, 3]))
+    loader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=False)
+
+    iterator = _infinite_loader(loader)
+    observed = [int(next(iterator)[0].item()) for _ in range(5)]
+
+    assert observed == [1, 2, 3, 1, 2]
+
+
+def test_write_metrics_json_supports_default_and_explicit_output_dir(tmp_path):
+    class Result:
+        save_dir = str(tmp_path / "train")
+
+        def asdict(self):
+            return {"loss": 0.25, "steps": [1, 2]}
+
+    result = Result()
+
+    _write_metrics_json(result)
+    _write_metrics_json(
+        result,
+        output_dir=tmp_path / "benchmark",
+        filename="benchmark_metrics.json",
+    )
+
+    assert json.loads((tmp_path / "train" / "metrics.json").read_text()) == {
+        "loss": 0.25,
+        "steps": [1, 2],
+    }
+    assert json.loads(
+        (tmp_path / "benchmark" / "benchmark_metrics.json").read_text()
+    ) == {
+        "loss": 0.25,
+        "steps": [1, 2],
+    }

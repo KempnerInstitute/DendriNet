@@ -92,6 +92,18 @@ def _current_local_params(layer, local_head):
     return [param for param in params if param.requires_grad]
 
 
+def _forward_through_local_layers(net_obj, x_batch, layer_idx):
+    h_batch = x_batch
+    for j in range(layer_idx + 1):
+        layer = net_obj.layers[j]
+        h_batch = layer(h_batch)
+        if isinstance(h_batch, tuple):
+            h_batch = h_batch[0]
+        if hasattr(layer, "activation"):
+            h_batch = layer.activation(h_batch)
+    return h_batch
+
+
 def _ensure_single_process_two_step(trainer_name: str, is_distributed: bool) -> None:
     if is_distributed:
         raise NotImplementedError(
@@ -99,6 +111,51 @@ def _ensure_single_process_two_step(trainer_name: str, is_distributed: bool) -> 
             "Run the two-step pretraining phase on a single process or use "
             "strategy='standard' for distributed end-to-end training."
         )
+
+
+def _resolve_layer_container(model):
+    """Return the module that owns locally supervised layers."""
+    for attr_name in ("core_network", "net", "network"):
+        if hasattr(model, attr_name):
+            return getattr(model, attr_name)
+    return model
+
+
+def _prepare_local_pretraining(trainer, model, net_obj, train_data, valid_data):
+    train_loader, valid_loader = trainer._dataloaders(train_data, valid_data)
+    trainer._initialize_attributes(model, trainer.pretrain_epochs + trainer.epochs)
+
+    if not hasattr(trainer, "local_heads"):
+        trainer.local_heads = _initialize_local_heads(net_obj, model, trainer.device)
+    if not hasattr(trainer, "local_optimizers"):
+        trainer.local_optimizers = _make_local_optimizers(
+            net_obj, trainer.local_heads, trainer.optimizer
+        )
+
+    return train_loader, valid_loader
+
+
+def _validate_full_model(trainer, model, valid_loader):
+    with torch.no_grad():
+        valid_loss = 0
+        for batch in valid_loader:
+            x_batch: torch.Tensor = batch[0].to(trainer.device)
+            y_batch: torch.Tensor = batch[1].to(trainer.device)
+            loss: torch.Tensor = trainer.loss_function(model, x_batch, y_batch)
+            valid_loss += loss.item()
+
+    return valid_loss / len(valid_loader)
+
+
+def _restore_full_model_trainability(model):
+    for param in model.parameters():
+        param.requires_grad = True
+
+
+def _prepend_pretrain_losses(final_results, train_losses, valid_losses):
+    final_results["train_losses"] = train_losses + final_results["train_losses"]
+    final_results["valid_losses"] = valid_losses + final_results["valid_losses"]
+    return final_results
 
 
 class TwoStepTrainer(Trainer):
@@ -136,15 +193,7 @@ class TwoStepTrainer(Trainer):
             self._is_distributed,
         )
 
-        # Get network object
-        if hasattr(model, "core_network"):
-            net_obj = model.core_network
-        elif hasattr(model, "net"):
-            net_obj = model.net
-        elif hasattr(model, "network"):
-            net_obj = model.network
-        else:
-            net_obj = model
+        net_obj = _resolve_layer_container(model)
 
         # Check if model has layers for local training
         if not hasattr(net_obj, "layers"):
@@ -155,16 +204,9 @@ class TwoStepTrainer(Trainer):
         train_losses = []
         valid_losses = []
 
-        train_loader, valid_loader = self._dataloaders(train_data, valid_data)
-
-        self._initialize_attributes(model, self.pretrain_epochs + self.epochs)
-
-        if not hasattr(self, "local_heads"):
-            self.local_heads = _initialize_local_heads(net_obj, model, self.device)
-        if not hasattr(self, "local_optimizers"):
-            self.local_optimizers = _make_local_optimizers(
-                net_obj, self.local_heads, self.optimizer
-            )
+        train_loader, valid_loader = _prepare_local_pretraining(
+            self, model, net_obj, train_data, valid_data
+        )
 
         # Phase 1: Local pretraining
         logger.info(
@@ -193,13 +235,7 @@ class TwoStepTrainer(Trainer):
                     y_batch: torch.Tensor = batch[1].to(self.device)
 
                     # Forward pass through layers up to current layer
-                    h_batch = x_batch
-                    for j in range(layer_idx + 1):
-                        h_batch = net_obj.layers[j](h_batch)
-                        if isinstance(h_batch, tuple):
-                            h_batch = h_batch[0]
-                        if hasattr(net_obj.layers[j], "activation"):
-                            h_batch = net_obj.layers[j].activation(h_batch)
+                    h_batch = _forward_through_local_layers(net_obj, x_batch, layer_idx)
 
                     # Local supervision
                     loss: torch.Tensor = self.loss_function(
@@ -216,16 +252,7 @@ class TwoStepTrainer(Trainer):
             avg_loss = epoch_loss_accum / batch_counter if batch_counter > 0 else 0.0
             train_losses.append(avg_loss)
 
-            # Validation
-            with torch.no_grad():
-                valid_loss = 0
-                for batch in valid_loader:
-                    x_batch: torch.Tensor = batch[0].to(self.device)
-                    y_batch: torch.Tensor = batch[1].to(self.device)
-                    loss = self.loss_function(model, x_batch, y_batch)
-                    valid_loss += loss.item()
-
-            valid_loss /= len(valid_loader)
+            valid_loss = _validate_full_model(self, model, valid_loader)
             valid_losses.append(valid_loss)
 
             self._update_best(model, valid_loss)
@@ -248,18 +275,13 @@ class TwoStepTrainer(Trainer):
             f"for {self.epochs} epochs ==="
         )
 
-        # Unfreeze all parameters
-        for param in model.parameters():
-            param.requires_grad = True
+        _restore_full_model_trainability(model)
 
         self.filename_prefix = "twostep_stage2_"
         final_results = super().train(model, train_data, valid_data)
         self.filename_prefix = ""
 
-        final_results["train_losses"] = train_losses + final_results["train_losses"]
-        final_results["valid_losses"] = valid_losses + final_results["valid_losses"]
-
-        return final_results
+        return _prepend_pretrain_losses(final_results, train_losses, valid_losses)
 
 
 class TwoStepTrainerWithKL(Trainer):
@@ -295,15 +317,7 @@ class TwoStepTrainerWithKL(Trainer):
             self._is_distributed,
         )
 
-        # Get network object
-        if hasattr(model, "core_network"):
-            net_obj = model.core_network
-        elif hasattr(model, "net"):
-            net_obj = model.net
-        elif hasattr(model, "network"):
-            net_obj = model.network
-        else:
-            net_obj = model
+        net_obj = _resolve_layer_container(model)
 
         # Check if model has layers for local training
         if not hasattr(net_obj, "layers"):
@@ -314,16 +328,9 @@ class TwoStepTrainerWithKL(Trainer):
         train_losses = []
         valid_losses = []
 
-        train_loader, valid_loader = self._dataloaders(train_data, valid_data)
-
-        self._initialize_attributes(model, self.pretrain_epochs + self.epochs)
-
-        if not hasattr(self, "local_heads"):
-            self.local_heads = _initialize_local_heads(net_obj, model, self.device)
-        if not hasattr(self, "local_optimizers"):
-            self.local_optimizers = _make_local_optimizers(
-                net_obj, self.local_heads, self.optimizer
-            )
+        train_loader, valid_loader = _prepare_local_pretraining(
+            self, model, net_obj, train_data, valid_data
+        )
 
         # Phase 1: Local pretraining with KL divergence
         logger.info(
@@ -353,13 +360,7 @@ class TwoStepTrainerWithKL(Trainer):
                     y_batch: torch.Tensor = batch[1].to(self.device)
 
                     # Forward pass through layers up to current layer
-                    h_batch = x_batch
-                    for j in range(layer_idx + 1):
-                        h_batch = net_obj.layers[j](h_batch)
-                        if isinstance(h_batch, tuple):
-                            h_batch = h_batch[0]
-                        if hasattr(net_obj.layers[j], "activation"):
-                            h_batch = net_obj.layers[j].activation(h_batch)
+                    h_batch = _forward_through_local_layers(net_obj, x_batch, layer_idx)
 
                     # Local head predictions
                     local_logits = local_head(h_batch)
@@ -388,16 +389,7 @@ class TwoStepTrainerWithKL(Trainer):
             avg_loss = epoch_loss_accum / batch_counter if batch_counter > 0 else 0.0
             train_losses.append(avg_loss)
 
-            # Validation
-            with torch.no_grad():
-                valid_loss = 0
-                for batch in valid_loader:
-                    x_batch: torch.Tensor = batch[0].to(self.device)
-                    y_batch: torch.Tensor = batch[1].to(self.device)
-                    loss: torch.Tensor = self.loss_function(model, x_batch, y_batch)
-                    valid_loss += loss.item()
-
-            valid_loss /= len(valid_loader)
+            valid_loss = _validate_full_model(self, model, valid_loader)
             valid_losses.append(valid_loss)
 
             self._update_best(model, valid_loss)
@@ -420,15 +412,10 @@ class TwoStepTrainerWithKL(Trainer):
             f"for {self.epochs} epochs ==="
         )
 
-        # Unfreeze all parameters
-        for param in model.parameters():
-            param.requires_grad = True
+        _restore_full_model_trainability(model)
 
         self.filename_prefix = "twostep_kl_stage2_"
         final_results = super().train(model, train_data, valid_data)
         self.filename_prefix = ""
 
-        final_results["train_losses"] = train_losses + final_results["train_losses"]
-        final_results["valid_losses"] = valid_losses + final_results["valid_losses"]
-
-        return final_results
+        return _prepend_pretrain_losses(final_results, train_losses, valid_losses)

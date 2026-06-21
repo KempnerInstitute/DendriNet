@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 from collections.abc import Callable, Sequence
@@ -20,9 +19,11 @@ from dendritic_modeling.training.dataloader_utils import dataloader_kwargs_from_
 from dendritic_modeling.training.optimizers import create_optimizer
 from dendritic_modeling.training.replacement_common import (
     _compute_distillation_loss as _shared_compute_distillation_loss,
+    _infinite_loader,
     _resolve_device,
     _resolve_dtype,
     _to_plain_mapping,
+    _write_metrics_json,
 )
 
 logger = logging.getLogger(__name__)
@@ -182,11 +183,6 @@ def _make_vision_loader(
     )
 
 
-def _infinite_loader(loader: DataLoader):
-    while True:
-        yield from loader
-
-
 def _evaluate_dataset(
     forward_fn: Callable[[torch.Tensor], torch.Tensor],
     dataset: TensorDataset,
@@ -222,11 +218,7 @@ def _save_result(
     *,
     save_replacement: bool,
 ) -> None:
-    os.makedirs(result.save_dir, exist_ok=True)
-    with open(
-        os.path.join(result.save_dir, "metrics.json"), "w", encoding="utf-8"
-    ) as handle:
-        json.dump(result.asdict(), handle, indent=2)
+    _write_metrics_json(result)
     if not save_replacement:
         return
     payload = {
