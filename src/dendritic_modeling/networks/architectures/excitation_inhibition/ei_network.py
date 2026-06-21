@@ -33,11 +33,12 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.input_trans
     TransferLayer,
 )
 from dendritic_modeling.networks.base import BaseNetwork
+from dendritic_modeling.networks.utils.weight_transforms import (
+    NONNEGATIVE_TRANSFER_ACTIVATIONS,
+    POSITIVE_WEIGHT_TRANSFORMS,
+)
 
 logger = logging.getLogger(__name__)
-
-POSITIVE_WEIGHT_TRANSFORMS = {"exp", "softplus", "relu"}
-NONNEGATIVE_TRANSFER_ACTIVATIONS = {"relu", "softplus", "sigmoid"}
 
 
 class ExcitationInhibitionNetwork(BaseNetwork):

@@ -8,6 +8,7 @@ from .dimensions import (
     DATASET_CLASS_COUNTS,
     DATASET_FLAT_INPUT_SHAPES,
     DATASET_IMAGE_INPUT_SHAPES,
+    dataset_class_count,
     dataset_input_shape,
     flat_dataset_input_dim,
 )
@@ -60,6 +61,7 @@ __all__ = [
     "StringerV1Dataset",
     "SwitchingLDSDataset",
     "VariableDelayDMSDataset",
+    "dataset_class_count",
     "dataset_input_shape",
     "flat_dataset_input_dim",
     "get_data_directory",

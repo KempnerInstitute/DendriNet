@@ -13,11 +13,12 @@ from dendritic_modeling.config.model_aliases import (
     get_core_morphology_alias_overrides,
     get_unified_ei_alias_overrides,
 )
+from dendritic_modeling.networks.utils.weight_transforms import (
+    NONNEGATIVE_TRANSFER_ACTIVATIONS,
+    POSITIVE_WEIGHT_TRANSFORMS,
+)
 
 logger = logging.getLogger(__name__)
-
-POSITIVE_WEIGHT_TRANSFORMS = {"softplus", "exp", "relu"}
-NONNEGATIVE_TRANSFER_ACTIVATIONS = {"relu", "sigmoid", "softplus"}
 
 
 @dataclass(frozen=True)

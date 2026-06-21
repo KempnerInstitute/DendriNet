@@ -10,6 +10,7 @@ from dendritic_modeling.training._transformer_replacement.common import (
 from dendritic_modeling.training.replacement_common import (
     _compute_distillation_loss as _compute_shared_distillation_loss,
     _infinite_loader,
+    _make_cuda_grad_scaler,
     _resolve_dtype,
     _write_metrics_json,
 )
@@ -162,6 +163,18 @@ def test_shared_dtype_resolution_accepts_aliases():
 def test_shared_dtype_resolution_rejects_unknown_alias():
     with pytest.raises(ValueError, match="Unknown dtype 'float64'"):
         _resolve_dtype("float64")
+
+
+def test_shared_amp_scaler_is_disabled_for_cpu_device():
+    scaler = _make_cuda_grad_scaler(use_amp=True, device=torch.device("cpu"))
+
+    assert scaler.is_enabled() is False
+
+
+def test_shared_amp_scaler_respects_disabled_amp_on_cuda_device():
+    scaler = _make_cuda_grad_scaler(use_amp=False, device=torch.device("cuda"))
+
+    assert scaler.is_enabled() is False
 
 
 def test_shared_distillation_loss_rejects_unknown_cosine_flatten_mode():

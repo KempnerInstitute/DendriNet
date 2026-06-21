@@ -8,6 +8,7 @@ from typing import Any, Literal
 
 import torch
 import torch.nn.functional as F
+from torch.amp import GradScaler
 
 from dendritic_modeling.config.conversion import to_plain_dict
 
@@ -41,6 +42,11 @@ def _resolve_dtype(dtype: str) -> torch.dtype:
             f"Unknown dtype {dtype!r}; expected one of {sorted(_DTYPE_ALIASES)}"
         )
     return _DTYPE_ALIASES[normalized]
+
+
+def _make_cuda_grad_scaler(use_amp: bool, device: torch.device) -> GradScaler:
+    """Create the CUDA GradScaler used by replacement-training loops."""
+    return GradScaler("cuda", enabled=bool(use_amp and device.type == "cuda"))
 
 
 def _base_distillation_loss(
@@ -166,6 +172,7 @@ __all__ = [
     "_compute_transformer_distillation_loss",
     "_compute_vision_distillation_loss",
     "_infinite_loader",
+    "_make_cuda_grad_scaler",
     "_resolve_device",
     "_resolve_dtype",
     "_to_plain_mapping",

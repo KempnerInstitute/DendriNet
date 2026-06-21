@@ -10,7 +10,7 @@ from typing import Any
 
 import torch
 import torch.nn as nn
-from torch.amp import GradScaler, autocast
+from torch.amp import autocast
 from torch.utils.data import DataLoader, TensorDataset
 
 from dendritic_modeling.config import Config
@@ -23,6 +23,7 @@ from dendritic_modeling.training.optimizers import create_optimizer
 from dendritic_modeling.training.replacement_common import (
     _compute_vision_distillation_loss as _compute_distillation_loss,
     _infinite_loader,
+    _make_cuda_grad_scaler,
     _resolve_device,
     _resolve_dtype,
     _to_plain_mapping,
@@ -275,9 +276,7 @@ def run_vision_replacement_training(
     forward_fn = _forward_source(model, teacher_source)
 
     optimizer = create_optimizer(trainable_params, config.training.main.optimizer)
-    scaler = GradScaler(
-        "cuda", enabled=bool(train_cfg.use_amp and device.type == "cuda")
-    )
+    scaler = _make_cuda_grad_scaler(train_cfg.use_amp, device)
     train_loader = _make_vision_loader(
         train_dataset,
         train_cfg,

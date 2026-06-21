@@ -54,10 +54,20 @@ def flat_dataset_input_dim(
     return int(prod(shape))
 
 
+def dataset_class_count(
+    dataset_name: str | None,
+    *,
+    default_class_count: int | None = None,
+) -> int | None:
+    """Return the canonical class count for a built-in classification dataset."""
+    return DATASET_CLASS_COUNTS.get(dataset_name, default_class_count)
+
+
 __all__ = [
     "DATASET_CLASS_COUNTS",
     "DATASET_FLAT_INPUT_SHAPES",
     "DATASET_IMAGE_INPUT_SHAPES",
+    "dataset_class_count",
     "dataset_input_shape",
     "flat_dataset_input_dim",
 ]

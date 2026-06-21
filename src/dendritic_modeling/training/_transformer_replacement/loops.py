@@ -8,7 +8,7 @@ from collections.abc import Sequence
 
 import torch
 import torch.nn as nn
-from torch.amp import GradScaler, autocast
+from torch.amp import autocast
 from torch.utils.data import TensorDataset
 
 from dendritic_modeling.config import Config
@@ -52,6 +52,7 @@ from dendritic_modeling.training._transformer_replacement.joint import (
 from dendritic_modeling.training.optimizers import create_optimizer
 from dendritic_modeling.training.replacement_common import (
     _infinite_loader,
+    _make_cuda_grad_scaler,
     _write_metrics_json,
 )
 
@@ -105,9 +106,7 @@ def _train_tensor_dataset_source(
     optimizer = create_optimizer(
         trainable_modules.parameters(), config.training.main.optimizer
     )
-    scaler = GradScaler(
-        "cuda", enabled=bool(train_cfg.use_amp and device.type == "cuda")
-    )
+    scaler = _make_cuda_grad_scaler(train_cfg.use_amp, device)
 
     initial_valid = _evaluate_tensor_datasets(
         units,
@@ -254,9 +253,7 @@ def _train_hf_text_source(
     optimizer = create_optimizer(
         trainable_modules.parameters(), config.training.main.optimizer
     )
-    scaler = GradScaler(
-        "cuda", enabled=bool(train_cfg.use_amp and device.type == "cuda")
-    )
+    scaler = _make_cuda_grad_scaler(train_cfg.use_amp, device)
     input_device = next(teacher.parameters()).device
 
     initial_valid = _evaluate_hf_text(
@@ -417,9 +414,7 @@ def _train_joint_hf_text_source(
         record.replacement.train()
 
     optimizer = create_optimizer(trainable_params, config.training.main.optimizer)
-    scaler = GradScaler(
-        "cuda", enabled=bool(train_cfg.use_amp and device.type == "cuda")
-    )
+    scaler = _make_cuda_grad_scaler(train_cfg.use_amp, device)
 
     eval_batches = max(
         1, int(train_cfg.valid_samples) // max(1, int(train_cfg.batch_size))

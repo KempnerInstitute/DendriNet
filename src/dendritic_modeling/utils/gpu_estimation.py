@@ -15,9 +15,9 @@ import numpy as np
 import torch
 
 from dendritic_modeling.datasets.dimensions import (
-    DATASET_CLASS_COUNTS,
     DATASET_FLAT_INPUT_SHAPES,
     DATASET_IMAGE_INPUT_SHAPES,
+    dataset_class_count,
     dataset_input_shape,
 )
 
@@ -163,8 +163,9 @@ def _resolve_n_classes(task_type: str, task_cfg: Any, task_params: Any) -> int:
         return REGRESSION_OUTPUT_DIM
 
     dataset_name = getattr(task_cfg, "dataset", "cifar10")
-    return DATASET_CLASS_COUNTS.get(
-        dataset_name, task_params.get("n_classes", DEFAULT_CLASS_COUNT)
+    return dataset_class_count(
+        dataset_name,
+        default_class_count=task_params.get("n_classes", DEFAULT_CLASS_COUNT),
     )
 
 

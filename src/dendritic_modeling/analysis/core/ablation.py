@@ -6,6 +6,7 @@ disabling or ablating different network components to understand their contribut
 """
 
 import json
+import logging
 import os
 import re
 from copy import deepcopy
@@ -43,6 +44,8 @@ from dendritic_modeling.training.utils.evaluation import (
     evaluate_pred_label_mi,
 )
 from dendritic_modeling.utils import save_dict
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Ablation schema constants
@@ -514,7 +517,7 @@ class AblationAnalyzer(AbstractAnalyzer):
                 )
 
                 if os.path.exists(os.path.join(save_path, "epochs")):
-                    print("Creating video for ablation vs training", flush=True)
+                    logger.info("Creating video for ablation vs training")
                     create_video_layer_ablation_vs_training(
                         save_path=save_path,
                         metric="accuracy",
@@ -529,9 +532,9 @@ class AblationAnalyzer(AbstractAnalyzer):
                     filename=f"{filename}_compartment",
                 )
         except ImportError as e:
-            print(f"Warning: Ablation plotting functions not found: {e}")
+            logger.warning("Ablation plotting functions not found: %s", e)
         except Exception as e:
-            print(f"Warning: Could not generate ablation plots: {e}")
+            logger.warning("Could not generate ablation plots: %s", e)
 
     def analyze(
         self,
@@ -1177,31 +1180,33 @@ def create_video_layer_ablation_vs_training(
     # Save video
     method_tag = selected_method if selected_method is not None else "legacy"
     video_filename = f"layer_ablation_{method_tag}_{metric}_evolution"
-    print(f"Creating {num_epochs}-frame video at {fps:.2f} fps (20 seconds total)")
+    logger.info(
+        "Creating %s-frame video at %.2f fps (20 seconds total)", num_epochs, fps
+    )
     if video_format == "mp4":
         if animation.writers.is_available("ffmpeg"):
             try:
                 writer = animation.FFMpegWriter(fps=fps, bitrate=1800)
                 video_path = os.path.join(save_path, f"{video_filename}.mp4")
                 ani.save(video_path, writer=writer)
-                print(f"Video saved to {video_path}")
+                logger.info("Video saved to %s", video_path)
             except Exception as e:
-                print(f"Error saving MP4 video: {e}")
-                print("Falling back to GIF format...")
+                logger.warning("Error saving MP4 video: %s", e)
+                logger.info("Falling back to GIF format")
                 writer = animation.PillowWriter(fps=fps)
                 video_path = os.path.join(save_path, f"{video_filename}.gif")
                 ani.save(video_path, writer=writer)
-                print(f"GIF saved to {video_path}")
+                logger.info("GIF saved to %s", video_path)
         else:
-            print("ffmpeg writer not available; saving GIF format...")
+            logger.info("ffmpeg writer not available; saving GIF format")
             writer = animation.PillowWriter(fps=fps)
             video_path = os.path.join(save_path, f"{video_filename}.gif")
             ani.save(video_path, writer=writer)
-            print(f"GIF saved to {video_path}")
+            logger.info("GIF saved to %s", video_path)
     else:
         writer = animation.PillowWriter(fps=fps)
         video_path = os.path.join(save_path, f"{video_filename}.gif")
         ani.save(video_path, writer=writer)
-        print(f"GIF saved to {video_path}")
+        logger.info("GIF saved to %s", video_path)
 
     plt.close(fig)

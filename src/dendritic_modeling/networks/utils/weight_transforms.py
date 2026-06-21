@@ -14,6 +14,8 @@ import torch
 import torch.nn.functional as functional
 
 WeightTransformType = Literal["identity", "exp", "relu", "softplus"]
+POSITIVE_WEIGHT_TRANSFORMS = {"exp", "relu", "softplus"}
+NONNEGATIVE_TRANSFER_ACTIVATIONS = {"relu", "sigmoid", "softplus"}
 _SUPPORTED_WEIGHT_TRANSFORMS: tuple[WeightTransformType, ...] = (
     "identity",
     "exp",
@@ -148,6 +150,8 @@ def inverse_weight_transform(
 
 
 __all__ = [
+    "NONNEGATIVE_TRANSFER_ACTIVATIONS",
+    "POSITIVE_WEIGHT_TRANSFORMS",
     "WeightTransformType",
     "apply_weight_transform",
     "get_weight_transform_fn",

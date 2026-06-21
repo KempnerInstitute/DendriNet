@@ -1,5 +1,6 @@
 from dendritic_modeling.datasets.dimensions import (
     DATASET_CLASS_COUNTS,
+    dataset_class_count,
     dataset_input_shape,
     flat_dataset_input_dim,
 )
@@ -34,3 +35,9 @@ def test_dataset_class_counts_preserve_gpu_estimator_defaults():
         "cifar10": 10,
         "imagenet": 1000,
     }
+
+
+def test_dataset_class_count_returns_builtin_or_explicit_fallback():
+    assert dataset_class_count("cifar10", default_class_count=99) == 10
+    assert dataset_class_count("custom", default_class_count=17) == 17
+    assert dataset_class_count("custom") is None

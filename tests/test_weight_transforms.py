@@ -5,6 +5,8 @@ import torch
 
 from dendritic_modeling.networks.utils.weight_transforms import (
     INVERSE_EXP_EPS,
+    NONNEGATIVE_TRANSFER_ACTIVATIONS,
+    POSITIVE_WEIGHT_TRANSFORMS,
     apply_weight_transform,
     get_weight_transform_fn,
     inverse_weight_transform,
@@ -64,6 +66,26 @@ def test_invalid_type_error_lists_supported_transforms():
     message = str(exc_info.value)
     for transform in ("identity", "exp", "relu", "softplus"):
         assert f"'{transform}'" in message
+
+
+def test_shunting_guard_constants_match_legacy_import_sites():
+    from dendritic_modeling.networks.architectures.excitation_inhibition import (
+        ei_network,
+    )
+    from dendritic_modeling.utils import training_stability_validator
+
+    assert ei_network.POSITIVE_WEIGHT_TRANSFORMS is POSITIVE_WEIGHT_TRANSFORMS
+    assert (
+        training_stability_validator.POSITIVE_WEIGHT_TRANSFORMS
+        is POSITIVE_WEIGHT_TRANSFORMS
+    )
+    assert (
+        ei_network.NONNEGATIVE_TRANSFER_ACTIVATIONS is NONNEGATIVE_TRANSFER_ACTIVATIONS
+    )
+    assert (
+        training_stability_validator.NONNEGATIVE_TRANSFER_ACTIVATIONS
+        is NONNEGATIVE_TRANSFER_ACTIVATIONS
+    )
 
 
 # ---------------------------------------------------------------------------
