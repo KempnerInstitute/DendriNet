@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
+from dendritic_modeling.analysis.core.base import AbstractAnalyzer
 from dendritic_modeling.analysis.utils.runtime import (
     analysis_device_context,
     evaluation_kwargs_from_runtime,
@@ -36,7 +37,7 @@ from dendritic_modeling.training.utils.evaluation import (
 from dendritic_modeling.utils import save_dict
 
 
-class SingleLayerContributionAnalyzer:
+class SingleLayerContributionAnalyzer(AbstractAnalyzer):
     """
     Analyzes the contribution of individual layers by isolating them.
     This is the renamed version of "layer_ablation" - it removes all other layers
@@ -44,6 +45,7 @@ class SingleLayerContributionAnalyzer:
     """
 
     def __init__(self, params: SingleLayerContributionAnalysisParams):
+        super().__init__("SingleLayerContributionAnalyzer")
         self.excitation_contribution = getattr(params, "excitation_contribution", False)
         self.inhibition_contribution = getattr(params, "inhibition_contribution", False)
         self.both_contribution = getattr(params, "both_contribution", False)

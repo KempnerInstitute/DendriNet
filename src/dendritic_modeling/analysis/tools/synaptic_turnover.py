@@ -10,6 +10,7 @@ from typing import Optional
 
 import torch
 
+from dendritic_modeling.analysis.core.base import AbstractAnalyzer
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import (
     DendriticBranchLayer,
@@ -46,7 +47,7 @@ def _update_turnover_counts(
     return total_active, total_stable, total_transient
 
 
-class SynapticTurnoverAnalyzer:
+class SynapticTurnoverAnalyzer(AbstractAnalyzer):
     """
     Analyzer for tracking synaptic turnover and plasticity during training.
 
@@ -65,6 +66,7 @@ class SynapticTurnoverAnalyzer:
 
         This automatically takes an initial snapshot of the model's synaptic masks.
         """
+        super().__init__(self.__class__.__name__)
         self.data_dict_list = []
         self.epoch_counter = 0
         self.snapshot_interval = max(1, int(getattr(params, "snapshot_interval", 1)))

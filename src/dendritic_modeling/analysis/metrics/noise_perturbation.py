@@ -10,6 +10,7 @@ from typing import Callable, Optional
 import torch
 from torch.utils.data import TensorDataset
 
+from dendritic_modeling.analysis.core.base import AbstractAnalyzer
 from dendritic_modeling.analysis.utils.runtime import (
     analysis_device_context,
     evaluation_kwargs_from_runtime,
@@ -32,7 +33,7 @@ from dendritic_modeling.training.utils.evaluation import (
 from dendritic_modeling.utils import save_dict
 
 
-class NoisePerturbationAnalyzer:
+class NoisePerturbationAnalyzer(AbstractAnalyzer):
     """
     Analyzer for evaluating model robustness under noise perturbations.
 
@@ -53,6 +54,7 @@ class NoisePerturbationAnalyzer:
             accuracy: Whether to compute accuracy on noisy data
             categorical_loglikelihood: Whether to compute categorical log-likelihood on noisy data
         """
+        super().__init__("NoisePerturbationAnalyzer")
         self.uniform_noise = getattr(params, "uniform_noise", False)
         self.uniform_magnitudes = getattr(params, "uniform_magnitudes", [0.1, 0.2])
         self.gaussian_noise = getattr(params, "gaussian_noise", False)

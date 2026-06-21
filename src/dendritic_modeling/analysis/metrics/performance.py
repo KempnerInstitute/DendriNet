@@ -17,6 +17,7 @@ os.environ["TORCHDYNAMO_DISABLE"] = "1"
 
 import torch
 
+from dendritic_modeling.analysis.core.base import AbstractAnalyzer
 from dendritic_modeling.analysis.utils.runtime import evaluation_kwargs_from_runtime
 from dendritic_modeling.config import PerformanceAnalysisParams
 from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
@@ -33,7 +34,7 @@ from dendritic_modeling.utils import save_dict
 logger = logging.getLogger(__name__)
 
 
-class PerformanceAnalyzer:
+class PerformanceAnalyzer(AbstractAnalyzer):
     """
     Analyzer for evaluating model performance on various metrics.
 
@@ -45,6 +46,7 @@ class PerformanceAnalyzer:
     """
 
     def __init__(self, params: PerformanceAnalysisParams):
+        super().__init__("PerformanceAnalyzer")
         self.accuracy = getattr(params, "accuracy", False)
         self.auc = getattr(params, "auc", False)
         self.categorical_loglikelihood = getattr(

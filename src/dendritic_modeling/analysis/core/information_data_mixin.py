@@ -25,15 +25,14 @@ class _InformationAnalysisData:
 class InformationDataMixin:
     """Collect dataset tensors and recorded layer activations."""
 
-    def _collect_analysis_data(
+    def _materialize_analysis_dataset(
         self,
         *,
-        model: BaseModel,
         test_dataset: torch.utils.data.Dataset,
         device: str,
         runtime: EvaluationRuntimeConfig | None,
-    ) -> _InformationAnalysisData:
-        """Materialize data and collect branch activations through forward hooks."""
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Materialize the configured analysis dataset on the analysis device."""
         self.logger.info("Loading test dataset...")
         items = materialize_dataset(
             test_dataset,
@@ -46,7 +45,15 @@ class InformationDataMixin:
         self.logger.info(
             f"Loaded dataset: {len(inputs)} samples, input shape: {inputs.shape}"
         )
+        return inputs, labels
 
+    def _collect_forward_hook_activations(
+        self,
+        *,
+        model: BaseModel,
+        inputs: torch.Tensor,
+    ) -> None:
+        """Run a no-grad forward pass while collecting attached hook payloads."""
         handles = self.attach_forward_hooks(model)
         try:
             with torch.no_grad():
@@ -54,16 +61,39 @@ class InformationDataMixin:
         finally:
             self.remove_forward_hooks(handles)
 
+    def _labels_to_class_array(
+        self,
+        labels: torch.Tensor,
+    ) -> tuple[np.ndarray, float | None]:
+        """Return labels as a NumPy class array plus optional discrete entropy."""
         C = labels.detach().cpu().numpy()
-        self.logger.debug(
-            f"Data collection completed. Found {len(self.data_dict)} layers."
-        )
-
         entropy_C: float | None
         if self._is_discrete_class_labels(C):
             entropy_C = self._discrete_entropy_nats(C)
         else:
             entropy_C = None
+
+        return C, entropy_C
+
+    def _collect_analysis_data(
+        self,
+        *,
+        model: BaseModel,
+        test_dataset: torch.utils.data.Dataset,
+        device: str,
+        runtime: EvaluationRuntimeConfig | None,
+    ) -> _InformationAnalysisData:
+        """Materialize data and collect branch activations through forward hooks."""
+        inputs, labels = self._materialize_analysis_dataset(
+            test_dataset=test_dataset,
+            device=device,
+            runtime=runtime,
+        )
+        self._collect_forward_hook_activations(model=model, inputs=inputs)
+        C, entropy_C = self._labels_to_class_array(labels)
+        self.logger.debug(
+            f"Data collection completed. Found {len(self.data_dict)} layers."
+        )
 
         return _InformationAnalysisData(
             inputs=inputs,

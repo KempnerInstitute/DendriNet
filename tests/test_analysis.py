@@ -2646,6 +2646,42 @@ class TestAnalysisManager(unittest.TestCase):
             str(Path(self.manager.save_root) / spec.save_subdir / "epochs"),
         )
 
+    def test_manager_performance_phase_helpers_preserve_paths_and_splits(self):
+        """Performance helper methods should preserve phase-specific routing."""
+        config = AnalysisConfig()
+        config.performance_analysis.training_splits = ["valid"]
+        config.performance_analysis.final_splits = ["test"]
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manager = AnalysisManager(
+                model=self.model,
+                data=self.data,
+                analysis_config=config,
+                save_root=tmpdir,
+            )
+
+            self.assertEqual(
+                manager._performance_save_path(training=False),
+                str(Path(tmpdir) / "performance"),
+            )
+            training_path = Path(manager._performance_save_path(training=True))
+            self.assertEqual(training_path, Path(tmpdir) / "performance" / "epochs")
+            self.assertTrue(training_path.is_dir())
+            self.assertEqual(
+                manager._performance_splits(
+                    config.performance_analysis,
+                    training=False,
+                ),
+                ["test"],
+            )
+            self.assertEqual(
+                manager._performance_splits(
+                    config.performance_analysis,
+                    training=True,
+                ),
+                ["valid"],
+            )
+
     def test_manager_initializes_optional_analyzer_constructor_styles(self):
         """Registry-backed initialization supports params, model+params, and no params."""
         config = AnalysisConfig()

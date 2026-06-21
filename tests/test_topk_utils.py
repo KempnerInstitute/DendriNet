@@ -207,13 +207,33 @@ class TestAbstractAnalyzer(unittest.TestCase):
             BranchActivationAnalyzer,
         )
         from dendritic_modeling.analysis.core.information import InformationAnalyzer
+        from dendritic_modeling.analysis.metrics.adversarial_robustness import (
+            AdversarialRobustnessAnalyzer,
+        )
+        from dendritic_modeling.analysis.metrics.layer_contribution import (
+            SingleLayerContributionAnalyzer,
+        )
+        from dendritic_modeling.analysis.metrics.noise_perturbation import (
+            NoisePerturbationAnalyzer,
+        )
+        from dendritic_modeling.analysis.metrics.performance import PerformanceAnalyzer
         from dendritic_modeling.analysis.tools.synaptic_activation import (
             SynapticActivationAnalyzer,
         )
+        from dendritic_modeling.analysis.tools.synaptic_pruning import (
+            SynapticPruningAnalyzer,
+        )
+        from dendritic_modeling.analysis.tools.synaptic_turnover import (
+            SynapticTurnoverAnalyzer,
+        )
         from dendritic_modeling.config.analysis import (
             AblationAnalysisParams,
+            AdversarialRobustnessAnalysisParams,
             BranchActivationAnalysisParams,
             InformationAnalysisParams,
+            NoisePerturbationAnalysisParams,
+            PerformanceAnalysisParams,
+            SingleLayerContributionAnalysisParams,
             SynapticActivationAnalysisParams,
         )
 
@@ -243,6 +263,37 @@ class TestAbstractAnalyzer(unittest.TestCase):
         self.assertIsInstance(synaptic_analyzer, AbstractAnalyzer)
         self.assertTrue(hasattr(synaptic_analyzer, "save_results"))
         self.assertTrue(hasattr(synaptic_analyzer, "logger"))
+
+        # Test metric analyzers
+        metric_analyzers = [
+            PerformanceAnalyzer(PerformanceAnalysisParams()),
+            NoisePerturbationAnalyzer(NoisePerturbationAnalysisParams()),
+            AdversarialRobustnessAnalyzer(AdversarialRobustnessAnalysisParams()),
+            SingleLayerContributionAnalyzer(SingleLayerContributionAnalysisParams()),
+        ]
+        for analyzer in metric_analyzers:
+            self.assertIsInstance(analyzer, AbstractAnalyzer)
+            self.assertTrue(hasattr(analyzer, "save_results"))
+            self.assertTrue(hasattr(analyzer, "logger"))
+
+        # Test training-state analyzers on unsupported minimal models so no
+        # synaptic snapshot traversal runs during the interface check.
+        from types import SimpleNamespace
+
+        unsupported_model = SimpleNamespace(core_network=None)
+        turnover_params = SimpleNamespace(snapshot_interval=1)
+        turnover_analyzer = SynapticTurnoverAnalyzer(
+            unsupported_model,
+            turnover_params,
+        )
+        self.assertIsInstance(turnover_analyzer, AbstractAnalyzer)
+        self.assertTrue(hasattr(turnover_analyzer, "save_results"))
+        self.assertTrue(hasattr(turnover_analyzer, "logger"))
+
+        pruning_analyzer = SynapticPruningAnalyzer(unsupported_model)
+        self.assertIsInstance(pruning_analyzer, AbstractAnalyzer)
+        self.assertTrue(hasattr(pruning_analyzer, "save_results"))
+        self.assertTrue(hasattr(pruning_analyzer, "logger"))
 
 
 class TestConfigCaching(unittest.TestCase):

@@ -324,29 +324,31 @@ class AnalysisManager:
         if not self._should_run_config(perf_cfg, training):
             return
 
-        save_path = (
-            self._analysis_save_path("performance", "epochs", create=True)
-            if training
-            else self._analysis_save_path("performance")
-        )
-        splits = (
-            getattr(perf_cfg, "training_splits", None)
-            if training
-            else getattr(perf_cfg, "final_splits", None)
-        )
-
         self._analysis_analyzer("performance").analyze(
             model=self.model,
             train_ds=self.data["train"],
             valid_ds=self.data["valid"],
             test_ds=self.data["test"],
             device=self.device,
-            save_path=save_path,
+            save_path=self._performance_save_path(training=training),
             filename=filename,
             training=training,
             runtime=runtime,
-            splits=splits,
+            splits=self._performance_splits(perf_cfg, training=training),
         )
+
+    def _performance_save_path(self, *, training: bool) -> str:
+        """Return the performance output directory for the current phase."""
+        if training:
+            return self._analysis_save_path("performance", "epochs", create=True)
+        return self._analysis_save_path("performance")
+
+    @staticmethod
+    def _performance_splits(perf_cfg: object, *, training: bool) -> object | None:
+        """Return configured dataset splits for the current performance phase."""
+        if training:
+            return getattr(perf_cfg, "training_splits", None)
+        return getattr(perf_cfg, "final_splits", None)
 
     def _run_information_analysis(
         self, *, filename: str, training: bool, runtime: object | None

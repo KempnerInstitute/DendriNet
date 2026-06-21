@@ -9,10 +9,7 @@ excitatory and inhibitory inputs.
 import torch
 import torch.nn as nn
 
-from dendritic_modeling.networks.activations import (
-    ActivationFactory,
-    resolve_dendritic_activation,
-)
+from dendritic_modeling.networks.activations import ActivationFactory
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.blocklinear import (
     BlockLinear,
     EfficientBlockLinear,
@@ -36,7 +33,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.b
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_options import (
     resolve_branch_config,
-    resolve_synapse_config,
+    resolve_branch_layer_synapse_config,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_synapses import (
     create_branch_sparse_layer,
@@ -237,12 +234,13 @@ class DendriticBranchLayer(nn.Module):
         formal_synapse_kwargs = DendriticSynapseConfig.legacy_kwargs_from_mapping(
             locals()
         )
-        self.synapse_config, kwargs = resolve_synapse_config(
-            formal_synapse_kwargs=formal_synapse_kwargs,
-            extra_kwargs=kwargs,
-            synapse_config=synapse_config,
+        self.synapse_config, synapse_options, kwargs = (
+            resolve_branch_layer_synapse_config(
+                formal_synapse_kwargs=formal_synapse_kwargs,
+                extra_kwargs=kwargs,
+                synapse_config=synapse_config,
+            )
         )
-        synapse_options = self.synapse_config.to_kwargs()
 
         topk_init_method = synapse_options["topk_init_method"]
         topk_noise_level = synapse_options["topk_noise_level"]
@@ -333,14 +331,6 @@ class DendriticBranchLayer(nn.Module):
         epsilon = synapse_options["epsilon"]
         weight_transform = synapse_options["weight_transform"]
 
-        reactivate, reactivation_type = resolve_dendritic_activation(
-            dendritic_activation,
-            reactivate,
-            reactivation_type,
-        )
-        synapse_options["reactivate"] = reactivate
-        synapse_options["reactivation_type"] = reactivation_type
-        self.synapse_config = DendriticSynapseConfig.from_kwargs(synapse_options)
         self.layer_idx = layer_idx
         self.n_branches = output_dim
         self.reactivation_strategy = reactivation_strategy

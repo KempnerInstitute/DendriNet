@@ -21,6 +21,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic i
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_options import (
     resolve_branch_config,
+    resolve_branch_layer_synapse_config,
     resolve_branch_options,
     resolve_synapse_config,
     resolve_synapse_options,
@@ -254,6 +255,33 @@ def test_synapse_options_resolve_typed_config_and_legacy_kwargs():
     assert options == config.to_kwargs()
     assert remaining == legacy_remaining == {"non_synapse_option": "keep"}
     assert config.to_kwargs()["indexed_seed"] == 123
+
+
+def test_branch_layer_synapse_config_resolves_activation_alias_and_extras():
+    formal_kwargs = {
+        "topk_type": "standard",
+        "dendritic_activation": "tanh",
+        "reactivate": False,
+        "reactivation_type": "param_tanh",
+        "weight_transform": "identity",
+    }
+    extra_kwargs = {
+        "indexed_seed": 7,
+        "activation_extra": "keep",
+    }
+
+    config, options, remaining = resolve_branch_layer_synapse_config(
+        formal_synapse_kwargs=formal_kwargs,
+        extra_kwargs=extra_kwargs,
+        synapse_config=None,
+    )
+
+    assert options == config.to_kwargs()
+    assert remaining == {"activation_extra": "keep"}
+    assert options["indexed_seed"] == 7
+    assert options["dendritic_activation"] == "tanh"
+    assert options["reactivate"] is True
+    assert options["reactivation_type"] == "tanh"
 
 
 def test_dendritic_branch_config_round_trips_legacy_kwargs():

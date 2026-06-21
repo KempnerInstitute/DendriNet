@@ -12,6 +12,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 
+from dendritic_modeling.analysis.core.base import AbstractAnalyzer
 from dendritic_modeling.analysis.utils.runtime import (
     analysis_device_context,
     subset_dataset_for_runtime,
@@ -23,10 +24,11 @@ from dendritic_modeling.utils import save_dict
 logger = logging.getLogger(__name__)
 
 
-class AdversarialRobustnessAnalyzer:
+class AdversarialRobustnessAnalyzer(AbstractAnalyzer):
     """Evaluate model robustness under FGSM adversarial attacks."""
 
     def __init__(self, params):
+        super().__init__("AdversarialRobustnessAnalyzer")
         self.epsilons = getattr(params, "epsilons", [0.0, 0.05, 0.1, 0.15, 0.2, 0.3])
         self.batch_size = getattr(params, "batch_size", 256)
 

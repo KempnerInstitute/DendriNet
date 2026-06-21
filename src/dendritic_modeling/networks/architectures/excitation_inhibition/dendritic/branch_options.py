@@ -64,6 +64,34 @@ def resolve_synapse_config(
     return normalized_config, remaining_kwargs
 
 
+def resolve_branch_layer_synapse_config(
+    *,
+    formal_synapse_kwargs: Mapping[str, Any],
+    extra_kwargs: Mapping[str, Any],
+    synapse_config: Any,
+) -> tuple[DendriticSynapseConfig, dict[str, Any], dict[str, Any]]:
+    """Normalize branch-layer synapse config and dendritic activation aliases."""
+
+    resolved_config, remaining_kwargs = resolve_synapse_config(
+        formal_synapse_kwargs=formal_synapse_kwargs,
+        extra_kwargs=extra_kwargs,
+        synapse_config=synapse_config,
+    )
+    synapse_options = resolved_config.to_kwargs()
+    reactivate, reactivation_type = resolve_dendritic_activation(
+        synapse_options["dendritic_activation"],
+        synapse_options["reactivate"],
+        synapse_options["reactivation_type"],
+    )
+    synapse_options["reactivate"] = reactivate
+    synapse_options["reactivation_type"] = reactivation_type
+    return (
+        DendriticSynapseConfig.from_kwargs(synapse_options),
+        synapse_options,
+        remaining_kwargs,
+    )
+
+
 def resolve_dendrinet_synapse_config(
     *,
     formal_synapse_kwargs: Mapping[str, Any],
@@ -114,6 +142,7 @@ def resolve_dendrinet_synapse_config(
 
 __all__ = [
     "resolve_branch_config",
+    "resolve_branch_layer_synapse_config",
     "resolve_branch_options",
     "resolve_dendrinet_synapse_config",
     "resolve_synapse_config",
