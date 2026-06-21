@@ -18,7 +18,10 @@ from dendritic_modeling.training.strategies.local_learning_pathways import (
     TopKGradientPath,
     iter_topk_path_modules,
 )
-from dendritic_modeling.utils.hooks import ForwardHookRemovalMixin
+from dendritic_modeling.utils.hooks import (
+    ForwardHookRemovalMixin,
+    iter_named_modules_of_type,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -123,9 +126,9 @@ class LocalLearningRecorderMixin(ForwardHookRemovalMixin):
         handles: list[torch.utils.hooks.RemovableHandle],
     ) -> list[dict[str, Any]]:
         records: list[dict[str, Any]] = []
-        for module_name, module in model.named_modules():
-            if not isinstance(module, DendriticBranchLayer):
-                continue
+        for module_name, module in iter_named_modules_of_type(
+            model, DendriticBranchLayer
+        ):
             rec = _branch_record(module_name, module)
             handles.append(self._register_reactivation_hook(module, rec))
             handles.extend(self._register_topk_hooks(module, rec))

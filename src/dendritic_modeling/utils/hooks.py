@@ -28,6 +28,16 @@ def iter_named_modules_of_type(
             yield name, module
 
 
+def iter_modules_of_type(
+    model: torch.nn.Module,
+    module_type: type[ModuleT],
+) -> Iterator[ModuleT]:
+    """Yield submodules matching ``module_type`` in module traversal order."""
+    for module in model.modules():
+        if isinstance(module, module_type):
+            yield module
+
+
 def register_named_forward_hooks(
     model: torch.nn.Module,
     module_type: type[ModuleT],
@@ -62,6 +72,7 @@ class ForwardHookRemovalMixin:
 __all__ = [
     "ForwardHookRemovalMixin",
     "HookHandle",
+    "iter_modules_of_type",
     "iter_named_modules_of_type",
     "register_named_forward_hooks",
     "remove_hook_handles",

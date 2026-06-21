@@ -14,7 +14,10 @@ from dendritic_modeling.networks import (
 from dendritic_modeling.networks.architectures.classical.autoencoder import (
     BaseVariationalAutoencoder,
 )
-from dendritic_modeling.utils.hooks import ForwardHookRemovalMixin
+from dendritic_modeling.utils.hooks import (
+    ForwardHookRemovalMixin,
+    iter_modules_of_type,
+)
 
 LossBuilder = Callable[[], "LossFunction"]
 LOSS_FUNCTION_REGISTRY: dict[str, LossBuilder] = {}
@@ -299,16 +302,13 @@ class VoltageStabilizationLoss(ForwardHookRemovalMixin, LossFunction):
     def attach_forward_hooks(self, model: BaseModel):
         handles = []
         try:
-            for module in model.modules():
-                if isinstance(module, DendriticBranchLayer):
-                    if self.stabilize_mode == "gate_occupancy" and not isinstance(
-                        module.reactivation, ParametricActivation
-                    ):
-                        continue
-                    handle = module.reactivation.register_forward_hook(
-                        self.forward_hook
-                    )
-                    handles.append(handle)
+            for module in iter_modules_of_type(model, DendriticBranchLayer):
+                if self.stabilize_mode == "gate_occupancy" and not isinstance(
+                    module.reactivation, ParametricActivation
+                ):
+                    continue
+                handle = module.reactivation.register_forward_hook(self.forward_hook)
+                handles.append(handle)
             return handles
         except Exception:
             self.remove_forward_hooks(handles)
@@ -434,24 +434,23 @@ class ExcitationInhibitionBalanceLoss(ForwardHookRemovalMixin, LossFunction):
     def attach_forward_hooks(self, model: BaseModel):
         handles = []
         try:
-            for module in model.modules():
-                if isinstance(module, DendriticBranchLayer):
-                    if (
-                        module.branch_excitation is not None
-                        and module.branch_inhibition is not None
-                    ):
-                        handle = module.branch_excitation.register_forward_hook(
-                            lambda module, inputs, outputs: self.forward_hook(
-                                module, inputs, outputs, "exc"
-                            )
+            for module in iter_modules_of_type(model, DendriticBranchLayer):
+                if (
+                    module.branch_excitation is not None
+                    and module.branch_inhibition is not None
+                ):
+                    handle = module.branch_excitation.register_forward_hook(
+                        lambda module, inputs, outputs: self.forward_hook(
+                            module, inputs, outputs, "exc"
                         )
-                        handles.append(handle)
-                        handle = module.branch_inhibition.register_forward_hook(
-                            lambda module, inputs, outputs: self.forward_hook(
-                                module, inputs, outputs, "inh"
-                            )
+                    )
+                    handles.append(handle)
+                    handle = module.branch_inhibition.register_forward_hook(
+                        lambda module, inputs, outputs: self.forward_hook(
+                            module, inputs, outputs, "inh"
                         )
-                        handles.append(handle)
+                    )
+                    handles.append(handle)
             return handles
         except Exception:
             self.remove_forward_hooks(handles)
@@ -569,44 +568,43 @@ class EIWeightRatioLoss(LossFunction):
         """Compute E/I weight ratio loss."""
         ratio_losses = []
 
-        for module in model.modules():
-            if isinstance(module, DendriticBranchLayer):
-                if (
-                    module.branch_excitation is not None
-                    and module.branch_inhibition is not None
-                    and hasattr(module.branch_excitation, "pruned_weight")
-                    and hasattr(module.branch_inhibition, "pruned_weight")
-                ):
-                    try:
-                        exc_weights = (
-                            module.branch_excitation.pruned_weight()
-                        )  # [n_branches, in_features]
-                        inh_weights = (
-                            module.branch_inhibition.pruned_weight()
-                        )  # [n_branches, in_features]
+        for module in iter_modules_of_type(model, DendriticBranchLayer):
+            if (
+                module.branch_excitation is not None
+                and module.branch_inhibition is not None
+                and hasattr(module.branch_excitation, "pruned_weight")
+                and hasattr(module.branch_inhibition, "pruned_weight")
+            ):
+                try:
+                    exc_weights = (
+                        module.branch_excitation.pruned_weight()
+                    )  # [n_branches, in_features]
+                    inh_weights = (
+                        module.branch_inhibition.pruned_weight()
+                    )  # [n_branches, in_features]
 
-                        if self.scope == "per_branch":
-                            # Enforce ratio per branch
-                            ratio_loss = self._compute_per_branch_ratio_loss(
-                                exc_weights, inh_weights
-                            )
-                        elif self.scope == "per_layer":
-                            # Enforce ratio per layer (average across branches)
-                            ratio_loss = self._compute_per_layer_ratio_loss(
-                                exc_weights, inh_weights
-                            )
-                        else:  # global
-                            # Enforce global ratio across entire layer
-                            ratio_loss = self._compute_global_ratio_loss(
-                                exc_weights, inh_weights
-                            )
+                    if self.scope == "per_branch":
+                        # Enforce ratio per branch
+                        ratio_loss = self._compute_per_branch_ratio_loss(
+                            exc_weights, inh_weights
+                        )
+                    elif self.scope == "per_layer":
+                        # Enforce ratio per layer (average across branches)
+                        ratio_loss = self._compute_per_layer_ratio_loss(
+                            exc_weights, inh_weights
+                        )
+                    else:  # global
+                        # Enforce global ratio across entire layer
+                        ratio_loss = self._compute_global_ratio_loss(
+                            exc_weights, inh_weights
+                        )
 
-                        if ratio_loss is not None:
-                            ratio_losses.append(ratio_loss)
+                    if ratio_loss is not None:
+                        ratio_losses.append(ratio_loss)
 
-                    except Exception:
-                        # Skip layers that don't have proper weight structure
-                        continue
+                except Exception:
+                    # Skip layers that don't have proper weight structure
+                    continue
 
         if ratio_losses:
             total_ratio_loss = self.reduction_fn(torch.stack(ratio_losses))

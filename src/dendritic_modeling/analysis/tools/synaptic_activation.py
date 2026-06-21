@@ -24,6 +24,7 @@ from dendritic_modeling.training.strategies.local_learning_pathways import (
 from dendritic_modeling.utils import save_dict
 from dendritic_modeling.utils.hooks import (
     ForwardHookRemovalMixin,
+    iter_modules_of_type,
     iter_named_modules_of_type,
 )
 
@@ -177,9 +178,7 @@ class SynapticActivationAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
     @staticmethod
     def _has_dendritic_branch_layers(model: BaseModel) -> bool:
         core = getattr(model, "core_network", model)
-        return any(
-            isinstance(module, DendriticBranchLayer) for module in core.modules()
-        )
+        return any(iter_modules_of_type(core, DendriticBranchLayer))
 
     def _collect_activation_batches(
         self,

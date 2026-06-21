@@ -40,7 +40,10 @@ from dendritic_modeling.training.strategies.local_learning_pathways import (
     iter_topk_path_modules,
 )
 from dendritic_modeling.utils import save_dict
-from dendritic_modeling.utils.hooks import ForwardHookRemovalMixin
+from dendritic_modeling.utils.hooks import (
+    ForwardHookRemovalMixin,
+    iter_named_modules_of_type,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -89,16 +92,15 @@ class CompartmentStatisticsAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         self.class_labels = y if self.per_class_analysis and y is not None else None
         handles = []
         try:
-            for key, module in model.named_modules():
-                if isinstance(module, DendriticBranchLayer):
-                    self._initialize_branch_records(key, module)
-                    synapse_modules = self._iter_synapse_modules(module)
-                    self._collect_layer_static_data(key, module, synapse_modules)
+            for key, module in iter_named_modules_of_type(model, DendriticBranchLayer):
+                self._initialize_branch_records(key, module)
+                synapse_modules = self._iter_synapse_modules(module)
+                self._collect_layer_static_data(key, module, synapse_modules)
 
-                    if self.inputs or self.activations:
-                        handles.extend(
-                            self._attach_synapse_capture_hooks(key, synapse_modules)
-                        )
+                if self.inputs or self.activations:
+                    handles.extend(
+                        self._attach_synapse_capture_hooks(key, synapse_modules)
+                    )
 
             if self.inputs or self.activations:
                 if self.n_samples is not None:
@@ -533,9 +535,7 @@ class CompartmentStatisticsAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
             Dictionary containing compartment statistics analysis results.
         """
         core = getattr(model, "core_network", model)
-        if not any(
-            isinstance(module, DendriticBranchLayer) for module in core.modules()
-        ):
+        if not any(iter_named_modules_of_type(core, DendriticBranchLayer)):
             return None
 
         start_time = time.time()

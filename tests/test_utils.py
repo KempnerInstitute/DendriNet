@@ -40,13 +40,28 @@ def test_utils_reexports_hook_helpers():
     from dendritic_modeling import utils
     from dendritic_modeling.utils.hooks import (
         ForwardHookRemovalMixin,
+        iter_modules_of_type,
         iter_named_modules_of_type,
         register_named_forward_hooks,
     )
 
     assert utils.ForwardHookRemovalMixin is ForwardHookRemovalMixin
+    assert utils.iter_modules_of_type is iter_modules_of_type
     assert utils.iter_named_modules_of_type is iter_named_modules_of_type
     assert utils.register_named_forward_hooks is register_named_forward_hooks
+
+
+def test_iter_modules_of_type_preserves_module_order():
+    from dendritic_modeling.utils.hooks import iter_modules_of_type
+
+    model = nn.Module()
+    model.first = nn.Linear(2, 3)
+    model.block = nn.Sequential(nn.ReLU(), nn.Linear(3, 1))
+
+    matches = list(iter_modules_of_type(model, nn.Linear))
+
+    assert [module.out_features for module in matches] == [3, 1]
+    assert matches == [model.first, model.block[1]]
 
 
 def test_iter_named_modules_of_type_preserves_model_order():

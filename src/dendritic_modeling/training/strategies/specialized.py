@@ -17,15 +17,15 @@ from dendritic_modeling.training.loss.functions import (
     VoltageStabilizationLoss,
 )
 from dendritic_modeling.training.strategies.standard import Trainer
+from dendritic_modeling.utils.hooks import iter_modules_of_type
 
 logger = logging.getLogger(__name__)
 
 
 def _set_parametric_activation_trainability(model, requires_grad: bool) -> None:
-    for module in model.modules():
-        if isinstance(module, ParametricActivation):
-            for param in module.parameters():
-                param.requires_grad = requires_grad
+    for module in iter_modules_of_type(model, ParametricActivation):
+        for param in module.parameters():
+            param.requires_grad = requires_grad
 
 
 def _start_warmup_phase(trainer, warmup_loss, filename_prefix, logger_info_prefix):

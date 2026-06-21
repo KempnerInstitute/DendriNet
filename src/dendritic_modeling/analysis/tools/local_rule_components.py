@@ -57,7 +57,11 @@ from dendritic_modeling.training.strategies.local_learning_pathways import (
     iter_topk_path_modules,
 )
 from dendritic_modeling.utils import save_dict
-from dendritic_modeling.utils.hooks import ForwardHookRemovalMixin
+from dendritic_modeling.utils.hooks import (
+    ForwardHookRemovalMixin,
+    iter_modules_of_type,
+    iter_named_modules_of_type,
+)
 
 
 @dataclass(frozen=True)
@@ -210,9 +214,9 @@ class LocalRuleComponentAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
                     )
                 )
 
-            for module_name, module in model.named_modules():
-                if not isinstance(module, DendriticBranchLayer):
-                    continue
+            for module_name, module in iter_named_modules_of_type(
+                model, DendriticBranchLayer
+            ):
                 rec = self._branch_record(module_name, module)
                 handles.append(self._register_reactivation_hook(module, rec))
                 handles.extend(self._register_topk_hooks(module, rec))
@@ -760,7 +764,7 @@ class LocalRuleComponentAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
 
     @staticmethod
     def _topk_modules(model: BaseModel) -> list[TopKLinear]:
-        return [m for m in model.modules() if isinstance(m, TopKLinear)]
+        return list(iter_modules_of_type(model, TopKLinear))
 
     @staticmethod
     def _set_topk_mask_cache(modules: list[TopKLinear], enabled: bool) -> None:

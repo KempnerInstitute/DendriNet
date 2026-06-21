@@ -23,6 +23,7 @@ from dendritic_modeling.networks import (
 from dendritic_modeling.plotting.visualizations import (
     plot_active_synapses_summary_by_layer,
 )
+from dendritic_modeling.utils.hooks import iter_modules_of_type
 
 logger = logging.getLogger(__name__)
 
@@ -104,9 +105,7 @@ def _iter_dendritic_branch_layers(model: BaseModel) -> Iterator[DendriticBranchL
     if not isinstance(core_network, ExcitationInhibitionNetwork):
         return
 
-    for module in core_network.modules():
-        if isinstance(module, DendriticBranchLayer):
-            yield module
+    yield from iter_modules_of_type(core_network, DendriticBranchLayer)
 
 
 def _synapse_weight_mask(synapse: Any):

@@ -16,12 +16,15 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.top
 from dendritic_modeling.training.strategies.local_learning_gradient_utils import (
     _accumulate_parameter_grad,
 )
-from dendritic_modeling.utils.hooks import remove_hook_handles
+from dendritic_modeling.utils.hooks import (
+    iter_modules_of_type,
+    remove_hook_handles,
+)
 
 
 def _has_dendritic_branch_layers(model: BaseModel) -> bool:
     try:
-        return any(isinstance(m, DendriticBranchLayer) for m in model.modules())
+        return any(iter_modules_of_type(model, DendriticBranchLayer))
     except Exception:
         return False
 
@@ -178,7 +181,7 @@ def _average_local_epoch_losses(
 
 
 def _collect_topk_modules(model: BaseModel) -> list[TopKLinear]:
-    return [m for m in model.modules() if isinstance(m, TopKLinear)]
+    return list(iter_modules_of_type(model, TopKLinear))
 
 
 def _set_topk_mask_cache(
