@@ -79,8 +79,21 @@ def _auto_worker_cpu_budget(available_cpus: int) -> int:
 
 
 def _base_dataset(dataset: Dataset) -> Dataset:
-    while isinstance(dataset, Subset):
-        dataset = dataset.dataset
+    seen: set[int] = set()
+    while id(dataset) not in seen:
+        seen.add(id(dataset))
+        if isinstance(dataset, Subset):
+            dataset = dataset.dataset
+            continue
+        base_dataset = getattr(dataset, "base_dataset", None)
+        if isinstance(base_dataset, Dataset):
+            dataset = base_dataset
+            continue
+        wrapped_dataset = getattr(dataset, "dataset", None)
+        if isinstance(wrapped_dataset, Dataset):
+            dataset = wrapped_dataset
+            continue
+        break
     return dataset
 
 

@@ -360,6 +360,42 @@ def test_dataloader_auto_prefetches_torchvision_image_datasets(monkeypatch):
     assert tuning.as_kwargs()["prefetch_factor"] == 4
 
 
+def test_dataloader_auto_tuning_unwraps_dataset_adapters(monkeypatch):
+    """Wrapped tensor and ImageNet-style datasets should keep their tuning profile."""
+
+    from dendritic_modeling.datasets.indexing import SliceSafeDataset
+    from dendritic_modeling.training.dataloader_utils import resolve_dataloader_tuning
+
+    class ImageNet(torch.utils.data.Dataset):
+        def __len__(self):
+            return 16
+
+        def __getitem__(self, idx):
+            return torch.zeros(3, 224, 224), torch.tensor(idx % 2)
+
+    ImageNet.__module__ = "torchvision.datasets.imagenet"
+
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(
+        "dendritic_modeling.training.dataloader_utils.visible_cpu_count",
+        lambda: 8,
+    )
+
+    wrapped_tensor = SliceSafeDataset(
+        torch.utils.data.TensorDataset(torch.randn(8, 3), torch.randint(0, 2, (8,)))
+    )
+    wrapped_imagenet = torch.utils.data.Subset(SliceSafeDataset(ImageNet()), range(8))
+
+    tensor_tuning = resolve_dataloader_tuning(wrapped_tensor, device="cuda")
+    imagenet_tuning = resolve_dataloader_tuning(wrapped_imagenet, device="cuda")
+
+    assert tensor_tuning.num_workers == 0
+    assert tensor_tuning.prefetch_factor is None
+    assert imagenet_tuning.num_workers == 8
+    assert imagenet_tuning.pin_memory is True
+    assert imagenet_tuning.prefetch_factor == 4
+
+
 def test_dataloader_explicit_workers_are_capped_by_visible_cpus(monkeypatch):
     """Explicit worker counts should stay within scheduler-visible CPUs."""
 

@@ -31,6 +31,7 @@ data:
   dataset_params:
     imagenet:
       transform_preset: "pretrained"
+      loader_backend: "auto"                  # "auto" | "torchvision" | "imagefolder"; imagefolder is fastest for train/val class trees
       allow_flatten_materialize: false
 
 model:
