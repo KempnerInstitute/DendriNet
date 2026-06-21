@@ -1,5 +1,6 @@
 """Tests for local-rule component analysis helpers."""
 
+import csv
 import json
 
 import pytest
@@ -12,13 +13,21 @@ from dendritic_modeling.analysis.tools.local_rule_components import (
     _activation_derivative_for_record,
     _active_presynaptic_values_for_layer,
     _add_component_values,
+    _append_csv_rows,
     _branch_record_for_module,
     _component_key_from_record,
+    _component_rows_from_accum,
+    _component_snapshot_from_rows,
     _ComponentKey,
     _delta_out_for_outputs,
     _depth_labels_for_records,
+    _layer_broadcast_for_error,
     _population_label_for_module_name,
+    _select_analysis_dataset,
+    _set_topk_mask_cache_for_modules,
+    _topk_modules_in_model,
     _total_conductance_for_record,
+    _write_csv_rows,
 )
 from dendritic_modeling.config.analysis import LocalRuleComponentAnalysisParams
 from dendritic_modeling.networks import DendriticBranchLayer, TopKLinear
@@ -534,6 +543,103 @@ def test_local_rule_component_key_method_uses_shared_helper() -> None:
     )
 
 
+def test_local_rule_component_rows_helper_preserves_sorting_and_statistics() -> None:
+    key_b = _ComponentKey(
+        module_name="z_branch",
+        population="excitatory",
+        branch_module_index=1,
+        dendritic_depth=2,
+        depth_label="distal",
+        synapse_type="inhibitory",
+        component="z_component",
+        used_in_rule=False,
+    )
+    key_a = _ComponentKey(
+        module_name="a_branch",
+        population="excitatory",
+        branch_module_index=0,
+        dendritic_depth=1,
+        depth_label="proximal",
+        synapse_type="branch",
+        component="branch_voltage",
+        used_in_rule=True,
+    )
+    accum = {
+        key_b: [torch.tensor([3.0])],
+        key_a: [torch.tensor([1.0, 2.0]), torch.tensor([[4.0]])],
+    }
+
+    rows = _component_rows_from_accum(accum, filename="epoch_1", training=True)
+
+    assert [row["module_name"] for row in rows] == ["a_branch", "z_branch"]
+    assert rows[0]["filename"] == "epoch_1"
+    assert rows[0]["training"] is True
+    assert rows[0]["depth_label"] == "proximal"
+    assert rows[0]["component"] == "branch_voltage"
+    assert rows[0]["used_in_rule"] is True
+    assert rows[0]["n"] == 3
+    assert rows[0]["mean"] == pytest.approx(7.0 / 3.0)
+    assert rows[0]["q50"] == pytest.approx(2.0)
+    assert rows[1]["used_in_rule"] is False
+    assert rows[1]["mean"] == pytest.approx(3.0)
+    assert rows[1]["std"] == pytest.approx(0.0)
+    assert rows[1]["q05"] == pytest.approx(3.0)
+    assert rows[1]["q50"] == pytest.approx(3.0)
+    assert rows[1]["q95"] == pytest.approx(3.0)
+    assert rows[1]["n"] == 1
+
+
+def test_local_rule_component_rows_helper_skips_empty_chunks() -> None:
+    assert (
+        _component_rows_from_accum(
+            {_component_key(): []},
+            filename="epoch_1",
+            training=True,
+        )
+        == []
+    )
+
+
+def test_local_rule_component_records_to_rows_method_uses_shared_helper() -> None:
+    analyzer = LocalRuleComponentAnalyzer(LocalRuleComponentAnalysisParams())
+    accum = {_component_key(): [torch.tensor([1.0])]}
+
+    assert analyzer._records_to_rows(
+        accum,
+        filename="final",
+        training=False,
+    ) == _component_rows_from_accum(accum, filename="final", training=False)
+
+
+def test_local_rule_component_snapshot_helper_preserves_schema() -> None:
+    rows = [{"filename": "epoch_1", "training": True, "mean": 1.0}]
+
+    snapshot = _component_snapshot_from_rows(
+        rows,
+        filename="epoch_1",
+        training=True,
+    )
+
+    assert snapshot == {
+        "filename": "epoch_1",
+        "training": True,
+        "n_rows": 1,
+        "rows": rows,
+    }
+
+
+def test_local_rule_component_build_snapshot_method_uses_shared_helper() -> None:
+    analyzer = LocalRuleComponentAnalyzer(LocalRuleComponentAnalysisParams())
+    accum = {_component_key(): [torch.tensor([1.0])]}
+    rows = analyzer._records_to_rows(accum, filename="final", training=False)
+
+    assert analyzer._build_snapshot(
+        accum,
+        filename="final",
+        training=False,
+    ) == _component_snapshot_from_rows(rows, filename="final", training=False)
+
+
 def test_local_rule_component_delta_out_preserves_none_mode() -> None:
     y_hat = torch.tensor([[1.0, -1.0]])
     y = torch.tensor([[0.0, 1.0]])
@@ -603,6 +709,56 @@ def test_local_rule_component_delta_out_method_uses_shared_helper() -> None:
     )
 
 
+def test_local_rule_component_layer_broadcast_preserves_none_input() -> None:
+    assert _layer_broadcast_for_error(None, 3, "scalar") is None
+
+
+def test_local_rule_component_layer_broadcast_preserves_scalar_expansion() -> None:
+    delta = torch.tensor([[1.0, 3.0], [4.0, 6.0]])
+
+    broadcast = _layer_broadcast_for_error(delta, 3, "scalar")
+
+    assert torch.equal(
+        broadcast,
+        torch.tensor([[2.0, 2.0, 2.0], [5.0, 5.0, 5.0]]),
+    )
+
+
+@pytest.mark.parametrize("mode", ["per_soma", "neuron_wise", "neuron-wise"])
+def test_local_rule_component_layer_broadcast_preserves_per_soma_modes(
+    mode: str,
+) -> None:
+    delta = torch.tensor([[1.0, 3.0], [4.0, 6.0]])
+
+    broadcast = _layer_broadcast_for_error(delta, 2, mode)
+
+    assert broadcast is delta
+
+
+def test_local_rule_component_layer_broadcast_falls_back_on_shape_mismatch() -> None:
+    delta = torch.tensor([[1.0, 3.0], [4.0, 6.0]])
+
+    broadcast = _layer_broadcast_for_error(delta, 4, "per_soma")
+
+    assert torch.equal(
+        broadcast,
+        torch.tensor([[2.0, 2.0, 2.0, 2.0], [5.0, 5.0, 5.0, 5.0]]),
+    )
+
+
+def test_local_rule_component_layer_broadcast_method_uses_shared_helper() -> None:
+    analyzer = LocalRuleComponentAnalyzer(
+        LocalRuleComponentAnalysisParams(broadcast_mode="per_soma")
+    )
+    delta = torch.tensor([[1.0, 3.0]])
+
+    assert analyzer._layer_broadcast(delta, 2) is _layer_broadcast_for_error(
+        delta,
+        2,
+        "per_soma",
+    )
+
+
 def test_local_rule_component_recorders_preserve_topk_keys() -> None:
     torch.manual_seed(41)
     model = _FeedforwardBranchModel()
@@ -660,14 +816,13 @@ def test_local_rule_component_recorders_remove_hooks_after_failed_registration(
     assert sum(len(module._forward_hooks) for module in model.modules()) == 0
 
 
-def test_local_rule_component_dataset_selection_priority() -> None:
-    analyzer = LocalRuleComponentAnalyzer(LocalRuleComponentAnalysisParams())
+def test_local_rule_component_dataset_selection_helper_preserves_priority() -> None:
     train_ds = TensorDataset(torch.ones(1, 1), torch.zeros(1))
     valid_ds = TensorDataset(torch.ones(2, 1), torch.zeros(2))
     test_ds = TensorDataset(torch.ones(3, 1), torch.zeros(3))
 
     assert (
-        analyzer._select_dataset(
+        _select_analysis_dataset(
             training=True,
             test_dataset=test_ds,
             train_ds=train_ds,
@@ -676,7 +831,7 @@ def test_local_rule_component_dataset_selection_priority() -> None:
         is train_ds
     )
     assert (
-        analyzer._select_dataset(
+        _select_analysis_dataset(
             training=False,
             test_dataset=test_ds,
             train_ds=train_ds,
@@ -685,7 +840,7 @@ def test_local_rule_component_dataset_selection_priority() -> None:
         is test_ds
     )
     assert (
-        analyzer._select_dataset(
+        _select_analysis_dataset(
             training=False,
             test_dataset=None,
             train_ds=train_ds,
@@ -695,20 +850,109 @@ def test_local_rule_component_dataset_selection_priority() -> None:
     )
 
 
+def test_local_rule_component_dataset_selection_method_uses_shared_helper() -> None:
+    analyzer = LocalRuleComponentAnalyzer(LocalRuleComponentAnalysisParams())
+    train_ds = TensorDataset(torch.ones(1, 1), torch.zeros(1))
+    valid_ds = TensorDataset(torch.ones(2, 1), torch.zeros(2))
+
+    assert analyzer._select_dataset(
+        training=False,
+        test_dataset=None,
+        train_ds=train_ds,
+        valid_ds=valid_ds,
+    ) is _select_analysis_dataset(
+        training=False,
+        test_dataset=None,
+        train_ds=train_ds,
+        valid_ds=valid_ds,
+    )
+
+
 def test_local_rule_component_topk_cache_reset_clears_masks() -> None:
     model = _FeedforwardBranchModel()
-    modules = LocalRuleComponentAnalyzer._topk_modules(model)
+    modules = _topk_modules_in_model(model)
     assert modules
 
-    LocalRuleComponentAnalyzer._set_topk_mask_cache(modules, enabled=True)
+    _set_topk_mask_cache_for_modules(modules, enabled=True)
     for module in modules:
         assert module.cache_mask
         module._last_forward_weight_mask = torch.ones_like(module.pre_w)
 
-    LocalRuleComponentAnalyzer._set_topk_mask_cache(modules, enabled=False)
+    _set_topk_mask_cache_for_modules(modules, enabled=False)
     for module in modules:
         assert not module.cache_mask
         assert module._last_forward_weight_mask is None
+
+
+def test_local_rule_component_topk_methods_use_shared_helpers() -> None:
+    model = _FeedforwardBranchModel()
+    modules = LocalRuleComponentAnalyzer._topk_modules(model)
+
+    assert modules == _topk_modules_in_model(model)
+
+    LocalRuleComponentAnalyzer._set_topk_mask_cache(modules, enabled=True)
+    assert all(module.cache_mask for module in modules)
+    LocalRuleComponentAnalyzer._set_topk_mask_cache(modules, enabled=False)
+    assert all(not module.cache_mask for module in modules)
+
+
+def test_local_rule_component_write_csv_rows_preserves_header_and_overwrite(
+    tmp_path,
+) -> None:
+    path = tmp_path / "nested" / "rows.csv"
+
+    _write_csv_rows(
+        [
+            {"filename": "first", "mean": 1.0},
+            {"filename": "second", "mean": 2.0},
+        ],
+        str(path),
+    )
+    _write_csv_rows([{"filename": "third", "mean": 3.0}], str(path))
+
+    with open(path, newline="") as f:
+        rows = list(csv.DictReader(f))
+
+    assert rows == [{"filename": "third", "mean": "3.0"}]
+
+
+def test_local_rule_component_append_csv_rows_preserves_single_header(tmp_path) -> None:
+    path = tmp_path / "nested" / "trajectory.csv"
+
+    _append_csv_rows([{"filename": "first", "mean": 1.0}], str(path))
+    _append_csv_rows([{"filename": "second", "mean": 2.0}], str(path))
+
+    assert path.read_text().splitlines() == [
+        "filename,mean",
+        "first,1.0",
+        "second,2.0",
+    ]
+
+
+def test_local_rule_component_csv_rows_skip_empty_inputs(tmp_path) -> None:
+    path = tmp_path / "nested" / "empty.csv"
+
+    _write_csv_rows([], str(path))
+    _append_csv_rows([], str(path))
+
+    assert not path.exists()
+
+
+def test_local_rule_component_csv_methods_use_shared_helpers(tmp_path) -> None:
+    analyzer = LocalRuleComponentAnalyzer(LocalRuleComponentAnalysisParams())
+    method_path = tmp_path / "method" / "rows.csv"
+    helper_path = tmp_path / "helper" / "rows.csv"
+    rows = [{"filename": "epoch_1", "mean": 1.0}]
+
+    analyzer._write_csv(rows, str(method_path))
+    _write_csv_rows(rows, str(helper_path))
+
+    assert method_path.read_text() == helper_path.read_text()
+
+    analyzer._append_csv(rows, str(method_path))
+    _append_csv_rows(rows, str(helper_path))
+
+    assert method_path.read_text() == helper_path.read_text()
 
 
 def test_local_rule_component_save_snapshot_writes_expected_files(tmp_path) -> None:

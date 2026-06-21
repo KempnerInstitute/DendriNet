@@ -137,6 +137,57 @@ def _summary(values: torch.Tensor) -> dict[str, float | int]:
     }
 
 
+def _component_rows_from_accum(
+    accum: dict[_ComponentKey, list[torch.Tensor]],
+    filename: str,
+    training: bool,
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for key, chunks in sorted(
+        accum.items(),
+        key=lambda kv: (
+            kv[0].module_name,
+            kv[0].population,
+            kv[0].branch_module_index,
+            kv[0].dendritic_depth,
+            kv[0].synapse_type,
+            kv[0].component,
+        ),
+    ):
+        if not chunks:
+            continue
+        values = torch.cat([chunk.reshape(-1) for chunk in chunks], dim=0)
+        stats = _summary(values)
+        row = {
+            "filename": filename,
+            "training": bool(training),
+            "module_name": key.module_name,
+            "population": key.population,
+            "branch_module_index": key.branch_module_index,
+            "dendritic_depth": key.dendritic_depth,
+            "depth_label": key.depth_label,
+            "synapse_type": key.synapse_type,
+            "component": key.component,
+            "used_in_rule": key.used_in_rule,
+            **stats,
+        }
+        rows.append(row)
+    return rows
+
+
+def _component_snapshot_from_rows(
+    rows: list[dict[str, Any]],
+    filename: str,
+    training: bool,
+) -> dict[str, Any]:
+    return {
+        "filename": filename,
+        "training": bool(training),
+        "n_rows": len(rows),
+        "rows": rows,
+    }
+
+
 def _record_topk_forward(
     rec: dict[str, Any],
     path: TopKGradientPath,
@@ -341,6 +392,72 @@ def _delta_out_for_outputs(
     return None
 
 
+def _layer_broadcast_for_error(
+    delta0: torch.Tensor | None,
+    out_features: int,
+    broadcast_mode: Any,
+) -> torch.Tensor | None:
+    if delta0 is None:
+        return None
+    scalar = _reduce_error_to_scalar(delta0)
+    mode = str(broadcast_mode).lower()
+    if (
+        mode in {"per_soma", "neuron_wise", "neuron-wise"}
+        and delta0.dim() == 2
+        and delta0.size(1) == out_features
+    ):
+        return delta0
+    return scalar.expand(-1, out_features)
+
+
+def _select_analysis_dataset(
+    *,
+    training: bool,
+    test_dataset: torch.utils.data.Dataset | None,
+    train_ds: torch.utils.data.Dataset | None,
+    valid_ds: torch.utils.data.Dataset | None,
+) -> torch.utils.data.Dataset | None:
+    dataset = train_ds if training else test_dataset
+    if dataset is None:
+        dataset = valid_ds or test_dataset or train_ds
+    return dataset
+
+
+def _topk_modules_in_model(model: BaseModel) -> list[TopKLinear]:
+    return list(iter_modules_of_type(model, TopKLinear))
+
+
+def _set_topk_mask_cache_for_modules(modules: list[TopKLinear], enabled: bool) -> None:
+    for module in modules:
+        module.cache_mask = enabled
+        if not enabled:
+            module._last_forward_weight_mask = None
+
+
+def _write_csv_rows(rows: list[dict[str, Any]], path: str) -> None:
+    if not rows:
+        return
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    fieldnames = list(rows[0].keys())
+    with open(path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _append_csv_rows(rows: list[dict[str, Any]], path: str) -> None:
+    if not rows:
+        return
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    exists = os.path.exists(path)
+    fieldnames = list(rows[0].keys())
+    with open(path, "a", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        if not exists:
+            writer.writeheader()
+        writer.writerows(rows)
+
+
 class LocalRuleComponentAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
     """Record LocalCA eligibility factors by E/I type and dendritic depth."""
 
@@ -538,17 +655,11 @@ class LocalRuleComponentAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         delta0: torch.Tensor | None,
         out_features: int,
     ) -> torch.Tensor | None:
-        if delta0 is None:
-            return None
-        scalar = _reduce_error_to_scalar(delta0)
-        mode = str(getattr(self.params, "broadcast_mode", "scalar")).lower()
-        if (
-            mode in {"per_soma", "neuron_wise", "neuron-wise"}
-            and delta0.dim() == 2
-            and delta0.size(1) == out_features
-        ):
-            return delta0
-        return scalar.expand(-1, out_features)
+        return _layer_broadcast_for_error(
+            delta0,
+            out_features,
+            getattr(self.params, "broadcast_mode", "scalar"),
+        )
 
     def _record_common_components(
         self,
@@ -711,59 +822,13 @@ class LocalRuleComponentAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         filename: str,
         training: bool,
     ) -> list[dict[str, Any]]:
-        rows: list[dict[str, Any]] = []
-        for key, chunks in sorted(
-            accum.items(),
-            key=lambda kv: (
-                kv[0].module_name,
-                kv[0].population,
-                kv[0].branch_module_index,
-                kv[0].dendritic_depth,
-                kv[0].synapse_type,
-                kv[0].component,
-            ),
-        ):
-            if not chunks:
-                continue
-            values = torch.cat([chunk.reshape(-1) for chunk in chunks], dim=0)
-            stats = _summary(values)
-            row = {
-                "filename": filename,
-                "training": bool(training),
-                "module_name": key.module_name,
-                "population": key.population,
-                "branch_module_index": key.branch_module_index,
-                "dendritic_depth": key.dendritic_depth,
-                "depth_label": key.depth_label,
-                "synapse_type": key.synapse_type,
-                "component": key.component,
-                "used_in_rule": key.used_in_rule,
-                **stats,
-            }
-            rows.append(row)
-        return rows
+        return _component_rows_from_accum(accum, filename=filename, training=training)
 
     def _write_csv(self, rows: list[dict[str, Any]], path: str) -> None:
-        if not rows:
-            return
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        fieldnames = list(rows[0].keys())
-        with open(path, "w", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(rows)
+        _write_csv_rows(rows, path)
 
     def _append_csv(self, rows: list[dict[str, Any]], path: str) -> None:
-        if not rows:
-            return
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        exists = os.path.exists(path)
-        fieldnames = list(rows[0].keys())
-        with open(path, "a", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            if not exists:
-                writer.writeheader()
-            writer.writerows(rows)
+        _append_csv_rows(rows, path)
 
     def analyze(
         self,
@@ -824,21 +889,20 @@ class LocalRuleComponentAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         train_ds: torch.utils.data.Dataset | None,
         valid_ds: torch.utils.data.Dataset | None,
     ) -> torch.utils.data.Dataset | None:
-        dataset = train_ds if training else test_dataset
-        if dataset is None:
-            dataset = valid_ds or test_dataset or train_ds
-        return dataset
+        return _select_analysis_dataset(
+            training=training,
+            test_dataset=test_dataset,
+            train_ds=train_ds,
+            valid_ds=valid_ds,
+        )
 
     @staticmethod
     def _topk_modules(model: BaseModel) -> list[TopKLinear]:
-        return list(iter_modules_of_type(model, TopKLinear))
+        return _topk_modules_in_model(model)
 
     @staticmethod
     def _set_topk_mask_cache(modules: list[TopKLinear], enabled: bool) -> None:
-        for module in modules:
-            module.cache_mask = enabled
-            if not enabled:
-                module._last_forward_weight_mask = None
+        _set_topk_mask_cache_for_modules(modules, enabled)
 
     def _process_batch(
         self,
@@ -962,12 +1026,11 @@ class LocalRuleComponentAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         training: bool,
     ) -> dict[str, Any]:
         rows = self._records_to_rows(accum, filename=filename, training=training)
-        return {
-            "filename": filename,
-            "training": bool(training),
-            "n_rows": len(rows),
-            "rows": rows,
-        }
+        return _component_snapshot_from_rows(
+            rows,
+            filename=filename,
+            training=training,
+        )
 
     def _save_snapshot(
         self,
