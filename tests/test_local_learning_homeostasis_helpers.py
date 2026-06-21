@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import torch
 
-from dendritic_modeling.training.strategies.local_learning_homeostasis import (
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_homeostasis import (
     compute_gate_homeostasis_aux_grads,
     compute_inhibitory_homeostasis_factor,
     compute_voltage_homeostasis_error,

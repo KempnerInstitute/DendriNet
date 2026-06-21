@@ -6,14 +6,14 @@ from types import SimpleNamespace
 
 import torch
 
-from dendritic_modeling.training.strategies.local_learning_hsic import (
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_hsic import (
     clamp_phi,
     compute_additive_pseudo_signals,
     compute_dendritic_normalization,
     compute_hsic_gradient,
     compute_kernel_matrix,
 )
-from dendritic_modeling.training.strategies.local_learning_hsic_mixin import (
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_hsic_mixin import (
     _clip_hsic_gradient,
     _hsic_topk_param_grad,
     _resolve_hsic_warmup_scale,

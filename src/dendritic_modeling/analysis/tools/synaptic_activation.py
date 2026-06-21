@@ -15,7 +15,7 @@ from dendritic_modeling.config import SynapticActivationAnalysisParams
 from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import DendriticBranchLayer, TopKLinear
-from dendritic_modeling.training.strategies.local_learning_pathways import (
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_pathways import (
     iter_topk_path_modules,
 )
 from dendritic_modeling.utils import save_dict

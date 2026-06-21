@@ -5,7 +5,7 @@ import logging
 import torch
 import torch.nn as nn
 
-from dendritic_modeling.training.strategies.local_learning_activation_derivatives import (
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_activation_derivatives import (
     compute_reactivation_derivative,
 )
 

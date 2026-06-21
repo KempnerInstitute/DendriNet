@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 import torch
 
-from dendritic_modeling.training.strategies.local_learning_phi_mixin import (
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_phi_mixin import (
     LocalLearningPhiMixin,
     _center_for_conditional_phi,
     _conditional_phi_from_moments,
@@ -16,7 +16,9 @@ from dendritic_modeling.training.strategies.local_learning_phi_mixin import (
     _update_single_sample_conditional_moments,
     _update_variance_ratio_phi,
 )
-from dendritic_modeling.training.strategies.local_learning_state import _LayerStats
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_state import (
+    _LayerStats,
+)
 
 
 class _PhiProbe(LocalLearningPhiMixin):

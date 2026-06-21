@@ -19,10 +19,10 @@ from dendritic_modeling.config.local_learning import (
     section_to_dict,
 )
 from dendritic_modeling.models import BaseModel
-from dendritic_modeling.training.strategies.local_learning_broadcast_mixin import (
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_broadcast_mixin import (
     LocalLearningBroadcastMixin,
 )
-from dendritic_modeling.training.strategies.local_learning_epoch import (
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_epoch import (
     _accumulate_backprop_gradients as _accumulate_backprop_gradients,
     _accumulate_backprop_update_gradients,
     _accumulate_local_logging_loss,
@@ -46,29 +46,31 @@ from dendritic_modeling.training.strategies.local_learning_epoch import (
     _supports_local_learning_train,
     _zero_optimizer_gradients,
 )
-from dendritic_modeling.training.strategies.local_learning_gradients_mixin import (
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_gradients_mixin import (
     LocalLearningGradientMixin,
 )
-from dendritic_modeling.training.strategies.local_learning_hsic_mixin import (
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_hsic_mixin import (
     LocalLearningHSICMixin,
 )
-from dendritic_modeling.training.strategies.local_learning_modulators import (
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_modulators import (
     LocalLearningModulatorMixin,
 )
-from dendritic_modeling.training.strategies.local_learning_morphology_mixin import (
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_morphology_mixin import (
     LocalLearningMorphologyMixin,
 )
-from dendritic_modeling.training.strategies.local_learning_recorders import (
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_recorders import (
     LocalLearningRecorderMixin,
 )
-from dendritic_modeling.training.strategies.local_learning_rule_mixin import (
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_rule_mixin import (
     LocalLearningRuleMixin,
 )
-from dendritic_modeling.training.strategies.local_learning_signals import (
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_signals import (
     LocalLearningSignalMixin,
 )
-from dendritic_modeling.training.strategies.local_learning_state import _LayerStats
-from dendritic_modeling.training.strategies.local_learning_stdp_mixin import (
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_state import (
+    _LayerStats,
+)
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_stdp_mixin import (
     LocalLearningSTDPMixin,
 )
 from dendritic_modeling.training.strategies.standard import Trainer

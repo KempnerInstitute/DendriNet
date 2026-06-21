@@ -2,7 +2,7 @@
 
 from types import SimpleNamespace
 
-from dendritic_modeling.analysis.core.information_estimator_setup import (
+from dendritic_modeling.analysis.core.information_parts.information_estimator_setup import (
     _build_information_estimators,
 )
 from dendritic_modeling.utils.information.estimators import (

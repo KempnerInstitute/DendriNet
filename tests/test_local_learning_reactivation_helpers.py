@@ -2,7 +2,7 @@
 
 import torch
 
-from dendritic_modeling.training.strategies.local_learning_reactivation_mixin import (
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_reactivation_mixin import (
     _reactivation_bias_local_grad,
     _reactivation_log_m_local_grad,
 )

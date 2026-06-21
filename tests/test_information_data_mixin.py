@@ -7,7 +7,9 @@ import pytest
 import torch
 from torch.utils.data import TensorDataset
 
-from dendritic_modeling.analysis.core.information_data_mixin import InformationDataMixin
+from dendritic_modeling.analysis.core.information_parts.information_data_mixin import (
+    InformationDataMixin,
+)
 from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 
 

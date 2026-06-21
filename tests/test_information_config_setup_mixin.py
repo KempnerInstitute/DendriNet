@@ -2,7 +2,7 @@
 
 from types import SimpleNamespace
 
-from dendritic_modeling.analysis.core.information_config_setup_mixin import (
+from dendritic_modeling.analysis.core.information_parts.information_config_setup_mixin import (
     InformationConfigSetupMixin,
 )
 

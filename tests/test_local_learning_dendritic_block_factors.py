@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import torch
 
-from dendritic_modeling.training.strategies.local_learning_dendritic_block_mixin import (
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_dendritic_block_mixin import (
     LocalLearningDendriticBlockGradientMixin,
     _additive_dendritic_block_factor,
     _apply_dendritic_block_modulators,

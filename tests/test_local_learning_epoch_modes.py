@@ -24,7 +24,7 @@ from dendritic_modeling.training.strategies.local_learning import (
     _supports_local_learning_train,
     _zero_optimizer_gradients,
 )
-from dendritic_modeling.training.strategies.local_learning_epoch import (
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_epoch import (
     _accumulate_backprop_update_gradients,
     _accumulate_detached_parameter_grad,
     _accumulate_local_logging_loss,
@@ -44,7 +44,7 @@ from dendritic_modeling.training.strategies.local_learning_epoch import (
     _set_topk_mask_cache,
     _should_clip_gradients,
 )
-from dendritic_modeling.training.strategies.local_learning_gradients_mixin import (
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_gradients_mixin import (
     LocalLearningGradientMixin,
     _accumulate_parameter_grad,
     _apply_optional_alignment,
@@ -53,7 +53,7 @@ from dendritic_modeling.training.strategies.local_learning_gradients_mixin impor
     _resolve_stdp_post_signal,
     _scale_reactivation_error,
 )
-from dendritic_modeling.training.strategies.local_learning_state import (
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_state import (
     _LayerModulators,
     _PostFactors,
 )

@@ -11,7 +11,7 @@ from dendritic_modeling.networks.activations.parametric import (
     ParametricTanhOnlyM,
 )
 from dendritic_modeling.training.strategies.local_learning import LocalCreditAssignment
-from dendritic_modeling.training.strategies.local_learning_signals import (
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_signals import (
     _decoder_linear_layers,
     _dynamics_mode_from_config,
     _dynamics_mode_from_layer,
@@ -171,7 +171,7 @@ def test_decoder_soma_fallback_warning_logs_once(caplog):
 
     caplog.set_level(
         logging.INFO,
-        logger="dendritic_modeling.training.strategies.local_learning_signals",
+        logger="dendritic_modeling.training.strategies.local_learning_parts.local_learning_signals",
     )
 
     first_v0, first_delta = trainer._resolve_local_soma_signals(model, y_hat, delta_out)
@@ -360,7 +360,7 @@ def test_dynamics_mode_helpers_preserve_config_and_layer_resolution(caplog):
     )
     caplog.set_level(
         logging.WARNING,
-        logger="dendritic_modeling.training.strategies.local_learning_signals",
+        logger="dendritic_modeling.training.strategies.local_learning_parts.local_learning_signals",
     )
 
     mode = trainer._resolve_layer_dynamics_mode(

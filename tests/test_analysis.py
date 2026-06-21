@@ -544,7 +544,7 @@ class TestInformationAnalyzer(unittest.TestCase):
     def test_model_supports_information_analysis_accepts_ei_core(self):
         """Model validation helper should accept compatible EI-core models."""
         with patch(
-            "dendritic_modeling.analysis.core.information_validation_mixin.has_einet_core",
+            "dendritic_modeling.analysis.core.information_parts.information_validation_mixin.has_einet_core",
             return_value=True,
         ) as mock_has_core:
             result = self.analyzer._model_supports_information_analysis(self.model)
@@ -556,7 +556,7 @@ class TestInformationAnalyzer(unittest.TestCase):
         """Model validation helper should preserve the incompatible-model warning."""
         with (
             patch(
-                "dendritic_modeling.analysis.core.information_validation_mixin.has_einet_core",
+                "dendritic_modeling.analysis.core.information_parts.information_validation_mixin.has_einet_core",
                 return_value=False,
             ) as mock_has_core,
             patch.object(self.analyzer.logger, "warning") as mock_warning,
@@ -592,7 +592,7 @@ class TestInformationAnalyzer(unittest.TestCase):
         with (
             patch.object(self.analyzer.logger, "info") as mock_info,
             patch(
-                "dendritic_modeling.analysis.core.information_lifecycle_mixin.time.time",
+                "dendritic_modeling.analysis.core.information_parts.information_lifecycle_mixin.time.time",
                 return_value=123.5,
             ),
         ):
@@ -620,7 +620,7 @@ class TestInformationAnalyzer(unittest.TestCase):
         with (
             patch.object(self.analyzer.logger, "error") as mock_error,
             patch(
-                "dendritic_modeling.analysis.core.information_lifecycle_mixin.traceback.print_exc"
+                "dendritic_modeling.analysis.core.information_parts.information_lifecycle_mixin.traceback.print_exc"
             ) as mock_traceback,
         ):
             self.analyzer._handle_analysis_exception(exc)
@@ -1327,7 +1327,7 @@ class TestInformationAnalyzer(unittest.TestCase):
 
         with (
             patch(
-                "dendritic_modeling.analysis.core.information_finalization_mixin.time.time",
+                "dendritic_modeling.analysis.core.information_parts.information_finalization_mixin.time.time",
                 return_value=12.5,
             ),
             patch.object(self.analyzer, "_add_analysis_metadata") as mock_metadata,

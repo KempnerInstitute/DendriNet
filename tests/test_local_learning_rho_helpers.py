@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 import torch
 
-from dendritic_modeling.training.strategies.local_learning_rho_mixin import (
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_rho_mixin import (
     LocalLearningRhoMixin,
     _augmented_rho_sample,
     _clamp_rho,
@@ -16,7 +16,9 @@ from dendritic_modeling.training.strategies.local_learning_rho_mixin import (
     _pearson_proxy_from_samples,
     _update_single_sample_ema_rho,
 )
-from dendritic_modeling.training.strategies.local_learning_state import _LayerStats
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_state import (
+    _LayerStats,
+)
 
 
 class _RhoProbe(LocalLearningRhoMixin):

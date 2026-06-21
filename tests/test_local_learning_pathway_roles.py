@@ -16,10 +16,10 @@ from dendritic_modeling.training.strategies.local_learning import (
     LocalCreditAssignment,
     _LayerStats,
 )
-from dendritic_modeling.training.strategies.local_learning_broadcast import (
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_broadcast import (
     compute_pathway_seed_projection,
 )
-from dendritic_modeling.training.strategies.local_learning_morphology_mixin import (
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_morphology_mixin import (
     _apply_branch_length_factor,
     _apply_dendritic_length_factor,
     _centered_alignment_gain,

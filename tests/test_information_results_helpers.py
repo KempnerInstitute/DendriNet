@@ -3,13 +3,13 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from dendritic_modeling.analysis.core.information_results import (
+from dendritic_modeling.analysis.core.information_parts.information_results import (
     average_mi_results,
     compute_layer_statistics,
     compute_variance_analysis,
     filter_result_metrics_in_place,
 )
-from dendritic_modeling.analysis.core.information_summary import (
+from dendritic_modeling.analysis.core.information_parts.information_summary import (
     format_information_summary,
 )
 

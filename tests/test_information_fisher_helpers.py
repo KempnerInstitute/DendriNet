@@ -12,10 +12,10 @@ import numpy as np
 import pytest
 
 from dendritic_modeling.analysis.core.information import InformationAnalyzer
-from dendritic_modeling.analysis.core.information_fisher_mixin import (
+from dendritic_modeling.analysis.core.information_parts.information_fisher_mixin import (
     InformationFisherMetricsMixin,
 )
-from dendritic_modeling.analysis.core.information_helpers import (
+from dendritic_modeling.analysis.core.information_parts.information_helpers import (
     fisher_dprime2_binary,
     fisher_dprime2_pairwise_avg,
     fisher_mi_from_f,

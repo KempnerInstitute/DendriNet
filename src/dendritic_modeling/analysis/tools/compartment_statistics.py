@@ -36,7 +36,7 @@ from dendritic_modeling.plotting.visualizations.plotting_utils import (
 from dendritic_modeling.plotting.visualizations.synaptic_weight_plots import (
     plot_synaptic_weight_analysis,
 )
-from dendritic_modeling.training.strategies.local_learning_pathways import (
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_pathways import (
     iter_topk_path_modules,
 )
 from dendritic_modeling.utils import save_dict

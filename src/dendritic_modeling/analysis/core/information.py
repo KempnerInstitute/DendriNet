@@ -11,13 +11,13 @@ from typing import Optional
 import torch
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
-from dendritic_modeling.analysis.core.information_all_branch_mixin import (
+from dendritic_modeling.analysis.core.information_parts.information_all_branch_mixin import (
     InformationAllBranchMixin,
 )
-from dendritic_modeling.analysis.core.information_branch_mixin import (
+from dendritic_modeling.analysis.core.information_parts.information_branch_mixin import (
     InformationBranchAnalysisMixin,
 )
-from dendritic_modeling.analysis.core.information_config import (
+from dendritic_modeling.analysis.core.information_parts.information_config import (
     _build_information_ablation_aligned_config as _build_information_ablation_aligned_config,
     _build_information_estimator_core_config as _build_information_estimator_core_config,
     _build_information_estimator_method_params as _build_information_estimator_method_params,
@@ -47,50 +47,50 @@ from dendritic_modeling.analysis.core.information_config import (
     _parse_information_component_selection as _parse_information_component_selection,
     _parse_information_scope_selection as _parse_information_scope_selection,
 )
-from dendritic_modeling.analysis.core.information_config_setup_mixin import (
+from dendritic_modeling.analysis.core.information_parts.information_config_setup_mixin import (
     InformationConfigSetupMixin,
 )
-from dendritic_modeling.analysis.core.information_data_mixin import (
+from dendritic_modeling.analysis.core.information_parts.information_data_mixin import (
     InformationDataMixin,
     _InformationAnalysisData as _InformationAnalysisData,
 )
-from dendritic_modeling.analysis.core.information_dispatch_mixin import (
+from dendritic_modeling.analysis.core.information_parts.information_dispatch_mixin import (
     InformationDispatchMixin,
 )
-from dendritic_modeling.analysis.core.information_enhanced_mixin import (
+from dendritic_modeling.analysis.core.information_parts.information_enhanced_mixin import (
     InformationEnhancedAnalysisMixin,
 )
-from dendritic_modeling.analysis.core.information_estimator_setup import (
+from dendritic_modeling.analysis.core.information_parts.information_estimator_setup import (
     _build_information_estimators,
 )
-from dendritic_modeling.analysis.core.information_finalization_mixin import (
+from dendritic_modeling.analysis.core.information_parts.information_finalization_mixin import (
     InformationFinalizationMixin,
 )
-from dendritic_modeling.analysis.core.information_hooks_mixin import (
+from dendritic_modeling.analysis.core.information_parts.information_hooks_mixin import (
     InformationHooksMixin,
 )
-from dendritic_modeling.analysis.core.information_lda_mixin import (
+from dendritic_modeling.analysis.core.information_parts.information_lda_mixin import (
     InformationLdaComparisonMixin,
 )
-from dendritic_modeling.analysis.core.information_lifecycle_mixin import (
+from dendritic_modeling.analysis.core.information_parts.information_lifecycle_mixin import (
     InformationLifecycleMixin,
 )
-from dendritic_modeling.analysis.core.information_metrics_mixin import (
+from dendritic_modeling.analysis.core.information_parts.information_metrics_mixin import (
     InformationMetricsMixin,
 )
-from dendritic_modeling.analysis.core.information_pipeline_mixin import (
+from dendritic_modeling.analysis.core.information_parts.information_pipeline_mixin import (
     InformationPipelineMixin,
 )
-from dendritic_modeling.analysis.core.information_plotting_mixin import (
+from dendritic_modeling.analysis.core.information_parts.information_plotting_mixin import (
     InformationPlottingMixin,
 )
-from dendritic_modeling.analysis.core.information_signal_mixin import (
+from dendritic_modeling.analysis.core.information_parts.information_signal_mixin import (
     InformationSignalAggregationMixin,
 )
-from dendritic_modeling.analysis.core.information_single_branch_mixin import (
+from dendritic_modeling.analysis.core.information_parts.information_single_branch_mixin import (
     InformationSingleBranchMixin,
 )
-from dendritic_modeling.analysis.core.information_synthetic_soma_mixin import (
+from dendritic_modeling.analysis.core.information_parts.information_synthetic_soma_mixin import (
     InformationSyntheticSomaMixin,
 )
 from dendritic_modeling.config import InformationAnalysisParams

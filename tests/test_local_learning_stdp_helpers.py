@@ -7,12 +7,12 @@ from types import SimpleNamespace
 
 import torch
 
-from dendritic_modeling.training.strategies.local_learning_pathways import (
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_pathways import (
     RECORDER_TOPK_PATHS,
     STDP_TOPK_PATHS,
     iter_topk_path_modules,
 )
-from dendritic_modeling.training.strategies.local_learning_stdp import (
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_stdp import (
     stdp_activity,
     stdp_apply_error_modulation,
     stdp_apply_pathway_sign,

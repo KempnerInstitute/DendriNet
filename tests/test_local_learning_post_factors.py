@@ -4,14 +4,16 @@ from types import SimpleNamespace
 
 import torch
 
-from dendritic_modeling.training.strategies.local_learning_post_factors_mixin import (
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_post_factors_mixin import (
     LocalLearningPostFactorsMixin,
     _activation_derivative_tensor,
     _apply_output_modulator,
     _apply_post_factor_modulators,
     _conductance_post_factor,
 )
-from dendritic_modeling.training.strategies.local_learning_state import _LayerModulators
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_state import (
+    _LayerModulators,
+)
 
 
 def _modulators(

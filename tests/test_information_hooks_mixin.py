@@ -6,7 +6,7 @@ import pytest
 import torch
 from torch import nn
 
-from dendritic_modeling.analysis.core.information_hooks_mixin import (
+from dendritic_modeling.analysis.core.information_parts.information_hooks_mixin import (
     InformationHooksMixin,
     _enable_analysis_current_capture,
     _has_analyzable_branch_signals,

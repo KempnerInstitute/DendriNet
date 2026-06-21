@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 import torch
 
-from dendritic_modeling.training.strategies.local_learning_broadcast import (
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_broadcast import (
     apply_broadcast_bandwidth,
     compute_local_mismatch_broadcast,
     compute_role_selectivity,
@@ -18,7 +18,7 @@ from dendritic_modeling.training.strategies.local_learning_broadcast import (
     resolve_recent_role_profile,
     role_mass_from_weight_matrix,
 )
-from dendritic_modeling.training.strategies.local_learning_broadcast_transport_mixin import (
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_broadcast_transport_mixin import (
     LocalLearningPathTransportBroadcastMixin,
     _align_parent_path,
     _block_size,

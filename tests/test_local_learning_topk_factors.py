@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import torch
 
-from dendritic_modeling.training.strategies.local_learning_topk_mixin import (
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_topk_mixin import (
     LocalLearningTopKGradientMixin,
     _additive_inhibitory_topk_factor,
     _apply_inhibitory_topk_modulators,

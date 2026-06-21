@@ -47,10 +47,10 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.b
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
     TopKLinear,
 )
-from dendritic_modeling.training.strategies.local_learning_broadcast import (
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_broadcast import (
     reduce_error_to_scalar as _reduce_error_to_scalar,
 )
-from dendritic_modeling.training.strategies.local_learning_pathways import (
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_pathways import (
     EXCITATORY_TOPK_PATHS,
     INHIBITORY_TOPK_PATHS,
     TopKGradientPath,

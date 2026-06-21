@@ -4,10 +4,10 @@ from types import SimpleNamespace
 
 import torch
 
-from dendritic_modeling.training.strategies.local_learning_rule_mixin import (
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_rule_mixin import (
     LocalLearningRuleMixin,
 )
-from dendritic_modeling.training.strategies.local_learning_state import (
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_state import (
     _LayerModulators,
     _PostFactors,
 )

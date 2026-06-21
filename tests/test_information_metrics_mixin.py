@@ -2,13 +2,13 @@
 
 import numpy as np
 
-from dendritic_modeling.analysis.core import information_pid_mixin
-from dendritic_modeling.analysis.core.information_metrics_mixin import (
+from dendritic_modeling.analysis.core.information_parts import information_pid_mixin
+from dendritic_modeling.analysis.core.information_parts.information_metrics_mixin import (
     InformationMetricsMixin,
     _metric_variable_for_null_baseline,
     _parse_mi_key_for_null_baseline,
 )
-from dendritic_modeling.analysis.core.information_pid_mixin import (
+from dendritic_modeling.analysis.core.information_parts.information_pid_mixin import (
     InformationPidMetricsMixin,
 )
 

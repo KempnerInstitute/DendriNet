@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 import torch
 
-from dendritic_modeling.training.strategies.local_learning_modulators import (
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_modulators import (
     LocalLearningModulatorMixin,
     _apply_layerwise_scale,
 )
