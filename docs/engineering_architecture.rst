@@ -199,8 +199,8 @@ landmarks to keep in mind:
   : analyzer metadata registry for discovery and future manager refactors
 - ``src/dendritic_modeling/analysis/managers/analysis_manager.py``
   : lifecycle coordinator for analyzers
-- ``src/dendritic_modeling/analysis/core/information_helpers.py`` and
-  ``information_results.py``
+- ``src/dendritic_modeling/analysis/core/information_parts/information_helpers.py`` and
+  ``information_parts/information_results.py``
   : pure information-analysis utilities for estimator math, unit conversion,
     metric filtering, result aggregation, and layer-level summaries.
     ``information_metrics_mixin.py``, ``information_hooks_mixin.py``, and
