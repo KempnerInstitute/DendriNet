@@ -6,7 +6,7 @@ import torch
 
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import DendriticBranchLayer
-from dendritic_modeling.utils.hooks import remove_hook_handles
+from dendritic_modeling.utils.hooks import ForwardHookRemovalMixin
 
 
 def _has_no_branch_synapses(module: DendriticBranchLayer) -> bool:
@@ -91,7 +91,7 @@ def _restore_analysis_current_capture(
         delattr(module, "_last_analysis_currents")
 
 
-class InformationHooksMixin:
+class InformationHooksMixin(ForwardHookRemovalMixin):
     """Collects branch-layer currents and outputs during model evaluation."""
 
     def attach_forward_hooks(self, model: BaseModel):
@@ -171,7 +171,7 @@ class InformationHooksMixin:
 
     def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
         """Remove forward hooks from the model."""
-        remove_hook_handles(handles)
+        super().remove_forward_hooks(handles)
         for module, previous_store in getattr(self, "_analysis_hook_modules", []):
             _restore_analysis_current_capture(module, previous_store)
         self._analysis_hook_modules = []

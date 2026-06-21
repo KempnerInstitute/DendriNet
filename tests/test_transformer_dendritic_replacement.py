@@ -125,6 +125,24 @@ def test_mlp_io_capture_removes_hooks_after_partial_init_failure():
     assert _count_forward_hooks(model) == 0
 
 
+def test_mlp_io_capture_close_removes_hooks_and_clears_handles():
+    model = TinyHFLikeModel(n_layers=1)
+    capture = _MLPIOCapture(
+        model,
+        layer_indices=[0],
+        layers_attr="model.layers",
+        mlp_attr="mlp",
+    )
+
+    assert _count_forward_hooks(model) == 2
+    assert len(capture.handles) == 2
+
+    capture.close()
+
+    assert _count_forward_hooks(model) == 0
+    assert capture.handles == []
+
+
 @pytest.mark.parametrize(
     "config_path",
     TRANSFORMER_BENCHMARK_CONFIGS,

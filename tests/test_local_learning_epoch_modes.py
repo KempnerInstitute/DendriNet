@@ -678,6 +678,39 @@ def test_forward_with_local_recorders_cleans_hooks_and_topk_cache_on_success():
     assert model.topk._last_forward_weight_mask is None
 
 
+def test_forward_with_local_recorders_uses_trainer_hook_removal_method():
+    class _Handle:
+        def __init__(self):
+            self.removed = False
+
+        def remove(self):
+            self.removed = True
+
+    class _Trainer:
+        def __init__(self):
+            self.handle = _Handle()
+            self.removed_handles = None
+
+        def _attach_local_recorders(self, model):
+            return [], [self.handle]
+
+        def remove_forward_hooks(self, handles):
+            self.removed_handles = handles
+            for handle in handles:
+                handle.remove()
+
+    class _Model(nn.Module):
+        def forward(self, x):
+            return x
+
+    trainer = _Trainer()
+
+    _forward_with_local_recorders(trainer, _Model(), torch.zeros(1, 2))
+
+    assert trainer.removed_handles == [trainer.handle]
+    assert trainer.handle.removed is True
+
+
 def test_forward_with_local_recorders_cleans_hooks_and_topk_cache_on_exception():
     class _Handle:
         def __init__(self):

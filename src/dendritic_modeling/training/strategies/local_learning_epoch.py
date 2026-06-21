@@ -79,6 +79,17 @@ def _clear_topk_mask_cache(topk_modules: list[TopKLinear]) -> None:
         module._last_forward_weight_mask = None
 
 
+def _remove_local_recorders(
+    trainer: Any,
+    handles: list[torch.utils.hooks.RemovableHandle],
+) -> None:
+    remove_forward_hooks = getattr(trainer, "remove_forward_hooks", None)
+    if callable(remove_forward_hooks):
+        remove_forward_hooks(handles)
+    else:
+        remove_hook_handles(handles)
+
+
 def _prepare_hsic_target(
     local_cfg,
     y_batch: torch.Tensor,
@@ -195,7 +206,7 @@ def _forward_with_local_recorders(
     try:
         y_hat: torch.Tensor = model(x_batch)
     finally:
-        remove_hook_handles(handles)
+        _remove_local_recorders(trainer, handles)
         _clear_topk_mask_cache(topk_modules)
 
     return y_hat, layer_records

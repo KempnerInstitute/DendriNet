@@ -14,7 +14,7 @@ from dendritic_modeling.networks import (
 from dendritic_modeling.networks.architectures.classical.autoencoder import (
     BaseVariationalAutoencoder,
 )
-from dendritic_modeling.utils.hooks import remove_hook_handles
+from dendritic_modeling.utils.hooks import ForwardHookRemovalMixin
 
 LossBuilder = Callable[[], "LossFunction"]
 LOSS_FUNCTION_REGISTRY: dict[str, LossBuilder] = {}
@@ -202,7 +202,7 @@ class LogAdjustedNegativeCosineSimilarityLoss(NegativeCosineSimilarityLoss):
         return torch.log(neg_cos_sim + 1 + 1e-12)
 
 
-class VoltageStabilizationLoss(LossFunction):
+class VoltageStabilizationLoss(ForwardHookRemovalMixin, LossFunction):
     """Voltage / gate-occupancy stabilization loss.
 
     Modes:
@@ -314,9 +314,6 @@ class VoltageStabilizationLoss(LossFunction):
             self.remove_forward_hooks(handles)
             raise
 
-    def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
-        remove_hook_handles(handles)
-
     def forward_hook(
         self,
         module: Union[nn.Identity, ParametricActivation],
@@ -395,7 +392,7 @@ class VoltageStabilizationLoss(LossFunction):
         return self.compute_loss(x)
 
 
-class ExcitationInhibitionBalanceLoss(LossFunction):
+class ExcitationInhibitionBalanceLoss(ForwardHookRemovalMixin, LossFunction):
     def __init__(self, loss_metric: str = "mse", reduction: str = "mean"):
         super().__init__(reduction)
         self._loss_name = "Excitation-Inhibition Balance"
@@ -467,9 +464,6 @@ class ExcitationInhibitionBalanceLoss(LossFunction):
             self.remove_forward_hooks(handles)
             raise
 
-    def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
-        remove_hook_handles(handles)
-
     def forward_hook(
         self,
         module: TopKLinear,
@@ -507,7 +501,7 @@ class ExcitationInhibitionBalanceLoss(LossFunction):
         return self.compute_loss(x)
 
 
-class HomeostaticControlLoss(LossFunction):
+class HomeostaticControlLoss(ForwardHookRemovalMixin, LossFunction):
     def __init__(
         self,
         stabilize_mode: str = "vinf",
@@ -538,9 +532,6 @@ class HomeostaticControlLoss(LossFunction):
         except Exception:
             self.remove_forward_hooks(handles)
             raise
-
-    def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
-        remove_hook_handles(handles)
 
     def forward(
         self, model: BaseModel, x: torch.Tensor, y: Optional[torch.Tensor] = None

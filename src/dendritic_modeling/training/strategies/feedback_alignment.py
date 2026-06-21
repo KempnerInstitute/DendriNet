@@ -17,12 +17,12 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.b
     BlockLinear,
 )
 from dendritic_modeling.training.strategies.standard import Trainer
-from dendritic_modeling.utils.hooks import remove_hook_handles
+from dendritic_modeling.utils.hooks import ForwardHookRemovalMixin
 
 logger = logging.getLogger(__name__)
 
 
-class FeedbackAlignmentTrainer(Trainer):
+class FeedbackAlignmentTrainer(ForwardHookRemovalMixin, Trainer):
     """
     Training strategy using Feedback Alignment (FA) or Direct Feedback
     Alignment (DFA) for error signal propagation.
@@ -163,7 +163,7 @@ class FeedbackAlignmentTrainer(Trainer):
             try:
                 y_hat = model(x_batch)
             finally:
-                remove_hook_handles(handles)
+                self.remove_forward_hooks(handles)
 
             # --- loss (for logging only) ---
             loss = self.loss_function(model, x_batch, y_batch)
@@ -204,7 +204,7 @@ class FeedbackAlignmentTrainer(Trainer):
                 )
             return handles
         except Exception:
-            remove_hook_handles(handles)
+            self.remove_forward_hooks(handles)
             raise
 
     @staticmethod
@@ -458,7 +458,7 @@ class ShuntingFeedbackAlignmentTrainer(FeedbackAlignmentTrainer):
                 try:
                     y_hat = model(x_batch)
                 finally:
-                    remove_hook_handles(handles)
+                    self.remove_forward_hooks(handles)
 
                 # --- loss (for logging only) ---
                 loss = self.loss_function(model, x_batch, y_batch)
@@ -505,7 +505,7 @@ class ShuntingFeedbackAlignmentTrainer(FeedbackAlignmentTrainer):
                 )
             return handles
         except Exception:
-            remove_hook_handles(handles)
+            self.remove_forward_hooks(handles)
             raise
 
     def _modulate_error_with_shunting(

@@ -18,7 +18,7 @@ from dendritic_modeling.training.strategies.local_learning_pathways import (
     TopKGradientPath,
     iter_topk_path_modules,
 )
-from dendritic_modeling.utils.hooks import remove_hook_handles
+from dendritic_modeling.utils.hooks import ForwardHookRemovalMixin
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +58,7 @@ def _record_topk_forward(
         rec[path.mask_key] = None
 
 
-class LocalLearningRecorderMixin:
+class LocalLearningRecorderMixin(ForwardHookRemovalMixin):
     def _attach_local_recorders(
         self, model: BaseModel
     ) -> tuple[list[dict[str, Any]], list[torch.utils.hooks.RemovableHandle]]:
@@ -87,7 +87,7 @@ class LocalLearningRecorderMixin:
             records.extend(self._attach_branch_recorders(model, handles))
             return records, handles
         except Exception:
-            remove_hook_handles(handles)
+            self.remove_forward_hooks(handles)
             raise
 
     def _attach_decoder_recorders(
