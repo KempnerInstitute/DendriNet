@@ -407,22 +407,16 @@ class Trainer:
             return "occupancy_quantile"
 
         from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize import (
-            normalize_reactivation_init_policy,
-            reactivation_policy_to_calibration_mode,
+            collect_model_data_driven_reactivation_policies,
         )
 
-        saw_layer_policy = False
-        for module in self._unwrap_model(model).modules():
-            policy = getattr(module, "reactivation_init_policy", None)
-            if policy is None:
-                continue
-            saw_layer_policy = True
-            policy = normalize_reactivation_init_policy(policy)
-            mode = reactivation_policy_to_calibration_mode(policy)
-            if mode is not None:
-                # Defer to per-layer policies so fixed/analytical layers are
-                # not recalibrated just because a sibling layer is data-driven.
-                return None
+        requested_policies, saw_layer_policy = (
+            collect_model_data_driven_reactivation_policies(self._unwrap_model(model))
+        )
+        if requested_policies:
+            # Defer to per-layer policies so fixed/analytical layers are
+            # not recalibrated just because a sibling layer is data-driven.
+            return None
 
         return None if saw_layer_policy else "occupancy_quantile"
 

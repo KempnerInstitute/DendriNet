@@ -6,6 +6,7 @@ and ``initialize_methods``. This facade preserves the historical import path.
 """
 
 from dendritic_modeling.config.reactivation import (
+    collect_model_data_driven_reactivation_policies,
     is_data_driven_reactivation_policy,
     normalize_reactivation_init_policy,
     reactivation_policy_to_calibration_mode,
@@ -89,6 +90,7 @@ __all__ = [
     "analytical_expectation_dbl_init",
     "calibrate_reactivation_empirical",
     "calibrate_reactivation_from_data",
+    "collect_model_data_driven_reactivation_policies",
     "compute_expectation_truncated_inverse_softplus_normal",
     "compute_expectation_truncated_log_normal",
     "compute_network_scale_factor",

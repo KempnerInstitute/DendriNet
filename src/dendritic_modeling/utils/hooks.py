@@ -61,6 +61,16 @@ def iter_modules_of_type(
             yield module
 
 
+def iter_modules_matching(
+    model: torch.nn.Module,
+    predicate: Callable[[torch.nn.Module], bool],
+) -> Iterator[torch.nn.Module]:
+    """Yield submodules matching ``predicate`` in module traversal order."""
+    for module in model.modules():
+        if predicate(module):
+            yield module
+
+
 def register_named_forward_hooks(
     model: torch.nn.Module,
     module_type: type[ModuleT],
@@ -96,6 +106,7 @@ __all__ = [
     "ForwardHookRemovalMixin",
     "HookHandle",
     "iter_child_modules_of_type",
+    "iter_modules_matching",
     "iter_modules_of_type",
     "iter_named_modules_matching",
     "iter_named_modules_of_type",

@@ -31,6 +31,7 @@ from dendritic_modeling.training.fsdp_utils import (
     wrap_model_with_fsdp,
 )
 from dendritic_modeling.training.strategies.standard import Trainer
+from dendritic_modeling.utils.hooks import iter_modules_matching
 
 logger = logging.getLogger(__name__)
 
@@ -59,9 +60,10 @@ def _iter_modules_by_class_name(
     class_name: str,
 ) -> Iterator[torch.nn.Module]:
     """Yield modules whose concrete class name matches ``class_name``."""
-    for module in model.modules():
-        if module.__class__.__name__ == class_name:
-            yield module
+    yield from iter_modules_matching(
+        model,
+        lambda module: module.__class__.__name__ == class_name,
+    )
 
 
 def _collect_module_parameters_by_class_name(
@@ -85,6 +87,11 @@ def _reactivation_parameter_candidates(
     return ()
 
 
+def _has_reactivation_parameter_candidates(module: torch.nn.Module) -> bool:
+    """Return whether a module exposes trainable reactivation parameters."""
+    return (hasattr(module, "m") or hasattr(module, "log_m")) and hasattr(module, "b")
+
+
 def _collect_reactivation_parameters(
     model: torch.nn.Module,
     used_param_ids: set[int],
@@ -99,10 +106,8 @@ def _iter_reactivation_parameter_candidates(
     model: torch.nn.Module,
 ) -> Iterator[tuple[torch.nn.Parameter, ...]]:
     """Yield non-empty reactivation parameter candidate tuples in module order."""
-    for module in model.modules():
-        candidates = _reactivation_parameter_candidates(module)
-        if candidates:
-            yield candidates
+    for module in iter_modules_matching(model, _has_reactivation_parameter_candidates):
+        yield _reactivation_parameter_candidates(module)
 
 
 def _append_fsdp_param_group(

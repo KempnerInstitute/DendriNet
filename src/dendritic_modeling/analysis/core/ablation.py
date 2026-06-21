@@ -8,6 +8,7 @@ disabling or ablating different network components to understand their contribut
 import json
 import logging
 import os
+from collections.abc import Iterator
 from copy import deepcopy
 from typing import Callable, Optional
 
@@ -44,6 +45,7 @@ from dendritic_modeling.training.utils.evaluation import (
 )
 from dendritic_modeling.utils import save_dict
 from dendritic_modeling.utils.epoch_files import epoch_files_by_number
+from dendritic_modeling.utils.hooks import iter_named_modules_of_type
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +61,28 @@ ABLATION_VIDEO_METRIC_LABELS = {
     "cosine_similarity": "Cosine Similarity",
     "pred_label_mi_bits": "I(C; Ĉ) [bits]",
 }
+
+
+def _iter_complete_branch_layers(
+    model: torch.nn.Module,
+) -> Iterator[tuple[str, DendriticBranchLayer]]:
+    """Yield branch layers with both excitatory and inhibitory branches."""
+    for name, module in iter_named_modules_of_type(model, DendriticBranchLayer):
+        if module.branch_excitation is None or module.branch_inhibition is None:
+            continue
+        yield name, module
+
+
+def _iter_first_layer_upstream_branch_layers(
+    model: torch.nn.Module,
+) -> Iterator[tuple[str, DendriticBranchLayer]]:
+    """Yield first-level branch layers that expose upstream branch outputs."""
+    for name, module in iter_named_modules_of_type(model, DendriticBranchLayer):
+        if getattr(module, "layer_idx", None) != 0:
+            continue
+        if not hasattr(module, "branches_to_output"):
+            continue
+        yield name, module
 
 
 def _has_metric_drop_nested(dictionary, metric):
@@ -163,6 +187,24 @@ class AblationAnalyzer(AbstractAnalyzer):
     def _normalize_ablation_target(target: str) -> str:
         """Normalize ablation target names (spaces -> underscores)."""
         return str(target).replace(" ", "_")
+
+    def _enabled_ablation_targets(
+        self,
+        module: DendriticBranchLayer | None = None,
+    ) -> tuple[str, ...]:
+        """Return enabled ablation targets in canonical result order."""
+        targets: list[str] = []
+        if self.ablate_all_synapses:
+            targets.append("all_synapses")
+        if self.ablate_excitation:
+            targets.append("excitation")
+        if self.ablate_inhibition:
+            targets.append("inhibition")
+        if self.ablate_upstream and (
+            module is None or hasattr(module, "branches_to_output")
+        ):
+            targets.append("upstream")
+        return tuple(targets)
 
     @staticmethod
     def _resolve_lesion_value(model: BaseModel) -> float:
@@ -652,14 +694,8 @@ class AblationAnalyzer(AbstractAnalyzer):
                 layer_results: dict[str, dict] = {}
                 for method in self.ablation_methods:
                     layer_results.setdefault(method, {})
-                    if self.ablate_all_synapses:
-                        layer_results[method]["all_synapses"] = {}
-                    if self.ablate_excitation:
-                        layer_results[method]["excitation"] = {}
-                    if self.ablate_inhibition:
-                        layer_results[method]["inhibition"] = {}
-                    if self.ablate_upstream:
-                        layer_results[method]["upstream"] = {}
+                    for target in self._enabled_ablation_targets():
+                        layer_results[method][target] = {}
 
             if self.compartment_ablation:
                 compartment_results: dict[str, dict] = {}
@@ -667,119 +703,12 @@ class AblationAnalyzer(AbstractAnalyzer):
                     if method != "lesion":
                         continue
                     compartment_results.setdefault(method, {})
-                    if self.ablate_all_synapses:
-                        compartment_results[method]["all_synapses"] = {}
-                    if self.ablate_excitation:
-                        compartment_results[method]["excitation"] = {}
-                    if self.ablate_inhibition:
-                        compartment_results[method]["inhibition"] = {}
-                    if self.ablate_upstream:
-                        compartment_results[method]["upstream"] = {}
+                    for target in self._enabled_ablation_targets():
+                        compartment_results[method][target] = {}
 
-            for _name, module in model.named_modules():
-                if not (
-                    isinstance(module, DendriticBranchLayer)
-                    and module.branch_excitation is not None
-                    and module.branch_inhibition is not None
-                ):
-                    continue
-
+            for _name, module in _iter_complete_branch_layers(model):
                 for method in self.ablation_methods:
-                    if self.ablate_all_synapses:
-                        target = "all_synapses"
-                        if self.layer_ablation:
-                            self.ablate_layer_and_evaluate(
-                                test_dataset=test_dataset,
-                                model=model,
-                                module=module,
-                                module_name=_name,
-                                ablation_type=target,
-                                ablation_method=method,
-                                baseline_dict=baselines,
-                                results_dict=layer_results[method],
-                                state_dict=state_dict,
-                                eval_kwargs=eval_kwargs,
-                                device=analysis_device,
-                            )
-                        if self.compartment_ablation and method == "lesion":
-                            self.ablate_compartment_and_evaluate(
-                                test_dataset=test_dataset,
-                                model=model,
-                                module=module,
-                                module_name=_name,
-                                ablation_type=target,
-                                ablation_method=method,
-                                baseline_dict=baselines,
-                                results_dict=compartment_results[method],
-                                state_dict=state_dict,
-                                eval_kwargs=eval_kwargs,
-                                device=analysis_device,
-                            )
-
-                    if self.ablate_excitation:
-                        target = "excitation"
-                        if self.layer_ablation:
-                            self.ablate_layer_and_evaluate(
-                                test_dataset=test_dataset,
-                                model=model,
-                                module=module,
-                                module_name=_name,
-                                ablation_type=target,
-                                ablation_method=method,
-                                baseline_dict=baselines,
-                                results_dict=layer_results[method],
-                                state_dict=state_dict,
-                                eval_kwargs=eval_kwargs,
-                                device=analysis_device,
-                            )
-                        if self.compartment_ablation and method == "lesion":
-                            self.ablate_compartment_and_evaluate(
-                                test_dataset=test_dataset,
-                                model=model,
-                                module=module,
-                                module_name=_name,
-                                ablation_type=target,
-                                ablation_method=method,
-                                baseline_dict=baselines,
-                                results_dict=compartment_results[method],
-                                state_dict=state_dict,
-                                eval_kwargs=eval_kwargs,
-                                device=analysis_device,
-                            )
-
-                    if self.ablate_inhibition:
-                        target = "inhibition"
-                        if self.layer_ablation:
-                            self.ablate_layer_and_evaluate(
-                                test_dataset=test_dataset,
-                                model=model,
-                                module=module,
-                                module_name=_name,
-                                ablation_type=target,
-                                ablation_method=method,
-                                baseline_dict=baselines,
-                                results_dict=layer_results[method],
-                                state_dict=state_dict,
-                                eval_kwargs=eval_kwargs,
-                                device=analysis_device,
-                            )
-                        if self.compartment_ablation and method == "lesion":
-                            self.ablate_compartment_and_evaluate(
-                                test_dataset=test_dataset,
-                                model=model,
-                                module=module,
-                                module_name=_name,
-                                ablation_type=target,
-                                ablation_method=method,
-                                baseline_dict=baselines,
-                                results_dict=compartment_results[method],
-                                state_dict=state_dict,
-                                eval_kwargs=eval_kwargs,
-                                device=analysis_device,
-                            )
-
-                    if self.ablate_upstream and hasattr(module, "branches_to_output"):
-                        target = "upstream"
+                    for target in self._enabled_ablation_targets(module):
                         if self.layer_ablation:
                             self.ablate_layer_and_evaluate(
                                 test_dataset=test_dataset,
@@ -813,14 +742,7 @@ class AblationAnalyzer(AbstractAnalyzer):
                 model.core_network, "somatic_synapses", True
             )
             if self.ablate_upstream and not somatic_synapses_enabled:
-                for _name, module in model.named_modules():
-                    if not isinstance(module, DendriticBranchLayer):
-                        continue
-                    if getattr(module, "layer_idx", None) != 0:
-                        continue
-                    if not hasattr(module, "branches_to_output"):
-                        continue
-
+                for _name, module in _iter_first_layer_upstream_branch_layers(model):
                     for method in self.ablation_methods:
                         if self.layer_ablation:
                             if _name in layer_results.get(method, {}).get(

@@ -17,6 +17,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.i
     _compute_expectation_truncated_softplus,
     _expected_weight_for_transform,
     calibrate_reactivation_from_data,
+    collect_model_data_driven_reactivation_policies,
     compute_expectation_truncated_log_normal,
     compute_network_scale_factor,
 )
@@ -64,6 +65,31 @@ def test_quantile_reactivation_policy_warns_and_normalizes():
         policy = init_mod.normalize_reactivation_init_policy("quantile")
 
     assert policy == "occupancy_quantile"
+
+
+def test_collect_model_data_driven_reactivation_policies_reports_policy_presence():
+    class PolicyLayer(torch.nn.Module):
+        def __init__(self, policy):
+            super().__init__()
+            self.reactivation_init_policy = policy
+
+    model = torch.nn.Sequential(
+        PolicyLayer("fixed"),
+        PolicyLayer("occupancy_quantile"),
+        PolicyLayer("empirical"),
+    )
+
+    requested, saw_policy = collect_model_data_driven_reactivation_policies(model)
+
+    assert requested == {"occupancy_quantile", "empirical"}
+    assert saw_policy is True
+    assert collect_model_data_driven_reactivation_policies(torch.nn.Sequential()) == (
+        set(),
+        False,
+    )
+    assert collect_model_data_driven_reactivation_policies(
+        torch.nn.Sequential(PolicyLayer("fixed"))
+    ) == (set(), True)
 
 
 # ---------------------------------------------------------------------------

@@ -177,14 +177,13 @@ def _maybe_calibrate_data_driven_reactivation(
     """Run data-driven reactivation calibration when requested by init_policy."""
     from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize import (
         calibrate_reactivation_from_data,
+        collect_model_data_driven_reactivation_policies,
         is_data_driven_reactivation_policy,
         normalize_reactivation_init_policy,
         reactivation_policy_to_calibration_mode,
     )
 
     config_requested_policies = set()
-    layer_requested_policies = set()
-    saw_layer_policy = False
 
     try:
         reactivation_cfg = config.model.core.reactivation
@@ -198,14 +197,9 @@ def _maybe_calibrate_data_driven_reactivation(
         # any per-layer policies directly from the built modules below.
         pass
 
-    for module in model.modules():
-        layer_policy = getattr(module, "reactivation_init_policy", None)
-        if layer_policy is None:
-            continue
-        saw_layer_policy = True
-        layer_policy = normalize_reactivation_init_policy(layer_policy)
-        if is_data_driven_reactivation_policy(layer_policy):
-            layer_requested_policies.add(layer_policy)
+    layer_requested_policies, saw_layer_policy = (
+        collect_model_data_driven_reactivation_policies(model)
+    )
 
     # Once the model is built, module-level policies are authoritative. This is
     # important for recurrent aliases where the factory may override stale YAML

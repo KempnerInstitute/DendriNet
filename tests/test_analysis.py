@@ -24,7 +24,11 @@ from dendritic_modeling.analysis import (
     BranchActivationAnalyzer,
     PerformanceAnalyzer,
 )
-from dendritic_modeling.analysis.core.ablation import AblationAnalyzer
+from dendritic_modeling.analysis.core.ablation import (
+    AblationAnalyzer,
+    _iter_complete_branch_layers,
+    _iter_first_layer_upstream_branch_layers,
+)
 from dendritic_modeling.analysis.core.information import InformationAnalyzer
 from dendritic_modeling.analysis.registry import get_analyzer_spec
 from dendritic_modeling.analysis.tools import SynapticActivationAnalyzer
@@ -171,6 +175,62 @@ class TestAblationAnalyzer(unittest.TestCase):
     def test_analyzer_initialization(self):
         """Test analyzer initialization."""
         self.assertIsInstance(self.analyzer, AblationAnalyzer)
+
+    def test_complete_branch_layer_iterator_preserves_order_and_filter(self):
+        layers = list(_iter_complete_branch_layers(self.model))
+
+        self.assertEqual(
+            [name for name, _module in layers],
+            [
+                "core_network.layers.0.excitatory_cells.branch_layers.0",
+                "core_network.layers.0.excitatory_cells.branch_layers.1",
+                "core_network.layers.0.excitatory_cells.branch_layers.2",
+            ],
+        )
+        self.assertTrue(
+            all(module.branch_excitation is not None for _, module in layers)
+        )
+        self.assertTrue(
+            all(module.branch_inhibition is not None for _, module in layers)
+        )
+
+    def test_first_layer_upstream_iterator_preserves_order_and_filter(self):
+        layers = list(_iter_first_layer_upstream_branch_layers(self.model))
+
+        self.assertEqual(
+            [name for name, _module in layers],
+            [
+                "core_network.layers.0.excitatory_cells.branch_layers.2",
+                "core_network.layers.1.excitatory_cells.branch_layers.2",
+            ],
+        )
+        self.assertTrue(all(module.layer_idx == 0 for _, module in layers))
+        self.assertTrue(
+            all(hasattr(module, "branches_to_output") for _, module in layers)
+        )
+
+    def test_enabled_ablation_targets_preserve_order_and_upstream_filter(self):
+        self.analyzer.ablate_all_synapses = True
+        self.analyzer.ablate_excitation = True
+        self.analyzer.ablate_inhibition = True
+        self.analyzer.ablate_upstream = True
+        layers = dict(_iter_complete_branch_layers(self.model))
+
+        no_upstream = layers["core_network.layers.0.excitatory_cells.branch_layers.0"]
+        upstream = layers["core_network.layers.0.excitatory_cells.branch_layers.1"]
+
+        self.assertEqual(
+            self.analyzer._enabled_ablation_targets(),
+            ("all_synapses", "excitation", "inhibition", "upstream"),
+        )
+        self.assertEqual(
+            self.analyzer._enabled_ablation_targets(no_upstream),
+            ("all_synapses", "excitation", "inhibition"),
+        )
+        self.assertEqual(
+            self.analyzer._enabled_ablation_targets(upstream),
+            ("all_synapses", "excitation", "inhibition", "upstream"),
+        )
 
     def test_branch_ablation(self):
         """Test branch ablation functionality."""

@@ -45,6 +45,7 @@ from dendritic_modeling.datasets.dimensions import flat_dataset_input_dim
 from dendritic_modeling.models import Classifier, Regressor
 from dendritic_modeling.networks import Identity
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize import (
+    collect_model_data_driven_reactivation_policies,
     is_data_driven_reactivation_policy,
     normalize_reactivation_init_policy,
 )
@@ -445,13 +446,10 @@ def _requested_data_driven_reactivation_policies(config, model) -> set[str]:
             "skipping config-level data-driven init policy detection."
         )
 
-    for module in model.modules():
-        layer_policy = getattr(module, "reactivation_init_policy", None)
-        if layer_policy is None:
-            continue
-        layer_policy = normalize_reactivation_init_policy(layer_policy)
-        if is_data_driven_reactivation_policy(layer_policy):
-            requested_policies.add(layer_policy)
+    layer_requested_policies, _saw_layer_policy = (
+        collect_model_data_driven_reactivation_policies(model)
+    )
+    requested_policies.update(layer_requested_policies)
 
     return requested_policies
 

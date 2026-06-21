@@ -11,17 +11,22 @@ import torch
 from torch.optim import Optimizer
 
 from dendritic_modeling.models import BaseModel
+from dendritic_modeling.utils.hooks import iter_modules_matching
+
+
+def _is_rewired_optimizer_module(module) -> bool:
+    """Return whether a module exposes rewiring masks and optimizer weights."""
+    consume = getattr(module, "consume_rewired_mask", None)
+    pre_w = getattr(module, "pre_w", None)
+    return callable(consume) and pre_w is not None
 
 
 def _iter_rewired_optimizer_modules(
     model,
 ) -> Iterator[tuple[object, torch.nn.Parameter]]:
     """Yield modules that expose rewiring masks and optimizer-backed weights."""
-    for module in model.modules():
-        consume = getattr(module, "consume_rewired_mask", None)
-        pre_w = getattr(module, "pre_w", None)
-        if callable(consume) and pre_w is not None:
-            yield module, pre_w
+    for module in iter_modules_matching(model, _is_rewired_optimizer_module):
+        yield module, module.pre_w
 
 
 def _clear_rewired_optimizer_state(model, optimizer: Optimizer) -> None:
