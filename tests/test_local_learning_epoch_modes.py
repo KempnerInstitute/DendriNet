@@ -24,6 +24,11 @@ from dendritic_modeling.training.strategies.local_learning import (
     _supports_local_learning_train,
     _zero_optimizer_gradients,
 )
+from dendritic_modeling.training.strategies.local_learning_epoch import (
+    _apply_training_schedule_update_modes,
+    _resolve_freeze_update_modes,
+    _resolve_schedule_epoch_range,
+)
 from dendritic_modeling.training.strategies.local_learning_gradients_mixin import (
     LocalLearningGradientMixin,
     _accumulate_parameter_grad,
@@ -383,6 +388,45 @@ def test_resolve_epoch_update_modes_uses_first_matching_schedule_entry():
     )
 
 
+def test_resolve_freeze_update_modes_preserves_inclusive_boundary():
+    cfg = _local_cfg(
+        freeze_encoder_epochs=2,
+        freeze_reactivation_epochs=2,
+        freeze_decoder_epochs=2,
+    )
+
+    assert _resolve_freeze_update_modes(cfg, epoch_counter=2) == (
+        False,
+        "none",
+        "none",
+    )
+
+
+def test_resolve_schedule_epoch_range_preserves_legacy_fallback():
+    assert _resolve_schedule_epoch_range({"start_epoch": "2", "end_epoch": "4"}) == (
+        2,
+        4,
+    )
+    assert _resolve_schedule_epoch_range(
+        {"start_epoch": object(), "end_epoch": object()}
+    ) == (1, 10**9)
+
+
+def test_apply_training_schedule_update_modes_uses_first_matching_entry():
+    result = _apply_training_schedule_update_modes(
+        training_schedule=[
+            {"start_epoch": 1, "end_epoch": 5, "encoder_update_mode": "none"},
+            {"start_epoch": 1, "end_epoch": 5, "encoder_update_mode": "backprop"},
+        ],
+        epoch_counter=3,
+        update_reactivation=True,
+        encoder_update_mode="backprop",
+        decoder_update_mode="local",
+    )
+
+    assert result == (True, "none", "local")
+
+
 def test_resolve_epoch_update_modes_bad_schedule_range_matches_all_epochs():
     cfg = _local_cfg(
         training_schedule=[
@@ -598,6 +642,29 @@ def test_apply_decoder_local_gradients_preserves_exact_accumulation_semantics():
     assert torch.equal(lin.bias.grad, torch.full_like(lin.bias, -1.0) + expected_grad_b)
     assert lin.weight.grad.requires_grad is False
     assert lin.bias.grad.requires_grad is False
+
+
+def test_apply_decoder_local_gradients_uses_parameter_dtype():
+    lin = nn.Linear(2, 1, bias=True).double()
+    h_in = torch.tensor([[1.0, 2.0], [3.0, 4.0]], dtype=torch.float32)
+    delta_out = torch.tensor([[0.5], [1.5]], dtype=torch.float32)
+
+    _apply_decoder_local_gradients(
+        lin_mod=lin,
+        h_in=h_in,
+        delta_out=delta_out,
+        normalize_by_batch=False,
+    )
+
+    assert lin.weight.grad is not None
+    assert lin.bias.grad is not None
+    assert lin.weight.grad.dtype == torch.float64
+    assert lin.bias.grad.dtype == torch.float64
+    torch.testing.assert_close(
+        lin.weight.grad,
+        torch.tensor([[5.0, 7.0]], dtype=torch.float64),
+    )
+    torch.testing.assert_close(lin.bias.grad, torch.tensor([2.0], dtype=torch.float64))
 
 
 def test_apply_decoder_local_gradients_is_noop_for_invalid_cache_entries():

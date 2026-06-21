@@ -13,6 +13,9 @@ from dendritic_modeling.networks import (
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
     TopKLinear,
 )
+from dendritic_modeling.training.strategies.local_learning_gradient_utils import (
+    _accumulate_parameter_grad,
+)
 from dendritic_modeling.utils.hooks import remove_hook_handles
 
 
@@ -30,10 +33,12 @@ def _supports_local_learning_train(model: BaseModel) -> bool:
     return has_ei or _has_dendritic_branch_layers(model)
 
 
-def _resolve_epoch_update_modes(
-    local_cfg,
+def _resolve_freeze_update_modes(
+    local_cfg: Any,
     epoch_counter: int,
 ) -> tuple[bool, str, str]:
+    """Resolve update modes after applying inclusive freeze windows."""
+
     update_reactivation = local_cfg.update_reactivation
     encoder_update_mode = local_cfg.encoder_update_mode
     decoder_update_mode = local_cfg.decoder_update_mode
@@ -45,21 +50,62 @@ def _resolve_epoch_update_modes(
     if epoch_counter <= max(0, int(local_cfg.freeze_decoder_epochs)):
         decoder_update_mode = "none"
 
+    return update_reactivation, encoder_update_mode, decoder_update_mode
+
+
+def _resolve_schedule_epoch_range(schedule_entry: Any) -> tuple[int, int]:
+    """Resolve a schedule entry's inclusive epoch range with legacy fallback."""
+
+    try:
+        start_epoch = int(schedule_entry.get("start_epoch", 1))
+        end_epoch = int(schedule_entry.get("end_epoch", 10**9))
+    except Exception:
+        start_epoch, end_epoch = 1, 10**9
+    return start_epoch, end_epoch
+
+
+def _apply_training_schedule_update_modes(
+    *,
+    training_schedule: list[Any],
+    epoch_counter: int,
+    update_reactivation: bool,
+    encoder_update_mode: str,
+    decoder_update_mode: str,
+) -> tuple[bool, str, str]:
+    """Apply the first matching explicit local-learning training schedule entry."""
+
+    for sched in training_schedule:
+        start_epoch, end_epoch = _resolve_schedule_epoch_range(sched)
+        if start_epoch <= epoch_counter <= end_epoch:
+            if "update_reactivation" in sched:
+                update_reactivation = bool(sched["update_reactivation"])
+            if "encoder_update_mode" in sched:
+                encoder_update_mode = str(sched["encoder_update_mode"]).lower()
+            if "decoder_update_mode" in sched:
+                decoder_update_mode = str(sched["decoder_update_mode"]).lower()
+            break
+
+    return update_reactivation, encoder_update_mode, decoder_update_mode
+
+
+def _resolve_epoch_update_modes(
+    local_cfg,
+    epoch_counter: int,
+) -> tuple[bool, str, str]:
+    update_reactivation, encoder_update_mode, decoder_update_mode = (
+        _resolve_freeze_update_modes(local_cfg, epoch_counter)
+    )
+
     if local_cfg.training_schedule:
-        for sched in local_cfg.training_schedule:
-            try:
-                start_epoch = int(sched.get("start_epoch", 1))
-                end_epoch = int(sched.get("end_epoch", 10**9))
-            except Exception:
-                start_epoch, end_epoch = 1, 10**9
-            if start_epoch <= epoch_counter <= end_epoch:
-                if "update_reactivation" in sched:
-                    update_reactivation = bool(sched["update_reactivation"])
-                if "encoder_update_mode" in sched:
-                    encoder_update_mode = str(sched["encoder_update_mode"]).lower()
-                if "decoder_update_mode" in sched:
-                    decoder_update_mode = str(sched["decoder_update_mode"]).lower()
-                break
+        update_reactivation, encoder_update_mode, decoder_update_mode = (
+            _apply_training_schedule_update_modes(
+                training_schedule=local_cfg.training_schedule,
+                epoch_counter=epoch_counter,
+                update_reactivation=update_reactivation,
+                encoder_update_mode=encoder_update_mode,
+                decoder_update_mode=decoder_update_mode,
+            )
+        )
 
     return update_reactivation, encoder_update_mode, decoder_update_mode
 
@@ -177,17 +223,11 @@ def _apply_decoder_local_gradients(
         scale = 1.0
 
     grad_w = scale * (e_out.t() @ h_in.detach())  # [out, in]
-    if lin_mod.weight.grad is None:
-        lin_mod.weight.grad = grad_w.to(lin_mod.weight.dtype)
-    else:
-        lin_mod.weight.grad = lin_mod.weight.grad + grad_w.to(lin_mod.weight.dtype)
+    _accumulate_parameter_grad(lin_mod.weight, grad_w)
 
     if lin_mod.bias is not None:
         grad_b = scale * e_out.sum(dim=0)
-        if lin_mod.bias.grad is None:
-            lin_mod.bias.grad = grad_b.to(lin_mod.bias.dtype)
-        else:
-            lin_mod.bias.grad = lin_mod.bias.grad + grad_b.to(lin_mod.bias.dtype)
+        _accumulate_parameter_grad(lin_mod.bias, grad_b)
 
 
 def _clip_model_gradients(model: BaseModel, clip_grad_value: Any) -> None:

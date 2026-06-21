@@ -16,6 +16,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.ei_network 
     ConfigurableEINetwork,
     _extend_synapse_schedule,
     _prepare_ei_layer_size_sequences,
+    _prepare_ei_synapse_schedules,
     _resolve_ei_layer_build_spec,
     _validate_direct_inhibitory_stream_contract,
 )
@@ -674,6 +675,58 @@ class TestEINetworkScheduleHelpers:
                 num_layers=1,
                 required=True,
                 empty_error="ee_synapses_per_branch_per_layer cannot be empty",
+            )
+
+
+class TestEINetworkSynapseScheduleHelpers:
+    def test_prepare_synapse_schedules_extends_all_streams(self):
+        schedules = _prepare_ei_synapse_schedules(
+            ee_synapses_per_branch_per_layer=[5],
+            ei_synapses_per_branch_per_layer=[3],
+            ie_synapses_per_branch_per_layer=[2],
+            ii_synapses_per_branch_per_layer=[1],
+            num_layers=3,
+            input_mode=0,
+            has_inhibitory_neurons=True,
+        )
+
+        assert schedules == ([5, 5, 5], [3, 3, 3], [2, 2, 2], [1, 1, 1])
+
+    def test_prepare_synapse_schedules_defaults_optional_absent_i_streams(self):
+        schedules = _prepare_ei_synapse_schedules(
+            ee_synapses_per_branch_per_layer=[5],
+            ei_synapses_per_branch_per_layer=[],
+            ie_synapses_per_branch_per_layer=[],
+            ii_synapses_per_branch_per_layer=[],
+            num_layers=2,
+            input_mode=0,
+            has_inhibitory_neurons=False,
+        )
+
+        assert schedules == ([5, 5], [0, 0], [0, 0], [0, 0])
+
+    def test_prepare_synapse_schedules_requires_ie_for_input_mode1(self):
+        with pytest.raises(ValueError, match="ie_synapses_per_branch_per_layer"):
+            _prepare_ei_synapse_schedules(
+                ee_synapses_per_branch_per_layer=[5],
+                ei_synapses_per_branch_per_layer=[],
+                ie_synapses_per_branch_per_layer=[],
+                ii_synapses_per_branch_per_layer=[],
+                num_layers=1,
+                input_mode=1,
+                has_inhibitory_neurons=False,
+            )
+
+    def test_prepare_synapse_schedules_requires_i_schedules_with_i_neurons(self):
+        with pytest.raises(ValueError, match="ei_synapses_per_branch_per_layer"):
+            _prepare_ei_synapse_schedules(
+                ee_synapses_per_branch_per_layer=[5],
+                ei_synapses_per_branch_per_layer=[],
+                ie_synapses_per_branch_per_layer=[2],
+                ii_synapses_per_branch_per_layer=[1],
+                num_layers=1,
+                input_mode=0,
+                has_inhibitory_neurons=True,
             )
 
 

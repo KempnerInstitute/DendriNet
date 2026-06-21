@@ -62,6 +62,51 @@ def _extend_synapse_schedule(
     return schedule
 
 
+def _prepare_ei_synapse_schedules(
+    *,
+    ee_synapses_per_branch_per_layer: list[int],
+    ei_synapses_per_branch_per_layer: list[int],
+    ie_synapses_per_branch_per_layer: list[int],
+    ii_synapses_per_branch_per_layer: list[int],
+    num_layers: int,
+    input_mode: int,
+    has_inhibitory_neurons: bool,
+) -> tuple[list[int], list[int], list[int], list[int]]:
+    """Prepare per-layer E/I synapse schedules with legacy required fields."""
+
+    ee_synapses = _extend_synapse_schedule(
+        ee_synapses_per_branch_per_layer,
+        num_layers=num_layers,
+        required=True,
+        empty_error="ee_synapses_per_branch_per_layer cannot be empty",
+    )
+    ei_synapses = _extend_synapse_schedule(
+        ei_synapses_per_branch_per_layer,
+        num_layers=num_layers,
+        required=has_inhibitory_neurons,
+        empty_error=(
+            "ei_synapses_per_branch_per_layer cannot be empty when "
+            "inhibitory neurons exist"
+        ),
+    )
+    ie_synapses = _extend_synapse_schedule(
+        ie_synapses_per_branch_per_layer,
+        num_layers=num_layers,
+        required=input_mode == 1 or has_inhibitory_neurons,
+        empty_error="ie_synapses_per_branch_per_layer cannot be empty",
+    )
+    ii_synapses = _extend_synapse_schedule(
+        ii_synapses_per_branch_per_layer,
+        num_layers=num_layers,
+        required=has_inhibitory_neurons,
+        empty_error=(
+            "ii_synapses_per_branch_per_layer cannot be empty when "
+            "inhibitory neurons exist"
+        ),
+    )
+    return ee_synapses, ei_synapses, ie_synapses, ii_synapses
+
+
 def _prepare_ei_layer_size_sequences(
     *,
     input_dim: int,
@@ -364,6 +409,99 @@ class ExcitationInhibitionNetwork(BaseNetwork):
             input_dim=self.input_dim, transfer_params=self.transfer_params
         )
 
+    def _make_ei_layer(
+        self,
+        *,
+        layer_idx: int,
+        layer_spec: dict[str, Any],
+        ee_synapses_per_branch: int,
+        ei_synapses_per_branch: int,
+        ie_synapses_per_branch: int,
+        ii_synapses_per_branch: int,
+        extra_kwargs: dict[str, Any],
+    ) -> ExcitationInhibitionLayer:
+        """Build one EI layer from resolved dimensions and per-layer schedules."""
+
+        return ExcitationInhibitionLayer(
+            n_excitatory_cells=layer_spec["n_excitatory_cells"],
+            n_inhibitory_cells=layer_spec["n_inhibitory_cells"],
+            excitatory_branch_factors=self.excitatory_branch_factors,
+            inhibitory_branch_factors=self.inhibitory_branch_factors,
+            excitatory_input_dim=layer_spec["excitatory_input_dim"],
+            ee_synapses_per_branch=ee_synapses_per_branch,
+            ei_synapses_per_branch=ei_synapses_per_branch,
+            build_inhibitory_cells=layer_spec["build_inhibitory_cells"],
+            inhibitory_network_type=self.inhibitory_network_type,
+            inhibitory_input_dim=layer_spec["inhibitory_input_dim"],
+            ie_synapses_per_branch=ie_synapses_per_branch,
+            ii_synapses_per_branch=ii_synapses_per_branch,
+            reactivate=self.reactivate,
+            reactivation_init_m=self.reactivation_init_m,
+            reactivation_init_b=self.reactivation_init_b,
+            reactivation_init_policy=self.reactivation_init_policy,
+            reactivation_sigma_aware_k=self.reactivation_sigma_aware_k,
+            dbl_init_method=self.dbl_init_method,
+            somatic_synapses=self.somatic_synapses,
+            topk_init_method=self.topk_init_method,
+            use_shunting=self.use_shunting,
+            synapse_mode=self.synapse_mode,
+            reactivation_strategy=self.reactivation_strategy,
+            blocklinear_strategy=self.blocklinear_strategy,
+            reactivation_type=self.reactivation_type,
+            topk_noise_level=self.topk_noise_level,
+            topk_strategy=self.topk_strategy,
+            topk_type=self.topk_type,
+            topk_weight_norm_order=self.topk_weight_norm_order,
+            topk_gamma=self.topk_gamma,
+            weight_transform=self.weight_transform,
+            print_hooks=self.print_hooks,
+            excitatory_target_density=self.excitatory_target_density,
+            inhibitory_target_density=self.inhibitory_target_density,
+            use_noise=self.use_noise,
+            sigma=self.sigma,
+            rewiring_mode=self.rewiring_mode,
+            rewire_frequency=self.rewire_frequency,
+            synapses_per_branch=self.synapses_per_branch,
+            freeze_excitatory_connectivity=self.freeze_excitatory_connectivity,
+            freeze_inhibitory_connectivity=self.freeze_inhibitory_connectivity,
+            init_method=self.init_method,
+            weight_threshold=self.weight_threshold,
+            efficient_blocklinear=self.efficient_blocklinear,
+            adaptive_initialization=self.adaptive_initialization,
+            adaptive_initialization_policy=self.adaptive_initialization_policy,
+            adaptive_target_conductance=self.adaptive_target_conductance,
+            structured_connectivity=self.structured_connectivity,
+            structured_layer_idx=layer_idx,
+            **extra_kwargs,
+        )
+
+    def _register_ei_layers(self, layers: list[ExcitationInhibitionLayer]) -> None:
+        """Register EI layers and cached layer/branch config views."""
+
+        self.layers = nn.ModuleList(layers)
+        self.synapse_configs = tuple(layer.synapse_config for layer in layers)
+        self.excitatory_synapse_configs = tuple(
+            layer.excitatory_synapse_config for layer in layers
+        )
+        self.inhibitory_synapse_configs = tuple(
+            layer.inhibitory_synapse_config for layer in layers
+        )
+        self.excitatory_branch_configs = tuple(
+            tuple(layer.excitatory_branch_configs) for layer in layers
+        )
+        self.inhibitory_branch_configs = tuple(
+            tuple(layer.inhibitory_branch_configs) for layer in layers
+        )
+        self.branch_configs = tuple(
+            branch_config
+            for layer in layers
+            for branch_configs in (
+                layer.excitatory_branch_configs,
+                layer.inhibitory_branch_configs,
+            )
+            for branch_config in branch_configs
+        )
+
     def setup_network_layers(self, **kwargs):
         """Set up the excitatory and inhibitory network layers"""
         # Create network layers using ExcitationInhibitionLayer
@@ -410,35 +548,14 @@ class ExcitationInhibitionNetwork(BaseNetwork):
             ),
         )
 
-        ee_syn = _extend_synapse_schedule(
-            ee_syn,
+        ee_syn, ei_syn, ie_syn, ii_syn = _prepare_ei_synapse_schedules(
+            ee_synapses_per_branch_per_layer=ee_syn,
+            ei_synapses_per_branch_per_layer=ei_syn,
+            ie_synapses_per_branch_per_layer=ie_syn,
+            ii_synapses_per_branch_per_layer=ii_syn,
             num_layers=num_layers,
-            required=True,
-            empty_error="ee_synapses_per_branch_per_layer cannot be empty",
-        )
-        ei_syn = _extend_synapse_schedule(
-            ei_syn,
-            num_layers=num_layers,
-            required=has_inhibitory_neurons,
-            empty_error=(
-                "ei_synapses_per_branch_per_layer cannot be empty when "
-                "inhibitory neurons exist"
-            ),
-        )
-        ie_syn = _extend_synapse_schedule(
-            ie_syn,
-            num_layers=num_layers,
-            required=input_mode == 1 or has_inhibitory_neurons,
-            empty_error="ie_synapses_per_branch_per_layer cannot be empty",
-        )
-        ii_syn = _extend_synapse_schedule(
-            ii_syn,
-            num_layers=num_layers,
-            required=has_inhibitory_neurons,
-            empty_error=(
-                "ii_synapses_per_branch_per_layer cannot be empty when "
-                "inhibitory neurons exist"
-            ),
+            input_mode=input_mode,
+            has_inhibitory_neurons=has_inhibitory_neurons,
         )
 
         excitatory_input_dim = self.transfer_fn.excitatory_dim
@@ -456,85 +573,18 @@ class ExcitationInhibitionNetwork(BaseNetwork):
                 ii_synapses_per_branch=ii_syn[i],
             )
 
-            # Create ExcitationInhibitionLayer
-            layer = ExcitationInhibitionLayer(
-                n_excitatory_cells=layer_spec["n_excitatory_cells"],
-                n_inhibitory_cells=layer_spec["n_inhibitory_cells"],
-                excitatory_branch_factors=self.excitatory_branch_factors,
-                inhibitory_branch_factors=self.inhibitory_branch_factors,
-                excitatory_input_dim=layer_spec["excitatory_input_dim"],
+            layer = self._make_ei_layer(
+                layer_idx=i,
+                layer_spec=layer_spec,
                 ee_synapses_per_branch=ee_syn[i],
                 ei_synapses_per_branch=ei_syn[i],
-                build_inhibitory_cells=layer_spec["build_inhibitory_cells"],
-                inhibitory_network_type=self.inhibitory_network_type,
-                inhibitory_input_dim=layer_spec["inhibitory_input_dim"],
                 ie_synapses_per_branch=ie_syn[i],
                 ii_synapses_per_branch=ii_syn[i],
-                reactivate=self.reactivate,
-                reactivation_init_m=self.reactivation_init_m,
-                reactivation_init_b=self.reactivation_init_b,
-                reactivation_init_policy=self.reactivation_init_policy,
-                reactivation_sigma_aware_k=self.reactivation_sigma_aware_k,
-                dbl_init_method=self.dbl_init_method,
-                somatic_synapses=self.somatic_synapses,
-                topk_init_method=self.topk_init_method,
-                use_shunting=self.use_shunting,
-                synapse_mode=self.synapse_mode,
-                reactivation_strategy=self.reactivation_strategy,
-                blocklinear_strategy=self.blocklinear_strategy,
-                reactivation_type=self.reactivation_type,
-                topk_noise_level=self.topk_noise_level,
-                topk_strategy=self.topk_strategy,
-                topk_type=self.topk_type,
-                topk_weight_norm_order=self.topk_weight_norm_order,
-                topk_gamma=self.topk_gamma,
-                weight_transform=self.weight_transform,
-                print_hooks=self.print_hooks,
-                excitatory_target_density=self.excitatory_target_density,
-                inhibitory_target_density=self.inhibitory_target_density,
-                use_noise=self.use_noise,
-                sigma=self.sigma,
-                rewiring_mode=self.rewiring_mode,
-                rewire_frequency=self.rewire_frequency,
-                synapses_per_branch=self.synapses_per_branch,
-                freeze_excitatory_connectivity=self.freeze_excitatory_connectivity,
-                freeze_inhibitory_connectivity=self.freeze_inhibitory_connectivity,
-                init_method=self.init_method,
-                weight_threshold=self.weight_threshold,
-                efficient_blocklinear=self.efficient_blocklinear,
-                adaptive_initialization=self.adaptive_initialization,
-                adaptive_initialization_policy=self.adaptive_initialization_policy,
-                adaptive_target_conductance=self.adaptive_target_conductance,
-                structured_connectivity=self.structured_connectivity,
-                structured_layer_idx=i,
-                **kwargs,
+                extra_kwargs=kwargs,
             )
             layers.append(layer)
 
-        # Create ModuleList with the layers
-        self.layers = nn.ModuleList(layers)
-        self.synapse_configs = tuple(layer.synapse_config for layer in layers)
-        self.excitatory_synapse_configs = tuple(
-            layer.excitatory_synapse_config for layer in layers
-        )
-        self.inhibitory_synapse_configs = tuple(
-            layer.inhibitory_synapse_config for layer in layers
-        )
-        self.excitatory_branch_configs = tuple(
-            tuple(layer.excitatory_branch_configs) for layer in layers
-        )
-        self.inhibitory_branch_configs = tuple(
-            tuple(layer.inhibitory_branch_configs) for layer in layers
-        )
-        self.branch_configs = tuple(
-            branch_config
-            for layer in layers
-            for branch_configs in (
-                layer.excitatory_branch_configs,
-                layer.inhibitory_branch_configs,
-            )
-            for branch_config in branch_configs
-        )
+        self._register_ei_layers(layers)
 
         # Optional torch.compile acceleration. Keep this opt-in because
         # Inductor caches can be fragile on shared filesystems and in tests.
