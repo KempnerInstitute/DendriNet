@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -344,9 +345,30 @@ def build_synapse_type_set(config: Any) -> SynapseTypeSet:
     )
 
 
+def validate_additive_synapse_reversals(synapse_types: SynapseTypeSet) -> None:
+    """Validate normalized reversal potentials for additive synapse dynamics."""
+    for synapse_type in synapse_types.excitatory.types:
+        if not math.isclose(float(synapse_type.reversal_potential), 1.0):
+            raise ValueError(
+                "synapse_types with use_shunting=false require normalized "
+                "additive reversal potentials: excitatory=1.0 and "
+                "inhibitory=0.0. Set use_shunting=true for non-normalized "
+                f"reversal_potential on {synapse_type.name!r}."
+            )
+    for synapse_type in synapse_types.inhibitory.types:
+        if not math.isclose(float(synapse_type.reversal_potential), 0.0):
+            raise ValueError(
+                "synapse_types with use_shunting=false require normalized "
+                "additive reversal potentials: excitatory=1.0 and "
+                "inhibitory=0.0. Set use_shunting=true for non-normalized "
+                f"reversal_potential on {synapse_type.name!r}."
+            )
+
+
 __all__ = [
     "SynapseTypeConfig",
     "SynapseTypeGroup",
     "SynapseTypeSet",
     "build_synapse_type_set",
+    "validate_additive_synapse_reversals",
 ]

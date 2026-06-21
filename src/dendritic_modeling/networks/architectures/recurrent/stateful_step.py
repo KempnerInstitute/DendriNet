@@ -5,7 +5,89 @@ from __future__ import annotations
 import torch
 from torch import Tensor
 
+from dendritic_modeling.networks.architectures.recurrent.dendritic_spikes import (
+    DendriticSpikeDynamics,
+    previous_dendritic_spike_state,
+)
 from dendritic_modeling.networks.architectures.recurrent.ei_state import DendriNetState
+
+
+def _stateful_level_keep_mask(
+    active_level_silencing: Tensor | None,
+    *,
+    level_idx: int,
+    batch_size: int,
+    device: torch.device,
+    dtype: torch.dtype,
+) -> Tensor | None:
+    """Resolve a per-level keep mask from the optional lesion mask."""
+    if active_level_silencing is None:
+        return None
+
+    mask = active_level_silencing.to(device=device)
+    if mask.dim() == 1:
+        level_mask = mask[level_idx].expand(batch_size)
+    elif mask.dim() == 2:
+        level_mask = mask[:, level_idx]
+    else:
+        raise ValueError(
+            "Level silencing mask must have shape [n_levels] or [batch, n_levels]"
+        )
+
+    keep = 1.0 - level_mask.to(dtype=dtype).clamp(0.0, 1.0)
+    return keep.unsqueeze(-1)
+
+
+def _apply_stateful_dendritic_spike_dynamics(
+    *,
+    dynamics: DendriticSpikeDynamics,
+    level_idx: int,
+    branch_voltage: Tensor,
+    state: DendriNetState,
+    keep_mask: Tensor | None = None,
+) -> tuple[Tensor, Tensor, Tensor, Tensor]:
+    """Apply configured dendritic spike dynamics to one level."""
+    prev_plateau = previous_dendritic_spike_state(
+        state.dendritic_spike_plateau,
+        level_idx,
+        branch_voltage,
+    )
+    prev_refractory = previous_dendritic_spike_state(
+        state.dendritic_spike_refractory,
+        level_idx,
+        branch_voltage,
+    )
+    return dynamics.apply(
+        level_idx=level_idx,
+        branch_voltage=branch_voltage,
+        prev_plateau=prev_plateau,
+        prev_refractory=prev_refractory,
+        keep_mask=keep_mask,
+    )
+
+
+def _apply_stateful_soma_dynamics(
+    *,
+    spiking_soma: torch.nn.Module | None,
+    soma_feedback_enabled: bool,
+    soma_voltage: Tensor,
+    state: DendriNetState,
+) -> tuple[Tensor, Tensor | None, Tensor | None, Tensor | None]:
+    """Apply optional spiking soma dynamics to one stateful step."""
+    if spiking_soma is None:
+        v_soma = soma_voltage if soma_feedback_enabled else state.v_soma
+        return (
+            soma_voltage,
+            v_soma,
+            state.refractory_counter,
+            state.spike_readout,
+        )
+    return spiking_soma(
+        soma_voltage,
+        state.v_soma,
+        state.refractory_counter,
+        state.spike_readout,
+    )[:4]
 
 
 def _build_stateful_next_state(
@@ -77,6 +159,9 @@ def _build_stateful_routing_info(
 
 
 __all__ = [
+    "_apply_stateful_dendritic_spike_dynamics",
+    "_apply_stateful_soma_dynamics",
     "_build_stateful_next_state",
     "_build_stateful_routing_info",
+    "_stateful_level_keep_mask",
 ]

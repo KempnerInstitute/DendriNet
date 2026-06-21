@@ -57,6 +57,7 @@ from dendritic_modeling.networks.architectures.recurrent.synapse_types import (
     SynapseTypeGroup,
     SynapseTypeSet,
     build_synapse_type_set,
+    validate_additive_synapse_reversals,
 )
 
 __all__ = [
@@ -92,4 +93,5 @@ __all__ = [
     "previous_dendritic_spike_state",
     "resolve_dendritic_spike_levels",
     "resolve_synapses_by_level",
+    "validate_additive_synapse_reversals",
 ]

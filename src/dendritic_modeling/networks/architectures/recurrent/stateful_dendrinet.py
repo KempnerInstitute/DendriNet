@@ -12,13 +12,16 @@ from dendritic_modeling.networks.architectures.recurrent.dendritic_geometry impo
     compute_level_sizes,
     compute_output_owner_index_per_level,
 )
-from dendritic_modeling.networks.architectures.recurrent.dendritic_spikes import (
-    previous_dendritic_spike_state,
-)
 from dendritic_modeling.networks.architectures.recurrent.ei_config import (
     PopulationConfig,
 )
 from dendritic_modeling.networks.architectures.recurrent.ei_state import DendriNetState
+from dendritic_modeling.networks.architectures.recurrent.stateful_feedback import (
+    _apply_stateful_soma_feedback_effect,
+    _build_stateful_soma_feedback,
+    _previous_stateful_soma_feedback_source,
+    _stateful_soma_feedback_for_level,
+)
 from dendritic_modeling.networks.architectures.recurrent.stateful_layers import (
     _build_stateful_branch_layers,
 )
@@ -32,14 +35,18 @@ from dendritic_modeling.networks.architectures.recurrent.stateful_setup import (
     _resolve_stateful_soma_feedback_levels,
 )
 from dendritic_modeling.networks.architectures.recurrent.stateful_step import (
+    _apply_stateful_dendritic_spike_dynamics,
+    _apply_stateful_soma_dynamics,
     _build_stateful_next_state,
     _build_stateful_routing_info,
+    _stateful_level_keep_mask,
 )
 from dendritic_modeling.networks.architectures.recurrent.stateful_typed_dynamics import (
     StatefulTypedDynamicsMixin,
 )
 from dendritic_modeling.networks.architectures.recurrent.synapse_types import (
     build_synapse_type_set,
+    validate_additive_synapse_reversals,
 )
 
 
@@ -119,46 +126,20 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
             pop_config.soma_feedback_levels,
             self.n_levels,
         )
-        self._soma_feedback_strength_index = {
-            level_idx: strength_idx
-            for strength_idx, level_idx in enumerate(
-                sorted(self.soma_feedback_level_indices)
-            )
-        }
-        self.soma_feedback_projections = nn.ModuleList()
-        if self.soma_feedback_enabled:
-            # Keep the opt-in feedback modules from shifting the initialization
-            # stream for the existing dendritic branches and downstream layers.
-            with torch.random.fork_rng(devices=[]):
-                for level_idx, level_dim in enumerate(self._level_dims):
-                    if level_idx in self.soma_feedback_level_indices:
-                        projection = nn.Linear(self._n_soma, level_dim, bias=False)
-                        init_std = float(pop_config.soma_feedback_init_std)
-                        if init_std == 0.0:
-                            nn.init.zeros_(projection.weight)
-                        else:
-                            nn.init.normal_(projection.weight, mean=0.0, std=init_std)
-                    else:
-                        # Preserve projection indexing by level while avoiding
-                        # trainable parameters for levels that are configured
-                        # as feedback-disabled.
-                        projection = nn.Identity()
-                    self.soma_feedback_projections.append(projection)
-
-        strength_shape = (
-            len(self.soma_feedback_level_indices) if self.soma_feedback_per_level else 1
+        soma_feedback_build = _build_stateful_soma_feedback(
+            pop_config=pop_config,
+            level_dims=self._level_dims,
+            n_soma=self._n_soma,
+            level_indices=self.soma_feedback_level_indices,
+            per_level=self.soma_feedback_per_level,
+            enabled=self.soma_feedback_enabled,
         )
-        strength = torch.full(
-            (strength_shape,),
-            float(pop_config.soma_feedback_strength),
-            dtype=torch.float32,
-        )
-        if self.soma_feedback_enabled and bool(
-            pop_config.soma_feedback_learnable_strength
-        ):
-            self.soma_feedback_strength = nn.Parameter(strength)
+        self._soma_feedback_strength_index = soma_feedback_build.strength_index
+        self.soma_feedback_projections = soma_feedback_build.projections
+        if soma_feedback_build.strength_is_parameter:
+            self.soma_feedback_strength = nn.Parameter(soma_feedback_build.strength)
         else:
-            self.register_buffer("soma_feedback_strength", strength)
+            self.register_buffer("soma_feedback_strength", soma_feedback_build.strength)
 
         level_taus = _resolve_stateful_level_taus(pop_config, self.n_levels)
 
@@ -243,21 +224,13 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
         device: torch.device,
         dtype: torch.dtype,
     ) -> Optional[torch.Tensor]:
-        if self._active_level_silencing is None:
-            return None
-
-        mask = self._active_level_silencing.to(device=device)
-        if mask.dim() == 1:
-            level_mask = mask[level_idx].expand(batch_size)
-        elif mask.dim() == 2:
-            level_mask = mask[:, level_idx]
-        else:
-            raise ValueError(
-                "Level silencing mask must have shape [n_levels] or [batch, n_levels]"
-            )
-
-        keep = 1.0 - level_mask.to(dtype=dtype).clamp(0.0, 1.0)
-        return keep.unsqueeze(-1)
+        return _stateful_level_keep_mask(
+            self._active_level_silencing,
+            level_idx=level_idx,
+            batch_size=batch_size,
+            device=device,
+            dtype=dtype,
+        )
 
     @property
     def current_taus(self) -> torch.Tensor:
@@ -304,21 +277,16 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
         device: torch.device,
         dtype: torch.dtype,
     ) -> torch.Tensor | None:
-        if not self.soma_feedback_enabled:
-            return None
-        if self.soma_feedback_source == "voltage":
-            source = state.v_soma if state.v_soma is not None else state.soma_output
-        elif self.soma_feedback_source == "spike_readout":
-            source = (
-                state.spike_readout
-                if self.spiking_soma is not None and state.spike_readout is not None
-                else state.soma_output
-            )
-        else:
-            source = state.soma_output
-        if source is None:
-            return torch.zeros(batch_size, self._n_soma, device=device, dtype=dtype)
-        return source.to(device=device, dtype=dtype)
+        return _previous_stateful_soma_feedback_source(
+            enabled=self.soma_feedback_enabled,
+            source_mode=self.soma_feedback_source,
+            spiking_soma_enabled=self.spiking_soma is not None,
+            state=state,
+            batch_size=batch_size,
+            n_soma=self._n_soma,
+            device=device,
+            dtype=dtype,
+        )
 
     def _soma_feedback_for_level(
         self,
@@ -326,41 +294,20 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
         source: torch.Tensor | None,
         reference: torch.Tensor,
     ) -> torch.Tensor | None:
-        if (
-            not self.soma_feedback_enabled
-            or source is None
-            or level_idx not in self.soma_feedback_level_indices
-        ):
-            return None
-        strength_idx = (
-            self._soma_feedback_strength_index[level_idx]
-            if self.soma_feedback_per_level
-            else 0
+        return _stateful_soma_feedback_for_level(
+            enabled=self.soma_feedback_enabled,
+            per_level=self.soma_feedback_per_level,
+            level_indices=self.soma_feedback_level_indices,
+            strength_index=self._soma_feedback_strength_index,
+            projections=self.soma_feedback_projections,
+            strength=self.soma_feedback_strength,
+            level_idx=level_idx,
+            source=source,
+            reference=reference,
         )
-        strength = self.soma_feedback_strength[strength_idx].to(
-            device=reference.device,
-            dtype=reference.dtype,
-        )
-        feedback = self.soma_feedback_projections[level_idx](source)
-        return feedback.to(device=reference.device, dtype=reference.dtype) * strength
 
     def _validate_additive_synapse_reversals(self) -> None:
-        for synapse_type in self.synapse_types.excitatory.types:
-            if not math.isclose(float(synapse_type.reversal_potential), 1.0):
-                raise ValueError(
-                    "synapse_types with use_shunting=false require normalized "
-                    "additive reversal potentials: excitatory=1.0 and "
-                    "inhibitory=0.0. Set use_shunting=true for non-normalized "
-                    f"reversal_potential on {synapse_type.name!r}."
-                )
-        for synapse_type in self.synapse_types.inhibitory.types:
-            if not math.isclose(float(synapse_type.reversal_potential), 0.0):
-                raise ValueError(
-                    "synapse_types with use_shunting=false require normalized "
-                    "additive reversal potentials: excitatory=1.0 and "
-                    "inhibitory=0.0. Set use_shunting=true for non-normalized "
-                    f"reversal_potential on {synapse_type.name!r}."
-                )
+        validate_additive_synapse_reversals(self.synapse_types)
 
     def _apply_soma_dynamics(
         self,
@@ -369,20 +316,12 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
     ) -> tuple[
         torch.Tensor, torch.Tensor | None, torch.Tensor | None, torch.Tensor | None
     ]:
-        if self.spiking_soma is None:
-            v_soma = soma_voltage if self.soma_feedback_enabled else state.v_soma
-            return (
-                soma_voltage,
-                v_soma,
-                state.refractory_counter,
-                state.spike_readout,
-            )
-        return self.spiking_soma(
-            soma_voltage,
-            state.v_soma,
-            state.refractory_counter,
-            state.spike_readout,
-        )[:4]
+        return _apply_stateful_soma_dynamics(
+            spiking_soma=self.spiking_soma,
+            soma_feedback_enabled=self.soma_feedback_enabled,
+            soma_voltage=soma_voltage,
+            state=state,
+        )
 
     def _apply_dendritic_spike_dynamics(
         self,
@@ -392,21 +331,11 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
         state: DendriNetState,
         keep_mask: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        prev_plateau = previous_dendritic_spike_state(
-            state.dendritic_spike_plateau,
-            level_idx,
-            branch_voltage,
-        )
-        prev_refractory = previous_dendritic_spike_state(
-            state.dendritic_spike_refractory,
-            level_idx,
-            branch_voltage,
-        )
-        return self.dendritic_spike_dynamics.apply(
+        return _apply_stateful_dendritic_spike_dynamics(
+            dynamics=self.dendritic_spike_dynamics,
             level_idx=level_idx,
             branch_voltage=branch_voltage,
-            prev_plateau=prev_plateau,
-            prev_refractory=prev_refractory,
+            state=state,
             keep_mask=keep_mask,
         )
 
@@ -555,25 +484,17 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
                 soma_feedback_source,
                 raw_branch,
             )
-            if soma_feedback is not None and keep_mask is not None:
-                soma_feedback = soma_feedback * keep_mask
-            effective_trace_branch = new_trace_branch[level_idx]
-            effective_branch_conductance = branch_conductance
-            soma_feedback_gate = None
-            if soma_feedback is not None:
-                if self.soma_feedback_mode == "additive":
-                    effective_trace_branch = effective_trace_branch + soma_feedback
-                elif self.soma_feedback_mode == "shunting":
-                    soma_feedback_conductance = torch.relu(soma_feedback)
-                    effective_trace_branch = (
-                        effective_trace_branch
-                        + soma_feedback_conductance * self.soma_feedback_reversal
-                    )
-                    effective_branch_conductance = (
-                        effective_branch_conductance + soma_feedback_conductance
-                    )
-                else:
-                    soma_feedback_gate = torch.tanh(soma_feedback)
+            soma_feedback_effect = _apply_stateful_soma_feedback_effect(
+                feedback=soma_feedback,
+                keep_mask=keep_mask,
+                trace_branch=new_trace_branch[level_idx],
+                branch_conductance=branch_conductance,
+                mode=self.soma_feedback_mode,
+                reversal=self.soma_feedback_reversal,
+            )
+            effective_trace_branch = soma_feedback_effect.trace_branch
+            effective_branch_conductance = soma_feedback_effect.branch_conductance
+            soma_feedback_gate = soma_feedback_effect.gate
 
             if self.synapse_types_enabled:
                 assert new_typed_traces is not None

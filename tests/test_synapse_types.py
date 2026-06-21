@@ -8,6 +8,7 @@ from dendritic_modeling.networks.architectures.recurrent import (
     StatefulDendriNet,
     SynapseTypeConfig,
     build_synapse_type_set,
+    validate_additive_synapse_reversals,
 )
 
 
@@ -399,6 +400,18 @@ def test_additive_synapse_types_reject_non_normalized_reversal_potentials():
                 },
             )
         )
+
+
+def test_additive_synapse_reversal_validation_accepts_normalized_types():
+    synapse_types = build_synapse_type_set(
+        {
+            "enabled": True,
+            "excitatory": [{"name": "AMPA", "reversal_potential": 1.0}],
+            "inhibitory": [{"name": "GABA_A", "reversal_potential": 0.0}],
+        }
+    )
+
+    validate_additive_synapse_reversals(synapse_types)
 
 
 def test_short_term_plasticity_tracks_utilization_and_resources():
