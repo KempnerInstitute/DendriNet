@@ -16,6 +16,7 @@ from dendritic_modeling.training.strategies.local_learning_hsic import (
 from dendritic_modeling.training.strategies.local_learning_hsic_mixin import (
     _clip_hsic_gradient,
     _hsic_topk_param_grad,
+    _resolve_hsic_warmup_scale,
 )
 
 
@@ -95,6 +96,69 @@ def test_hsic_topk_param_grad_preserves_projection_and_batch_scaling():
     expected = (grad_z.t() @ x_exc) * current_weight
     torch.testing.assert_close(normalized, expected / 3.0)
     torch.testing.assert_close(unnormalized, expected)
+
+
+def test_resolve_hsic_warmup_scale_preserves_warmup_and_layer_gate():
+    assert (
+        _resolve_hsic_warmup_scale(
+            warmup_epochs=0,
+            epoch_counter=0,
+            apply_last_layer_only=False,
+            layer_idx=0,
+            num_layers=3,
+        )
+        == 1.0
+    )
+    assert (
+        _resolve_hsic_warmup_scale(
+            warmup_epochs=4,
+            epoch_counter=2,
+            apply_last_layer_only=False,
+            layer_idx=0,
+            num_layers=3,
+        )
+        == 0.5
+    )
+    assert (
+        _resolve_hsic_warmup_scale(
+            warmup_epochs=4,
+            epoch_counter=-2,
+            apply_last_layer_only=False,
+            layer_idx=0,
+            num_layers=3,
+        )
+        == 0.0
+    )
+    assert (
+        _resolve_hsic_warmup_scale(
+            warmup_epochs=4,
+            epoch_counter=5,
+            apply_last_layer_only=False,
+            layer_idx=0,
+            num_layers=3,
+        )
+        == 1.0
+    )
+    assert (
+        _resolve_hsic_warmup_scale(
+            warmup_epochs=4,
+            epoch_counter=2,
+            apply_last_layer_only=True,
+            layer_idx=1,
+            num_layers=3,
+        )
+        == 0.0
+    )
+    assert (
+        _resolve_hsic_warmup_scale(
+            warmup_epochs=4,
+            epoch_counter=2,
+            apply_last_layer_only=True,
+            layer_idx=2,
+            num_layers=3,
+        )
+        == 0.5
+    )
 
 
 def test_additive_pseudo_signals():

@@ -131,6 +131,27 @@ def test_rho_modulator_preserves_centrality_mode():
     assert probe.calls == ["rho", "centrality"]
 
 
+def test_rho_morphology_dispatch_preserves_mode_selection():
+    depth_probe = _ModulatorProbe(_cfg(rule_variant="4f", morphology_mode="depth"))
+    depth = depth_probe._apply_local_rho_morphology_modulator({"rho": 8.0}, 2.0)
+    assert depth == pytest.approx(20.0)
+    assert depth_probe.calls == ["depth"]
+
+    centrality_probe = _ModulatorProbe(
+        _cfg(rule_variant="4f", morphology_mode="centrality")
+    )
+    centrality = centrality_probe._apply_local_rho_morphology_modulator(
+        {"rho": 8.0},
+        2.0,
+    )
+    assert centrality == pytest.approx(40.0)
+    assert centrality_probe.calls == ["centrality"]
+
+    neutral_probe = _ModulatorProbe(_cfg(rule_variant="4f", morphology_mode="none"))
+    assert neutral_probe._apply_local_rho_morphology_modulator({"rho": 8.0}, 2.0) == 2.0
+    assert neutral_probe.calls == []
+
+
 def test_phi_modulator_preserves_conditional_and_variance_dispatch():
     conditional_probe = _ModulatorProbe(
         _cfg(
@@ -161,6 +182,43 @@ def test_phi_modulator_preserves_conditional_and_variance_dispatch():
     )
     assert variance == pytest.approx(2.0)
     assert variance_probe.calls == ["phi"]
+
+
+def test_phi_value_dispatch_preserves_estimator_selection_without_scaling():
+    conditional_probe = _ModulatorProbe(
+        _cfg(
+            rule_variant="5f",
+            phi_scale=2.0,
+            phi_mode="conditional",
+            phi_estimator="conditional_ema",
+        )
+    )
+    conditional = conditional_probe._compute_local_phi_value(
+        rec={"phi_conditional": 8.0, "phi": 2.0}
+    )
+    assert conditional == 8.0
+    assert conditional_probe.calls == ["phi_conditional"]
+
+    variance_probe = _ModulatorProbe(
+        _cfg(
+            rule_variant="5f",
+            phi_scale=2.0,
+            phi_mode="conditional",
+            phi_estimator="variance_ema",
+        )
+    )
+    variance = variance_probe._compute_local_phi_value(
+        rec={"phi_conditional": 8.0, "phi": 2.0}
+    )
+    assert variance == 2.0
+    assert variance_probe.calls == ["phi"]
+
+    direct_probe = _ModulatorProbe(_cfg(rule_variant="5f", phi_mode="variance"))
+    direct = direct_probe._compute_local_phi_value(
+        rec={"phi_conditional": 8.0, "phi": 3.0}
+    )
+    assert direct == 3.0
+    assert direct_probe.calls == ["phi"]
 
 
 def test_phi_modulator_preserves_nonconditional_dispatch():
@@ -203,9 +261,71 @@ def test_branch_scales_preserve_role_rule_priority():
     assert probe.calls == ["role_scales", "role_alignment"]
 
 
+def test_branch_role_scale_helper_preserves_alignment_outputs():
+    syn_alignment = torch.tensor([1.0, 2.0])
+    block_alignment = torch.tensor([[3.0, 4.0]])
+    rec = {
+        "branch_scale": torch.tensor([0.5, 1.5]),
+        "dendritic_branch_scale": torch.tensor([[0.25], [0.75]]),
+        "syn_alignment": syn_alignment,
+        "block_alignment": block_alignment,
+    }
+    probe = _ModulatorProbe(_cfg(use_branch_role_rules=True))
+
+    (
+        branch_scale,
+        dendritic_branch_scale,
+        role_synaptic_alignment,
+        role_block_alignment,
+    ) = probe._compute_local_branch_role_scales(rec)
+
+    torch.testing.assert_close(branch_scale, rec["branch_scale"])
+    torch.testing.assert_close(dendritic_branch_scale, rec["dendritic_branch_scale"])
+    assert role_synaptic_alignment is syn_alignment
+    assert role_block_alignment is block_alignment
+    assert probe.calls == ["role_scales", "role_alignment"]
+
+
 def test_branch_scales_preserve_branch_type_fallback():
     branch_type_scale = torch.tensor([0.75, 1.25])
     probe = _ModulatorProbe(_cfg(use_branch_type_rules=True))
+    result = probe._compute_local_layer_modulators(
+        rec={"branch_type_scale": branch_type_scale},
+        v0=torch.ones(2, 3),
+        layer_depth=1,
+    )
+
+    assert result.branch_scale is branch_type_scale
+    assert result.dendritic_branch_scale is branch_type_scale
+    assert result.role_synaptic_alignment is None
+    assert result.role_block_alignment is None
+    assert probe.calls == ["branch_type"]
+
+
+def test_branch_type_scale_helper_preserves_shared_scale_output():
+    branch_type_scale = torch.tensor([0.75, 1.25])
+    probe = _ModulatorProbe(_cfg(use_branch_type_rules=True))
+
+    (
+        branch_scale,
+        dendritic_branch_scale,
+        role_synaptic_alignment,
+        role_block_alignment,
+    ) = probe._compute_local_branch_type_scales(
+        {"branch_type_scale": branch_type_scale}
+    )
+
+    assert branch_scale is branch_type_scale
+    assert dendritic_branch_scale is branch_type_scale
+    assert role_synaptic_alignment is None
+    assert role_block_alignment is None
+    assert probe.calls == ["branch_type"]
+
+
+def test_branch_length_scale_reuses_branch_type_fallback():
+    branch_type_scale = torch.tensor([0.25, 1.75])
+    probe = _ModulatorProbe(_cfg(use_branch_length_modulation=True))
+
     result = probe._compute_local_layer_modulators(
         rec={"branch_type_scale": branch_type_scale},
         v0=torch.ones(2, 3),

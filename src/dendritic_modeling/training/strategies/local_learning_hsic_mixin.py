@@ -41,6 +41,27 @@ def _hsic_topk_param_grad(
     return grad_g * current_weight
 
 
+def _resolve_hsic_warmup_scale(
+    *,
+    warmup_epochs: int,
+    epoch_counter: int,
+    apply_last_layer_only: bool,
+    layer_idx: int,
+    num_layers: int,
+) -> float:
+    """Resolve the HSIC scalar warmup for a layer update."""
+    hsic_warm = 1.0
+    if warmup_epochs > 0 and epoch_counter < warmup_epochs:
+        hsic_warm = max(0.0, float(epoch_counter) / float(max(1, warmup_epochs)))
+
+    if apply_last_layer_only:
+        is_last = layer_idx == num_layers - 1
+        if not is_last:
+            hsic_warm = 0.0
+
+    return hsic_warm
+
+
 class LocalLearningHSICMixin:
     """Stateful HSIC gradient helpers used by ``LocalCreditAssignment``."""
 
@@ -74,21 +95,13 @@ class LocalLearningHSICMixin:
             return
 
         z = v_out - v_out.mean(dim=0, keepdim=True)
-        hsic_warm = 1.0
-        if (
-            self.local_cfg.hsic.warmup_epochs > 0
-            and self.epoch_counter < self.local_cfg.hsic.warmup_epochs
-        ):
-            hsic_warm = max(
-                0.0,
-                float(self.epoch_counter)
-                / float(max(1, self.local_cfg.hsic.warmup_epochs)),
-            )
-
-        if self.local_cfg.hsic.apply_last_layer_only:
-            is_last = layer_idx == num_layers - 1
-            if not is_last:
-                hsic_warm = 0.0
+        hsic_warm = _resolve_hsic_warmup_scale(
+            warmup_epochs=self.local_cfg.hsic.warmup_epochs,
+            epoch_counter=self.epoch_counter,
+            apply_last_layer_only=self.local_cfg.hsic.apply_last_layer_only,
+            layer_idx=layer_idx,
+            num_layers=num_layers,
+        )
 
         if self.local_cfg.hsic.self_weight != 0.0:
             grad_z_self = self._compute_hsic_gradient(

@@ -43,7 +43,14 @@ class LocalLearningModulatorMixin(LocalLearningPostFactorsMixin):
             layer_depth=layer_depth,
             scale=self.local_cfg.four_factor.layer_wise_rho_scale,
         )
+        return self._apply_local_rho_morphology_modulator(rec, rho)
 
+    def _apply_local_rho_morphology_modulator(
+        self,
+        rec: dict[str, Any],
+        rho: Any,
+    ) -> Any:
+        """Apply optional morphology-specific rho modulation."""
         morphology_mode = self.local_cfg.morphology_aware.morphology_modulator_mode
         if morphology_mode == "depth":
             return self._compute_branch_depth_modulator(rec, rho)
@@ -62,21 +69,23 @@ class LocalLearningModulatorMixin(LocalLearningPostFactorsMixin):
         if self.local_cfg.rule_variant != "5f":
             return phi
 
-        phi_mode = self.local_cfg.five_factor.phi_mode.lower()
-        phi_estimator = self.local_cfg.five_factor.phi_estimator.lower()
-        if phi_mode == "conditional":
-            if phi_estimator == "variance_ema":
-                phi = self._compute_layer_phi(rec)
-            else:
-                phi = self._compute_layer_phi_conditional(rec)
-        else:
-            phi = self._compute_layer_phi(rec)
+        phi = self._compute_local_phi_value(rec)
 
         return _apply_layerwise_scale(
             phi,
             layer_depth=layer_depth,
             scale=self.local_cfg.five_factor.layer_wise_phi_scale,
         )
+
+    def _compute_local_phi_value(self, rec: dict[str, Any]) -> Any:
+        """Compute the unscaled phi value using the configured estimator."""
+        phi_mode = self.local_cfg.five_factor.phi_mode.lower()
+        phi_estimator = self.local_cfg.five_factor.phi_estimator.lower()
+        if phi_mode == "conditional":
+            if phi_estimator == "variance_ema":
+                return self._compute_layer_phi(rec)
+            return self._compute_layer_phi_conditional(rec)
+        return self._compute_layer_phi(rec)
 
     def _compute_local_branch_scales(
         self,
@@ -88,31 +97,51 @@ class LocalLearningModulatorMixin(LocalLearningPostFactorsMixin):
         torch.Tensor | None,
     ]:
         """Compute branch scale and role-alignment modulators."""
-        branch_scale: torch.Tensor | float = 1.0
-        dendritic_branch_scale: torch.Tensor | float = 1.0
-        role_synaptic_alignment: torch.Tensor | None = None
-        role_block_alignment: torch.Tensor | None = None
-        using_branch_role_scale = self.local_cfg.morphology_aware.use_branch_role_rules
+        if self.local_cfg.morphology_aware.use_branch_role_rules:
+            return self._compute_local_branch_role_scales(rec)
+        if self._uses_local_branch_type_scale():
+            return self._compute_local_branch_type_scales(rec)
+        return 1.0, 1.0, None, None
 
-        if using_branch_role_scale:
-            branch_scale, dendritic_branch_scale = self._get_branch_role_scales(rec)
-            (
-                role_synaptic_alignment,
-                role_block_alignment,
-            ) = self._get_branch_role_alignment_factors(rec)
-        if not using_branch_role_scale and (
-            self.local_cfg.morphology_aware.use_branch_type_rules
-            or self.local_cfg.morphology_aware.use_branch_length_modulation
-        ):
-            branch_scale = self._get_branch_type_scale(rec)
-            dendritic_branch_scale = branch_scale
+    def _uses_local_branch_type_scale(self) -> bool:
+        """Return whether branch type/length rules should set branch scales."""
+        cfg = self.local_cfg.morphology_aware
+        return cfg.use_branch_type_rules or cfg.use_branch_length_modulation
 
+    def _compute_local_branch_role_scales(
+        self,
+        rec: dict[str, Any],
+    ) -> tuple[
+        torch.Tensor | float,
+        torch.Tensor | float,
+        torch.Tensor | None,
+        torch.Tensor | None,
+    ]:
+        """Compute role-aware branch scales and alignment factors."""
+        branch_scale, dendritic_branch_scale = self._get_branch_role_scales(rec)
+        (
+            role_synaptic_alignment,
+            role_block_alignment,
+        ) = self._get_branch_role_alignment_factors(rec)
         return (
             branch_scale,
             dendritic_branch_scale,
             role_synaptic_alignment,
             role_block_alignment,
         )
+
+    def _compute_local_branch_type_scales(
+        self,
+        rec: dict[str, Any],
+    ) -> tuple[
+        torch.Tensor | float,
+        torch.Tensor | float,
+        torch.Tensor | None,
+        torch.Tensor | None,
+    ]:
+        """Compute branch type/length scales without role alignment."""
+        branch_scale = self._get_branch_type_scale(rec)
+        return branch_scale, branch_scale, None, None
 
     def _compute_local_layer_modulators(
         self,

@@ -65,6 +65,24 @@ def _apply_post_factor_modulators(
 class LocalLearningPostFactorsMixin(LocalLearningHomeostasisMixin):
     """Build local post-synaptic factors from error, voltage, and modulators."""
 
+    def _compute_local_voltage_error(
+        self,
+        *,
+        rec: dict[str, Any],
+        e_n: torch.Tensor,
+        v_n: torch.Tensor,
+    ) -> torch.Tensor:
+        """Map neuron errors through the cached activation derivative."""
+        activation_derivative = self._get_layer_activation_derivative(
+            rec=rec,
+            v_n=v_n,
+            v_out=rec.get("v_out"),
+        )
+        activation_derivative = _activation_derivative_tensor(
+            activation_derivative, v_n
+        )
+        return e_n * activation_derivative
+
     def _compute_additive_post_factor(
         self,
         *,
@@ -128,15 +146,7 @@ class LocalLearningPostFactorsMixin(LocalLearningHomeostasisMixin):
         layer_idx: int,
         modulators: _LayerModulators,
     ) -> _PostFactors:
-        activation_derivative = self._get_layer_activation_derivative(
-            rec=rec,
-            v_n=v_n,
-            v_out=rec.get("v_out"),
-        )
-        activation_derivative = _activation_derivative_tensor(
-            activation_derivative, v_n
-        )
-        e_v = e_n * activation_derivative
+        e_v = self._compute_local_voltage_error(rec=rec, e_n=e_n, v_n=v_n)
 
         post_factor = self._compute_base_post_factor(
             rec=rec,

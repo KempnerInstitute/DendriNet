@@ -130,6 +130,24 @@ def test_apply_post_factor_modulators_preserves_order_and_tensor_modes():
     torch.testing.assert_close(actual, expected)
 
 
+def test_compute_local_voltage_error_preserves_derivative_and_fallback():
+    v_n = torch.ones(2, 3, dtype=torch.float64)
+    e_n = torch.full_like(v_n, 2.0)
+    derivative = torch.arange(6, dtype=torch.float32).reshape(2, 3)
+    probe = _PostFactorProbe()
+
+    actual = probe._compute_local_voltage_error(
+        rec={"activation_derivative": derivative},
+        e_n=e_n,
+        v_n=v_n,
+    )
+    fallback = probe._compute_local_voltage_error(rec={}, e_n=e_n, v_n=v_n)
+
+    torch.testing.assert_close(actual, e_n * derivative.to(dtype=v_n.dtype))
+    torch.testing.assert_close(fallback, e_n)
+    assert probe.calls == ["activation", "activation"]
+
+
 def test_compute_local_post_factors_preserves_raw_and_modulated_conductance():
     probe = _PostFactorProbe(use_driving_force=True)
     v_n = torch.tensor([[0.5, 0.75]])
