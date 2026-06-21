@@ -6,6 +6,8 @@ training starts and provides lightweight automatic safeguard toggles.
 """
 
 import logging
+from dataclasses import dataclass
+from typing import Optional
 
 from dendritic_modeling.config.model_aliases import (
     get_core_morphology_alias_overrides,
@@ -16,6 +18,27 @@ logger = logging.getLogger(__name__)
 
 POSITIVE_WEIGHT_TRANSFORMS = {"softplus", "exp", "relu"}
 NONNEGATIVE_TRANSFER_ACTIVATIONS = {"relu", "sigmoid", "softplus"}
+
+
+@dataclass(frozen=True)
+class _TrainingStabilityContext:
+    """Resolved config values needed by training-stability checks."""
+
+    enable_amp: bool
+    enable_hooks: bool
+    topk_ultrafast: bool
+    efficient_blocklinear: bool
+    reactivation_strategy: str
+    topk_strategy: str
+    blocklinear_strategy: str
+    effective_use_shunting: bool
+    weight_transform: str
+    transfer_output_activation: Optional[str]
+    normalize_inputs: bool
+    learning_rate: float
+    dist_mode: str
+    fsdp_config: object
+    trainer_params: object
 
 
 def _cfg_get(node, key: str, default=None):
@@ -60,27 +83,9 @@ def _effective_use_shunting(core_type: str, morphology_use_shunting: bool) -> bo
     return False
 
 
-def validate_training_stability(config) -> bool:
-    """
-    Validate optimization combinations and warn about potential issues.
-
-    Args:
-        config: Configuration object or dictionary
-
-    Returns:
-        bool: True if validation passes, False if critical issues found
-    """
-    # Sweep submission files wrap the actual train-time config under
-    # ``base_config``. Validate that inner config so audit scripts do not
-    # accidentally approve a sweep wrapper whose resolved jobs would be unsafe.
-    base_config = _cfg_get(config, "base_config", None)
-    if base_config is not None:
-        return validate_training_stability(base_config)
-
-    warnings = []
-    errors = []
-
-    enable_amp = bool(
+def _amp_enabled(config) -> bool:
+    """Return whether AMP is enabled in the main trainer config."""
+    return bool(
         _first_present(
             config,
             [
@@ -89,6 +94,11 @@ def validate_training_stability(config) -> bool:
             default=False,
         )
     )
+
+
+def _collect_training_stability_context(config) -> _TrainingStabilityContext:
+    """Resolve current and legacy config paths used by stability checks."""
+    enable_amp = _amp_enabled(config)
     enable_hooks = bool(
         _first_present(
             config,
@@ -172,72 +182,108 @@ def validate_training_stability(config) -> bool:
         )
     )
 
-    # 1. AMP + Gradient Hooks Compatibility
+    return _TrainingStabilityContext(
+        enable_amp=enable_amp,
+        enable_hooks=enable_hooks,
+        topk_ultrafast=topk_ultrafast,
+        efficient_blocklinear=efficient_blocklinear,
+        reactivation_strategy=reactivation_strategy,
+        topk_strategy=topk_strategy,
+        blocklinear_strategy=blocklinear_strategy,
+        effective_use_shunting=effective_use_shunting,
+        weight_transform=weight_transform,
+        transfer_output_activation=transfer_output_activation,
+        normalize_inputs=normalize_inputs,
+        learning_rate=learning_rate,
+        dist_mode=str(_cfg_path(config, ["distributed", "mode"], "none")).lower(),
+        fsdp_config=_cfg_path(config, ["distributed", "fsdp"], {}),
+        trainer_params=trainer_params,
+    )
+
+
+def _gradient_scaling_enabled(context: _TrainingStabilityContext) -> bool:
+    """Return whether any gradient-scaling hook strategy is enabled."""
+    return any(
+        [
+            context.reactivation_strategy != "none",
+            context.topk_strategy != "none",
+            context.blocklinear_strategy != "none",
+        ]
+    )
+
+
+def _append_amp_hook_warning(
+    context: _TrainingStabilityContext, warnings: list[str]
+) -> None:
+    """Warn about AMP combined with active gradient hooks."""
     if (
-        enable_amp
-        and enable_hooks
-        and any(
-            [
-                reactivation_strategy != "none",
-                topk_strategy != "none",
-                blocklinear_strategy != "none",
-            ]
-        )
+        context.enable_amp
+        and context.enable_hooks
+        and _gradient_scaling_enabled(context)
     ):
         warnings.append(
             "AMP + Gradient Hooks: Mixed precision with gradient scaling hooks may cause dtype conflicts. "
             "Consider setting 'disable_hooks_with_amp: true' in trainer config if you encounter errors."
         )
 
-    # 1b. Signed-input shunting guard
+
+def _append_signed_shunting_error(
+    context: _TrainingStabilityContext, errors: list[str]
+) -> None:
+    """Reject shunting configs that can receive signed external inputs."""
     if (
-        effective_use_shunting
-        and weight_transform in POSITIVE_WEIGHT_TRANSFORMS
-        and normalize_inputs
-        and transfer_output_activation not in NONNEGATIVE_TRANSFER_ACTIVATIONS
+        context.effective_use_shunting
+        and context.weight_transform in POSITIVE_WEIGHT_TRANSFORMS
+        and context.normalize_inputs
+        and context.transfer_output_activation not in NONNEGATIVE_TRANSFER_ACTIVATIONS
     ):
         errors.append(
             "Signed shunting input: the configured preprocessing can produce "
             "signed inputs, but this model uses shunting with a positive "
-            f"weight transform ({weight_transform!r}) and no nonnegative "
+            f"weight transform ({context.weight_transform!r}) and no nonnegative "
             "transfer.output_activation. Use all normalize flags=false, set "
             "transfer.output_activation to a nonnegative activation such as "
             "'relu', or switch to an additive morphology."
         )
 
-    # 2. Aggressive Optimization Combinations (NaN Risk)
-    risky_combinations = 0
-    if enable_amp:
-        risky_combinations += 1
-    if topk_ultrafast:
-        risky_combinations += 1
-    if any(
-        [
-            reactivation_strategy != "none",
-            topk_strategy != "none",
-            blocklinear_strategy != "none",
-        ]
-    ):
-        risky_combinations += 1
-    if learning_rate > 0.01:
-        risky_combinations += 1
 
+def _count_risky_training_combinations(context: _TrainingStabilityContext) -> int:
+    """Count aggressive optimization choices used for the NaN-risk warning."""
+    risky_combinations = 0
+    if context.enable_amp:
+        risky_combinations += 1
+    if context.topk_ultrafast:
+        risky_combinations += 1
+    if _gradient_scaling_enabled(context):
+        risky_combinations += 1
+    if context.learning_rate > 0.01:
+        risky_combinations += 1
+    return risky_combinations
+
+
+def _append_nan_risk_warning(
+    context: _TrainingStabilityContext, warnings: list[str]
+) -> None:
+    """Warn when several aggressive optimization choices are combined."""
+    risky_combinations = _count_risky_training_combinations(context)
     if risky_combinations >= 3:
         warnings.append(
             f"High NaN Risk: {risky_combinations} aggressive optimizations detected (AMP, ultrafast TopK, gradient scaling, high LR). "
             "Consider: (1) Lower learning rate, (2) Enable adaptive gradient clipping, (3) Add NaN detection."
         )
 
-    # 3. FSDP Configuration Recommendations
-    dist_mode = str(_cfg_path(config, ["distributed", "mode"], "none")).lower()
-    if dist_mode == "fsdp":
-        fsdp_config = _cfg_path(config, ["distributed", "fsdp"], {})
+
+def _append_fsdp_warning(
+    context: _TrainingStabilityContext, warnings: list[str]
+) -> None:
+    """Warn about FSDP settings that leave known communication optimizations off."""
+    if context.dist_mode == "fsdp":
         sharding_strategy = str(
-            _cfg_get(fsdp_config, "sharding_strategy", "FULL_SHARD")
+            _cfg_get(context.fsdp_config, "sharding_strategy", "FULL_SHARD")
         ).upper()
 
         if sharding_strategy in {"FULL", "FULL_SHARD"} and not bool(
-            _cfg_get(fsdp_config, "reduce_communication_overhead", True)
+            _cfg_get(context.fsdp_config, "reduce_communication_overhead", True)
         ):
             warnings.append(
                 "FSDP Performance: Using FULL_SHARD without communication optimizations. "
@@ -245,20 +291,31 @@ def validate_training_stability(config) -> bool:
                 "or using 'sharding_strategy: HYBRID_SHARD'."
             )
 
-    # 5. Memory vs Speed Trade-offs
-    if efficient_blocklinear and not enable_amp:
+
+def _append_memory_warning(
+    context: _TrainingStabilityContext, warnings: list[str]
+) -> None:
+    """Warn when memory-saving blocklinear mode is used without AMP."""
+    if context.efficient_blocklinear and not context.enable_amp:
         warnings.append(
             "Memory Optimization: 'efficient_blocklinear' provides memory savings but consider enabling 'training.main.common.use_amp: true' for additional 50% memory reduction."
         )
 
-    # 6. Gradient Clipping Recommendations
-    grad_clip_value = _cfg_get(trainer_params, "grad_clip_value", None)
+
+def _append_grad_clip_warning(
+    context: _TrainingStabilityContext, warnings: list[str]
+) -> None:
+    """Warn about unusually high gradient clipping thresholds."""
+    grad_clip_value = _cfg_get(context.trainer_params, "grad_clip_value", None)
     if grad_clip_value and grad_clip_value > 10.0:
         warnings.append(
             f"High Gradient Clipping: grad_clip_value={grad_clip_value} is quite high. "
             "Consider lower values (1.0-5.0) for better training stability."
         )
 
+
+def _log_stability_messages(warnings: list[str], errors: list[str]) -> None:
+    """Emit stability warnings and errors with the existing log format."""
     if warnings:
         logger.warning("=== CONFIGURATION SAFEGUARDS ===")
         for i, warning in enumerate(warnings, 1):
@@ -270,6 +327,38 @@ def validate_training_stability(config) -> bool:
         for i, error in enumerate(errors, 1):
             logger.error(f"{i}. {error}")
         logger.error("=" * 40)
+
+
+def validate_training_stability(config) -> bool:
+    """
+    Validate optimization combinations and warn about potential issues.
+
+    Args:
+        config: Configuration object or dictionary
+
+    Returns:
+        bool: True if validation passes, False if critical issues found
+    """
+    # Sweep submission files wrap the actual train-time config under
+    # ``base_config``. Validate that inner config so audit scripts do not
+    # accidentally approve a sweep wrapper whose resolved jobs would be unsafe.
+    base_config = _cfg_get(config, "base_config", None)
+    if base_config is not None:
+        return validate_training_stability(base_config)
+
+    warnings = []
+    errors = []
+    context = _collect_training_stability_context(config)
+
+    _append_amp_hook_warning(context, warnings)
+    _append_signed_shunting_error(context, errors)
+    _append_nan_risk_warning(context, warnings)
+    _append_fsdp_warning(context, warnings)
+    _append_memory_warning(context, warnings)
+    _append_grad_clip_warning(context, warnings)
+    _log_stability_messages(warnings, errors)
+
+    if errors:
         return False
 
     return True
@@ -321,6 +410,34 @@ def suggest_optimal_config_for_model_size(total_params: int) -> dict:
     return suggestions
 
 
+def _automatic_safeguard_gradient_scaling_enabled(config) -> bool:
+    """Return whether auto-safeguards should treat gradient scaling as active."""
+    strategy_fields = (
+        (["model", "core", "reactivation"], "gradient_scaling"),
+        (["model", "core", "sparsity"], "gradient_scaling"),
+        (["model", "core", "blocklinear"], "gradient_scaling"),
+        (["model", "core", "architecture"], "reactivation_strategy"),
+        (["model", "core", "architecture"], "topk_strategy"),
+        (["model", "core", "architecture"], "blocklinear_strategy"),
+        (["model", "core_network", "parameters"], "reactivation_strategy"),
+        (["model", "core_network", "parameters"], "topk_strategy"),
+        (["model", "core_network", "parameters"], "blocklinear_strategy"),
+    )
+    return any(
+        _cfg_get(_cfg_path(config, path, {}), key, "none") != "none"
+        for path, key in strategy_fields
+    )
+
+
+def _set_common_flag_if_missing(
+    common_cfg, key: str, value: bool, message: str
+) -> None:
+    """Set an automatic trainer flag only when the user did not provide it."""
+    if not hasattr(common_cfg, key):
+        setattr(common_cfg, key, value)
+        logger.info(message)
+
+
 def apply_automatic_safeguards(config) -> None:
     """
     Automatically apply safeguards based on configuration analysis.
@@ -332,45 +449,17 @@ def apply_automatic_safeguards(config) -> None:
     if common_cfg is None:
         return
 
-    enable_amp = bool(
-        _first_present(
-            config,
-            [
-                ["training", "main", "common", "use_amp"],
-            ],
-            default=False,
-        )
-    )
-
-    # Check if gradient scaling is enabled (support current and legacy config paths)
-    model_core_arch = _cfg_path(config, ["model", "core", "architecture"], {})
-    model_core_reactivation = _cfg_path(config, ["model", "core", "reactivation"], {})
-    model_core_sparsity = _cfg_path(config, ["model", "core", "sparsity"], {})
-    model_core_blocklinear = _cfg_path(config, ["model", "core", "blocklinear"], {})
-    legacy_params = _cfg_path(config, ["model", "core_network", "parameters"], {})
-
-    gradient_scaling_enabled = any(
-        [
-            _cfg_get(model_core_reactivation, "gradient_scaling", "none") != "none",
-            _cfg_get(model_core_sparsity, "gradient_scaling", "none") != "none",
-            _cfg_get(model_core_blocklinear, "gradient_scaling", "none") != "none",
-            _cfg_get(model_core_arch, "reactivation_strategy", "none") != "none",
-            _cfg_get(model_core_arch, "topk_strategy", "none") != "none",
-            _cfg_get(model_core_arch, "blocklinear_strategy", "none") != "none",
-            _cfg_get(legacy_params, "reactivation_strategy", "none") != "none",
-            _cfg_get(legacy_params, "topk_strategy", "none") != "none",
-            _cfg_get(legacy_params, "blocklinear_strategy", "none") != "none",
-        ]
-    )
-
     # Keep existing behavior: only set fields that are not explicitly present.
-    if enable_amp and gradient_scaling_enabled:
-        if not hasattr(common_cfg, "enable_adaptive_clipping"):
-            common_cfg.enable_adaptive_clipping = True
-            logger.info(
-                "Auto-enabled adaptive gradient clipping for AMP + gradient scaling combination"
-            )
-
-        if not hasattr(common_cfg, "disable_hooks_with_amp"):
-            common_cfg.disable_hooks_with_amp = True
-            logger.info("Auto-enabled hook disabling with AMP for compatibility")
+    if _amp_enabled(config) and _automatic_safeguard_gradient_scaling_enabled(config):
+        _set_common_flag_if_missing(
+            common_cfg,
+            "enable_adaptive_clipping",
+            True,
+            "Auto-enabled adaptive gradient clipping for AMP + gradient scaling combination",
+        )
+        _set_common_flag_if_missing(
+            common_cfg,
+            "disable_hooks_with_amp",
+            True,
+            "Auto-enabled hook disabling with AMP for compatibility",
+        )

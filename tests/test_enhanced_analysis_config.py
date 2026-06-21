@@ -190,6 +190,51 @@ def test_synthetic_soma_metric_filter_removes_missing_synapse_terms():
     assert filtered["I(Vb;Vout)_mean"] == 5.0
 
 
+def test_synthetic_soma_metric_sources_are_unique_and_mapped():
+    analyzer = InformationAnalyzer(InformationAnalysisParams())
+
+    sources = analyzer._synthetic_soma_metric_sources()
+    output_keys = [metric_key for metric_key, _ in sources]
+    copied_stat_keys = {
+        soma_stat_key for _, soma_stat_key in sources if soma_stat_key is not None
+    }
+
+    assert len(output_keys) == len(set(output_keys))
+    assert copied_stat_keys <= set(analyzer._soma_statistics_metric_map())
+
+
+def test_build_synthetic_soma_entry_preserves_filtered_metric_values_and_order():
+    analyzer = InformationAnalyzer(InformationAnalysisParams())
+    soma_stats = {
+        soma_key: float(idx + 1)
+        for idx, soma_key in enumerate(analyzer._soma_statistics_metric_map())
+    }
+
+    soma = analyzer._build_synthetic_soma_entry(soma_stats)
+    expected = {
+        "I(Vb;C)_mean": soma_stats["soma_vb_mean"],
+        "I(Vb;C)_std": soma_stats["soma_vb_std"],
+        "I(Vout;C)_mean": soma_stats["soma_vout_mean"],
+        "I(Vout;C)_std": soma_stats["soma_vout_std"],
+        "I(Vb_lin;C)_mean": soma_stats["soma_vb_lin_mean"],
+        "I(Vb_lin;C)_std": soma_stats["soma_vb_lin_std"],
+        "I(Vout_lin;C)_mean": soma_stats["soma_vout_lin_mean"],
+        "I(Vout_lin;C)_std": soma_stats["soma_vout_lin_std"],
+        "I(Vb;Vout)_mean": soma_stats["soma_vb_vout_mean"],
+        "I(Vb;Vout)_std": soma_stats["soma_vb_vout_std"],
+        "I(Vb_lin;Vout_lin)_mean": soma_stats["soma_vb_lin_vout_mean"],
+        "I(Vb_lin;Vout_lin)_std": soma_stats["soma_vb_lin_vout_std"],
+        "I(Vb;Vout|C)_mean": soma_stats["soma_vb_vout_c_mean"],
+        "I(Vb;Vout|C)_std": soma_stats["soma_vb_vout_c_std"],
+        "I(Vb_lin;Vout_lin|C)_mean": soma_stats["soma_vb_lin_vout_c_mean"],
+        "I(Vb_lin;Vout_lin|C)_std": soma_stats["soma_vb_lin_vout_c_std"],
+        "has_synapses": False,
+    }
+
+    assert soma == expected
+    assert list(soma) == list(expected)
+
+
 def test_synthetic_soma_decision_requires_missing_somatic_synapses_and_stats():
     analyzer = InformationAnalyzer(InformationAnalysisParams())
 
@@ -255,6 +300,23 @@ def test_extract_soma_statistics_copies_all_mapped_metrics():
 
     for idx, soma_key in enumerate(metric_map.keys()):
         assert soma_stats[soma_key] == float(idx + 1)
+
+
+def test_soma_statistics_copy_defaults_missing_metrics_to_zero():
+    analyzer = InformationAnalyzer(InformationAnalysisParams())
+
+    soma_stats = analyzer._copy_soma_statistics_from_layer(
+        {
+            "I(Vout;C)_mean": 1.5,
+            "I(Vb;C)_std": 0.25,
+        }
+    )
+
+    assert set(soma_stats) == set(analyzer._soma_statistics_metric_map())
+    assert soma_stats["soma_vout_mean"] == 1.5
+    assert soma_stats["soma_vb_std"] == 0.25
+    assert soma_stats["soma_vout_std"] == 0.0
+    assert soma_stats["soma_vb_mean"] == 0.0
 
 
 def test_extract_soma_statistics_defaults_to_zero_without_real_soma_layer():

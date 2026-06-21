@@ -1652,33 +1652,49 @@ class InformationAnalyzer(
     def _extract_soma_statistics(
         self, real_soma_layer: Optional[str], layer_statistics: dict[str, Any]
     ) -> dict[str, float]:
-        soma_stats = dict.fromkeys(self._soma_statistics_metric_map(), 0.0)
+        soma_stats = self._empty_soma_statistics()
 
         if real_soma_layer and real_soma_layer in layer_statistics:
             real_soma_stats = layer_statistics[real_soma_layer]
-            soma_stats.update(
-                {
-                    soma_key: real_soma_stats.get(metric_key, 0.0)
-                    for soma_key, metric_key in self._soma_statistics_metric_map().items()
-                }
-            )
-            self.logger.info(f"Found real soma layer: {real_soma_layer}")
-            self.logger.info(
-                "Using real soma "
-                f"I(Vout;C): {soma_stats['soma_vout_mean']:.4f} "
-                f"± {soma_stats['soma_vout_std']:.4f}"
-            )
-            self.logger.info(
-                "Using real soma "
-                f"I(Vb;C): {soma_stats['soma_vb_mean']:.4f} "
-                f"± {soma_stats['soma_vb_std']:.4f}"
-            )
+            soma_stats.update(self._copy_soma_statistics_from_layer(real_soma_stats))
+            self._log_soma_statistics(real_soma_layer, soma_stats)
         else:
             self.logger.warning(
                 "Could not find real soma layer for I(Vout;C) computation"
             )
 
         return soma_stats
+
+    @classmethod
+    def _empty_soma_statistics(cls) -> dict[str, float]:
+        """Return zero-valued soma statistics for every supported metric."""
+        return dict.fromkeys(cls._soma_statistics_metric_map(), 0.0)
+
+    @classmethod
+    def _copy_soma_statistics_from_layer(
+        cls, real_soma_stats: dict[str, Any]
+    ) -> dict[str, float]:
+        """Copy soma metrics from a captured real soma layer into internal keys."""
+        return {
+            soma_key: real_soma_stats.get(metric_key, 0.0)
+            for soma_key, metric_key in cls._soma_statistics_metric_map().items()
+        }
+
+    def _log_soma_statistics(
+        self, real_soma_layer: str, soma_stats: dict[str, float]
+    ) -> None:
+        """Log the real soma values reused for the synthetic soma entry."""
+        self.logger.info(f"Found real soma layer: {real_soma_layer}")
+        self.logger.info(
+            "Using real soma "
+            f"I(Vout;C): {soma_stats['soma_vout_mean']:.4f} "
+            f"± {soma_stats['soma_vout_std']:.4f}"
+        )
+        self.logger.info(
+            "Using real soma "
+            f"I(Vb;C): {soma_stats['soma_vb_mean']:.4f} "
+            f"± {soma_stats['soma_vb_std']:.4f}"
+        )
 
     @staticmethod
     def _soma_statistics_metric_map() -> dict[str, str]:
@@ -1706,76 +1722,84 @@ class InformationAnalyzer(
         self, soma_stats: dict[str, float]
     ) -> dict[str, Any]:
         soma_entry = {
-            "I(E;C)_mean": 0.0,
-            "I(E;C)_std": 0.0,
-            "I(I;C)_mean": 0.0,
-            "I(I;C)_std": 0.0,
-            "I(Vb;C)_mean": soma_stats["soma_vb_mean"],
-            "I(Vb;C)_std": soma_stats["soma_vb_std"],
-            "I(Vout;C)_mean": soma_stats["soma_vout_mean"],
-            "I(Vout;C)_std": soma_stats["soma_vout_std"],
-            "I(E,I;C)_mean": 0.0,
-            "I(E,I;C)_std": 0.0,
-            "I(E_lin;C)_mean": 0.0,
-            "I(E_lin;C)_std": 0.0,
-            "I(I_lin;C)_mean": 0.0,
-            "I(I_lin;C)_std": 0.0,
-            "I(Vb_lin;C)_mean": soma_stats["soma_vb_lin_mean"],
-            "I(Vb_lin;C)_std": soma_stats["soma_vb_lin_std"],
-            "I(Vout_lin;C)_mean": soma_stats["soma_vout_lin_mean"],
-            "I(Vout_lin;C)_std": soma_stats["soma_vout_lin_std"],
-            "I(E_lin,I_lin;C)_mean": 0.0,
-            "I(E_lin,I_lin;C)_std": 0.0,
-            "I(E;I)_mean": 0.0,
-            "I(E;I)_std": 0.0,
-            "I(E;Vout)_mean": 0.0,
-            "I(E;Vout)_std": 0.0,
-            "I(I;Vout)_mean": 0.0,
-            "I(I;Vout)_std": 0.0,
-            "I(E;Vb)_mean": 0.0,
-            "I(E;Vb)_std": 0.0,
-            "I(I;Vb)_mean": 0.0,
-            "I(I;Vb)_std": 0.0,
-            "I(Vb;Vout)_mean": soma_stats["soma_vb_vout_mean"],
-            "I(Vb;Vout)_std": soma_stats["soma_vb_vout_std"],
-            "I(E_lin;I_lin)_mean": 0.0,
-            "I(E_lin;I_lin)_std": 0.0,
-            "I(E_lin;Vout_lin)_mean": 0.0,
-            "I(E_lin;Vout_lin)_std": 0.0,
-            "I(I_lin;Vout_lin)_mean": 0.0,
-            "I(I_lin;Vout_lin)_std": 0.0,
-            "I(E_lin;Vb_lin)_mean": 0.0,
-            "I(E_lin;Vb_lin)_std": 0.0,
-            "I(I_lin;Vb_lin)_mean": 0.0,
-            "I(I_lin;Vb_lin)_std": 0.0,
-            "I(Vb_lin;Vout_lin)_mean": soma_stats["soma_vb_lin_vout_mean"],
-            "I(Vb_lin;Vout_lin)_std": soma_stats["soma_vb_lin_vout_std"],
-            "I(E;I|C)_mean": 0.0,
-            "I(E;I|C)_std": 0.0,
-            "I(E;Vout|C)_mean": 0.0,
-            "I(E;Vout|C)_std": 0.0,
-            "I(I;Vout|C)_mean": 0.0,
-            "I(I;Vout|C)_std": 0.0,
-            "I(E;Vb|C)_mean": 0.0,
-            "I(E;Vb|C)_std": 0.0,
-            "I(I;Vb|C)_mean": 0.0,
-            "I(I;Vb|C)_std": 0.0,
-            "I(Vb;Vout|C)_mean": soma_stats["soma_vb_vout_c_mean"],
-            "I(Vb;Vout|C)_std": soma_stats["soma_vb_vout_c_std"],
-            "I(E_lin;I_lin|C)_mean": 0.0,
-            "I(E_lin;I_lin|C)_std": 0.0,
-            "I(E_lin;Vout_lin|C)_mean": 0.0,
-            "I(E_lin;Vout_lin|C)_std": 0.0,
-            "I(I_lin;Vout_lin|C)_mean": 0.0,
-            "I(I_lin;Vout_lin|C)_std": 0.0,
-            "I(E_lin;Vb_lin|C)_mean": 0.0,
-            "I(E_lin;Vb_lin|C)_std": 0.0,
-            "I(I_lin;Vb_lin|C)_mean": 0.0,
-            "I(I_lin;Vb_lin|C)_std": 0.0,
-            "I(Vb_lin;Vout_lin|C)_mean": soma_stats["soma_vb_lin_vout_c_mean"],
-            "I(Vb_lin;Vout_lin|C)_std": soma_stats["soma_vb_lin_vout_c_std"],
+            metric_key: (0.0 if soma_stat_key is None else soma_stats[soma_stat_key])
+            for metric_key, soma_stat_key in self._synthetic_soma_metric_sources()
         }
         return self._filter_synthetic_soma_entry_metrics(soma_entry)
+
+    @staticmethod
+    def _synthetic_soma_metric_sources() -> tuple[tuple[str, Optional[str]], ...]:
+        """Map synthetic soma output metrics to copied soma-stat keys."""
+        return (
+            ("I(E;C)_mean", None),
+            ("I(E;C)_std", None),
+            ("I(I;C)_mean", None),
+            ("I(I;C)_std", None),
+            ("I(Vb;C)_mean", "soma_vb_mean"),
+            ("I(Vb;C)_std", "soma_vb_std"),
+            ("I(Vout;C)_mean", "soma_vout_mean"),
+            ("I(Vout;C)_std", "soma_vout_std"),
+            ("I(E,I;C)_mean", None),
+            ("I(E,I;C)_std", None),
+            ("I(E_lin;C)_mean", None),
+            ("I(E_lin;C)_std", None),
+            ("I(I_lin;C)_mean", None),
+            ("I(I_lin;C)_std", None),
+            ("I(Vb_lin;C)_mean", "soma_vb_lin_mean"),
+            ("I(Vb_lin;C)_std", "soma_vb_lin_std"),
+            ("I(Vout_lin;C)_mean", "soma_vout_lin_mean"),
+            ("I(Vout_lin;C)_std", "soma_vout_lin_std"),
+            ("I(E_lin,I_lin;C)_mean", None),
+            ("I(E_lin,I_lin;C)_std", None),
+            ("I(E;I)_mean", None),
+            ("I(E;I)_std", None),
+            ("I(E;Vout)_mean", None),
+            ("I(E;Vout)_std", None),
+            ("I(I;Vout)_mean", None),
+            ("I(I;Vout)_std", None),
+            ("I(E;Vb)_mean", None),
+            ("I(E;Vb)_std", None),
+            ("I(I;Vb)_mean", None),
+            ("I(I;Vb)_std", None),
+            ("I(Vb;Vout)_mean", "soma_vb_vout_mean"),
+            ("I(Vb;Vout)_std", "soma_vb_vout_std"),
+            ("I(E_lin;I_lin)_mean", None),
+            ("I(E_lin;I_lin)_std", None),
+            ("I(E_lin;Vout_lin)_mean", None),
+            ("I(E_lin;Vout_lin)_std", None),
+            ("I(I_lin;Vout_lin)_mean", None),
+            ("I(I_lin;Vout_lin)_std", None),
+            ("I(E_lin;Vb_lin)_mean", None),
+            ("I(E_lin;Vb_lin)_std", None),
+            ("I(I_lin;Vb_lin)_mean", None),
+            ("I(I_lin;Vb_lin)_std", None),
+            ("I(Vb_lin;Vout_lin)_mean", "soma_vb_lin_vout_mean"),
+            ("I(Vb_lin;Vout_lin)_std", "soma_vb_lin_vout_std"),
+            ("I(E;I|C)_mean", None),
+            ("I(E;I|C)_std", None),
+            ("I(E;Vout|C)_mean", None),
+            ("I(E;Vout|C)_std", None),
+            ("I(I;Vout|C)_mean", None),
+            ("I(I;Vout|C)_std", None),
+            ("I(E;Vb|C)_mean", None),
+            ("I(E;Vb|C)_std", None),
+            ("I(I;Vb|C)_mean", None),
+            ("I(I;Vb|C)_std", None),
+            ("I(Vb;Vout|C)_mean", "soma_vb_vout_c_mean"),
+            ("I(Vb;Vout|C)_std", "soma_vb_vout_c_std"),
+            ("I(E_lin;I_lin|C)_mean", None),
+            ("I(E_lin;I_lin|C)_std", None),
+            ("I(E_lin;Vout_lin|C)_mean", None),
+            ("I(E_lin;Vout_lin|C)_std", None),
+            ("I(I_lin;Vout_lin|C)_mean", None),
+            ("I(I_lin;Vout_lin|C)_std", None),
+            ("I(E_lin;Vb_lin|C)_mean", None),
+            ("I(E_lin;Vb_lin|C)_std", None),
+            ("I(I_lin;Vb_lin|C)_mean", None),
+            ("I(I_lin;Vb_lin|C)_std", None),
+            ("I(Vb_lin;Vout_lin|C)_mean", "soma_vb_lin_vout_c_mean"),
+            ("I(Vb_lin;Vout_lin|C)_std", "soma_vb_lin_vout_c_std"),
+        )
 
     def _filter_synthetic_soma_entry_metrics(
         self, soma_entry: dict[str, Any]

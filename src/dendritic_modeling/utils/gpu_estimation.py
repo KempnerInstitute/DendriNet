@@ -16,6 +16,43 @@ import torch
 
 logger = logging.getLogger(__name__)
 
+BYTES_PER_GIB = 1024**3
+DEFAULT_DTYPE_BYTES = 2
+DTYPE_BYTES = {
+    "fp32": 4,
+    "fp16": 2,
+    "bf16": 2,
+    "int8": 1,
+}
+DEFAULT_OPTIMIZER_STATE_MULTIPLIER = 2.0
+OPTIMIZER_STATE_MULTIPLIERS = {
+    "sgd": 1.0,  # Only momentum
+    "adam": 2.0,  # Momentum + variance
+    "adamw": 2.0,  # Same as Adam
+    "lamb": 2.0,  # Similar to Adam
+    "rmsprop": 1.0,  # Running average
+}
+DENDRITIC_BRANCHING_OVERHEAD = 10.0
+TOPK_INDEX_VALUE_FACTOR = 2
+TOPK_SPARSE_GRADIENT_FACTOR = 4
+DEFAULT_TOPK_SYNAPSES = 100
+BLOCKLINEAR_ACTIVATION_FACTOR = 2
+LINEAR_ACTIVATION_FACTOR = 2
+PARAMETER_FALLBACK_ACTIVATION_MULTIPLIER = 60
+GRADIENT_GRAPH_OVERHEAD = 2.5
+FSDP_COMMUNICATION_OVERHEAD = 0.5
+FSDP_ACTIVATION_CHECKPOINT_FACTOR = 0.7
+FSDP_CONFIG_ACTIVATION_FACTOR = 0.8
+FSDP_CONFIG_OVERHEAD_FACTOR = 0.1
+DEFAULT_BATCH_SIZE = 32
+GPU_MEMORY_SAFETY_FACTOR = 0.85
+PRACTICAL_FSDP_GPU_LIMIT = 16
+
+
+def _bytes_to_gib(num_bytes: float) -> float:
+    """Convert bytes to GiB using the estimator's historical convention."""
+    return num_bytes / BYTES_PER_GIB
+
 
 @dataclass
 class MemoryBreakdown:
@@ -86,24 +123,13 @@ class GPUMemoryEstimator:
 
     def _get_bytes_per_param(self, dtype: str) -> int:
         """Get bytes per parameter for given dtype."""
-        dtype_bytes = {
-            "fp32": 4,
-            "fp16": 2,
-            "bf16": 2,
-            "int8": 1,
-        }
-        return dtype_bytes.get(dtype, 2)
+        return DTYPE_BYTES.get(dtype, DEFAULT_DTYPE_BYTES)
 
     def _get_optimizer_multiplier(self, optimizer: str) -> float:
         """Get memory multiplier for optimizer states."""
-        optimizer_multipliers = {
-            "sgd": 1.0,  # Only momentum
-            "adam": 2.0,  # Momentum + variance
-            "adamw": 2.0,  # Same as Adam
-            "lamb": 2.0,  # Similar to Adam
-            "rmsprop": 1.0,  # Running average
-        }
-        return optimizer_multipliers.get(optimizer.lower(), 2.0)
+        return OPTIMIZER_STATE_MULTIPLIERS.get(
+            optimizer.lower(), DEFAULT_OPTIMIZER_STATE_MULTIPLIER
+        )
 
     def estimate_model_parameters(self, model: torch.nn.Module) -> dict[str, int]:
         """
@@ -229,7 +255,7 @@ class GPUMemoryEstimator:
                         * e_branch_product
                         * synapses
                         * self.bytes_per_param
-                        * 2
+                        * TOPK_INDEX_VALUE_FACTOR
                     )
                     activation_memory_bytes += topk_memory
 
@@ -255,15 +281,13 @@ class GPUMemoryEstimator:
                                 * i_branch_product
                                 * synapses
                                 * self.bytes_per_param
-                                * 2
+                                * TOPK_INDEX_VALUE_FACTOR
                             )
                             activation_memory_bytes += topk_memory
 
             # Add substantial overhead for gradient computation graphs in dendritic networks
             # Dendritic networks have complex backward passes with branch-wise operations
-            activation_memory_bytes *= (
-                10.0  # Increased for dendritic branching overhead
-            )
+            activation_memory_bytes *= DENDRITIC_BRANCHING_OVERHEAD
 
         else:
             # Fallback: Analyze layer by layer
@@ -276,12 +300,16 @@ class GPUMemoryEstimator:
                 if "TopK" in type(module).__name__ or hasattr(module, "K"):
                     in_features = getattr(module, "in_features", 0)
                     out_features = getattr(module, "out_features", 0)
-                    K = getattr(module, "K", 100)  # Number of synapses per output
+                    K = getattr(module, "K", DEFAULT_TOPK_SYNAPSES)
 
                     # Memory for sparse connectivity pattern and gradients
                     # Store: indices (K ints per output) + values (K floats per output) + gradients
                     layer_activation = (
-                        batch_size * out_features * K * self.bytes_per_param * 4
+                        batch_size
+                        * out_features
+                        * K
+                        * self.bytes_per_param
+                        * TOPK_SPARSE_GRADIENT_FACTOR
                     )
                     activation_memory_bytes += layer_activation
 
@@ -298,7 +326,7 @@ class GPUMemoryEstimator:
                                 batch_size
                                 * np.prod(weight_shape)
                                 * self.bytes_per_param
-                                * 2
+                                * BLOCKLINEAR_ACTIVATION_FACTOR
                             )
                             activation_memory_bytes += layer_activation
 
@@ -309,7 +337,7 @@ class GPUMemoryEstimator:
                         batch_size
                         * (in_features + out_features)
                         * self.bytes_per_param
-                        * 2
+                        * LINEAR_ACTIVATION_FACTOR
                     )
                     activation_memory_bytes += layer_activation
 
@@ -318,13 +346,15 @@ class GPUMemoryEstimator:
                 total_params = sum(p.numel() for p in model.parameters())
                 # For dendritic models, activations can be 10-20x parameters due to branching
                 activation_memory_bytes = (
-                    total_params * self.bytes_per_param * 60
+                    total_params
+                    * self.bytes_per_param
+                    * PARAMETER_FALLBACK_ACTIVATION_MULTIPLIER
                 )  # Multiplier for dendritic models
 
             # Add gradient graph overhead
-            activation_memory_bytes *= 2.5
+            activation_memory_bytes *= GRADIENT_GRAPH_OVERHEAD
 
-        return activation_memory_bytes / (1024**3)  # Convert to GB
+        return _bytes_to_gib(activation_memory_bytes)
 
     def estimate_memory_breakdown(
         self,
@@ -352,7 +382,7 @@ class GPUMemoryEstimator:
         total_params = param_counts["Total"]
 
         # Parameter memory
-        param_memory_gb = (total_params * self.bytes_per_param) / (1024**3)
+        param_memory_gb = _bytes_to_gib(total_params * self.bytes_per_param)
 
         # Gradient memory (same as parameters)
         gradient_memory_gb = param_memory_gb
@@ -372,7 +402,7 @@ class GPUMemoryEstimator:
             # Approximately 10-20% overhead
             base_memory = param_memory_gb + gradient_memory_gb + optimizer_memory_gb
             fsdp_overhead_gb = (
-                base_memory * 0.5
+                base_memory * FSDP_COMMUNICATION_OVERHEAD
             )  # Increased overhead for communication/sharding
 
             # With FSDP, memory is sharded across GPUs
@@ -381,7 +411,7 @@ class GPUMemoryEstimator:
             optimizer_memory_gb /= num_gpus
             # Activations are not sharded (each GPU computes full forward pass)
             # But FSDP can use gradient checkpointing to reduce activation memory
-            activation_memory_gb *= 0.7  # Assume some gradient checkpointing
+            activation_memory_gb *= FSDP_ACTIVATION_CHECKPOINT_FACTOR
 
         # Total memory
         total_memory_gb = (
@@ -425,7 +455,7 @@ class GPUMemoryEstimator:
 
             # Multi-GPU scenario (with FSDP)
             if usable_memory <= 0 or memory_breakdown.total <= 0:
-                print(
+                logger.warning(
                     f" Invalid memory values: total={memory_breakdown.total:.2f}GB, usable={usable_memory:.2f}GB"
                 )
                 min_gpus_needed = 1  # Default to 1 GPU if calculation fails
@@ -454,7 +484,7 @@ class GPUMemoryEstimator:
                 recommended_gpus=recommended_gpus,
                 memory_per_gpu_gb=memory_per_gpu,
                 utilization_percent=utilization,
-                fits=single_gpu_fits or recommended_gpus <= 16,  # Practical limit
+                fits=single_gpu_fits or recommended_gpus <= PRACTICAL_FSDP_GPU_LIMIT,
             )
 
             recommendations.append(recommendation)
@@ -503,8 +533,10 @@ class GPUMemoryEstimator:
             param_memory = single_gpu_breakdown.parameters / total_gpus
             grad_memory = single_gpu_breakdown.gradients / total_gpus
             optimizer_memory = single_gpu_breakdown.optimizer_states / total_gpus
-            activation_memory = single_gpu_breakdown.activations * 0.8
-            fsdp_overhead = 0.1 * (param_memory + grad_memory)
+            activation_memory = (
+                single_gpu_breakdown.activations * FSDP_CONFIG_ACTIVATION_FACTOR
+            )
+            fsdp_overhead = FSDP_CONFIG_OVERHEAD_FACTOR * (param_memory + grad_memory)
 
             total_memory = (
                 param_memory
@@ -580,8 +612,10 @@ class GPUMemoryEstimator:
         )
         logger.info(f"4-GPU FSDP memory per GPU: {fsdp_4gpu.total:.2f} GB")
 
-        a100_memory = self.GPU_SPECS["A100-40GB"]["memory_gb"] * 0.85
-        h100_memory = self.GPU_SPECS["H100"]["memory_gb"] * 0.85
+        a100_memory = (
+            self.GPU_SPECS["A100-40GB"]["memory_gb"] * GPU_MEMORY_SAFETY_FACTOR
+        )
+        h100_memory = self.GPU_SPECS["H100"]["memory_gb"] * GPU_MEMORY_SAFETY_FACTOR
 
         if single_gpu_breakdown.total <= a100_memory:
             logger.info("[FITS] Fits on single A100-40GB (40GB)")
@@ -628,7 +662,7 @@ def estimate_from_config(config_path: str, batch_size: Optional[int] = None):
 
     # Get batch size - handle both old (train) and new (training) structure
     if batch_size is None:
-        batch_size = 32  # Default fallback
+        batch_size = DEFAULT_BATCH_SIZE
 
         # Try new structure first
         if hasattr(config, "training") and hasattr(config.training, "main"):
@@ -671,10 +705,10 @@ def estimate_from_config(config_path: str, batch_size: Optional[int] = None):
         sample_input = train_ds[0][0]  # First sample, input only
         input_shape = sample_input.shape  # This is the real shape from dataset
 
-        print(f"Using real dataset input shape: {input_shape}")
+        logger.info(f"Using real dataset input shape: {input_shape}")
 
     except Exception as e:
-        print(f"Failed to load dataset, falling back to hardcoded shapes: {e}")
+        logger.warning(f"Failed to load dataset, falling back to hardcoded shapes: {e}")
 
         # Fallback to hardcoded input dimensions if dataset loading fails
         dataset_name = getattr(task_cfg, "dataset", "cifar10")

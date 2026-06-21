@@ -1,3 +1,4 @@
+import logging
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -11,7 +12,7 @@ from dendritic_modeling.datasets import load_mnist_modulo10
 # Import functions from their actual locations
 from dendritic_modeling.training.utils.evaluation import accuracy_score
 from dendritic_modeling.utils import Shaper
-from dendritic_modeling.utils.gpu_estimation import GPUMemoryEstimator
+from dendritic_modeling.utils.gpu_estimation import GPUMemoryEstimator, MemoryBreakdown
 from dendritic_modeling.utils.information.estimators import (
     EstimatorConfig,
     InformationEstimatorFactory,
@@ -222,6 +223,40 @@ def test_conditional_mi():
 def test_gpu_estimator():
     estimator = GPUMemoryEstimator(dtype="fp16", optimizer="adam")
     assert estimator.bytes_per_param == 2
+
+
+def test_gpu_estimator_uses_default_dtype_and_optimizer_assumptions():
+    estimator = GPUMemoryEstimator(dtype="unknown", optimizer="unknown")
+
+    assert estimator.bytes_per_param == 2
+    assert estimator.optimizer_state_multiplier == 2.0
+
+    explicit = GPUMemoryEstimator(dtype="fp32", optimizer="sgd")
+
+    assert explicit.bytes_per_param == 4
+    assert explicit.optimizer_state_multiplier == 1.0
+
+
+def test_gpu_recommendations_log_invalid_memory_values(caplog):
+    estimator = GPUMemoryEstimator()
+    breakdown = MemoryBreakdown(
+        parameters=0.0,
+        gradients=0.0,
+        optimizer_states=0.0,
+        activations=0.0,
+        fsdp_overhead=0.0,
+        total=1.0,
+    )
+
+    with caplog.at_level(
+        logging.WARNING, logger="dendritic_modeling.utils.gpu_estimation"
+    ):
+        recommendations = estimator.get_gpu_recommendations(
+            breakdown, safety_factor=0.0
+        )
+
+    assert "Invalid memory values" in caplog.text
+    assert [rec.min_gpus_needed for rec in recommendations] == [1, 1]
 
 
 if __name__ == "__main__":
