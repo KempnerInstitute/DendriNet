@@ -3460,6 +3460,63 @@ class TestAnalysisManager(unittest.TestCase):
             self.assertEqual(runner.analyzer_attr, spec.attribute_name)
             self.assertEqual(runner.save_subdir, spec.save_subdir)
 
+    def test_test_dataset_runner_delegates_to_common_manager_path(self):
+        """Test-dataset runner metadata should own its manager dispatch kwargs."""
+        from dendritic_modeling.analysis.managers.analysis_plan import (
+            _TestDatasetAnalysisRunner,
+        )
+
+        runtime = object()
+        runner = _TestDatasetAnalysisRunner(
+            "ablation",
+            pass_training=True,
+            require_analyzer=True,
+        )
+
+        with patch.object(self.manager, "_run_test_dataset_analysis") as mock_run:
+            runner.run(
+                self.manager,
+                filename="runner_eval",
+                training=True,
+                runtime=runtime,
+            )
+
+        mock_run.assert_called_once_with(
+            registry_name="ablation",
+            filename="runner_eval",
+            training=True,
+            runtime=runtime,
+            pass_training=True,
+            require_analyzer=True,
+        )
+
+    def test_model_only_runner_delegates_to_common_manager_path(self):
+        """Model-only runner metadata should own its manager dispatch kwargs."""
+        from dendritic_modeling.analysis.managers.analysis_plan import (
+            _ModelOnlyAnalysisRunner,
+        )
+
+        runner = _ModelOnlyAnalysisRunner(
+            "jacobian_spectrum",
+            start_message="Starting jacobian spectrum analysis...",
+            complete_message="Jacobian spectrum analysis completed successfully",
+        )
+
+        with patch.object(self.manager, "_run_model_only_analysis") as mock_run:
+            runner.run(
+                self.manager,
+                filename="runner_eval",
+                training=False,
+            )
+
+        mock_run.assert_called_once_with(
+            registry_name="jacobian_spectrum",
+            filename="runner_eval",
+            training=False,
+            start_message="Starting jacobian spectrum analysis...",
+            complete_message="Jacobian spectrum analysis completed successfully",
+        )
+
     def test_model_only_analysis_path_preserves_call_kwargs(self):
         """Shared model-only runner should preserve analyzer call arguments."""
         config = AnalysisConfig()

@@ -211,13 +211,11 @@ class AnalysisManager:
         runtime: object | None,
     ) -> None:
         """Run a table-declared test-dataset analyzer."""
-        self._run_test_dataset_analysis(
-            registry_name=runner.registry_name,
+        runner.run(
+            self,
             filename=filename,
             training=training,
             runtime=runtime,
-            pass_training=runner.pass_training,
-            require_analyzer=runner.require_analyzer,
         )
 
     def _run_test_dataset_analysis_runners(
@@ -515,12 +513,10 @@ class AnalysisManager:
         training: bool,
     ) -> None:
         """Run a table-declared model-only analyzer."""
-        self._run_model_only_analysis(
-            registry_name=runner.registry_name,
+        runner.run(
+            self,
             filename=filename,
             training=training,
-            start_message=runner.start_message,
-            complete_message=runner.complete_message,
         )
 
     def _run_model_only_analysis_runners(

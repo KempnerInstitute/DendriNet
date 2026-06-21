@@ -61,6 +61,99 @@ def stdp_decay(tau: float) -> float:
     return math.exp(-1.0 / tau)
 
 
+def stdp_trace_like(
+    previous_trace: torch.Tensor | None,
+    *,
+    features: int,
+    activity: torch.Tensor,
+) -> torch.Tensor:
+    """Return a compatible previous trace or initialize a zero trace."""
+    expected_shape = (features,)
+    if (
+        previous_trace is None
+        or previous_trace.shape != expected_shape
+        or previous_trace.device != activity.device
+        or previous_trace.dtype != activity.dtype
+    ):
+        return torch.zeros(features, device=activity.device, dtype=activity.dtype)
+    return previous_trace
+
+
+def stdp_weight_delta(
+    *,
+    pre_batch: torch.Tensor,
+    post_batch: torch.Tensor,
+    prev_pre: torch.Tensor,
+    prev_post: torch.Tensor,
+    a_plus: float,
+    a_minus: float,
+) -> torch.Tensor:
+    """Compute the STDP weight update before pathway/error scaling."""
+    potentiation = post_batch[:, None] * prev_pre[None, :]
+    depression = prev_post[:, None] * pre_batch[None, :]
+    return float(a_plus) * potentiation - float(a_minus) * depression
+
+
+def stdp_apply_pathway_sign(
+    delta_w: torch.Tensor,
+    *,
+    pathway: str,
+    inhibitory_update_sign: float,
+) -> torch.Tensor:
+    """Apply the historical inhibitory pathway sign convention."""
+    if pathway in {"inh", "rec_inh"}:
+        return delta_w * float(inhibitory_update_sign)
+    return delta_w
+
+
+def stdp_error_scale(
+    error_signal: torch.Tensor,
+    *,
+    mode: str,
+) -> torch.Tensor:
+    """Reduce an error signal to the scalar STDP modulation factor."""
+    mode = str(mode).lower()
+    if mode == "scalar_signed":
+        return error_signal.detach().mean()
+    return error_signal.detach().abs().mean()
+
+
+def stdp_apply_error_modulation(
+    delta_w: torch.Tensor,
+    *,
+    error_signal: torch.Tensor | None,
+    mode: str,
+) -> torch.Tensor:
+    """Apply optional scalar error modulation to an STDP update."""
+    if not isinstance(error_signal, torch.Tensor):
+        return delta_w
+    scale = stdp_error_scale(error_signal, mode=mode)
+    return delta_w * scale.to(device=delta_w.device, dtype=delta_w.dtype)
+
+
+def stdp_clamp_update(delta_w: torch.Tensor, clamp_update: float) -> torch.Tensor:
+    """Clamp an STDP update when a positive clamp value is configured."""
+    clamp_update = float(clamp_update)
+    if clamp_update > 0.0:
+        return torch.clamp(delta_w, -clamp_update, clamp_update)
+    return delta_w
+
+
+def stdp_next_trace(
+    previous_trace: torch.Tensor,
+    batch_trace: torch.Tensor,
+    *,
+    tau: float,
+    detach: bool,
+) -> torch.Tensor:
+    """Advance one STDP eligibility trace by one batch."""
+    decay = stdp_decay(tau)
+    next_trace = decay * previous_trace + (1.0 - decay) * batch_trace
+    if detach:
+        return next_trace.detach()
+    return next_trace
+
+
 def weight_transform_derivative(
     raw_param: torch.Tensor,
     transform_type: str,
@@ -85,8 +178,15 @@ def weight_transform_derivative(
 
 __all__ = [
     "stdp_activity",
+    "stdp_apply_error_modulation",
+    "stdp_apply_pathway_sign",
+    "stdp_clamp_update",
     "stdp_decay",
     "stdp_enabled",
+    "stdp_error_scale",
+    "stdp_next_trace",
     "stdp_pathway_enabled",
+    "stdp_trace_like",
+    "stdp_weight_delta",
     "weight_transform_derivative",
 ]

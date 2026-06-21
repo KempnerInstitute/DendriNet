@@ -191,6 +191,12 @@ class TestGPUMemoryEstimator:
         )
         assert _module_parameter_category(nn.LayerNorm(2)) == "Normalization Layers"
 
+    def test_module_parameter_category_preserves_keyword_precedence(self):
+        class DummyTopKLinearLayer(nn.Module):
+            pass
+
+        assert _module_parameter_category(DummyTopKLinearLayer()) == "TopK Layers"
+
     def test_find_einet_activation_config_preserves_first_match_rule(self):
         class ExcitationInhibitionNetwork(nn.Module):
             def __init__(self):

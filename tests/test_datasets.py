@@ -28,6 +28,11 @@ from dendritic_modeling.datasets import (
 from dendritic_modeling.datasets.imagenet_loading import (
     _load_imagefolder_dataset_triplet,
 )
+from dendritic_modeling.datasets.sequence.builders.common import explicit_split
+from dendritic_modeling.datasets.sequence_datasets import (
+    register_sequence_dataset_builder,
+    unregister_sequence_dataset_builder,
+)
 from dendritic_modeling.datasets.standard_datasets import (
     _apply_imagenet_local_override,
     _build_imagenet_transforms,
@@ -1169,6 +1174,39 @@ class TestGetUnifiedDatasets(unittest.TestCase):
             seq_len=4,
             n_samples=13,
         )
+
+    def test_registered_sequence_dataset_dispatches_through_unified_loader(self):
+        """Unified loading should use the live sequence builder registry."""
+        mock_train = torch.utils.data.TensorDataset(
+            torch.randn(8, 4, 2), torch.randint(0, 2, (8,))
+        )
+        mock_valid = torch.utils.data.TensorDataset(
+            torch.randn(2, 4, 2), torch.randint(0, 2, (2,))
+        )
+        mock_test = torch.utils.data.TensorDataset(
+            torch.randn(3, 4, 2), torch.randint(0, 2, (3,))
+        )
+
+        def builder(dataset_name, data_path, kwargs):
+            self.assertEqual(dataset_name, "unit_test_unified_sequence")
+            self.assertEqual(data_path, self.temp_dir)
+            self.assertEqual(kwargs["seq_len"], 4)
+            self.assertEqual(kwargs["n_samples"], 13)
+            return explicit_split(mock_train, mock_valid, mock_test)
+
+        register_sequence_dataset_builder("unit_test_unified_sequence", builder)
+        try:
+            self.task_cfg.dataset = "unit_test_unified_sequence"
+            self.task_cfg.data_path = self.temp_dir
+            self.task_cfg.parameters = {"seq_len": 4, "n_samples": 13}
+
+            train_ds, valid_ds, test_ds = get_unified_datasets(self.task_cfg)
+        finally:
+            unregister_sequence_dataset_builder("unit_test_unified_sequence")
+
+        self.assertIs(train_ds, mock_train)
+        self.assertIs(valid_ds, mock_valid)
+        self.assertIs(test_ds, mock_test)
 
     @patch("dendritic_modeling.datasets.standard_datasets.get_synthetic_datasets")
     def test_theoretical_synthetic_dataset_dispatch(self, mock_get_synthetic_datasets):

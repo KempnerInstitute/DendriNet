@@ -69,6 +69,16 @@ FSDP_CANDIDATE_CONFIGURATIONS = (
 FSDP_FALLBACK_NODES = 8
 FSDP_FALLBACK_GPUS_PER_NODE = 4
 FSDP_FALLBACK_TOTAL_GPUS = 32
+_PARAMETER_CATEGORY_KEYWORDS = (
+    ("TopK", "TopK Layers"),
+    ("BlockLinear", "Block Linear Layers"),
+    ("Linear", "Linear Layers"),
+    ("Conv", "Convolutional Layers"),
+    ("Reactivation", "Reactivation Layers"),
+    ("ParametricTanh", "Reactivation Layers"),
+    ("BatchNorm", "Normalization Layers"),
+    ("LayerNorm", "Normalization Layers"),
+)
 
 
 def _builtin_input_shape(dataset_name: str, *, flatten: bool = True) -> tuple[int, ...]:
@@ -211,18 +221,9 @@ def _module_parameter_category(module: torch.nn.Module) -> str:
     """Return the historical parameter-count category for a module."""
     module_type = type(module).__name__
 
-    if "TopK" in module_type:
-        return "TopK Layers"
-    if "BlockLinear" in module_type:
-        return "Block Linear Layers"
-    if "Linear" in module_type:
-        return "Linear Layers"
-    if "Conv" in module_type:
-        return "Convolutional Layers"
-    if "Reactivation" in module_type or "ParametricTanh" in module_type:
-        return "Reactivation Layers"
-    if "BatchNorm" in module_type or "LayerNorm" in module_type:
-        return "Normalization Layers"
+    for keyword, category in _PARAMETER_CATEGORY_KEYWORDS:
+        if keyword in module_type:
+            return category
     return "Other Layers"
 
 

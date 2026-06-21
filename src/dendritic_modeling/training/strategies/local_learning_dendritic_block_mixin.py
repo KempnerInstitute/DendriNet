@@ -13,6 +13,68 @@ from dendritic_modeling.training.strategies.local_learning_gradient_utils import
 )
 
 
+def _expand_resistance_for_blocks(
+    r_tot: torch.Tensor | float,
+    v_n: torch.Tensor,
+) -> torch.Tensor:
+    """Broadcast scalar or per-neuron resistance over dendritic blocks."""
+    if isinstance(r_tot, torch.Tensor):
+        return r_tot.unsqueeze(-1)
+    return torch.ones_like(v_n).unsqueeze(-1) * float(r_tot)
+
+
+def _apply_dendritic_rho_modulator(
+    factor: torch.Tensor,
+    rho: torch.Tensor | float,
+    *,
+    rule_variant: str,
+) -> torch.Tensor:
+    """Apply the dendritic-block rho rule for 4f/5f variants."""
+    if rule_variant not in {"4f", "5f"}:
+        return factor
+    if isinstance(rho, torch.Tensor):
+        return factor * rho.unsqueeze(0).unsqueeze(-1)
+    return factor * float(rho)
+
+
+def _apply_dendritic_phi_modulator(
+    factor: torch.Tensor,
+    phi: float,
+    *,
+    rule_variant: str,
+) -> torch.Tensor:
+    """Apply the dendritic-block phi rule for 5f variants."""
+    if rule_variant == "5f":
+        return factor * float(phi)
+    return factor
+
+
+def _apply_dendritic_branch_scale(
+    factor: torch.Tensor,
+    dendritic_branch_scale: torch.Tensor | float,
+) -> torch.Tensor:
+    """Apply scalar, per-neuron, or per-block dendritic branch scaling."""
+    if isinstance(dendritic_branch_scale, torch.Tensor):
+        if dendritic_branch_scale.dim() == 2:
+            return factor * dendritic_branch_scale.unsqueeze(0)
+        return factor * dendritic_branch_scale.unsqueeze(0).unsqueeze(-1)
+    return factor * float(dendritic_branch_scale)
+
+
+def _apply_dendritic_block_modulators(
+    factor: torch.Tensor,
+    *,
+    rho: torch.Tensor | float,
+    phi: float,
+    dendritic_branch_scale: torch.Tensor | float,
+    rule_variant: str,
+) -> torch.Tensor:
+    """Apply dendritic-block modulators in the legacy order."""
+    factor = _apply_dendritic_rho_modulator(factor, rho, rule_variant=rule_variant)
+    factor = _apply_dendritic_phi_modulator(factor, phi, rule_variant=rule_variant)
+    return _apply_dendritic_branch_scale(factor, dendritic_branch_scale)
+
+
 class LocalLearningDendriticBlockGradientMixin:
     """Gradient writeback for dendritic block conductances."""
 
@@ -106,12 +168,38 @@ class LocalLearningDendriticBlockGradientMixin:
         x_blk: torch.Tensor,
         layer_dynamics_mode: str,
     ) -> torch.Tensor:
+        den_factor = self._compute_base_dendritic_block_factor(
+            rec=rec,
+            e_v=e_v,
+            post_factor_raw=post_factor_raw,
+            v_n=v_n,
+            r_tot=r_tot,
+            x_blk=x_blk,
+            layer_dynamics_mode=layer_dynamics_mode,
+        )
+        return _apply_dendritic_block_modulators(
+            den_factor,
+            rho=rho,
+            phi=phi,
+            dendritic_branch_scale=dendritic_branch_scale,
+            rule_variant=self.local_cfg.rule_variant,
+        )
+
+    def _compute_base_dendritic_block_factor(
+        self,
+        *,
+        rec: dict[str, Any],
+        e_v: torch.Tensor,
+        post_factor_raw: torch.Tensor,
+        v_n: torch.Tensor,
+        r_tot: Any,
+        x_blk: torch.Tensor,
+        layer_dynamics_mode: str,
+    ) -> torch.Tensor:
+        """Compute dendritic-block factors before rho/phi/branch modulation."""
         if layer_dynamics_mode == "conductance":
             diff = x_blk - v_n.unsqueeze(-1)
-            if isinstance(r_tot, torch.Tensor):
-                r_exp = r_tot.unsqueeze(-1)
-            else:
-                r_exp = torch.ones_like(v_n).unsqueeze(-1) * float(r_tot)
+            r_exp = _expand_resistance_for_blocks(r_tot, v_n)
             den_factor = e_v.unsqueeze(-1) * r_exp * diff
         else:
             additive_mode = getattr(
@@ -126,24 +214,6 @@ class LocalLearningDendriticBlockGradientMixin:
             else:
                 den_factor = e_v.unsqueeze(-1) * x_blk
 
-        if self.local_cfg.rule_variant in {"4f", "5f"}:
-            if isinstance(rho, torch.Tensor):
-                den_factor = den_factor * rho.unsqueeze(0).unsqueeze(-1)
-            else:
-                den_factor = den_factor * float(rho)
-
-        if self.local_cfg.rule_variant == "5f":
-            den_factor = den_factor * float(phi)
-
-        if isinstance(dendritic_branch_scale, torch.Tensor):
-            if dendritic_branch_scale.dim() == 2:
-                den_factor = den_factor * dendritic_branch_scale.unsqueeze(0)
-            else:
-                den_factor = den_factor * dendritic_branch_scale.unsqueeze(0).unsqueeze(
-                    -1
-                )
-        else:
-            den_factor = den_factor * float(dendritic_branch_scale)
         return den_factor
 
     def _compute_dendritic_block_homeostasis_factor(
@@ -157,10 +227,7 @@ class LocalLearningDendriticBlockGradientMixin:
     ) -> torch.Tensor:
         if layer_dynamics_mode == "conductance":
             diff_homeo = x_blk - v_n.unsqueeze(-1)
-            if isinstance(r_tot, torch.Tensor):
-                r_homeo = r_tot.unsqueeze(-1)
-            else:
-                r_homeo = torch.ones_like(v_n).unsqueeze(-1) * float(r_tot)
+            r_homeo = _expand_resistance_for_blocks(r_tot, v_n)
             return voltage_homeo_error.unsqueeze(-1) * r_homeo * diff_homeo
         return voltage_homeo_error.unsqueeze(-1) * x_blk
 

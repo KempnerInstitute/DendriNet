@@ -10,6 +10,7 @@ from dendritic_modeling.datasets.sequence.builders.registry import (
     SEQUENCE_DATASET_BUILDERS,
     get_registered_sequence_dataset_names,
     get_sequence_dataset_builder,
+    has_sequence_dataset_builder,
     merge_sequence_dataset_builders,
     register_sequence_dataset_builder,
     unregister_sequence_dataset_builder,
@@ -82,6 +83,8 @@ def test_sequence_builder_registry_exposes_builtin_names():
         get_sequence_dataset_builder("copy_task")
         is SEQUENCE_DATASET_BUILDERS["copy_task"]
     )
+    assert has_sequence_dataset_builder("copy_task")
+    assert not has_sequence_dataset_builder("not_a_sequence_dataset")
 
 
 def test_sequence_builder_registry_adds_custom_builder():

@@ -54,7 +54,6 @@ from .registry import build_registered_dataset
 from .synthetic_datasets import get_synthetic_datasets
 from .unified_options import (
     _EXPERIMENTAL_DATASET_IMPORT_CANDIDATES,
-    _SEQUENCE_DATASET_NAMES,
     _THEORETICAL_SYNTHETIC_DATASET_NAMES,
     _DatasetTriplet,
     _get_config_value as _imported_get_config_value,
@@ -818,6 +817,15 @@ def _load_sequence_dataset_triplet(
     )
 
 
+def _has_sequence_dataset_builder(dataset_name: str) -> bool:
+    """Return whether the live sequence builder registry can load this dataset."""
+    from dendritic_modeling.datasets.sequence_datasets import (
+        has_sequence_dataset_builder,
+    )
+
+    return has_sequence_dataset_builder(dataset_name)
+
+
 def _load_theoretical_synthetic_dataset_triplet(
     *,
     dataset_name: str,
@@ -1006,7 +1014,7 @@ def _load_special_dataset_triplet(
             parameters=p,
         )
 
-    if dataset_name in _SEQUENCE_DATASET_NAMES:
+    if _has_sequence_dataset_builder(dataset_name):
         return _load_sequence_dataset_triplet(
             dataset_name=dataset_name,
             data_path=options.task_data_path,

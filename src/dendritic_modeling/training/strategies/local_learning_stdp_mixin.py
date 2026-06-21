@@ -15,9 +15,15 @@ from dendritic_modeling.training.strategies.local_learning_pathways import (
 )
 from dendritic_modeling.training.strategies.local_learning_stdp import (
     stdp_activity,
+    stdp_apply_error_modulation,
+    stdp_apply_pathway_sign,
+    stdp_clamp_update,
     stdp_decay,
     stdp_enabled,
+    stdp_next_trace,
     stdp_pathway_enabled,
+    stdp_trace_like,
+    stdp_weight_delta,
     weight_transform_derivative,
 )
 
@@ -99,22 +105,14 @@ class LocalLearningSTDPMixin:
     ) -> None:
         """Apply one trace-based STDP gradient to a TopK synapse module.
 
-
-
         Positive STDP potentiation is represented as a negative optimizer
-
         gradient because PyTorch optimizers perform ``param -= lr * grad``.
-
         """
-
         if not self._stdp_pathway_enabled(pathway):
-
             return
 
         stdp_cfg = self.local_cfg.stdp
-
         if not hasattr(self, "_stdp_traces"):
-
             self._stdp_traces = {}
 
         pre_activity = self._stdp_activity(
@@ -122,7 +120,6 @@ class LocalLearningSTDPMixin:
             threshold=float(getattr(stdp_cfg, "pre_threshold", 0.0)),
             mode=str(getattr(stdp_cfg, "activity_mode", "relu")),
         )
-
         post_activity = self._stdp_activity(
             post,
             threshold=float(getattr(stdp_cfg, "post_threshold", 0.0)),
@@ -133,7 +130,6 @@ class LocalLearningSTDPMixin:
             pre_activity.size(1) != layer.in_features
             or post_activity.size(1) != layer.out_features
         ):
-
             logger.debug(
                 "Skipping STDP for %s: activity shape %s -> %s does not match %s -> %s.",
                 pathway,
@@ -142,110 +138,73 @@ class LocalLearningSTDPMixin:
                 layer.in_features,
                 layer.out_features,
             )
-
             return
 
         trace_state = self._stdp_traces.setdefault(id(layer), {})
-
-        prev_pre = trace_state.get("pre")
-
-        prev_post = trace_state.get("post")
-
-        if (
-            prev_pre is None
-            or prev_pre.shape != (layer.in_features,)
-            or prev_pre.device != pre_activity.device
-            or prev_pre.dtype != pre_activity.dtype
-        ):
-
-            prev_pre = torch.zeros(
-                layer.in_features, device=pre_activity.device, dtype=pre_activity.dtype
-            )
-
-        if (
-            prev_post is None
-            or prev_post.shape != (layer.out_features,)
-            or prev_post.device != post_activity.device
-            or prev_post.dtype != post_activity.dtype
-        ):
-
-            prev_post = torch.zeros(
-                layer.out_features,
-                device=post_activity.device,
-                dtype=post_activity.dtype,
-            )
-
-        pre_batch = pre_activity.mean(dim=0)
-
-        post_batch = post_activity.mean(dim=0)
-
-        potentiation = post_batch[:, None] * prev_pre[None, :]
-
-        depression = prev_post[:, None] * pre_batch[None, :]
-
-        delta_w = (
-            float(getattr(stdp_cfg, "a_plus", 1.0)) * potentiation
-            - float(getattr(stdp_cfg, "a_minus", 0.5)) * depression
+        prev_pre = stdp_trace_like(
+            trace_state.get("pre"),
+            features=layer.in_features,
+            activity=pre_activity,
+        )
+        prev_post = stdp_trace_like(
+            trace_state.get("post"),
+            features=layer.out_features,
+            activity=post_activity,
         )
 
-        if pathway in {"inh", "rec_inh"}:
+        pre_batch = pre_activity.mean(dim=0)
+        post_batch = post_activity.mean(dim=0)
 
-            delta_w = delta_w * float(getattr(stdp_cfg, "inhibitory_update_sign", -1.0))
+        delta_w = stdp_weight_delta(
+            pre_batch=pre_batch,
+            post_batch=post_batch,
+            prev_pre=prev_pre,
+            prev_post=prev_post,
+            a_plus=float(getattr(stdp_cfg, "a_plus", 1.0)),
+            a_minus=float(getattr(stdp_cfg, "a_minus", 0.5)),
+        )
+        delta_w = stdp_apply_pathway_sign(
+            delta_w,
+            pathway=pathway,
+            inhibitory_update_sign=float(
+                getattr(stdp_cfg, "inhibitory_update_sign", -1.0)
+            ),
+        )
 
         if bool(getattr(stdp_cfg, "use_error_modulation", False)):
-
-            if isinstance(error_signal, torch.Tensor):
-
-                mode = str(
+            delta_w = stdp_apply_error_modulation(
+                delta_w,
+                error_signal=error_signal,
+                mode=str(
                     getattr(stdp_cfg, "error_modulation_mode", "scalar_abs")
-                ).lower()
-
-                if mode == "scalar_signed":
-
-                    error_scale = error_signal.detach().mean()
-
-                else:
-
-                    error_scale = error_signal.detach().abs().mean()
-
-                delta_w = delta_w * error_scale.to(
-                    device=delta_w.device, dtype=delta_w.dtype
-                )
-
-        clamp_update = float(getattr(stdp_cfg, "clamp_update", 0.0))
-
-        if clamp_update > 0.0:
-
-            delta_w = torch.clamp(delta_w, -clamp_update, clamp_update)
+                ).lower(),
+            )
+        delta_w = stdp_clamp_update(
+            delta_w,
+            float(getattr(stdp_cfg, "clamp_update", 0.0)),
+        )
 
         chain = self._weight_transform_derivative(
             layer.pre_w.detach(),
             getattr(layer, "weight_transform", "exp"),
         )
-
         grad_param = -float(getattr(stdp_cfg, "learning_rate_scale", 1.0)) * delta_w
-
         grad_param = grad_param * chain
-
         self._add_topk_grad(layer, grad_param, mask)
 
-        pre_decay = self._stdp_decay(float(getattr(stdp_cfg, "tau_pre", 20.0)))
-
-        post_decay = self._stdp_decay(float(getattr(stdp_cfg, "tau_post", 20.0)))
-
-        next_pre = pre_decay * prev_pre + (1.0 - pre_decay) * pre_batch
-
-        next_post = post_decay * prev_post + (1.0 - post_decay) * post_batch
-
-        if bool(getattr(stdp_cfg, "detach_traces", True)):
-
-            next_pre = next_pre.detach()
-
-            next_post = next_post.detach()
-
-        trace_state["pre"] = next_pre
-
-        trace_state["post"] = next_post
+        detach_traces = bool(getattr(stdp_cfg, "detach_traces", True))
+        trace_state["pre"] = stdp_next_trace(
+            prev_pre,
+            pre_batch,
+            tau=float(getattr(stdp_cfg, "tau_pre", 20.0)),
+            detach=detach_traces,
+        )
+        trace_state["post"] = stdp_next_trace(
+            prev_post,
+            post_batch,
+            tau=float(getattr(stdp_cfg, "tau_post", 20.0)),
+            detach=detach_traces,
+        )
 
     def _apply_stdp_pathways(
         self,

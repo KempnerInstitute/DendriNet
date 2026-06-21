@@ -72,6 +72,11 @@ def get_sequence_dataset_builder(name: str) -> SequenceDatasetBuilder:
     return builder
 
 
+def has_sequence_dataset_builder(name: str) -> bool:
+    """Return True when a sequence dataset builder is registered."""
+    return str(name) in SEQUENCE_DATASET_BUILDERS
+
+
 def get_registered_sequence_dataset_names() -> list[str]:
     """Return registered sequence dataset names."""
     return sorted(SEQUENCE_DATASET_BUILDERS)
@@ -81,6 +86,7 @@ __all__ = [
     "SEQUENCE_DATASET_BUILDERS",
     "get_registered_sequence_dataset_names",
     "get_sequence_dataset_builder",
+    "has_sequence_dataset_builder",
     "merge_sequence_dataset_builders",
     "register_sequence_dataset_builder",
     "unregister_sequence_dataset_builder",

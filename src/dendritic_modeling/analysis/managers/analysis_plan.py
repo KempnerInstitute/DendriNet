@@ -86,6 +86,24 @@ class _TestDatasetAnalysisRunner(_RegisteredAnalysisMetadata):
     pass_training: bool = False
     require_analyzer: bool = False
 
+    def run(
+        self,
+        manager: AnalysisManager,
+        *,
+        filename: str,
+        training: bool,
+        runtime: object | None,
+    ) -> None:
+        """Run this analyzer through the manager's shared test-dataset path."""
+        manager._run_test_dataset_analysis(
+            registry_name=self.registry_name,
+            filename=filename,
+            training=training,
+            runtime=runtime,
+            pass_training=self.pass_training,
+            require_analyzer=self.require_analyzer,
+        )
+
 
 @dataclass(frozen=True)
 class _ModelOnlyAnalysisRunner(_RegisteredAnalysisMetadata):
@@ -93,6 +111,22 @@ class _ModelOnlyAnalysisRunner(_RegisteredAnalysisMetadata):
 
     start_message: str
     complete_message: str
+
+    def run(
+        self,
+        manager: AnalysisManager,
+        *,
+        filename: str,
+        training: bool,
+    ) -> None:
+        """Run this analyzer through the manager's shared model-only path."""
+        manager._run_model_only_analysis(
+            registry_name=self.registry_name,
+            filename=filename,
+            training=training,
+            start_message=self.start_message,
+            complete_message=self.complete_message,
+        )
 
 
 @dataclass(frozen=True)

@@ -14,9 +14,16 @@ from dendritic_modeling.training.strategies.local_learning_pathways import (
 )
 from dendritic_modeling.training.strategies.local_learning_stdp import (
     stdp_activity,
+    stdp_apply_error_modulation,
+    stdp_apply_pathway_sign,
+    stdp_clamp_update,
     stdp_decay,
     stdp_enabled,
+    stdp_error_scale,
+    stdp_next_trace,
     stdp_pathway_enabled,
+    stdp_trace_like,
+    stdp_weight_delta,
     weight_transform_derivative,
 )
 
@@ -53,6 +60,108 @@ def test_stdp_activity_reshapes_non_2d_and_centers_threshold():
     out = stdp_activity(vals, threshold=1.0, mode="identity")
     assert out.shape == (2, 4)
     torch.testing.assert_close(out[0], torch.tensor([-1.0, 0.0, 1.0, 2.0]))
+
+
+def test_stdp_trace_like_preserves_compatible_or_initializes_zero():
+    activity = torch.ones(2, 3, dtype=torch.float64)
+    previous = torch.arange(3, dtype=torch.float64)
+
+    assert stdp_trace_like(previous, features=3, activity=activity) is previous
+
+    initialized = stdp_trace_like(
+        torch.ones(2, dtype=torch.float64),
+        features=3,
+        activity=activity,
+    )
+
+    torch.testing.assert_close(initialized, torch.zeros(3, dtype=torch.float64))
+    assert initialized.device == activity.device
+    assert initialized.dtype == activity.dtype
+
+
+def test_stdp_weight_delta_and_pathway_sign_match_formula():
+    pre_batch = torch.tensor([2.0, 3.0])
+    post_batch = torch.tensor([0.5, 1.5])
+    prev_pre = torch.tensor([0.25, 0.75])
+    prev_post = torch.tensor([1.0, 2.0])
+
+    delta = stdp_weight_delta(
+        pre_batch=pre_batch,
+        post_batch=post_batch,
+        prev_pre=prev_pre,
+        prev_post=prev_post,
+        a_plus=1.2,
+        a_minus=0.4,
+    )
+    expected = (
+        1.2 * post_batch[:, None] * prev_pre[None, :]
+        - 0.4 * prev_post[:, None] * pre_batch[None, :]
+    )
+
+    torch.testing.assert_close(delta, expected)
+    assert (
+        stdp_apply_pathway_sign(delta, pathway="exc", inhibitory_update_sign=-2.0)
+        is delta
+    )
+    torch.testing.assert_close(
+        stdp_apply_pathway_sign(delta, pathway="inh", inhibitory_update_sign=-2.0),
+        delta * -2.0,
+    )
+
+
+def test_stdp_error_modulation_and_clamp_match_formula():
+    delta = torch.tensor([[2.0, -3.0]])
+    error = torch.tensor([[1.0, -2.0]])
+
+    torch.testing.assert_close(
+        stdp_error_scale(error, mode="scalar_signed"),
+        error.mean(),
+    )
+    torch.testing.assert_close(
+        stdp_error_scale(error, mode="scalar_abs"),
+        error.abs().mean(),
+    )
+    torch.testing.assert_close(
+        stdp_apply_error_modulation(
+            delta,
+            error_signal=error,
+            mode="scalar_signed",
+        ),
+        delta * error.mean(),
+    )
+    torch.testing.assert_close(
+        stdp_apply_error_modulation(
+            delta,
+            error_signal=error,
+            mode="scalar_abs",
+        ),
+        delta * error.abs().mean(),
+    )
+    assert (
+        stdp_apply_error_modulation(delta, error_signal=None, mode="scalar_abs")
+        is delta
+    )
+    torch.testing.assert_close(
+        stdp_clamp_update(delta, 1.5),
+        torch.tensor([[1.5, -1.5]]),
+    )
+    assert stdp_clamp_update(delta, 0.0) is delta
+
+
+def test_stdp_next_trace_preserves_decay_and_detach_modes():
+    previous = torch.tensor([1.0, 2.0], requires_grad=True)
+    batch = torch.tensor([3.0, 4.0])
+    decay = stdp_decay(2.0)
+
+    actual = stdp_next_trace(previous, batch, tau=2.0, detach=False)
+    expected = decay * previous + (1.0 - decay) * batch
+
+    torch.testing.assert_close(actual, expected)
+    assert actual.requires_grad
+
+    detached = stdp_next_trace(previous, batch, tau=2.0, detach=True)
+    torch.testing.assert_close(detached, expected.detach())
+    assert not detached.requires_grad
 
 
 def test_weight_transform_derivative_modes():

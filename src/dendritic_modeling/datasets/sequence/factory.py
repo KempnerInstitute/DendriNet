@@ -11,6 +11,7 @@ from dendritic_modeling.datasets.registry import build_registered_dataset
 from dendritic_modeling.datasets.sequence.builders import (
     get_registered_sequence_dataset_names,
     get_sequence_dataset_builder,
+    has_sequence_dataset_builder,
     register_sequence_dataset_builder,
     unregister_sequence_dataset_builder,
 )
@@ -89,6 +90,7 @@ __all__ = [
     "get_registered_sequence_dataset_names",
     "get_sequence_dataset_builder",
     "get_sequence_datasets",
+    "has_sequence_dataset_builder",
     "register_sequence_dataset_builder",
     "unregister_sequence_dataset_builder",
 ]
