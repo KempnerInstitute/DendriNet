@@ -30,6 +30,57 @@ from dendritic_modeling.analysis.core.information_results import (
 )
 from dendritic_modeling.utils.information.pid import pid_synergy_redundancy
 
+ParsedMiKey = tuple[list[str], str, list[str]]
+
+
+def _parse_mi_key_for_null_baseline(mi_key: Any) -> ParsedMiKey | None:
+    if not isinstance(mi_key, str):
+        return None
+    key = mi_key.strip().replace(" ", "")
+    if not (key.startswith("I(") and key.endswith(")")):
+        return None
+    inside = key[2:-1]
+    if ";" not in inside:
+        return None
+    left, right = inside.split(";", 1)
+    if "|" in right:
+        y, z = right.split("|", 1)
+        z_vars = [t for t in z.split(",") if t]
+    else:
+        y = right
+        z_vars = []
+    x_vars = [t for t in left.split(",") if t]
+    return x_vars, y, z_vars
+
+
+def _metric_variable_for_null_baseline(
+    token: str,
+    *,
+    E: np.ndarray | None,
+    I_var: np.ndarray | None,
+    Vout: np.ndarray | None,
+    C_col: np.ndarray,
+    Vinf: np.ndarray | None,
+    Vb: np.ndarray | None,
+    has_exc_synapses: bool,
+    has_inh_synapses: bool,
+    has_branch_input: bool,
+) -> np.ndarray | None:
+    base = token.split("_", 1)[0]
+    if base == "C":
+        return C_col
+    if base == "E":
+        return E if has_exc_synapses else None
+    if base == "I":
+        return I_var if has_inh_synapses else None
+    if base == "Vb":
+        return Vb if has_branch_input else None
+    if base == "Vout":
+        return Vout
+    if base == "Vinf":
+        return Vinf
+    return None
+
 
 class InformationMetricsMixin:
     """Computes MI/CMI/PID/Fisher metrics and result summaries."""
@@ -863,40 +914,19 @@ class InformationMetricsMixin:
         C_vec = np.asarray(C).ravel()
         C_col = C_vec.reshape(-1, 1)
 
-        def _parse_mi_key(mi_key: Any) -> Any:
-            if not isinstance(mi_key, str):
-                return None
-            key = mi_key.strip().replace(" ", "")
-            if not (key.startswith("I(") and key.endswith(")")):
-                return None
-            inside = key[2:-1]
-            if ";" not in inside:
-                return None
-            left, right = inside.split(";", 1)
-            if "|" in right:
-                y, z = right.split("|", 1)
-                z_vars = [t for t in z.split(",") if t]
-            else:
-                y = right
-                z_vars = []
-            x_vars = [t for t in left.split(",") if t]
-            return x_vars, y, z_vars
-
         def _var_data(token: str) -> np.ndarray | None:
-            base = token.split("_", 1)[0]
-            if base == "C":
-                return C_col
-            if base == "E":
-                return E if has_exc_synapses else None
-            if base == "I":
-                return I_var if has_inh_synapses else None
-            if base == "Vb":
-                return Vb if has_branch_input else None
-            if base == "Vout":
-                return Vout
-            if base == "Vinf":
-                return Vinf
-            return None
+            return _metric_variable_for_null_baseline(
+                token,
+                E=E,
+                I_var=I_var,
+                Vout=Vout,
+                C_col=C_col,
+                Vinf=Vinf,
+                Vb=Vb,
+                has_exc_synapses=has_exc_synapses,
+                has_inh_synapses=has_inh_synapses,
+                has_branch_input=has_branch_input,
+            )
 
         perms: list[np.ndarray] | None = None
         seed_off = 0
@@ -912,7 +942,7 @@ class InformationMetricsMixin:
                 if f"{metric_key}_null" in metrics_dict:
                     continue
 
-                parsed = _parse_mi_key(metric_key)
+                parsed = _parse_mi_key_for_null_baseline(metric_key)
                 if parsed is None:
                     continue
                 x_vars, y_var, z_vars = parsed

@@ -97,6 +97,190 @@ class _AllBranchMetricData:
     branch_input: np.ndarray | None
 
 
+@dataclass(frozen=True)
+class _InformationComponentSelection:
+    """Boolean analysis-component switches parsed from selection.components."""
+
+    compute_basic_mi: bool
+    compute_pairwise_mi: bool
+    compute_conditional_mi: bool
+    compute_pid: bool
+    compute_gaussian_fisher: bool
+    compute_ablation_aligned_mi: bool
+    compute_layer_total_proxies: bool
+    compute_upstream_unique_cmi: bool
+
+
+def _get_config_value(obj: Any, key: str, default: Any = None) -> Any:
+    """Get a config value via attribute or mapping access."""
+    if obj is None:
+        return default
+    try:
+        val = getattr(obj, key)
+    except Exception:
+        try:
+            val = obj.get(key, default)  # type: ignore[attr-defined]
+        except Exception:
+            return default
+    return default if val is None else val
+
+
+def _get_config_path(
+    obj: Any,
+    path: tuple[str, ...],
+    default: Any = None,
+) -> Any:
+    """Get a nested config value with the same None-as-missing semantics."""
+    cur = obj
+    for key in path:
+        cur = _get_config_value(cur, key, None)
+        if cur is None:
+            return default
+    return cur
+
+
+def _normalize_config_token(value: Any) -> str:
+    """Normalize config selector tokens for legacy and grouped configs."""
+    return str(value).strip().lower().replace("-", "_").replace(" ", "_")
+
+
+def _parse_information_component_selection(
+    components_raw: Sequence[Any],
+) -> _InformationComponentSelection | None:
+    """Parse selection.components into analysis component switches."""
+    if not components_raw:
+        return None
+
+    components = {
+        _normalize_config_token(component)
+        for component in components_raw
+        if str(component).strip()
+    }
+    return _InformationComponentSelection(
+        compute_basic_mi=bool({"basic", "basic_mi"}.intersection(components)),
+        compute_pairwise_mi=bool({"pairwise", "pairwise_mi"}.intersection(components)),
+        compute_conditional_mi=bool(
+            {"conditional", "conditional_mi"}.intersection(components)
+        ),
+        compute_pid="pid" in components,
+        compute_gaussian_fisher=bool(
+            {"gaussian_fisher", "gaussianfisher", "fisher"}.intersection(components)
+        ),
+        compute_ablation_aligned_mi=bool(
+            {"ablation_aligned", "ablation"}.intersection(components)
+        ),
+        compute_layer_total_proxies=bool(
+            {"layer_proxies", "layer_total_proxies", "layer_total"}.intersection(
+                components
+            )
+        ),
+        compute_upstream_unique_cmi=bool(
+            {"upstream_unique_cmi", "upstream_unique"}.intersection(components)
+        ),
+    )
+
+
+def _build_information_estimator_method_params(
+    *,
+    params: Any,
+    estimator_cfg: Any,
+    method: str,
+) -> dict[str, Any]:
+    """Build estimator-specific method parameters from grouped or legacy config."""
+    decoder_cfg = _get_config_value(estimator_cfg, "decoder", None)
+    decoder_cont_cfg = _get_config_value(decoder_cfg, "continuous", None)
+    binned_cfg = _get_config_value(estimator_cfg, "binned", None)
+    normalized_method = _normalize_config_token(method)
+
+    if normalized_method == "decoder":
+        return {
+            "cv_folds": int(
+                _get_config_value(
+                    decoder_cfg,
+                    "cv_folds",
+                    _get_config_value(params, "decoder_cv_folds", 5),
+                )
+            ),
+            "C": float(
+                _get_config_value(
+                    decoder_cfg,
+                    "C",
+                    _get_config_value(params, "decoder_C", 1.0),
+                )
+            ),
+            "standardize": bool(
+                _get_config_value(
+                    decoder_cfg,
+                    "standardize",
+                    _get_config_value(params, "decoder_standardize", True),
+                )
+            ),
+            "seed": int(
+                _get_config_value(
+                    decoder_cfg,
+                    "seed",
+                    _get_config_value(params, "decoder_seed", 0),
+                )
+            ),
+            "continuous_strategy": str(
+                _get_config_value(
+                    decoder_cont_cfg,
+                    "strategy",
+                    _get_config_value(params, "decoder_continuous_strategy", "none"),
+                )
+            ),
+            "continuous_max_dim": int(
+                _get_config_value(
+                    decoder_cont_cfg,
+                    "max_total_dim",
+                    _get_config_value(params, "decoder_continuous_max_total_dim", 2),
+                )
+            ),
+            "gaussian_ridge": float(
+                _get_config_value(
+                    decoder_cont_cfg,
+                    "gaussian_ridge",
+                    _get_config_value(params, "decoder_gaussian_ridge", 1e-6),
+                )
+            ),
+            # Used if decoder_continuous_strategy="binned"
+            "binning_strategy": str(
+                _get_config_value(
+                    binned_cfg,
+                    "binning_strategy",
+                    _get_config_value(params, "binning_strategy", "quantile"),
+                )
+            ),
+            "bias_correction": str(
+                _get_config_value(
+                    binned_cfg,
+                    "bias_correction",
+                    _get_config_value(params, "binning_bias_correction", "none"),
+                )
+            ),
+        }
+
+    if normalized_method == "binned":
+        return {
+            "binning_strategy": str(
+                _get_config_value(
+                    binned_cfg,
+                    "binning_strategy",
+                    _get_config_value(params, "binning_strategy", "quantile"),
+                )
+            ),
+            "bias_correction": str(
+                _get_config_value(
+                    binned_cfg,
+                    "bias_correction",
+                    _get_config_value(params, "binning_bias_correction", "none"),
+                )
+            ),
+        }
+
+    return {}
+
+
 class InformationAnalyzer(
     InformationMetricsMixin,
     InformationHooksMixin,
@@ -119,97 +303,78 @@ class InformationAnalyzer(
             Configuration from the main config system (analysis.information)
         """
         super().__init__("InformationAnalyzer")
-
-        def _get(obj: Any, key: str, default: Any = None) -> Any:
-            """Get `key` from obj via attribute/dict access (DictConfig-safe)."""
-            if obj is None:
-                return default
-            try:
-                val = getattr(obj, key)
-            except Exception:
-                try:
-                    val = obj.get(key, default)  # type: ignore[attr-defined]
-                except Exception:
-                    return default
-            return default if val is None else val
-
-        def _get_path(obj: Any, path: tuple[str, ...], default: Any = None) -> Any:
-            cur = obj
-            for k in path:
-                cur = _get(cur, k, None)
-                if cur is None:
-                    return default
-            return cur
+        get_config = _get_config_value
+        get_config_path = _get_config_path
+        normalize_token = _normalize_config_token
 
         # New (preferred) grouped configs (all optional for backward compatibility)
-        selection_cfg = _get(params, "selection", None)
-        compute_cfg = _get(params, "compute", None)
-        estimator_cfg = _get(params, "estimator", None)
-        baselines_cfg = _get(params, "baselines", None)
-        pid_cfg = _get(params, "pid", None)
-        gaussian_fisher_cfg = _get(compute_cfg, "gaussian_fisher", None)
+        selection_cfg = get_config(params, "selection", None)
+        compute_cfg = get_config(params, "compute", None)
+        estimator_cfg = get_config(params, "estimator", None)
+        baselines_cfg = get_config(params, "baselines", None)
+        pid_cfg = get_config(params, "pid", None)
+        gaussian_fisher_cfg = get_config(compute_cfg, "gaussian_fisher", None)
 
         # ------------------------------------------------------------------
         # Extract configuration parameters (support both new nested and legacy flat keys).
         # ------------------------------------------------------------------
         self.method = str(
-            _get(estimator_cfg, "method", _get(params, "method", "kraskov"))
+            get_config(estimator_cfg, "method", get_config(params, "method", "kraskov"))
         )
-        self.max_samples = _get(
-            compute_cfg, "max_samples", _get(params, "max_samples", None)
+        self.max_samples = get_config(
+            compute_cfg, "max_samples", get_config(params, "max_samples", None)
         )
 
         self.n_neighbors = int(
-            _get_path(
+            get_config_path(
                 estimator_cfg,
                 ("kraskov", "n_neighbors"),
-                _get(params, "n_neighbors", 10),
+                get_config(params, "n_neighbors", 10),
             )
         )
         self.n_bins = int(
-            _get_path(estimator_cfg, ("binned", "n_bins"), _get(params, "n_bins", 20))
+            get_config_path(
+                estimator_cfg, ("binned", "n_bins"), get_config(params, "n_bins", 20)
+            )
         )
         self.copula_type = str(
-            _get_path(
+            get_config_path(
                 estimator_cfg,
                 ("copula", "type"),
-                _get(params, "copula_type", "gaussian"),
+                get_config(params, "copula_type", "gaussian"),
             )
         )
 
         # Label-shuffle null baseline (finite-sample bias diagnostic)
         self.mi_null_shuffles = int(
-            _get_path(
+            get_config_path(
                 baselines_cfg,
                 ("label_shuffle_null", "n_shuffles"),
-                _get(params, "mi_null_shuffles", 0),
+                get_config(params, "mi_null_shuffles", 0),
             )
             or 0
         )
         self.mi_null_seed = int(
-            _get_path(
+            get_config_path(
                 baselines_cfg,
                 ("label_shuffle_null", "seed"),
-                _get(params, "mi_null_seed", 0),
+                get_config(params, "mi_null_seed", 0),
             )
             or 0
         )
 
-        def _norm(x: str) -> str:
-            return str(x).strip().lower().replace("-", "_").replace(" ", "_")
-
         # Which metric groups should receive label-shuffle (*_null) baselines.
         # Default: only basic MI terms involving C.
         null_components_raw = list(
-            _get_path(
+            get_config_path(
                 baselines_cfg,
                 ("label_shuffle_null", "components"),
-                _get(params, "mi_null_components", ["basic"]),
+                get_config(params, "mi_null_components", ["basic"]),
             )
             or ["basic"]
         )
         self.mi_null_components = {
-            _norm(x) for x in null_components_raw if str(x).strip()
+            normalize_token(x) for x in null_components_raw if str(x).strip()
         } or {"basic"}
 
         # ------------------------------------------------------------------
@@ -225,20 +390,20 @@ class InformationAnalyzer(
         self.compute_gaussian_fisher = False
 
         self.pid_binarize = bool(
-            _get(pid_cfg, "binarize", _get(params, "pid_binarize", False))
+            get_config(pid_cfg, "binarize", get_config(params, "pid_binarize", False))
         )
         self.pid_binarize_method = str(
-            _get(
+            get_config(
                 pid_cfg,
                 "binarize_method",
-                _get(params, "pid_binarize_method", "median"),
+                get_config(params, "pid_binarize_method", "median"),
             )
         )
         self.pid_binarize_threshold = float(
-            _get(
+            get_config(
                 pid_cfg,
                 "binarize_threshold",
-                _get(params, "pid_binarize_threshold", 0.5),
+                get_config(params, "pid_binarize_threshold", 0.5),
             )
         )
 
@@ -253,7 +418,11 @@ class InformationAnalyzer(
             getattr(params, "compute_layer_total_proxies", True)
         )
         self.layer_total_topk = int(
-            _get(compute_cfg, "layer_total_topk", _get(params, "layer_total_topk", 10))
+            get_config(
+                compute_cfg,
+                "layer_total_topk",
+                get_config(params, "layer_total_topk", 10),
+            )
         )
 
         # ------------------------------------------------------------------
@@ -262,32 +431,26 @@ class InformationAnalyzer(
         # If provided, overrides the individual compute_* booleans above.
         # ------------------------------------------------------------------
         components_raw = list(
-            _get(selection_cfg, "components", _get(params, "components", [])) or []
+            get_config(
+                selection_cfg, "components", get_config(params, "components", [])
+            )
+            or []
         )
-        if components_raw:
-            comps = {_norm(x) for x in components_raw if str(x).strip()}
-            self.compute_basic_mi = bool({"basic", "basic_mi"}.intersection(comps))
-            self.compute_pairwise_mi = bool(
-                {"pairwise", "pairwise_mi"}.intersection(comps)
+        component_selection = _parse_information_component_selection(components_raw)
+        if component_selection is not None:
+            self.compute_basic_mi = component_selection.compute_basic_mi
+            self.compute_pairwise_mi = component_selection.compute_pairwise_mi
+            self.compute_conditional_mi = component_selection.compute_conditional_mi
+            self.compute_pid = component_selection.compute_pid
+            self.compute_gaussian_fisher = component_selection.compute_gaussian_fisher
+            self.compute_ablation_aligned_mi = (
+                component_selection.compute_ablation_aligned_mi
             )
-            self.compute_conditional_mi = bool(
-                {"conditional", "conditional_mi"}.intersection(comps)
+            self.compute_layer_total_proxies = (
+                component_selection.compute_layer_total_proxies
             )
-            self.compute_pid = "pid" in comps
-            self.compute_gaussian_fisher = bool(
-                {"gaussian_fisher", "gaussianfisher", "fisher"}.intersection(comps)
-            )
-
-            self.compute_ablation_aligned_mi = bool(
-                {"ablation_aligned", "ablation"}.intersection(comps)
-            )
-            self.compute_layer_total_proxies = bool(
-                {"layer_proxies", "layer_total_proxies", "layer_total"}.intersection(
-                    comps
-                )
-            )
-            self.compute_upstream_unique_cmi = bool(
-                {"upstream_unique_cmi", "upstream_unique"}.intersection(comps)
+            self.compute_upstream_unique_cmi = (
+                component_selection.compute_upstream_unique_cmi
             )
 
         # ------------------------------------------------------------------
@@ -307,28 +470,36 @@ class InformationAnalyzer(
 
         # Gaussian/Fisher proxy configuration (enabled via selection.components).
         self.gaussian_fisher_aggregation = (
-            str(_get(gaussian_fisher_cfg, "aggregation", "sum")).strip().lower()
+            str(get_config(gaussian_fisher_cfg, "aggregation", "sum")).strip().lower()
         )
         self.gaussian_fisher_mi_transform = (
-            str(_get(gaussian_fisher_cfg, "mi_transform", "half_log1p")).strip().lower()
+            str(get_config(gaussian_fisher_cfg, "mi_transform", "half_log1p"))
+            .strip()
+            .lower()
         )
         self.gaussian_fisher_eps = float(
-            _get(
+            get_config(
                 gaussian_fisher_cfg,
                 "ridge",
-                _get(gaussian_fisher_cfg, "eps", 1e-8),
+                get_config(gaussian_fisher_cfg, "eps", 1e-8),
             )
         )
 
         self.include_vinf = bool(
-            _get(compute_cfg, "include_vinf", _get(params, "include_vinf", False))
+            get_config(
+                compute_cfg, "include_vinf", get_config(params, "include_vinf", False)
+            )
         )  # Default to False to match 245MR behavior
         self.normalize_mi = bool(
-            _get(compute_cfg, "normalize_mi", _get(params, "normalize_mi", False))
+            get_config(
+                compute_cfg, "normalize_mi", get_config(params, "normalize_mi", False)
+            )
         )
         # Estimators operate in nats; for reporting/plots we optionally convert to bits.
-        self.output_units = _norm(
-            _get(compute_cfg, "output_units", _get(params, "output_units", "bits"))
+        self.output_units = normalize_token(
+            get_config(
+                compute_cfg, "output_units", get_config(params, "output_units", "bits")
+            )
         )
         if self.output_units not in {"bits", "bit", "nats", "nat"}:
             self.logger.warning(
@@ -338,7 +509,7 @@ class InformationAnalyzer(
         # Canonicalize.
         self.output_units = "bits" if self.output_units in {"bits", "bit"} else "nats"
         self.verbose = bool(
-            _get(compute_cfg, "verbose", _get(params, "verbose", False))
+            get_config(compute_cfg, "verbose", get_config(params, "verbose", False))
         )
 
         # Computation level control - determines the granularity of information analysis
@@ -346,47 +517,47 @@ class InformationAnalyzer(
         # "layer": Layer-level aggregation (treats each layer as a unit)
         # "network": Full network aggregation (most efficient)
         self.computation_level = str(
-            _get(
+            get_config(
                 compute_cfg,
                 "computation_level",
-                _get(params, "computation_level", "single_branch"),
+                get_config(params, "computation_level", "single_branch"),
             )
         )
 
         # Branch aggregation method - only used when computation_level is "layer_branch" or "all_branch"
         # Options: "mean", "multivariate", "sample"
         self.branch_aggregation = str(
-            _get(
+            get_config(
                 compute_cfg,
                 "branch_aggregation",
-                _get(params, "branch_aggregation", "mean"),
+                get_config(params, "branch_aggregation", "mean"),
             )
         )
 
         # Per-neuron analysis - return information values per individual neuron
         self.per_neuron_analysis = bool(
-            _get(
+            get_config(
                 compute_cfg,
                 "per_neuron_analysis",
-                _get(params, "per_neuron_analysis", False),
+                get_config(params, "per_neuron_analysis", False),
             )
         )
 
         # Per-EI-network analysis - analyze excitatory and inhibitory networks separately
         self.per_einet_analysis = bool(
-            _get(
+            get_config(
                 compute_cfg,
                 "per_einet_analysis",
-                _get(params, "per_einet_analysis", False),
+                get_config(params, "per_einet_analysis", False),
             )
         )
 
         # Per-layer analysis - compute enhanced analysis for each layer separately
         self.per_layer_analysis = bool(
-            _get(
+            get_config(
                 compute_cfg,
                 "per_layer_analysis",
-                _get(params, "per_layer_analysis", False),
+                get_config(params, "per_layer_analysis", False),
             )
         )
 
@@ -394,14 +565,15 @@ class InformationAnalyzer(
         #
         # `views` is a backward-compatible alias for `scopes`.
         scopes_raw = list(
-            _get(selection_cfg, "scopes", _get(params, "scopes", [])) or []
+            get_config(selection_cfg, "scopes", get_config(params, "scopes", [])) or []
         )
         if not scopes_raw:
             scopes_raw = list(
-                _get(selection_cfg, "views", _get(params, "views", [])) or []
+                get_config(selection_cfg, "views", get_config(params, "views", []))
+                or []
             )
         if scopes_raw:
-            scopes = {_norm(x) for x in scopes_raw if str(x).strip()}
+            scopes = {normalize_token(x) for x in scopes_raw if str(x).strip()}
             self.per_neuron_analysis = bool(
                 {"neuron", "per_neuron"}.intersection(scopes)
             )
@@ -410,10 +582,10 @@ class InformationAnalyzer(
 
         # Compute LDA-based versions of E, I, Vb
         self.compute_lda_weights = bool(
-            _get(
+            get_config(
                 compute_cfg,
                 "compute_lda_weights",
-                _get(params, "compute_lda_weights", False),
+                get_config(params, "compute_lda_weights", False),
             )
         )
 
@@ -422,25 +594,25 @@ class InformationAnalyzer(
         # Preferred key: baselines.random_weights.n_shuffles
         # Backward-compatible alias (legacy): baselines.signal_shuffle.n_shuffles
         self.lda_n_shuffles = int(
-            _get_path(
+            get_config_path(
                 baselines_cfg,
                 ("random_weights", "n_shuffles"),
-                _get_path(
+                get_config_path(
                     baselines_cfg,
                     ("signal_shuffle", "n_shuffles"),
-                    _get(params, "lda_n_shuffles", 0),
+                    get_config(params, "lda_n_shuffles", 0),
                 ),
             )
             or 0
         )
         self.random_weights_seed = int(
-            _get_path(
+            get_config_path(
                 baselines_cfg,
                 ("random_weights", "seed"),
-                _get_path(
+                get_config_path(
                     baselines_cfg,
                     ("signal_shuffle", "seed"),
-                    _get(params, "random_weights_seed", 0),
+                    get_config(params, "random_weights_seed", 0),
                 ),
             )
             or 0
@@ -448,11 +620,15 @@ class InformationAnalyzer(
 
         # Preferred list-based selection of signal variants.
         variants_raw = list(
-            _get(selection_cfg, "signal_variants", _get(params, "signal_variants", []))
+            get_config(
+                selection_cfg,
+                "signal_variants",
+                get_config(params, "signal_variants", []),
+            )
             or []
         )
         if variants_raw:
-            variants = {_norm(x) for x in variants_raw if str(x).strip()}
+            variants = {normalize_token(x) for x in variants_raw if str(x).strip()}
             want_lda = "lda" in variants
             want_random = bool({"random", "shuffle", "shuffled"}.intersection(variants))
 
@@ -466,78 +642,11 @@ class InformationAnalyzer(
         # Create estimators for each method
         self.estimators = {}
         # For now, just use the single method specified, but keep the dict structure for compatibility
-        method_params: dict[str, Any] = {}
-        decoder_cfg = _get(estimator_cfg, "decoder", None)
-        decoder_cont_cfg = _get(decoder_cfg, "continuous", None)
-        binned_cfg = _get(estimator_cfg, "binned", None)
-        if _norm(self.method) == "decoder":
-            method_params = {
-                "cv_folds": int(
-                    _get(decoder_cfg, "cv_folds", _get(params, "decoder_cv_folds", 5))
-                ),
-                "C": float(_get(decoder_cfg, "C", _get(params, "decoder_C", 1.0))),
-                "standardize": bool(
-                    _get(
-                        decoder_cfg,
-                        "standardize",
-                        _get(params, "decoder_standardize", True),
-                    )
-                ),
-                "seed": int(_get(decoder_cfg, "seed", _get(params, "decoder_seed", 0))),
-                "continuous_strategy": str(
-                    _get(
-                        decoder_cont_cfg,
-                        "strategy",
-                        _get(params, "decoder_continuous_strategy", "none"),
-                    )
-                ),
-                "continuous_max_dim": int(
-                    _get(
-                        decoder_cont_cfg,
-                        "max_total_dim",
-                        _get(params, "decoder_continuous_max_total_dim", 2),
-                    )
-                ),
-                "gaussian_ridge": float(
-                    _get(
-                        decoder_cont_cfg,
-                        "gaussian_ridge",
-                        _get(params, "decoder_gaussian_ridge", 1e-6),
-                    )
-                ),
-                # Used if decoder_continuous_strategy="binned"
-                "binning_strategy": str(
-                    _get(
-                        binned_cfg,
-                        "binning_strategy",
-                        _get(params, "binning_strategy", "quantile"),
-                    )
-                ),
-                "bias_correction": str(
-                    _get(
-                        binned_cfg,
-                        "bias_correction",
-                        _get(params, "binning_bias_correction", "none"),
-                    )
-                ),
-            }
-        elif _norm(self.method) == "binned":
-            method_params = {
-                "binning_strategy": str(
-                    _get(
-                        binned_cfg,
-                        "binning_strategy",
-                        _get(params, "binning_strategy", "quantile"),
-                    )
-                ),
-                "bias_correction": str(
-                    _get(
-                        binned_cfg,
-                        "bias_correction",
-                        _get(params, "binning_bias_correction", "none"),
-                    )
-                ),
-            }
+        method_params = _build_information_estimator_method_params(
+            params=params,
+            estimator_cfg=estimator_cfg,
+            method=self.method,
+        )
         estimator_config = EstimatorConfig(
             method=self.method,
             n_neighbors=self.n_neighbors,

@@ -8,6 +8,66 @@ from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import DendriticBranchLayer
 
 
+def _has_no_branch_synapses(module: DendriticBranchLayer) -> bool:
+    return module.branch_excitation is None and module.branch_inhibition is None
+
+
+def _zero_branch_currents_for_output(output: torch.Tensor) -> torch.Tensor:
+    batch_size = output.shape[0]
+    n_branches = output.shape[1] if len(output.shape) > 1 else 1
+    return torch.zeros(batch_size, n_branches, device=output.device)
+
+
+def _resolve_synaptic_branch_currents(
+    module: DendriticBranchLayer,
+    excitatory_input: torch.Tensor | None,
+    inhibitory_input: torch.Tensor | None,
+    output: torch.Tensor,
+    cached_currents: object,
+) -> tuple[torch.Tensor, torch.Tensor, bool]:
+    has_no_synapses = _has_no_branch_synapses(module)
+
+    if has_no_synapses:
+        return (
+            _zero_branch_currents_for_output(output),
+            _zero_branch_currents_for_output(output),
+            has_no_synapses,
+        )
+
+    if isinstance(cached_currents, dict):
+        excitation_per_branch = cached_currents.get("excitation")
+        inhibition_per_branch = cached_currents.get("inhibition")
+        if excitation_per_branch is None:
+            excitation_per_branch = torch.zeros_like(output)
+        if inhibition_per_branch is None:
+            inhibition_per_branch = torch.zeros_like(output)
+        return excitation_per_branch, inhibition_per_branch, has_no_synapses
+
+    excitation_per_branch = (
+        module.branch_excitation(excitatory_input)
+        if module.branch_excitation is not None and excitatory_input is not None
+        else torch.zeros_like(output)
+    )
+    inhibition_per_branch = (
+        module.branch_inhibition(inhibitory_input)
+        if module.branch_inhibition is not None and inhibitory_input is not None
+        else torch.zeros_like(output)
+    )
+    return excitation_per_branch, inhibition_per_branch, has_no_synapses
+
+
+def _resolve_branch_input_current(
+    module: DendriticBranchLayer,
+    branch_input: torch.Tensor | None,
+    cached_currents: object,
+) -> torch.Tensor | None:
+    if isinstance(cached_currents, dict):
+        return cached_currents.get("branch_input")
+    if branch_input is not None and module.input_branches:
+        return module.branches_to_output(branch_input)
+    return None
+
+
 class InformationHooksMixin:
     """Collects branch-layer currents and outputs during model evaluation."""
 
@@ -52,57 +112,23 @@ class InformationHooksMixin:
         """Forward hook to collect branch data."""
         excitatory_input, inhibitory_input, branch_input = input
 
-        # A layer can legitimately have only E synapses or only I synapses.
-        # "No synapses" means BOTH synapse modules are absent (e.g. soma when
-        # somatic_synapses=False).
-        has_no_synapses = (
-            module.branch_excitation is None and module.branch_inhibition is None
-        )
-
         cached_currents = getattr(module, "_last_analysis_currents", None)
-
-        if has_no_synapses:
-            # For soma without synapses, create zero tensors for E/I but keep real output
-            batch_size = output.shape[0]
-            n_branches = output.shape[1] if len(output.shape) > 1 else 1
-
-            # Zero excitation and inhibition since there are no synapses
-            excitation_per_branch = torch.zeros(
-                batch_size, n_branches, device=output.device
-            )
-            inhibition_per_branch = torch.zeros(
-                batch_size, n_branches, device=output.device
-            )
-        elif isinstance(cached_currents, dict):
-            excitation_per_branch = cached_currents.get("excitation")
-            inhibition_per_branch = cached_currents.get("inhibition")
-            if excitation_per_branch is None:
-                excitation_per_branch = torch.zeros_like(output)
-            if inhibition_per_branch is None:
-                inhibition_per_branch = torch.zeros_like(output)
-        else:
-            # Normal processing for layers with actual synapses
-            # Get the outputs from TopKLinear layers
-            # These represent the weighted sum for each branch (already computed by TopKLinear)
-            # Shape: (batch_size, num_branches)
-            excitation_per_branch = (
-                module.branch_excitation(excitatory_input)
-                if module.branch_excitation is not None and excitatory_input is not None
-                else torch.zeros_like(output)
-            )
-            inhibition_per_branch = (
-                module.branch_inhibition(inhibitory_input)
-                if module.branch_inhibition is not None and inhibitory_input is not None
-                else torch.zeros_like(output)
-            )
-
-        # Compute branch_input contribution if available
-        if isinstance(cached_currents, dict):
-            branch_current = cached_currents.get("branch_input")
-        elif branch_input is not None and module.input_branches:
-            branch_current = module.branches_to_output(branch_input)
-        else:
-            branch_current = None
+        (
+            excitation_per_branch,
+            inhibition_per_branch,
+            has_no_synapses,
+        ) = _resolve_synaptic_branch_currents(
+            module,
+            excitatory_input,
+            inhibitory_input,
+            output,
+            cached_currents,
+        )
+        branch_current = _resolve_branch_input_current(
+            module,
+            branch_input,
+            cached_currents,
+        )
 
         # Store per-branch data
         self.data_dict[module._name]["excitation"] = excitation_per_branch

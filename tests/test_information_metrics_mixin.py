@@ -4,6 +4,8 @@ import numpy as np
 
 from dendritic_modeling.analysis.core.information_metrics_mixin import (
     InformationMetricsMixin,
+    _metric_variable_for_null_baseline,
+    _parse_mi_key_for_null_baseline,
 )
 
 
@@ -26,6 +28,10 @@ class _RecordingEstimator:
     def mutual_information(self, x, y):
         self.calls.append(("mi", x.copy(), y.copy()))
         return float(len(self.calls))
+
+    def mutual_information_null(self, x, y, *, n_shuffles, seed):
+        self.calls.append(("mi_null", x.copy(), y.copy(), n_shuffles, seed))
+        return float(seed), float(n_shuffles)
 
     def conditional_mutual_information(self, x, y, condition):
         self.calls.append(("cmi", x.copy(), y.copy(), condition.copy()))
@@ -52,6 +58,9 @@ class _MetricHarness(InformationMetricsMixin):
         self.normalize_mi = False
         self.compute_ablation_aligned_mi = False
         self.compute_upstream_unique_cmi = False
+        self.mi_null_shuffles = 0
+        self.mi_null_seed = 0
+        self.mi_null_components = {"basic"}
 
 
 def _arrays():
@@ -63,6 +72,114 @@ def _arrays():
         "Vinf": np.array([[10.0], [11.0], [12.0]]),
         "Vb": np.array([[13.0], [14.0], [15.0]]),
     }
+
+
+def test_parse_mi_key_for_null_baseline_preserves_legacy_key_rules():
+    assert _parse_mi_key_for_null_baseline(None) is None
+    assert _parse_mi_key_for_null_baseline("not_a_metric") is None
+    assert _parse_mi_key_for_null_baseline("I(E,C)") is None
+    assert _parse_mi_key_for_null_baseline(" I(E, I; C | Vb, Vout) ") == (
+        ["E", "I"],
+        "C",
+        ["Vb", "Vout"],
+    )
+    assert _parse_mi_key_for_null_baseline("I(E;C)") == (["E"], "C", [])
+    assert _parse_mi_key_for_null_baseline("I(E,I;Vout|C)") == (
+        ["E", "I"],
+        "Vout",
+        ["C"],
+    )
+
+
+def test_metric_variable_for_null_baseline_preserves_token_availability_rules():
+    arrays = _arrays()
+    C_col = arrays["C"].reshape(-1, 1)
+    common_kwargs = {
+        "E": arrays["E"],
+        "I_var": arrays["I"],
+        "Vout": arrays["Vout"],
+        "C_col": C_col,
+        "Vinf": arrays["Vinf"],
+        "Vb": arrays["Vb"],
+        "has_exc_synapses": True,
+        "has_inh_synapses": True,
+        "has_branch_input": True,
+    }
+
+    assert _metric_variable_for_null_baseline("C", **common_kwargs) is C_col
+    assert _metric_variable_for_null_baseline("E_lin", **common_kwargs) is arrays["E"]
+    assert _metric_variable_for_null_baseline("I_null", **common_kwargs) is arrays["I"]
+    assert (
+        _metric_variable_for_null_baseline("Vout_shuffled", **common_kwargs)
+        is arrays["Vout"]
+    )
+    assert _metric_variable_for_null_baseline("Vinf", **common_kwargs) is arrays["Vinf"]
+    assert _metric_variable_for_null_baseline("Vb_lda", **common_kwargs) is arrays["Vb"]
+    assert _metric_variable_for_null_baseline("unknown", **common_kwargs) is None
+
+    assert (
+        _metric_variable_for_null_baseline(
+            "E",
+            **{**common_kwargs, "has_exc_synapses": False},
+        )
+        is None
+    )
+    assert (
+        _metric_variable_for_null_baseline(
+            "I",
+            **{**common_kwargs, "has_inh_synapses": False},
+        )
+        is None
+    )
+    assert (
+        _metric_variable_for_null_baseline(
+            "Vb",
+            **{**common_kwargs, "has_branch_input": False},
+        )
+        is None
+    )
+
+
+def test_add_label_shuffle_null_baselines_uses_extracted_parsing_and_lookup():
+    harness = _MetricHarness()
+    harness.mi_null_shuffles = 2
+    harness.mi_null_seed = 10
+    harness.mi_null_components = {"basic"}
+    arrays = _arrays()
+    result = {
+        "basic_mi": {
+            "I(E;C)": 0.1,
+            "I(I;C)": 0.2,
+            "I(Vb;C)": 0.3,
+            "not_a_metric": 0.4,
+        }
+    }
+
+    harness._add_label_shuffle_null_baselines_in_place(
+        result,
+        E=arrays["E"],
+        I_var=arrays["I"],
+        Vout=arrays["Vout"],
+        C=arrays["C"],
+        Vinf=arrays["Vinf"],
+        Vb=arrays["Vb"],
+        has_exc_synapses=True,
+        has_inh_synapses=True,
+        has_branch_input=False,
+        seed_offset=5,
+    )
+
+    assert result["basic_mi"]["I(E;C)_null"] == 15.0
+    assert result["basic_mi"]["I(E;C)_null_std"] == 2.0
+    assert result["basic_mi"]["I(I;C)_null"] == 16.0
+    assert result["basic_mi"]["I(I;C)_null_std"] == 2.0
+    assert "I(Vb;C)_null" not in result["basic_mi"]
+    assert "not_a_metric_null" not in result["basic_mi"]
+    assert [call[0] for call in harness.estimator.calls] == [
+        "mi_null",
+        "mi_null",
+    ]
+    assert [call[4] for call in harness.estimator.calls] == [15, 16]
 
 
 def test_estimate_mi_and_cmi_dispatch_to_active_estimator():
