@@ -111,6 +111,51 @@ class _InformationComponentSelection:
     compute_upstream_unique_cmi: bool
 
 
+@dataclass(frozen=True)
+class _InformationScopeSelection:
+    """Boolean analysis-scope switches parsed from selection.scopes/views."""
+
+    per_neuron_analysis: bool
+    per_einet_analysis: bool
+    per_layer_analysis: bool
+
+
+@dataclass(frozen=True)
+class _InformationSignalVariantSelection:
+    """LDA and random-weight signal settings parsed from grouped/legacy config."""
+
+    compute_lda_weights: bool
+    lda_n_shuffles: int
+    random_weights_seed: int
+
+
+@dataclass(frozen=True)
+class _InformationLabelShuffleNullConfig:
+    """Label-shuffle null baseline settings parsed from grouped/legacy config."""
+
+    mi_null_shuffles: int
+    mi_null_seed: int
+    mi_null_components: set[str]
+
+
+@dataclass(frozen=True)
+class _InformationPidConfig:
+    """PID preprocessing settings parsed from grouped/legacy config."""
+
+    pid_binarize: bool
+    pid_binarize_method: str
+    pid_binarize_threshold: float
+
+
+@dataclass(frozen=True)
+class _InformationGaussianFisherConfig:
+    """Gaussian/Fisher proxy settings parsed from grouped config."""
+
+    gaussian_fisher_aggregation: str
+    gaussian_fisher_mi_transform: str
+    gaussian_fisher_eps: float
+
+
 def _get_config_value(obj: Any, key: str, default: Any = None) -> Any:
     """Get a config value via attribute or mapping access."""
     if obj is None:
@@ -176,6 +221,186 @@ def _parse_information_component_selection(
         ),
         compute_upstream_unique_cmi=bool(
             {"upstream_unique_cmi", "upstream_unique"}.intersection(components)
+        ),
+    )
+
+
+def _parse_information_scope_selection(
+    scopes_raw: Sequence[Any],
+) -> _InformationScopeSelection | None:
+    """Parse selection.scopes/views into enhanced analysis switches."""
+    if not scopes_raw:
+        return None
+
+    scopes = {
+        _normalize_config_token(scope) for scope in scopes_raw if str(scope).strip()
+    }
+    return _InformationScopeSelection(
+        per_neuron_analysis=bool({"neuron", "per_neuron"}.intersection(scopes)),
+        per_einet_analysis=bool({"einet", "per_einet"}.intersection(scopes)),
+        per_layer_analysis=bool({"layer", "per_layer"}.intersection(scopes)),
+    )
+
+
+def _build_information_signal_variant_selection(
+    *,
+    params: Any,
+    selection_cfg: Any,
+    compute_cfg: Any,
+    baselines_cfg: Any,
+) -> _InformationSignalVariantSelection:
+    """Build LDA/random-weight signal settings from grouped or legacy config."""
+    compute_lda_weights = bool(
+        _get_config_value(
+            compute_cfg,
+            "compute_lda_weights",
+            _get_config_value(params, "compute_lda_weights", False),
+        )
+    )
+    lda_n_shuffles = int(
+        _get_config_path(
+            baselines_cfg,
+            ("random_weights", "n_shuffles"),
+            _get_config_path(
+                baselines_cfg,
+                ("signal_shuffle", "n_shuffles"),
+                _get_config_value(params, "lda_n_shuffles", 0),
+            ),
+        )
+        or 0
+    )
+    random_weights_seed = int(
+        _get_config_path(
+            baselines_cfg,
+            ("random_weights", "seed"),
+            _get_config_path(
+                baselines_cfg,
+                ("signal_shuffle", "seed"),
+                _get_config_value(params, "random_weights_seed", 0),
+            ),
+        )
+        or 0
+    )
+
+    variants_raw = list(
+        _get_config_value(
+            selection_cfg,
+            "signal_variants",
+            _get_config_value(params, "signal_variants", []),
+        )
+        or []
+    )
+    if variants_raw:
+        variants = {
+            _normalize_config_token(variant)
+            for variant in variants_raw
+            if str(variant).strip()
+        }
+        want_lda = "lda" in variants
+        want_random = bool({"random", "shuffle", "shuffled"}.intersection(variants))
+        compute_lda_weights = bool(want_lda or want_random)
+        lda_n_shuffles = lda_n_shuffles if want_random else 0
+
+    return _InformationSignalVariantSelection(
+        compute_lda_weights=compute_lda_weights,
+        lda_n_shuffles=lda_n_shuffles,
+        random_weights_seed=random_weights_seed,
+    )
+
+
+def _build_information_label_shuffle_null_config(
+    *,
+    params: Any,
+    baselines_cfg: Any,
+) -> _InformationLabelShuffleNullConfig:
+    """Build label-shuffle null baseline settings from grouped or legacy config."""
+    mi_null_shuffles = int(
+        _get_config_path(
+            baselines_cfg,
+            ("label_shuffle_null", "n_shuffles"),
+            _get_config_value(params, "mi_null_shuffles", 0),
+        )
+        or 0
+    )
+    mi_null_seed = int(
+        _get_config_path(
+            baselines_cfg,
+            ("label_shuffle_null", "seed"),
+            _get_config_value(params, "mi_null_seed", 0),
+        )
+        or 0
+    )
+    null_components_raw = list(
+        _get_config_path(
+            baselines_cfg,
+            ("label_shuffle_null", "components"),
+            _get_config_value(params, "mi_null_components", ["basic"]),
+        )
+        or ["basic"]
+    )
+    mi_null_components = {
+        _normalize_config_token(component)
+        for component in null_components_raw
+        if str(component).strip()
+    } or {"basic"}
+
+    return _InformationLabelShuffleNullConfig(
+        mi_null_shuffles=mi_null_shuffles,
+        mi_null_seed=mi_null_seed,
+        mi_null_components=mi_null_components,
+    )
+
+
+def _build_information_pid_config(
+    *, params: Any, pid_cfg: Any
+) -> _InformationPidConfig:
+    """Build PID preprocessing settings from grouped or legacy config."""
+    return _InformationPidConfig(
+        pid_binarize=bool(
+            _get_config_value(
+                pid_cfg,
+                "binarize",
+                _get_config_value(params, "pid_binarize", False),
+            )
+        ),
+        pid_binarize_method=str(
+            _get_config_value(
+                pid_cfg,
+                "binarize_method",
+                _get_config_value(params, "pid_binarize_method", "median"),
+            )
+        ),
+        pid_binarize_threshold=float(
+            _get_config_value(
+                pid_cfg,
+                "binarize_threshold",
+                _get_config_value(params, "pid_binarize_threshold", 0.5),
+            )
+        ),
+    )
+
+
+def _build_information_gaussian_fisher_config(
+    *, gaussian_fisher_cfg: Any
+) -> _InformationGaussianFisherConfig:
+    """Build Gaussian/Fisher proxy settings from grouped config."""
+    return _InformationGaussianFisherConfig(
+        gaussian_fisher_aggregation=str(
+            _get_config_value(gaussian_fisher_cfg, "aggregation", "sum")
+        )
+        .strip()
+        .lower(),
+        gaussian_fisher_mi_transform=str(
+            _get_config_value(gaussian_fisher_cfg, "mi_transform", "half_log1p")
+        )
+        .strip()
+        .lower(),
+        gaussian_fisher_eps=float(
+            _get_config_value(
+                gaussian_fisher_cfg,
+                "ridge",
+                _get_config_value(gaussian_fisher_cfg, "eps", 1e-8),
+            )
         ),
     )
 
@@ -345,37 +570,13 @@ class InformationAnalyzer(
             )
         )
 
-        # Label-shuffle null baseline (finite-sample bias diagnostic)
-        self.mi_null_shuffles = int(
-            get_config_path(
-                baselines_cfg,
-                ("label_shuffle_null", "n_shuffles"),
-                get_config(params, "mi_null_shuffles", 0),
-            )
-            or 0
+        label_shuffle_null = _build_information_label_shuffle_null_config(
+            params=params,
+            baselines_cfg=baselines_cfg,
         )
-        self.mi_null_seed = int(
-            get_config_path(
-                baselines_cfg,
-                ("label_shuffle_null", "seed"),
-                get_config(params, "mi_null_seed", 0),
-            )
-            or 0
-        )
-
-        # Which metric groups should receive label-shuffle (*_null) baselines.
-        # Default: only basic MI terms involving C.
-        null_components_raw = list(
-            get_config_path(
-                baselines_cfg,
-                ("label_shuffle_null", "components"),
-                get_config(params, "mi_null_components", ["basic"]),
-            )
-            or ["basic"]
-        )
-        self.mi_null_components = {
-            normalize_token(x) for x in null_components_raw if str(x).strip()
-        } or {"basic"}
+        self.mi_null_shuffles = label_shuffle_null.mi_null_shuffles
+        self.mi_null_seed = label_shuffle_null.mi_null_seed
+        self.mi_null_components = label_shuffle_null.mi_null_components
 
         # ------------------------------------------------------------------
         # Legacy boolean selection (still supported).
@@ -389,23 +590,10 @@ class InformationAnalyzer(
         # Enabled via selection.components ("gaussian_fisher").
         self.compute_gaussian_fisher = False
 
-        self.pid_binarize = bool(
-            get_config(pid_cfg, "binarize", get_config(params, "pid_binarize", False))
-        )
-        self.pid_binarize_method = str(
-            get_config(
-                pid_cfg,
-                "binarize_method",
-                get_config(params, "pid_binarize_method", "median"),
-            )
-        )
-        self.pid_binarize_threshold = float(
-            get_config(
-                pid_cfg,
-                "binarize_threshold",
-                get_config(params, "pid_binarize_threshold", 0.5),
-            )
-        )
+        pid_config = _build_information_pid_config(params=params, pid_cfg=pid_cfg)
+        self.pid_binarize = pid_config.pid_binarize
+        self.pid_binarize_method = pid_config.pid_binarize_method
+        self.pid_binarize_threshold = pid_config.pid_binarize_threshold
 
         # Ablation-aligned extras (conditional MI terms and single-branch -> layer proxies)
         self.compute_ablation_aligned_mi = bool(
@@ -468,22 +656,16 @@ class InformationAnalyzer(
             )
             self.compute_pid = False
 
-        # Gaussian/Fisher proxy configuration (enabled via selection.components).
+        gaussian_fisher_config = _build_information_gaussian_fisher_config(
+            gaussian_fisher_cfg=gaussian_fisher_cfg
+        )
         self.gaussian_fisher_aggregation = (
-            str(get_config(gaussian_fisher_cfg, "aggregation", "sum")).strip().lower()
+            gaussian_fisher_config.gaussian_fisher_aggregation
         )
         self.gaussian_fisher_mi_transform = (
-            str(get_config(gaussian_fisher_cfg, "mi_transform", "half_log1p"))
-            .strip()
-            .lower()
+            gaussian_fisher_config.gaussian_fisher_mi_transform
         )
-        self.gaussian_fisher_eps = float(
-            get_config(
-                gaussian_fisher_cfg,
-                "ridge",
-                get_config(gaussian_fisher_cfg, "eps", 1e-8),
-            )
-        )
+        self.gaussian_fisher_eps = gaussian_fisher_config.gaussian_fisher_eps
 
         self.include_vinf = bool(
             get_config(
@@ -572,69 +754,21 @@ class InformationAnalyzer(
                 get_config(selection_cfg, "views", get_config(params, "views", []))
                 or []
             )
-        if scopes_raw:
-            scopes = {normalize_token(x) for x in scopes_raw if str(x).strip()}
-            self.per_neuron_analysis = bool(
-                {"neuron", "per_neuron"}.intersection(scopes)
-            )
-            self.per_einet_analysis = bool({"einet", "per_einet"}.intersection(scopes))
-            self.per_layer_analysis = bool({"layer", "per_layer"}.intersection(scopes))
+        scope_selection = _parse_information_scope_selection(scopes_raw)
+        if scope_selection is not None:
+            self.per_neuron_analysis = scope_selection.per_neuron_analysis
+            self.per_einet_analysis = scope_selection.per_einet_analysis
+            self.per_layer_analysis = scope_selection.per_layer_analysis
 
-        # Compute LDA-based versions of E, I, Vb
-        self.compute_lda_weights = bool(
-            get_config(
-                compute_cfg,
-                "compute_lda_weights",
-                get_config(params, "compute_lda_weights", False),
-            )
+        signal_variant_selection = _build_information_signal_variant_selection(
+            params=params,
+            selection_cfg=selection_cfg,
+            compute_cfg=compute_cfg,
+            baselines_cfg=baselines_cfg,
         )
-
-        # Number of random-weight baselines for LDA aggregation (*_sh) to generate.
-        #
-        # Preferred key: baselines.random_weights.n_shuffles
-        # Backward-compatible alias (legacy): baselines.signal_shuffle.n_shuffles
-        self.lda_n_shuffles = int(
-            get_config_path(
-                baselines_cfg,
-                ("random_weights", "n_shuffles"),
-                get_config_path(
-                    baselines_cfg,
-                    ("signal_shuffle", "n_shuffles"),
-                    get_config(params, "lda_n_shuffles", 0),
-                ),
-            )
-            or 0
-        )
-        self.random_weights_seed = int(
-            get_config_path(
-                baselines_cfg,
-                ("random_weights", "seed"),
-                get_config_path(
-                    baselines_cfg,
-                    ("signal_shuffle", "seed"),
-                    get_config(params, "random_weights_seed", 0),
-                ),
-            )
-            or 0
-        )
-
-        # Preferred list-based selection of signal variants.
-        variants_raw = list(
-            get_config(
-                selection_cfg,
-                "signal_variants",
-                get_config(params, "signal_variants", []),
-            )
-            or []
-        )
-        if variants_raw:
-            variants = {normalize_token(x) for x in variants_raw if str(x).strip()}
-            want_lda = "lda" in variants
-            want_random = bool({"random", "shuffle", "shuffled"}.intersection(variants))
-
-            # "random" is a baseline for the LDA aggregation; enable LDA when requested.
-            self.compute_lda_weights = bool(want_lda or want_random)
-            self.lda_n_shuffles = self.lda_n_shuffles if want_random else 0
+        self.compute_lda_weights = signal_variant_selection.compute_lda_weights
+        self.lda_n_shuffles = signal_variant_selection.lda_n_shuffles
+        self.random_weights_seed = signal_variant_selection.random_weights_seed
 
         if self.verbose:
             self.logger.setLevel(logging.DEBUG)

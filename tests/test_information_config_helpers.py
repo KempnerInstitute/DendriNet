@@ -4,10 +4,15 @@ from types import SimpleNamespace
 
 from dendritic_modeling.analysis.core.information import (
     _build_information_estimator_method_params,
+    _build_information_gaussian_fisher_config,
+    _build_information_label_shuffle_null_config,
+    _build_information_pid_config,
+    _build_information_signal_variant_selection,
     _get_config_path,
     _get_config_value,
     _normalize_config_token,
     _parse_information_component_selection,
+    _parse_information_scope_selection,
 )
 
 
@@ -115,6 +120,279 @@ def test_parse_information_component_selection_preserves_empty_list_semantics():
     assert blank_selection.compute_ablation_aligned_mi is False
     assert blank_selection.compute_layer_total_proxies is False
     assert blank_selection.compute_upstream_unique_cmi is False
+
+
+def test_parse_information_scope_selection_preserves_aliases():
+    selection = _parse_information_scope_selection(["neuron", "per_einet", "Per Layer"])
+
+    assert selection is not None
+    assert selection.per_neuron_analysis is True
+    assert selection.per_einet_analysis is True
+    assert selection.per_layer_analysis is True
+
+
+def test_parse_information_scope_selection_preserves_empty_list_semantics():
+    assert _parse_information_scope_selection([]) is None
+    assert _parse_information_scope_selection(()) is None
+
+    blank_selection = _parse_information_scope_selection([" ", ""])
+    assert blank_selection is not None
+    assert blank_selection.per_neuron_analysis is False
+    assert blank_selection.per_einet_analysis is False
+    assert blank_selection.per_layer_analysis is False
+
+
+def test_build_information_signal_variant_selection_prefers_grouped_config():
+    params = SimpleNamespace(
+        compute_lda_weights=False,
+        lda_n_shuffles=2,
+        random_weights_seed=3,
+    )
+
+    selection = _build_information_signal_variant_selection(
+        params=params,
+        selection_cfg=None,
+        compute_cfg={"compute_lda_weights": True},
+        baselines_cfg={"random_weights": {"n_shuffles": 7, "seed": 11}},
+    )
+
+    assert selection.compute_lda_weights is True
+    assert selection.lda_n_shuffles == 7
+    assert selection.random_weights_seed == 11
+
+
+def test_build_information_signal_variant_selection_uses_legacy_fallbacks():
+    params = SimpleNamespace(
+        compute_lda_weights=True,
+        lda_n_shuffles=2,
+        random_weights_seed=3,
+    )
+
+    legacy_selection = _build_information_signal_variant_selection(
+        params=params,
+        selection_cfg=None,
+        compute_cfg=None,
+        baselines_cfg=None,
+    )
+    signal_shuffle_selection = _build_information_signal_variant_selection(
+        params=params,
+        selection_cfg=None,
+        compute_cfg=None,
+        baselines_cfg={"signal_shuffle": {"n_shuffles": 5, "seed": 13}},
+    )
+
+    assert legacy_selection.compute_lda_weights is True
+    assert legacy_selection.lda_n_shuffles == 2
+    assert legacy_selection.random_weights_seed == 3
+    assert signal_shuffle_selection.compute_lda_weights is True
+    assert signal_shuffle_selection.lda_n_shuffles == 5
+    assert signal_shuffle_selection.random_weights_seed == 13
+
+
+def test_build_information_signal_variant_selection_applies_variant_overrides():
+    params = SimpleNamespace(
+        compute_lda_weights=True,
+        lda_n_shuffles=2,
+        random_weights_seed=3,
+    )
+    baselines_cfg = {"random_weights": {"n_shuffles": 7, "seed": 11}}
+
+    network_only = _build_information_signal_variant_selection(
+        params=params,
+        selection_cfg={"signal_variants": ["network"]},
+        compute_cfg=None,
+        baselines_cfg=baselines_cfg,
+    )
+    lda_only = _build_information_signal_variant_selection(
+        params=params,
+        selection_cfg={"signal_variants": ["lda"]},
+        compute_cfg=None,
+        baselines_cfg=baselines_cfg,
+    )
+    random_only = _build_information_signal_variant_selection(
+        params=params,
+        selection_cfg={"signal_variants": ["shuffle"]},
+        compute_cfg=None,
+        baselines_cfg=baselines_cfg,
+    )
+    blank_only = _build_information_signal_variant_selection(
+        params=params,
+        selection_cfg={"signal_variants": [" ", ""]},
+        compute_cfg=None,
+        baselines_cfg=baselines_cfg,
+    )
+
+    assert network_only.compute_lda_weights is False
+    assert network_only.lda_n_shuffles == 0
+    assert network_only.random_weights_seed == 11
+    assert lda_only.compute_lda_weights is True
+    assert lda_only.lda_n_shuffles == 0
+    assert lda_only.random_weights_seed == 11
+    assert random_only.compute_lda_weights is True
+    assert random_only.lda_n_shuffles == 7
+    assert random_only.random_weights_seed == 11
+    assert blank_only.compute_lda_weights is False
+    assert blank_only.lda_n_shuffles == 0
+    assert blank_only.random_weights_seed == 11
+
+
+def test_build_information_signal_variant_selection_preserves_empty_list_semantics():
+    params = SimpleNamespace(
+        compute_lda_weights=True,
+        signal_variants=[],
+        lda_n_shuffles=2,
+        random_weights_seed=3,
+    )
+
+    selection = _build_information_signal_variant_selection(
+        params=params,
+        selection_cfg={"signal_variants": []},
+        compute_cfg=None,
+        baselines_cfg=None,
+    )
+
+    assert selection.compute_lda_weights is True
+    assert selection.lda_n_shuffles == 2
+    assert selection.random_weights_seed == 3
+
+
+def test_build_information_label_shuffle_null_config_prefers_grouped_config():
+    params = SimpleNamespace(
+        mi_null_shuffles=2,
+        mi_null_seed=3,
+        mi_null_components=["basic"],
+    )
+
+    null_config = _build_information_label_shuffle_null_config(
+        params=params,
+        baselines_cfg={
+            "label_shuffle_null": {
+                "n_shuffles": 7,
+                "seed": 11,
+                "components": ["Pairwise MI", "conditional-mi"],
+            }
+        },
+    )
+
+    assert null_config.mi_null_shuffles == 7
+    assert null_config.mi_null_seed == 11
+    assert null_config.mi_null_components == {"pairwise_mi", "conditional_mi"}
+
+
+def test_build_information_label_shuffle_null_config_uses_legacy_fallbacks():
+    params = SimpleNamespace(
+        mi_null_shuffles=2,
+        mi_null_seed=3,
+        mi_null_components=["basic", "Layer Total"],
+    )
+
+    null_config = _build_information_label_shuffle_null_config(
+        params=params,
+        baselines_cfg=None,
+    )
+
+    assert null_config.mi_null_shuffles == 2
+    assert null_config.mi_null_seed == 3
+    assert null_config.mi_null_components == {"basic", "layer_total"}
+
+
+def test_build_information_label_shuffle_null_config_preserves_default_components():
+    missing_components = _build_information_label_shuffle_null_config(
+        params=SimpleNamespace(mi_null_shuffles=None, mi_null_seed=None),
+        baselines_cfg=None,
+    )
+    empty_components = _build_information_label_shuffle_null_config(
+        params=SimpleNamespace(mi_null_components=[]),
+        baselines_cfg=None,
+    )
+    blank_components = _build_information_label_shuffle_null_config(
+        params=SimpleNamespace(mi_null_components=[" ", ""]),
+        baselines_cfg=None,
+    )
+
+    assert missing_components.mi_null_shuffles == 0
+    assert missing_components.mi_null_seed == 0
+    assert missing_components.mi_null_components == {"basic"}
+    assert empty_components.mi_null_components == {"basic"}
+    assert blank_components.mi_null_components == {"basic"}
+
+
+def test_build_information_pid_config_prefers_grouped_config():
+    params = SimpleNamespace(
+        pid_binarize=False,
+        pid_binarize_method="legacy",
+        pid_binarize_threshold=0.25,
+    )
+
+    pid_config = _build_information_pid_config(
+        params=params,
+        pid_cfg={
+            "binarize": True,
+            "binarize_method": "quantile",
+            "binarize_threshold": 0.75,
+        },
+    )
+
+    assert pid_config.pid_binarize is True
+    assert pid_config.pid_binarize_method == "quantile"
+    assert pid_config.pid_binarize_threshold == 0.75
+
+
+def test_build_information_pid_config_uses_legacy_fallbacks():
+    params = SimpleNamespace(
+        pid_binarize=True,
+        pid_binarize_method="mean",
+        pid_binarize_threshold=0.6,
+    )
+
+    pid_config = _build_information_pid_config(params=params, pid_cfg=None)
+
+    assert pid_config.pid_binarize is True
+    assert pid_config.pid_binarize_method == "mean"
+    assert pid_config.pid_binarize_threshold == 0.6
+
+
+def test_build_information_pid_config_preserves_defaults():
+    pid_config = _build_information_pid_config(params=SimpleNamespace(), pid_cfg=None)
+
+    assert pid_config.pid_binarize is False
+    assert pid_config.pid_binarize_method == "median"
+    assert pid_config.pid_binarize_threshold == 0.5
+
+
+def test_build_information_gaussian_fisher_config_normalizes_grouped_config():
+    gaussian_fisher_config = _build_information_gaussian_fisher_config(
+        gaussian_fisher_cfg={
+            "aggregation": " Mean ",
+            "mi_transform": " Log1P ",
+            "ridge": 2e-6,
+            "eps": 3e-6,
+        }
+    )
+
+    assert gaussian_fisher_config.gaussian_fisher_aggregation == "mean"
+    assert gaussian_fisher_config.gaussian_fisher_mi_transform == "log1p"
+    assert gaussian_fisher_config.gaussian_fisher_eps == 2e-6
+
+
+def test_build_information_gaussian_fisher_config_uses_eps_fallback():
+    gaussian_fisher_config = _build_information_gaussian_fisher_config(
+        gaussian_fisher_cfg={"eps": 3e-6}
+    )
+
+    assert gaussian_fisher_config.gaussian_fisher_aggregation == "sum"
+    assert gaussian_fisher_config.gaussian_fisher_mi_transform == "half_log1p"
+    assert gaussian_fisher_config.gaussian_fisher_eps == 3e-6
+
+
+def test_build_information_gaussian_fisher_config_preserves_defaults():
+    gaussian_fisher_config = _build_information_gaussian_fisher_config(
+        gaussian_fisher_cfg=None
+    )
+
+    assert gaussian_fisher_config.gaussian_fisher_aggregation == "sum"
+    assert gaussian_fisher_config.gaussian_fisher_mi_transform == "half_log1p"
+    assert gaussian_fisher_config.gaussian_fisher_eps == 1e-8
 
 
 def test_build_information_estimator_method_params_decoder_prefers_nested_config():
