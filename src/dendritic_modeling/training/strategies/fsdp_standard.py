@@ -8,7 +8,7 @@ for scaling to very large models across multiple GPUs and nodes.
 import logging
 import os
 import time
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from typing import Any, Optional
 
 import torch
@@ -54,17 +54,24 @@ def _collect_unique_parameters(
     return unique_params
 
 
+def _iter_modules_by_class_name(
+    model: torch.nn.Module,
+    class_name: str,
+) -> Iterator[torch.nn.Module]:
+    """Yield modules whose concrete class name matches ``class_name``."""
+    for module in model.modules():
+        if module.__class__.__name__ == class_name:
+            yield module
+
+
 def _collect_module_parameters_by_class_name(
     model: torch.nn.Module,
     class_name: str,
     used_param_ids: set[int],
 ) -> list[torch.nn.Parameter]:
     params = []
-    for module in model.modules():
-        if module.__class__.__name__ == class_name:
-            params.extend(
-                _collect_unique_parameters(module.parameters(), used_param_ids)
-            )
+    for module in _iter_modules_by_class_name(model, class_name):
+        params.extend(_collect_unique_parameters(module.parameters(), used_param_ids))
     return params
 
 
@@ -83,11 +90,19 @@ def _collect_reactivation_parameters(
     used_param_ids: set[int],
 ) -> list[torch.nn.Parameter]:
     params = []
+    for candidates in _iter_reactivation_parameter_candidates(model):
+        params.extend(_collect_unique_parameters(candidates, used_param_ids))
+    return params
+
+
+def _iter_reactivation_parameter_candidates(
+    model: torch.nn.Module,
+) -> Iterator[tuple[torch.nn.Parameter, ...]]:
+    """Yield non-empty reactivation parameter candidate tuples in module order."""
     for module in model.modules():
         candidates = _reactivation_parameter_candidates(module)
         if candidates:
-            params.extend(_collect_unique_parameters(candidates, used_param_ids))
-    return params
+            yield candidates
 
 
 def _append_fsdp_param_group(

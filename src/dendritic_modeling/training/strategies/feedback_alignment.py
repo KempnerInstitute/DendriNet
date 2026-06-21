@@ -109,7 +109,7 @@ class FeedbackAlignmentTrainer(ForwardHookRemovalMixin, Trainer):
             seen_ids.add(id(mod))
             # BlockLinear.log_weight has shape (out_features, block_size),
             # but the effective input dimension is in_features = out * block_size
-            if isinstance(mod, BlockLinear) and pname == "log_weight":
+            if FeedbackAlignmentTrainer._is_blocklinear_log_weight(mod, pname):
                 out_dim = mod.out_features
                 in_dim = mod.in_features  # full input dimension
             else:
@@ -244,6 +244,11 @@ class FeedbackAlignmentTrainer(ForwardHookRemovalMixin, Trainer):
     # Gradient assignment helpers
     # ------------------------------------------------------------------
     @staticmethod
+    def _is_blocklinear_log_weight(mod: nn.Module, pname: str) -> bool:
+        """Return whether a parameter name refers to BlockLinear log-weights."""
+        return isinstance(mod, BlockLinear) and pname == "log_weight"
+
+    @staticmethod
     def _assign_grad(mod: nn.Module, pname: str, grad_dense: torch.Tensor) -> None:
         """Assign a dense gradient to a parameter, handling BlockLinear specially.
 
@@ -251,7 +256,7 @@ class FeedbackAlignmentTrainer(ForwardHookRemovalMixin, Trainer):
         block-diagonal entries from the dense gradient (shape [out, in_features]).
         """
         param = getattr(mod, pname)
-        if isinstance(mod, BlockLinear) and pname == "log_weight":
+        if FeedbackAlignmentTrainer._is_blocklinear_log_weight(mod, pname):
             # grad_dense is (out_features, in_features)
             # param is (out_features, block_size)
             # Output i uses inputs [i*bs : (i+1)*bs], so extract those entries
@@ -265,6 +270,17 @@ class FeedbackAlignmentTrainer(ForwardHookRemovalMixin, Trainer):
 
         g = grad_w.to(param.dtype)
         param.grad = g if param.grad is None else param.grad + g
+
+    @staticmethod
+    def _assign_linear_bias_grad(mod: nn.Module, error: torch.Tensor) -> None:
+        """Assign a summed bias gradient for Linear modules that own a bias."""
+        if not (isinstance(mod, nn.Linear) and mod.bias is not None):
+            return
+
+        grad_bias = error.sum(0).to(mod.bias.dtype)
+        mod.bias.grad = (
+            grad_bias if mod.bias.grad is None else mod.bias.grad + grad_bias
+        )
 
     # ------------------------------------------------------------------
     # FA gradient assignment
@@ -296,14 +312,7 @@ class FeedbackAlignmentTrainer(ForwardHookRemovalMixin, Trainer):
             grad_dense = e.t() @ h_in
             self._assign_grad(mod, pname, grad_dense)
 
-            # bias gradient for nn.Linear
-            if isinstance(mod, nn.Linear) and mod.bias is not None:
-                gb = e.sum(0)
-                mod.bias.grad = (
-                    gb.to(mod.bias.dtype)
-                    if mod.bias.grad is None
-                    else mod.bias.grad + gb.to(mod.bias.dtype)
-                )
+            self._assign_linear_bias_grad(mod, e)
 
             # propagate error to previous layer via random B
             if idx > 0:
@@ -340,13 +349,7 @@ class FeedbackAlignmentTrainer(ForwardHookRemovalMixin, Trainer):
             grad_dense = e_local.t() @ h_in
             self._assign_grad(mod, pname, grad_dense)
 
-            if isinstance(mod, nn.Linear) and mod.bias is not None:
-                gb = e_local.sum(0)
-                mod.bias.grad = (
-                    gb.to(mod.bias.dtype)
-                    if mod.bias.grad is None
-                    else mod.bias.grad + gb.to(mod.bias.dtype)
-                )
+            self._assign_linear_bias_grad(mod, e_local)
 
 
 class ShuntingFeedbackAlignmentTrainer(FeedbackAlignmentTrainer):
@@ -555,13 +558,7 @@ class ShuntingFeedbackAlignmentTrainer(FeedbackAlignmentTrainer):
             grad_dense = e_mod.t() @ h_in
             self._assign_grad(mod, pname, grad_dense)
 
-            if isinstance(mod, nn.Linear) and mod.bias is not None:
-                gb = e_mod.sum(0)
-                mod.bias.grad = (
-                    gb.to(mod.bias.dtype)
-                    if mod.bias.grad is None
-                    else mod.bias.grad + gb.to(mod.bias.dtype)
-                )
+            self._assign_linear_bias_grad(mod, e_mod)
 
             if idx > 0:
                 e = e @ self._B_fa[idx].t()
@@ -594,10 +591,4 @@ class ShuntingFeedbackAlignmentTrainer(FeedbackAlignmentTrainer):
             grad_dense = e_local.t() @ h_in
             self._assign_grad(mod, pname, grad_dense)
 
-            if isinstance(mod, nn.Linear) and mod.bias is not None:
-                gb = e_local.sum(0)
-                mod.bias.grad = (
-                    gb.to(mod.bias.dtype)
-                    if mod.bias.grad is None
-                    else mod.bias.grad + gb.to(mod.bias.dtype)
-                )
+            self._assign_linear_bias_grad(mod, e_local)

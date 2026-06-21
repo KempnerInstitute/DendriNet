@@ -54,6 +54,16 @@ def _resolve_fsdp_dtype(value: Any, *, field_name: str) -> torch.dtype:
     return _FSDP_DTYPE_ALIASES[key]
 
 
+def _is_dendritic_fsdp_module(module: torch.nn.Module) -> bool:
+    """Return whether a module should be treated as an FSDP dendritic unit."""
+    return isinstance(module, (DendriticBranchLayer, ExcitationInhibitionLayer))
+
+
+def _is_large_linear_checkpoint_candidate(module: torch.nn.Module) -> bool:
+    """Return whether a Linear module meets the checkpointing size rule."""
+    return isinstance(module, torch.nn.Linear) and module.in_features > 1000
+
+
 def create_fsdp_wrap_policy(min_num_params: int = 1e6):
     """
     Create an auto-wrap policy for FullyShardedDataParallel that intelligently wraps dendritic layers.
@@ -67,7 +77,7 @@ def create_fsdp_wrap_policy(min_num_params: int = 1e6):
 
     def dendritic_auto_wrap_policy(module, recurse, nonwrapped_numel):
         # Always wrap these large layers
-        if isinstance(module, (DendriticBranchLayer, ExcitationInhibitionLayer)):
+        if _is_dendritic_fsdp_module(module):
             return True
 
         # Wrap based on parameter count
@@ -303,10 +313,10 @@ def _apply_gradient_checkpointing(model: torch.nn.Module):
     """
     # Apply checkpointing to large linear layers and dendritic components
     for name, module in model.named_modules():
-        if isinstance(module, (DendriticBranchLayer, ExcitationInhibitionLayer)):
+        if _is_dendritic_fsdp_module(module):
             _checkpoint_module_forward(module)
             logger.debug(f"Applied gradient checkpointing to {name}")
-        elif isinstance(module, torch.nn.Linear) and module.in_features > 1000:
+        elif _is_large_linear_checkpoint_candidate(module):
             _checkpoint_module_forward(module)
             logger.debug(f"Applied gradient checkpointing to large linear layer {name}")
 

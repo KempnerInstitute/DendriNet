@@ -1,8 +1,12 @@
 """Focused tests for feedback-alignment hook lifecycle helpers."""
 
 import pytest
+import torch
 from torch import nn
 
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.blocklinear import (
+    BlockLinear,
+)
 from dendritic_modeling.training.strategies.feedback_alignment import (
     FeedbackAlignmentTrainer,
     ShuntingFeedbackAlignmentTrainer,
@@ -46,6 +50,37 @@ def test_feedback_alignment_collect_trainable_layers_preserves_linear_order():
         (first, "weight", 4, 3),
         (second, "weight", 2, 4),
     ]
+
+
+def test_feedback_alignment_blocklinear_log_weight_predicate():
+    block = BlockLinear(in_features=4, out_features=2)
+    linear = nn.Linear(4, 2)
+
+    assert FeedbackAlignmentTrainer._is_blocklinear_log_weight(block, "log_weight")
+    assert not FeedbackAlignmentTrainer._is_blocklinear_log_weight(block, "weight")
+    assert not FeedbackAlignmentTrainer._is_blocklinear_log_weight(linear, "log_weight")
+
+
+def test_feedback_alignment_assign_linear_bias_grad_accumulates_with_bias_dtype():
+    layer = nn.Linear(2, 3, bias=True).double()
+    layer.bias.grad = torch.ones_like(layer.bias)
+    error = torch.tensor([[1.0, 2.0, 3.0], [0.5, -1.0, 4.0]], dtype=torch.float32)
+
+    FeedbackAlignmentTrainer._assign_linear_bias_grad(layer, error)
+
+    expected = torch.tensor([2.5, 2.0, 8.0], dtype=torch.float64)
+    torch.testing.assert_close(layer.bias.grad, expected)
+
+
+def test_feedback_alignment_assign_linear_bias_grad_ignores_modules_without_bias():
+    no_bias = nn.Linear(2, 3, bias=False)
+    relu = nn.ReLU()
+    error = torch.ones(2, 3)
+
+    FeedbackAlignmentTrainer._assign_linear_bias_grad(no_bias, error)
+    FeedbackAlignmentTrainer._assign_linear_bias_grad(relu, error)
+
+    assert no_bias.bias is None
 
 
 def test_shunting_feedback_hooks_removed_after_voltage_registration_failure(

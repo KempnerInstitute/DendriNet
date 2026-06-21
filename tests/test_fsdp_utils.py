@@ -45,6 +45,8 @@ from dendritic_modeling.scripts.training.train_experiments_fsdp import (
 )
 from dendritic_modeling.training.fsdp_utils import (
     _apply_gradient_checkpointing,
+    _is_dendritic_fsdp_module,
+    _is_large_linear_checkpoint_candidate,
     create_fsdp_wrap_policy,
     estimate_memory_requirements,
     get_fsdp_config,
@@ -53,7 +55,11 @@ from dendritic_modeling.training.fsdp_utils import (
     save_fsdp_checkpoint,
     wrap_model_with_fsdp,
 )
-from dendritic_modeling.training.strategies.fsdp_standard import FSDPTrainer
+from dendritic_modeling.training.strategies.fsdp_standard import (
+    FSDPTrainer,
+    _iter_modules_by_class_name,
+    _iter_reactivation_parameter_candidates,
+)
 
 
 def test_fsdp_dataloader_kwargs_from_common_config():
@@ -727,6 +733,34 @@ def test_fsdp_optimizer_split_groups_assign_each_parameter_once():
     assert lr_by_param_id[id(model.other.weight)] == 0.05
 
 
+def test_fsdp_module_class_name_iterator_preserves_concrete_name_rule():
+    class TopKLinear(nn.Module):
+        pass
+
+    class DerivedTopKLinear(TopKLinear):
+        pass
+
+    first = TopKLinear()
+    derived = DerivedTopKLinear()
+    second = TopKLinear()
+    model = nn.Sequential(first, derived, nn.Sequential(second))
+
+    assert list(_iter_modules_by_class_name(model, "TopKLinear")) == [
+        first,
+        second,
+    ]
+
+
+def test_fsdp_reactivation_candidate_iterator_preserves_module_order():
+    first = ParametricTanh(2)
+    second = ParametricTanh(3)
+    model = nn.Sequential(first, nn.ReLU(), nn.Sequential(second))
+
+    candidates = list(_iter_reactivation_parameter_candidates(model))
+
+    assert candidates == [(first.log_m, first.b), (second.log_m, second.b)]
+
+
 def test_create_fsdp_trainer_preserves_rank0_custom_kwargs(monkeypatch):
     """FSDP trainer construction should preserve rank-0 custom kwargs."""
     calls = []
@@ -1192,6 +1226,22 @@ class MockExcitationInhibitionLayer(nn.Module):
 
 class TestCreateFSDPWrapPolicy:
     """Test create_fsdp_wrap_policy function."""
+
+    def test_fsdp_dendritic_module_predicate_preserves_isinstance_rule(self):
+        from dendritic_modeling.networks.architectures.excitation_inhibition import (
+            DendriticBranchLayer,
+        )
+
+        dendritic_layer = DendriticBranchLayer.__new__(DendriticBranchLayer)
+
+        assert _is_dendritic_fsdp_module(dendritic_layer)
+        assert not _is_dendritic_fsdp_module(MockDendriticBranchLayer())
+        assert not _is_dendritic_fsdp_module(nn.Linear(2, 2))
+
+    def test_large_linear_checkpoint_candidate_preserves_threshold(self):
+        assert not _is_large_linear_checkpoint_candidate(nn.Linear(1000, 2))
+        assert _is_large_linear_checkpoint_candidate(nn.Linear(1001, 2))
+        assert not _is_large_linear_checkpoint_candidate(nn.ReLU())
 
     def test_wrap_policy_basic(self):
         """Test basic wrap policy creation."""

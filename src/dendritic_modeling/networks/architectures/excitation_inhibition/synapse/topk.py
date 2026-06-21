@@ -6,6 +6,7 @@ strongest synaptic weights for each output neuron, simulating selective
 synaptic connectivity in dendritic computation.
 """
 
+from collections.abc import Callable, Iterator
 from math import log
 from typing import Optional
 
@@ -33,6 +34,16 @@ TOPK_INIT_METHODS = {
 }
 
 
+def _iter_recurrent_weight_cache_setters(
+    module: nn.Module,
+) -> Iterator[Callable[[bool], None]]:
+    """Yield recurrent-cache setter callables in module traversal order."""
+    for sub in module.modules():
+        setter = getattr(sub, "set_recurrent_weight_cache", None)
+        if callable(setter):
+            yield setter
+
+
 def apply_recurrent_weight_cache(module: nn.Module, enabled: bool) -> None:
     """Toggle per-forward recurrent TopK caching on every TopK layer in a tree.
 
@@ -45,10 +56,8 @@ def apply_recurrent_weight_cache(module: nn.Module, enabled: bool) -> None:
     dynamic grad scaling) ignore the request internally, so this is always safe
     to call on a whole network.
     """
-    for sub in module.modules():
-        setter = getattr(sub, "set_recurrent_weight_cache", None)
-        if callable(setter):
-            setter(enabled)
+    for setter in _iter_recurrent_weight_cache_setters(module):
+        setter(enabled)
 
 
 class TopKLinear(nn.Module):
