@@ -37,6 +37,7 @@ from dendritic_modeling.datasets.standard_datasets import (
     _load_torchvision_train_test_pair,
     _materialize_flattened_tensor_dataset,
     _maybe_apply_label_noise_to_triplet,
+    _normalized_imagenet_loader_backend,
     _normalized_imagenet_preset_name,
     _resolve_imagefolder_roots,
     _resolve_imagenet_data_location,
@@ -535,6 +536,34 @@ class TestRealDatasets(unittest.TestCase):
         self.assertIsNone(train_root)
         self.assertIsNone(val_root)
 
+    def test_resolve_imagenet_data_location_can_force_imagefolder(self):
+        os.makedirs(os.path.join(self.temp_dir, "train", "class_a"))
+        os.makedirs(os.path.join(self.temp_dir, "val", "class_a"))
+        with open(os.path.join(self.temp_dir, "meta.bin"), "wb") as f:
+            f.write(b"meta")
+
+        imagenet_dir, train_root, val_root = _resolve_imagenet_data_location(
+            self.temp_dir,
+            loader_backend="imagefolder",
+        )
+
+        self.assertEqual(imagenet_dir, self.temp_dir)
+        self.assertEqual(train_root, os.path.join(self.temp_dir, "train"))
+        self.assertEqual(val_root, os.path.join(self.temp_dir, "val"))
+
+    def test_resolve_imagenet_data_location_can_force_torchvision(self):
+        os.makedirs(os.path.join(self.temp_dir, "train", "class_a"))
+        os.makedirs(os.path.join(self.temp_dir, "val", "class_a"))
+
+        imagenet_dir, train_root, val_root = _resolve_imagenet_data_location(
+            self.temp_dir,
+            loader_backend="torchvision",
+        )
+
+        self.assertEqual(imagenet_dir, self.temp_dir)
+        self.assertIsNone(train_root)
+        self.assertIsNone(val_root)
+
     def test_resolve_imagenet_data_location_falls_back_to_datasets_subdir(self):
         imagenet_dir = os.path.join(self.temp_dir, "datasets", "imagenet")
         os.makedirs(os.path.join(imagenet_dir, "train", "class_a"))
@@ -615,6 +644,16 @@ class TestRealDatasets(unittest.TestCase):
             _normalized_imagenet_preset_name("legacy-resize"), "legacy_resize"
         )
         self.assertEqual(_normalized_imagenet_preset_name(None), "legacy_resize")
+
+    def test_normalized_imagenet_loader_backend_normalizes_aliases(self):
+        self.assertEqual(_normalized_imagenet_loader_backend(None), "auto")
+        self.assertEqual(_normalized_imagenet_loader_backend("official"), "torchvision")
+        self.assertEqual(
+            _normalized_imagenet_loader_backend("image-folder"),
+            "imagefolder",
+        )
+        with self.assertRaisesRegex(ValueError, "loader_backend"):
+            _normalized_imagenet_loader_backend("synthetic")
 
     def test_build_imagenet_transforms_legacy_uses_shared_resize_transform(self):
         train_transform, eval_transform = _build_imagenet_transforms(
@@ -743,6 +782,24 @@ class TestRealDatasets(unittest.TestCase):
         )
         self.assertEqual(mock_imagenet.call_count, 2)
         mock_imagefolder.assert_not_called()
+
+    @patch("dendritic_modeling.datasets.standard_datasets.datasets.ImageNet")
+    @patch("dendritic_modeling.datasets.standard_datasets.datasets.ImageFolder")
+    def test_load_imagenet_dataset_triplet_forced_imagefolder_requires_roots(
+        self, mock_imagefolder, mock_imagenet
+    ):
+        with self.assertRaisesRegex(RuntimeError, "imagefolder"):
+            _load_imagenet_dataset_triplet(
+                imagenet_dir="/imagenet",
+                train_root=None,
+                val_root=None,
+                train_transform=Mock(),
+                eval_transform=Mock(),
+                loader_backend="imagefolder",
+            )
+
+        mock_imagefolder.assert_not_called()
+        mock_imagenet.assert_not_called()
 
     def test_materialize_flattened_tensor_dataset_flattens_and_caps_samples(self):
         images = torch.arange(24, dtype=torch.float32).reshape(4, 2, 3)

@@ -387,6 +387,27 @@ def _resolve_imagefolder_roots(root: str | None) -> tuple[str | None, str | None
     return None, None
 
 
+def _normalized_imagenet_loader_backend(loader_backend: str | None) -> str:
+    """Normalize ImageNet loader backend aliases."""
+    backend = str(loader_backend or "auto").strip().lower().replace("-", "_")
+    aliases = {
+        "auto": "auto",
+        "default": "auto",
+        "torchvision": "torchvision",
+        "imagenet": "torchvision",
+        "official": "torchvision",
+        "image_folder": "imagefolder",
+        "imagefolder": "imagefolder",
+        "folder": "imagefolder",
+    }
+    if backend not in aliases:
+        raise ValueError(
+            "Unknown ImageNet loader_backend "
+            f"{loader_backend!r}; expected 'auto', 'torchvision', or 'imagefolder'."
+        )
+    return aliases[backend]
+
+
 def _is_official_imagenet_root(root: str | None) -> bool:
     """Return True when a root looks like a torchvision ImageNet root."""
     if not root or not os.path.isdir(root):
@@ -421,23 +442,38 @@ def _apply_imagenet_local_override(task_data_path: str | None) -> str | None:
 
 def _resolve_imagenet_data_location(
     task_data_path: str | None,
+    loader_backend: str | None = "auto",
 ) -> tuple[str, str | None, str | None]:
     """Resolve ImageNet root plus optional ImageFolder train/val roots."""
+    backend = _normalized_imagenet_loader_backend(loader_backend)
     task_data_path = _apply_imagenet_local_override(task_data_path)
 
     train_root, val_root = None, None
-    if _is_official_imagenet_root(task_data_path):
+    if backend == "torchvision" and task_data_path and task_data_path.strip():
         return str(task_data_path), train_root, val_root
 
-    train_root, val_root = _resolve_imagefolder_roots(task_data_path)
+    if backend == "imagefolder":
+        train_root, val_root = _resolve_imagefolder_roots(task_data_path)
+        if train_root is not None:
+            return str(task_data_path), train_root, val_root
+    elif _is_official_imagenet_root(task_data_path):
+        return str(task_data_path), train_root, val_root
+
+    if backend != "torchvision":
+        train_root, val_root = _resolve_imagefolder_roots(task_data_path)
     if train_root is not None:
         return str(task_data_path), train_root, val_root
 
     imagenet_dir = get_data_directory("imagenet", task_data_path)
+    if backend == "imagefolder":
+        train_root, val_root = _resolve_imagefolder_roots(imagenet_dir)
+        return imagenet_dir, train_root, val_root
+
     if _is_official_imagenet_root(imagenet_dir):
         return imagenet_dir, None, None
 
-    train_root, val_root = _resolve_imagefolder_roots(imagenet_dir)
+    if backend != "torchvision":
+        train_root, val_root = _resolve_imagefolder_roots(imagenet_dir)
     return imagenet_dir, train_root, val_root
 
 
@@ -592,8 +628,15 @@ def _load_imagenet_dataset_triplet(
     val_root: str | None,
     train_transform,
     eval_transform,
+    loader_backend: str | None = "auto",
 ) -> tuple[Dataset, Dataset, Dataset]:
     """Load ImageNet train/eval/test datasets from ImageFolder or ImageNet roots."""
+    backend = _normalized_imagenet_loader_backend(loader_backend)
+    if backend == "imagefolder" and train_root is None:
+        raise RuntimeError(
+            "ImageNet loader_backend='imagefolder' requires train/val "
+            "class-directory roots."
+        )
     if train_root is not None:
         _ds_logger.info(
             "Loading ImageNet-style folder tree via ImageFolder: train=%s val=%s",
@@ -1536,6 +1579,7 @@ def load_imagenet_as_datasets(
     split_seed: int = 0,
     transform_preset: str = "legacy_resize",
     allow_flatten_materialize: bool = False,
+    loader_backend: str = "auto",
 ):
     """
     Load the ImageNet dataset and split into train, validation, and test sets.
@@ -1557,6 +1601,9 @@ def load_imagenet_as_datasets(
             appropriate for pretrained torchvision backbones.
         allow_flatten_materialize (bool): Explicit opt-in for the memory-heavy
             ImageNet flatten path.
+        loader_backend (str): "auto" preserves the historical official-root
+            preference; "imagefolder" forces train/val class-directory loading;
+            "torchvision" forces torchvision.datasets.ImageNet.
 
     Returns:
         tuple: (train_dataset, valid_dataset, test_dataset)
@@ -1570,7 +1617,11 @@ def load_imagenet_as_datasets(
             "for an explicit debugging-only opt-in."
         )
 
-    imagenet_dir, train_root, val_root = _resolve_imagenet_data_location(task_data_path)
+    loader_backend = _normalized_imagenet_loader_backend(loader_backend)
+    imagenet_dir, train_root, val_root = _resolve_imagenet_data_location(
+        task_data_path,
+        loader_backend=loader_backend,
+    )
 
     train_transform, eval_transform = _build_imagenet_transforms(
         normalize=normalize,
@@ -1585,6 +1636,7 @@ def load_imagenet_as_datasets(
                 val_root=val_root,
                 train_transform=train_transform,
                 eval_transform=eval_transform,
+                loader_backend=loader_backend,
             )
         )
     except Exception as e:
@@ -1794,6 +1846,7 @@ def get_unified_datasets(task_cfg):
             split_seed=split_seed,
             transform_preset=p.get("transform_preset", "legacy_resize"),
             allow_flatten_materialize=bool(p.get("allow_flatten_materialize", False)),
+            loader_backend=p.get("loader_backend", "auto"),
         )
     elif dataset_name == "mnist_modulo10":
         data = load_mnist_modulo10(

@@ -2416,6 +2416,39 @@ class TestAnalysisManager(unittest.TestCase):
             self.assertEqual(runner.analyzer_attr, spec.attribute_name)
             self.assertEqual(runner.save_subdir, spec.save_subdir)
 
+    def test_model_only_analysis_path_preserves_call_kwargs(self):
+        """Shared model-only runner should preserve analyzer call arguments."""
+        config = AnalysisConfig()
+        config.performance_analysis.enabled = False
+        config.jacobian_spectrum_analysis.enabled = True
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manager = AnalysisManager(
+                model=self.model,
+                data=self.data,
+                analysis_config=config,
+                save_root=tmpdir,
+            )
+
+            with patch.object(manager, "jacobian_spectrum_analyzer") as mock_analyzer:
+                manager._run_model_only_analysis(
+                    registry_name="jacobian_spectrum",
+                    filename="final_eval",
+                    training=False,
+                    start_message="Starting jacobian spectrum analysis...",
+                    complete_message="Jacobian spectrum analysis completed successfully",
+                )
+
+            mock_analyzer.analyze.assert_called_once()
+            call_kwargs = mock_analyzer.analyze.call_args.kwargs
+            self.assertIs(call_kwargs["model"], self.model)
+            self.assertEqual(call_kwargs["device"], "cpu")
+            self.assertEqual(
+                call_kwargs["save_path"],
+                str(Path(tmpdir) / "jacobian_spectrum"),
+            )
+            self.assertEqual(call_kwargs["filename"], "final_eval")
+
     def test_run_analysis_preserves_orchestration_order(self):
         """Top-level analysis orchestration should preserve the established order."""
         from dendritic_modeling.analysis.managers.analysis_manager import (

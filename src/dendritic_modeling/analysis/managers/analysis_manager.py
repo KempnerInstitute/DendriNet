@@ -512,66 +512,64 @@ class AnalysisManager:
         )
         self.logger.info("Routing analysis completed successfully")
 
+    def _run_model_only_analysis(
+        self,
+        *,
+        registry_name: str,
+        filename: str,
+        training: bool,
+        start_message: str,
+        complete_message: str,
+    ) -> None:
+        """Run an analyzer with the common model/device/save-path signature."""
+        if not (
+            self._should_run_config(self._analysis_config(registry_name), training)
+            and self._has_analysis_analyzer(registry_name)
+        ):
+            return
+
+        self.logger.info(start_message)
+        self._analysis_analyzer(registry_name).analyze(
+            model=self.model,
+            device=self.device,
+            save_path=self._analysis_save_path(registry_name),
+            filename=filename,
+        )
+        self.logger.info(complete_message)
+
     def _run_inhibitory_specialization_analysis(
         self, *, filename: str, training: bool
     ) -> None:
         """Run inhibitory specialization analysis."""
-        if not (
-            self._should_run_config(
-                self._analysis_config("inhibitory_specialization"), training
-            )
-            and self._has_analysis_analyzer("inhibitory_specialization")
-        ):
-            return
-
-        self.logger.info("Starting inhibitory specialization analysis...")
-        self._analysis_analyzer("inhibitory_specialization").analyze(
-            model=self.model,
-            device=self.device,
-            save_path=self._analysis_save_path("inhibitory_specialization"),
+        self._run_model_only_analysis(
+            registry_name="inhibitory_specialization",
             filename=filename,
+            training=training,
+            start_message="Starting inhibitory specialization analysis...",
+            complete_message="Inhibitory specialization analysis completed successfully",
         )
-        self.logger.info("Inhibitory specialization analysis completed successfully")
 
     def _run_jacobian_spectrum_analysis(self, *, filename: str, training: bool) -> None:
         """Run jacobian spectrum analysis."""
-        if not (
-            self._should_run_config(
-                self._analysis_config("jacobian_spectrum"), training
-            )
-            and self._has_analysis_analyzer("jacobian_spectrum")
-        ):
-            return
-
-        self.logger.info("Starting jacobian spectrum analysis...")
-        self._analysis_analyzer("jacobian_spectrum").analyze(
-            model=self.model,
-            device=self.device,
-            save_path=self._analysis_save_path("jacobian_spectrum"),
+        self._run_model_only_analysis(
+            registry_name="jacobian_spectrum",
             filename=filename,
+            training=training,
+            start_message="Starting jacobian spectrum analysis...",
+            complete_message="Jacobian spectrum analysis completed successfully",
         )
-        self.logger.info("Jacobian spectrum analysis completed successfully")
 
     def _run_dendritic_timetraces_analysis(
         self, *, filename: str, training: bool
     ) -> None:
         """Run dendritic timetraces analysis."""
-        if not (
-            self._should_run_config(
-                self._analysis_config("dendritic_timetraces"), training
-            )
-            and self._has_analysis_analyzer("dendritic_timetraces")
-        ):
-            return
-
-        self.logger.info("Starting dendritic timetraces analysis...")
-        self._analysis_analyzer("dendritic_timetraces").analyze(
-            model=self.model,
-            device=self.device,
-            save_path=self._analysis_save_path("dendritic_timetraces"),
+        self._run_model_only_analysis(
+            registry_name="dendritic_timetraces",
             filename=filename,
+            training=training,
+            start_message="Starting dendritic timetraces analysis...",
+            complete_message="Dendritic timetraces analysis completed successfully",
         )
-        self.logger.info("Dendritic timetraces analysis completed successfully")
 
     def _run_spike_train_analysis(
         self, *, filename: str, training: bool, runtime: object | None

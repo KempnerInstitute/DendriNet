@@ -198,6 +198,7 @@ class DatasetParamsConfig(BaseConfig):
     )
     imagenet: dict[str, Any] = field(
         default_factory=lambda: {
+            "loader_backend": "auto",
             "train_samples_per_class": None,
             "val_samples_per_class": None,
         }

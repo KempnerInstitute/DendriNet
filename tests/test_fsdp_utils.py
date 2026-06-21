@@ -20,13 +20,16 @@ from dendritic_modeling.networks.architectures.classical.autoencoder import (
 )
 from dendritic_modeling.scripts.training.train_experiments_fsdp import (
     _build_fsdp_runtime_configs,
+    _create_fsdp_trainer,
     _dataloader_kwargs_from_common,
     _encode_rank0_analysis_datasets,
     _maybe_calibrate_fsdp_data_driven_reactivation,
     _print_rank0_model_summary,
     _requested_data_driven_reactivation_policies,
     _run_final_analysis_on_plain_model,
+    _save_final_fsdp_checkpoint_and_run_analysis,
     _save_fsdp_run_config,
+    _save_rank0_training_results,
     _setup_rank0_analysis_manager,
     _setup_rank0_run_directory,
 )
@@ -506,6 +509,123 @@ def test_build_fsdp_runtime_configs_preserves_defaults_and_slot_fsdp_config(
     ]
 
 
+def test_create_fsdp_trainer_preserves_rank0_custom_kwargs(monkeypatch):
+    """FSDP trainer construction should preserve rank-0 custom kwargs."""
+    calls = []
+
+    class FSDPTrainerStub:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+            calls.append(kwargs)
+
+    fsdp_config = object()
+    optimizer_config = object()
+    analysis_manager = object()
+    wandb_run = object()
+    train_common = SimpleNamespace(
+        epochs=12,
+        save_every_n_epochs=3,
+        loss_function="mse",
+        grad_clip_value=1.5,
+        use_amp=True,
+        early_stopping=True,
+        patience=4,
+        print_every=2,
+        plot_losses=True,
+    )
+    config = SimpleNamespace(experiment=SimpleNamespace(seed="42"))
+
+    monkeypatch.setattr(fsdp_script, "FSDPTrainer", FSDPTrainerStub)
+
+    trainer = _create_fsdp_trainer(
+        rank=0,
+        world_size=8,
+        fsdp_config=fsdp_config,
+        run_save_path="/tmp/run",
+        train_common=train_common,
+        optimizer_config=optimizer_config,
+        analysis_manager=analysis_manager,
+        wandb_run=wandb_run,
+        config=config,
+    )
+
+    assert isinstance(trainer, FSDPTrainerStub)
+    assert trainer.kwargs == {
+        "rank": 0,
+        "world_size": 8,
+        "fsdp_config": fsdp_config,
+        "checkpoint_dir": "/tmp/run",
+        "save_every_n_epochs": 3,
+        "optimizer_config": optimizer_config,
+        "analysis_manager": analysis_manager,
+        "wandb_run": wandb_run,
+        "epochs": 12,
+        "loss_function": "mse",
+        "grad_clip_value": 1.5,
+        "use_amp": True,
+        "early_stopping": True,
+        "patience": 4,
+        "print_every": 2,
+        "save_checkpoints": True,
+        "plot_losses": True,
+        "save_path": "/tmp/run",
+        "seed": 42,
+    }
+    assert calls == [trainer.kwargs]
+
+
+def test_create_fsdp_trainer_preserves_non_rank0_defaults(monkeypatch):
+    """FSDP trainer construction should keep defaults and rank-gated paths."""
+    calls = []
+
+    class FSDPTrainerStub:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+            calls.append(kwargs)
+
+    fsdp_config = object()
+    optimizer_config = object()
+    train_common = SimpleNamespace(epochs=5)
+    config = SimpleNamespace(experiment=SimpleNamespace(seed=9))
+
+    monkeypatch.setattr(fsdp_script, "FSDPTrainer", FSDPTrainerStub)
+
+    trainer = _create_fsdp_trainer(
+        rank=2,
+        world_size=4,
+        fsdp_config=fsdp_config,
+        run_save_path="/tmp/run",
+        train_common=train_common,
+        optimizer_config=optimizer_config,
+        analysis_manager=None,
+        wandb_run=None,
+        config=config,
+    )
+
+    assert trainer.kwargs == {
+        "rank": 2,
+        "world_size": 4,
+        "fsdp_config": fsdp_config,
+        "checkpoint_dir": None,
+        "save_every_n_epochs": None,
+        "optimizer_config": optimizer_config,
+        "analysis_manager": None,
+        "wandb_run": None,
+        "epochs": 5,
+        "loss_function": "cat_nll",
+        "grad_clip_value": 5.0,
+        "use_amp": False,
+        "early_stopping": False,
+        "patience": 10,
+        "print_every": 1,
+        "save_checkpoints": True,
+        "plot_losses": False,
+        "save_path": None,
+        "seed": 9,
+    }
+    assert calls == [trainer.kwargs]
+
+
 def test_setup_rank0_analysis_manager_wires_manager_and_calibration(monkeypatch):
     """FSDP rank-0 analysis setup should preserve manager and calibration wiring."""
     analysis_encoder = object()
@@ -571,6 +691,153 @@ def test_setup_rank0_analysis_manager_wires_manager_and_calibration(monkeypatch)
             "train_dataset": encoded_train_ds,
         }
     ]
+
+
+def test_save_final_fsdp_checkpoint_and_run_analysis_rank0(monkeypatch):
+    """FSDP finalization should save a full checkpoint and run analysis on rank 0."""
+    fsdp_model = object()
+    optimizer = object()
+    config = object()
+    analysis_manager = object()
+    encoder_network = object()
+    trainer = SimpleNamespace(fsdp_model=fsdp_model, optimizer=optimizer, epochs=7)
+    mkdir_calls = []
+    checkpoint_calls = []
+    analysis_calls = []
+
+    monkeypatch.setattr(
+        fsdp_script.os,
+        "makedirs",
+        lambda path, *, exist_ok: mkdir_calls.append(
+            {"path": path, "exist_ok": exist_ok}
+        ),
+    )
+    monkeypatch.setattr(
+        fsdp_script,
+        "save_fsdp_checkpoint",
+        lambda *args, **kwargs: checkpoint_calls.append(
+            {"args": args, "kwargs": kwargs}
+        ),
+    )
+    monkeypatch.setattr(
+        fsdp_script,
+        "_run_final_analysis_on_plain_model",
+        lambda **kwargs: analysis_calls.append(kwargs),
+    )
+
+    full_ckpt_path = _save_final_fsdp_checkpoint_and_run_analysis(
+        rank=0,
+        trainer=trainer,
+        run_save_path="/tmp/run",
+        config=config,
+        analysis_manager=analysis_manager,
+        encoder_network=encoder_network,
+        local_rank=2,
+    )
+
+    assert full_ckpt_path == "/tmp/run/checkpoints/final_full.pt"
+    assert mkdir_calls == [{"path": "/tmp/run/checkpoints", "exist_ok": True}]
+    assert checkpoint_calls == [
+        {
+            "args": (
+                fsdp_model,
+                optimizer,
+                6,
+                "/tmp/run/checkpoints/final_full.pt",
+            ),
+            "kwargs": {"rank": 0},
+        }
+    ]
+    assert analysis_calls == [
+        {
+            "config": config,
+            "analysis_manager": analysis_manager,
+            "full_ckpt_path": "/tmp/run/checkpoints/final_full.pt",
+            "encoder_network": encoder_network,
+            "local_rank": 2,
+        }
+    ]
+
+
+def test_save_final_fsdp_checkpoint_and_run_analysis_non_rank0(monkeypatch):
+    """FSDP finalization should only gather/save on nonzero ranks."""
+    fsdp_model = object()
+    optimizer = object()
+    analysis_manager = object()
+    trainer = SimpleNamespace(fsdp_model=fsdp_model, optimizer=optimizer, epochs=4)
+    mkdir_calls = []
+    checkpoint_calls = []
+    analysis_calls = []
+
+    monkeypatch.setattr(
+        fsdp_script.os,
+        "makedirs",
+        lambda path, *, exist_ok: mkdir_calls.append(
+            {"path": path, "exist_ok": exist_ok}
+        ),
+    )
+    monkeypatch.setattr(
+        fsdp_script,
+        "save_fsdp_checkpoint",
+        lambda *args, **kwargs: checkpoint_calls.append(
+            {"args": args, "kwargs": kwargs}
+        ),
+    )
+    monkeypatch.setattr(
+        fsdp_script,
+        "_run_final_analysis_on_plain_model",
+        lambda **kwargs: analysis_calls.append(kwargs),
+    )
+
+    full_ckpt_path = _save_final_fsdp_checkpoint_and_run_analysis(
+        rank=1,
+        trainer=trainer,
+        run_save_path=None,
+        config=object(),
+        analysis_manager=analysis_manager,
+        encoder_network=object(),
+        local_rank=0,
+    )
+
+    assert full_ckpt_path == "/tmp/checkpoints/final_full.pt"
+    assert mkdir_calls == []
+    assert checkpoint_calls == [
+        {
+            "args": (
+                fsdp_model,
+                optimizer,
+                3,
+                "/tmp/checkpoints/final_full.pt",
+            ),
+            "kwargs": {"rank": 1},
+        }
+    ]
+    assert analysis_calls == []
+
+
+def test_save_rank0_training_results_saves_only_on_rank0(monkeypatch):
+    """Training results should be persisted by rank 0 only."""
+    save_calls = []
+
+    monkeypatch.setattr(
+        fsdp_script,
+        "save_dict",
+        lambda *args: save_calls.append(args),
+    )
+
+    results = {"final_train_loss": 1.5, "final_valid_loss": 2.5}
+    _save_rank0_training_results(
+        rank=0,
+        results=results,
+        run_save_path="/tmp/run",
+    )
+    _save_rank0_training_results(
+        rank=1,
+        results={"final_train_loss": 99.0},
+        run_save_path="/tmp/other",
+    )
+
+    assert save_calls == [(results, "/tmp/run", "training_results.json")]
 
 
 class _PolicyLayer(nn.Module):

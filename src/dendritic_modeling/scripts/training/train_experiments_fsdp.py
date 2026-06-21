@@ -261,6 +261,42 @@ def _build_fsdp_runtime_configs(config):
     return train_common, fsdp_config, optimizer_config
 
 
+def _create_fsdp_trainer(
+    *,
+    rank: int,
+    world_size: int,
+    fsdp_config,
+    run_save_path,
+    train_common,
+    optimizer_config,
+    analysis_manager,
+    wandb_run,
+    config,
+):
+    """Create the FSDP trainer from resolved runtime config."""
+    return FSDPTrainer(
+        rank=rank,
+        world_size=world_size,
+        fsdp_config=fsdp_config,
+        checkpoint_dir=run_save_path if rank == 0 else None,
+        save_every_n_epochs=getattr(train_common, "save_every_n_epochs", None),
+        optimizer_config=optimizer_config,
+        analysis_manager=analysis_manager,
+        wandb_run=wandb_run,
+        epochs=train_common.epochs,
+        loss_function=getattr(train_common, "loss_function", "cat_nll"),
+        grad_clip_value=getattr(train_common, "grad_clip_value", 5.0),
+        use_amp=getattr(train_common, "use_amp", False),
+        early_stopping=getattr(train_common, "early_stopping", False),
+        patience=getattr(train_common, "patience", 10),
+        print_every=getattr(train_common, "print_every", 1),
+        save_checkpoints=True,
+        plot_losses=getattr(train_common, "plot_losses", False),
+        save_path=run_save_path if rank == 0 else None,
+        seed=int(config.experiment.seed),
+    )
+
+
 def create_large_model(config):
     """Create a large dendritic model from configuration."""
     model_config = config.model
@@ -499,6 +535,62 @@ def _setup_rank0_analysis_manager(
     return analysis_manager
 
 
+def _save_final_fsdp_checkpoint_and_run_analysis(
+    *,
+    rank: int,
+    trainer,
+    run_save_path,
+    config,
+    analysis_manager,
+    encoder_network,
+    local_rank: int,
+) -> str:
+    """Save the full FSDP checkpoint and run final analysis on rank 0."""
+    fsdp_model = trainer.fsdp_model
+    full_ckpt_path = os.path.join(
+        run_save_path or "/tmp", "checkpoints", "final_full.pt"
+    )
+    if rank == 0:
+        os.makedirs(os.path.dirname(full_ckpt_path), exist_ok=True)
+
+    save_fsdp_checkpoint(
+        fsdp_model,
+        trainer.optimizer,
+        trainer.epochs - 1,
+        full_ckpt_path,
+        rank=rank,
+    )
+    if rank == 0:
+        logger.info(f"Full checkpoint saved to {full_ckpt_path}")
+
+    if rank == 0 and analysis_manager:
+        _run_final_analysis_on_plain_model(
+            config=config,
+            analysis_manager=analysis_manager,
+            full_ckpt_path=full_ckpt_path,
+            encoder_network=encoder_network,
+            local_rank=local_rank,
+        )
+
+    return full_ckpt_path
+
+
+def _save_rank0_training_results(
+    *,
+    rank: int,
+    results: dict,
+    run_save_path,
+) -> None:
+    """Log and save final training results on rank 0."""
+    if rank != 0:
+        return
+
+    logger.info("Training completed successfully!")
+    logger.info(f"Final training loss: {results.get('final_train_loss', 'N/A')}")
+    logger.info(f"Final validation loss: {results.get('final_valid_loss', 'N/A')}")
+    save_dict(results, run_save_path, "training_results.json")
+
+
 def _encode_rank0_analysis_datasets(
     *,
     model,
@@ -714,27 +806,16 @@ def main(config_path):
             local_rank=local_rank,
         )
 
-    # Create FSDP trainer
-    trainer = FSDPTrainer(
+    trainer = _create_fsdp_trainer(
         rank=rank,
         world_size=world_size,
         fsdp_config=fsdp_config,
-        checkpoint_dir=run_save_path if rank == 0 else None,
-        save_every_n_epochs=getattr(train_common, "save_every_n_epochs", None),
+        run_save_path=run_save_path,
+        train_common=train_common,
         optimizer_config=optimizer_config,
         analysis_manager=analysis_manager,
         wandb_run=wandb_run,
-        epochs=train_common.epochs,
-        loss_function=getattr(train_common, "loss_function", "cat_nll"),
-        grad_clip_value=getattr(train_common, "grad_clip_value", 5.0),
-        use_amp=getattr(train_common, "use_amp", False),
-        early_stopping=getattr(train_common, "early_stopping", False),
-        patience=getattr(train_common, "patience", 10),
-        print_every=getattr(train_common, "print_every", 1),
-        save_checkpoints=True,
-        plot_losses=getattr(train_common, "plot_losses", False),
-        save_path=run_save_path if rank == 0 else None,
-        seed=int(config.experiment.seed),
+        config=config,
     )
 
     if rank == 0:
@@ -747,13 +828,11 @@ def main(config_path):
     # Train the model
     results = trainer.train(model, train_loader, valid_loader)
 
-    if rank == 0:
-        logger.info("Training completed successfully!")
-        logger.info(f"Final training loss: {results.get('final_train_loss', 'N/A')}")
-        logger.info(f"Final validation loss: {results.get('final_valid_loss', 'N/A')}")
-
-        # Save final results
-        save_dict(results, run_save_path, "training_results.json")
+    _save_rank0_training_results(
+        rank=rank,
+        results=results,
+        run_save_path=run_save_path,
+    )
 
     # --- Final analysis: gather full state dict, reload into plain model ---
     # FSDP shards parameters across ranks; analysis on the sharded model
@@ -762,32 +841,15 @@ def main(config_path):
     #    participate in the all-gather, rank 0 saves).
     # 2. On rank 0, create a fresh non-FSDP model and load that checkpoint.
     # 3. Run analysis on the plain model.
-    fsdp_model = trainer.fsdp_model
-    full_ckpt_path = os.path.join(
-        run_save_path or "/tmp", "checkpoints", "final_full.pt"
-    )
-    if rank == 0:
-        os.makedirs(os.path.dirname(full_ckpt_path), exist_ok=True)
-
-    # All ranks participate in the full state-dict gather.
-    save_fsdp_checkpoint(
-        fsdp_model,
-        trainer.optimizer,
-        trainer.epochs - 1,
-        full_ckpt_path,
+    _save_final_fsdp_checkpoint_and_run_analysis(
         rank=rank,
+        trainer=trainer,
+        run_save_path=run_save_path,
+        config=config,
+        analysis_manager=analysis_manager,
+        encoder_network=encoder_network,
+        local_rank=local_rank,
     )
-    if rank == 0:
-        logger.info(f"Full checkpoint saved to {full_ckpt_path}")
-
-    if rank == 0 and analysis_manager:
-        _run_final_analysis_on_plain_model(
-            config=config,
-            analysis_manager=analysis_manager,
-            full_ckpt_path=full_ckpt_path,
-            encoder_network=encoder_network,
-            local_rank=local_rank,
-        )
 
     # Clean up distributed
     if wandb_run:

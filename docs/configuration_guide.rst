@@ -252,7 +252,13 @@ transform preset and keep fake-data fallback disabled for real runs:
      dataset_params:
        imagenet:
          transform_preset: "pretrained"
+         loader_backend: "auto"
          allow_flatten_materialize: false
+
+Set ``loader_backend: "imagefolder"`` when the configured root already has
+``train/<class>`` and ``val/<class>`` directories and you want to bypass the
+torchvision ImageNet metadata loader.  Keep ``"auto"`` for compatibility with
+official torchvision ImageNet roots.
 
 For shunting E-I models with positive weight transforms, keep the tensors that
 enter the first shunting layer non-negative. If preprocessing uses

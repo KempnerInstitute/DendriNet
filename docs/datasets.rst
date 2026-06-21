@@ -259,4 +259,13 @@ backbone such as AlexNet:
      dataset_params:
        imagenet:
          transform_preset: "pretrained"
+         loader_backend: "auto"
          allow_flatten_materialize: false
+
+``loader_backend: "auto"`` preserves the default behavior: official
+torchvision ImageNet roots are loaded through ``torchvision.datasets.ImageNet``,
+while plain ``train/<class>`` and ``val/<class>`` trees use
+``ImageFolder``.  On clusters where ImageNet is already staged as class
+directories on local storage, set ``loader_backend: "imagefolder"`` to avoid
+the torchvision ImageNet metadata path.  Missing ImageNet roots fail loudly;
+there is no synthetic-data fallback.
