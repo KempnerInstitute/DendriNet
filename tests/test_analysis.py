@@ -467,6 +467,107 @@ class TestInformationAnalyzer(unittest.TestCase):
 
         self.assertIsNone(arrays)
 
+    def test_model_supports_information_analysis_accepts_ei_core(self):
+        """Model validation helper should accept compatible EI-core models."""
+        with patch(
+            "dendritic_modeling.analysis.core.information.has_einet_core",
+            return_value=True,
+        ) as mock_has_core:
+            result = self.analyzer._model_supports_information_analysis(self.model)
+
+        self.assertTrue(result)
+        mock_has_core.assert_called_once_with(self.model)
+
+    def test_model_supports_information_analysis_logs_skip_for_incompatible_model(self):
+        """Model validation helper should preserve the incompatible-model warning."""
+        with (
+            patch(
+                "dendritic_modeling.analysis.core.information.has_einet_core",
+                return_value=False,
+            ) as mock_has_core,
+            patch.object(self.analyzer.logger, "warning") as mock_warning,
+        ):
+            result = self.analyzer._model_supports_information_analysis(self.model)
+
+        self.assertFalse(result)
+        mock_has_core.assert_called_once_with(self.model)
+        mock_warning.assert_called_once_with(
+            "Model does not expose an ExcitationInhibitionNetwork. Skipping information analysis."
+        )
+
+    def test_prepare_model_for_analysis_moves_and_evals_returned_model(self):
+        """Model preparation should preserve the original move/eval behavior."""
+        input_model = Mock()
+        moved_model = Mock()
+        input_model.to.return_value = moved_model
+
+        result = self.analyzer._prepare_model_for_analysis(input_model, "cpu")
+
+        self.assertIs(result, moved_model)
+        input_model.to.assert_called_once_with("cpu")
+        moved_model.eval.assert_called_once_with()
+
+    def test_compute_results_for_level_dispatches_single_branch(self):
+        """Computation-level dispatch should preserve single-branch arguments."""
+        self.analyzer.computation_level = "single_branch"
+        C = np.array([0, 1, 0])
+
+        with patch.object(
+            self.analyzer,
+            "_compute_single_branch_results",
+            return_value={"level": "single"},
+        ) as mock_single:
+            results = self.analyzer._compute_results_for_level(
+                model=self.model,
+                inputs=torch.ones(3, 8),
+                C=C,
+                entropy_C=0.5,
+            )
+
+        self.assertEqual(results, {"level": "single"})
+        mock_single.assert_called_once_with(C, 0.5)
+
+    def test_compute_results_for_level_dispatches_layer_branch(self):
+        """Computation-level dispatch should preserve layer-branch arguments."""
+        self.analyzer.computation_level = "layer_branch"
+        C = np.array([0, 1, 0])
+
+        with patch.object(
+            self.analyzer,
+            "_compute_layer_branch_results",
+            return_value={"level": "layer"},
+        ) as mock_layer:
+            results = self.analyzer._compute_results_for_level(
+                model=self.model,
+                inputs=torch.ones(3, 8),
+                C=C,
+                entropy_C=0.5,
+            )
+
+        self.assertEqual(results, {"level": "layer"})
+        mock_layer.assert_called_once_with(C)
+
+    def test_compute_results_for_level_dispatches_all_branch_and_preserves_none(self):
+        """Computation-level dispatch should preserve all-branch arguments and skips."""
+        self.analyzer.computation_level = "all_branch"
+        C = np.array([0, 1, 0])
+        inputs = torch.ones(3, 8)
+
+        with patch.object(
+            self.analyzer,
+            "_compute_all_branch_results",
+            return_value=None,
+        ) as mock_all:
+            results = self.analyzer._compute_results_for_level(
+                model=self.model,
+                inputs=inputs,
+                C=C,
+                entropy_C=0.5,
+            )
+
+        self.assertIsNone(results)
+        mock_all.assert_called_once_with(model=self.model, inputs=inputs, C=C)
+
     def test_analysis_metadata_helper_adds_configuration_flags(self):
         """Analysis metadata helper should stamp enabled modes and inhibition state."""
         self.analyzer.per_neuron_analysis = True

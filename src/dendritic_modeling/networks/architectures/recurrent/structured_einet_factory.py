@@ -95,6 +95,13 @@ class _LayerPopulationSynapseCounts:
 
 
 @dataclass(frozen=True)
+class _LayerRecurrentTiming:
+    dt: float
+    tau_base: float
+    tau_ratio: float
+
+
+@dataclass(frozen=True)
 class _RecurrentFeatureFlags:
     has_rec_synapses: bool
     has_soma_feedback: bool
@@ -484,6 +491,59 @@ def _direct_ff_inhibitory_enabled(
     return False
 
 
+def _resolve_layer_recurrent_timing(
+    *,
+    recurrent_cfg: dict[str, Any],
+    layer_idx: int,
+) -> _LayerRecurrentTiming:
+    """Resolve per-layer recurrent integration and time-constant values."""
+    return _LayerRecurrentTiming(
+        dt=float(_layer_value(recurrent_cfg.get("dt", 1.0), layer_idx, default=1.0)),
+        tau_base=float(
+            _layer_value(recurrent_cfg.get("tau_base", 50.0), layer_idx, default=50.0)
+        ),
+        tau_ratio=float(
+            _layer_value(recurrent_cfg.get("tau_ratio", 3.0), layer_idx, default=3.0)
+        ),
+    )
+
+
+def _resolve_recurrent_transfer_params(
+    *,
+    transfer: dict[str, Any],
+    recurrent_cfg: dict[str, Any],
+) -> dict[str, Any]:
+    """Merge transfer settings with legacy recurrent transfer override sections."""
+    transfer_params = dict(transfer)
+    transfer_params.update(_to_plain_mapping(recurrent_cfg.get("transfer", {})))
+    transfer_params.update(_to_plain_mapping(recurrent_cfg.get("transfer_params", {})))
+    return normalize_transfer_config(transfer_params)
+
+
+def _resolve_recurrent_input_projection_dims(
+    *,
+    architecture: dict[str, Any],
+    recurrent_cfg: dict[str, Any],
+) -> list[Any]:
+    """Resolve network-level input projection dims with legacy fallback semantics."""
+    raw_ipd = architecture.get(
+        "input_projection_dims",
+        recurrent_cfg.get("input_projection_dims", []),
+    )
+    return list(raw_ipd) if isinstance(raw_ipd, list) else []
+
+
+def _resolve_recurrent_store_routing(
+    *,
+    implementation: dict[str, Any],
+    recurrent_cfg: dict[str, Any],
+) -> bool:
+    """Resolve whether recurrent routing should be retained for analysis."""
+    return bool(
+        implementation.get("store_routing", recurrent_cfg.get("store_routing", False))
+    )
+
+
 def _resolve_layer_inhibitory_synapse_counts(
     *,
     connectivity: dict[str, Any],
@@ -546,6 +606,69 @@ def _should_build_inhibitory_population(
     # Positive inhibitory sizes without incoming synapses preserve legacy direct-stream
     # behavior: the size can be present in the config without constructing a population.
     return n_inh > 0 and synapses.has_incoming_synapses
+
+
+def _build_structured_inhibitory_population_config(
+    *,
+    excitatory_config: Any,
+    architecture: dict[str, Any],
+    layer_idx: int,
+    n_inh: int,
+    synapses: _LayerPopulationSynapseCounts,
+) -> Any:
+    """Create inhibitory PopulationConfig by replacing pathway-specific fields."""
+    return replace(
+        excitatory_config,
+        n_neurons=n_inh,
+        branch_factors=list(architecture.get("inhibitory_branch_factors", [1]) or [1]),
+        ff_excitatory_synapses=synapses.ff_excitatory,
+        ff_inhibitory_synapses=synapses.ff_inhibitory,
+        rec_excitatory_synapses=synapses.rec_excitatory,
+        rec_inhibitory_synapses=synapses.rec_inhibitory,
+        structured_layer_idx=layer_idx,
+        ff_excitatory_pathway="ei",
+        ff_inhibitory_pathway="ii",
+        rec_excitatory_pathway="rec_ei",
+        rec_inhibitory_pathway="rec_ii",
+    )
+
+
+def _stateful_layer_features_enabled(
+    *,
+    flags: _RecurrentFeatureFlags,
+    exc_cfg: Any,
+    inh_cfg: Any | None,
+) -> bool:
+    """Return whether stateful dynamics require recurrent layer execution."""
+    return (
+        flags.has_spiking_dynamics
+        or exc_cfg.dendritic_spikes_enabled
+        or flags.has_synapse_types
+        or exc_cfg.soma_feedback_enabled
+        or (
+            inh_cfg is not None
+            and (
+                inh_cfg.dendritic_spikes_enabled
+                or flags.has_synapse_types
+                or inh_cfg.soma_feedback_enabled
+            )
+        )
+    )
+
+
+def _effective_layer_recurrence_enabled(
+    *,
+    base_recurrent: bool,
+    flags: _RecurrentFeatureFlags,
+    exc_cfg: Any,
+    inh_cfg: Any | None,
+) -> bool:
+    """Combine configured recurrence with stateful feature requirements."""
+    return base_recurrent or _stateful_layer_features_enabled(
+        flags=flags,
+        exc_cfg=exc_cfg,
+        inh_cfg=inh_cfg,
+    )
 
 
 def _structured_population_sparsity_kwargs(
@@ -993,8 +1116,6 @@ def _build_recurrent_einet_from_structured_config(
     morphology = sections.morphology
     reactivation = sections.reactivation
     implementation = sections.implementation
-    has_spiking_dynamics = flags.has_spiking_dynamics
-    has_synapse_types = flags.has_synapse_types
 
     _validate_structured_recurrent_type(type)
     excitatory_sizes = _require_recurrent_excitatory_sizes(architecture)
@@ -1024,8 +1145,6 @@ def _build_recurrent_einet_from_structured_config(
         "recurrent_layers", recurrent_cfg.get("recurrent_per_layer", None)
     )
 
-    dt_value = recurrent_cfg.get("dt", 1.0)
-
     # transfer_inhibitory_mode: new location first, old fallback
     transfer_inhibitory_mode = _resolve_transfer_inhibitory_mode(
         transfer=transfer,
@@ -1043,14 +1162,9 @@ def _build_recurrent_einet_from_structured_config(
             counts=counts,
         )
 
-        dt = float(_layer_value(dt_value, layer_idx, default=1.0))
-
-        # Per-layer tau_base / tau_ratio
-        tau_base = float(
-            _layer_value(recurrent_cfg.get("tau_base", 50.0), layer_idx, default=50.0)
-        )
-        tau_ratio = float(
-            _layer_value(recurrent_cfg.get("tau_ratio", 3.0), layer_idx, default=3.0)
+        timing = _resolve_layer_recurrent_timing(
+            recurrent_cfg=recurrent_cfg,
+            layer_idx=layer_idx,
         )
 
         exc_cfg = _build_structured_excitatory_population_config(
@@ -1062,8 +1176,8 @@ def _build_recurrent_einet_from_structured_config(
             use_shunting=use_shunting,
             use_additive_normalization=use_additive_normalization,
             reactivation_options=reactivation_options,
-            tau_base=tau_base,
-            tau_ratio=tau_ratio,
+            tau_base=timing.tau_base,
+            tau_ratio=timing.tau_ratio,
         )
 
         inh_synapses = _resolve_layer_inhibitory_synapse_counts(
@@ -1078,37 +1192,19 @@ def _build_recurrent_einet_from_structured_config(
 
         inh_cfg = None
         if build_inhibitory_population:
-            inh_cfg = replace(
-                exc_cfg,
-                n_neurons=n_inh,
-                branch_factors=list(
-                    architecture.get("inhibitory_branch_factors", [1]) or [1]
-                ),
-                ff_excitatory_synapses=inh_synapses.ff_excitatory,
-                ff_inhibitory_synapses=inh_synapses.ff_inhibitory,
-                rec_excitatory_synapses=inh_synapses.rec_excitatory,
-                rec_inhibitory_synapses=inh_synapses.rec_inhibitory,
-                structured_layer_idx=layer_idx,
-                ff_excitatory_pathway="ei",
-                ff_inhibitory_pathway="ii",
-                rec_excitatory_pathway="rec_ei",
-                rec_inhibitory_pathway="rec_ii",
+            inh_cfg = _build_structured_inhibitory_population_config(
+                excitatory_config=exc_cfg,
+                architecture=architecture,
+                layer_idx=layer_idx,
+                n_inh=n_inh,
+                synapses=inh_synapses,
             )
 
-        rec_enabled = (
-            rec_enabled
-            or has_spiking_dynamics
-            or exc_cfg.dendritic_spikes_enabled
-            or has_synapse_types
-            or exc_cfg.soma_feedback_enabled
-            or (
-                inh_cfg is not None
-                and (
-                    inh_cfg.dendritic_spikes_enabled
-                    or has_synapse_types
-                    or inh_cfg.soma_feedback_enabled
-                )
-            )
+        rec_enabled = _effective_layer_recurrence_enabled(
+            base_recurrent=rec_enabled,
+            flags=flags,
+            exc_cfg=exc_cfg,
+            inh_cfg=inh_cfg,
         )
 
         direct_ff_inh = _direct_ff_inhibitory_enabled(
@@ -1122,26 +1218,22 @@ def _build_recurrent_einet_from_structured_config(
                 excitatory=exc_cfg,
                 inhibitory=inh_cfg,
                 recurrent=rec_enabled,
-                dt=dt,
+                dt=timing.dt,
                 direct_ff_inhibitory_to_excitatory=direct_ff_inh,
             )
         )
 
-    transfer_params = dict(transfer)
-    transfer_params.update(_to_plain_mapping(recurrent_cfg.get("transfer", {})))
-    transfer_params.update(_to_plain_mapping(recurrent_cfg.get("transfer_params", {})))
-    transfer_params = normalize_transfer_config(transfer_params)
-
-    # input_projection_dims: new location first, old fallback
-    raw_ipd = architecture.get(
-        "input_projection_dims",
-        recurrent_cfg.get("input_projection_dims", []),
+    transfer_params = _resolve_recurrent_transfer_params(
+        transfer=transfer,
+        recurrent_cfg=recurrent_cfg,
     )
-    ipd = list(raw_ipd) if isinstance(raw_ipd, list) else []
-
-    # store_routing: new location first, old fallback
-    store_routing = bool(
-        implementation.get("store_routing", recurrent_cfg.get("store_routing", False))
+    ipd = _resolve_recurrent_input_projection_dims(
+        architecture=architecture,
+        recurrent_cfg=recurrent_cfg,
+    )
+    store_routing = _resolve_recurrent_store_routing(
+        implementation=implementation,
+        recurrent_cfg=recurrent_cfg,
     )
 
     cfg = EINetworkConfig(

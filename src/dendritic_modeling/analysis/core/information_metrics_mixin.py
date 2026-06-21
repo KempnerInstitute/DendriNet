@@ -34,6 +34,61 @@ from dendritic_modeling.utils.information.pid import pid_synergy_redundancy
 class InformationMetricsMixin:
     """Computes MI/CMI/PID/Fisher metrics and result summaries."""
 
+    def _estimate_mi(
+        self,
+        metric_key: str,
+        x: np.ndarray,
+        y: np.ndarray,
+    ) -> float:
+        """Compute one MI metric with the existing debug timing format."""
+        self.logger.debug(f"  Computing {metric_key}...")
+        start_time = time.time()
+        value = self.estimators[self.method].mutual_information(x, y)
+        self.logger.debug(
+            f"  {metric_key} = {value:.4f} (took {time.time() - start_time:.1f}s)"
+        )
+        return value
+
+    def _estimate_cmi(
+        self,
+        metric_key: str,
+        x: np.ndarray,
+        y: np.ndarray,
+        condition: np.ndarray,
+    ) -> float:
+        """Compute one conditional MI metric with the existing debug timing format."""
+        self.logger.debug(f"  Computing {metric_key}...")
+        start_time = time.time()
+        value = self.estimators[self.method].conditional_mutual_information(
+            x, y, condition
+        )
+        self.logger.debug(
+            f"  {metric_key} = {value:.4f} (took {time.time() - start_time:.1f}s)"
+        )
+        return value
+
+    def _estimate_cmi_or_zero(
+        self,
+        metric_key: str,
+        x: np.ndarray,
+        y: np.ndarray,
+        condition: np.ndarray,
+    ) -> float:
+        """Compute one conditional MI metric, returning zero on estimator failure."""
+        self.logger.debug(f"  Computing {metric_key}...")
+        start_time = time.time()
+        try:
+            value = self.estimators[self.method].conditional_mutual_information(
+                x, y, condition
+            )
+        except Exception as e:
+            self.logger.warning(f"  Failed to compute {metric_key}: {e}")
+            value = 0.0
+        self.logger.debug(
+            f"  {metric_key} = {value:.4f} (took {time.time() - start_time:.1f}s)"
+        )
+        return value
+
     def _compute_basic_mi(
         self,
         E: np.ndarray,
@@ -50,57 +105,25 @@ class InformationMetricsMixin:
         metrics = {}
 
         # I(E;C)
-        self.logger.debug("  Computing I(E;C)...")
-        start_time = time.time()
-        metrics["I(E;C)"] = self.estimators[self.method].mutual_information(E, C)
-        self.logger.debug(
-            f"  I(E;C) = {metrics['I(E;C)']:.4f} (took {time.time() - start_time:.1f}s)"
-        )
+        metrics["I(E;C)"] = self._estimate_mi("I(E;C)", E, C)
 
         # I(I;C)
-        self.logger.debug("  Computing I(I;C)...")
-        start_time = time.time()
-        metrics["I(I;C)"] = self.estimators[self.method].mutual_information(I_var, C)
-        self.logger.debug(
-            f"  I(I;C) = {metrics['I(I;C)']:.4f} (took {time.time() - start_time:.1f}s)"
-        )
+        metrics["I(I;C)"] = self._estimate_mi("I(I;C)", I_var, C)
 
         # I(Vb;C) if available
         if Vb is not None:
-            self.logger.debug("  Computing I(Vb;C)...")
-            start_time = time.time()
-            metrics["I(Vb;C)"] = self.estimators[self.method].mutual_information(Vb, C)
-            self.logger.debug(
-                f"  I(Vb;C) = {metrics['I(Vb;C)']:.4f} (took {time.time() - start_time:.1f}s)"
-            )
+            metrics["I(Vb;C)"] = self._estimate_mi("I(Vb;C)", Vb, C)
 
         # I(Vout;C)
-        self.logger.debug("  Computing I(Vout;C)...")
-        start_time = time.time()
-        metrics["I(Vout;C)"] = self.estimators[self.method].mutual_information(Vout, C)
-        self.logger.debug(
-            f"  I(Vout;C) = {metrics['I(Vout;C)']:.4f} (took {time.time() - start_time:.1f}s)"
-        )
+        metrics["I(Vout;C)"] = self._estimate_mi("I(Vout;C)", Vout, C)
 
         # I(Vinf;C) if available
         if Vinf is not None and self.include_vinf:
-            self.logger.debug("  Computing I(Vinf;C)...")
-            start_time = time.time()
-            metrics["I(Vinf;C)"] = self.estimators[self.method].mutual_information(
-                Vinf, C
-            )
-            self.logger.debug(
-                f"  I(Vinf;C) = {metrics['I(Vinf;C)']:.4f} (took {time.time() - start_time:.1f}s)"
-            )
+            metrics["I(Vinf;C)"] = self._estimate_mi("I(Vinf;C)", Vinf, C)
 
         # Joint MI: I(E,I;C)
-        self.logger.debug("  Computing I(E,I;C)...")
-        start_time = time.time()
         EI = np.hstack([E, I_var])
-        metrics["I(E,I;C)"] = self.estimators[self.method].mutual_information(EI, C)
-        self.logger.debug(
-            f"  I(E,I;C) = {metrics['I(E,I;C)']:.4f} (took {time.time() - start_time:.1f}s)"
-        )
+        metrics["I(E,I;C)"] = self._estimate_mi("I(E,I;C)", EI, C)
 
         # Optionally normalize by entropy
         if self.normalize_mi:
@@ -131,91 +154,34 @@ class InformationMetricsMixin:
         metrics = {}
 
         # I(E;I)
-        self.logger.debug("  Computing I(E;I)...")
-        start_time = time.time()
-        metrics["I(E;I)"] = self.estimators[self.method].mutual_information(E, I_var)
-        self.logger.debug(
-            f"  I(E;I) = {metrics['I(E;I)']:.4f} (took {time.time() - start_time:.1f}s)"
-        )
+        metrics["I(E;I)"] = self._estimate_mi("I(E;I)", E, I_var)
 
         # I(E;Vout)
-        self.logger.debug("  Computing I(E;Vout)...")
-        start_time = time.time()
-        metrics["I(E;Vout)"] = self.estimators[self.method].mutual_information(E, Vout)
-        self.logger.debug(
-            f"  I(E;Vout) = {metrics['I(E;Vout)']:.4f} (took {time.time() - start_time:.1f}s)"
-        )
+        metrics["I(E;Vout)"] = self._estimate_mi("I(E;Vout)", E, Vout)
 
         # I(I;Vout)
-        self.logger.debug("  Computing I(I;Vout)...")
-        start_time = time.time()
-        metrics["I(I;Vout)"] = self.estimators[self.method].mutual_information(
-            I_var, Vout
-        )
-        self.logger.debug(
-            f"  I(I;Vout) = {metrics['I(I;Vout)']:.4f} (took {time.time() - start_time:.1f}s)"
-        )
+        metrics["I(I;Vout)"] = self._estimate_mi("I(I;Vout)", I_var, Vout)
 
         # Pairwise MI with Vb if available
         if Vb is not None:
             # I(E;Vb)
-            self.logger.debug("  Computing I(E;Vb)...")
-            start_time = time.time()
-            metrics["I(E;Vb)"] = self.estimators[self.method].mutual_information(E, Vb)
-            self.logger.debug(
-                f"  I(E;Vb) = {metrics['I(E;Vb)']:.4f} (took {time.time() - start_time:.1f}s)"
-            )
+            metrics["I(E;Vb)"] = self._estimate_mi("I(E;Vb)", E, Vb)
 
             # I(I;Vb)
-            self.logger.debug("  Computing I(I;Vb)...")
-            start_time = time.time()
-            metrics["I(I;Vb)"] = self.estimators[self.method].mutual_information(
-                I_var, Vb
-            )
-            self.logger.debug(
-                f"  I(I;Vb) = {metrics['I(I;Vb)']:.4f} (took {time.time() - start_time:.1f}s)"
-            )
+            metrics["I(I;Vb)"] = self._estimate_mi("I(I;Vb)", I_var, Vb)
 
             # I(Vb;Vout)
-            self.logger.debug("  Computing I(Vb;Vout)...")
-            start_time = time.time()
-            metrics["I(Vb;Vout)"] = self.estimators[self.method].mutual_information(
-                Vb, Vout
-            )
-            self.logger.debug(
-                f"  I(Vb;Vout) = {metrics['I(Vb;Vout)']:.4f} (took {time.time() - start_time:.1f}s)"
-            )
+            metrics["I(Vb;Vout)"] = self._estimate_mi("I(Vb;Vout)", Vb, Vout)
 
         if Vinf is not None and self.include_vinf:
             # I(E;Vinf)
-            self.logger.debug("  Computing I(E;Vinf)...")
-            start_time = time.time()
-            metrics["I(E;Vinf)"] = self.estimators[self.method].mutual_information(
-                E, Vinf
-            )
-            self.logger.debug(
-                f"  I(E;Vinf) = {metrics['I(E;Vinf)']:.4f} (took {time.time() - start_time:.1f}s)"
-            )
+            metrics["I(E;Vinf)"] = self._estimate_mi("I(E;Vinf)", E, Vinf)
 
             # I(I;Vinf)
-            self.logger.debug("  Computing I(I;Vinf)...")
-            start_time = time.time()
-            metrics["I(I;Vinf)"] = self.estimators[self.method].mutual_information(
-                I_var, Vinf
-            )
-            self.logger.debug(
-                f"  I(I;Vinf) = {metrics['I(I;Vinf)']:.4f} (took {time.time() - start_time:.1f}s)"
-            )
+            metrics["I(I;Vinf)"] = self._estimate_mi("I(I;Vinf)", I_var, Vinf)
 
             # I(Vout;Vinf)
-            self.logger.debug("  Computing I(Vout;Vinf)...")
-            start_time = time.time()
-            metrics["I(Vout;Vinf)"] = self.estimators[self.method].mutual_information(
-                Vout, Vinf
-            )
-            self.logger.debug(
-                f"  I(Vout;Vinf) = {metrics['I(Vout;Vinf)']:.4f} (took {time.time() - start_time:.1f}s)"
-            )
+            metrics["I(Vout;Vinf)"] = self._estimate_mi("I(Vout;Vinf)", Vout, Vinf)
 
         self.logger.debug("  Pairwise MI computation completed.")
         return metrics
@@ -234,67 +200,28 @@ class InformationMetricsMixin:
             "Computing conditional MI metrics (conditioned on class labels)..."
         )
         metrics = {}
+        C_col = C.reshape(-1, 1)
 
         # I(E;I|C)
-        self.logger.debug("  Computing I(E;I|C)...")
-        start_time = time.time()
-        metrics["I(E;I|C)"] = self.estimators[
-            self.method
-        ].conditional_mutual_information(E, I_var, C.reshape(-1, 1))
-        self.logger.debug(
-            f"  I(E;I|C) = {metrics['I(E;I|C)']:.4f} (took {time.time() - start_time:.1f}s)"
-        )
+        metrics["I(E;I|C)"] = self._estimate_cmi("I(E;I|C)", E, I_var, C_col)
 
         # I(E;Vout|C)
-        self.logger.debug("  Computing I(E;Vout|C)...")
-        start_time = time.time()
-        metrics["I(E;Vout|C)"] = self.estimators[
-            self.method
-        ].conditional_mutual_information(E, Vout, C.reshape(-1, 1))
-        self.logger.debug(
-            f"  I(E;Vout|C) = {metrics['I(E;Vout|C)']:.4f} (took {time.time() - start_time:.1f}s)"
-        )
+        metrics["I(E;Vout|C)"] = self._estimate_cmi("I(E;Vout|C)", E, Vout, C_col)
 
         # I(I;Vout|C)
-        self.logger.debug("  Computing I(I;Vout|C)...")
-        start_time = time.time()
-        metrics["I(I;Vout|C)"] = self.estimators[
-            self.method
-        ].conditional_mutual_information(I_var, Vout, C.reshape(-1, 1))
-        self.logger.debug(
-            f"  I(I;Vout|C) = {metrics['I(I;Vout|C)']:.4f} (took {time.time() - start_time:.1f}s)"
-        )
+        metrics["I(I;Vout|C)"] = self._estimate_cmi("I(I;Vout|C)", I_var, Vout, C_col)
 
         # Conditional MI with Vb if available
         if Vb is not None:
             # I(E;Vb|C)
-            self.logger.debug("  Computing I(E;Vb|C)...")
-            start_time = time.time()
-            metrics["I(E;Vb|C)"] = self.estimators[
-                self.method
-            ].conditional_mutual_information(E, Vb, C.reshape(-1, 1))
-            self.logger.debug(
-                f"  I(E;Vb|C) = {metrics['I(E;Vb|C)']:.4f} (took {time.time() - start_time:.1f}s)"
-            )
+            metrics["I(E;Vb|C)"] = self._estimate_cmi("I(E;Vb|C)", E, Vb, C_col)
 
             # I(I;Vb|C)
-            self.logger.debug("  Computing I(I;Vb|C)...")
-            start_time = time.time()
-            metrics["I(I;Vb|C)"] = self.estimators[
-                self.method
-            ].conditional_mutual_information(I_var, Vb, C.reshape(-1, 1))
-            self.logger.debug(
-                f"  I(I;Vb|C) = {metrics['I(I;Vb|C)']:.4f} (took {time.time() - start_time:.1f}s)"
-            )
+            metrics["I(I;Vb|C)"] = self._estimate_cmi("I(I;Vb|C)", I_var, Vb, C_col)
 
             # I(Vb;Vout|C)
-            self.logger.debug("  Computing I(Vb;Vout|C)...")
-            start_time = time.time()
-            metrics["I(Vb;Vout|C)"] = self.estimators[
-                self.method
-            ].conditional_mutual_information(Vb, Vout, C.reshape(-1, 1))
-            self.logger.debug(
-                f"  I(Vb;Vout|C) = {metrics['I(Vb;Vout|C)']:.4f} (took {time.time() - start_time:.1f}s)"
+            metrics["I(Vb;Vout|C)"] = self._estimate_cmi(
+                "I(Vb;Vout|C)", Vb, Vout, C_col
             )
 
         # ------------------------------------------------------------------
@@ -304,79 +231,39 @@ class InformationMetricsMixin:
         # beyond other components, which is often closer to what layer ablations
         # probe than raw I(E;C) / I(I;C).
         # ------------------------------------------------------------------
-        estimator = self.estimators[self.method]
-        C_col = C.reshape(-1, 1)
-
         if self.compute_ablation_aligned_mi:
             # One-sided conditional class information in the dendritic output.
             # These are useful for interaction-information identities such as
             # I(Vout;C) - I(Vout;C|E) = I(E;Vout) - I(E;Vout|C).
-            self.logger.debug("  Computing I(Vout;C|E)...")
-            start_time = time.time()
-            metrics["I(Vout;C|E)"] = estimator.conditional_mutual_information(
-                Vout, C_col, E
-            )
-            self.logger.debug(
-                f"  I(Vout;C|E) = {metrics['I(Vout;C|E)']:.4f} (took {time.time() - start_time:.1f}s)"
-            )
-
-            self.logger.debug("  Computing I(Vout;C|I)...")
-            start_time = time.time()
-            metrics["I(Vout;C|I)"] = estimator.conditional_mutual_information(
-                Vout, C_col, I_var
-            )
-            self.logger.debug(
-                f"  I(Vout;C|I) = {metrics['I(Vout;C|I)']:.4f} (took {time.time() - start_time:.1f}s)"
+            metrics["I(Vout;C|E)"] = self._estimate_cmi("I(Vout;C|E)", Vout, C_col, E)
+            metrics["I(Vout;C|I)"] = self._estimate_cmi(
+                "I(Vout;C|I)", Vout, C_col, I_var
             )
 
         if self.compute_ablation_aligned_mi and Vb is not None:
             # How much class info is present in the layer output beyond upstream input
-            self.logger.debug("  Computing I(Vout;C|Vb)...")
-            start_time = time.time()
-            metrics["I(Vout;C|Vb)"] = estimator.conditional_mutual_information(
-                Vout, C_col, Vb
-            )
-            self.logger.debug(
-                f"  I(Vout;C|Vb) = {metrics['I(Vout;C|Vb)']:.4f} (took {time.time() - start_time:.1f}s)"
+            metrics["I(Vout;C|Vb)"] = self._estimate_cmi(
+                "I(Vout;C|Vb)", Vout, C_col, Vb
             )
 
             # Complement: how much upstream class information is *not* reflected in the layer output
             # (helps interpret upstream vs synapse contributions).
-            self.logger.debug("  Computing I(Vb;C|Vout)...")
-            start_time = time.time()
-            metrics["I(Vb;C|Vout)"] = estimator.conditional_mutual_information(
-                Vb, C_col, Vout
-            )
-            self.logger.debug(
-                f"  I(Vb;C|Vout) = {metrics['I(Vb;C|Vout)']:.4f} (took {time.time() - start_time:.1f}s)"
+            metrics["I(Vb;C|Vout)"] = self._estimate_cmi(
+                "I(Vb;C|Vout)", Vb, C_col, Vout
             )
 
             # How much class information in Vout remains after conditioning on synapse inputs
             # (proxy for upstream contribution to class information in Vout).
-            self.logger.debug("  Computing I(Vout;C|E,I)...")
-            start_time = time.time()
             EI = np.hstack([E, I_var])
-            metrics["I(Vout;C|E,I)"] = estimator.conditional_mutual_information(
-                Vout, C_col, EI
-            )
-            self.logger.debug(
-                f"  I(Vout;C|E,I) = {metrics['I(Vout;C|E,I)']:.4f} (took {time.time() - start_time:.1f}s)"
+            metrics["I(Vout;C|E,I)"] = self._estimate_cmi(
+                "I(Vout;C|E,I)", Vout, C_col, EI
             )
 
             # Optional (can be expensive for high-dimensional synapse sets):
             # unique upstream class information beyond the full synapse set.
             if self.compute_upstream_unique_cmi:
-                self.logger.debug("  Computing I(Vb;C|E,I)...")
-                start_time = time.time()
-                try:
-                    metrics["I(Vb;C|E,I)"] = estimator.conditional_mutual_information(
-                        Vb, C_col, EI
-                    )
-                except Exception as e:
-                    self.logger.warning(f"  Failed to compute I(Vb;C|E,I): {e}")
-                    metrics["I(Vb;C|E,I)"] = 0.0
-                self.logger.debug(
-                    f"  I(Vb;C|E,I) = {metrics['I(Vb;C|E,I)']:.4f} (took {time.time() - start_time:.1f}s)"
+                metrics["I(Vb;C|E,I)"] = self._estimate_cmi_or_zero(
+                    "I(Vb;C|E,I)", Vb, C_col, EI
                 )
 
             # ------------------------------------------------------------------
@@ -386,169 +273,67 @@ class InformationMetricsMixin:
             # independent of class labels. They complement ablation results because
             # they isolate each input's contribution to Vout beyond the others.
             # ------------------------------------------------------------------
-            self.logger.debug("  Computing I(E;Vout|I,Vb)...")
-            start_time = time.time()
-            metrics["I(E;Vout|I,Vb)"] = estimator.conditional_mutual_information(
-                E, Vout, np.hstack([I_var, Vb])
-            )
-            self.logger.debug(
-                f"  I(E;Vout|I,Vb) = {metrics['I(E;Vout|I,Vb)']:.4f} (took {time.time() - start_time:.1f}s)"
+            metrics["I(E;Vout|I,Vb)"] = self._estimate_cmi(
+                "I(E;Vout|I,Vb)", E, Vout, np.hstack([I_var, Vb])
             )
 
-            self.logger.debug("  Computing I(I;Vout|E,Vb)...")
-            start_time = time.time()
-            metrics["I(I;Vout|E,Vb)"] = estimator.conditional_mutual_information(
-                I_var, Vout, np.hstack([E, Vb])
-            )
-            self.logger.debug(
-                f"  I(I;Vout|E,Vb) = {metrics['I(I;Vout|E,Vb)']:.4f} (took {time.time() - start_time:.1f}s)"
+            metrics["I(I;Vout|E,Vb)"] = self._estimate_cmi(
+                "I(I;Vout|E,Vb)", I_var, Vout, np.hstack([E, Vb])
             )
 
-            self.logger.debug("  Computing I(Vb;Vout|E,I)...")
-            start_time = time.time()
-            metrics["I(Vb;Vout|E,I)"] = estimator.conditional_mutual_information(
-                Vb, Vout, EI
-            )
-            self.logger.debug(
-                f"  I(Vb;Vout|E,I) = {metrics['I(Vb;Vout|E,I)']:.4f} (took {time.time() - start_time:.1f}s)"
+            metrics["I(Vb;Vout|E,I)"] = self._estimate_cmi(
+                "I(Vb;Vout|E,I)", Vb, Vout, EI
             )
 
             # Unique class information in E / I beyond upstream input
-            self.logger.debug("  Computing I(E;C|Vb)...")
-            start_time = time.time()
-            metrics["I(E;C|Vb)"] = estimator.conditional_mutual_information(
-                E, C_col, Vb
-            )
-            self.logger.debug(
-                f"  I(E;C|Vb) = {metrics['I(E;C|Vb)']:.4f} (took {time.time() - start_time:.1f}s)"
-            )
+            metrics["I(E;C|Vb)"] = self._estimate_cmi("I(E;C|Vb)", E, C_col, Vb)
 
-            self.logger.debug("  Computing I(I;C|Vb)...")
-            start_time = time.time()
-            metrics["I(I;C|Vb)"] = estimator.conditional_mutual_information(
-                I_var, C_col, Vb
-            )
-            self.logger.debug(
-                f"  I(I;C|Vb) = {metrics['I(I;C|Vb)']:.4f} (took {time.time() - start_time:.1f}s)"
-            )
+            metrics["I(I;C|Vb)"] = self._estimate_cmi("I(I;C|Vb)", I_var, C_col, Vb)
 
             # Unique class information in (E,I) beyond upstream input (proxy for "all synapses")
-            self.logger.debug("  Computing I(E,I;C|Vb)...")
-            start_time = time.time()
-            EI = np.hstack([E, I_var])
-            metrics["I(E,I;C|Vb)"] = estimator.conditional_mutual_information(
-                EI, C_col, Vb
-            )
-            self.logger.debug(
-                f"  I(E,I;C|Vb) = {metrics['I(E,I;C|Vb)']:.4f} (took {time.time() - start_time:.1f}s)"
-            )
+            metrics["I(E,I;C|Vb)"] = self._estimate_cmi("I(E,I;C|Vb)", EI, C_col, Vb)
 
             # Fine-grained: unique info in E (or I) beyond upstream + the other synapse type
-            self.logger.debug("  Computing I(E;C|I,Vb)...")
-            start_time = time.time()
-            metrics["I(E;C|I,Vb)"] = estimator.conditional_mutual_information(
-                E, C_col, np.hstack([I_var, Vb])
-            )
-            self.logger.debug(
-                f"  I(E;C|I,Vb) = {metrics['I(E;C|I,Vb)']:.4f} (took {time.time() - start_time:.1f}s)"
+            metrics["I(E;C|I,Vb)"] = self._estimate_cmi(
+                "I(E;C|I,Vb)", E, C_col, np.hstack([I_var, Vb])
             )
 
-            self.logger.debug("  Computing I(I;C|E,Vb)...")
-            start_time = time.time()
-            metrics["I(I;C|E,Vb)"] = estimator.conditional_mutual_information(
-                I_var, C_col, np.hstack([E, Vb])
-            )
-            self.logger.debug(
-                f"  I(I;C|E,Vb) = {metrics['I(I;C|E,Vb)']:.4f} (took {time.time() - start_time:.1f}s)"
+            metrics["I(I;C|E,Vb)"] = self._estimate_cmi(
+                "I(I;C|E,Vb)", I_var, C_col, np.hstack([E, Vb])
             )
         elif self.compute_ablation_aligned_mi:
             # No upstream branch input (outermost layer): still compute unique info between E and I
-            self.logger.debug("  Computing I(E;C|I)...")
-            start_time = time.time()
-            metrics["I(E;C|I)"] = estimator.conditional_mutual_information(
-                E, C_col, I_var
-            )
-            self.logger.debug(
-                f"  I(E;C|I) = {metrics['I(E;C|I)']:.4f} (took {time.time() - start_time:.1f}s)"
-            )
+            metrics["I(E;C|I)"] = self._estimate_cmi("I(E;C|I)", E, C_col, I_var)
 
-            self.logger.debug("  Computing I(I;C|E)...")
-            start_time = time.time()
-            metrics["I(I;C|E)"] = estimator.conditional_mutual_information(
-                I_var, C_col, E
-            )
-            self.logger.debug(
-                f"  I(I;C|E) = {metrics['I(I;C|E)']:.4f} (took {time.time() - start_time:.1f}s)"
-            )
+            metrics["I(I;C|E)"] = self._estimate_cmi("I(I;C|E)", I_var, C_col, E)
 
             # Information-processing conditionals without upstream input.
-            self.logger.debug("  Computing I(E;Vout|I)...")
-            start_time = time.time()
-            metrics["I(E;Vout|I)"] = estimator.conditional_mutual_information(
-                E, Vout, I_var
-            )
-            self.logger.debug(
-                f"  I(E;Vout|I) = {metrics['I(E;Vout|I)']:.4f} (took {time.time() - start_time:.1f}s)"
-            )
+            metrics["I(E;Vout|I)"] = self._estimate_cmi("I(E;Vout|I)", E, Vout, I_var)
 
-            self.logger.debug("  Computing I(I;Vout|E)...")
-            start_time = time.time()
-            metrics["I(I;Vout|E)"] = estimator.conditional_mutual_information(
-                I_var, Vout, E
-            )
-            self.logger.debug(
-                f"  I(I;Vout|E) = {metrics['I(I;Vout|E)']:.4f} (took {time.time() - start_time:.1f}s)"
-            )
+            metrics["I(I;Vout|E)"] = self._estimate_cmi("I(I;Vout|E)", I_var, Vout, E)
 
-            self.logger.debug("  Computing I(Vout;C|E,I)...")
-            start_time = time.time()
             EI = np.hstack([E, I_var])
-            metrics["I(Vout;C|E,I)"] = estimator.conditional_mutual_information(
-                Vout, C_col, EI
-            )
-            self.logger.debug(
-                f"  I(Vout;C|E,I) = {metrics['I(Vout;C|E,I)']:.4f} (took {time.time() - start_time:.1f}s)"
+            metrics["I(Vout;C|E,I)"] = self._estimate_cmi(
+                "I(Vout;C|E,I)", Vout, C_col, EI
             )
 
         if Vinf is not None and self.include_vinf:
             # I(E;Vinf|C)
-            self.logger.debug("  Computing I(E;Vinf|C)...")
-            start_time = time.time()
-            metrics["I(E;Vinf|C)"] = self.estimators[
-                self.method
-            ].conditional_mutual_information(E, Vinf, C.reshape(-1, 1))
-            self.logger.debug(
-                f"  I(E;Vinf|C) = {metrics['I(E;Vinf|C)']:.4f} (took {time.time() - start_time:.1f}s)"
-            )
+            metrics["I(E;Vinf|C)"] = self._estimate_cmi("I(E;Vinf|C)", E, Vinf, C_col)
 
             # I(I;Vinf|C)
-            self.logger.debug("  Computing I(I;Vinf|C)...")
-            start_time = time.time()
-            metrics["I(I;Vinf|C)"] = self.estimators[
-                self.method
-            ].conditional_mutual_information(I_var, Vinf, C.reshape(-1, 1))
-            self.logger.debug(
-                f"  I(I;Vinf|C) = {metrics['I(I;Vinf|C)']:.4f} (took {time.time() - start_time:.1f}s)"
+            metrics["I(I;Vinf|C)"] = self._estimate_cmi(
+                "I(I;Vinf|C)", I_var, Vinf, C_col
             )
 
             # Somatic processing conditionals (low-dimensional and useful for "Vout -> Vinf -> C" chain).
             if self.compute_ablation_aligned_mi:
-                self.logger.debug("  Computing I(Vinf;C|Vout)...")
-                start_time = time.time()
-                metrics["I(Vinf;C|Vout)"] = estimator.conditional_mutual_information(
-                    Vinf, C_col, Vout
-                )
-                self.logger.debug(
-                    f"  I(Vinf;C|Vout) = {metrics['I(Vinf;C|Vout)']:.4f} (took {time.time() - start_time:.1f}s)"
+                metrics["I(Vinf;C|Vout)"] = self._estimate_cmi(
+                    "I(Vinf;C|Vout)", Vinf, C_col, Vout
                 )
 
-                self.logger.debug("  Computing I(Vout;C|Vinf)...")
-                start_time = time.time()
-                metrics["I(Vout;C|Vinf)"] = estimator.conditional_mutual_information(
-                    Vout, C_col, Vinf
-                )
-                self.logger.debug(
-                    f"  I(Vout;C|Vinf) = {metrics['I(Vout;C|Vinf)']:.4f} (took {time.time() - start_time:.1f}s)"
+                metrics["I(Vout;C|Vinf)"] = self._estimate_cmi(
+                    "I(Vout;C|Vinf)", Vout, C_col, Vinf
                 )
 
         self.logger.debug("  Conditional MI computation completed.")

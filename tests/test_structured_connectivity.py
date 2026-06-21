@@ -1,5 +1,8 @@
 """Tests for hard structured synaptic connectivity masks."""
 
+from dataclasses import dataclass
+from types import SimpleNamespace
+
 import pytest
 import torch
 
@@ -18,10 +21,18 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse imp
 )
 from dendritic_modeling.networks.architectures.factory import get_architecture
 from dendritic_modeling.networks.architectures.recurrent.structured_einet_factory import (
+    _build_structured_inhibitory_population_config,
+    _effective_layer_recurrence_enabled,
+    _LayerPopulationSynapseCounts,
+    _RecurrentFeatureFlags,
     _RecurrentReactivationOptions,
     _RecurrentSynapseCounts,
     _resolve_layer_excitatory_synapse_counts,
     _resolve_layer_inhibitory_synapse_counts,
+    _resolve_layer_recurrent_timing,
+    _resolve_recurrent_input_projection_dims,
+    _resolve_recurrent_store_routing,
+    _resolve_recurrent_transfer_params,
     _should_build_inhibitory_population,
     _structured_population_adaptive_init_kwargs,
     _structured_population_blocklinear_kwargs,
@@ -33,6 +44,22 @@ from dendritic_modeling.networks.architectures.recurrent.structured_einet_factor
     _structured_population_soma_feedback_kwargs,
     _structured_population_timing_kwargs,
 )
+
+
+@dataclass(frozen=True)
+class _TinyPopulationConfig:
+    n_neurons: int
+    branch_factors: list[int]
+    ff_excitatory_synapses: int
+    ff_inhibitory_synapses: int
+    rec_excitatory_synapses: int
+    rec_inhibitory_synapses: int
+    structured_layer_idx: int
+    ff_excitatory_pathway: str
+    ff_inhibitory_pathway: str
+    rec_excitatory_pathway: str
+    rec_inhibitory_pathway: str
+    untouched: str = "preserved"
 
 
 def test_topk_connection_mask_limits_active_synapses():
@@ -351,6 +378,77 @@ def test_structured_population_timing_kwargs_preserve_defaults_and_overrides():
     }
 
 
+def test_layer_recurrent_timing_preserves_repeat_last_semantics():
+    timing = _resolve_layer_recurrent_timing(
+        recurrent_cfg={
+            "dt": [0.5],
+            "tau_base": [10, 20],
+            "tau_ratio": 4,
+        },
+        layer_idx=3,
+    )
+
+    assert timing.dt == 0.5
+    assert timing.tau_base == 20.0
+    assert timing.tau_ratio == 4.0
+
+
+def test_recurrent_transfer_params_preserve_override_order():
+    params = _resolve_recurrent_transfer_params(
+        transfer={
+            "input_mode": 0,
+            "activation": "relu",
+            "hidden_dims": [8],
+        },
+        recurrent_cfg={
+            "transfer": {"activation": "identity", "hidden_dims": [16]},
+            "transfer_params": {"hidden_dims": [32], "output_activation": "relu"},
+        },
+    )
+
+    assert params["input_mode"] == 0
+    assert params["activation"] == "identity"
+    assert params["hidden_dims"] == [32]
+    assert params["output_activation"] == "relu"
+
+
+def test_recurrent_input_projection_dims_preserve_list_only_legacy_behavior():
+    assert _resolve_recurrent_input_projection_dims(
+        architecture={"input_projection_dims": [4, 5]},
+        recurrent_cfg={"input_projection_dims": [1, 2]},
+    ) == [4, 5]
+
+    assert _resolve_recurrent_input_projection_dims(
+        architecture={},
+        recurrent_cfg={"input_projection_dims": [1, 2]},
+    ) == [1, 2]
+
+    assert (
+        _resolve_recurrent_input_projection_dims(
+            architecture={"input_projection_dims": (4, 5)},
+            recurrent_cfg={"input_projection_dims": [1, 2]},
+        )
+        == []
+    )
+
+
+def test_recurrent_store_routing_prefers_implementation_section():
+    assert (
+        _resolve_recurrent_store_routing(
+            implementation={"store_routing": False},
+            recurrent_cfg={"store_routing": True},
+        )
+        is False
+    )
+    assert (
+        _resolve_recurrent_store_routing(
+            implementation={},
+            recurrent_cfg={"store_routing": True},
+        )
+        is True
+    )
+
+
 def test_structured_population_dynamics_kwargs_preserve_modern_and_legacy_keys():
     assert _structured_population_dynamics_kwargs(
         {
@@ -550,6 +648,137 @@ def test_inhibitory_population_requires_size_and_incoming_synapses():
     assert not _should_build_inhibitory_population(n_inh=5, synapses=empty_synapses)
     assert not _should_build_inhibitory_population(n_inh=0, synapses=incoming_synapses)
     assert _should_build_inhibitory_population(n_inh=5, synapses=incoming_synapses)
+
+
+def test_build_structured_inhibitory_population_config_replaces_pathway_fields():
+    exc_cfg = _TinyPopulationConfig(
+        n_neurons=10,
+        branch_factors=[2],
+        ff_excitatory_synapses=11,
+        ff_inhibitory_synapses=12,
+        rec_excitatory_synapses=13,
+        rec_inhibitory_synapses=14,
+        structured_layer_idx=0,
+        ff_excitatory_pathway="ee",
+        ff_inhibitory_pathway="ie",
+        rec_excitatory_pathway="rec_ee",
+        rec_inhibitory_pathway="rec_ie",
+    )
+
+    inh_cfg = _build_structured_inhibitory_population_config(
+        excitatory_config=exc_cfg,
+        architecture={"inhibitory_branch_factors": [3, 1]},
+        layer_idx=4,
+        n_inh=7,
+        synapses=_LayerPopulationSynapseCounts(
+            ff_excitatory=1,
+            ff_inhibitory=2,
+            rec_excitatory=3,
+            rec_inhibitory=4,
+        ),
+    )
+
+    assert inh_cfg.n_neurons == 7
+    assert inh_cfg.branch_factors == [3, 1]
+    assert inh_cfg.ff_excitatory_synapses == 1
+    assert inh_cfg.ff_inhibitory_synapses == 2
+    assert inh_cfg.rec_excitatory_synapses == 3
+    assert inh_cfg.rec_inhibitory_synapses == 4
+    assert inh_cfg.structured_layer_idx == 4
+    assert inh_cfg.ff_excitatory_pathway == "ei"
+    assert inh_cfg.ff_inhibitory_pathway == "ii"
+    assert inh_cfg.rec_excitatory_pathway == "rec_ei"
+    assert inh_cfg.rec_inhibitory_pathway == "rec_ii"
+    assert inh_cfg.untouched == "preserved"
+    assert exc_cfg.ff_excitatory_pathway == "ee"
+
+
+def test_effective_layer_recurrence_includes_stateful_feature_requirements():
+    inactive_flags = _RecurrentFeatureFlags(
+        has_rec_synapses=False,
+        has_soma_feedback=False,
+        has_spiking_dynamics=False,
+        has_dendritic_spikes=False,
+        has_synapse_types=False,
+    )
+    exc_inactive = SimpleNamespace(
+        dendritic_spikes_enabled=False,
+        soma_feedback_enabled=False,
+    )
+    inh_inactive = SimpleNamespace(
+        dendritic_spikes_enabled=False,
+        soma_feedback_enabled=False,
+    )
+
+    assert not _effective_layer_recurrence_enabled(
+        base_recurrent=False,
+        flags=inactive_flags,
+        exc_cfg=exc_inactive,
+        inh_cfg=None,
+    )
+    assert _effective_layer_recurrence_enabled(
+        base_recurrent=True,
+        flags=inactive_flags,
+        exc_cfg=exc_inactive,
+        inh_cfg=None,
+    )
+    assert _effective_layer_recurrence_enabled(
+        base_recurrent=False,
+        flags=_RecurrentFeatureFlags(
+            has_rec_synapses=False,
+            has_soma_feedback=False,
+            has_spiking_dynamics=True,
+            has_dendritic_spikes=False,
+            has_synapse_types=False,
+        ),
+        exc_cfg=exc_inactive,
+        inh_cfg=None,
+    )
+    assert _effective_layer_recurrence_enabled(
+        base_recurrent=False,
+        flags=inactive_flags,
+        exc_cfg=SimpleNamespace(
+            dendritic_spikes_enabled=True,
+            soma_feedback_enabled=False,
+        ),
+        inh_cfg=None,
+    )
+    assert _effective_layer_recurrence_enabled(
+        base_recurrent=False,
+        flags=inactive_flags,
+        exc_cfg=SimpleNamespace(
+            dendritic_spikes_enabled=False,
+            soma_feedback_enabled=True,
+        ),
+        inh_cfg=None,
+    )
+    assert _effective_layer_recurrence_enabled(
+        base_recurrent=False,
+        flags=_RecurrentFeatureFlags(
+            has_rec_synapses=False,
+            has_soma_feedback=False,
+            has_spiking_dynamics=False,
+            has_dendritic_spikes=False,
+            has_synapse_types=True,
+        ),
+        exc_cfg=exc_inactive,
+        inh_cfg=None,
+    )
+    assert _effective_layer_recurrence_enabled(
+        base_recurrent=False,
+        flags=inactive_flags,
+        exc_cfg=exc_inactive,
+        inh_cfg=SimpleNamespace(
+            dendritic_spikes_enabled=False,
+            soma_feedback_enabled=True,
+        ),
+    )
+    assert not _effective_layer_recurrence_enabled(
+        base_recurrent=False,
+        flags=inactive_flags,
+        exc_cfg=exc_inactive,
+        inh_cfg=inh_inactive,
+    )
 
 
 @pytest.mark.parametrize(

@@ -607,19 +607,14 @@ class InformationAnalyzer(
         moved = False
         try:
             # Check if model has ExcitationInhibitionNetwork
-            if not has_einet_core(model):
-                self.logger.warning(
-                    "Model does not expose an ExcitationInhibitionNetwork. Skipping information analysis."
-                )
+            if not self._model_supports_information_analysis(model):
                 return
 
             self.logger.info("Model validation passed - starting analysis")
             analysis_start_time = time.time()
 
             # Prepare data
-            self.logger.info(f"Preparing data: moving model to {device}")
-            model = model.to(device)
-            model.eval()
+            model = self._prepare_model_for_analysis(model, device)
             moved = True
 
             analysis_data = self._collect_analysis_data(
@@ -633,24 +628,14 @@ class InformationAnalyzer(
             C = analysis_data.C
             entropy_C = analysis_data.entropy_C
 
-            if self.computation_level == "single_branch":
-                results = self._compute_single_branch_results(C, entropy_C)
-                if results is None:
-                    return
-
-            elif self.computation_level == "layer_branch":
-                results = self._compute_layer_branch_results(C)
-                if results is None:
-                    return
-
-            else:  # computation_level == "all_branch"
-                results = self._compute_all_branch_results(
-                    model=model,
-                    inputs=inputs,
-                    C=C,
-                )
-                if results is None:
-                    return
+            results = self._compute_results_for_level(
+                model=model,
+                inputs=inputs,
+                C=C,
+                entropy_C=entropy_C,
+            )
+            if results is None:
+                return
 
             self._add_enhanced_analysis_results(results, C)
 
@@ -674,6 +659,44 @@ class InformationAnalyzer(
                 model.to(original_device)
                 if was_training:
                     model.train()
+
+    def _model_supports_information_analysis(self, model: BaseModel) -> bool:
+        """Return whether a model exposes the EI core needed for information analysis."""
+        if has_einet_core(model):
+            return True
+
+        self.logger.warning(
+            "Model does not expose an ExcitationInhibitionNetwork. Skipping information analysis."
+        )
+        return False
+
+    def _prepare_model_for_analysis(self, model: BaseModel, device: str) -> BaseModel:
+        """Move a model to the analysis device and switch it to evaluation mode."""
+        self.logger.info(f"Preparing data: moving model to {device}")
+        model = model.to(device)
+        model.eval()
+        return model
+
+    def _compute_results_for_level(
+        self,
+        *,
+        model: BaseModel,
+        inputs: torch.Tensor,
+        C: np.ndarray,
+        entropy_C: Optional[float],
+    ) -> dict[str, Any] | None:
+        """Dispatch to the configured information-analysis granularity."""
+        if self.computation_level == "single_branch":
+            return self._compute_single_branch_results(C, entropy_C)
+
+        if self.computation_level == "layer_branch":
+            return self._compute_layer_branch_results(C)
+
+        return self._compute_all_branch_results(
+            model=model,
+            inputs=inputs,
+            C=C,
+        )
 
     def _merge_renamed_metric_dicts_in_place(
         self,
