@@ -3,41 +3,37 @@ Stateful DendriNet with optional recurrent compartments and per-level traces.
 """
 
 import math
-from dataclasses import dataclass
 from typing import Optional
 
 import torch
 import torch.nn as nn
 
-from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_config import (
-    DendriticBranchConfig,
-)
-from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer import (
-    DendriticBranchLayer,
-)
-from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.synapse_config import (
-    DendriticSynapseConfig,
-)
-from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.structured_mask import (
-    sample_configured_mask,
-)
 from dendritic_modeling.networks.architectures.recurrent.dendritic_geometry import (
-    compute_input_branch_factors,
     compute_level_sizes,
     compute_output_owner_index_per_level,
-    resolve_synapses_by_level,
 )
 from dendritic_modeling.networks.architectures.recurrent.dendritic_spikes import (
-    DendriticSpikeDynamics,
     previous_dendritic_spike_state,
-    resolve_dendritic_spike_levels,
 )
 from dendritic_modeling.networks.architectures.recurrent.ei_config import (
     PopulationConfig,
 )
 from dendritic_modeling.networks.architectures.recurrent.ei_state import DendriNetState
-from dendritic_modeling.networks.architectures.recurrent.spiking_soma import (
-    LIFSoma,
+from dendritic_modeling.networks.architectures.recurrent.stateful_layers import (
+    _build_stateful_branch_layers,
+)
+from dendritic_modeling.networks.architectures.recurrent.stateful_setup import (
+    _active_input_dim as _active_input_dim,
+    _active_synapse_count as _active_synapse_count,
+    _build_stateful_spiking_soma,
+    _resolve_stateful_branch_synapse_layout as _resolve_stateful_branch_synapse_layout,
+    _resolve_stateful_dendritic_spike_setup,
+    _resolve_stateful_level_taus,
+    _resolve_stateful_soma_feedback_levels,
+)
+from dendritic_modeling.networks.architectures.recurrent.stateful_step import (
+    _build_stateful_next_state,
+    _build_stateful_routing_info,
 )
 from dendritic_modeling.networks.architectures.recurrent.stateful_typed_dynamics import (
     StatefulTypedDynamicsMixin,
@@ -45,80 +41,6 @@ from dendritic_modeling.networks.architectures.recurrent.stateful_typed_dynamics
 from dendritic_modeling.networks.architectures.recurrent.synapse_types import (
     build_synapse_type_set,
 )
-
-
-@dataclass(frozen=True)
-class _StatefulBranchSynapseLayout:
-    """Per-level branch factors and synapse counts for a stateful population."""
-
-    input_branch_factors: list[int]
-    ff_exc_by_level: list[int]
-    ff_inh_by_level: list[int]
-    rec_exc_by_level: list[int]
-    rec_inh_by_level: list[int]
-
-
-def _resolve_stateful_branch_synapse_layout(
-    pop_config: PopulationConfig,
-    n_levels: int,
-) -> _StatefulBranchSynapseLayout:
-    """Resolve branch factors and per-level synapse counts from population config."""
-    return _StatefulBranchSynapseLayout(
-        input_branch_factors=compute_input_branch_factors(pop_config.branch_factors),
-        ff_exc_by_level=resolve_synapses_by_level(
-            per_level=pop_config.ff_excitatory_synapses_by_level,
-            fallback=pop_config.ff_excitatory_synapses,
-            n_levels=n_levels,
-            field_name="ff_excitatory_synapses_by_level",
-        ),
-        ff_inh_by_level=resolve_synapses_by_level(
-            per_level=pop_config.ff_inhibitory_synapses_by_level,
-            fallback=pop_config.ff_inhibitory_synapses,
-            n_levels=n_levels,
-            field_name="ff_inhibitory_synapses_by_level",
-        ),
-        rec_exc_by_level=resolve_synapses_by_level(
-            per_level=pop_config.rec_excitatory_synapses_by_level,
-            fallback=pop_config.rec_excitatory_synapses,
-            n_levels=n_levels,
-            field_name="rec_excitatory_synapses_by_level",
-        ),
-        rec_inh_by_level=resolve_synapses_by_level(
-            per_level=pop_config.rec_inhibitory_synapses_by_level,
-            fallback=pop_config.rec_inhibitory_synapses,
-            n_levels=n_levels,
-            field_name="rec_inhibitory_synapses_by_level",
-        ),
-    )
-
-
-def _active_input_dim(input_dim: Optional[int], synapses: int) -> Optional[int]:
-    """Return an input dimension only when the corresponding pathway is active."""
-    return input_dim if input_dim is not None and synapses > 0 else None
-
-
-def _active_synapse_count(input_dim: Optional[int], synapses: int) -> Optional[int]:
-    """Return a synapse count only when the corresponding pathway is active."""
-    return synapses if input_dim is not None and synapses > 0 else None
-
-
-def _resolve_stateful_level_taus(
-    pop_config: PopulationConfig,
-    n_levels: int,
-) -> list[float]:
-    """Resolve explicit or geometric per-level time constants."""
-    if pop_config.level_taus:
-        if len(pop_config.level_taus) != n_levels:
-            raise ValueError(
-                "level_taus length must match number of dendritic levels "
-                f"({n_levels}), got {len(pop_config.level_taus)}"
-            )
-        return list(pop_config.level_taus)
-
-    ratio = pop_config.tau_ratio
-    return [
-        pop_config.tau_base * (ratio ** (n_levels - 1 - i)) for i in range(n_levels)
-    ]
 
 
 class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
@@ -153,18 +75,11 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
         if self.synapse_types_enabled and not bool(pop_config.use_shunting):
             self._validate_additive_synapse_reversals()
         self.dynamics_mode = str(pop_config.dynamics_mode).lower()
-        self.spiking_soma = None
-        if self.dynamics_mode == "spike":
-            self.spiking_soma = LIFSoma(
-                threshold=pop_config.spike_threshold,
-                reset=pop_config.spike_reset,
-                tau=pop_config.spike_tau,
-                dt=dt,
-                refractory_steps=pop_config.spike_refractory_steps,
-                surrogate_beta=pop_config.spike_surrogate_beta,
-                output_mode=pop_config.spike_readout,
-                readout_tau=pop_config.spike_readout_tau,
-            )
+        self.spiking_soma = _build_stateful_spiking_soma(
+            pop_config,
+            dynamics_mode=self.dynamics_mode,
+            dt=dt,
+        )
 
         # Routing analysis flags (set externally or via EINetwork)
         self.store_routing: bool = False
@@ -179,46 +94,30 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
             self._level_dims, self._n_soma
         )
         self.n_levels = len(self._level_dims)
-        self.dendritic_spikes_enabled = bool(pop_config.dendritic_spikes_enabled)
-        self.dendritic_spike_mode = str(pop_config.dendritic_spike_mode).lower()
-        self.dendritic_spike_threshold = float(pop_config.dendritic_spike_threshold)
-        self.dendritic_spike_plateau_amplitude = float(
-            pop_config.dendritic_spike_plateau_amplitude
-        )
-        self.dendritic_spike_plateau_tau = float(pop_config.dendritic_spike_plateau_tau)
-        self.dendritic_spike_refractory_steps = int(
-            pop_config.dendritic_spike_refractory_steps
-        )
-        self.dendritic_spike_surrogate_beta = float(
-            pop_config.dendritic_spike_surrogate_beta
-        )
-        self.dendritic_spike_propagation = str(
-            pop_config.dendritic_spike_propagation
-        ).lower()
-        self.dendritic_spike_level_indices = resolve_dendritic_spike_levels(
-            self.dendritic_spikes_enabled,
-            pop_config.dendritic_spike_levels,
-            self.n_levels,
-        )
-        self.dendritic_spike_dynamics = DendriticSpikeDynamics(
-            enabled=self.dendritic_spikes_enabled,
-            level_indices=self.dendritic_spike_level_indices,
-            mode=self.dendritic_spike_mode,
-            threshold=self.dendritic_spike_threshold,
-            plateau_amplitude=self.dendritic_spike_plateau_amplitude,
-            plateau_tau=self.dendritic_spike_plateau_tau,
-            refractory_steps=self.dendritic_spike_refractory_steps,
-            surrogate_beta=self.dendritic_spike_surrogate_beta,
-            propagation=self.dendritic_spike_propagation,
+        dendritic_spike_setup = _resolve_stateful_dendritic_spike_setup(
+            pop_config,
+            n_levels=self.n_levels,
             dt=self.dt,
         )
+        self.dendritic_spikes_enabled = dendritic_spike_setup.enabled
+        self.dendritic_spike_mode = dendritic_spike_setup.mode
+        self.dendritic_spike_threshold = dendritic_spike_setup.threshold
+        self.dendritic_spike_plateau_amplitude = dendritic_spike_setup.plateau_amplitude
+        self.dendritic_spike_plateau_tau = dendritic_spike_setup.plateau_tau
+        self.dendritic_spike_refractory_steps = dendritic_spike_setup.refractory_steps
+        self.dendritic_spike_surrogate_beta = dendritic_spike_setup.surrogate_beta
+        self.dendritic_spike_propagation = dendritic_spike_setup.propagation
+        self.dendritic_spike_level_indices = dendritic_spike_setup.level_indices
+        self.dendritic_spike_dynamics = dendritic_spike_setup.dynamics
         self.soma_feedback_enabled = bool(pop_config.soma_feedback_enabled)
         self.soma_feedback_mode = str(pop_config.soma_feedback_mode).lower()
         self.soma_feedback_source = str(pop_config.soma_feedback_source).lower()
         self.soma_feedback_per_level = bool(pop_config.soma_feedback_per_level)
         self.soma_feedback_reversal = float(pop_config.soma_feedback_reversal)
-        self.soma_feedback_level_indices = self._resolve_soma_feedback_levels(
-            pop_config.soma_feedback_levels
+        self.soma_feedback_level_indices = _resolve_stateful_soma_feedback_levels(
+            self.soma_feedback_enabled,
+            pop_config.soma_feedback_levels,
+            self.n_levels,
         )
         self._soma_feedback_strength_index = {
             level_idx: strength_idx
@@ -279,125 +178,25 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
                 ),
             )
 
-        # Build branch layers (distal to soma)
-        self.branch_layers = nn.ModuleList()
-        synapse_layout = _resolve_stateful_branch_synapse_layout(
-            pop_config,
-            self.n_levels,
+        branch_layer_build = _build_stateful_branch_layers(
+            pop_config=pop_config,
+            n_levels=self.n_levels,
+            level_dims=self._level_dims,
+            output_owner_index_per_level=self._output_owner_index_per_level,
+            excitatory_input_dim=excitatory_input_dim,
+            inhibitory_input_dim=inhibitory_input_dim,
+            recurrent_excitatory_input_dim=recurrent_excitatory_input_dim,
+            recurrent_inhibitory_input_dim=recurrent_inhibitory_input_dim,
+            recurrent_excitatory_is_self_population=(
+                recurrent_excitatory_is_self_population
+            ),
+            recurrent_inhibitory_is_self_population=(
+                recurrent_inhibitory_is_self_population
+            ),
+            connection_masks_by_pathway=connection_masks_by_pathway,
         )
-        direct_connection_masks = connection_masks_by_pathway or {}
-
-        common_synapse_config = DendriticSynapseConfig.from_population_config(
-            pop_config
-        )
-
-        is_soma_level = self.n_levels - 1  # last index
-
-        for level_idx, out_dim in enumerate(self._level_dims):
-            recurrent_self_forbidden = None
-            rec_inhibitory_self_forbidden = None
-            if not pop_config.allow_self_recurrence:
-                owner_idx = self._output_owner_index_per_level[level_idx]
-                if recurrent_excitatory_is_self_population:
-                    recurrent_self_forbidden = owner_idx
-                if recurrent_inhibitory_is_self_population:
-                    rec_inhibitory_self_forbidden = owner_idx
-            # Soma level: optionally skip direct synaptic input
-            if level_idx == is_soma_level and not pop_config.somatic_synapses:
-                exc_in = None
-                exc_syn = None
-                inh_in = None
-                inh_syn = None
-                rec_in = None
-                rec_syn = None
-                rec_inh_in = None
-                rec_inh_syn = None
-            else:
-                ff_exc_syn = synapse_layout.ff_exc_by_level[level_idx]
-                ff_inh_syn_count = synapse_layout.ff_inh_by_level[level_idx]
-                rec_exc_syn_count = synapse_layout.rec_exc_by_level[level_idx]
-                rec_inh_syn_count = synapse_layout.rec_inh_by_level[level_idx]
-
-                exc_in = _active_input_dim(excitatory_input_dim, ff_exc_syn)
-                exc_syn = _active_synapse_count(excitatory_input_dim, ff_exc_syn)
-                inh_in = _active_input_dim(inhibitory_input_dim, ff_inh_syn_count)
-                inh_syn = _active_synapse_count(inhibitory_input_dim, ff_inh_syn_count)
-                rec_in = _active_input_dim(
-                    recurrent_excitatory_input_dim, rec_exc_syn_count
-                )
-                rec_syn = _active_synapse_count(
-                    recurrent_excitatory_input_dim, rec_exc_syn_count
-                )
-                rec_inh_in = _active_input_dim(
-                    recurrent_inhibitory_input_dim, rec_inh_syn_count
-                )
-                rec_inh_syn = _active_synapse_count(
-                    recurrent_inhibitory_input_dim, rec_inh_syn_count
-                )
-
-            def _structured_mask(pathway, in_dim, out_dim=out_dim, level_idx=level_idx):
-                if in_dim is None:
-                    return None
-                direct_masks = direct_connection_masks.get(pathway)
-                if direct_masks is not None:
-                    if level_idx >= len(direct_masks):
-                        raise ValueError(
-                            f"connection_masks_by_pathway[{pathway!r}] must include "
-                            f"{self.n_levels} level masks"
-                        )
-                    return direct_masks[level_idx]
-                return sample_configured_mask(
-                    pop_config.structured_connectivity,
-                    pathway=pathway,
-                    out_features=out_dim,
-                    in_features=in_dim,
-                    layer_idx=pop_config.structured_layer_idx,
-                    level_idx=level_idx,
-                )
-
-            branch_layer = DendriticBranchLayer(
-                branch_config=DendriticBranchConfig(
-                    output_dim=out_dim,
-                    excitatory_input_dim=exc_in,
-                    excitatory_synapses_per_branch=exc_syn,
-                    excitatory_connection_mask=_structured_mask(
-                        pop_config.ff_excitatory_pathway,
-                        exc_in,
-                    ),
-                    inhibitory_input_dim=inh_in,
-                    inhibitory_synapses_per_branch=inh_syn,
-                    inhibitory_connection_mask=_structured_mask(
-                        pop_config.ff_inhibitory_pathway,
-                        inh_in,
-                    ),
-                    input_branch_factor=synapse_layout.input_branch_factors[level_idx],
-                    recurrent_input_dim=rec_in,
-                    recurrent_synapses_per_branch=rec_syn,
-                    recurrent_forbidden_input_index_per_output=(
-                        recurrent_self_forbidden
-                    ),
-                    recurrent_connection_mask=_structured_mask(
-                        pop_config.rec_excitatory_pathway,
-                        rec_in,
-                    ),
-                    rec_inhibitory_input_dim=rec_inh_in,
-                    rec_inhibitory_synapses_per_branch=rec_inh_syn,
-                    rec_inhibitory_forbidden_input_index_per_output=(
-                        rec_inhibitory_self_forbidden
-                    ),
-                    rec_inhibitory_connection_mask=_structured_mask(
-                        pop_config.rec_inhibitory_pathway,
-                        rec_inh_in,
-                    ),
-                    layer_idx=self.n_levels - level_idx,
-                ),
-                synapse_config=common_synapse_config,
-            )
-            if pop_config.topk_strategy == "conductance_dynamic":
-                branch_layer.set_forward_dynamic_grad_scaling(True)
-            self.branch_layers.append(branch_layer)
-
-        self.synapse_config = common_synapse_config
+        self.branch_layers = branch_layer_build.branch_layers
+        self.synapse_config = branch_layer_build.synapse_config
         self.synapse_configs = tuple(
             branch_layer.synapse_config for branch_layer in self.branch_layers
         )
@@ -491,38 +290,11 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
         )
 
     def _resolve_soma_feedback_levels(self, levels) -> set[int]:
-        if not self.soma_feedback_enabled:
-            return set()
-        dendritic_levels = list(range(max(self.n_levels - 1, 0)))
-        if isinstance(levels, str):
-            key = levels.lower()
-            if key in {"all", "*"}:
-                return set(range(self.n_levels))
-            if key in {"dendritic", "non_soma", "non-soma"}:
-                return set(dendritic_levels)
-            if key == "distal":
-                return {0} if dendritic_levels else set()
-            if key == "proximal":
-                return {dendritic_levels[-1]} if dendritic_levels else set()
-            if key == "soma":
-                return {self.n_levels - 1}
-            if key in {"none", ""}:
-                return set()
-            raise ValueError(
-                "soma_feedback_levels must be one of 'non_soma', 'all', "
-                "'distal', 'proximal', 'soma', 'none', or a list of level "
-                f"indices, got {levels!r}"
-            )
-        resolved = set()
-        for value in levels:
-            level_idx = int(value)
-            if level_idx < 0 or level_idx >= self.n_levels:
-                raise ValueError(
-                    "soma_feedback_levels entries are distal-to-soma level "
-                    f"indices in [0, {self.n_levels - 1}], got {level_idx}"
-                )
-            resolved.add(level_idx)
-        return resolved
+        return _resolve_stateful_soma_feedback_levels(
+            self.soma_feedback_enabled,
+            levels,
+            self.n_levels,
+        )
 
     def _previous_soma_feedback_source(
         self,
@@ -919,53 +691,35 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
             state,
         )
 
-        new_state = DendriNetState(
+        new_state = _build_stateful_next_state(
             trace_E=new_trace_E,
             trace_E_rec=new_trace_E_rec,
             trace_I=new_trace_I,
             trace_I_rec=new_trace_I_rec,
             trace_branch=new_trace_branch,
-            branch_voltage=(
-                level_voltage_cache
-                if self.synapse_types_enabled or self.dendritic_spikes_enabled
-                else None
-            ),
+            level_voltage_cache=level_voltage_cache,
             typed_traces=new_typed_traces,
-            soma_output=output if self.soma_feedback_enabled else None,
+            output=output,
             v_soma=v_soma,
             refractory_counter=refractory_counter,
             spike_readout=spike_readout,
             dendritic_spike_plateau=new_dendritic_spike_plateau,
             dendritic_spike_refractory=new_dendritic_spike_refractory,
             dendritic_spike_events=new_dendritic_spike_events,
+            track_branch_voltage=(
+                self.synapse_types_enabled or self.dendritic_spikes_enabled
+            ),
+            track_soma_output=self.soma_feedback_enabled,
         )
 
-        # Collect routing info when enabled
         if self.store_routing:
-            eps = 1e-8
-            level_voltages = []
-            ff_rec_ratios = []
-            for l_idx in range(self.n_levels):
-                # Per-level contribution: L2 norm of voltage (computed from traces)
-                v = level_voltage_cache[l_idx]
-                level_voltages.append(v.norm(dim=-1))  # [batch]
-
-                # FF / REC ratio: fraction of signal from feedforward compartments
-                ff_mag = new_trace_E[l_idx].abs().sum(dim=-1) + new_trace_I[
-                    l_idx
-                ].abs().sum(dim=-1)
-                rec_mag = new_trace_E_rec[l_idx].abs().sum(dim=-1) + new_trace_I_rec[
-                    l_idx
-                ].abs().sum(dim=-1)
-                ff_rec_ratios.append(ff_mag / (ff_mag + rec_mag + eps))  # [batch]
-
-            self._last_routing_info = {
-                "level_contributions": torch.stack(
-                    level_voltages, dim=-1
-                ),  # [batch, n_levels]
-                "ff_rec_ratios": torch.stack(
-                    ff_rec_ratios, dim=-1
-                ),  # [batch, n_levels]
-            }
+            self._last_routing_info = _build_stateful_routing_info(
+                trace_E=new_trace_E,
+                trace_E_rec=new_trace_E_rec,
+                trace_I=new_trace_I,
+                trace_I_rec=new_trace_I_rec,
+                level_voltage_cache=level_voltage_cache,
+                n_levels=self.n_levels,
+            )
 
         return output, new_state

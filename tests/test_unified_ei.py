@@ -24,6 +24,7 @@ from dendritic_modeling.networks.architectures.recurrent import (
 )
 from dendritic_modeling.networks.architectures.recurrent.stateful_dendrinet import (
     _resolve_stateful_level_taus,
+    _resolve_stateful_soma_feedback_levels,
 )
 from dendritic_modeling.scripts.script_utils.setup_utils import (
     _is_recurrent_core_config,
@@ -373,6 +374,24 @@ def test_soma_feedback_disabled_levels_have_no_trainable_projection():
     assert isinstance(net.soma_feedback_projections[2], torch.nn.Identity)
     assert net.soma_feedback_strength.shape == (2,)
     assert "soma_feedback_projections.2.weight" not in dict(net.named_parameters())
+
+
+def test_resolve_stateful_soma_feedback_levels_preserves_selector_rules():
+    assert _resolve_stateful_soma_feedback_levels(False, "all", 3) == set()
+    assert _resolve_stateful_soma_feedback_levels(True, "all", 3) == {0, 1, 2}
+    assert _resolve_stateful_soma_feedback_levels(True, "*", 3) == {0, 1, 2}
+    assert _resolve_stateful_soma_feedback_levels(True, "non_soma", 3) == {0, 1}
+    assert _resolve_stateful_soma_feedback_levels(True, "dendritic", 3) == {0, 1}
+    assert _resolve_stateful_soma_feedback_levels(True, "distal", 3) == {0}
+    assert _resolve_stateful_soma_feedback_levels(True, "proximal", 3) == {1}
+    assert _resolve_stateful_soma_feedback_levels(True, "soma", 3) == {2}
+    assert _resolve_stateful_soma_feedback_levels(True, "none", 3) == set()
+    assert _resolve_stateful_soma_feedback_levels(True, [0, "2"], 3) == {0, 2}
+
+    with pytest.raises(ValueError, match="soma_feedback_levels must be"):
+        _resolve_stateful_soma_feedback_levels(True, "middle", 3)
+    with pytest.raises(ValueError, match="indices in \\[0, 2\\]"):
+        _resolve_stateful_soma_feedback_levels(True, [3], 3)
 
 
 def test_legacy_unified_ei_tau_schema_builds_canonical_recurrent_network():
