@@ -24,6 +24,94 @@ from dendritic_modeling.networks.utils.weight_transforms import (
 )
 
 
+def _normalize_forbidden_inputs(
+    forbidden_input_index_per_output: Optional[torch.Tensor],
+    out_features: int,
+    in_features: int,
+) -> torch.Tensor:
+    if forbidden_input_index_per_output is None:
+        return torch.empty(0, dtype=torch.long)
+
+    forbidden = torch.as_tensor(
+        forbidden_input_index_per_output, dtype=torch.long
+    ).view(-1)
+    if forbidden.numel() != out_features:
+        raise ValueError(
+            "forbidden_input_index_per_output must have one index per "
+            f"output feature ({out_features}), got {forbidden.numel()}"
+        )
+    valid = (forbidden >= -1) & (forbidden < in_features)
+    if not bool(valid.all()):
+        raise ValueError(
+            "forbidden_input_index_per_output entries must be -1 or in "
+            f"[0, {in_features - 1}]"
+        )
+    return forbidden
+
+
+def _resolve_weight_init_range(param_space, weight_init_range):
+    if weight_init_range is not None:
+        return weight_init_range
+    if param_space == "log":
+        return (-2.1, -2.0)
+    if param_space == "presigmoid":
+        return (-0.1, 0.1)
+    if param_space == "uniform":
+        return (0.25, 0.75)
+    return None
+
+
+def _resolve_allowed_connection_mask(
+    connection_mask: Optional[torch.Tensor],
+    out_features: int,
+    in_features: int,
+) -> tuple[torch.Tensor, bool]:
+    allowed_connection_mask = validate_connection_mask(
+        connection_mask,
+        out_features,
+        in_features,
+    )
+    if allowed_connection_mask is not None:
+        return allowed_connection_mask, True
+    return torch.ones(out_features, in_features, dtype=torch.bool), False
+
+
+def _resolve_target_connections(
+    rewiring_mode: str,
+    allowed_connection_mask: torch.Tensor,
+    target_density: float,
+    synapses_per_branch,
+) -> int:
+    if rewiring_mode == "constant_branch":
+        allowed_per_branch = allowed_connection_mask.sum(dim=1)
+        return int(
+            torch.clamp(allowed_per_branch, max=synapses_per_branch).sum().item()
+        )
+    allowed_connections = int(allowed_connection_mask.sum().item())
+    return int(allowed_connections * target_density)
+
+
+def _build_forbidden_connection_mask(
+    allowed_connection_mask: torch.Tensor,
+    forbidden: torch.Tensor,
+    out_features: int,
+) -> torch.Tensor:
+    forbidden_connection_mask = ~allowed_connection_mask.clone()
+    if forbidden.numel() == 0:
+        return forbidden_connection_mask
+
+    row_idx = torch.arange(
+        out_features,
+        dtype=torch.long,
+        device=forbidden_connection_mask.device,
+    )
+    forbidden_idx = forbidden.to(forbidden_connection_mask.device)
+    valid = forbidden_idx >= 0
+    if bool(valid.any()):
+        forbidden_connection_mask[row_idx[valid], forbidden_idx[valid]] = True
+    return forbidden_connection_mask
+
+
 class DeepstLinear(nn.Module):
     def __init__(
         self,
@@ -54,36 +142,19 @@ class DeepstLinear(nn.Module):
         self.param_space = param_space
         self.init_method = init_method
         self.weight_transform = weight_transform
-        if forbidden_input_index_per_output is None:
-            forbidden = torch.empty(0, dtype=torch.long)
-        else:
-            forbidden = torch.as_tensor(
-                forbidden_input_index_per_output, dtype=torch.long
-            ).view(-1)
-            if forbidden.numel() != out_features:
-                raise ValueError(
-                    "forbidden_input_index_per_output must have one index per "
-                    f"output feature ({out_features}), got {forbidden.numel()}"
-                )
-            valid = (forbidden >= -1) & (forbidden < in_features)
-            if not bool(valid.all()):
-                raise ValueError(
-                    "forbidden_input_index_per_output entries must be -1 or in "
-                    f"[0, {in_features - 1}]"
-                )
+        forbidden = _normalize_forbidden_inputs(
+            forbidden_input_index_per_output,
+            out_features,
+            in_features,
+        )
 
         # Compatibility with dendritic branch-layer initialization.
         self.K = int(target_density * in_features) if in_features else None
 
-        # Default initialization ranges
-        if weight_init_range is None:
-            if param_space == "log":
-                weight_init_range = (-2.1, -2.0)  # Default for log parameterization
-            elif param_space == "presigmoid":
-                weight_init_range = (-0.1, 0.1)  # Default for presigmoid
-            elif param_space == "uniform":
-                weight_init_range = (0.25, 0.75)  # Default for uniform
-        self.weight_init_range = weight_init_range
+        self.weight_init_range = _resolve_weight_init_range(
+            param_space,
+            weight_init_range,
+        )
         self.freeze_connectivity = freeze_connectivity
         self.weight_threshold = weight_threshold
 
@@ -102,18 +173,11 @@ class DeepstLinear(nn.Module):
         # Total number of possible connections
         self.total_connections = out_features * in_features
 
-        allowed_connection_mask = validate_connection_mask(
+        allowed_connection_mask, persist_allowed = _resolve_allowed_connection_mask(
             connection_mask,
             out_features,
             in_features,
         )
-        if allowed_connection_mask is None:
-            allowed_connection_mask = torch.ones(
-                out_features, in_features, dtype=torch.bool
-            )
-            persist_allowed = False
-        else:
-            persist_allowed = True
         self.register_buffer(
             "_allowed_connection_mask",
             allowed_connection_mask,
@@ -121,14 +185,12 @@ class DeepstLinear(nn.Module):
         )
         self.allowed_connections = int(allowed_connection_mask.sum().item())
 
-        # Target number of active connections based on density
-        if rewiring_mode == "constant_branch":
-            allowed_per_branch = allowed_connection_mask.sum(dim=1)
-            self.target_connections = int(
-                torch.clamp(allowed_per_branch, max=synapses_per_branch).sum().item()
-            )
-        else:
-            self.target_connections = int(self.allowed_connections * target_density)
+        self.target_connections = _resolve_target_connections(
+            rewiring_mode,
+            allowed_connection_mask,
+            target_density,
+            synapses_per_branch,
+        )
 
         # Initialize weights parameter
         if self.init_method is not None and self.init_method in TOPK_INIT_METHODS:
@@ -173,27 +235,17 @@ class DeepstLinear(nn.Module):
         self.register_buffer(
             "_forbidden_input_index_per_output", forbidden, persistent=False
         )
-        forbidden_connection_mask = ~allowed_connection_mask.clone()
-        if forbidden.numel() > 0:
-            row_idx = torch.arange(
-                out_features,
-                dtype=torch.long,
-                device=forbidden_connection_mask.device,
-            )
-            forbidden_idx = forbidden.to(forbidden_connection_mask.device)
-            valid = forbidden_idx >= 0
-            if bool(valid.any()):
-                forbidden_connection_mask[row_idx[valid], forbidden_idx[valid]] = True
+        forbidden_connection_mask = _build_forbidden_connection_mask(
+            allowed_connection_mask,
+            forbidden,
+            out_features,
+        )
         self.register_buffer(
             "_forbidden_connection_mask", forbidden_connection_mask, persistent=False
         )
 
         # Initialize connectivity
         self._initialize_connectivity()
-
-        self.freeze_connectivity = freeze_connectivity
-
-        self.weight_threshold = weight_threshold
 
     def _initialize_connectivity(self):
         if self.rewiring_mode == "constant_branch":
@@ -326,12 +378,8 @@ class DeepstLinear(nn.Module):
                             torch.randperm(len(potential_indices))[:num_to_select]
                         ]
 
-                        # Create new connections
                         for input_idx in selected_indices:
-                            self.mask[neuron_idx, input_idx] = True
-                            self.pre_w.data[neuron_idx, input_idx] = (
-                                self._initialize_new_weight()
-                            )
+                            self._activate_new_connection(neuron_idx, input_idx)
 
         elif self.rewiring_mode == "local":
             # Local rewiring - only create connections within the same neuron
@@ -359,12 +407,8 @@ class DeepstLinear(nn.Module):
                             ]
                             selected_connections = flat_indices[selected_indices]
 
-                            # Add new connections
                             for in_idx in selected_connections:
-                                self.mask[neuron_idx, in_idx] = True
-                                self.pre_w.data[neuron_idx, in_idx] = (
-                                    self._initialize_new_weight()
-                                )
+                                self._activate_new_connection(neuron_idx, in_idx)
 
         else:  # 'global' rewiring mode
             # Count total pruned connections
@@ -382,28 +426,21 @@ class DeepstLinear(nn.Module):
                     selected_indices = torch.randperm(len(flat_indices))[:num_to_add]
                     selected_connections = flat_indices[selected_indices]
 
-                    # Add new connections
                     for i, j in selected_connections:
-                        self.mask[i, j] = True
-                        self.pre_w.data[i, j] = self._initialize_new_weight()
+                        self._activate_new_connection(i, j)
+
+    def _activate_new_connection(self, output_idx, input_idx):
+        self.mask[output_idx, input_idx] = True
+        self.pre_w.data[output_idx, input_idx] = self._initialize_new_weight()
 
     def _initialize_new_weight(self):
-        """Helper method to initialize a new weight according to the chosen method"""
+        """Initialize a newly activated synapse."""
         if self.init_method is not None and self.init_method in TOPK_INIT_METHODS:
-            # Create a tensor with at least 2 dimensions for initialization
-            temp = torch.zeros(2, 2, device=self.pre_w.device)  # Changed from 1D to 2D
+            temp = torch.zeros(2, 2, device=self.pre_w.device)
             TOPK_INIT_METHODS[self.init_method](temp)
-
-            # Just use one value from the initialized tensor
             value = temp[0, 0].item()
 
-            # Apply transformations for log/presigmoid if needed
             if self.param_space == "log":
-                #     value = abs(value)
-                #     value = max(value, 1e-6)
-                #     value = math.log(value)
-
-                ### EXPERIMENTAL
                 value = math.log(self.weight_threshold)
             elif self.param_space == "presigmoid":
                 value = max(min(value, 1 - 1e-6), 1e-6)
