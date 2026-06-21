@@ -1779,10 +1779,8 @@ def plot_active_synapses_summary_by_layer(
         # Extract data from connectivity stats
         layer_stats = connectivity_stats.get("layer_stats", {})
 
-        logger.info(
-            f"DEBUG: connectivity_stats keys: {list(connectivity_stats.keys())}"
-        )
-        logger.info(f"DEBUG: layer_stats keys: {list(layer_stats.keys())}")
+        logger.debug("Connectivity stats keys: %s", list(connectivity_stats.keys()))
+        logger.debug("Layer stats keys: %s", list(layer_stats.keys()))
 
         if not layer_stats:
             logger.warning("No layer statistics found - generating default empty plot")

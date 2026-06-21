@@ -8,6 +8,7 @@ of weight pruning on synaptic connectivity.
 """
 
 import logging
+from collections.abc import Iterator
 from types import SimpleNamespace
 from typing import Any, Optional
 
@@ -96,6 +97,40 @@ def _format_pruning_summary_text(
             data_dict_list,
         )
     )
+
+
+def _iter_dendritic_branch_layers(model: BaseModel) -> Iterator[DendriticBranchLayer]:
+    core_network = getattr(model, "core_network", None)
+    if not isinstance(core_network, ExcitationInhibitionNetwork):
+        return
+
+    for module in core_network.modules():
+        if isinstance(module, DendriticBranchLayer):
+            yield module
+
+
+def _synapse_weight_mask(synapse: Any):
+    if synapse is None or not hasattr(synapse, "weight_mask"):
+        return None
+    return synapse.weight_mask()
+
+
+def _mask_rows(mask: Any):
+    if mask is None:
+        return None
+    if mask.ndim == 0:
+        return mask.reshape(1, 1)
+    if mask.ndim == 1:
+        return mask.reshape(1, -1)
+    return mask.reshape(mask.shape[0], -1)
+
+
+def _active_mask_row_stats(mask_rows: Any, branch_idx: int) -> dict[str, int | float]:
+    if mask_rows is None or branch_idx >= mask_rows.shape[0]:
+        return {"total": 0, "active": 0}
+
+    row = mask_rows[branch_idx]
+    return {"total": row.numel(), "active": row.sum().item()}
 
 
 class SynapticPruningAnalyzer(SynapticTurnoverAnalyzer):
@@ -204,13 +239,19 @@ class SynapticPruningAnalyzer(SynapticTurnoverAnalyzer):
             },
         }
 
-        if not isinstance(model.core_network, ExcitationInhibitionNetwork):
+        if not isinstance(
+            getattr(model, "core_network", None), ExcitationInhibitionNetwork
+        ):
             return stats
 
         # Analyze each dendritic branch layer
-        for layer_idx, layer in enumerate(model.core_network.layers):
-            if not isinstance(layer, DendriticBranchLayer):
-                continue
+        for layer_idx, layer in enumerate(_iter_dendritic_branch_layers(model)):
+            exc_rows = _mask_rows(_synapse_weight_mask(layer.branch_excitation))
+            inh_rows = _mask_rows(_synapse_weight_mask(layer.branch_inhibition))
+            n_branches = max(
+                exc_rows.shape[0] if exc_rows is not None else 0,
+                inh_rows.shape[0] if inh_rows is not None else 0,
+            )
 
             layer_stats = {
                 "total_synapses": 0,
@@ -219,55 +260,26 @@ class SynapticPruningAnalyzer(SynapticTurnoverAnalyzer):
             }
 
             # Process each branch in the layer
-            for branch_idx, branch in enumerate(layer.branches):
+            for branch_idx in range(n_branches):
                 branch_name = f"layer_{layer_idx}_branch_{branch_idx}"
 
                 branch_stats = {
-                    "excitatory": {"total": 0, "active": 0},
-                    "inhibitory": {"total": 0, "active": 0},
+                    "excitatory": _active_mask_row_stats(exc_rows, branch_idx),
+                    "inhibitory": _active_mask_row_stats(inh_rows, branch_idx),
                 }
 
-                # Get excitatory mask from branch_excitation if it exists
-                if (
-                    hasattr(branch, "branch_excitation")
-                    and branch.branch_excitation is not None
-                ):
-                    exc_mask = branch.branch_excitation.weight_mask()
-                    if exc_mask is not None:
-                        exc_total = exc_mask.numel()
-                        exc_active = exc_mask.sum().item()
-                        branch_stats["excitatory"] = {
-                            "total": exc_total,
-                            "active": exc_active,
-                        }
-
-                        stats["connection_type_stats"]["excitatory"][
-                            "total"
-                        ] += exc_total
-                        stats["connection_type_stats"]["excitatory"][
-                            "active"
-                        ] += exc_active
-
-                # Get inhibitory mask from branch_inhibition if it exists
-                if (
-                    hasattr(branch, "branch_inhibition")
-                    and branch.branch_inhibition is not None
-                ):
-                    inh_mask = branch.branch_inhibition.weight_mask()
-                    if inh_mask is not None:
-                        inh_total = inh_mask.numel()
-                        inh_active = inh_mask.sum().item()
-                        branch_stats["inhibitory"] = {
-                            "total": inh_total,
-                            "active": inh_active,
-                        }
-
-                        stats["connection_type_stats"]["inhibitory"][
-                            "total"
-                        ] += inh_total
-                        stats["connection_type_stats"]["inhibitory"][
-                            "active"
-                        ] += inh_active
+                stats["connection_type_stats"]["excitatory"]["total"] += branch_stats[
+                    "excitatory"
+                ]["total"]
+                stats["connection_type_stats"]["excitatory"]["active"] += branch_stats[
+                    "excitatory"
+                ]["active"]
+                stats["connection_type_stats"]["inhibitory"]["total"] += branch_stats[
+                    "inhibitory"
+                ]["total"]
+                stats["connection_type_stats"]["inhibitory"]["active"] += branch_stats[
+                    "inhibitory"
+                ]["active"]
 
                 # Aggregate branch stats
                 branch_total = (
@@ -284,6 +296,8 @@ class SynapticPruningAnalyzer(SynapticTurnoverAnalyzer):
                 layer_stats["branch_stats"][branch_name] = branch_stats
 
                 stats["branch_stats"][branch_name] = {
+                    "excitatory": branch_stats["excitatory"],
+                    "inhibitory": branch_stats["inhibitory"],
                     "total": branch_total,
                     "active": branch_active,
                     "sparsity": 1.0
@@ -307,35 +321,24 @@ class SynapticPruningAnalyzer(SynapticTurnoverAnalyzer):
         """Extract synaptic masks for detailed analysis."""
         masks = {}
 
-        if not isinstance(model.core_network, ExcitationInhibitionNetwork):
-            return masks
+        for layer_idx, layer in enumerate(_iter_dendritic_branch_layers(model)):
+            exc_rows = _mask_rows(_synapse_weight_mask(layer.branch_excitation))
+            inh_rows = _mask_rows(_synapse_weight_mask(layer.branch_inhibition))
+            n_branches = max(
+                exc_rows.shape[0] if exc_rows is not None else 0,
+                inh_rows.shape[0] if inh_rows is not None else 0,
+            )
 
-        for layer_idx, layer in enumerate(model.core_network.layers):
-            if not isinstance(layer, DendriticBranchLayer):
-                continue
-
-            for branch_idx, branch in enumerate(layer.branches):
+            for branch_idx in range(n_branches):
                 branch_name = f"layer_{layer_idx}_branch_{branch_idx}"
 
                 branch_masks = {}
 
-                # Get excitatory mask from branch_excitation if it exists
-                if (
-                    hasattr(branch, "branch_excitation")
-                    and branch.branch_excitation is not None
-                ):
-                    exc_mask = branch.branch_excitation.weight_mask()
-                    if exc_mask is not None:
-                        branch_masks["exc_mask"] = exc_mask.clone()
+                if exc_rows is not None and branch_idx < exc_rows.shape[0]:
+                    branch_masks["exc_mask"] = exc_rows[branch_idx].clone()
 
-                # Get inhibitory mask from branch_inhibition if it exists
-                if (
-                    hasattr(branch, "branch_inhibition")
-                    and branch.branch_inhibition is not None
-                ):
-                    inh_mask = branch.branch_inhibition.weight_mask()
-                    if inh_mask is not None:
-                        branch_masks["inh_mask"] = inh_mask.clone()
+                if inh_rows is not None and branch_idx < inh_rows.shape[0]:
+                    branch_masks["inh_mask"] = inh_rows[branch_idx].clone()
 
                 if branch_masks:
                     masks[branch_name] = branch_masks
@@ -422,27 +425,22 @@ class SynapticPruningAnalyzer(SynapticTurnoverAnalyzer):
 
         sparsities = []
 
-        if not isinstance(model.core_network, ExcitationInhibitionNetwork):
-            return patterns
-
-        for _layer_idx, layer in enumerate(model.core_network.layers):
-            if not isinstance(layer, DendriticBranchLayer):
-                continue
+        for _layer_idx, layer in enumerate(_iter_dendritic_branch_layers(model)):
+            exc_rows = _mask_rows(_synapse_weight_mask(layer.branch_excitation))
+            inh_rows = _mask_rows(_synapse_weight_mask(layer.branch_inhibition))
+            n_branches = max(
+                exc_rows.shape[0] if exc_rows is not None else 0,
+                inh_rows.shape[0] if inh_rows is not None else 0,
+            )
 
             layer_sparsities = []
 
-            for _branch_idx, branch in enumerate(layer.branches):
+            for branch_idx in range(n_branches):
                 # Calculate branch sparsity
-                total_synapses = 0
-                active_synapses = 0
-
-                if hasattr(branch, "exc_mask") and branch.exc_mask is not None:
-                    total_synapses += branch.exc_mask.numel()
-                    active_synapses += branch.exc_mask.sum().item()
-
-                if hasattr(branch, "inh_mask") and branch.inh_mask is not None:
-                    total_synapses += branch.inh_mask.numel()
-                    active_synapses += branch.inh_mask.sum().item()
+                exc_stats = _active_mask_row_stats(exc_rows, branch_idx)
+                inh_stats = _active_mask_row_stats(inh_rows, branch_idx)
+                total_synapses = exc_stats["total"] + inh_stats["total"]
+                active_synapses = exc_stats["active"] + inh_stats["active"]
 
                 branch_sparsity = 1.0 - (
                     active_synapses / total_synapses if total_synapses > 0 else 0
@@ -572,13 +570,9 @@ class SynapticPruningAnalyzer(SynapticTurnoverAnalyzer):
                 plot_active_synapses_per_branch,
             )
 
-            if not self.pruning_events:
-                logger.warning("No pruning events recorded for plotting")
+            post_stats = self._latest_post_pruning_stats()
+            if post_stats is None:
                 return None
-
-            # Use the most recent pruning event
-            latest_event = self.pruning_events[-1]
-            post_stats = latest_event["post_pruning_stats"]
 
             # Create the plot
             fig = plot_active_synapses_per_branch(
@@ -593,6 +587,20 @@ class SynapticPruningAnalyzer(SynapticTurnoverAnalyzer):
         except Exception as e:
             logger.error(f"Error generating active synapses plot: {e}")
             return None
+
+    def _latest_post_pruning_stats(self) -> dict[str, Any] | None:
+        """Return post-pruning stats from the latest pruning event, if available."""
+        if not self.pruning_events:
+            logger.warning("No pruning events recorded for plotting")
+            return None
+
+        latest_event = self.pruning_events[-1]
+        if "post_pruning_stats" not in latest_event:
+            logger.error("No post_pruning_stats found in latest pruning event")
+            logger.error(f"Available keys: {list(latest_event.keys())}")
+            return None
+
+        return latest_event["post_pruning_stats"]
 
     def plot_active_synapses_summary_by_layer(
         self,
@@ -613,27 +621,9 @@ class SynapticPruningAnalyzer(SynapticTurnoverAnalyzer):
             filename: Base filename for the plots
         """
         try:
-            logger.info(
-                f"DEBUG: pruning_events count: {len(self.pruning_events) if self.pruning_events else 0}"
-            )
-
-            if not self.pruning_events:
-                logger.warning("No pruning events recorded for plotting")
+            post_stats = self._latest_post_pruning_stats()
+            if post_stats is None:
                 return None
-
-            # Use the most recent pruning event
-            latest_event = self.pruning_events[-1]
-            logger.info(f"DEBUG: latest_event keys: {list(latest_event.keys())}")
-
-            if "post_pruning_stats" not in latest_event:
-                logger.error("No post_pruning_stats found in latest pruning event")
-                logger.error(f"Available keys: {list(latest_event.keys())}")
-                return None
-
-            post_stats = latest_event["post_pruning_stats"]
-            logger.info(
-                f"DEBUG: post_stats keys: {list(post_stats.keys()) if post_stats else 'None'}"
-            )
 
             # Create the summary plot
             fig = plot_active_synapses_summary_by_layer(
