@@ -26,6 +26,7 @@ from dendritic_modeling.scripts.training.train_experiments_fsdp import (
     _maybe_calibrate_fsdp_data_driven_reactivation,
     _print_rank0_model_summary,
     _requested_data_driven_reactivation_policies,
+    _resolve_large_model_input_dim,
     _run_final_analysis_on_plain_model,
     _save_final_fsdp_checkpoint_and_run_analysis,
     _save_fsdp_run_config,
@@ -112,6 +113,24 @@ def test_fsdp_dataloader_kwargs_auto_keeps_workers_for_lazy_data(monkeypatch):
         "pin_memory": False,
         "persistent_workers": True,
     }
+
+
+@pytest.mark.parametrize(
+    ("dataset_name", "processing", "expected"),
+    [
+        ("mnist", SimpleNamespace(flatten=True), 784),
+        ("cifar10", SimpleNamespace(flatten=True), 3072),
+        ("imagenet", SimpleNamespace(flatten=True), 150528),
+        ("imagenet", SimpleNamespace(flatten=False), 150528),
+        ("unknown", SimpleNamespace(flatten=True), 784),
+    ],
+)
+def test_resolve_large_model_input_dim_preserves_existing_mapping(
+    dataset_name, processing, expected
+):
+    data_config = SimpleNamespace(dataset_name=dataset_name, processing=processing)
+
+    assert _resolve_large_model_input_dim(data_config) == expected
 
 
 def test_fsdp_dataloader_kwargs_reject_invalid_persistent_workers():

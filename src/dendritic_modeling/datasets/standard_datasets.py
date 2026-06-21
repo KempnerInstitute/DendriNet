@@ -10,12 +10,11 @@ import logging
 import os
 import pickle
 import shutil
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, Optional, Union
 
-import numpy as np
 import torch
 from torch.utils.data import Dataset, TensorDataset
 from torchvision import datasets, transforms
@@ -37,6 +36,18 @@ from .imagenet import (
     _split_train_valid_pair as _split_train_valid_pair,
     _subset_by_indices as _subset_by_indices,
     load_imagenet_as_datasets,
+)
+from .indexing import (
+    SliceSafeDataset as SliceSafeDataset,
+    _dataset_mapping_to_triplet as _dataset_mapping_to_triplet,
+    _ensure_slice_safe_dataset as _ensure_slice_safe_dataset,
+    _ensure_slice_safe_triplet as _ensure_slice_safe_triplet,
+    _normalize_dataset_index as _normalize_dataset_index,
+)
+from .paired import (
+    PairedArithmeticDataset as PairedArithmeticDataset,
+    _build_paired_arithmetic_dataset as _build_paired_arithmetic_dataset,
+    _make_pair_indices as _make_pair_indices,
 )
 from .paths import get_data_directory, split_generator as _split_generator
 from .poisson import PoissonGeneratorDataset as PoissonGeneratorDataset
@@ -320,262 +331,6 @@ def _load_torchvision_train_test_pair(dataset_cls, *, root, transform, dataset_n
                 root=root, train=False, download=True, transform=transform
             )
             return train_dataset, test_dataset
-
-
-def _normalize_dataset_index(idx: Any, length: int) -> tuple[Any, bool]:
-    """Normalize scalar/slice/batch indices into scalar int or list[int]."""
-    if isinstance(idx, slice):
-        return list(range(*idx.indices(length))), False
-
-    if isinstance(idx, torch.Tensor):
-        if idx.ndim == 0:
-            return int(idx.item()), True
-        return [int(i) for i in idx.detach().cpu().reshape(-1).tolist()], False
-
-    if isinstance(idx, np.ndarray):
-        if idx.ndim == 0:
-            return int(idx.item()), True
-        return [int(i) for i in idx.reshape(-1).tolist()], False
-
-    if isinstance(idx, Sequence) and not isinstance(idx, (str, bytes)):
-        return [int(i) for i in idx], False
-
-    return int(idx), True
-
-
-class SliceSafeDataset(Dataset):
-    """
-    Dataset adapter that adds robust list/slice/tensor indexing support.
-
-    Scalar access is delegated unchanged. Batch-style indexing is materialized by
-    stacking scalar reads, which keeps behavior consistent for wrapped datasets.
-    """
-
-    def __init__(self, base_dataset: Dataset):
-        super().__init__()
-        self.base_dataset = base_dataset
-
-    def __len__(self):
-        return len(self.base_dataset)
-
-    def __getitem__(self, idx):
-        normalized_idx, is_scalar = _normalize_dataset_index(
-            idx, len(self.base_dataset)
-        )
-
-        if is_scalar:
-            return self.base_dataset[normalized_idx]
-
-        samples = [self.base_dataset[i] for i in normalized_idx]
-        if len(samples) == 0:
-            return torch.empty((0,)), torch.empty((0,), dtype=torch.long)
-
-        xs, ys = zip(*samples)
-        xs = [x if torch.is_tensor(x) else torch.as_tensor(x) for x in xs]
-        ys = [y if torch.is_tensor(y) else torch.as_tensor(y) for y in ys]
-        return torch.stack(xs, dim=0), torch.stack(ys, dim=0)
-
-
-def _ensure_slice_safe_dataset(dataset: Dataset) -> Dataset:
-    if isinstance(dataset, (TensorDataset, SliceSafeDataset)):
-        return dataset
-    return SliceSafeDataset(dataset)
-
-
-def _ensure_slice_safe_triplet(
-    train_ds: Dataset, valid_ds: Dataset, test_ds: Dataset
-) -> tuple[Dataset, Dataset, Dataset]:
-    return (
-        _ensure_slice_safe_dataset(train_ds),
-        _ensure_slice_safe_dataset(valid_ds),
-        _ensure_slice_safe_dataset(test_ds),
-    )
-
-
-def _dataset_mapping_to_triplet(
-    data: dict[str, Dataset],
-    *,
-    valid_fallback_to_test: bool = False,
-    slice_safe: bool = False,
-) -> tuple[Dataset, Dataset, Dataset]:
-    """Convert a dataset mapping into a train/valid/test triplet."""
-    train_ds = data["train"]
-    if valid_fallback_to_test:
-        valid_ds = data["valid"] if "valid" in data else data["test"]
-    else:
-        valid_ds = data["valid"]
-    test_ds = data["test"]
-
-    if slice_safe:
-        return _ensure_slice_safe_triplet(train_ds, valid_ds, test_ds)
-    return train_ds, valid_ds, test_ds
-
-
-class PairedArithmeticDataset(Dataset):
-    """Pair two examples and predict an arithmetic composition of their labels.
-
-    Inputs are emitted either as flattened concatenations or as side-by-side images.
-    Optional context can be appended as a one-hot vector (flattened mode) or as
-    constant context planes (image mode). This keeps the task usable both for
-    plain MLP-style inputs and for future conv-stem experiments.
-    """
-
-    def __init__(
-        self,
-        inputs: torch.Tensor,
-        labels: torch.Tensor,
-        left_indices: torch.Tensor,
-        right_indices: torch.Tensor,
-        *,
-        task_mode: str = "sum_mod10",
-        flatten: bool = True,
-        include_context: bool = False,
-        context_dim: int = 2,
-        context_seed: int = 0,
-    ) -> None:
-        super().__init__()
-        self.inputs = inputs
-        self.labels = labels
-        self.left_indices = left_indices.long()
-        self.right_indices = right_indices.long()
-        self.task_mode = str(task_mode)
-        self.flatten = bool(flatten)
-        self.include_context = bool(include_context)
-        self.context_dim = int(context_dim)
-
-        if self.include_context:
-            generator = torch.Generator().manual_seed(int(context_seed))
-            self.context = torch.randint(
-                0,
-                self.context_dim,
-                (len(self.left_indices),),
-                generator=generator,
-                dtype=torch.long,
-            )
-        else:
-            self.context = None
-
-    def __len__(self) -> int:
-        return int(self.left_indices.numel())
-
-    def _compose_input(
-        self, left_x: torch.Tensor, right_x: torch.Tensor, context_idx: int | None
-    ) -> torch.Tensor:
-        if self.flatten:
-            pair_input = torch.cat([left_x.reshape(-1), right_x.reshape(-1)], dim=0)
-            if context_idx is not None:
-                ctx = torch.zeros(self.context_dim, dtype=pair_input.dtype)
-                ctx[context_idx] = 1.0
-                pair_input = torch.cat([pair_input, ctx], dim=0)
-            return pair_input
-
-        # Side-by-side image layout for future convolutional frontends.
-        if left_x.ndim >= 2:
-            pair_input = torch.cat([left_x, right_x], dim=-1)
-        else:
-            pair_input = torch.cat([left_x, right_x], dim=0)
-
-        if context_idx is None:
-            return pair_input
-
-        if pair_input.ndim == 3:
-            _, height, width = pair_input.shape
-            ctx_planes = torch.zeros(
-                self.context_dim, height, width, dtype=pair_input.dtype
-            )
-            ctx_planes[context_idx].fill_(1.0)
-            return torch.cat([pair_input, ctx_planes], dim=0)
-
-        ctx = torch.zeros(self.context_dim, dtype=pair_input.dtype)
-        ctx[context_idx] = 1.0
-        return torch.cat([pair_input.reshape(-1), ctx], dim=0)
-
-    def _compose_label(
-        self,
-        left_label: torch.Tensor,
-        right_label: torch.Tensor,
-        context_idx: int | None,
-    ) -> torch.Tensor:
-        yl = int(left_label.item())
-        yr = int(right_label.item())
-
-        if self.task_mode == "sum_mod10":
-            target = (yl + yr) % 10
-        elif self.task_mode == "diff_mod10":
-            target = (yl - yr) % 10
-        elif self.task_mode == "context_sum_diff":
-            if context_idx is None:
-                raise ValueError("context_sum_diff requires context indices.")
-            target = (yl + yr) % 10 if context_idx == 0 else (yl - yr) % 10
-        else:
-            raise ValueError(f"Unknown paired arithmetic mode: {self.task_mode}")
-
-        return torch.tensor(target, dtype=torch.long)
-
-    def __getitem__(self, idx):
-        li = int(self.left_indices[idx].item())
-        ri = int(self.right_indices[idx].item())
-        context_idx = (
-            int(self.context[idx].item()) if self.context is not None else None
-        )
-
-        left_x = self.inputs[li]
-        right_x = self.inputs[ri]
-        left_y = self.labels[li]
-        right_y = self.labels[ri]
-
-        x = self._compose_input(left_x, right_x, context_idx)
-        y = self._compose_label(left_y, right_y, context_idx)
-        return x, y
-
-
-def _make_pair_indices(
-    n_examples: int,
-    *,
-    shuffle_iterations: int,
-    seed: int = 0,
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """Create deterministic left/right pair indices across repeated shuffles."""
-    half = n_examples // 2
-    generator = torch.Generator().manual_seed(int(seed))
-    left_batches = []
-    right_batches = []
-
-    for _ in range(max(1, int(shuffle_iterations))):
-        perm = torch.randperm(n_examples, generator=generator)
-        left_batches.append(perm[:half])
-        right_batches.append(perm[half : half + half])
-
-    return torch.cat(left_batches, dim=0), torch.cat(right_batches, dim=0)
-
-
-def _build_paired_arithmetic_dataset(
-    dataset: TensorDataset,
-    *,
-    shuffle_iterations: int = 1,
-    task_mode: str = "sum_mod10",
-    flatten: bool = True,
-    include_context: bool = False,
-    context_seed: int = 0,
-    pair_seed: int = 0,
-) -> Dataset:
-    """Convert a TensorDataset into a paired arithmetic-composition dataset."""
-    inputs, labels = dataset.tensors
-    left_indices, right_indices = _make_pair_indices(
-        len(dataset), shuffle_iterations=shuffle_iterations, seed=pair_seed
-    )
-    return SliceSafeDataset(
-        PairedArithmeticDataset(
-            inputs,
-            labels,
-            left_indices,
-            right_indices,
-            task_mode=task_mode,
-            flatten=flatten,
-            include_context=include_context,
-            context_seed=context_seed,
-        )
-    )
 
 
 def load_mnist_as_datasets(

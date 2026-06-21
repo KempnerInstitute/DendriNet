@@ -297,6 +297,18 @@ def _create_fsdp_trainer(
     )
 
 
+def _resolve_large_model_input_dim(data_config) -> int:
+    """Resolve flattened input size for manually assembled FSDP models."""
+    dataset_name = getattr(data_config, "dataset_name", None)
+    if dataset_name == "mnist":
+        return 784
+    if dataset_name == "cifar10":
+        return 3072
+    if dataset_name == "imagenet":
+        return 150528
+    return 784
+
+
 def create_large_model(config):
     """Create a large dendritic model from configuration."""
     model_config = config.model
@@ -321,21 +333,7 @@ def create_large_model(config):
         logger.info("Trainable parameters: %s", f"{trainable_params:,}")
         return model
 
-    # Get input dimension from data config
-    data_params = config.data.processing if hasattr(config.data, "processing") else {}
-    if config.data.dataset_name == "mnist":
-        input_dim = 784  # 28x28 flattened
-    elif config.data.dataset_name == "cifar10":
-        input_dim = 3072  # 32x32x3 flattened
-    elif config.data.dataset_name == "imagenet":
-        # Check if images are flattened
-        if getattr(data_params, "flatten", False):
-            input_dim = 150528  # 224x224x3 flattened
-        else:
-            # For non-flattened, the encoder should handle the shape
-            input_dim = 150528
-    else:
-        input_dim = 784
+    input_dim = _resolve_large_model_input_dim(config.data)
 
     # Create encoder
     encoder_config = model_config.encoder
