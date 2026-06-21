@@ -35,21 +35,6 @@ class _StatefulTypedLevelTraces:
 class StatefulTypedDynamicsMixin:
     """Helpers for integrating configured synapse-type dynamics."""
 
-    def _ensure_tensor(
-        self,
-        value,
-        batch_size: int,
-        level_idx: int,
-        device: torch.device,
-        dtype: torch.dtype,
-    ) -> torch.Tensor:
-        """Ensure value is a tensor; if scalar 0, create zeros tensor."""
-        if torch.is_tensor(value):
-            return value
-        return torch.zeros(
-            batch_size, self._level_dims[level_idx], device=device, dtype=dtype
-        )
-
     def _typed_trace_key(self, compartment: str, synapse_type: str) -> str:
         return f"{compartment}:{synapse_type}"
 

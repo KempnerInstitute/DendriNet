@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import torch
 from torch import Tensor
 
@@ -10,6 +12,72 @@ from dendritic_modeling.networks.architectures.recurrent.dendritic_spikes import
     previous_dendritic_spike_state,
 )
 from dendritic_modeling.networks.architectures.recurrent.ei_state import DendriNetState
+
+
+@dataclass(frozen=True)
+class _StatefulPreviousLevelTensors:
+    """Previous traces and branch voltage for one dendritic level."""
+
+    trace_E: Tensor
+    trace_E_rec: Tensor
+    trace_I: Tensor
+    trace_I_rec: Tensor
+    trace_branch: Tensor
+    branch_voltage: Tensor
+
+
+@dataclass(frozen=True)
+class _StatefulMaskedLevelTensors:
+    """Level tensors after applying an optional keep mask."""
+
+    raw_E: Tensor
+    raw_E_rec: Tensor
+    raw_I: Tensor
+    raw_I_rec: Tensor
+    raw_branch: Tensor
+    branch_conductance: Tensor
+    prev_trace_E: Tensor
+    prev_trace_E_rec: Tensor
+    prev_trace_I: Tensor
+    prev_trace_I_rec: Tensor
+    prev_trace_branch: Tensor
+    prev_branch_voltage: Tensor
+
+
+@dataclass
+class _StatefulStepBuffers:
+    """Mutable trace buffers populated during one recurrent step."""
+
+    trace_E: list[Tensor]
+    trace_E_rec: list[Tensor]
+    trace_I: list[Tensor]
+    trace_I_rec: list[Tensor]
+    trace_branch: list[Tensor]
+    level_voltage_cache: list[Tensor]
+    typed_traces: dict[str, list[Tensor]] | None
+    dendritic_spike_plateau: list[Tensor] | None
+    dendritic_spike_refractory: list[Tensor] | None
+    dendritic_spike_events: list[Tensor] | None
+
+
+def _init_stateful_step_buffers(
+    *,
+    synapse_types_enabled: bool,
+    dendritic_spikes_enabled: bool,
+) -> _StatefulStepBuffers:
+    """Create empty mutable buffers for one recurrent step."""
+    return _StatefulStepBuffers(
+        trace_E=[],
+        trace_E_rec=[],
+        trace_I=[],
+        trace_I_rec=[],
+        trace_branch=[],
+        level_voltage_cache=[],
+        typed_traces={} if synapse_types_enabled else None,
+        dendritic_spike_plateau=[] if dendritic_spikes_enabled else None,
+        dendritic_spike_refractory=[] if dendritic_spikes_enabled else None,
+        dendritic_spike_events=[] if dendritic_spikes_enabled else None,
+    )
 
 
 def _stateful_level_keep_mask(
@@ -157,11 +225,76 @@ def _stateful_raw_branch_drive(
     return torch.zeros(batch_size, level_dim, device=device, dtype=dtype)
 
 
+def _ensure_stateful_level_tensor(
+    value,
+    *,
+    batch_size: int,
+    level_dim: int,
+    device: torch.device,
+    dtype: torch.dtype,
+) -> Tensor:
+    """Return a level-shaped zero tensor when an absent pathway returns scalar 0."""
+    if torch.is_tensor(value):
+        return value
+    return torch.zeros(batch_size, level_dim, device=device, dtype=dtype)
+
+
+def _stateful_raw_currents(
+    *,
+    layer: torch.nn.Module,
+    x: Tensor,
+    inhibitory_input: Tensor | None,
+    recurrent_input: Tensor | None,
+    rec_inhibitory_input: Tensor | None,
+    batch_size: int,
+    level_dim: int,
+    device: torch.device,
+    dtype: torch.dtype,
+) -> tuple[Tensor, Tensor, Tensor, Tensor]:
+    """Compute and normalize the four raw synaptic current pathways."""
+    raw_E, raw_E_rec, raw_I, raw_I_rec = layer.compute_raw_currents(
+        x=x,
+        inhibitory_input=inhibitory_input,
+        recurrent_input=recurrent_input,
+        rec_inhibitory_input=rec_inhibitory_input,
+    )
+    return (
+        _ensure_stateful_level_tensor(
+            raw_E,
+            batch_size=batch_size,
+            level_dim=level_dim,
+            device=device,
+            dtype=dtype,
+        ),
+        _ensure_stateful_level_tensor(
+            raw_E_rec,
+            batch_size=batch_size,
+            level_dim=level_dim,
+            device=device,
+            dtype=dtype,
+        ),
+        _ensure_stateful_level_tensor(
+            raw_I,
+            batch_size=batch_size,
+            level_dim=level_dim,
+            device=device,
+            dtype=dtype,
+        ),
+        _ensure_stateful_level_tensor(
+            raw_I_rec,
+            batch_size=batch_size,
+            level_dim=level_dim,
+            device=device,
+            dtype=dtype,
+        ),
+    )
+
+
 def _stateful_previous_level_tensors(
     state: DendriNetState,
     *,
     level_idx: int,
-) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
+) -> _StatefulPreviousLevelTensors:
     """Return previous traces and branch voltage for one dendritic level."""
     prev_trace_E = state.trace_E[level_idx]
     prev_trace_E_rec = state.trace_E_rec[level_idx]
@@ -173,13 +306,13 @@ def _stateful_previous_level_tensors(
         if state.branch_voltage is not None and level_idx < len(state.branch_voltage)
         else prev_trace_branch
     )
-    return (
-        prev_trace_E,
-        prev_trace_E_rec,
-        prev_trace_I,
-        prev_trace_I_rec,
-        prev_trace_branch,
-        prev_branch_voltage,
+    return _StatefulPreviousLevelTensors(
+        trace_E=prev_trace_E,
+        trace_E_rec=prev_trace_E_rec,
+        trace_I=prev_trace_I,
+        trace_I_rec=prev_trace_I_rec,
+        trace_branch=prev_trace_branch,
+        branch_voltage=prev_branch_voltage,
     )
 
 
@@ -205,6 +338,17 @@ def _integrate_stateful_legacy_traces(
     )
 
 
+def _integrate_stateful_branch_trace(
+    *,
+    decay: Tensor,
+    one_minus_decay: Tensor,
+    prev_trace_branch: Tensor,
+    raw_branch: Tensor,
+) -> Tensor:
+    """Integrate the child-branch trace for one stateful level."""
+    return decay * prev_trace_branch + one_minus_decay * raw_branch
+
+
 def _apply_stateful_keep_mask_to_level_tensors(
     *,
     keep_mask: Tensor | None,
@@ -220,49 +364,36 @@ def _apply_stateful_keep_mask_to_level_tensors(
     prev_trace_I_rec: Tensor,
     prev_trace_branch: Tensor,
     prev_branch_voltage: Tensor,
-) -> tuple[
-    Tensor,
-    Tensor,
-    Tensor,
-    Tensor,
-    Tensor,
-    Tensor,
-    Tensor,
-    Tensor,
-    Tensor,
-    Tensor,
-    Tensor,
-    Tensor,
-]:
+) -> _StatefulMaskedLevelTensors:
     """Apply a resolved level keep mask to all tensors that carry level state."""
     if keep_mask is None:
-        return (
-            raw_E,
-            raw_E_rec,
-            raw_I,
-            raw_I_rec,
-            raw_branch,
-            branch_conductance,
-            prev_trace_E,
-            prev_trace_E_rec,
-            prev_trace_I,
-            prev_trace_I_rec,
-            prev_trace_branch,
-            prev_branch_voltage,
+        return _StatefulMaskedLevelTensors(
+            raw_E=raw_E,
+            raw_E_rec=raw_E_rec,
+            raw_I=raw_I,
+            raw_I_rec=raw_I_rec,
+            raw_branch=raw_branch,
+            branch_conductance=branch_conductance,
+            prev_trace_E=prev_trace_E,
+            prev_trace_E_rec=prev_trace_E_rec,
+            prev_trace_I=prev_trace_I,
+            prev_trace_I_rec=prev_trace_I_rec,
+            prev_trace_branch=prev_trace_branch,
+            prev_branch_voltage=prev_branch_voltage,
         )
-    return (
-        raw_E * keep_mask,
-        raw_E_rec * keep_mask,
-        raw_I * keep_mask,
-        raw_I_rec * keep_mask,
-        raw_branch * keep_mask,
-        branch_conductance * keep_mask,
-        prev_trace_E * keep_mask,
-        prev_trace_E_rec * keep_mask,
-        prev_trace_I * keep_mask,
-        prev_trace_I_rec * keep_mask,
-        prev_trace_branch * keep_mask,
-        prev_branch_voltage * keep_mask,
+    return _StatefulMaskedLevelTensors(
+        raw_E=raw_E * keep_mask,
+        raw_E_rec=raw_E_rec * keep_mask,
+        raw_I=raw_I * keep_mask,
+        raw_I_rec=raw_I_rec * keep_mask,
+        raw_branch=raw_branch * keep_mask,
+        branch_conductance=branch_conductance * keep_mask,
+        prev_trace_E=prev_trace_E * keep_mask,
+        prev_trace_E_rec=prev_trace_E_rec * keep_mask,
+        prev_trace_I=prev_trace_I * keep_mask,
+        prev_trace_I_rec=prev_trace_I_rec * keep_mask,
+        prev_trace_branch=prev_trace_branch * keep_mask,
+        prev_branch_voltage=prev_branch_voltage * keep_mask,
     )
 
 
@@ -371,6 +502,9 @@ def _build_stateful_routing_info(
 
 
 __all__ = [
+    "_StatefulMaskedLevelTensors",
+    "_StatefulPreviousLevelTensors",
+    "_StatefulStepBuffers",
     "_apply_stateful_branch_voltage_modulators",
     "_apply_stateful_dendritic_spike_dynamics",
     "_apply_stateful_keep_mask_to_level_tensors",
@@ -379,10 +513,13 @@ __all__ = [
     "_build_stateful_next_state",
     "_build_stateful_routing_info",
     "_init_stateful_dendrinet_state",
+    "_init_stateful_step_buffers",
+    "_integrate_stateful_branch_trace",
     "_integrate_stateful_legacy_traces",
     "_stateful_current_taus",
     "_stateful_decay_factors",
     "_stateful_level_keep_mask",
     "_stateful_previous_level_tensors",
     "_stateful_raw_branch_drive",
+    "_stateful_raw_currents",
 ]
