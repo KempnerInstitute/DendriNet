@@ -594,6 +594,66 @@ class TestAnalysisManager(unittest.TestCase):
                 # The method doesn't return results, so just check it doesn't crash
                 self.assertIsNone(results)
 
+    def test_common_test_dataset_analysis_path_preserves_call_kwargs(self):
+        """Common test-dataset runner should preserve analyzer call arguments."""
+        config = AnalysisConfig()
+        config.performance_analysis.enabled = False
+        config.noise_perturbation_analysis.enabled = True
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manager = AnalysisManager(
+                model=self.model,
+                data=self.data,
+                analysis_config=config,
+                save_root=tmpdir,
+            )
+
+            with patch.object(manager, "noise_perturbation_analyzer") as mock_analyzer:
+                manager.run_analysis(filename="final_eval", training=False)
+
+            mock_analyzer.analyze.assert_called_once()
+            call_kwargs = mock_analyzer.analyze.call_args.kwargs
+            self.assertIs(call_kwargs["model"], self.model)
+            self.assertIs(call_kwargs["test_dataset"], self.data["test"])
+            self.assertEqual(call_kwargs["device"], "cpu")
+            self.assertEqual(
+                call_kwargs["save_path"],
+                str(Path(tmpdir) / "noise_perturbation_analysis"),
+            )
+            self.assertEqual(call_kwargs["filename"], "final_eval")
+            self.assertIs(
+                call_kwargs["runtime"],
+                manager.config.runtime.final,
+            )
+            self.assertNotIn("training", call_kwargs)
+
+    def test_common_test_dataset_analysis_path_preserves_training_kwarg(self):
+        """Shared runner should preserve training-aware analyzer calls."""
+        config = AnalysisConfig()
+        config.performance_analysis.enabled = False
+        config.ablation_analysis.enabled = True
+        config.ablation_analysis.training = True
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manager = AnalysisManager(
+                model=self.model,
+                data=self.data,
+                analysis_config=config,
+                save_root=tmpdir,
+            )
+
+            with patch.object(manager, "ablation_analyzer") as mock_analyzer:
+                manager.run_analysis(filename="epoch_3", training=True)
+
+            mock_analyzer.analyze.assert_called_once()
+            call_kwargs = mock_analyzer.analyze.call_args.kwargs
+            self.assertTrue(call_kwargs["training"])
+            self.assertEqual(
+                call_kwargs["save_path"],
+                str(Path(tmpdir) / "ablation_analysis"),
+            )
+            self.assertIs(call_kwargs["runtime"], manager.config.runtime.training)
+
 
 def test_ablation_analyzer():
     from dendritic_modeling.config.analysis import (

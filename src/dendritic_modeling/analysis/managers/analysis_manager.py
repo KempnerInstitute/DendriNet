@@ -83,6 +83,17 @@ class _AnalyzerInitializer:
         return spec.attribute_name
 
 
+@dataclass(frozen=True)
+class _TestDatasetAnalysisRunner:
+    """Execution metadata for analyzers sharing the test-dataset signature."""
+
+    config_field: str
+    analyzer_attr: str
+    save_subdir: str
+    pass_training: bool = False
+    require_analyzer: bool = False
+
+
 _ANALYZER_INITIALIZERS = (
     _AnalyzerInitializer("performance", PerformanceAnalyzer),
     _AnalyzerInitializer("information", InformationAnalyzer),
@@ -106,6 +117,64 @@ _ANALYZER_INITIALIZERS = (
     _AnalyzerInitializer("dendritic_timetraces", DendriticTimetracesAnalyzer),
     _AnalyzerInitializer("spike_train", SpikeTrainAnalyzer),
     _AnalyzerInitializer("adversarial_robustness", AdversarialRobustnessAnalyzer),
+)
+
+
+_PRE_WEIGHT_TEST_DATASET_ANALYSES = (
+    _TestDatasetAnalysisRunner(
+        "noise_perturbation_analysis",
+        "noise_perturbation_analyzer",
+        "noise_perturbation_analysis",
+    ),
+    _TestDatasetAnalysisRunner(
+        "single_layer_contribution",
+        "single_layer_analyzer",
+        "single_layer_contribution",
+    ),
+    _TestDatasetAnalysisRunner(
+        "ablation_analysis",
+        "ablation_analyzer",
+        "ablation_analysis",
+        pass_training=True,
+    ),
+)
+
+
+_POST_REACTIVATION_TEST_DATASET_ANALYSES = (
+    _TestDatasetAnalysisRunner(
+        "compartment_statistics_analysis",
+        "compartment_statistics_analyzer",
+        "compartment_statistics_analysis",
+        pass_training=True,
+    ),
+    _TestDatasetAnalysisRunner(
+        "compartment_snr_analysis",
+        "compartment_snr_analyzer",
+        "compartment_snr_analysis",
+        pass_training=True,
+    ),
+    _TestDatasetAnalysisRunner(
+        "multiplicative_gain_analysis",
+        "multiplicative_gain_analyzer",
+        "multiplicative_gain_analysis",
+        pass_training=True,
+    ),
+    _TestDatasetAnalysisRunner(
+        "receptive_field_analysis",
+        "receptive_field_analyzer",
+        "receptive_field_analysis",
+        pass_training=True,
+    ),
+    _TestDatasetAnalysisRunner(
+        "synaptic_activation_analysis",
+        "synaptic_activation_analyzer",
+        "synaptic_activation_analysis",
+    ),
+    _TestDatasetAnalysisRunner(
+        "branch_activation_analysis",
+        "branch_activation_analyzer",
+        "branch_activation_analysis",
+    ),
 )
 
 
@@ -195,6 +264,57 @@ class AnalysisManager:
             os.makedirs(path, exist_ok=True)
         return path
 
+    def _run_test_dataset_analysis(
+        self,
+        *,
+        cfg: object | None,
+        analyzer_attr: str,
+        save_subdir: str,
+        filename: str,
+        training: bool,
+        runtime: object | None,
+        pass_training: bool = False,
+        require_analyzer: bool = False,
+    ) -> None:
+        """Run an analyzer with the common test-dataset call signature."""
+        if not self._should_run_config(cfg, training):
+            return
+        if require_analyzer and not hasattr(self, analyzer_attr):
+            return
+
+        kwargs = {
+            "model": self.model,
+            "test_dataset": self.data["test"],
+            "device": self.device,
+            "save_path": self._save_path(save_subdir),
+            "filename": filename,
+            "runtime": runtime,
+        }
+        if pass_training:
+            kwargs["training"] = training
+
+        getattr(self, analyzer_attr).analyze(**kwargs)
+
+    def _run_test_dataset_analysis_runner(
+        self,
+        runner: _TestDatasetAnalysisRunner,
+        *,
+        filename: str,
+        training: bool,
+        runtime: object | None,
+    ) -> None:
+        """Run a table-declared test-dataset analyzer."""
+        self._run_test_dataset_analysis(
+            cfg=getattr(self.config, runner.config_field, None),
+            analyzer_attr=runner.analyzer_attr,
+            save_subdir=runner.save_subdir,
+            filename=filename,
+            training=training,
+            runtime=runtime,
+            pass_training=runner.pass_training,
+            require_analyzer=runner.require_analyzer,
+        )
+
     def set_pruning_results(self, pruning_results: dict):
         """Set pruning results for inclusion in performance plots."""
         self.pruning_results = pruning_results
@@ -265,35 +385,9 @@ class AnalysisManager:
                 filename=filename,
             )
 
-        # Noise Perturbation Analysis
-        if self._should_run_config(self.config.noise_perturbation_analysis, training):
-            self.noise_perturbation_analyzer.analyze(
-                model=self.model,
-                test_dataset=self.data["test"],
-                device=self.device,
-                save_path=self._save_path("noise_perturbation_analysis"),
-                filename=filename,
-                runtime=runtime,
-            )
-
-        # Single Layer Contribution Analysis
-        if self._should_run_config(self.config.single_layer_contribution, training):
-            self.single_layer_analyzer.analyze(
-                model=self.model,
-                test_dataset=self.data["test"],
-                device=self.device,
-                save_path=self._save_path("single_layer_contribution"),
-                filename=filename,
-                runtime=runtime,
-            )
-
-        # Ablation Analysis
-        if self._should_run_config(self.config.ablation_analysis, training):
-            self.ablation_analyzer.analyze(
-                model=self.model,
-                test_dataset=self.data["test"],
-                device=self.device,
-                save_path=self._save_path("ablation_analysis"),
+        for runner in _PRE_WEIGHT_TEST_DATASET_ANALYSES:
+            self._run_test_dataset_analysis_runner(
+                runner,
                 filename=filename,
                 training=training,
                 runtime=runtime,
@@ -323,75 +417,11 @@ class AnalysisManager:
                 runtime=runtime,
             )
 
-        # Compartment Statistics Analysis
-        if self._should_run_config(
-            self.config.compartment_statistics_analysis, training
-        ):
-            self.compartment_statistics_analyzer.analyze(
-                model=self.model,
-                test_dataset=self.data["test"],
-                device=self.device,
-                save_path=self._save_path("compartment_statistics_analysis"),
+        for runner in _POST_REACTIVATION_TEST_DATASET_ANALYSES:
+            self._run_test_dataset_analysis_runner(
+                runner,
                 filename=filename,
                 training=training,
-                runtime=runtime,
-            )
-
-        # Compartment SNR Analysis
-        if self._should_run_config(self.config.compartment_snr_analysis, training):
-            self.compartment_snr_analyzer.analyze(
-                model=self.model,
-                test_dataset=self.data["test"],
-                device=self.device,
-                save_path=self._save_path("compartment_snr_analysis"),
-                filename=filename,
-                training=training,
-                runtime=runtime,
-            )
-
-        # Multiplicative Gain Analysis
-        if self._should_run_config(self.config.multiplicative_gain_analysis, training):
-            self.multiplicative_gain_analyzer.analyze(
-                model=self.model,
-                test_dataset=self.data["test"],
-                device=self.device,
-                save_path=self._save_path("multiplicative_gain_analysis"),
-                filename=filename,
-                training=training,
-                runtime=runtime,
-            )
-
-        # Receptive Field Analysis
-        if self._should_run_config(self.config.receptive_field_analysis, training):
-            self.receptive_field_analyzer.analyze(
-                model=self.model,
-                test_dataset=self.data["test"],
-                device=self.device,
-                save_path=self._save_path("receptive_field_analysis"),
-                filename=filename,
-                training=training,
-                runtime=runtime,
-            )
-
-        # Synaptic Activation Analysis
-        if self._should_run_config(self.config.synaptic_activation_analysis, training):
-            self.synaptic_activation_analyzer.analyze(
-                model=self.model,
-                test_dataset=self.data["test"],
-                device=self.device,
-                save_path=self._save_path("synaptic_activation_analysis"),
-                filename=filename,
-                runtime=runtime,
-            )
-
-        # Branch Activation Analysis
-        if self._should_run_config(self.config.branch_activation_analysis, training):
-            self.branch_activation_analyzer.analyze(
-                model=self.model,
-                test_dataset=self.data["test"],
-                device=self.device,
-                save_path=self._save_path("branch_activation_analysis"),
-                filename=filename,
                 runtime=runtime,
             )
 
@@ -509,12 +539,13 @@ class AnalysisManager:
             training,
         ) and hasattr(self, "adversarial_robustness_analyzer"):
             self.logger.info("Starting adversarial robustness analysis...")
-            self.adversarial_robustness_analyzer.analyze(
-                model=self.model,
-                test_dataset=self.data["test"],
-                device=self.device,
-                save_path=self._save_path("adversarial_robustness_analysis"),
+            self._run_test_dataset_analysis(
+                cfg=getattr(self.config, "adversarial_robustness_analysis", None),
+                analyzer_attr="adversarial_robustness_analyzer",
+                save_subdir="adversarial_robustness_analysis",
                 filename=filename,
+                training=training,
                 runtime=runtime,
+                require_analyzer=True,
             )
             self.logger.info("Adversarial robustness analysis completed successfully")

@@ -2,7 +2,34 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from typing import Any
+
 import torch
+
+
+@dataclass(frozen=True)
+class _BroadcastState:
+    mode: str
+    transported_errors: list[torch.Tensor | None]
+    feedback_seeds: list[torch.Tensor | None]
+
+
+@dataclass(frozen=True)
+class _LayerModulators:
+    rho: Any
+    phi: Any
+    branch_scale: torch.Tensor | float
+    dendritic_branch_scale: torch.Tensor | float
+    role_synaptic_alignment: torch.Tensor | None
+    role_block_alignment: torch.Tensor | None
+
+
+@dataclass(frozen=True)
+class _PostFactors:
+    e_v: torch.Tensor
+    post_factor: torch.Tensor
+    post_factor_raw: torch.Tensor
 
 
 class _LayerStats:
@@ -30,4 +57,4 @@ class _LayerStats:
         self.branch_block_selectivity: torch.Tensor | None = None  # [out, block]
 
 
-__all__ = ["_LayerStats"]
+__all__ = ["_BroadcastState", "_LayerModulators", "_LayerStats", "_PostFactors"]
