@@ -609,6 +609,30 @@ def _load_or_train_encoder_datasets(
     return load_train_encoder_network(**loader_kwargs)
 
 
+def _create_analysis_manager(
+    *,
+    unwrapped_model,
+    encoded_train_ds,
+    encoded_valid_ds,
+    encoded_test_ds,
+    analysis_config,
+    run_save_path: str,
+):
+    """Create the analysis manager from encoded train/valid/test datasets."""
+    encoded_data = {
+        "train": encoded_train_ds,
+        "valid": encoded_valid_ds,
+        "test": encoded_test_ds,
+    }
+    return AnalysisManager(
+        model=unwrapped_model,
+        data=encoded_data,
+        analysis_config=analysis_config,
+        save_root=run_save_path,
+        device="cuda" if torch.cuda.is_available() else "cpu",
+    )
+
+
 def _maybe_plot_multistage_training_performance(
     *,
     strategy: str,
@@ -744,6 +768,94 @@ def _broadcast_run_save_path(
     return bytes(path_tensor.cpu().tolist()).decode("utf-8")
 
 
+def _wrap_ddp_model(model, *, world_size: int, local_rank: int, is_main: bool):
+    """Wrap the model in DDP when running with multiple processes."""
+    if world_size <= 1:
+        return model
+
+    device = torch.device(f"cuda:{local_rank}")
+    model = model.to(device)
+    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[local_rank])
+    if is_main:
+        logger.info("Model wrapped in DistributedDataParallel")
+    return model
+
+
+def _dump_init_gate_stats_diagnostic(unwrapped_model, run_save_path: str) -> None:
+    """Write init-gate diagnostics without letting failures stop training."""
+    try:
+        dump_init_gate_stats(unwrapped_model, run_save_path)
+    except Exception as exc:  # diagnostic must not break training
+        logger.warning("init_gate_stats diagnostic failed: %s", exc)
+
+
+def _cleanup_training_runtime(wandb_config, *, world_size: int) -> None:
+    """Finish optional logging and tear down distributed runtime state."""
+    if (
+        hasattr(wandb_config, "use_wandb")
+        and wandb_config.use_wandb
+        and wandb.run is not None
+    ):
+        wandb.finish()
+
+    if world_size > 1 and dist.is_initialized():
+        dist.destroy_process_group()
+
+
+def _log_model_summary_before_training(unwrapped_model, train_ds, config) -> None:
+    """Log the pre-training architecture summary and parameter counts."""
+    try:
+        is_recurrent_core = getattr(unwrapped_model.core_network, "is_recurrent", False)
+        if callable(is_recurrent_core):
+            is_recurrent_core = is_recurrent_core()
+
+        if is_recurrent_core:
+            strategy = getattr(
+                getattr(config.training, "main", None), "strategy", "standard"
+            )
+            if strategy not in ("recurrent", "multi_stage"):
+                logger.warning(
+                    "Recurrent model detected but training.main.strategy='%s'. "
+                    "Use strategy='recurrent' for correct sequence handling.",
+                    strategy,
+                )
+            total_params = sum(p.numel() for p in unwrapped_model.parameters())
+            trainable_params = sum(
+                p.numel() for p in unwrapped_model.parameters() if p.requires_grad
+            )
+            logger.info(
+                "Skipping torchinfo summary for recurrent model. "
+                f"total_params={total_params}, trainable_params={trainable_params}"
+            )
+            if wandb.run:
+                wandb.log(
+                    {
+                        "total_params": total_params,
+                        "trainable_params": trainable_params,
+                    }
+                )
+        else:
+            sample_input: torch.Tensor = train_ds[0][0]
+            summary = torchinfo.summary(
+                unwrapped_model,
+                input_size=(100, *sample_input.shape),
+                col_names=["input_size", "output_size", "num_params"],
+                col_width=25,
+                row_settings=["depth"],
+                depth=7,
+            )
+            logger.info("Model summary generated (see console output)")
+            if wandb.run:
+                wandb.log(
+                    {
+                        "total_params": summary.total_params,
+                        "trainable_params": summary.trainable_params,
+                    }
+                )
+    except Exception as e:
+        logger.error(f"Failed to generate model summary before training: {e}")
+
+
 def main(config_path: str, args=None):
     rank, local_rank, world_size = setup_distributed()
     is_main = rank == 0
@@ -807,14 +919,12 @@ def main(config_path: str, args=None):
     )
 
     # --- DDP wrapping ---
-    if world_size > 1:
-        device = torch.device(f"cuda:{local_rank}")
-        model = model.to(device)
-        model = torch.nn.parallel.DistributedDataParallel(
-            model, device_ids=[local_rank]
-        )
-        if is_main:
-            logger.info("Model wrapped in DistributedDataParallel")
+    model = _wrap_ddp_model(
+        model,
+        world_size=world_size,
+        local_rank=local_rank,
+        is_main=is_main,
+    )
 
     if is_main:
         logger.info("Network architecture summary before training:")
@@ -826,63 +936,9 @@ def main(config_path: str, args=None):
     # check for runs that use learnable reactivation gates, especially when
     # data-driven calibration is enabled.
     if is_main:
-        try:
-            dump_init_gate_stats(unwrapped_model, run_save_path)
-        except Exception as exc:  # diagnostic must not break training
-            logger.warning("init_gate_stats diagnostic failed: %s", exc)
+        _dump_init_gate_stats_diagnostic(unwrapped_model, run_save_path)
     if is_main:
-        try:
-            is_recurrent_core = getattr(
-                unwrapped_model.core_network, "is_recurrent", False
-            )
-            if callable(is_recurrent_core):
-                is_recurrent_core = is_recurrent_core()
-
-            if is_recurrent_core:
-                strategy = getattr(
-                    getattr(config.training, "main", None), "strategy", "standard"
-                )
-                if strategy not in ("recurrent", "multi_stage"):
-                    logger.warning(
-                        "Recurrent model detected but training.main.strategy='%s'. "
-                        "Use strategy='recurrent' for correct sequence handling.",
-                        strategy,
-                    )
-                total_params = sum(p.numel() for p in unwrapped_model.parameters())
-                trainable_params = sum(
-                    p.numel() for p in unwrapped_model.parameters() if p.requires_grad
-                )
-                logger.info(
-                    "Skipping torchinfo summary for recurrent model. "
-                    f"total_params={total_params}, trainable_params={trainable_params}"
-                )
-                if wandb.run:
-                    wandb.log(
-                        {
-                            "total_params": total_params,
-                            "trainable_params": trainable_params,
-                        }
-                    )
-            else:
-                sample_input: torch.Tensor = train_ds[0][0]
-                summary = torchinfo.summary(
-                    unwrapped_model,
-                    input_size=(100, *sample_input.shape),
-                    col_names=["input_size", "output_size", "num_params"],
-                    col_width=25,
-                    row_settings=["depth"],
-                    depth=7,
-                )
-                logger.info("Model summary generated (see console output)")
-                if wandb.run:
-                    wandb.log(
-                        {
-                            "total_params": summary.total_params,
-                            "trainable_params": summary.trainable_params,
-                        }
-                    )
-        except Exception as e:
-            logger.error(f"Failed to generate model summary before training: {e}")
+        _log_model_summary_before_training(unwrapped_model, train_ds, config)
 
     if is_main:
         _save_run_config(config, run_save_path)
@@ -904,17 +960,13 @@ def main(config_path: str, args=None):
         )
     )
 
-    encoded_data = {
-        "train": encoded_train_ds,
-        "valid": encoded_valid_ds,
-        "test": encoded_test_ds,
-    }
-    analysis_manager = AnalysisManager(
-        model=unwrapped_model,
-        data=encoded_data,
+    analysis_manager = _create_analysis_manager(
+        unwrapped_model=unwrapped_model,
+        encoded_train_ds=encoded_train_ds,
+        encoded_valid_ds=encoded_valid_ds,
+        encoded_test_ds=encoded_test_ds,
         analysis_config=analysis_config,
-        save_root=run_save_path,
-        device="cuda" if torch.cuda.is_available() else "cpu",
+        run_save_path=run_save_path,
     )
 
     # Replace encoder on the unwrapped model so the change is visible
@@ -1032,16 +1084,7 @@ def main(config_path: str, args=None):
             training_results=training_results,
         )
 
-    if (
-        hasattr(wandb_config, "use_wandb")
-        and wandb_config.use_wandb
-        and wandb.run is not None
-    ):
-        wandb.finish()
-
-    # Clean up distributed process group.
-    if world_size > 1 and dist.is_initialized():
-        dist.destroy_process_group()
+    _cleanup_training_runtime(wandb_config, world_size=world_size)
 
     if is_main:
         logger.info("Training experiment completed successfully")

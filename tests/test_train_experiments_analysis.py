@@ -31,6 +31,19 @@ class _FakeAnalysisManager:
 class _ParamModel:
     def __init__(self, *params):
         self._params = params
+        self.core_network = SimpleNamespace(is_recurrent=False)
+
+    def parameters(self):
+        return iter(self._params)
+
+
+class _SummaryModel:
+    def __init__(self, *, is_recurrent):
+        self.core_network = SimpleNamespace(is_recurrent=is_recurrent)
+        self._params = [
+            torch.nn.Parameter(torch.zeros(2, 3)),
+            torch.nn.Parameter(torch.zeros(4), requires_grad=False),
+        ]
 
     def parameters(self):
         return iter(self._params)
@@ -42,6 +55,15 @@ class _StateDictModel:
 
     def state_dict(self):
         return self.state
+
+
+class _MovableModel:
+    def __init__(self):
+        self.to_calls = []
+
+    def to(self, device):
+        self.to_calls.append(device)
+        return self
 
 
 @dataclass
@@ -393,6 +415,135 @@ def test_load_or_train_encoder_datasets_ddp_worker_loads_after_barrier(monkeypat
     assert events == ["barrier", "load"]
 
 
+def test_create_analysis_manager_uses_encoded_data_and_cuda(monkeypatch):
+    model = object()
+    analysis_config = object()
+    train_ds = object()
+    valid_ds = object()
+    test_ds = object()
+    manager_calls = []
+
+    class FakeAnalysisManager:
+        def __init__(self, **kwargs):
+            manager_calls.append(kwargs)
+
+    monkeypatch.setattr(train_experiments, "AnalysisManager", FakeAnalysisManager)
+    monkeypatch.setattr(train_experiments.torch.cuda, "is_available", lambda: True)
+
+    manager = train_experiments._create_analysis_manager(
+        unwrapped_model=model,
+        encoded_train_ds=train_ds,
+        encoded_valid_ds=valid_ds,
+        encoded_test_ds=test_ds,
+        analysis_config=analysis_config,
+        run_save_path="/tmp/run",
+    )
+
+    assert isinstance(manager, FakeAnalysisManager)
+    assert manager_calls == [
+        {
+            "model": model,
+            "data": {"train": train_ds, "valid": valid_ds, "test": test_ds},
+            "analysis_config": analysis_config,
+            "save_root": "/tmp/run",
+            "device": "cuda",
+        }
+    ]
+
+
+def test_create_analysis_manager_uses_cpu_when_cuda_unavailable(monkeypatch):
+    manager_calls = []
+
+    class FakeAnalysisManager:
+        def __init__(self, **kwargs):
+            manager_calls.append(kwargs)
+
+    monkeypatch.setattr(train_experiments, "AnalysisManager", FakeAnalysisManager)
+    monkeypatch.setattr(train_experiments.torch.cuda, "is_available", lambda: False)
+
+    train_experiments._create_analysis_manager(
+        unwrapped_model=object(),
+        encoded_train_ds=object(),
+        encoded_valid_ds=object(),
+        encoded_test_ds=object(),
+        analysis_config=object(),
+        run_save_path="/tmp/run",
+    )
+
+    assert manager_calls[0]["device"] == "cpu"
+
+
+def test_log_model_summary_before_training_handles_recurrent_model(
+    monkeypatch,
+    caplog,
+):
+    model = _SummaryModel(is_recurrent=True)
+    config = SimpleNamespace(
+        training=SimpleNamespace(main=SimpleNamespace(strategy="standard"))
+    )
+    wandb_logs = []
+
+    monkeypatch.setattr(train_experiments.wandb, "run", object())
+    monkeypatch.setattr(
+        train_experiments.wandb,
+        "log",
+        lambda payload: wandb_logs.append(payload),
+    )
+    monkeypatch.setattr(
+        train_experiments.torchinfo,
+        "summary",
+        lambda *args, **kwargs: pytest.fail("recurrent model should skip torchinfo"),
+    )
+
+    with caplog.at_level("INFO", logger=train_experiments.__name__):
+        train_experiments._log_model_summary_before_training(model, object(), config)
+
+    assert wandb_logs == [{"total_params": 10, "trainable_params": 6}]
+    assert "Recurrent model detected" in caplog.text
+    assert "Skipping torchinfo summary for recurrent model" in caplog.text
+
+
+def test_log_model_summary_before_training_uses_torchinfo(monkeypatch):
+    model = _SummaryModel(is_recurrent=False)
+    sample = torch.zeros(3, 4, 5)
+    config = SimpleNamespace(
+        training=SimpleNamespace(main=SimpleNamespace(strategy="standard"))
+    )
+    summary_calls = []
+    wandb_logs = []
+
+    monkeypatch.setattr(train_experiments.wandb, "run", object())
+    monkeypatch.setattr(
+        train_experiments.wandb,
+        "log",
+        lambda payload: wandb_logs.append(payload),
+    )
+    monkeypatch.setattr(
+        train_experiments.torchinfo,
+        "summary",
+        lambda *args, **kwargs: summary_calls.append((args, kwargs))
+        or SimpleNamespace(total_params=11, trainable_params=7),
+    )
+
+    train_experiments._log_model_summary_before_training(
+        model,
+        [(sample, torch.tensor(1))],
+        config,
+    )
+
+    assert len(summary_calls) == 1
+    args, kwargs = summary_calls[0]
+    assert args == (model,)
+    assert kwargs == {
+        "input_size": (100, 3, 4, 5),
+        "col_names": ["input_size", "output_size", "num_params"],
+        "col_width": 25,
+        "row_settings": ["depth"],
+        "depth": 7,
+    }
+    assert wandb_logs == [{"total_params": 11, "trainable_params": 7}]
+
+
 def test_maybe_plot_multistage_training_performance_plots_when_available(
     monkeypatch,
     tmp_path,
@@ -706,6 +857,137 @@ def test_broadcast_run_save_path_worker_adopts_rank0_path(monkeypatch):
 
     assert result == shared_path.decode("utf-8")
     assert calls == [(torch.long, 0), (torch.uint8, 0)]
+
+
+def test_wrap_ddp_model_skips_single_process(monkeypatch):
+    model = _MovableModel()
+
+    monkeypatch.setattr(
+        train_experiments.torch.nn.parallel,
+        "DistributedDataParallel",
+        lambda *args, **kwargs: pytest.fail("single-process path should not wrap DDP"),
+    )
+
+    wrapped = train_experiments._wrap_ddp_model(
+        model,
+        world_size=1,
+        local_rank=0,
+        is_main=True,
+    )
+
+    assert wrapped is model
+    assert model.to_calls == []
+
+
+def test_wrap_ddp_model_moves_and_wraps_ddp(monkeypatch):
+    model = _MovableModel()
+    ddp_calls = []
+
+    class FakeDDP:
+        def __init__(self, received_model, device_ids):
+            self.received_model = received_model
+            self.device_ids = device_ids
+            ddp_calls.append((received_model, device_ids))
+
+    monkeypatch.setattr(
+        train_experiments.torch.nn.parallel,
+        "DistributedDataParallel",
+        FakeDDP,
+    )
+
+    wrapped = train_experiments._wrap_ddp_model(
+        model,
+        world_size=2,
+        local_rank=3,
+        is_main=True,
+    )
+
+    assert isinstance(wrapped, FakeDDP)
+    assert wrapped.received_model is model
+    assert wrapped.device_ids == [3]
+    assert ddp_calls == [(model, [3])]
+    assert [str(device) for device in model.to_calls] == ["cuda:3"]
+
+
+def test_dump_init_gate_stats_diagnostic_calls_writer(monkeypatch):
+    calls = []
+    model = object()
+
+    monkeypatch.setattr(
+        train_experiments,
+        "dump_init_gate_stats",
+        lambda received_model, path: calls.append((received_model, path)),
+    )
+
+    train_experiments._dump_init_gate_stats_diagnostic(model, "/tmp/run")
+
+    assert calls == [(model, "/tmp/run")]
+
+
+def test_dump_init_gate_stats_diagnostic_logs_failure(monkeypatch, caplog):
+    def failing_dump(*args):
+        raise RuntimeError("diagnostic failed")
+
+    monkeypatch.setattr(train_experiments, "dump_init_gate_stats", failing_dump)
+
+    with caplog.at_level("WARNING", logger=train_experiments.__name__):
+        train_experiments._dump_init_gate_stats_diagnostic(object(), "/tmp/run")
+
+    assert "init_gate_stats diagnostic failed: diagnostic failed" in caplog.text
+
+
+def test_cleanup_training_runtime_finishes_wandb_and_distributed(monkeypatch):
+    finish_calls = []
+    destroy_calls = []
+
+    monkeypatch.setattr(train_experiments.wandb, "run", object())
+    monkeypatch.setattr(
+        train_experiments.wandb,
+        "finish",
+        lambda: finish_calls.append("finish"),
+    )
+    monkeypatch.setattr(
+        train_experiments.dist,
+        "is_initialized",
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        train_experiments.dist,
+        "destroy_process_group",
+        lambda: destroy_calls.append("destroy"),
+    )
+
+    train_experiments._cleanup_training_runtime(
+        SimpleNamespace(use_wandb=True),
+        world_size=2,
+    )
+
+    assert finish_calls == ["finish"]
+    assert destroy_calls == ["destroy"]
+
+
+def test_cleanup_training_runtime_skips_disabled_paths(monkeypatch):
+    monkeypatch.setattr(train_experiments.wandb, "run", None)
+    monkeypatch.setattr(
+        train_experiments.wandb,
+        "finish",
+        lambda: pytest.fail("wandb.finish should not run"),
+    )
+    monkeypatch.setattr(
+        train_experiments.dist,
+        "is_initialized",
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        train_experiments.dist,
+        "destroy_process_group",
+        lambda: pytest.fail("single-process run should not destroy process group"),
+    )
+
+    train_experiments._cleanup_training_runtime(
+        SimpleNamespace(use_wandb=False),
+        world_size=1,
+    )
 
 
 def test_run_analysis_attaches_pruning_results_and_plots_evolution(
