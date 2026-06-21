@@ -568,6 +568,402 @@ class TestInformationAnalyzer(unittest.TestCase):
         self.assertIsNone(results)
         mock_all.assert_called_once_with(model=self.model, inputs=inputs, C=C)
 
+    def test_branch_metric_helper_computes_metrics_and_preserves_null_flags(self):
+        """Branch metric helper should attach null baselines with availability flags."""
+        C = np.array([0, 1, 0])
+        E = np.array([[1.0], [2.0], [3.0]])
+        I_var = E + 10.0
+        Vout = E + 20.0
+
+        with (
+            patch.object(
+                self.analyzer,
+                "compute_metrics",
+                return_value={"basic_mi": {"I(E;C)": 1.0}},
+            ) as mock_metrics,
+            patch.object(
+                self.analyzer,
+                "_try_add_label_shuffle_null_baselines_in_place",
+            ) as mock_null,
+        ):
+            results = self.analyzer._compute_branch_metrics_with_null_baselines(
+                E=E,
+                I_var=I_var,
+                Vout=Vout,
+                C=C,
+                Vb=None,
+                has_exc_synapses=True,
+                has_inh_synapses=False,
+                has_branch_input=True,
+                seed_offset=7,
+                failure_context="branch 7",
+            )
+
+        self.assertEqual(results, {"basic_mi": {"I(E;C)": 1.0}})
+        mock_metrics.assert_called_once_with(E, I_var, Vout, C, None, None)
+        mock_null.assert_called_once()
+        self.assertTrue(mock_null.call_args.kwargs["has_exc_synapses"])
+        self.assertFalse(mock_null.call_args.kwargs["has_inh_synapses"])
+        self.assertFalse(mock_null.call_args.kwargs["has_branch_input"])
+        self.assertEqual(mock_null.call_args.kwargs["seed_offset"], 7)
+        self.assertEqual(mock_null.call_args.kwargs["failure_context"], "branch 7")
+
+    def test_single_branch_layer_data_helper_preserves_arrays_and_flags(self):
+        """Single-branch layer prep should preserve arrays and availability flags."""
+        layer_data = {
+            "excitation": torch.tensor([[1.0, 2.0], [3.0, 4.0]]),
+            "inhibition": torch.tensor([[5.0, 6.0], [7.0, 8.0]]),
+            "branch_input": torch.tensor([[9.0, 10.0], [11.0, 12.0]]),
+            "output": torch.tensor([[13.0, 14.0], [15.0, 16.0]]),
+            "has_exc_synapses": False,
+            "has_inh_synapses": True,
+            "has_branch_input": False,
+        }
+
+        prepared = self.analyzer._prepare_single_branch_layer_data(layer_data)
+
+        np.testing.assert_array_equal(
+            prepared.excitation,
+            np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32),
+        )
+        np.testing.assert_array_equal(
+            prepared.inhibition,
+            np.array([[5.0, 6.0], [7.0, 8.0]], dtype=np.float32),
+        )
+        np.testing.assert_array_equal(
+            prepared.branch_input,
+            np.array([[9.0, 10.0], [11.0, 12.0]], dtype=np.float32),
+        )
+        np.testing.assert_array_equal(
+            prepared.output,
+            np.array([[13.0, 14.0], [15.0, 16.0]], dtype=np.float32),
+        )
+        self.assertFalse(prepared.has_exc_synapses)
+        self.assertTrue(prepared.has_inh_synapses)
+        self.assertFalse(prepared.has_branch_input)
+
+    def test_single_branch_layer_data_helper_handles_missing_branch_input(self):
+        """Single-branch layer prep should keep missing branch input as None."""
+        layer_data = {
+            "excitation": torch.tensor([[1.0], [2.0]]),
+            "inhibition": torch.tensor([[3.0], [4.0]]),
+            "output": torch.tensor([[5.0], [6.0]]),
+        }
+
+        prepared = self.analyzer._prepare_single_branch_layer_data(layer_data)
+
+        self.assertIsNone(prepared.branch_input)
+        self.assertTrue(prepared.has_exc_synapses)
+        self.assertTrue(prepared.has_inh_synapses)
+        self.assertFalse(prepared.has_branch_input)
+
+    def test_single_branch_lda_signal_helper_returns_empty_when_disabled(self):
+        """LDA signal prep should avoid aggregation work when LDA is disabled."""
+        self.analyzer.compute_lda_weights = False
+        C = np.array([0, 1])
+
+        with (
+            patch.object(self.analyzer, "compute_lda_aggregated_signals") as mock_lda,
+            patch.object(
+                self.analyzer,
+                "compute_shuffled_aggregated_signals",
+            ) as mock_shuffled,
+        ):
+            signals = self.analyzer._prepare_single_branch_lda_signals({}, C)
+
+        self.assertIsNone(signals.excitation)
+        self.assertIsNone(signals.inhibition)
+        self.assertIsNone(signals.branch_input)
+        self.assertIsNone(signals.output)
+        self.assertEqual(signals.shuffled, ())
+        mock_lda.assert_not_called()
+        mock_shuffled.assert_not_called()
+
+    def test_single_branch_lda_signal_helper_collects_shuffles_in_order(self):
+        """LDA signal prep should preserve deterministic and shuffled signals."""
+        self.analyzer.compute_lda_weights = True
+        self.analyzer.lda_n_shuffles = 2
+        C = np.array([0, 1])
+        layer_data = {"layer": "data"}
+        E_lin = np.array([[1.0], [2.0]])
+        I_lin = E_lin + 10.0
+        Vb_lin = E_lin + 20.0
+        Vout_lin = E_lin + 30.0
+        shuffle0 = (E_lin + 100.0, I_lin + 100.0, Vb_lin + 100.0, Vout_lin + 100.0)
+        shuffle1 = (E_lin + 200.0, I_lin + 200.0, None, Vout_lin + 200.0)
+
+        with (
+            patch.object(
+                self.analyzer,
+                "compute_lda_aggregated_signals",
+                return_value=(E_lin, I_lin, Vb_lin, Vout_lin),
+            ) as mock_lda,
+            patch.object(
+                self.analyzer,
+                "compute_shuffled_aggregated_signals",
+                side_effect=[shuffle0, shuffle1],
+            ) as mock_shuffled,
+        ):
+            signals = self.analyzer._prepare_single_branch_lda_signals(layer_data, C)
+
+        mock_lda.assert_called_once_with(layer_data, C)
+        self.assertEqual(mock_shuffled.call_count, 2)
+        mock_shuffled.assert_any_call(layer_data, C, 0)
+        mock_shuffled.assert_any_call(layer_data, C, 1)
+        np.testing.assert_array_equal(signals.excitation, E_lin)
+        np.testing.assert_array_equal(signals.inhibition, I_lin)
+        np.testing.assert_array_equal(signals.branch_input, Vb_lin)
+        np.testing.assert_array_equal(signals.output, Vout_lin)
+        self.assertEqual(len(signals.shuffled), 2)
+        for actual, expected in zip(signals.shuffled[0], shuffle0):
+            np.testing.assert_array_equal(actual, expected)
+        for actual, expected in zip(signals.shuffled[1], shuffle1):
+            if expected is None:
+                self.assertIsNone(actual)
+            else:
+                np.testing.assert_array_equal(actual, expected)
+
+    def test_single_branch_result_helper_slices_merges_and_filters(self):
+        """Single-branch result helper should orchestrate one branch without drift."""
+        C = np.array([0, 1, 0])
+        layer_data = {
+            "excitation": torch.tensor([[1.0, 10.0], [2.0, 20.0], [3.0, 30.0]]),
+            "inhibition": torch.tensor([[4.0, 40.0], [5.0, 50.0], [6.0, 60.0]]),
+            "branch_input": torch.tensor([[7.0, 70.0], [8.0, 80.0], [9.0, 90.0]]),
+            "output": torch.tensor([[11.0, 110.0], [12.0, 120.0], [13.0, 130.0]]),
+            "has_exc_synapses": False,
+            "has_inh_synapses": True,
+            "has_branch_input": True,
+        }
+        prepared = self.analyzer._prepare_single_branch_layer_data(layer_data)
+        lda_signals = Mock()
+        lda_signals.excitation = np.array([[101.0, 201.0]])
+        lda_signals.inhibition = np.array([[102.0, 202.0]])
+        lda_signals.branch_input = np.array([[103.0, 203.0]])
+        lda_signals.output = np.array([[104.0, 204.0]])
+        lda_signals.shuffled = (("shuffle",),)
+        branch_results = {"basic_mi": {"I(E;C)": 1.0}}
+
+        with (
+            patch.object(
+                self.analyzer,
+                "_compute_branch_metrics_with_null_baselines",
+                return_value=branch_results,
+            ) as mock_base,
+            patch.object(
+                self.analyzer,
+                "_merge_lda_branch_metrics_in_place",
+            ) as mock_lda,
+            patch.object(
+                self.analyzer,
+                "_merge_shuffled_branch_metrics_in_place",
+            ) as mock_shuffled,
+            patch.object(
+                self.analyzer, "_filter_result_metrics_in_place"
+            ) as mock_filter,
+        ):
+            result = self.analyzer._compute_single_branch_result(
+                prepared_layer=prepared,
+                lda_signals=lda_signals,
+                C=C,
+                branch_idx=1,
+                layer_count=3,
+            )
+
+        self.assertIs(result, branch_results)
+        np.testing.assert_array_equal(
+            mock_base.call_args.kwargs["E"],
+            np.array([[10.0], [20.0], [30.0]], dtype=np.float32),
+        )
+        np.testing.assert_array_equal(
+            mock_base.call_args.kwargs["I_var"],
+            np.array([[40.0], [50.0], [60.0]], dtype=np.float32),
+        )
+        np.testing.assert_array_equal(
+            mock_base.call_args.kwargs["Vout"],
+            np.array([[110.0], [120.0], [130.0]], dtype=np.float32),
+        )
+        np.testing.assert_array_equal(
+            mock_base.call_args.kwargs["Vb"],
+            np.array([[70.0], [80.0], [90.0]], dtype=np.float32),
+        )
+        np.testing.assert_array_equal(mock_base.call_args.kwargs["C"], C)
+        self.assertFalse(mock_base.call_args.kwargs["has_exc_synapses"])
+        self.assertTrue(mock_base.call_args.kwargs["has_inh_synapses"])
+        self.assertTrue(mock_base.call_args.kwargs["has_branch_input"])
+        self.assertEqual(mock_base.call_args.kwargs["seed_offset"], 30_001)
+        self.assertEqual(mock_base.call_args.kwargs["failure_context"], "branch 1")
+
+        self.assertIs(mock_lda.call_args.kwargs["target"], branch_results)
+        self.assertIs(mock_lda.call_args.kwargs["E_lin"], lda_signals.excitation)
+        self.assertIs(mock_lda.call_args.kwargs["I_lin"], lda_signals.inhibition)
+        self.assertIs(mock_lda.call_args.kwargs["Vb_lin"], lda_signals.branch_input)
+        self.assertIs(mock_lda.call_args.kwargs["Vout_lin"], lda_signals.output)
+        self.assertEqual(mock_lda.call_args.kwargs["branch_idx"], 1)
+        self.assertEqual(mock_lda.call_args.kwargs["layer_count"], 3)
+
+        self.assertIs(mock_shuffled.call_args.kwargs["target"], branch_results)
+        self.assertIs(
+            mock_shuffled.call_args.kwargs["shuffled_signals"], lda_signals.shuffled
+        )
+        self.assertEqual(mock_shuffled.call_args.kwargs["branch_idx"], 1)
+        self.assertTrue(mock_shuffled.call_args.kwargs["has_branch_input"])
+
+        mock_filter.assert_called_once_with(
+            branch_results,
+            has_exc_synapses=False,
+            has_inh_synapses=True,
+            has_branch_input=True,
+        )
+
+    def test_finalize_single_branch_results_returns_none_for_empty_results(self):
+        """Single-branch finalization should preserve empty-result skip behavior."""
+        with patch.object(self.analyzer.logger, "warning") as mock_warning:
+            results = self.analyzer._finalize_single_branch_results(
+                all_results=[],
+                branch_names=[],
+                layer_results={},
+            )
+
+        self.assertIsNone(results)
+        mock_warning.assert_called_once_with("No branch results to average")
+
+    def test_finalize_single_branch_results_averages_and_attaches_metadata(self):
+        """Single-branch finalization should preserve averaged results metadata."""
+        all_results = [{"basic_mi": {"I(E;C)": 1.0}}, {"basic_mi": {"I(E;C)": 3.0}}]
+        branch_names = ["layer0_branch_0", "layer0_branch_1"]
+        layer_results = {"layer0": {"I(E;C)_mean": 2.0}}
+
+        with patch.object(
+            self.analyzer,
+            "_average_mi_results",
+            return_value={"basic_mi": {"I(E;C)": 2.0}},
+        ) as mock_average:
+            results = self.analyzer._finalize_single_branch_results(
+                all_results=all_results,
+                branch_names=branch_names,
+                layer_results=layer_results,
+            )
+
+        mock_average.assert_called_once_with(all_results)
+        self.assertEqual(
+            results,
+            {
+                "basic_mi": {"I(E;C)": 2.0},
+                "branch_names": branch_names,
+                "num_branches": 2,
+                "layer_statistics": layer_results,
+                "computation_level": "single_branch",
+            },
+        )
+
+    def test_lda_branch_metric_helper_slices_merges_and_preserves_null_args(self):
+        """LDA branch helper should preserve slicing, null-baseline, and rename behavior."""
+        self.analyzer.compute_lda_weights = True
+        C = np.array([0, 1, 0])
+        E_lin = np.array([[1.0, 10.0], [2.0, 20.0], [3.0, 30.0]])
+        I_lin = E_lin + 100.0
+        Vb_lin = E_lin + 200.0
+        Vout_lin = E_lin + 300.0
+        target = {"basic_mi": {}, "pairwise_mi": {}}
+
+        with (
+            patch.object(
+                self.analyzer,
+                "compute_metrics",
+                return_value={
+                    "basic_mi": {"I(E;C)": 1.0, "I(Vb;C)": 2.0},
+                    "pairwise_mi": {"I(Vout;Vb)": 3.0},
+                },
+            ) as mock_metrics,
+            patch.object(
+                self.analyzer,
+                "_try_add_label_shuffle_null_baselines_in_place",
+            ) as mock_null,
+        ):
+            self.analyzer._merge_lda_branch_metrics_in_place(
+                target=target,
+                E_lin=E_lin,
+                I_lin=I_lin,
+                Vb_lin=Vb_lin,
+                Vout_lin=Vout_lin,
+                C=C,
+                branch_idx=1,
+                layer_count=2,
+                has_exc_synapses=False,
+                has_inh_synapses=True,
+                has_branch_input=True,
+            )
+
+        E_arg, I_arg, Vout_arg, C_arg, Vinf_arg, Vb_arg = mock_metrics.call_args.args
+        np.testing.assert_array_equal(E_arg, E_lin[:, 1:2])
+        np.testing.assert_array_equal(I_arg, I_lin[:, 1:2])
+        np.testing.assert_array_equal(Vout_arg, Vout_lin[:, 1:2])
+        np.testing.assert_array_equal(C_arg, C)
+        self.assertIsNone(Vinf_arg)
+        np.testing.assert_array_equal(Vb_arg, Vb_lin[:, 1:2])
+        self.assertEqual(
+            target,
+            {
+                "basic_mi": {"I(E_lin;C)": 1.0, "I(Vb_lin;C)": 2.0},
+                "pairwise_mi": {"I(Vout_lin;Vb_lin)": 3.0},
+            },
+        )
+        mock_null.assert_called_once()
+        self.assertEqual(mock_null.call_args.kwargs["seed_offset"], 1_020_001)
+        self.assertEqual(mock_null.call_args.kwargs["failure_context"], "LDA branch 1")
+        self.assertFalse(mock_null.call_args.kwargs["has_exc_synapses"])
+        self.assertTrue(mock_null.call_args.kwargs["has_inh_synapses"])
+        self.assertTrue(mock_null.call_args.kwargs["has_branch_input"])
+
+    def test_shuffled_branch_metric_helper_slices_and_averages_renamed_metrics(self):
+        """Shuffled branch helper should average numeric metrics after token rename."""
+        C = np.array([0, 1, 0])
+        base = np.array([[1.0, 10.0], [2.0, 20.0], [3.0, 30.0]])
+        shuffled_signals = [
+            (base, base + 100.0, base + 200.0, base + 300.0),
+            (base + 1.0, base + 101.0, base + 201.0, base + 301.0),
+        ]
+        target = {"basic_mi": {}, "pairwise_mi": {}}
+
+        with patch.object(
+            self.analyzer,
+            "compute_metrics",
+            side_effect=[
+                {
+                    "basic_mi": {"I(E;C)": 1.0},
+                    "pairwise_mi": {"I(Vout;Vb)": 3.0},
+                },
+                {
+                    "basic_mi": {"I(E;C)": 5.0},
+                    "pairwise_mi": {"I(Vout;Vb)": 7.0},
+                },
+            ],
+        ) as mock_metrics:
+            self.analyzer._merge_shuffled_branch_metrics_in_place(
+                target=target,
+                shuffled_signals=shuffled_signals,
+                C=C,
+                branch_idx=1,
+                has_branch_input=True,
+            )
+
+        self.assertEqual(
+            target,
+            {
+                "basic_mi": {"I(E_sh;C)": 3.0},
+                "pairwise_mi": {"I(Vout_sh;Vb_sh)": 5.0},
+            },
+        )
+        self.assertEqual(mock_metrics.call_count, 2)
+        first_call = mock_metrics.call_args_list[0].args
+        np.testing.assert_array_equal(first_call[0], base[:, 1:2])
+        np.testing.assert_array_equal(first_call[1], (base + 100.0)[:, 1:2])
+        np.testing.assert_array_equal(first_call[2], (base + 300.0)[:, 1:2])
+        np.testing.assert_array_equal(first_call[3], C)
+        self.assertIsNone(first_call[4])
+        np.testing.assert_array_equal(first_call[5], (base + 200.0)[:, 1:2])
+
     def test_analysis_metadata_helper_adds_configuration_flags(self):
         """Analysis metadata helper should stamp enabled modes and inhibition state."""
         self.analyzer.per_neuron_analysis = True
