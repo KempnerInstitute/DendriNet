@@ -489,6 +489,15 @@ def _resolve_split_input_size(input_shape: list[int] | None) -> tuple[int, ...]:
     return _DEFAULT_INPUT_SIZE
 
 
+def _run_modules_no_grad(
+    modules: list[nn.Module], input_tensor: torch.Tensor
+) -> torch.Tensor:
+    """Run a temporary sequential module under ``torch.no_grad``."""
+    sequence = nn.Sequential(*list(modules))
+    with torch.no_grad():
+        return sequence(input_tensor)
+
+
 def _compute_prefix_output_dim(
     prefix_modules: list[nn.Module],
     input_size: tuple[int, ...],
@@ -496,9 +505,7 @@ def _compute_prefix_output_dim(
     tmp_prefix_mods = list(prefix_modules)
     if _needs_flatten(tmp_prefix_mods):
         tmp_prefix_mods = _insert_flatten(tmp_prefix_mods)
-    tmp_prefix = nn.Sequential(*tmp_prefix_mods)
-    with torch.no_grad():
-        prefix_out = tmp_prefix(torch.zeros(*input_size))
+    prefix_out = _run_modules_no_grad(tmp_prefix_mods, torch.zeros(*input_size))
     if prefix_out.dim() > 2:
         prefix_out = prefix_out.flatten(start_dim=1)
     return prefix_out.shape[-1]
@@ -526,9 +533,10 @@ def _infer_suffix_output_dim(
     if not suffix_modules:
         return 0
 
-    with torch.no_grad():
-        dummy_in = torch.zeros(1, suffix_input_dim)
-        dummy_out = nn.Sequential(*suffix_modules)(dummy_in)
+    dummy_out = _run_modules_no_grad(
+        suffix_modules,
+        torch.zeros(1, suffix_input_dim),
+    )
     return dummy_out.shape[-1]
 
 
@@ -570,18 +578,17 @@ def _compute_spatial_specs(
         )
         return None, None
 
-    raw_prefix = nn.Sequential(*list(prefix_modules))
-    with torch.no_grad():
-        raw_out = raw_prefix(torch.zeros(*input_size))
+    raw_out = _run_modules_no_grad(prefix_modules, torch.zeros(*input_size))
     prefix_output_spec = _tensor_spec_from_prefix_output(raw_out)
     suffix_input_spec = None
 
     if prefix_output_spec is not None:
         replaced_mods = [module for _, module in replaced_layers]
         if not _has_linear_module(replaced_mods):
-            raw_replaced = nn.Sequential(*list(prefix_modules), *replaced_mods)
-            with torch.no_grad():
-                replaced_out = raw_replaced(torch.zeros(*input_size))
+            replaced_out = _run_modules_no_grad(
+                [*prefix_modules, *replaced_mods],
+                torch.zeros(*input_size),
+            )
             if replaced_out.dim() == 4:
                 suffix_input_spec = _tensor_spec_from_spatial_output(replaced_out)
 

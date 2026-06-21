@@ -25,7 +25,19 @@ from dendritic_modeling.datasets import (
     load_mnist_modulo10,
 )
 from dendritic_modeling.datasets.standard_datasets import (
+    _apply_imagenet_local_override,
+    _build_imagenet_transforms,
+    _class_subset_indices,
+    _imagenet_fake_transforms,
+    _is_official_imagenet_root,
+    _load_imagenet_dataset_triplet,
     _load_torchvision_train_test_pair,
+    _make_imagenet_fake_triplet,
+    _normalized_imagenet_preset_name,
+    _resolve_imagefolder_roots,
+    _resolve_imagenet_data_location,
+    _split_train_valid_pair,
+    _subset_by_indices,
 )
 
 # Import synthetic datasets from experiments folder
@@ -468,6 +480,258 @@ class TestRealDatasets(unittest.TestCase):
 
             # Check that mock was called with correct parameters
             mock_load.assert_called_once()
+
+    def test_resolve_imagefolder_roots_detects_direct_train_val_tree(self):
+        os.makedirs(os.path.join(self.temp_dir, "train", "class_a"))
+        os.makedirs(os.path.join(self.temp_dir, "val", "class_a"))
+
+        train_root, val_root = _resolve_imagefolder_roots(self.temp_dir)
+
+        self.assertEqual(train_root, os.path.join(self.temp_dir, "train"))
+        self.assertEqual(val_root, os.path.join(self.temp_dir, "val"))
+
+    def test_is_official_imagenet_root_requires_metadata_and_splits(self):
+        os.makedirs(os.path.join(self.temp_dir, "ILSVRC2012_img_train", "class_a"))
+        os.makedirs(os.path.join(self.temp_dir, "val", "class_a"))
+        with open(os.path.join(self.temp_dir, "meta.bin"), "wb") as f:
+            f.write(b"meta")
+
+        self.assertTrue(_is_official_imagenet_root(self.temp_dir))
+
+    def test_resolve_imagenet_data_location_prefers_official_root(self):
+        os.makedirs(os.path.join(self.temp_dir, "train", "class_a"))
+        os.makedirs(os.path.join(self.temp_dir, "val", "class_a"))
+        with open(os.path.join(self.temp_dir, "meta.bin"), "wb") as f:
+            f.write(b"meta")
+
+        imagenet_dir, train_root, val_root = _resolve_imagenet_data_location(
+            self.temp_dir
+        )
+
+        self.assertEqual(imagenet_dir, self.temp_dir)
+        self.assertIsNone(train_root)
+        self.assertIsNone(val_root)
+
+    def test_resolve_imagenet_data_location_falls_back_to_datasets_subdir(self):
+        imagenet_dir = os.path.join(self.temp_dir, "datasets", "imagenet")
+        os.makedirs(os.path.join(imagenet_dir, "train", "class_a"))
+        os.makedirs(os.path.join(imagenet_dir, "val", "class_a"))
+
+        resolved_dir, train_root, val_root = _resolve_imagenet_data_location(
+            self.temp_dir
+        )
+
+        self.assertEqual(resolved_dir, imagenet_dir)
+        self.assertEqual(train_root, os.path.join(imagenet_dir, "train"))
+        self.assertEqual(val_root, os.path.join(imagenet_dir, "val"))
+
+    def test_apply_imagenet_local_override_uses_existing_env_dir(self):
+        local_dir = os.path.join(self.temp_dir, "local_imagenet")
+        os.makedirs(local_dir)
+
+        with patch.dict(os.environ, {"IMAGENET_LOCAL_DIR": local_dir}):
+            self.assertEqual(
+                _apply_imagenet_local_override("/configured/path"),
+                local_dir,
+            )
+
+    def test_class_subset_indices_caps_each_class_deterministically(self):
+        dataset = Mock()
+        dataset.targets = [0, 0, 0, 1, 1, 1]
+
+        indices = _class_subset_indices(
+            dataset,
+            2,
+            split_name="train",
+            seed=13,
+        )
+        repeated = _class_subset_indices(
+            dataset,
+            2,
+            split_name="train",
+            seed=13,
+        )
+
+        self.assertEqual(indices, repeated)
+        self.assertEqual(len(indices), 4)
+        self.assertLessEqual(sum(dataset.targets[i] == 0 for i in indices), 2)
+        self.assertLessEqual(sum(dataset.targets[i] == 1 for i in indices), 2)
+
+    def test_class_subset_indices_returns_none_without_targets(self):
+        dataset = Mock(spec=[])
+
+        self.assertIsNone(_class_subset_indices(dataset, 1, split_name="train", seed=0))
+
+    def test_subset_by_indices_is_noop_without_indices(self):
+        dataset = TensorDataset(torch.arange(4), torch.arange(4))
+
+        self.assertIs(_subset_by_indices(dataset, None), dataset)
+        subset = _subset_by_indices(dataset, [1, 3])
+
+        self.assertEqual(len(subset), 2)
+        self.assertEqual(list(subset.indices), [1, 3])
+
+    def test_split_train_valid_pair_uses_eval_dataset_for_validation(self):
+        train_dataset = TensorDataset(torch.arange(10), torch.arange(10))
+        train_eval_dataset = TensorDataset(torch.arange(10) + 100, torch.arange(10))
+
+        train_subset, valid_subset = _split_train_valid_pair(
+            train_dataset,
+            train_eval_dataset,
+            train_valid_split=0.6,
+            split_seed=3,
+        )
+
+        self.assertEqual(len(train_subset), 6)
+        self.assertEqual(len(valid_subset), 4)
+        self.assertIs(train_subset.dataset, train_dataset)
+        self.assertIs(valid_subset.dataset, train_eval_dataset)
+
+    def test_normalized_imagenet_preset_name_normalizes_aliases(self):
+        self.assertEqual(
+            _normalized_imagenet_preset_name("legacy-resize"), "legacy_resize"
+        )
+        self.assertEqual(_normalized_imagenet_preset_name(None), "legacy_resize")
+
+    def test_build_imagenet_transforms_legacy_uses_shared_resize_transform(self):
+        train_transform, eval_transform = _build_imagenet_transforms(
+            normalize=False,
+            transform_preset="legacy_resize",
+        )
+
+        names = [type(t).__name__ for t in train_transform.transforms]
+        self.assertIs(train_transform, eval_transform)
+        self.assertEqual(names, ["Resize", "ToTensor"])
+
+    def test_build_imagenet_transforms_pretrained_uses_train_eval_pipelines(self):
+        train_transform, eval_transform = _build_imagenet_transforms(
+            normalize=True,
+            transform_preset="pretrained",
+        )
+
+        train_names = [type(t).__name__ for t in train_transform.transforms]
+        eval_names = [type(t).__name__ for t in eval_transform.transforms]
+        self.assertEqual(
+            train_names,
+            ["RandomResizedCrop", "RandomHorizontalFlip", "ToTensor", "Normalize"],
+        )
+        self.assertEqual(eval_names, ["Resize", "CenterCrop", "ToTensor", "Normalize"])
+
+    def test_imagenet_fake_transforms_add_flatten_lambda_only_when_requested(self):
+        train_transform, eval_transform = _build_imagenet_transforms(
+            normalize=False,
+            transform_preset="legacy_resize",
+        )
+
+        same_train, same_eval = _imagenet_fake_transforms(
+            train_transform, eval_transform, flatten=False
+        )
+        flat_train, flat_eval = _imagenet_fake_transforms(
+            train_transform, eval_transform, flatten=True
+        )
+
+        self.assertIs(same_train, train_transform)
+        self.assertIs(same_eval, eval_transform)
+        self.assertEqual(type(flat_train.transforms[-1]).__name__, "Lambda")
+        self.assertEqual(type(flat_eval.transforms[-1]).__name__, "Lambda")
+
+    @patch("dendritic_modeling.datasets.standard_datasets.datasets.ImageNet")
+    @patch("dendritic_modeling.datasets.standard_datasets.datasets.ImageFolder")
+    def test_load_imagenet_dataset_triplet_uses_imagefolder_roots(
+        self, mock_imagefolder, mock_imagenet
+    ):
+        train_transform = Mock()
+        eval_transform = Mock()
+        train_mock = Mock()
+        train_eval_mock = Mock()
+        test_mock = Mock()
+        mock_imagefolder.side_effect = [train_mock, train_eval_mock, test_mock]
+
+        loaded = _load_imagenet_dataset_triplet(
+            imagenet_dir="/unused",
+            train_root="/imagenet/train",
+            val_root="/imagenet/val",
+            train_transform=train_transform,
+            eval_transform=eval_transform,
+        )
+
+        self.assertEqual(loaded, (train_mock, train_eval_mock, test_mock))
+        mock_imagefolder.assert_any_call(
+            root="/imagenet/train", transform=train_transform
+        )
+        mock_imagefolder.assert_any_call(
+            root="/imagenet/train", transform=eval_transform
+        )
+        mock_imagefolder.assert_any_call(root="/imagenet/val", transform=eval_transform)
+        mock_imagenet.assert_not_called()
+
+    @patch("dendritic_modeling.datasets.standard_datasets.datasets.ImageNet")
+    @patch("dendritic_modeling.datasets.standard_datasets.datasets.ImageFolder")
+    def test_load_imagenet_dataset_triplet_uses_official_loader(
+        self, mock_imagefolder, mock_imagenet
+    ):
+        train_transform = Mock()
+        eval_transform = Mock()
+        train_mock = Mock()
+        train_eval_mock = Mock()
+        test_mock = Mock()
+        mock_imagenet.side_effect = [train_mock, train_eval_mock, test_mock]
+
+        loaded = _load_imagenet_dataset_triplet(
+            imagenet_dir="/imagenet",
+            train_root=None,
+            val_root=None,
+            train_transform=train_transform,
+            eval_transform=eval_transform,
+        )
+
+        self.assertEqual(loaded, (train_mock, train_eval_mock, test_mock))
+        mock_imagenet.assert_any_call(
+            root="/imagenet", split="train", transform=train_transform
+        )
+        mock_imagenet.assert_any_call(
+            root="/imagenet", split="train", transform=eval_transform
+        )
+        mock_imagenet.assert_any_call(
+            root="/imagenet", split="val", transform=eval_transform
+        )
+        mock_imagefolder.assert_not_called()
+
+    @patch("dendritic_modeling.datasets.standard_datasets.datasets.FakeData")
+    def test_make_imagenet_fake_triplet_uses_smoke_sizes_and_transforms(
+        self, mock_fake_data
+    ):
+        train_transform = Mock()
+        eval_transform = Mock()
+        train_mock = Mock()
+        train_eval_mock = Mock()
+        test_mock = Mock()
+        mock_fake_data.side_effect = [train_mock, train_eval_mock, test_mock]
+
+        loaded = _make_imagenet_fake_triplet(
+            train_transform=train_transform,
+            eval_transform=eval_transform,
+        )
+
+        self.assertEqual(loaded, (train_mock, train_eval_mock, test_mock))
+        mock_fake_data.assert_any_call(
+            size=512,
+            image_size=(3, 224, 224),
+            num_classes=1000,
+            transform=train_transform,
+        )
+        mock_fake_data.assert_any_call(
+            size=512,
+            image_size=(3, 224, 224),
+            num_classes=1000,
+            transform=eval_transform,
+        )
+        mock_fake_data.assert_any_call(
+            size=128,
+            image_size=(3, 224, 224),
+            num_classes=1000,
+            transform=eval_transform,
+        )
 
     @patch("dendritic_modeling.datasets.standard_datasets.datasets.ImageNet")
     @patch("dendritic_modeling.datasets.standard_datasets.datasets.ImageFolder")

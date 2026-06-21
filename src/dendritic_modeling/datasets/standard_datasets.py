@@ -288,6 +288,278 @@ def _ensure_slice_safe_triplet(
     )
 
 
+def _resolve_imagefolder_roots(root: str | None) -> tuple[str | None, str | None]:
+    """Return ``(train_root, val_root)`` for ImageFolder-style ImageNet layouts."""
+    if not root or not os.path.isdir(root):
+        return None, None
+
+    candidates = [
+        (os.path.join(root, "train"), os.path.join(root, "val")),
+        (os.path.join(root, "ILSVRC2012_img_train"), os.path.join(root, "val")),
+    ]
+    for train_root, val_root in candidates:
+        if os.path.isdir(train_root) and os.path.isdir(val_root):
+            return train_root, val_root
+    return None, None
+
+
+def _is_official_imagenet_root(root: str | None) -> bool:
+    """Return True when a root looks like a torchvision ImageNet root."""
+    if not root or not os.path.isdir(root):
+        return False
+
+    required_any = (
+        os.path.exists(os.path.join(root, "meta.bin"))
+        or os.path.exists(os.path.join(root, "ILSVRC2012_devkit_t12.tar.gz"))
+        or os.path.isdir(os.path.join(root, "ILSVRC2012_devkit_t12"))
+    )
+    has_train = os.path.isdir(
+        os.path.join(root, "ILSVRC2012_img_train")
+    ) or os.path.isdir(os.path.join(root, "train"))
+    has_val = os.path.isdir(os.path.join(root, "val")) or os.path.isdir(
+        os.path.join(root, "ILSVRC2012_img_val")
+    )
+    return required_any and has_train and has_val
+
+
+def _apply_imagenet_local_override(task_data_path: str | None) -> str | None:
+    """Apply ``IMAGENET_LOCAL_DIR`` when it points to an existing directory."""
+    local_override = os.environ.get("IMAGENET_LOCAL_DIR")
+    if local_override and os.path.isdir(local_override):
+        _ds_logger.info(
+            "IMAGENET_LOCAL_DIR set — using local data path: %s (was: %s)",
+            local_override,
+            task_data_path,
+        )
+        return local_override
+    return task_data_path
+
+
+def _resolve_imagenet_data_location(
+    task_data_path: str | None,
+) -> tuple[str, str | None, str | None]:
+    """Resolve ImageNet root plus optional ImageFolder train/val roots."""
+    task_data_path = _apply_imagenet_local_override(task_data_path)
+
+    train_root, val_root = None, None
+    if _is_official_imagenet_root(task_data_path):
+        return str(task_data_path), train_root, val_root
+
+    train_root, val_root = _resolve_imagefolder_roots(task_data_path)
+    if train_root is not None:
+        return str(task_data_path), train_root, val_root
+
+    imagenet_dir = get_data_directory("imagenet", task_data_path)
+    if _is_official_imagenet_root(imagenet_dir):
+        return imagenet_dir, None, None
+
+    train_root, val_root = _resolve_imagefolder_roots(imagenet_dir)
+    return imagenet_dir, train_root, val_root
+
+
+def _class_subset_indices(
+    dataset: Dataset,
+    max_per_class: int | None,
+    split_name: str,
+    *,
+    seed: int,
+) -> list[int] | None:
+    """Return indices for a fixed number of samples per class."""
+    if max_per_class is None:
+        return None
+    if max_per_class <= 0:
+        raise ValueError(
+            f"{split_name}_samples_per_class must be positive, got {max_per_class}"
+        )
+
+    targets = getattr(dataset, "targets", None)
+    if targets is None:
+        _ds_logger.warning(
+            "Dataset %s has no targets attribute; cannot apply %s_samples_per_class=%s",
+            type(dataset).__name__,
+            split_name,
+            max_per_class,
+        )
+        return None
+
+    per_class_indices: dict[int, list[int]] = {}
+    for idx, target in enumerate(targets):
+        per_class_indices.setdefault(int(target), []).append(idx)
+
+    generator = _split_generator(seed)
+    selected_indices = []
+    for label in sorted(per_class_indices):
+        indices = per_class_indices[label]
+        order = torch.randperm(len(indices), generator=generator).tolist()
+        selected_indices.extend(indices[i] for i in order[:max_per_class])
+    selected_indices.sort()
+
+    _ds_logger.info(
+        "Subsetting %s split to %d samples across %d classes (%d per class cap)",
+        split_name,
+        len(selected_indices),
+        len(per_class_indices),
+        max_per_class,
+    )
+    return selected_indices
+
+
+def _subset_by_indices(dataset: Dataset, indices: list[int] | None) -> Dataset:
+    return Subset(dataset, indices) if indices is not None else dataset
+
+
+def _split_train_valid_pair(
+    train_dataset: Dataset,
+    train_eval_dataset: Dataset,
+    *,
+    train_valid_split: float,
+    split_seed: int,
+) -> tuple[Dataset, Dataset]:
+    train_size = int(len(train_dataset) * train_valid_split)
+    valid_size = len(train_dataset) - train_size
+    indices = torch.randperm(
+        len(train_dataset), generator=_split_generator(split_seed)
+    ).tolist()
+    train_indices = indices[:train_size]
+    valid_indices = indices[train_size : train_size + valid_size]
+    return Subset(train_dataset, train_indices), Subset(
+        train_eval_dataset, valid_indices
+    )
+
+
+def _append_imagenet_normalize(tf_list: list, *, normalize: bool) -> list:
+    """Append ImageNet normalization to a transform list when requested."""
+    if normalize:
+        tf_list.append(
+            transforms.Normalize(
+                mean=[0.485, 0.456, 0.406],
+                std=[0.229, 0.224, 0.225],
+            )
+        )
+    return tf_list
+
+
+def _normalized_imagenet_preset_name(transform_preset: str | None) -> str:
+    return str(transform_preset or "legacy_resize").strip().lower().replace("-", "_")
+
+
+def _build_imagenet_transforms(
+    *,
+    normalize: bool,
+    transform_preset: str,
+) -> tuple[Any, Any]:
+    """Build train/eval transforms for ImageNet without changing preset semantics."""
+    preset = _normalized_imagenet_preset_name(transform_preset)
+    if preset in {"legacy", "legacy_resize", "resize", "resize_224"}:
+        transform = transforms.Compose(
+            _append_imagenet_normalize(
+                [transforms.Resize((224, 224)), transforms.ToTensor()],
+                normalize=normalize,
+            )
+        )
+        return transform, transform
+
+    if preset in {"pretrained", "torchvision", "imagenet", "standard"}:
+        train_transform = transforms.Compose(
+            _append_imagenet_normalize(
+                [
+                    transforms.RandomResizedCrop(224),
+                    transforms.RandomHorizontalFlip(),
+                    transforms.ToTensor(),
+                ],
+                normalize=normalize,
+            )
+        )
+        eval_transform = transforms.Compose(
+            _append_imagenet_normalize(
+                [
+                    transforms.Resize(256),
+                    transforms.CenterCrop(224),
+                    transforms.ToTensor(),
+                ],
+                normalize=normalize,
+            )
+        )
+        return train_transform, eval_transform
+
+    raise ValueError(
+        "Unknown ImageNet transform_preset "
+        f"{transform_preset!r}; expected 'legacy_resize' or 'pretrained'."
+    )
+
+
+def _imagenet_fake_transforms(
+    train_transform,
+    eval_transform,
+    *,
+    flatten: bool,
+):
+    """Return transforms used by ImageNet FakeData fallback."""
+    if not flatten:
+        return train_transform, eval_transform
+
+    return (
+        transforms.Compose([train_transform, transforms.Lambda(lambda x: x.view(-1))]),
+        transforms.Compose([eval_transform, transforms.Lambda(lambda x: x.view(-1))]),
+    )
+
+
+def _load_imagenet_dataset_triplet(
+    *,
+    imagenet_dir: str,
+    train_root: str | None,
+    val_root: str | None,
+    train_transform,
+    eval_transform,
+) -> tuple[Dataset, Dataset, Dataset]:
+    """Load ImageNet train/eval/test datasets from ImageFolder or ImageNet roots."""
+    if train_root is not None:
+        _ds_logger.info(
+            "Loading ImageNet-style folder tree via ImageFolder: train=%s val=%s",
+            train_root,
+            val_root,
+        )
+        return (
+            datasets.ImageFolder(root=train_root, transform=train_transform),
+            datasets.ImageFolder(root=train_root, transform=eval_transform),
+            datasets.ImageFolder(root=val_root, transform=eval_transform),
+        )
+
+    return (
+        datasets.ImageNet(root=imagenet_dir, split="train", transform=train_transform),
+        datasets.ImageNet(root=imagenet_dir, split="train", transform=eval_transform),
+        datasets.ImageNet(root=imagenet_dir, split="val", transform=eval_transform),
+    )
+
+
+def _make_imagenet_fake_triplet(
+    *,
+    train_transform,
+    eval_transform,
+) -> tuple[Dataset, Dataset, Dataset]:
+    """Build the small lazy FakeData fallback for ImageNet smoke tests."""
+    return (
+        datasets.FakeData(
+            size=512,
+            image_size=(3, 224, 224),
+            num_classes=1000,
+            transform=train_transform,
+        ),
+        datasets.FakeData(
+            size=512,
+            image_size=(3, 224, 224),
+            num_classes=1000,
+            transform=eval_transform,
+        ),
+        datasets.FakeData(
+            size=128,
+            image_size=(3, 224, 224),
+            num_classes=1000,
+            transform=eval_transform,
+        ),
+    )
+
+
 class PairedArithmeticDataset(Dataset):
     """Pair two examples and predict an arithmetic composition of their labels.
 
@@ -1159,112 +1431,6 @@ def load_imagenet_as_datasets(
     Returns:
         tuple: (train_dataset, valid_dataset, test_dataset)
     """
-    # Allow SLURM scripts to redirect to node-local NVMe for faster I/O.
-    local_override = os.environ.get("IMAGENET_LOCAL_DIR")
-    if local_override and os.path.isdir(local_override):
-        _ds_logger.info(
-            "IMAGENET_LOCAL_DIR set — using local data path: %s (was: %s)",
-            local_override,
-            task_data_path,
-        )
-        task_data_path = local_override
-
-    def _resolve_imagefolder_roots(root: str | None) -> tuple[str | None, str | None]:
-        """Return (train_root, val_root) for ImageFolder-style layouts."""
-        if not root or not os.path.isdir(root):
-            return None, None
-
-        candidates = [
-            (os.path.join(root, "train"), os.path.join(root, "val")),
-            (os.path.join(root, "ILSVRC2012_img_train"), os.path.join(root, "val")),
-        ]
-        for train_root, val_root in candidates:
-            if os.path.isdir(train_root) and os.path.isdir(val_root):
-                return train_root, val_root
-        return None, None
-
-    def _is_official_imagenet_root(root: str | None) -> bool:
-        """Return True when the root looks like an official torchvision ImageNet root."""
-        if not root or not os.path.isdir(root):
-            return False
-
-        required_any = (
-            os.path.exists(os.path.join(root, "meta.bin"))
-            or os.path.exists(os.path.join(root, "ILSVRC2012_devkit_t12.tar.gz"))
-            or os.path.isdir(os.path.join(root, "ILSVRC2012_devkit_t12"))
-        )
-        has_train = os.path.isdir(
-            os.path.join(root, "ILSVRC2012_img_train")
-        ) or os.path.isdir(os.path.join(root, "train"))
-        has_val = os.path.isdir(os.path.join(root, "val")) or os.path.isdir(
-            os.path.join(root, "ILSVRC2012_img_val")
-        )
-        return required_any and has_train and has_val
-
-    def _class_subset_indices(
-        dataset: Dataset,
-        max_per_class: int | None,
-        split_name: str,
-        *,
-        seed: int,
-    ) -> list[int] | None:
-        """Return indices for a fixed number of samples per class."""
-        if max_per_class is None:
-            return None
-        if max_per_class <= 0:
-            raise ValueError(
-                f"{split_name}_samples_per_class must be positive, got {max_per_class}"
-            )
-
-        targets = getattr(dataset, "targets", None)
-        if targets is None:
-            _ds_logger.warning(
-                "Dataset %s has no targets attribute; cannot apply %s_samples_per_class=%s",
-                type(dataset).__name__,
-                split_name,
-                max_per_class,
-            )
-            return None
-
-        per_class_indices: dict[int, list[int]] = {}
-        for idx, target in enumerate(targets):
-            per_class_indices.setdefault(int(target), []).append(idx)
-
-        generator = _split_generator(seed)
-        selected_indices = []
-        for label in sorted(per_class_indices):
-            indices = per_class_indices[label]
-            order = torch.randperm(len(indices), generator=generator).tolist()
-            selected_indices.extend(indices[i] for i in order[:max_per_class])
-        selected_indices.sort()
-
-        _ds_logger.info(
-            "Subsetting %s split to %d samples across %d classes (%d per class cap)",
-            split_name,
-            len(selected_indices),
-            len(per_class_indices),
-            max_per_class,
-        )
-        return selected_indices
-
-    def _subset_by_indices(dataset: Dataset, indices: list[int] | None) -> Dataset:
-        return Subset(dataset, indices) if indices is not None else dataset
-
-    def _split_train_valid_pair(
-        train_dataset: Dataset,
-        train_eval_dataset: Dataset,
-    ) -> tuple[Dataset, Dataset]:
-        train_size = int(len(train_dataset) * train_valid_split)
-        valid_size = len(train_dataset) - train_size
-        indices = torch.randperm(
-            len(train_dataset), generator=_split_generator(split_seed)
-        ).tolist()
-        train_indices = indices[:train_size]
-        valid_indices = indices[train_size : train_size + valid_size]
-        return Subset(train_dataset, train_indices), Subset(
-            train_eval_dataset, valid_indices
-        )
-
     if flatten and not allow_flatten_materialize:
         raise ValueError(
             "ImageNet with flatten=True materializes up to 50k 224x224x3 "
@@ -1274,101 +1440,28 @@ def load_imagenet_as_datasets(
             "for an explicit debugging-only opt-in."
         )
 
-    # Check if we have a direct path to existing ImageNet data
-    train_root, val_root = None, None
-    if _is_official_imagenet_root(task_data_path):
-        imagenet_dir = task_data_path
-    else:
-        train_root, val_root = _resolve_imagefolder_roots(task_data_path)
-        if train_root is not None:
-            imagenet_dir = task_data_path
-        else:
-            # Use the standard get_data_directory function
-            imagenet_dir = get_data_directory("imagenet", task_data_path)
-            if _is_official_imagenet_root(imagenet_dir):
-                train_root, val_root = None, None
-            else:
-                train_root, val_root = _resolve_imagefolder_roots(imagenet_dir)
+    imagenet_dir, train_root, val_root = _resolve_imagenet_data_location(task_data_path)
 
-    def _append_normalize(tf_list: list) -> list:
-        if normalize:
-            tf_list.append(
-                transforms.Normalize(
-                    mean=[0.485, 0.456, 0.406],
-                    std=[0.229, 0.224, 0.225],
-                )
-            )
-        return tf_list
-
-    preset = str(transform_preset or "legacy_resize").strip().lower()
-    preset = preset.replace("-", "_")
-    if preset in {"legacy", "legacy_resize", "resize", "resize_224"}:
-        transform = transforms.Compose(
-            _append_normalize([transforms.Resize((224, 224)), transforms.ToTensor()])
-        )
-        train_transform = transform
-        eval_transform = transform
-    elif preset in {"pretrained", "torchvision", "imagenet", "standard"}:
-        train_transform = transforms.Compose(
-            _append_normalize(
-                [
-                    transforms.RandomResizedCrop(224),
-                    transforms.RandomHorizontalFlip(),
-                    transforms.ToTensor(),
-                ]
-            )
-        )
-        eval_transform = transforms.Compose(
-            _append_normalize(
-                [
-                    transforms.Resize(256),
-                    transforms.CenterCrop(224),
-                    transforms.ToTensor(),
-                ]
-            )
-        )
-    else:
-        raise ValueError(
-            "Unknown ImageNet transform_preset "
-            f"{transform_preset!r}; expected 'legacy_resize' or 'pretrained'."
-        )
-
-    fake_train_transform = train_transform
-    fake_eval_transform = eval_transform
-    if flatten:
-        fake_train_transform = transforms.Compose(
-            [train_transform, transforms.Lambda(lambda x: x.view(-1))]
-        )
-        fake_eval_transform = transforms.Compose(
-            [eval_transform, transforms.Lambda(lambda x: x.view(-1))]
-        )
+    train_transform, eval_transform = _build_imagenet_transforms(
+        normalize=normalize,
+        transform_preset=transform_preset,
+    )
+    fake_train_transform, fake_eval_transform = _imagenet_fake_transforms(
+        train_transform,
+        eval_transform,
+        flatten=flatten,
+    )
 
     try:
-        if train_root is not None:
-            _ds_logger.info(
-                "Loading ImageNet-style folder tree via ImageFolder: train=%s val=%s",
-                train_root,
-                val_root,
+        train_dataset, train_eval_dataset, test_dataset = (
+            _load_imagenet_dataset_triplet(
+                imagenet_dir=imagenet_dir,
+                train_root=train_root,
+                val_root=val_root,
+                train_transform=train_transform,
+                eval_transform=eval_transform,
             )
-            train_dataset = datasets.ImageFolder(
-                root=train_root, transform=train_transform
-            )
-            train_eval_dataset = datasets.ImageFolder(
-                root=train_root, transform=eval_transform
-            )
-            test_dataset = datasets.ImageFolder(root=val_root, transform=eval_transform)
-        else:
-            # Fall back to torchvision's official ImageNet loader when a devkit-based
-            # root is available.
-            train_dataset = datasets.ImageNet(
-                root=imagenet_dir, split="train", transform=train_transform
-            )
-            train_eval_dataset = datasets.ImageNet(
-                root=imagenet_dir, split="train", transform=eval_transform
-            )
-            test_dataset = datasets.ImageNet(
-                root=imagenet_dir, split="val", transform=eval_transform
-            )
+        )
     except Exception as e:
         if not allow_fake_data:
             raise RuntimeError(
@@ -1386,23 +1479,9 @@ def load_imagenet_as_datasets(
             e,
         )
 
-        train_dataset = datasets.FakeData(
-            size=512,
-            image_size=(3, 224, 224),
-            num_classes=1000,
-            transform=fake_train_transform,
-        )
-        train_eval_dataset = datasets.FakeData(
-            size=512,
-            image_size=(3, 224, 224),
-            num_classes=1000,
-            transform=fake_eval_transform,
-        )
-        test_dataset = datasets.FakeData(
-            size=128,
-            image_size=(3, 224, 224),
-            num_classes=1000,
-            transform=fake_eval_transform,
+        train_dataset, train_eval_dataset, test_dataset = _make_imagenet_fake_triplet(
+            train_transform=fake_train_transform,
+            eval_transform=fake_eval_transform,
         )
 
     train_indices = _class_subset_indices(
@@ -1426,6 +1505,8 @@ def load_imagenet_as_datasets(
         train_dataset, valid_dataset = _split_train_valid_pair(
             train_dataset,
             train_eval_dataset,
+            train_valid_split=train_valid_split,
+            split_seed=split_seed,
         )
     else:
         # Fallback for when we can't determine size

@@ -22,6 +22,7 @@ from dendritic_modeling.networks.architectures.classical.pretrained import (
     _require_split_index,
     _resolve_target_module_span,
     _restore_segment_output,
+    _run_modules_no_grad,
     _segment_output_metadata,
     _select_layers_for_boundary,
     _slice_layers_by_span,
@@ -485,6 +486,16 @@ class TestLayerSplitHelpers:
 # Tests for BackboneSegment
 # ---------------------------------------------------------------------------
 class TestBackboneSegment:
+    def test_run_modules_no_grad_preserves_order_without_tracking_grad(self):
+        modules = [nn.Linear(3, 4), nn.ReLU(), nn.Linear(4, 2)]
+        x = torch.randn(5, 3, requires_grad=True)
+
+        expected = nn.Sequential(*modules)(x)
+        actual = _run_modules_no_grad(modules, x)
+
+        assert torch.allclose(actual, expected)
+        assert actual.requires_grad is False
+
     def test_tensor_spec_from_spatial_output_uses_channel_height_width(self):
         spec = _tensor_spec_from_spatial_output(torch.zeros(2, 3, 4, 5))
 
