@@ -24,6 +24,42 @@ def _copy_dataset_with_transform(dataset: Dataset, transform) -> Dataset:
     return dataset_view
 
 
+def _load_imagefolder_dataset_triplet(
+    *,
+    train_root: str,
+    val_root: str,
+    train_transform,
+    eval_transform,
+) -> tuple[Dataset, Dataset, Dataset]:
+    _logger.info(
+        "Loading ImageNet-style folder tree via ImageFolder: train=%s val=%s",
+        train_root,
+        val_root,
+    )
+    train_dataset = datasets.ImageFolder(root=train_root, transform=train_transform)
+    return (
+        train_dataset,
+        _copy_dataset_with_transform(train_dataset, eval_transform),
+        datasets.ImageFolder(root=val_root, transform=eval_transform),
+    )
+
+
+def _load_torchvision_imagenet_dataset_triplet(
+    *,
+    imagenet_dir: str,
+    train_transform,
+    eval_transform,
+) -> tuple[Dataset, Dataset, Dataset]:
+    train_dataset = datasets.ImageNet(
+        root=imagenet_dir, split="train", transform=train_transform
+    )
+    return (
+        train_dataset,
+        _copy_dataset_with_transform(train_dataset, eval_transform),
+        datasets.ImageNet(root=imagenet_dir, split="val", transform=eval_transform),
+    )
+
+
 def _load_imagenet_dataset_triplet(
     *,
     imagenet_dir: str,
@@ -41,25 +77,16 @@ def _load_imagenet_dataset_triplet(
             "class-directory roots."
         )
     if train_root is not None:
-        _logger.info(
-            "Loading ImageNet-style folder tree via ImageFolder: train=%s val=%s",
-            train_root,
-            val_root,
+        return _load_imagefolder_dataset_triplet(
+            train_root=train_root,
+            val_root=val_root,
+            train_transform=train_transform,
+            eval_transform=eval_transform,
         )
-        train_dataset = datasets.ImageFolder(root=train_root, transform=train_transform)
-        return (
-            train_dataset,
-            _copy_dataset_with_transform(train_dataset, eval_transform),
-            datasets.ImageFolder(root=val_root, transform=eval_transform),
-        )
-
-    train_dataset = datasets.ImageNet(
-        root=imagenet_dir, split="train", transform=train_transform
-    )
-    return (
-        train_dataset,
-        _copy_dataset_with_transform(train_dataset, eval_transform),
-        datasets.ImageNet(root=imagenet_dir, split="val", transform=eval_transform),
+    return _load_torchvision_imagenet_dataset_triplet(
+        imagenet_dir=imagenet_dir,
+        train_transform=train_transform,
+        eval_transform=eval_transform,
     )
 
 

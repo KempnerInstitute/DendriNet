@@ -17,6 +17,72 @@ from dendritic_modeling.config.training import PruningConfig, RegularizationConf
 from dendritic_modeling.training.loss.functions import EIWeightRatioLoss
 
 
+def _format_pruning_stats_section(
+    title: str,
+    rows: dict[str, dict[str, Any]],
+    key_width: int,
+    separator_width: int,
+) -> list[str]:
+    if not rows:
+        return []
+
+    lines = [
+        f"\n{title:<{key_width}} {'Before':<10} {'After':<10} {'Pruned':<10} {'Ratio':<10}",
+        "-" * separator_width,
+    ]
+    for name, row_stats in rows.items():
+        ratio = (
+            row_stats["pruned"] / row_stats["total_before"]
+            if row_stats["total_before"] > 0
+            else 0
+        )
+        lines.append(
+            f"{name:<{key_width}} {row_stats['total_before']:<10,} "
+            f"{row_stats['remaining']:<10,} {row_stats['pruned']:<10,} "
+            f"{ratio:<10.4f}"
+        )
+    return lines
+
+
+def _format_pruning_report(stats: dict[str, Any]) -> list[str]:
+    lines = [
+        "\n" + "=" * 50,
+        "WEIGHT PRUNING REPORT",
+        "=" * 50,
+        f"Total parameters before pruning: {stats['total_params_before']:,}",
+        f"Total parameters after pruning:  {stats['total_params_after']:,}",
+        f"Pruned parameters:               {stats['pruned_params']:,}",
+        f"Pruning ratio:                   {stats['pruning_ratio']:.4f}",
+    ]
+
+    lines.extend(
+        _format_pruning_stats_section(
+            "Layer",
+            stats["layer_stats"],
+            key_width=15,
+            separator_width=60,
+        )
+    )
+    lines.extend(
+        _format_pruning_stats_section(
+            "Branch",
+            stats["branch_stats"],
+            key_width=20,
+            separator_width=65,
+        )
+    )
+    lines.extend(
+        _format_pruning_stats_section(
+            "Weight Type",
+            stats["weight_type_stats"],
+            key_width=15,
+            separator_width=60,
+        )
+    )
+    lines.append("=" * 50)
+    return lines
+
+
 class RegularizationManager:
     """Manages L1/L2 regularization with selective application."""
 
@@ -423,69 +489,8 @@ class PruningManager:
             print("No pruning statistics available.")
             return
 
-        stats = self.pruning_stats
-
-        print("\n" + "=" * 50)
-        print("WEIGHT PRUNING REPORT")
-        print("=" * 50)
-
-        print(f"Total parameters before pruning: {stats['total_params_before']:,}")
-        print(f"Total parameters after pruning:  {stats['total_params_after']:,}")
-        print(f"Pruned parameters:               {stats['pruned_params']:,}")
-        print(f"Pruning ratio:                   {stats['pruning_ratio']:.4f}")
-
-        # Layer-wise report
-        if stats["layer_stats"]:
-            print(
-                f"\n{'Layer':<15} {'Before':<10} {'After':<10} {'Pruned':<10} {'Ratio':<10}"
-            )
-            print("-" * 60)
-            for layer, layer_stats in stats["layer_stats"].items():
-                ratio = (
-                    layer_stats["pruned"] / layer_stats["total_before"]
-                    if layer_stats["total_before"] > 0
-                    else 0
-                )
-                print(
-                    f"{layer:<15} {layer_stats['total_before']:<10,} {layer_stats['remaining']:<10,} "
-                    f"{layer_stats['pruned']:<10,} {ratio:<10.4f}"
-                )
-
-        # Branch-wise report
-        if stats["branch_stats"]:
-            print(
-                f"\n{'Branch':<20} {'Before':<10} {'After':<10} {'Pruned':<10} {'Ratio':<10}"
-            )
-            print("-" * 65)
-            for branch, branch_stats in stats["branch_stats"].items():
-                ratio = (
-                    branch_stats["pruned"] / branch_stats["total_before"]
-                    if branch_stats["total_before"] > 0
-                    else 0
-                )
-                print(
-                    f"{branch:<20} {branch_stats['total_before']:<10,} {branch_stats['remaining']:<10,} "
-                    f"{branch_stats['pruned']:<10,} {ratio:<10.4f}"
-                )
-
-        # Weight type report
-        if stats["weight_type_stats"]:
-            print(
-                f"\n{'Weight Type':<15} {'Before':<10} {'After':<10} {'Pruned':<10} {'Ratio':<10}"
-            )
-            print("-" * 60)
-            for weight_type, type_stats in stats["weight_type_stats"].items():
-                ratio = (
-                    type_stats["pruned"] / type_stats["total_before"]
-                    if type_stats["total_before"] > 0
-                    else 0
-                )
-                print(
-                    f"{weight_type:<15} {type_stats['total_before']:<10,} {type_stats['remaining']:<10,} "
-                    f"{type_stats['pruned']:<10,} {ratio:<10.4f}"
-                )
-
-        print("=" * 50)
+        for line in _format_pruning_report(self.pruning_stats):
+            print(line)
 
     def save_pruning_stats(self, save_path: str) -> None:
         """Save pruning statistics to file."""

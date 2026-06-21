@@ -7,9 +7,12 @@ from torch import nn
 
 from dendritic_modeling.analysis.core.information_hooks_mixin import (
     InformationHooksMixin,
+    _enable_analysis_current_capture,
+    _has_analyzable_branch_signals,
     _has_no_branch_synapses,
     _resolve_branch_input_current,
     _resolve_synaptic_branch_currents,
+    _restore_analysis_current_capture,
 )
 
 
@@ -154,6 +157,46 @@ def test_resolve_branch_input_current_recomputes_only_for_branch_inputs():
 
     assert torch.equal(branch_current, branch_input * 5.0)
     assert no_branch_current is None
+
+
+def test_has_analyzable_branch_signals_matches_hook_registration_predicate():
+    no_signals = SimpleNamespace(
+        branch_excitation=None,
+        branch_inhibition=None,
+        input_branches=False,
+    )
+    with_excitation = SimpleNamespace(
+        branch_excitation=_Scale(2.0),
+        branch_inhibition=None,
+        input_branches=False,
+    )
+    with_inhibition = SimpleNamespace(
+        branch_excitation=None,
+        branch_inhibition=_Scale(3.0),
+        input_branches=False,
+    )
+    with_branch_input = SimpleNamespace(
+        branch_excitation=None,
+        branch_inhibition=None,
+        input_branches=True,
+    )
+
+    assert _has_analyzable_branch_signals(no_signals) is False
+    assert _has_analyzable_branch_signals(with_excitation) is True
+    assert _has_analyzable_branch_signals(with_inhibition) is True
+    assert _has_analyzable_branch_signals(with_branch_input) is True
+
+
+def test_analysis_current_capture_lifecycle_preserves_previous_state():
+    module = SimpleNamespace(_store_analysis_currents="previous")
+
+    previous_store = _enable_analysis_current_capture(module)
+    module._last_analysis_currents = {"excitation": torch.ones(1)}
+    _restore_analysis_current_capture(module, previous_store)
+
+    assert previous_store == "previous"
+    assert module._store_analysis_currents == "previous"
+    assert not hasattr(module, "_last_analysis_currents")
 
 
 def test_information_hook_stores_resolved_currents_and_flags():

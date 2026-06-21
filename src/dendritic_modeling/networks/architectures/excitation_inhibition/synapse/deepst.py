@@ -61,6 +61,23 @@ def _resolve_weight_init_range(param_space, weight_init_range):
     return None
 
 
+def _validate_constant_branch_settings(
+    rewiring_mode: str,
+    synapses_per_branch,
+    in_features: int,
+) -> None:
+    if rewiring_mode != "constant_branch":
+        return
+    if synapses_per_branch is None:
+        raise ValueError(
+            "synapses_per_branch must be specified for constant_branch mode"
+        )
+    if synapses_per_branch > in_features:
+        raise ValueError(
+            f"synapses_per_branch ({synapses_per_branch}) cannot exceed in_features ({in_features})"
+        )
+
+
 def _resolve_allowed_connection_mask(
     connection_mask: Optional[torch.Tensor],
     out_features: int,
@@ -89,6 +106,41 @@ def _resolve_target_connections(
         )
     allowed_connections = int(allowed_connection_mask.sum().item())
     return int(allowed_connections * target_density)
+
+
+def _initialize_weight_parameter(
+    out_features: int,
+    in_features: int,
+    init_method,
+    param_space,
+    weight_init_range,
+) -> nn.Parameter:
+    if init_method is not None and init_method in TOPK_INIT_METHODS:
+        pre_w = nn.Parameter(
+            torch.zeros((out_features, in_features)), requires_grad=True
+        )
+        temp_weight = torch.zeros((out_features, in_features))
+        TOPK_INIT_METHODS[init_method](temp_weight)
+        pre_w.data = temp_weight.reshape(out_features, in_features)
+
+        if param_space == "log":
+            pre_w.data = torch.abs(pre_w.data).clamp(min=1e-6)
+            pre_w.data = torch.log(pre_w.data)
+        elif param_space == "presigmoid":
+            pre_w.data = torch.clamp(pre_w.data, min=1e-6, max=1 - 1e-6)
+            pre_w.data = torch.log(pre_w.data / (1 - pre_w.data))
+        elif param_space == "uniform":
+            pre_w.data = torch.empty(out_features, in_features).uniform_(
+                weight_init_range[0], weight_init_range[1]
+            )
+        return pre_w
+
+    return nn.Parameter(
+        torch.zeros((out_features, in_features)).uniform_(
+            weight_init_range[0], weight_init_range[1]
+        ),
+        requires_grad=True,
+    )
 
 
 def _build_forbidden_connection_mask(
@@ -158,16 +210,12 @@ class DeepstLinear(nn.Module):
         self.freeze_connectivity = freeze_connectivity
         self.weight_threshold = weight_threshold
 
-        # For constant_branch mode
+        _validate_constant_branch_settings(
+            rewiring_mode,
+            synapses_per_branch,
+            in_features,
+        )
         if rewiring_mode == "constant_branch":
-            if synapses_per_branch is None:
-                raise ValueError(
-                    "synapses_per_branch must be specified for constant_branch mode"
-                )
-            if synapses_per_branch > in_features:
-                raise ValueError(
-                    f"synapses_per_branch ({synapses_per_branch}) cannot exceed in_features ({in_features})"
-                )
             self.synapses_per_branch = synapses_per_branch
 
         # Total number of possible connections
@@ -192,40 +240,13 @@ class DeepstLinear(nn.Module):
             synapses_per_branch,
         )
 
-        # Initialize weights parameter
-        if self.init_method is not None and self.init_method in TOPK_INIT_METHODS:
-            # Initialize using PyTorch's initialization methods
-            self.pre_w = nn.Parameter(
-                torch.zeros((out_features, in_features)), requires_grad=True
-            )
-            # Apply initialization to a temporary tensor (correct shape for initialization)
-            temp_weight = torch.zeros((out_features, in_features))
-            TOPK_INIT_METHODS[self.init_method](temp_weight)
-            # Reshape to our desired shape
-            self.pre_w.data = temp_weight.reshape(out_features, in_features)
-
-            # If using log or presigmoid parameterization, transform the weights accordingly
-            if param_space == "log":
-                # For log parameterization, ensure weights are positive then take log
-                self.pre_w.data = torch.abs(self.pre_w.data).clamp(min=1e-6)
-                self.pre_w.data = torch.log(self.pre_w.data)
-            elif param_space == "presigmoid":
-                # For presigmoid, pass through inverse sigmoid (logit)
-                self.pre_w.data = torch.clamp(self.pre_w.data, min=1e-6, max=1 - 1e-6)
-                self.pre_w.data = torch.log(self.pre_w.data / (1 - self.pre_w.data))
-            elif param_space == "uniform":
-                # For uniform, pass through uniform initialization
-                self.pre_w.data = torch.empty(out_features, in_features).uniform_(
-                    self.weight_init_range[0], self.weight_init_range[1]
-                )
-        else:
-            # Use uniform initialization with specified range
-            self.pre_w = nn.Parameter(
-                torch.zeros((out_features, in_features)).uniform_(
-                    self.weight_init_range[0], self.weight_init_range[1]
-                ),
-                requires_grad=True,
-            )
+        self.pre_w = _initialize_weight_parameter(
+            out_features,
+            in_features,
+            self.init_method,
+            param_space,
+            self.weight_init_range,
+        )
 
         # Initialize mask
         mask = torch.zeros_like(self.pre_w, dtype=torch.bool)

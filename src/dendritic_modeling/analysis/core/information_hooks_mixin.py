@@ -69,6 +69,28 @@ def _resolve_branch_input_current(
     return None
 
 
+def _has_analyzable_branch_signals(module: DendriticBranchLayer) -> bool:
+    has_synapses = (
+        module.branch_excitation is not None or module.branch_inhibition is not None
+    )
+    return has_synapses or module.input_branches
+
+
+def _enable_analysis_current_capture(module: DendriticBranchLayer) -> object:
+    previous_store = getattr(module, "_store_analysis_currents", False)
+    module._store_analysis_currents = True
+    return previous_store
+
+
+def _restore_analysis_current_capture(
+    module: DendriticBranchLayer,
+    previous_store: object,
+) -> None:
+    module._store_analysis_currents = previous_store
+    if hasattr(module, "_last_analysis_currents"):
+        delattr(module, "_last_analysis_currents")
+
+
 class InformationHooksMixin:
     """Collects branch-layer currents and outputs during model evaluation."""
 
@@ -84,21 +106,11 @@ class InformationHooksMixin:
         handles = []
         for _name, module in model.named_modules():
             if isinstance(module, DendriticBranchLayer):
-                # Hook layers that have E/I synapses OR receive branch input
-                # This ensures soma layers without synapses are still analyzed
-                # for I(Vb;C) - the information in branch input
-                has_synapses = (
-                    module.branch_excitation is not None
-                    or module.branch_inhibition is not None
-                )
-                has_branch_input = module.input_branches  # Has upstream branches
-
-                if has_synapses or has_branch_input:
+                if _has_analyzable_branch_signals(module):
                     self.data_dict[_name] = {}
                     module._name = _name
-                    previous_store = getattr(module, "_store_analysis_currents", False)
+                    previous_store = _enable_analysis_current_capture(module)
                     self._analysis_hook_modules.append((module, previous_store))
-                    module._store_analysis_currents = True
                     handle = module.register_forward_hook(self.forward_hook)
                     handles.append(handle)
 
@@ -158,9 +170,7 @@ class InformationHooksMixin:
         """Remove forward hooks from the model."""
         remove_hook_handles(handles)
         for module, previous_store in getattr(self, "_analysis_hook_modules", []):
-            module._store_analysis_currents = previous_store
-            if hasattr(module, "_last_analysis_currents"):
-                delattr(module, "_last_analysis_currents")
+            _restore_analysis_current_capture(module, previous_store)
         self._analysis_hook_modules = []
 
 
