@@ -7,6 +7,7 @@ that cannot fit on a single GPU using PyTorch's Fully Sharded Data Parallel (Ful
 """
 
 import logging
+from types import MethodType
 from typing import Any, Optional
 
 import torch
@@ -281,6 +282,18 @@ def wrap_model_with_fsdp(
     return fsdp_model
 
 
+def _checkpoint_module_forward(module: torch.nn.Module) -> None:
+    """Patch a module forward method to run through activation checkpointing."""
+    from torch.utils.checkpoint import checkpoint
+
+    original_forward = module.forward
+
+    def checkpointed_forward(self, *args, orig_forward=original_forward, **kwargs):
+        return checkpoint(orig_forward, *args, use_reentrant=False, **kwargs)
+
+    module.forward = MethodType(checkpointed_forward, module)
+
+
 def _apply_gradient_checkpointing(model: torch.nn.Module):
     """
     Apply gradient checkpointing to suitable modules in the model.
@@ -288,36 +301,13 @@ def _apply_gradient_checkpointing(model: torch.nn.Module):
     Args:
         model: Model to apply checkpointing to
     """
-    from torch.utils.checkpoint import checkpoint
-
     # Apply checkpointing to large linear layers and dendritic components
     for name, module in model.named_modules():
         if isinstance(module, (DendriticBranchLayer, ExcitationInhibitionLayer)):
-            # Wrap the forward method with checkpointing
-            original_forward = module.forward
-
-            def checkpointed_forward(
-                self, *args, orig_forward=original_forward, **kwargs
-            ):
-                return checkpoint(orig_forward, *args, use_reentrant=False, **kwargs)
-
-            # Bind the method to the instance
-            import types
-
-            module.forward = types.MethodType(checkpointed_forward, module)
+            _checkpoint_module_forward(module)
             logger.debug(f"Applied gradient checkpointing to {name}")
         elif isinstance(module, torch.nn.Linear) and module.in_features > 1000:
-            # Apply to large linear layers
-            original_forward = module.forward
-
-            def checkpointed_forward(
-                self, *args, orig_forward=original_forward, **kwargs
-            ):
-                return checkpoint(orig_forward, *args, use_reentrant=False, **kwargs)
-
-            import types
-
-            module.forward = types.MethodType(checkpointed_forward, module)
+            _checkpoint_module_forward(module)
             logger.debug(f"Applied gradient checkpointing to large linear layer {name}")
 
 

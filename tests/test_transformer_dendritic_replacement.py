@@ -29,6 +29,7 @@ from dendritic_modeling.networks.architectures.transformer import (
     replace_transformer_mlp_layers,
     replace_transformer_mlp_layers_with_ei_stack,
 )
+from dendritic_modeling.networks.architectures.transformer.utils import _infer_mlp_dims
 from dendritic_modeling.training.transformer_replacement import _MLPIOCapture
 
 TRANSFORMER_BENCHMARK_CONFIGS = sorted(
@@ -107,6 +108,16 @@ def test_transformer_refactor_preserves_public_imports():
     assert dendritic_ffn.build_dendritic_ffn_kwargs_from_core_config is (
         config_translation.build_dendritic_ffn_kwargs_from_core_config
     )
+
+
+def test_infer_mlp_dims_fallback_preserves_recursive_linear_order():
+    mlp = nn.Sequential(
+        nn.Sequential(nn.Linear(8, 16, bias=False)),
+        nn.GELU(),
+        nn.Sequential(nn.Linear(16, 8, bias=False)),
+    )
+
+    assert _infer_mlp_dims(mlp) == (8, 16)
 
 
 def test_mlp_io_capture_removes_hooks_after_partial_init_failure():

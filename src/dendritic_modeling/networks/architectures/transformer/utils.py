@@ -8,6 +8,7 @@ from typing import Any
 import torch.nn as nn
 
 from dendritic_modeling.config.conversion import to_plain_dict as _to_plain_mapping
+from dendritic_modeling.utils.hooks import iter_modules_of_type
 
 __all__ = [
     "_as_list",
@@ -59,7 +60,7 @@ def _infer_mlp_dims(mlp: nn.Module) -> tuple[int, int | None]:
             intermediate_candidates.append(layer.in_features)
 
     if not hidden_candidates:
-        linears = [mod for mod in mlp.modules() if isinstance(mod, nn.Linear)]
+        linears = list(iter_modules_of_type(mlp, nn.Linear))
         if not linears:
             raise ValueError("Could not infer MLP dimensions; no Linear modules found")
         hidden_candidates.append(linears[0].in_features)

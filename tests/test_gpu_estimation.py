@@ -13,14 +13,19 @@ import torch.nn as nn
 from dendritic_modeling.utils.gpu_estimation import (
     BLOCKLINEAR_ACTIVATION_FACTOR,
     BYTES_PER_GIB,
+    DENDRITIC_BRANCHING_OVERHEAD,
     GPU_MEMORY_SAFETY_FACTOR,
     GRADIENT_GRAPH_OVERHEAD,
     LINEAR_ACTIVATION_FACTOR,
     PARAMETER_FALLBACK_ACTIVATION_MULTIPLIER,
+    TOPK_INDEX_VALUE_FACTOR,
     TOPK_SPARSE_GRADIENT_FACTOR,
     GPUMemoryEstimator,
     GPURecommendation,
     MemoryBreakdown,
+    _find_einet_activation_config,
+    _iter_leaf_modules,
+    _module_parameter_category,
     estimate_from_config,
 )
 
@@ -152,6 +157,71 @@ class TestGPURecommendation:
 
 class TestGPUMemoryEstimator:
     """Test GPUMemoryEstimator class."""
+
+    def test_iter_leaf_modules_preserves_recursive_module_order(self):
+        model = nn.Sequential(
+            nn.Linear(3, 4),
+            nn.Sequential(nn.ReLU(), nn.Linear(4, 2)),
+        )
+
+        leaves = list(_iter_leaf_modules(model))
+
+        assert leaves == [model[0], model[1][0], model[1][1]]
+
+    def test_module_parameter_category_preserves_legacy_name_mapping(self):
+        class DummyTopKLayer(nn.Module):
+            pass
+
+        class DummyBlockLinearLayer(nn.Module):
+            pass
+
+        class DummyReactivationLayer(nn.Module):
+            pass
+
+        assert _module_parameter_category(DummyTopKLayer()) == "TopK Layers"
+        assert (
+            _module_parameter_category(DummyBlockLinearLayer()) == "Block Linear Layers"
+        )
+        assert (
+            _module_parameter_category(DummyReactivationLayer())
+            == "Reactivation Layers"
+        )
+        assert _module_parameter_category(nn.Conv2d(1, 1, 1)) == (
+            "Convolutional Layers"
+        )
+        assert _module_parameter_category(nn.LayerNorm(2)) == "Normalization Layers"
+
+    def test_find_einet_activation_config_preserves_first_match_rule(self):
+        class ExcitationInhibitionNetwork(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.excitatory_layer_sizes = [5]
+                self.inhibitory_layer_sizes = [2]
+                self.excitatory_branch_factors = [3]
+                self.inhibitory_branch_factors = [4]
+                self.ee_synapses_per_branch_per_layer = [7]
+                self.ei_synapses_per_branch_per_layer = [11]
+                self.ie_synapses_per_branch_per_layer = [13]
+                self.ii_synapses_per_branch_per_layer = [17]
+
+        model = nn.Sequential(nn.Linear(1, 1), ExcitationInhibitionNetwork())
+
+        assert _find_einet_activation_config(model) == {
+            "e_layers": [5],
+            "i_layers": [2],
+            "e_branches": [3],
+            "i_branches": [4],
+            "ee_synapses": [7],
+            "ei_synapses": [11],
+            "ie_synapses": [13],
+            "ii_synapses": [17],
+        }
+
+    def test_find_einet_activation_config_preserves_missing_attr_fallback(self):
+        class ExcitationInhibitionNetwork(nn.Module):
+            pass
+
+        assert _find_einet_activation_config(ExcitationInhibitionNetwork()) is None
 
     def test_init_default(self):
         """Test initialization with default parameters."""
@@ -308,6 +378,45 @@ class TestGPUMemoryEstimator:
 
         # fp32 should use more memory than fp16
         assert memory_fp32 > memory_fp16
+
+    def test_estimate_activation_memory_einet_matches_legacy_formula(self):
+        class ExcitationInhibitionNetwork(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.excitatory_layer_sizes = [5]
+                self.inhibitory_layer_sizes = [2]
+                self.excitatory_branch_factors = [3]
+                self.inhibitory_branch_factors = [4]
+                self.ee_synapses_per_branch_per_layer = [7]
+                self.ei_synapses_per_branch_per_layer = [11]
+                self.ie_synapses_per_branch_per_layer = [13]
+                self.ii_synapses_per_branch_per_layer = [17]
+
+        estimator = GPUMemoryEstimator(dtype="fp16")
+        batch_size = 2
+        expected_bytes = batch_size * 3 * estimator.bytes_per_param
+        expected_bytes += batch_size * 5 * 3 * estimator.bytes_per_param
+        expected_bytes += (
+            batch_size * 5 * 3 * 7 * estimator.bytes_per_param * TOPK_INDEX_VALUE_FACTOR
+        )
+        expected_bytes += batch_size * 2 * 4 * estimator.bytes_per_param
+        expected_bytes += (
+            batch_size
+            * 2
+            * 4
+            * 17
+            * estimator.bytes_per_param
+            * TOPK_INDEX_VALUE_FACTOR
+        )
+        expected_bytes *= DENDRITIC_BRANCHING_OVERHEAD
+
+        activation_gb = estimator.estimate_activation_memory(
+            ExcitationInhibitionNetwork(),
+            batch_size=batch_size,
+            input_shape=(3,),
+        )
+
+        assert activation_gb == pytest.approx(expected_bytes / BYTES_PER_GIB)
 
     def test_estimate_activation_memory_linear_matches_formula(self):
         """Dense fallback activations should match the documented byte formula."""

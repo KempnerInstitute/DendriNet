@@ -42,6 +42,7 @@ import torch.nn as nn
 from torchvision.models import get_model
 
 from dendritic_modeling.networks.base import BaseNetwork
+from dendritic_modeling.utils.hooks import iter_child_modules_of_type
 
 logger = logging.getLogger(__name__)
 
@@ -191,7 +192,7 @@ def _has_spatial_module(modules: list[nn.Module]) -> bool:
 
 def _has_linear_module(modules: list[nn.Module]) -> bool:
     """Return whether a module list contains a linear layer."""
-    return any(isinstance(module, nn.Linear) for module in modules)
+    return any(iter_child_modules_of_type(modules, nn.Linear))
 
 
 def _needs_flatten(modules: list[nn.Module]) -> bool:
@@ -516,9 +517,8 @@ def _infer_suffix_input_dim(
     *,
     default: int,
 ) -> int:
-    for module in suffix_modules:
-        if isinstance(module, nn.Linear):
-            return module.in_features
+    for module in iter_child_modules_of_type(suffix_modules, nn.Linear):
+        return module.in_features
     return default
 
 
@@ -527,9 +527,8 @@ def _infer_suffix_output_dim(
     *,
     suffix_input_dim: int,
 ) -> int:
-    for module in reversed(suffix_modules):
-        if isinstance(module, nn.Linear):
-            return module.out_features
+    for module in iter_child_modules_of_type(reversed(suffix_modules), nn.Linear):
+        return module.out_features
     if not suffix_modules:
         return 0
 

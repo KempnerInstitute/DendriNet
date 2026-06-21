@@ -8,6 +8,7 @@ including support for FSDP distributed training.
 
 import logging
 import math
+from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any, ClassVar, Optional
 
@@ -200,6 +201,59 @@ def _is_leaf_module(module: torch.nn.Module) -> bool:
     return len(list(module.children())) == 0
 
 
+def _iter_leaf_modules(model: torch.nn.Module) -> Iterator[torch.nn.Module]:
+    """Yield leaf modules in PyTorch module traversal order."""
+    for module in model.modules():
+        if _is_leaf_module(module):
+            yield module
+
+
+def _module_parameter_category(module: torch.nn.Module) -> str:
+    """Return the historical parameter-count category for a module."""
+    module_type = type(module).__name__
+
+    if "TopK" in module_type:
+        return "TopK Layers"
+    if "BlockLinear" in module_type:
+        return "Block Linear Layers"
+    if "Linear" in module_type:
+        return "Linear Layers"
+    if "Conv" in module_type:
+        return "Convolutional Layers"
+    if "Reactivation" in module_type or "ParametricTanh" in module_type:
+        return "Reactivation Layers"
+    if "BatchNorm" in module_type or "LayerNorm" in module_type:
+        return "Normalization Layers"
+    return "Other Layers"
+
+
+def _extract_einet_activation_config(module: torch.nn.Module) -> dict[str, Any] | None:
+    """Extract the legacy EINet activation-estimation fields from a module."""
+    if not hasattr(module, "excitatory_layer_sizes"):
+        return None
+
+    return {
+        "e_layers": module.excitatory_layer_sizes,
+        "i_layers": module.inhibitory_layer_sizes,
+        "e_branches": module.excitatory_branch_factors,
+        "i_branches": module.inhibitory_branch_factors,
+        "ee_synapses": module.ee_synapses_per_branch_per_layer,
+        "ei_synapses": module.ei_synapses_per_branch_per_layer,
+        "ie_synapses": module.ie_synapses_per_branch_per_layer,
+        "ii_synapses": module.ii_synapses_per_branch_per_layer,
+    }
+
+
+def _find_einet_activation_config(
+    model: torch.nn.Module,
+) -> dict[str, Any] | None:
+    """Return activation-estimation config for the first EINet module, if present."""
+    for module in model.modules():
+        if "ExcitationInhibitionNetwork" in type(module).__name__:
+            return _extract_einet_activation_config(module)
+    return None
+
+
 def _topk_activation_bytes(
     module: torch.nn.Module,
     *,
@@ -355,35 +409,13 @@ class GPUMemoryEstimator:
         param_counts = {}
         total_params = 0
 
-        for _name, module in model.named_modules():
-            # Skip compound modules
-            if len(list(module.children())) > 0:
-                continue
-
+        for module in _iter_leaf_modules(model):
             # Count parameters for this module
             module_params = sum(p.numel() for p in module.parameters())
             if module_params == 0:
                 continue
 
-            # Categorize by module type
-            module_type = type(module).__name__
-
-            # Special handling for dendritic layers
-            if "TopK" in module_type:
-                category = "TopK Layers"
-            elif "BlockLinear" in module_type:
-                category = "Block Linear Layers"
-            elif "Linear" in module_type:
-                category = "Linear Layers"
-            elif "Conv" in module_type:
-                category = "Convolutional Layers"
-            elif "Reactivation" in module_type or "ParametricTanh" in module_type:
-                category = "Reactivation Layers"
-            elif "BatchNorm" in module_type or "LayerNorm" in module_type:
-                category = "Normalization Layers"
-            else:
-                category = "Other Layers"
-
+            category = _module_parameter_category(module)
             param_counts[category] = param_counts.get(category, 0) + module_params
             total_params += module_params
 
@@ -410,27 +442,9 @@ class GPUMemoryEstimator:
         # The network has multiple layers with branch factors creating massive intermediate activations
 
         # First, check if this is an EINet model
-        is_einet = False
-        einet_config = None
+        einet_config = _find_einet_activation_config(model)
 
-        for _name, module in model.named_modules():
-            if "ExcitationInhibitionNetwork" in type(module).__name__:
-                is_einet = True
-                # Extract configuration from the network
-                if hasattr(module, "excitatory_layer_sizes"):
-                    einet_config = {
-                        "e_layers": module.excitatory_layer_sizes,
-                        "i_layers": module.inhibitory_layer_sizes,
-                        "e_branches": module.excitatory_branch_factors,
-                        "i_branches": module.inhibitory_branch_factors,
-                        "ee_synapses": module.ee_synapses_per_branch_per_layer,
-                        "ei_synapses": module.ei_synapses_per_branch_per_layer,
-                        "ie_synapses": module.ie_synapses_per_branch_per_layer,
-                        "ii_synapses": module.ii_synapses_per_branch_per_layer,
-                    }
-                break
-
-        if is_einet and einet_config:
+        if einet_config:
             # Calculate activation memory for EINet architecture
             input_dim = np.prod(input_shape)
 
@@ -502,11 +516,7 @@ class GPUMemoryEstimator:
 
         else:
             # Fallback: Analyze layer by layer
-            for _name, module in model.named_modules():
-                # Skip compound modules
-                if not _is_leaf_module(module):
-                    continue
-
+            for module in _iter_leaf_modules(model):
                 # TopK layers - these are the main memory consumers in dendritic networks
                 if "TopK" in type(module).__name__ or hasattr(module, "K"):
                     activation_memory_bytes += _topk_activation_bytes(

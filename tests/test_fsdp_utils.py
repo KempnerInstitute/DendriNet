@@ -1512,6 +1512,28 @@ class TestApplyGradientCheckpointing:
                 mock_logger.debug.called
             ), "Expected logger.debug to be called for large linear layer"
 
+    def test_apply_gradient_checkpointing_large_linear_preserves_forward(self):
+        """Checkpointed large linear modules should preserve forward and gradients."""
+        torch.manual_seed(0)
+        layer = nn.Linear(1001, 3)
+        model = nn.Sequential(layer)
+        x = torch.randn(4, 1001, requires_grad=True)
+
+        expected = model(x).detach()
+
+        _apply_gradient_checkpointing(model)
+
+        assert layer.forward.__func__.__name__ == "checkpointed_forward"
+        actual = model(x)
+        torch.testing.assert_close(actual, expected)
+
+        actual.sum().backward()
+
+        assert x.grad is not None
+        assert layer.weight.grad is not None
+        assert torch.isfinite(x.grad).all()
+        assert torch.isfinite(layer.weight.grad).all()
+
     def test_apply_gradient_checkpointing_nested_model(self):
         """Test gradient checkpointing on nested model."""
         model = nn.ModuleDict(
