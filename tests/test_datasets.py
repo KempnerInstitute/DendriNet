@@ -25,6 +25,9 @@ from dendritic_modeling.datasets import (
     load_mnist_as_datasets,
     load_mnist_modulo10,
 )
+from dendritic_modeling.datasets.imagenet_loading import (
+    _load_imagefolder_dataset_triplet,
+)
 from dendritic_modeling.datasets.standard_datasets import (
     _apply_imagenet_local_override,
     _build_imagenet_transforms,
@@ -740,6 +743,15 @@ class TestRealDatasets(unittest.TestCase):
         mock_imagefolder.assert_any_call(root="/imagenet/val", transform=eval_transform)
         self.assertEqual(mock_imagefolder.call_count, 2)
         mock_imagenet.assert_not_called()
+
+    def test_load_imagefolder_dataset_triplet_requires_both_roots(self):
+        with self.assertRaisesRegex(RuntimeError, "both train and val"):
+            _load_imagefolder_dataset_triplet(
+                train_root="/imagenet/train",
+                val_root=None,
+                train_transform=Mock(),
+                eval_transform=Mock(),
+            )
 
     @patch("dendritic_modeling.datasets.imagenet.datasets.ImageNet")
     @patch("dendritic_modeling.datasets.imagenet.datasets.ImageFolder")

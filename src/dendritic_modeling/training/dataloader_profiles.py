@@ -40,6 +40,12 @@ def is_torchvision_image_dataset(dataset: Dataset) -> bool:
     )
 
 
+def dataset_type_name(dataset: Dataset) -> str:
+    """Return the module-qualified type name of the storage-backed dataset."""
+    resolved_dataset = base_dataset(dataset)
+    return f"{type(resolved_dataset).__module__}.{type(resolved_dataset).__name__}"
+
+
 def prefers_main_process_loading(dataset: Dataset) -> bool:
     """Return True for in-memory tensor datasets where workers add overhead."""
     return isinstance(base_dataset(dataset), TensorDataset)
@@ -47,6 +53,7 @@ def prefers_main_process_loading(dataset: Dataset) -> bool:
 
 __all__ = [
     "base_dataset",
+    "dataset_type_name",
     "is_torchvision_image_dataset",
     "prefers_main_process_loading",
 ]

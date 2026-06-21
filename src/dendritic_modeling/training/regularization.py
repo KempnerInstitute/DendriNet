@@ -83,6 +83,11 @@ def _format_pruning_report(stats: dict[str, Any]) -> list[str]:
     return lines
 
 
+def _format_pruning_report_text(stats: dict[str, Any]) -> str:
+    """Return the full pruning report as display-ready text."""
+    return "\n".join(_format_pruning_report(stats))
+
+
 class RegularizationManager:
     """Manages L1/L2 regularization with selective application."""
 
@@ -489,8 +494,7 @@ class PruningManager:
             print("No pruning statistics available.")
             return
 
-        for line in _format_pruning_report(self.pruning_stats):
-            print(line)
+        print(_format_pruning_report_text(self.pruning_stats))
 
     def save_pruning_stats(self, save_path: str) -> None:
         """Save pruning statistics to file."""

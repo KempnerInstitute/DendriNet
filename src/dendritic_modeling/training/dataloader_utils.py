@@ -9,7 +9,7 @@ import torch
 from torch.utils.data import Dataset
 
 from dendritic_modeling.training.dataloader_profiles import (
-    base_dataset,
+    dataset_type_name,
     is_torchvision_image_dataset,
     prefers_main_process_loading,
 )
@@ -44,10 +44,7 @@ class DataLoaderTuning:
 
     def summary(self, dataset: Dataset) -> str:
         """Return a compact human-readable summary of resolved loader tuning."""
-        resolved_dataset = base_dataset(dataset)
-        dataset_name = (
-            f"{type(resolved_dataset).__module__}.{type(resolved_dataset).__name__}"
-        )
+        dataset_name = dataset_type_name(dataset)
         return (
             f"dataset={dataset_name}, num_workers={self.num_workers}, "
             f"pin_memory={self.pin_memory}, "

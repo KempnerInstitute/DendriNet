@@ -15,6 +15,7 @@ import numpy as np
 import torch
 
 from dendritic_modeling.datasets.dimensions import (
+    DATASET_CLASS_COUNTS,
     DATASET_FLAT_INPUT_SHAPES,
     DATASET_IMAGE_INPUT_SHAPES,
     dataset_input_shape,
@@ -54,11 +55,6 @@ DEFAULT_BATCH_SIZE = 32
 DEFAULT_TRAINING_DTYPE = "fp16"
 DEFAULT_CLASS_COUNT = 10
 REGRESSION_OUTPUT_DIM = 1
-DATASET_CLASS_COUNTS = {
-    "mnist": 10,
-    "cifar10": 10,
-    "imagenet": 1000,
-}
 DEFAULT_TRAIN_VALID_SPLIT = 0.8
 DEFAULT_INPUT_DIM = 784
 MNIST_FLAT_INPUT_SHAPE = DATASET_FLAT_INPUT_SHAPES["mnist"]

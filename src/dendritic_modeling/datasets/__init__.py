@@ -5,6 +5,7 @@ This module contains various synthetic and real dataset classes and utilities.
 """
 
 from .dimensions import (
+    DATASET_CLASS_COUNTS,
     DATASET_FLAT_INPUT_SHAPES,
     DATASET_IMAGE_INPUT_SHAPES,
     dataset_input_shape,
@@ -44,6 +45,7 @@ from .standard_datasets import (
 )
 
 __all__ = [
+    "DATASET_CLASS_COUNTS",
     "DATASET_FLAT_INPUT_SHAPES",
     "DATASET_IMAGE_INPUT_SHAPES",
     "AddingProblemDataset",

@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from math import prod
 
+DATASET_CLASS_COUNTS: dict[str, int] = {
+    "mnist": 10,
+    "cifar10": 10,
+    "imagenet": 1000,
+}
 DATASET_FLAT_INPUT_SHAPES: dict[str, tuple[int, ...]] = {
     "mnist": (784,),
     "fashion_mnist": (784,),
@@ -50,6 +55,7 @@ def flat_dataset_input_dim(
 
 
 __all__ = [
+    "DATASET_CLASS_COUNTS",
     "DATASET_FLAT_INPUT_SHAPES",
     "DATASET_IMAGE_INPUT_SHAPES",
     "dataset_input_shape",

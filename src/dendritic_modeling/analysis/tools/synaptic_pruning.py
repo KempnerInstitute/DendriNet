@@ -83,6 +83,21 @@ def _format_pruning_summary(
     return lines
 
 
+def _format_pruning_summary_text(
+    pruning_events: list[dict[str, Any]],
+    initial_connectivity_stats: dict[str, Any],
+    data_dict_list: list[dict[str, Any]],
+) -> str:
+    """Return the full synaptic pruning summary as display-ready text."""
+    return "\n".join(
+        _format_pruning_summary(
+            pruning_events,
+            initial_connectivity_stats,
+            data_dict_list,
+        )
+    )
+
+
 class SynapticPruningAnalyzer(SynapticTurnoverAnalyzer):
     """
     Enhanced synaptic turnover analyzer that includes pruning-specific metrics.
@@ -532,16 +547,13 @@ class SynapticPruningAnalyzer(SynapticTurnoverAnalyzer):
 
     def print_pruning_summary(self):
         """Print a human-readable summary of pruning analysis."""
-        if not self.pruning_events:
-            print("No pruning events recorded.")
-            return
-
-        for line in _format_pruning_summary(
-            self.pruning_events,
-            self.initial_connectivity_stats,
-            self.data_dict_list,
-        ):
-            print(line)
+        print(
+            _format_pruning_summary_text(
+                self.pruning_events,
+                self.initial_connectivity_stats,
+                self.data_dict_list,
+            )
+        )
 
     def plot_active_synapses_per_branch(
         self,

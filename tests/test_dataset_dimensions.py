@@ -1,4 +1,5 @@
 from dendritic_modeling.datasets.dimensions import (
+    DATASET_CLASS_COUNTS,
     dataset_input_shape,
     flat_dataset_input_dim,
 )
@@ -25,3 +26,11 @@ def test_flat_dataset_input_dim_preserves_existing_values():
     assert flat_dataset_input_dim("mnist", default_input_dim=1) == 784
     assert flat_dataset_input_dim("cifar10", default_input_dim=1) == 3072
     assert flat_dataset_input_dim("imagenet", default_input_dim=1) == 150528
+
+
+def test_dataset_class_counts_preserve_gpu_estimator_defaults():
+    assert DATASET_CLASS_COUNTS == {
+        "mnist": 10,
+        "cifar10": 10,
+        "imagenet": 1000,
+    }

@@ -3,7 +3,10 @@
 import contextlib
 import io
 
-from dendritic_modeling.analysis.tools.synaptic_pruning import SynapticPruningAnalyzer
+from dendritic_modeling.analysis.tools.synaptic_pruning import (
+    SynapticPruningAnalyzer,
+    _format_pruning_summary_text,
+)
 
 
 def _capture_pruning_summary(analyzer: SynapticPruningAnalyzer) -> str:
@@ -16,8 +19,16 @@ def _capture_pruning_summary(analyzer: SynapticPruningAnalyzer) -> str:
 def test_print_pruning_summary_preserves_empty_event_output():
     analyzer = object.__new__(SynapticPruningAnalyzer)
     analyzer.pruning_events = []
+    analyzer.initial_connectivity_stats = {}
+    analyzer.data_dict_list = []
 
-    assert _capture_pruning_summary(analyzer) == "No pruning events recorded.\n"
+    expected = _format_pruning_summary_text(
+        analyzer.pruning_events,
+        analyzer.initial_connectivity_stats,
+        analyzer.data_dict_list,
+    )
+
+    assert _capture_pruning_summary(analyzer) == f"{expected}\n"
 
 
 def test_print_pruning_summary_formats_events_and_initial_connectivity():
@@ -41,7 +52,7 @@ def test_print_pruning_summary_formats_events_and_initial_connectivity():
     }
     analyzer.data_dict_list = [{"epoch": 0}]
 
-    assert _capture_pruning_summary(analyzer) == "\n".join(
+    expected = "\n".join(
         [
             "",
             "=" * 60,
@@ -64,3 +75,10 @@ def test_print_pruning_summary_formats_events_and_initial_connectivity():
             "",
         ]
     )
+
+    assert _format_pruning_summary_text(
+        analyzer.pruning_events,
+        analyzer.initial_connectivity_stats,
+        analyzer.data_dict_list,
+    ) == expected.rstrip("\n")
+    assert _capture_pruning_summary(analyzer) == expected

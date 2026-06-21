@@ -31,6 +31,12 @@ def _load_imagefolder_dataset_triplet(
     train_transform,
     eval_transform,
 ) -> tuple[Dataset, Dataset, Dataset]:
+    if not train_root or not val_root:
+        raise RuntimeError(
+            "ImageFolder ImageNet loading requires both train and val "
+            "class-directory roots."
+        )
+
     _logger.info(
         "Loading ImageNet-style folder tree via ImageFolder: train=%s val=%s",
         train_root,
@@ -71,7 +77,7 @@ def _load_imagenet_dataset_triplet(
 ) -> tuple[Dataset, Dataset, Dataset]:
     """Load ImageNet train/eval/test datasets from ImageFolder or ImageNet roots."""
     backend = _normalized_imagenet_loader_backend(loader_backend)
-    if backend == "imagefolder" and train_root is None:
+    if backend == "imagefolder" and (not train_root or not val_root):
         raise RuntimeError(
             "ImageNet loader_backend='imagefolder' requires train/val "
             "class-directory roots."

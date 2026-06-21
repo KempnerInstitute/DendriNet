@@ -18,6 +18,7 @@ from dendritic_modeling.config.training import (
 from dendritic_modeling.training.regularization import (
     PruningManager,
     RegularizationManager,
+    _format_pruning_report_text,
     apply_sparsity_masks,
     create_sparsity_mask,
 )
@@ -340,6 +341,18 @@ class TestPruningManager:
         finally:
             if os.path.exists(tmp_path):
                 os.unlink(tmp_path)
+
+    def test_print_pruning_report_matches_report_text(self, simple_model, capsys):
+        """The stdout report should remain a thin wrapper around report text."""
+        config = PruningConfig(enabled=True, threshold=0.001)
+        manager = PruningManager(config)
+        manager.prune_model(simple_model)
+        capsys.readouterr()
+
+        expected = _format_pruning_report_text(manager.pruning_stats)
+        manager.print_pruning_report()
+
+        assert capsys.readouterr().out == f"{expected}\n"
 
     def test_threshold_based_pruning(self, simple_model):
         """Test threshold-based pruning (current implementation)."""
