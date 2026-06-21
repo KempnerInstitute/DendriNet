@@ -14,6 +14,10 @@ from dendritic_modeling.datasets import load_mnist_modulo10
 from dendritic_modeling.training.utils.evaluation import accuracy_score
 from dendritic_modeling.utils import Shaper
 from dendritic_modeling.utils.gpu_estimation import (
+    CIFAR10_FLAT_INPUT_SHAPE,
+    IMAGENET_FLAT_INPUT_SHAPE,
+    IMAGENET_IMAGE_INPUT_SHAPE,
+    MNIST_FLAT_INPUT_SHAPE,
     GPUMemoryEstimator,
     MemoryBreakdown,
     _config_params,
@@ -29,6 +33,13 @@ from dendritic_modeling.utils.information.estimators import (
     EstimatorConfig,
     InformationEstimatorFactory,
 )
+
+
+def test_utils_reexports_hook_helpers():
+    from dendritic_modeling import utils
+    from dendritic_modeling.utils.hooks import ForwardHookRemovalMixin
+
+    assert utils.ForwardHookRemovalMixin is ForwardHookRemovalMixin
 
 
 class TestShaper(unittest.TestCase):
@@ -332,6 +343,13 @@ def test_gpu_estimate_fallback_input_shapes():
     assert _fallback_input_shape(
         SimpleNamespace(dataset="custom"), {"input_dim": 123}
     ) == (123,)
+
+
+def test_gpu_estimate_public_input_shape_constants_preserve_values():
+    assert MNIST_FLAT_INPUT_SHAPE == (784,)
+    assert CIFAR10_FLAT_INPUT_SHAPE == (3072,)
+    assert IMAGENET_FLAT_INPUT_SHAPE == (150528,)
+    assert IMAGENET_IMAGE_INPUT_SHAPE == (3, 224, 224)
 
 
 def test_gpu_estimate_model_build_helpers_preserve_parameter_paths():

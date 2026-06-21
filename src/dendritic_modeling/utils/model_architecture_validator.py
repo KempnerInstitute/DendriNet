@@ -18,16 +18,19 @@ This is separate from training stability validation and runs during model setup.
 import logging
 from typing import Any, Union
 
-from dendritic_modeling.datasets.dimensions import DATASET_FLAT_INPUT_SHAPES
+from dendritic_modeling.datasets.dimensions import flat_dataset_input_dim
 
 logger = logging.getLogger(__name__)
 
-DATASET_INPUT_DIMS = {
-    dataset_name: DATASET_FLAT_INPUT_SHAPES[dataset_name][0]
-    for dataset_name in ("cifar10", "imagenet", "mnist")
-}
 DEFAULT_MULTIXOR_BITS = 4
 DEFAULT_UNKNOWN_INPUT_DIM = 64
+DATASET_INPUT_DIMS = {
+    dataset_name: flat_dataset_input_dim(
+        dataset_name,
+        default_input_dim=DEFAULT_UNKNOWN_INPUT_DIM,
+    )
+    for dataset_name in ("cifar10", "imagenet", "mnist")
+}
 
 
 def _get_config_value(

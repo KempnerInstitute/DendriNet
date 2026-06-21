@@ -11,7 +11,13 @@ import torch
 import torch.nn as nn
 
 from dendritic_modeling.utils.gpu_estimation import (
+    BLOCKLINEAR_ACTIVATION_FACTOR,
+    BYTES_PER_GIB,
     GPU_MEMORY_SAFETY_FACTOR,
+    GRADIENT_GRAPH_OVERHEAD,
+    LINEAR_ACTIVATION_FACTOR,
+    PARAMETER_FALLBACK_ACTIVATION_MULTIPLIER,
+    TOPK_SPARSE_GRADIENT_FACTOR,
     GPUMemoryEstimator,
     GPURecommendation,
     MemoryBreakdown,
@@ -302,6 +308,88 @@ class TestGPUMemoryEstimator:
 
         # fp32 should use more memory than fp16
         assert memory_fp32 > memory_fp16
+
+    def test_estimate_activation_memory_linear_matches_formula(self):
+        """Dense fallback activations should match the documented byte formula."""
+        estimator = GPUMemoryEstimator(dtype="fp16")
+        model = nn.Sequential(nn.Linear(10, 4), nn.ReLU(), nn.Linear(4, 2))
+        batch_size = 8
+
+        expected_bytes = (
+            batch_size
+            * ((10 + 4) + (4 + 2))
+            * estimator.bytes_per_param
+            * LINEAR_ACTIVATION_FACTOR
+            * GRADIENT_GRAPH_OVERHEAD
+        )
+
+        activation_gb = estimator.estimate_activation_memory(
+            model,
+            batch_size=batch_size,
+            input_shape=(10,),
+        )
+
+        assert activation_gb == pytest.approx(expected_bytes / BYTES_PER_GIB)
+
+    def test_estimate_activation_memory_sparse_helpers_match_formulas(self):
+        """TopK and BlockLinear fallback estimates should keep exact formulas."""
+
+        class DummyTopKLayer(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.out_features = 5
+                self.K = 3
+
+        class DummyBlockLinearLayer(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.weight = nn.Parameter(torch.ones(2, 4))
+
+        estimator = GPUMemoryEstimator(dtype="fp32")
+        model = nn.Sequential(DummyTopKLayer(), DummyBlockLinearLayer())
+        batch_size = 7
+
+        expected_bytes = (
+            batch_size * 5 * 3 * estimator.bytes_per_param * TOPK_SPARSE_GRADIENT_FACTOR
+        )
+        expected_bytes += (
+            batch_size * 8 * estimator.bytes_per_param * BLOCKLINEAR_ACTIVATION_FACTOR
+        )
+        expected_bytes *= GRADIENT_GRAPH_OVERHEAD
+
+        activation_gb = estimator.estimate_activation_memory(
+            model,
+            batch_size=batch_size,
+            input_shape=(1,),
+        )
+
+        assert activation_gb == pytest.approx(expected_bytes / BYTES_PER_GIB)
+
+    def test_estimate_activation_memory_opaque_module_uses_parameter_fallback(self):
+        """Opaque parameterized modules should retain the historical fallback."""
+
+        class OpaqueLayer(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.weight = nn.Parameter(torch.ones(3, 4))
+
+        estimator = GPUMemoryEstimator(dtype="fp16")
+        model = OpaqueLayer()
+
+        expected_bytes = (
+            12
+            * estimator.bytes_per_param
+            * PARAMETER_FALLBACK_ACTIVATION_MULTIPLIER
+            * GRADIENT_GRAPH_OVERHEAD
+        )
+
+        activation_gb = estimator.estimate_activation_memory(
+            model,
+            batch_size=2,
+            input_shape=(1,),
+        )
+
+        assert activation_gb == pytest.approx(expected_bytes / BYTES_PER_GIB)
 
     def test_estimate_memory_breakdown(self):
         """Test total memory estimation."""

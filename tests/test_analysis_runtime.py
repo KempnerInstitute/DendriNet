@@ -413,6 +413,45 @@ def test_evaluate_metric_generic_saves_tensor_metrics_via_shared_serialization(
     }
 
 
+def test_evaluate_metric_generic_materialize_falls_back_to_stream_without_slice():
+    x = torch.arange(12, dtype=torch.float32).reshape(4, 3)
+    y = torch.arange(4, dtype=torch.long)
+    dataset = NoSliceDataset(x, y)
+    model = nn.Identity()
+    calls = []
+
+    def label_sum_metric(
+        model,
+        inputs,
+        labels,
+        reduce_dim=0,
+        move_device=True,
+        device="cpu",
+    ):
+        calls.append((model, inputs.clone(), labels.clone(), move_device, device))
+        return labels.float().sum()
+
+    result = evaluation_utils._evaluate_metric_generic(
+        metric_func=label_sum_metric,
+        metric_name="label_sum",
+        model=model,
+        test_ds=dataset,
+        move_device=False,
+        device="cpu",
+        eval_mode="materialize",
+        eval_batch_size=2,
+        eval_num_workers=0,
+        eval_pin_memory=False,
+    )
+
+    assert result == (None, None, float(y.sum()))
+    assert len(calls) == 1
+    torch.testing.assert_close(calls[0][1], x)
+    torch.testing.assert_close(calls[0][2], y)
+    assert calls[0][3] is False
+    assert calls[0][4] == "cpu"
+
+
 def test_stream_model_outputs_forwards_seq_lengths_to_compatible_model():
     class SeqLengthAwareIdentity(nn.Module):
         def __init__(self):

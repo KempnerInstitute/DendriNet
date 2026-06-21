@@ -2,7 +2,7 @@
 
 from types import SimpleNamespace
 
-from dendritic_modeling.datasets.dimensions import DATASET_FLAT_INPUT_SHAPES
+from dendritic_modeling.datasets.dimensions import flat_dataset_input_dim
 from dendritic_modeling.utils.model_architecture_validator import (
     DATASET_INPUT_DIMS,
     ModelArchitectureValidator,
@@ -114,7 +114,7 @@ def test_build_network_config_returns_empty_for_plain_dict_config():
 
 def test_dataset_input_dims_preserve_legacy_keys_from_canonical_shapes():
     assert DATASET_INPUT_DIMS == {
-        dataset_name: DATASET_FLAT_INPUT_SHAPES[dataset_name][0]
+        dataset_name: flat_dataset_input_dim(dataset_name, default_input_dim=64)
         for dataset_name in ("cifar10", "imagenet", "mnist")
     }
 

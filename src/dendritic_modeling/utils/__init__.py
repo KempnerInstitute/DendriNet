@@ -15,7 +15,7 @@ from .config_validation import (
 
 # Core utilities
 from .general import Shaper, convert_to_serializable, save_dict, set_seed
-from .hooks import HookHandle, remove_hook_handles
+from .hooks import ForwardHookRemovalMixin, HookHandle, remove_hook_handles
 from .lda import (
     apply_nonnegative_lda,
     apply_random_weights,
@@ -48,6 +48,7 @@ from .training_stability_validator import (
 )
 
 __all__ = [
+    "ForwardHookRemovalMixin",
     "HookHandle",
     "ModelArchitectureValidator",
     "Shaper",

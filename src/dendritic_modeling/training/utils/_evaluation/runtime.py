@@ -166,6 +166,132 @@ class _CachedOutputModel:
         return object.__getattribute__(self, "_real_model").__class__
 
 
+def _scalarize_metric_result(result):
+    """Return Python scalars for scalar tensors while preserving vector metrics."""
+    if hasattr(result, "numel") and result.numel() == 1:
+        return result.item()
+    return result
+
+
+def _metric_call_kwargs(
+    *,
+    reduce_dim: int,
+    move_device: bool,
+    device: str,
+    metric_kwargs: dict,
+) -> dict:
+    """Build the common metric keyword payload."""
+    return dict(
+        reduce_dim=reduce_dim,
+        move_device=move_device,
+        device=device,
+        **metric_kwargs,
+    )
+
+
+def _evaluate_materialized_metric(
+    *,
+    metric_func: Callable,
+    model: Classifier | Regressor,
+    items,
+    reduce_dim: int,
+    move_device: bool,
+    device: str,
+    metric_accepts_seq_lengths: bool,
+    metric_kwargs: dict,
+):
+    """Evaluate one metric on a fully materialized dataset slice."""
+    seq_lengths = items[2] if len(items) > 2 else None
+    call_kwargs = _metric_call_kwargs(
+        reduce_dim=reduce_dim,
+        move_device=move_device,
+        device=device,
+        metric_kwargs=metric_kwargs,
+    )
+    if metric_accepts_seq_lengths:
+        call_kwargs["seq_lengths"] = seq_lengths
+    return _scalarize_metric_result(
+        metric_func(
+            model,
+            items[0],
+            items[1],
+            **call_kwargs,
+        )
+    )
+
+
+def _evaluate_streamed_metric(
+    *,
+    metric_func: Callable,
+    metric_name: str,
+    model: Classifier | Regressor,
+    dataset: torch.utils.data.Dataset,
+    reduce_dim: int,
+    device: str,
+    metric_accepts_seq_lengths: bool,
+    eval_batch_size: int,
+    eval_num_workers: int,
+    eval_pin_memory: bool,
+    eval_persistent_workers: bool,
+    eval_prefetch_factor: int | None,
+    eval_max_batches: int | None,
+    eval_materialize_threshold_mb: float,
+    eval_loader_factory: Callable[..., DataLoader] | None,
+    metric_kwargs: dict,
+):
+    """Evaluate one metric by streaming model outputs through a DataLoader."""
+    est_mb = estimate_dataset_size_mb(dataset)
+    logger.info(
+        "Streaming evaluation for %s (est. %.0f MB, threshold %.0f MB, "
+        "max_batches=%s)",
+        metric_name,
+        est_mb,
+        eval_materialize_threshold_mb,
+        eval_max_batches,
+    )
+    loader_factory = eval_loader_factory or _make_eval_loader
+    loader = loader_factory(
+        dataset,
+        batch_size=eval_batch_size,
+        num_workers=eval_num_workers,
+        pin_memory=eval_pin_memory,
+        device=device,
+        persistent_workers=eval_persistent_workers,
+        prefetch_factor=eval_prefetch_factor,
+    )
+    cat_outputs, cat_labels, cat_seq_lengths = _stream_model_outputs(
+        model=model,
+        loader=loader,
+        device=device,
+        max_batches=eval_max_batches,
+    )
+    if cat_outputs.numel() == 0:
+        return None
+
+    # The _compute_* functions expect (model, inputs, labels) and call
+    # model(inputs) internally.  We wrap the model so forward() returns
+    # cached outputs, avoiding a second forward pass.  The wrapper
+    # preserves isinstance checks and attributes like _is_recurrent_core.
+    cached_model = _CachedOutputModel(model, cat_outputs)
+
+    stream_kwargs = _metric_call_kwargs(
+        reduce_dim=reduce_dim,
+        move_device=False,
+        device="cpu",
+        metric_kwargs=metric_kwargs,
+    )
+    if metric_accepts_seq_lengths:
+        stream_kwargs["seq_lengths"] = cat_seq_lengths
+    return _scalarize_metric_result(
+        metric_func(
+            cached_model,
+            cat_outputs,  # inputs arg (ignored by cached forward)
+            cat_labels,
+            **stream_kwargs,
+        )
+    )
+
+
 def _evaluate_metric_generic(
     metric_func: Callable,
     metric_name: str,
@@ -250,84 +376,42 @@ def _evaluate_metric_generic(
                 items = dataset[:]
             except Exception:
                 # Some wrappers don't support slicing; fall back to streaming.
-                materialize = False
+                pass
             else:
-                seq_lengths = items[2] if len(items) > 2 else None
-                call_kwargs = dict(
-                    reduce_dim=reduce_dim,
-                    move_device=move_device,
-                    device=device,
-                    **metric_kwargs,
+                results.append(
+                    _evaluate_materialized_metric(
+                        metric_func=metric_func,
+                        model=model,
+                        items=items,
+                        reduce_dim=reduce_dim,
+                        move_device=move_device,
+                        device=device,
+                        metric_accepts_seq_lengths=metric_accepts_seq_lengths,
+                        metric_kwargs=metric_kwargs,
+                    )
                 )
-                if metric_accepts_seq_lengths:
-                    call_kwargs["seq_lengths"] = seq_lengths
-                result: torch.Tensor = metric_func(
-                    model,
-                    items[0],
-                    items[1],
-                    **call_kwargs,
-                )
-                if hasattr(result, "numel") and result.numel() == 1:
-                    result = result.item()
-                results.append(result)
                 continue
 
-        # --- streaming path: run model batch-by-batch, accumulate outputs on CPU,
-        # then compute the metric once on the full accumulated data.
-        # This is numerically identical to the materialize path because the
-        # same metric function runs on the complete output+label tensors. ---
-        est_mb = estimate_dataset_size_mb(dataset)
-        logger.info(
-            "Streaming evaluation for %s (est. %.0f MB, threshold %.0f MB, "
-            "max_batches=%s)",
-            metric_name,
-            est_mb,
-            eval_materialize_threshold_mb,
-            eval_max_batches,
+        results.append(
+            _evaluate_streamed_metric(
+                metric_func=metric_func,
+                metric_name=metric_name,
+                model=model,
+                dataset=dataset,
+                reduce_dim=reduce_dim,
+                device=device,
+                metric_accepts_seq_lengths=metric_accepts_seq_lengths,
+                eval_batch_size=eval_batch_size,
+                eval_num_workers=eval_num_workers,
+                eval_pin_memory=eval_pin_memory,
+                eval_persistent_workers=eval_persistent_workers,
+                eval_prefetch_factor=eval_prefetch_factor,
+                eval_max_batches=eval_max_batches,
+                eval_materialize_threshold_mb=eval_materialize_threshold_mb,
+                eval_loader_factory=eval_loader_factory,
+                metric_kwargs=metric_kwargs,
+            )
         )
-        loader_factory = eval_loader_factory or _make_eval_loader
-        loader = loader_factory(
-            dataset,
-            batch_size=eval_batch_size,
-            num_workers=eval_num_workers,
-            pin_memory=eval_pin_memory,
-            device=device,
-            persistent_workers=eval_persistent_workers,
-            prefetch_factor=eval_prefetch_factor,
-        )
-        cat_outputs, cat_labels, cat_seq_lengths = _stream_model_outputs(
-            model=model,
-            loader=loader,
-            device=device,
-            max_batches=eval_max_batches,
-        )
-        if cat_outputs.numel() == 0:
-            results.append(None)
-            continue
-
-        # The _compute_* functions expect (model, inputs, labels) and call
-        # model(inputs) internally.  We wrap the model so forward() returns
-        # cached outputs, avoiding a second forward pass.  The wrapper
-        # preserves isinstance checks and attributes like _is_recurrent_core.
-        cached_model = _CachedOutputModel(model, cat_outputs)
-
-        stream_kwargs = dict(
-            reduce_dim=reduce_dim,
-            move_device=False,
-            device="cpu",
-            **metric_kwargs,
-        )
-        if metric_accepts_seq_lengths:
-            stream_kwargs["seq_lengths"] = cat_seq_lengths
-        result = metric_func(
-            cached_model,
-            cat_outputs,  # inputs arg (ignored by cached forward)
-            cat_labels,
-            **stream_kwargs,
-        )
-        if hasattr(result, "numel") and result.numel() == 1:
-            result = result.item()
-        results.append(result)
 
     train_metric, valid_metric, test_metric = results
 

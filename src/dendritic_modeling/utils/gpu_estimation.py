@@ -15,8 +15,6 @@ import numpy as np
 import torch
 
 from dendritic_modeling.datasets.dimensions import (
-    DATASET_FLAT_INPUT_SHAPES,
-    DATASET_IMAGE_INPUT_SHAPES,
     dataset_class_count,
     dataset_input_shape,
 )
@@ -57,10 +55,6 @@ DEFAULT_CLASS_COUNT = 10
 REGRESSION_OUTPUT_DIM = 1
 DEFAULT_TRAIN_VALID_SPLIT = 0.8
 DEFAULT_INPUT_DIM = 784
-MNIST_FLAT_INPUT_SHAPE = DATASET_FLAT_INPUT_SHAPES["mnist"]
-CIFAR10_FLAT_INPUT_SHAPE = DATASET_FLAT_INPUT_SHAPES["cifar10"]
-IMAGENET_FLAT_INPUT_SHAPE = DATASET_FLAT_INPUT_SHAPES["imagenet"]
-IMAGENET_IMAGE_INPUT_SHAPE = DATASET_IMAGE_INPUT_SHAPES["imagenet"]
 GPU_MEMORY_SAFETY_FACTOR = 0.85
 PRACTICAL_FSDP_GPU_LIMIT = 16
 FSDP_CANDIDATE_CONFIGURATIONS = (
@@ -73,6 +67,20 @@ FSDP_CANDIDATE_CONFIGURATIONS = (
 FSDP_FALLBACK_NODES = 8
 FSDP_FALLBACK_GPUS_PER_NODE = 4
 FSDP_FALLBACK_TOTAL_GPUS = 32
+
+
+def _builtin_input_shape(dataset_name: str, *, flatten: bool = True) -> tuple[int, ...]:
+    """Return a required built-in dataset shape from the canonical dimension API."""
+    shape = dataset_input_shape(dataset_name, flatten=flatten)
+    if shape is None:  # pragma: no cover - protects module constants from drift.
+        raise RuntimeError(f"Missing built-in input shape for {dataset_name!r}")
+    return shape
+
+
+MNIST_FLAT_INPUT_SHAPE = _builtin_input_shape("mnist")
+CIFAR10_FLAT_INPUT_SHAPE = _builtin_input_shape("cifar10")
+IMAGENET_FLAT_INPUT_SHAPE = _builtin_input_shape("imagenet")
+IMAGENET_IMAGE_INPUT_SHAPE = _builtin_input_shape("imagenet", flatten=False)
 
 
 def _bytes_to_gib(num_bytes: float) -> float:
@@ -185,6 +193,76 @@ def _resolve_trainer_params(config: Any) -> dict[str, Any]:
 def _resolve_training_dtype(config: Any) -> str:
     """Resolve training dtype used by the memory estimator."""
     return _resolve_trainer_params(config).get("dtype", DEFAULT_TRAINING_DTYPE)
+
+
+def _is_leaf_module(module: torch.nn.Module) -> bool:
+    """Return whether a module has no child modules."""
+    return len(list(module.children())) == 0
+
+
+def _topk_activation_bytes(
+    module: torch.nn.Module,
+    *,
+    batch_size: int,
+    bytes_per_param: int,
+) -> float:
+    """Estimate sparse TopK activation and gradient storage in bytes."""
+    out_features = getattr(module, "out_features", 0)
+    k_synapses = getattr(module, "K", DEFAULT_TOPK_SYNAPSES)
+    return (
+        batch_size
+        * out_features
+        * k_synapses
+        * bytes_per_param
+        * TOPK_SPARSE_GRADIENT_FACTOR
+    )
+
+
+def _blocklinear_activation_bytes(
+    module: torch.nn.Module,
+    *,
+    batch_size: int,
+    bytes_per_param: int,
+) -> float:
+    """Estimate BlockLinear branch-combination activation storage in bytes."""
+    if not hasattr(module, "weight"):
+        return 0.0
+
+    weight = module.weight
+    if callable(weight) or not hasattr(weight, "shape"):
+        return 0.0
+
+    return (
+        batch_size
+        * np.prod(weight.shape)
+        * bytes_per_param
+        * BLOCKLINEAR_ACTIVATION_FACTOR
+    )
+
+
+def _linear_activation_bytes(
+    module: torch.nn.Linear,
+    *,
+    batch_size: int,
+    bytes_per_param: int,
+) -> float:
+    """Estimate dense Linear input/output activation storage in bytes."""
+    return (
+        batch_size
+        * (module.in_features + module.out_features)
+        * bytes_per_param
+        * LINEAR_ACTIVATION_FACTOR
+    )
+
+
+def _parameter_fallback_activation_bytes(
+    model: torch.nn.Module,
+    *,
+    bytes_per_param: int,
+) -> float:
+    """Estimate activations from parameters when layer-wise structure is opaque."""
+    total_params = sum(p.numel() for p in model.parameters())
+    return total_params * bytes_per_param * PARAMETER_FALLBACK_ACTIVATION_MULTIPLIER
 
 
 @dataclass
@@ -426,63 +504,37 @@ class GPUMemoryEstimator:
             # Fallback: Analyze layer by layer
             for _name, module in model.named_modules():
                 # Skip compound modules
-                if len(list(module.children())) > 0:
+                if not _is_leaf_module(module):
                     continue
 
                 # TopK layers - these are the main memory consumers in dendritic networks
                 if "TopK" in type(module).__name__ or hasattr(module, "K"):
-                    in_features = getattr(module, "in_features", 0)
-                    out_features = getattr(module, "out_features", 0)
-                    K = getattr(module, "K", DEFAULT_TOPK_SYNAPSES)
-
-                    # Memory for sparse connectivity pattern and gradients
-                    # Store: indices (K ints per output) + values (K floats per output) + gradients
-                    layer_activation = (
-                        batch_size
-                        * out_features
-                        * K
-                        * self.bytes_per_param
-                        * TOPK_SPARSE_GRADIENT_FACTOR
+                    activation_memory_bytes += _topk_activation_bytes(
+                        module,
+                        batch_size=batch_size,
+                        bytes_per_param=self.bytes_per_param,
                     )
-                    activation_memory_bytes += layer_activation
 
                 elif "BlockLinear" in type(module).__name__:
-                    # BlockLinear combines branches
-                    if hasattr(module, "weight"):
-                        weight = module.weight
-                        # Handle case where weight might be a property/function
-                        if callable(weight):
-                            continue  # Skip if weight is a function
-                        if hasattr(weight, "shape"):
-                            weight_shape = weight.shape
-                            layer_activation = (
-                                batch_size
-                                * np.prod(weight_shape)
-                                * self.bytes_per_param
-                                * BLOCKLINEAR_ACTIVATION_FACTOR
-                            )
-                            activation_memory_bytes += layer_activation
+                    activation_memory_bytes += _blocklinear_activation_bytes(
+                        module,
+                        batch_size=batch_size,
+                        bytes_per_param=self.bytes_per_param,
+                    )
 
                 elif isinstance(module, torch.nn.Linear):
-                    in_features = getattr(module, "in_features", 0)
-                    out_features = getattr(module, "out_features", 0)
-                    layer_activation = (
-                        batch_size
-                        * (in_features + out_features)
-                        * self.bytes_per_param
-                        * LINEAR_ACTIVATION_FACTOR
+                    activation_memory_bytes += _linear_activation_bytes(
+                        module,
+                        batch_size=batch_size,
+                        bytes_per_param=self.bytes_per_param,
                     )
-                    activation_memory_bytes += layer_activation
 
             # If we couldn't get a good estimate, use parameter-based estimation
             if activation_memory_bytes == 0:
-                total_params = sum(p.numel() for p in model.parameters())
-                # For dendritic models, activations can be 10-20x parameters due to branching
-                activation_memory_bytes = (
-                    total_params
-                    * self.bytes_per_param
-                    * PARAMETER_FALLBACK_ACTIVATION_MULTIPLIER
-                )  # Multiplier for dendritic models
+                activation_memory_bytes = _parameter_fallback_activation_bytes(
+                    model,
+                    bytes_per_param=self.bytes_per_param,
+                )
 
             # Add gradient graph overhead
             activation_memory_bytes *= GRADIENT_GRAPH_OVERHEAD
@@ -803,7 +855,9 @@ def estimate_from_config(config_path: str, batch_size: Optional[int] = None):
         logger.info(f"Using real dataset input shape: {input_shape}")
 
     except Exception as e:
-        logger.warning(f"Failed to load dataset, falling back to hardcoded shapes: {e}")
+        logger.warning(
+            "Failed to load dataset, falling back to canonical built-in shapes: %s", e
+        )
 
         input_shape = _fallback_input_shape(task_cfg, task_params)
 
