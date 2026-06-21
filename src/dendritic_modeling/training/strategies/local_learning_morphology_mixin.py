@@ -16,6 +16,78 @@ from dendritic_modeling.training.strategies.local_learning_hsic import (
 from dendritic_modeling.training.strategies.local_learning_state import _LayerStats
 
 
+def _normalized_inverse_depth_factor(
+    depths: torch.Tensor,
+    offset: float,
+) -> torch.Tensor:
+    """Return inverse-depth factors normalized to unit mean."""
+
+    length_factor = 1.0 / (depths + offset)
+    return length_factor / (length_factor.mean() + 1e-8)
+
+
+def _role_specialization_scale(
+    selectivity: torch.Tensor,
+    *,
+    power: float,
+    specialized_scale: float,
+    mixed_scale: float,
+) -> torch.Tensor:
+    """Interpolate between mixed and specialized branch scales."""
+
+    return mixed_scale + selectivity.pow(power) * (specialized_scale - mixed_scale)
+
+
+def _centered_alignment_gain(
+    alignment: torch.Tensor,
+    weight: float,
+) -> torch.Tensor:
+    """Convert raw role alignment to nonnegative multiplicative gains."""
+
+    centered_alignment = alignment - alignment.mean(dim=1, keepdim=True)
+    return torch.clamp(1.0 + weight * centered_alignment, min=0.0)
+
+
+def _default_branch_depths(
+    out_features: int,
+    layer_idx: int,
+    *,
+    device: torch.device,
+    dtype: torch.dtype,
+) -> torch.Tensor:
+    """Return legacy uniform branch depths for a recorded layer."""
+
+    base_depth = float(layer_idx + 1)
+    return torch.ones(out_features, device=device, dtype=dtype) * base_depth
+
+
+def _default_branch_types(
+    out_features: int,
+    layer_idx: int,
+    n_layers: int,
+    *,
+    device: torch.device,
+    dtype: torch.dtype,
+) -> torch.Tensor:
+    """Return legacy basal/apical heuristic branch types for a recorded layer."""
+
+    branch_types = torch.zeros(out_features, device=device, dtype=dtype)
+    if layer_idx >= n_layers // 2:
+        branch_types[:] = 1.0
+    return branch_types
+
+
+def _reset_branch_role_metadata(stats: _LayerStats) -> None:
+    """Clear inferred role metadata while preserving morphology annotations."""
+
+    stats.branch_role_profile = None
+    stats.branch_role_selectivity = None
+    stats.input_role_profile = None
+    stats.block_input_role_profile = None
+    stats.branch_block_roles = None
+    stats.branch_block_selectivity = None
+
+
 class LocalLearningMorphologyMixin:
     """Morphology metadata, branch-role, and branch-scale helpers."""
 
@@ -110,21 +182,7 @@ class LocalLearningMorphologyMixin:
 
         offset = self.local_cfg.morphology_aware.morphology_depth_offset
 
-        metric = self.local_cfg.morphology_aware.morphology_centrality_metric.lower()
-
-        if metric in {"betweenness", "closeness", "degree"}:
-
-            centrality = 1.0 / (depths + offset)
-
-        else:
-
-            centrality = 1.0 / (depths + offset)
-
-        # Keep average scale near rho_base.
-
-        centrality = centrality / (centrality.mean() + 1e-8)
-
-        return rho_base * centrality
+        return rho_base * _normalized_inverse_depth_factor(depths, offset)
 
     def _compute_dendritic_normalization(
         self, rec: dict[str, Any], grad_g_den: torch.Tensor
@@ -179,9 +237,9 @@ class LocalLearningMorphologyMixin:
 
             depth_offset = self.local_cfg.morphology_aware.morphology_depth_offset
 
-            length_factor = 1.0 / (stats.branch_depths + depth_offset)
-
-            length_factor = length_factor / (length_factor.mean() + 1e-8)
+            length_factor = _normalized_inverse_depth_factor(
+                stats.branch_depths, depth_offset
+            )
 
             if isinstance(scale, torch.Tensor):
 
@@ -216,17 +274,7 @@ class LocalLearningMorphologyMixin:
 
             out_features = v_n.size(1)
 
-            stats.branch_role_profile = None
-
-            stats.branch_role_selectivity = None
-
-            stats.input_role_profile = None
-
-            stats.block_input_role_profile = None
-
-            stats.branch_block_roles = None
-
-            stats.branch_block_selectivity = None
+            _reset_branch_role_metadata(stats)
 
             # Heuristic depth: based on layer index (deeper layers = higher depth)
 
@@ -236,11 +284,11 @@ class LocalLearningMorphologyMixin:
 
                 # Assign uniform depth based on layer position
 
-                base_depth = float(layer_idx + 1)
-
-                stats.branch_depths = (
-                    torch.ones(out_features, device=v_n.device, dtype=v_n.dtype)
-                    * base_depth
+                stats.branch_depths = _default_branch_depths(
+                    out_features,
+                    layer_idx,
+                    device=v_n.device,
+                    dtype=v_n.dtype,
                 )
 
             # Heuristic branch types: assume first half are basal, second half apical
@@ -249,17 +297,13 @@ class LocalLearningMorphologyMixin:
 
             if stats.branch_types is None:
 
-                branch_types = torch.zeros(
-                    out_features, device=v_n.device, dtype=v_n.dtype
+                stats.branch_types = _default_branch_types(
+                    out_features,
+                    layer_idx,
+                    len(layer_records),
+                    device=v_n.device,
+                    dtype=v_n.dtype,
                 )
-
-                # Simple heuristic: deeper layers tend to have more apical character
-
-                if layer_idx >= len(layer_records) // 2:
-
-                    branch_types[:] = 1.0  # Mark as apical
-
-                stats.branch_types = branch_types
 
             role_mass_terms: list[torch.Tensor] = []
 
@@ -423,8 +467,11 @@ class LocalLearningMorphologyMixin:
             dtype=stats.branch_role_selectivity.dtype
         )
 
-        branch_scale = mixed_scale + neuron_selectivity.pow(power) * (
-            specialized_scale - mixed_scale
+        branch_scale = _role_specialization_scale(
+            neuron_selectivity,
+            power=power,
+            specialized_scale=specialized_scale,
+            mixed_scale=mixed_scale,
         )
 
         dendritic_scale: torch.Tensor | float = branch_scale
@@ -435,17 +482,20 @@ class LocalLearningMorphologyMixin:
                 dtype=branch_scale.dtype, device=branch_scale.device
             )
 
-            dendritic_scale = mixed_scale + block_selectivity.pow(power) * (
-                specialized_scale - mixed_scale
+            dendritic_scale = _role_specialization_scale(
+                block_selectivity,
+                power=power,
+                specialized_scale=specialized_scale,
+                mixed_scale=mixed_scale,
             )
 
         if cfg.use_branch_length_modulation and stats.branch_depths is not None:
 
             depth_offset = cfg.morphology_depth_offset
 
-            length_factor = 1.0 / (stats.branch_depths + depth_offset)
-
-            length_factor = length_factor / (length_factor.mean() + 1e-8)
+            length_factor = _normalized_inverse_depth_factor(
+                stats.branch_depths, depth_offset
+            )
 
             branch_scale = branch_scale * length_factor
 
@@ -498,9 +548,7 @@ class LocalLearningMorphologyMixin:
                 device=role_profile.device, dtype=role_profile.dtype
             )
 
-            alignment = alignment - alignment.mean(dim=1, keepdim=True)
-
-            syn_factor = torch.clamp(1.0 + weight * alignment, min=0.0)
+            syn_factor = _centered_alignment_gain(alignment, weight)
 
         block_factor: torch.Tensor | None = None
 
@@ -512,9 +560,7 @@ class LocalLearningMorphologyMixin:
 
             alignment = (block_roles * role_profile.unsqueeze(1)).sum(dim=-1)
 
-            alignment = alignment - alignment.mean(dim=1, keepdim=True)
-
-            block_factor = torch.clamp(1.0 + weight * alignment, min=0.0)
+            block_factor = _centered_alignment_gain(alignment, weight)
 
         return syn_factor, block_factor
 
