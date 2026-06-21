@@ -56,6 +56,79 @@ def test_dendritic_synapse_config_round_trips_legacy_kwargs():
         assert round_trip[key] == value
 
 
+def test_dendritic_synapse_config_round_trips_every_legacy_key():
+    legacy_kwargs = {
+        "topk_init_method": "kaiming_uniform",
+        "topk_noise_level": 0.2,
+        "topk_type": "indexed_dynamic",
+        "topk_weight_norm_order": 2,
+        "topk_gamma": 0.75,
+        "topk_temperature": 0.3,
+        "topk_ultrafast": True,
+        "topk_strategy": "conductance_dynamic",
+        "dense_to_sparse_initial_density": 0.6,
+        "dense_to_sparse_initial_k": 4,
+        "dense_to_sparse_start_step": 3,
+        "dense_to_sparse_end_step": 30,
+        "dense_to_sparse_update_interval": 5,
+        "dense_to_sparse_schedule": "linear",
+        "dense_to_sparse_freeze_on_end": True,
+        "dense_to_sparse_advance_on_forward": False,
+        "dense_to_sparse_prune_metric": "magnitude",
+        "indexed_seed": 17,
+        "indexed_output_chunk_size": 128,
+        "indexed_candidate_size": 64,
+        "indexed_selection": "stochastic",
+        "indexed_rewire_frequency": 9,
+        "indexed_rewire_quantile": 0.2,
+        "indexed_rewire_until_step": 40,
+        "use_shunting": False,
+        "use_additive_normalization": True,
+        "epsilon": 1e-6,
+        "weight_transform": "softplus",
+        "efficient_blocklinear": True,
+        "blocklinear_strategy": "conductance_dynamic",
+        "reactivate": True,
+        "reactivation_type": "param_tanh",
+        "dendritic_activation": "tanh",
+        "reactivation_init_m": 1.2,
+        "reactivation_init_b": 0.3,
+        "reactivation_init_policy": "fixed",
+        "reactivation_occupancy_quantile_low": 0.1,
+        "reactivation_occupancy_quantile_high": 0.9,
+        "reactivation_occupancy_target_low": 0.2,
+        "reactivation_occupancy_target_high": 0.8,
+        "reactivation_calibration_min_quantile_width": 0.02,
+        "reactivation_calibration_max_m": 25.0,
+        "reactivation_calibration_revert_on_invalid": False,
+        "reactivation_sigma_aware_k": 0.4,
+        "reactivation_strategy": "voltage_dynamic",
+        "dbl_init_method": "default",
+        "adaptive_initialization": False,
+        "adaptive_initialization_policy": "preserve_shunting_center",
+        "adaptive_target_conductance": 4.0,
+        "branch_factors": [2, 1],
+        "use_noise": False,
+        "rewiring_mode": "local",
+        "rewire_frequency": 7,
+        "synapses_per_branch": 5,
+        "sigma": 0.02,
+        "excitatory_target_density": 0.3,
+        "inhibitory_target_density": 0.4,
+        "freeze_excitatory_connectivity": True,
+        "freeze_inhibitory_connectivity": True,
+        "init_method": "xavier_uniform",
+        "weight_threshold": 1e-4,
+        "print_hooks": True,
+    }
+
+    round_trip = DendriticSynapseConfig.from_kwargs(legacy_kwargs).to_kwargs()
+
+    assert set(round_trip) == set(legacy_kwargs)
+    for key, value in legacy_kwargs.items():
+        assert round_trip[key] == value
+
+
 def test_dendritic_branch_config_round_trips_legacy_kwargs():
     connection_mask = torch.ones(4, 7, dtype=torch.bool)
     legacy_kwargs = {

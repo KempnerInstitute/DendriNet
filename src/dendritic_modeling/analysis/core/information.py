@@ -34,6 +34,9 @@ from dendritic_modeling.analysis.core.information_hooks_mixin import (
 from dendritic_modeling.analysis.core.information_lda_mixin import (
     InformationLdaComparisonMixin,
 )
+from dendritic_modeling.analysis.core.information_lifecycle_mixin import (
+    InformationLifecycleMixin,
+)
 from dendritic_modeling.analysis.core.information_metric_merge import (
     merge_average_renamed_numeric_metrics_in_place,
     merge_renamed_metric_dicts_in_place,
@@ -54,10 +57,7 @@ from dendritic_modeling.analysis.core.information_synthetic_soma_mixin import (
     InformationSyntheticSomaMixin,
 )
 from dendritic_modeling.analysis.utils.einet_core import has_einet_core
-from dendritic_modeling.analysis.utils.runtime import (
-    get_model_device,
-    materialize_dataset,
-)
+from dendritic_modeling.analysis.utils.runtime import materialize_dataset
 from dendritic_modeling.config import InformationAnalysisParams
 from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.models import BaseModel
@@ -165,6 +165,7 @@ class InformationAnalyzer(
     InformationHooksMixin,
     InformationSyntheticSomaMixin,
     InformationSignalAggregationMixin,
+    InformationLifecycleMixin,
     InformationLdaComparisonMixin,
     InformationPlottingMixin,
     InformationFinalizationMixin,
@@ -461,9 +462,7 @@ class InformationAnalyzer(
             f"Model: {type(model).__name__}, Dataset size: {len(test_dataset)}, Device: {device}"
         )
 
-        original_device = get_model_device(model)
-        was_training = getattr(model, "training", False)
-        moved = False
+        lifecycle_state = self._capture_model_lifecycle_state(model)
         try:
             # Check if model has ExcitationInhibitionNetwork
             if not self._model_supports_information_analysis(model):
@@ -474,7 +473,7 @@ class InformationAnalyzer(
 
             # Prepare data
             model = self._prepare_model_for_analysis(model, device)
-            moved = True
+            lifecycle_state = self._mark_model_moved(lifecycle_state)
 
             return self._run_analysis_pipeline(
                 model=model,
@@ -492,24 +491,8 @@ class InformationAnalyzer(
         finally:
             self._restore_model_after_analysis(
                 model=model,
-                original_device=original_device,
-                was_training=was_training,
-                moved=moved,
+                lifecycle_state=lifecycle_state,
             )
-
-    def _restore_model_after_analysis(
-        self,
-        *,
-        model: BaseModel,
-        original_device: torch.device,
-        was_training: bool,
-        moved: bool,
-    ) -> None:
-        """Restore model placement and train/eval state after analysis."""
-        if moved:
-            model.to(original_device)
-            if was_training:
-                model.train()
 
     def _run_analysis_pipeline(
         self,
@@ -564,13 +547,6 @@ class InformationAnalyzer(
             "Model does not expose an ExcitationInhibitionNetwork. Skipping information analysis."
         )
         return False
-
-    def _prepare_model_for_analysis(self, model: BaseModel, device: str) -> BaseModel:
-        """Move a model to the analysis device and switch it to evaluation mode."""
-        self.logger.info(f"Preparing data: moving model to {device}")
-        model = model.to(device)
-        model.eval()
-        return model
 
     def _compute_results_for_level(
         self,

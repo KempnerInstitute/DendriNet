@@ -484,6 +484,54 @@ class TestInformationAnalyzer(unittest.TestCase):
         input_model.to.assert_called_once_with("cpu")
         moved_model.eval.assert_called_once_with()
 
+    def test_model_lifecycle_state_records_original_device_and_training(self):
+        """Lifecycle state should preserve the pre-analysis model state."""
+        self.model.train()
+
+        state = self.analyzer._capture_model_lifecycle_state(self.model)
+
+        self.assertEqual(state.original_device, torch.device("cpu"))
+        self.assertTrue(state.was_training)
+        self.assertFalse(state.moved)
+
+    def test_mark_model_moved_preserves_original_lifecycle_fields(self):
+        """Marking the lifecycle moved should not change original state fields."""
+        self.model.train()
+        state = self.analyzer._capture_model_lifecycle_state(self.model)
+
+        moved_state = self.analyzer._mark_model_moved(state)
+
+        self.assertEqual(moved_state.original_device, state.original_device)
+        self.assertEqual(moved_state.was_training, state.was_training)
+        self.assertTrue(moved_state.moved)
+
+    def test_restore_model_after_analysis_supports_legacy_kwargs(self):
+        """Restore helper should keep the pre-extraction private call signature."""
+        model = Mock()
+
+        self.analyzer._restore_model_after_analysis(
+            model=model,
+            original_device=torch.device("cpu"),
+            was_training=True,
+            moved=True,
+        )
+
+        model.to.assert_called_once_with(torch.device("cpu"))
+        model.train.assert_called_once_with()
+
+    def test_restore_model_after_analysis_skips_unmoved_state(self):
+        """Unmoved models should not be touched during cleanup."""
+        model = Mock()
+        state = self.analyzer._capture_model_lifecycle_state(self.model)
+
+        self.analyzer._restore_model_after_analysis(
+            model=model,
+            lifecycle_state=state,
+        )
+
+        model.to.assert_not_called()
+        model.train.assert_not_called()
+
     def test_compute_results_for_level_dispatches_single_branch(self):
         """Computation-level dispatch should preserve single-branch arguments."""
         self.analyzer.computation_level = "single_branch"

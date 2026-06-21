@@ -189,71 +189,9 @@ class DendriticBranchLayer(nn.Module):
             ]
         if output_dim is None:
             raise ValueError("DendriticBranchLayer requires output_dim")
-        formal_synapse_kwargs = {
-            "topk_init_method": topk_init_method,
-            "topk_noise_level": topk_noise_level,
-            "topk_type": topk_type,
-            "topk_weight_norm_order": topk_weight_norm_order,
-            "topk_gamma": topk_gamma,
-            "topk_temperature": topk_temperature,
-            "topk_ultrafast": topk_ultrafast,
-            "topk_strategy": topk_strategy,
-            "dense_to_sparse_initial_density": dense_to_sparse_initial_density,
-            "dense_to_sparse_initial_k": dense_to_sparse_initial_k,
-            "dense_to_sparse_start_step": dense_to_sparse_start_step,
-            "dense_to_sparse_end_step": dense_to_sparse_end_step,
-            "dense_to_sparse_update_interval": dense_to_sparse_update_interval,
-            "dense_to_sparse_schedule": dense_to_sparse_schedule,
-            "dense_to_sparse_freeze_on_end": dense_to_sparse_freeze_on_end,
-            "dense_to_sparse_advance_on_forward": dense_to_sparse_advance_on_forward,
-            "dense_to_sparse_prune_metric": dense_to_sparse_prune_metric,
-            "indexed_rewire_frequency": indexed_rewire_frequency,
-            "indexed_rewire_quantile": indexed_rewire_quantile,
-            "indexed_rewire_until_step": indexed_rewire_until_step,
-            "use_shunting": use_shunting,
-            "reactivate": reactivate,
-            "reactivation_type": reactivation_type,
-            "dendritic_activation": dendritic_activation,
-            "reactivation_init_m": reactivation_init_m,
-            "reactivation_init_b": reactivation_init_b,
-            "reactivation_init_policy": reactivation_init_policy,
-            "reactivation_occupancy_quantile_low": reactivation_occupancy_quantile_low,
-            "reactivation_occupancy_quantile_high": (
-                reactivation_occupancy_quantile_high
-            ),
-            "reactivation_occupancy_target_low": reactivation_occupancy_target_low,
-            "reactivation_occupancy_target_high": reactivation_occupancy_target_high,
-            "reactivation_calibration_min_quantile_width": (
-                reactivation_calibration_min_quantile_width
-            ),
-            "reactivation_calibration_max_m": reactivation_calibration_max_m,
-            "reactivation_calibration_revert_on_invalid": (
-                reactivation_calibration_revert_on_invalid
-            ),
-            "reactivation_sigma_aware_k": reactivation_sigma_aware_k,
-            "dbl_init_method": dbl_init_method,
-            "reactivation_strategy": reactivation_strategy,
-            "blocklinear_strategy": blocklinear_strategy,
-            "efficient_blocklinear": efficient_blocklinear,
-            "print_hooks": print_hooks,
-            "use_noise": use_noise,
-            "rewiring_mode": rewiring_mode,
-            "rewire_frequency": rewire_frequency,
-            "synapses_per_branch": synapses_per_branch,
-            "sigma": sigma,
-            "excitatory_target_density": excitatory_target_density,
-            "inhibitory_target_density": inhibitory_target_density,
-            "freeze_excitatory_connectivity": freeze_excitatory_connectivity,
-            "freeze_inhibitory_connectivity": freeze_inhibitory_connectivity,
-            "init_method": init_method,
-            "weight_threshold": weight_threshold,
-            "adaptive_initialization": adaptive_initialization,
-            "adaptive_initialization_policy": adaptive_initialization_policy,
-            "adaptive_target_conductance": adaptive_target_conductance,
-            "branch_factors": branch_factors,
-            "epsilon": epsilon,
-            "weight_transform": weight_transform,
-        }
+        formal_synapse_kwargs = DendriticSynapseConfig.legacy_kwargs_from_mapping(
+            locals()
+        )
         if synapse_config is None:
             config_source = {**kwargs, **formal_synapse_kwargs}
             normalized_config = DendriticSynapseConfig.from_kwargs(config_source)

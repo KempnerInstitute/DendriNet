@@ -24,18 +24,35 @@ def _registered_analyzer_spec(registry_name: str) -> AnalyzerSpec:
 
 
 @dataclass(frozen=True)
-class _AnalyzerInitializer:
-    """Construction metadata used by AnalysisManager."""
+class _RegisteredAnalysisMetadata:
+    """Base metadata for entries backed by the analyzer registry."""
 
     registry_name: str
 
     @property
+    def spec(self) -> AnalyzerSpec:
+        return _registered_analyzer_spec(self.registry_name)
+
+    @property
     def config_field(self) -> str:
-        return _registered_analyzer_spec(self.registry_name).config_field
+        return self.spec.config_field
 
     @property
     def attribute_name(self) -> str:
-        return _registered_analyzer_spec(self.registry_name).attribute_name
+        return self.spec.attribute_name
+
+    @property
+    def analyzer_attr(self) -> str:
+        return self.spec.attribute_name
+
+    @property
+    def save_subdir(self) -> str:
+        return self.spec.save_subdir
+
+
+@dataclass(frozen=True)
+class _AnalyzerInitializer(_RegisteredAnalysisMetadata):
+    """Construction metadata used by AnalysisManager."""
 
     @property
     def analyzer_cls(self) -> type:
@@ -43,7 +60,7 @@ class _AnalyzerInitializer:
 
     @property
     def constructor_style(self) -> str:
-        return _registered_analyzer_spec(self.registry_name).constructor_style
+        return self.spec.constructor_style
 
     def build(self, *, model: object, params: object | None) -> object:
         """Instantiate this analyzer using its registered constructor style."""
@@ -62,45 +79,19 @@ class _AnalyzerInitializer:
 
 
 @dataclass(frozen=True)
-class _TestDatasetAnalysisRunner:
+class _TestDatasetAnalysisRunner(_RegisteredAnalysisMetadata):
     """Execution metadata for analyzers sharing the test-dataset signature."""
 
-    registry_name: str
     pass_training: bool = False
     require_analyzer: bool = False
 
-    @property
-    def config_field(self) -> str:
-        return _registered_analyzer_spec(self.registry_name).config_field
-
-    @property
-    def analyzer_attr(self) -> str:
-        return _registered_analyzer_spec(self.registry_name).attribute_name
-
-    @property
-    def save_subdir(self) -> str:
-        return _registered_analyzer_spec(self.registry_name).save_subdir
-
 
 @dataclass(frozen=True)
-class _ModelOnlyAnalysisRunner:
+class _ModelOnlyAnalysisRunner(_RegisteredAnalysisMetadata):
     """Execution metadata for analyzers sharing the model-only signature."""
 
-    registry_name: str
     start_message: str
     complete_message: str
-
-    @property
-    def config_field(self) -> str:
-        return _registered_analyzer_spec(self.registry_name).config_field
-
-    @property
-    def analyzer_attr(self) -> str:
-        return _registered_analyzer_spec(self.registry_name).attribute_name
-
-    @property
-    def save_subdir(self) -> str:
-        return _registered_analyzer_spec(self.registry_name).save_subdir
 
 
 @dataclass(frozen=True)

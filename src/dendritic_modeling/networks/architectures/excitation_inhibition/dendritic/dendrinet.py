@@ -187,45 +187,10 @@ class DendriNet(nn.Module):
         branch_factors.reverse()
         branch_factors.insert(0, None)
         branch_layers = []
-        formal_synapse_kwargs = {
-            "topk_init_method": topk_init_method,
-            "topk_noise_level": topk_noise_level,
-            "topk_type": topk_type,
-            "topk_weight_norm_order": topk_weight_norm_order,
-            "topk_gamma": topk_gamma,
-            "topk_temperature": topk_temperature,
-            "topk_ultrafast": topk_ultrafast,
-            "topk_strategy": topk_strategy,
-            "use_shunting": use_shunting,
-            "reactivate": reactivate,
-            "reactivation_type": reactivation_type,
-            "dendritic_activation": dendritic_activation,
-            "reactivation_strategy": reactivation_strategy,
-            "blocklinear_strategy": blocklinear_strategy,
-            "print_hooks": print_hooks,
-            "reactivation_init_m": reactivation_init_m,
-            "reactivation_init_b": reactivation_init_b,
-            "reactivation_init_policy": reactivation_init_policy,
-            "reactivation_sigma_aware_k": reactivation_sigma_aware_k,
-            "dbl_init_method": dbl_init_method,
-            "excitatory_target_density": excitatory_target_density,
-            "inhibitory_target_density": inhibitory_target_density,
-            "use_noise": use_noise,
-            "sigma": sigma,
-            "rewiring_mode": rewiring_mode,
-            "rewire_frequency": rewire_frequency,
-            "synapses_per_branch": synapses_per_branch,
-            "efficient_blocklinear": efficient_blocklinear,
-            "freeze_excitatory_connectivity": freeze_excitatory_connectivity,
-            "freeze_inhibitory_connectivity": freeze_inhibitory_connectivity,
-            "init_method": init_method,
-            "weight_threshold": weight_threshold,
-            "adaptive_initialization": adaptive_initialization,
-            "adaptive_initialization_policy": adaptive_initialization_policy,
-            "adaptive_target_conductance": adaptive_target_conductance,
-            "branch_factors": self.branch_factors,
-            "weight_transform": weight_transform,
-        }
+        formal_synapse_kwargs = DendriticSynapseConfig.legacy_kwargs_from_mapping(
+            locals()
+        )
+        formal_synapse_kwargs["branch_factors"] = self.branch_factors
         if synapse_config is None:
             reactivate, reactivation_type = resolve_dendritic_activation(
                 dendritic_activation,
