@@ -148,6 +148,30 @@ def test_run_between_stage_analysis_restores_save_root_after_success(tmp_path):
     assert analysis_manager.save_root == str(tmp_path)
 
 
+def test_run_between_stage_analysis_restores_save_root_after_failure(tmp_path):
+    calls = []
+
+    class _AnalysisManager:
+        def __init__(self):
+            self.save_root = str(tmp_path)
+
+        def run_analysis(self, *, filename, training):
+            calls.append((self.save_root, filename, training))
+            raise RuntimeError("analysis failed")
+
+    analysis_manager = _AnalysisManager()
+
+    try:
+        _run_between_stage_analysis(analysis_manager, "stage_1", str(tmp_path))
+    except RuntimeError as exc:
+        assert str(exc) == "analysis failed"
+    else:
+        raise AssertionError("Expected analysis failure")
+
+    assert calls == [(str(tmp_path / "stage_1"), "stage_1", False)]
+    assert analysis_manager.save_root == str(tmp_path)
+
+
 def test_build_stage_trainer_config_applies_stage_overrides_and_global_defaults():
     base_config = {
         "epochs": 5,

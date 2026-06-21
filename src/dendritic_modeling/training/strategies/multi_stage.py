@@ -108,10 +108,11 @@ def _run_between_stage_analysis(
         stage_save_root = os.path.join(original_save_root, stage_name)
         analysis_manager.save_root = stage_save_root
 
-    analysis_manager.run_analysis(filename=f"{stage_name}", training=False)
-
-    if original_save_root is not None:
-        analysis_manager.save_root = original_save_root
+    try:
+        analysis_manager.run_analysis(filename=f"{stage_name}", training=False)
+    finally:
+        if original_save_root is not None:
+            analysis_manager.save_root = original_save_root
 
 
 def _build_stage_trainer_config(

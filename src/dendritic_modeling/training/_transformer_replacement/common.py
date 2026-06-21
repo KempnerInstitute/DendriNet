@@ -12,11 +12,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, TensorDataset
 
-from dendritic_modeling.training.dataloader_utils import (
-    resolve_dataloader_tuning_from_config,
-)
 from dendritic_modeling.training.replacement_common import (
     _compute_transformer_distillation_loss as _compute_distillation_loss,
+    _make_replacement_loader,
     _resolve_device,
     _resolve_dtype,
     _to_plain_mapping,
@@ -167,21 +165,12 @@ def _make_tensor_loader(
     device: torch.device | str | None = None,
 ) -> DataLoader:
     """Build the tensor-cache loader used by transformer replacement paths."""
-    loader_kwargs = (
-        resolve_dataloader_tuning_from_config(
-            dataset,
-            train_cfg,
-            device=device,
-        ).as_kwargs()
-        if train_cfg is not None
-        else {}
-    )
-    return DataLoader(
+    return _make_replacement_loader(
         dataset,
         batch_size=batch_size,
         shuffle=shuffle,
-        drop_last=False,
-        **loader_kwargs,
+        train_cfg=train_cfg,
+        device=device,
     )
 
 

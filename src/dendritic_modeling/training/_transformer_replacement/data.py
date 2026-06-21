@@ -25,6 +25,7 @@ from dendritic_modeling.training._transformer_replacement.common import (
     DistillationUnit,
     _to_plain_mapping,
 )
+from dendritic_modeling.training.replacement_common import _load_tensor_payload
 from dendritic_modeling.utils.hooks import remove_hook_handles
 
 
@@ -116,9 +117,10 @@ def _build_synthetic_datasets(
 
 
 def _load_tensor(path: str) -> Any:
-    if not path:
-        raise ValueError("Hidden-cache tensor path is empty")
-    return torch.load(path, map_location="cpu")
+    return _load_tensor_payload(
+        path,
+        empty_path_message="Hidden-cache tensor path is empty",
+    )
 
 
 def _select_layer_tensor(payload: Any, layer_index: int) -> torch.Tensor:

@@ -10,8 +10,13 @@ from typing import Any, Literal
 import torch
 import torch.nn.functional as F
 from torch.amp import GradScaler
+from torch.utils.data import DataLoader, Dataset
 
 from dendritic_modeling.config.conversion import to_plain_dict
+from dendritic_modeling.training.dataloader_utils import (
+    DataLoaderTuning,
+    resolve_dataloader_tuning_from_config,
+)
 
 _DTYPE_ALIASES = {
     "float": torch.float32,
@@ -205,6 +210,66 @@ def _infinite_loader(loader: Any):
         yield from loader
 
 
+def _load_tensor_payload(
+    path: str,
+    *,
+    empty_path_message: str,
+) -> Any:
+    """Load a tensor-cache payload from disk onto CPU."""
+    if not path:
+        raise ValueError(empty_path_message)
+    return torch.load(path, map_location="cpu")
+
+
+def _load_required_tensor(
+    path: str,
+    *,
+    empty_path_message: str,
+    type_error_message: str,
+) -> torch.Tensor:
+    """Load a tensor-cache payload that must be a tensor."""
+    payload = _load_tensor_payload(path, empty_path_message=empty_path_message)
+    if not torch.is_tensor(payload):
+        raise TypeError(type_error_message)
+    return payload
+
+
+def _resolve_replacement_loader_tuning(
+    dataset: Dataset,
+    train_cfg: Any,
+    *,
+    device: torch.device | str | None = None,
+) -> DataLoaderTuning:
+    """Resolve DataLoader tuning for tensor-cache replacement datasets."""
+    return resolve_dataloader_tuning_from_config(dataset, train_cfg, device=device)
+
+
+def _make_replacement_loader(
+    dataset: Dataset,
+    *,
+    batch_size: int,
+    shuffle: bool,
+    train_cfg: Any | None = None,
+    device: torch.device | str | None = None,
+    tuning: DataLoaderTuning | None = None,
+) -> DataLoader:
+    """Build the shared non-dropping DataLoader for replacement training."""
+    if tuning is None and train_cfg is not None:
+        tuning = _resolve_replacement_loader_tuning(
+            dataset,
+            train_cfg,
+            device=device,
+        )
+    loader_kwargs = tuning.as_kwargs() if tuning is not None else {}
+    return DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        drop_last=False,
+        **loader_kwargs,
+    )
+
+
 def _write_metrics_json(
     result: Any,
     *,
@@ -224,9 +289,13 @@ __all__ = [
     "_compute_transformer_distillation_loss",
     "_compute_vision_distillation_loss",
     "_infinite_loader",
+    "_load_required_tensor",
+    "_load_tensor_payload",
     "_make_cuda_grad_scaler",
+    "_make_replacement_loader",
     "_resolve_device",
     "_resolve_dtype",
+    "_resolve_replacement_loader_tuning",
     "_should_run_periodic_step",
     "_to_plain_mapping",
     "_write_metrics_json",

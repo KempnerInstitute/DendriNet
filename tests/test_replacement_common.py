@@ -1,4 +1,5 @@
 import json
+from types import SimpleNamespace
 
 import pytest
 import torch
@@ -11,7 +12,10 @@ from dendritic_modeling.training.replacement_common import (
     ReplacementTrainingHistory,
     _compute_distillation_loss as _compute_shared_distillation_loss,
     _infinite_loader,
+    _load_required_tensor,
+    _load_tensor_payload,
     _make_cuda_grad_scaler,
+    _make_replacement_loader,
     _resolve_dtype,
     _should_run_periodic_step,
     _write_metrics_json,
@@ -216,6 +220,75 @@ def test_shared_infinite_loader_restarts_without_cycle_cache():
     observed = [int(next(iterator)[0].item()) for _ in range(5)]
 
     assert observed == [1, 2, 3, 1, 2]
+
+
+def test_shared_tensor_payload_loader_preserves_loaded_payload(tmp_path):
+    payload = {"layer_0": torch.tensor([1.0, 2.0])}
+    path = tmp_path / "payload.pt"
+    torch.save(payload, path)
+
+    loaded = _load_tensor_payload(
+        str(path),
+        empty_path_message="missing tensor cache",
+    )
+
+    assert loaded.keys() == payload.keys()
+    torch.testing.assert_close(loaded["layer_0"], payload["layer_0"])
+
+
+def test_shared_required_tensor_loader_validates_path_and_type(tmp_path):
+    tensor_path = tmp_path / "tensor.pt"
+    dict_path = tmp_path / "dict.pt"
+    expected = torch.tensor([[1.0, 2.0]])
+    torch.save(expected, tensor_path)
+    torch.save({"not": "a tensor"}, dict_path)
+
+    loaded = _load_required_tensor(
+        str(tensor_path),
+        empty_path_message="empty path",
+        type_error_message="must be tensor",
+    )
+
+    torch.testing.assert_close(loaded, expected)
+    with pytest.raises(ValueError, match="empty path"):
+        _load_required_tensor(
+            "",
+            empty_path_message="empty path",
+            type_error_message="must be tensor",
+        )
+    with pytest.raises(TypeError, match="must be tensor"):
+        _load_required_tensor(
+            str(dict_path),
+            empty_path_message="empty path",
+            type_error_message="must be tensor",
+        )
+
+
+def test_shared_replacement_loader_preserves_configured_tuning():
+    dataset = torch.utils.data.TensorDataset(
+        torch.arange(5).unsqueeze(1),
+        torch.arange(5).unsqueeze(1),
+    )
+    train_cfg = SimpleNamespace(
+        num_workers=1,
+        pin_memory=False,
+        persistent_workers=True,
+        prefetch_factor=3,
+    )
+
+    loader = _make_replacement_loader(
+        dataset,
+        batch_size=2,
+        shuffle=False,
+        train_cfg=train_cfg,
+        device="cpu",
+    )
+
+    assert loader.num_workers == 1
+    assert loader.pin_memory is False
+    assert loader.persistent_workers is True
+    assert loader.prefetch_factor == 3
+    assert loader.drop_last is False
 
 
 def test_replacement_training_history_tracks_best_validation_loss():

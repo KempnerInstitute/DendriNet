@@ -3133,6 +3133,83 @@ class TestAnalysisManager(unittest.TestCase):
             mock_info.assert_not_called()
             mock_analyzer.assert_not_called()
 
+    def test_training_flag_model_analysis_preserves_call_kwargs(self):
+        """Shared model/training helper should preserve weight-style analyzer calls."""
+        config = AnalysisConfig()
+        config.performance_analysis.enabled = False
+        config.weight_analysis.enabled = True
+        config.weight_analysis.training = True
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manager = AnalysisManager(
+                model=self.model,
+                data=self.data,
+                analysis_config=config,
+                save_root=tmpdir,
+            )
+
+            with patch.object(manager, "weight_analyzer") as mock_analyzer:
+                manager._run_training_flag_model_analysis(
+                    registry_name="weight",
+                    filename="epoch_weight",
+                    training=True,
+                )
+
+            mock_analyzer.analyze.assert_called_once()
+            call_kwargs = mock_analyzer.analyze.call_args.kwargs
+            spec = get_analyzer_spec("weight")
+            assert spec is not None
+            self.assertIs(call_kwargs["model"], self.model)
+            self.assertEqual(
+                call_kwargs["save_path"],
+                str(Path(tmpdir) / spec.save_subdir),
+            )
+            self.assertEqual(call_kwargs["filename"], "epoch_weight")
+            self.assertTrue(call_kwargs["training"])
+
+    def test_split_dataset_analysis_preserves_custom_test_kwarg(self):
+        """Shared split-dataset helper should preserve analyzer-specific kwargs."""
+        config = AnalysisConfig()
+        config.performance_analysis.enabled = False
+        config.local_rule_component_analysis.enabled = True
+        config.local_rule_component_analysis.training = True
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manager = AnalysisManager(
+                model=self.model,
+                data=self.data,
+                analysis_config=config,
+                save_root=tmpdir,
+            )
+
+            spec = get_analyzer_spec("local_rule_components")
+            assert spec is not None
+            with patch.object(manager, spec.attribute_name) as mock_analyzer:
+                manager._run_split_dataset_analysis(
+                    registry_name="local_rule_components",
+                    filename="epoch_local_rule",
+                    training=True,
+                    runtime=manager.config.runtime.training,
+                    test_dataset_kwarg="test_dataset",
+                    require_analyzer=True,
+                )
+
+            mock_analyzer.analyze.assert_called_once()
+            call_kwargs = mock_analyzer.analyze.call_args.kwargs
+            self.assertIs(call_kwargs["model"], self.model)
+            self.assertIs(call_kwargs["train_ds"], self.data["train"])
+            self.assertIs(call_kwargs["valid_ds"], self.data["valid"])
+            self.assertIs(call_kwargs["test_dataset"], self.data["test"])
+            self.assertNotIn("test_ds", call_kwargs)
+            self.assertEqual(call_kwargs["device"], "cpu")
+            self.assertEqual(
+                call_kwargs["save_path"],
+                str(Path(tmpdir) / spec.save_subdir),
+            )
+            self.assertEqual(call_kwargs["filename"], "epoch_local_rule")
+            self.assertTrue(call_kwargs["training"])
+            self.assertIs(call_kwargs["runtime"], manager.config.runtime.training)
+
     def test_common_test_dataset_runners_resolve_registry_metadata(self):
         """Common runner tables should stay synchronized with the registry."""
         from dendritic_modeling.analysis.managers.analysis_manager import (

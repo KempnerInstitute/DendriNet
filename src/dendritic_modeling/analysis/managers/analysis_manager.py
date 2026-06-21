@@ -363,26 +363,37 @@ class AnalysisManager:
 
     def _run_synaptic_turnover_analysis(self, *, filename: str, training: bool) -> None:
         """Run synaptic turnover analysis."""
-        if not self._should_run_config(
-            self._analysis_config("synapse_turnover"), training
-        ):
-            return
-
-        self._analysis_analyzer("synapse_turnover").analyze(
-            model=self.model,
-            training=training,
-            save_path=self._analysis_save_path("synapse_turnover"),
+        self._run_training_flag_model_analysis(
+            registry_name="synapse_turnover",
             filename=filename,
+            training=training,
         )
 
     def _run_weight_analysis(self, *, filename: str, training: bool) -> None:
         """Run weight analysis."""
-        if not self._should_run_config(self._analysis_config("weight"), training):
+        self._run_training_flag_model_analysis(
+            registry_name="weight",
+            filename=filename,
+            training=training,
+        )
+
+    def _run_training_flag_model_analysis(
+        self,
+        *,
+        registry_name: str,
+        filename: str,
+        training: bool,
+    ) -> None:
+        """Run an analyzer with the model/save-path/filename/training signature."""
+        if not self._should_run_registered_analysis(
+            registry_name,
+            training=training,
+        ):
             return
 
-        self._analysis_analyzer("weight").analyze(
+        self._analysis_analyzer(registry_name).analyze(
             model=self.model,
-            save_path=self._analysis_save_path("weight"),
+            save_path=self._analysis_save_path(registry_name),
             filename=filename,
             training=training,
         )
@@ -391,18 +402,8 @@ class AnalysisManager:
         self, *, filename: str, training: bool, runtime: object | None
     ) -> None:
         """Run reactivation dynamics analysis."""
-        if not self._should_run_config(
-            self._analysis_config("reactivation_dynamics"), training
-        ):
-            return
-
-        self._analysis_analyzer("reactivation_dynamics").analyze(
-            model=self.model,
-            train_ds=self.data.get("train"),
-            valid_ds=self.data.get("valid"),
-            test_ds=self.data.get("test"),
-            device=self.device,
-            save_path=self._analysis_save_path("reactivation_dynamics"),
+        self._run_split_dataset_analysis(
+            registry_name="reactivation_dynamics",
             filename=filename,
             training=training,
             runtime=runtime,
@@ -412,24 +413,45 @@ class AnalysisManager:
         self, *, filename: str, training: bool, runtime: object | None
     ) -> None:
         """Run local-rule component analysis."""
-        if not self._should_run_registered_analysis(
-            "local_rule_components",
-            training=training,
-            require_analyzer=True,
-        ):
-            return
-
-        self._analysis_analyzer("local_rule_components").analyze(
-            model=self.model,
-            train_ds=self.data.get("train"),
-            valid_ds=self.data.get("valid"),
-            test_dataset=self.data.get("test"),
-            device=self.device,
-            save_path=self._analysis_save_path("local_rule_components"),
+        self._run_split_dataset_analysis(
+            registry_name="local_rule_components",
             filename=filename,
             training=training,
             runtime=runtime,
+            test_dataset_kwarg="test_dataset",
+            require_analyzer=True,
         )
+
+    def _run_split_dataset_analysis(
+        self,
+        *,
+        registry_name: str,
+        filename: str,
+        training: bool,
+        runtime: object | None,
+        test_dataset_kwarg: str = "test_ds",
+        require_analyzer: bool = False,
+    ) -> None:
+        """Run an analyzer with train/valid/test split datasets."""
+        if not self._should_run_registered_analysis(
+            registry_name,
+            training=training,
+            require_analyzer=require_analyzer,
+        ):
+            return
+
+        kwargs = {
+            "model": self.model,
+            "train_ds": self.data.get("train"),
+            "valid_ds": self.data.get("valid"),
+            test_dataset_kwarg: self.data.get("test"),
+            "device": self.device,
+            "save_path": self._analysis_save_path(registry_name),
+            "filename": filename,
+            "training": training,
+            "runtime": runtime,
+        }
+        self._analysis_analyzer(registry_name).analyze(**kwargs)
 
     def _run_correlation_analysis(
         self, *, filename: str, training: bool, runtime: object | None

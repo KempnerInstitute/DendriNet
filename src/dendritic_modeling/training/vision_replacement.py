@@ -15,18 +15,17 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from dendritic_modeling.config import Config
 from dendritic_modeling.scripts.script_utils.setup_utils import initialize_model
-from dendritic_modeling.training.dataloader_utils import (
-    DataLoaderTuning,
-    resolve_dataloader_tuning_from_config,
-)
 from dendritic_modeling.training.optimizers import create_optimizer
 from dendritic_modeling.training.replacement_common import (
     ReplacementTrainingHistory,
     _compute_vision_distillation_loss as _compute_distillation_loss,
     _infinite_loader,
+    _load_required_tensor,
     _make_cuda_grad_scaler,
+    _make_replacement_loader,
     _resolve_device,
     _resolve_dtype,
+    _resolve_replacement_loader_tuning,
     _should_run_periodic_step,
     _to_plain_mapping,
     _write_metrics_json,
@@ -54,12 +53,11 @@ class VisionReplacementTrainingResult:
 
 
 def _load_tensor(path: str) -> torch.Tensor:
-    if not path:
-        raise ValueError("Vision replacement tensor-cache path is empty")
-    payload = torch.load(path, map_location="cpu")
-    if not torch.is_tensor(payload):
-        raise TypeError("Vision replacement tensor cache entries must be tensors")
-    return payload
+    return _load_required_tensor(
+        path,
+        empty_path_message="Vision replacement tensor-cache path is empty",
+        type_error_message="Vision replacement tensor cache entries must be tensors",
+    )
 
 
 def _build_tensor_datasets(config: Config) -> tuple[TensorDataset, TensorDataset]:
@@ -147,15 +145,6 @@ def _validate_source_train_target(teacher_source: str, train_target: str) -> Non
         )
 
 
-def _resolve_vision_loader_tuning(
-    train_cfg: Any,
-    dataset: torch.utils.data.Dataset,
-    *,
-    device: torch.device,
-) -> DataLoaderTuning:
-    return resolve_dataloader_tuning_from_config(dataset, train_cfg, device=device)
-
-
 def _make_vision_loader(
     dataset: torch.utils.data.Dataset,
     train_cfg: Any,
@@ -164,15 +153,14 @@ def _make_vision_loader(
     shuffle: bool,
     log_tuning: bool = False,
 ) -> DataLoader:
-    tuning = _resolve_vision_loader_tuning(train_cfg, dataset, device=device)
+    tuning = _resolve_replacement_loader_tuning(dataset, train_cfg, device=device)
     if log_tuning:
         logger.info("Vision replacement DataLoader tuning: %s", tuning.summary(dataset))
-    return DataLoader(
+    return _make_replacement_loader(
         dataset,
         batch_size=train_cfg.batch_size,
         shuffle=shuffle,
-        drop_last=False,
-        **tuning.as_kwargs(),
+        tuning=tuning,
     )
 
 
