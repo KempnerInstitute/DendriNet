@@ -23,6 +23,7 @@ _SUPPORTED_WEIGHT_TRANSFORMS: tuple[WeightTransformType, ...] = (
 _TensorTransform = Callable[[torch.Tensor], torch.Tensor]
 DEFAULT_SAFE_EXP_MARGIN = 1.0
 INVERSE_EXP_EPS = 1e-8
+INVERSE_SOFTPLUS_EPS = 1e-8
 
 
 def safe_exp(
@@ -42,7 +43,7 @@ def safe_exp(
 def inverse_softplus(
     positive_weights: torch.Tensor,
     *,
-    eps: float = 1e-8,
+    eps: float = INVERSE_SOFTPLUS_EPS,
 ) -> torch.Tensor:
     """Numerically stable inverse of ``softplus`` for positive values.
 

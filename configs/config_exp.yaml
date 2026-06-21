@@ -81,7 +81,6 @@ data:
       noise_std: 0.1                    # float: Additive noise std
     imagenet:
       transform_preset: "legacy_resize"      # str: "legacy_resize" (compat) | "pretrained" (torchvision backbone)
-      allow_fake_data: false                 # bool: Explicit fake ImageNet smoke data only
       allow_flatten_materialize: false       # bool: Opt in before flattening full ImageNet tensors
       train_samples_per_class: null     # int | null: Subsample train (null = all)
       val_samples_per_class: null       # int | null: Subsample val (null = all)

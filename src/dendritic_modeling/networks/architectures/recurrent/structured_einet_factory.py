@@ -75,6 +75,26 @@ class _RecurrentSynapseCounts:
 
 
 @dataclass(frozen=True)
+class _LayerPopulationSynapseCounts:
+    ff_excitatory: int
+    ff_inhibitory: int
+    rec_excitatory: int
+    rec_inhibitory: int
+
+    @property
+    def has_incoming_synapses(self) -> bool:
+        return any(
+            value > 0
+            for value in (
+                self.ff_excitatory,
+                self.ff_inhibitory,
+                self.rec_excitatory,
+                self.rec_inhibitory,
+            )
+        )
+
+
+@dataclass(frozen=True)
 class _RecurrentFeatureFlags:
     has_rec_synapses: bool
     has_soma_feedback: bool
@@ -464,6 +484,394 @@ def _direct_ff_inhibitory_enabled(
     return False
 
 
+def _resolve_layer_inhibitory_synapse_counts(
+    *,
+    connectivity: dict[str, Any],
+    counts: _RecurrentSynapseCounts,
+    layer_idx: int,
+) -> _LayerPopulationSynapseCounts:
+    """Resolve feedforward/recurrent synapse counts for one inhibitory population."""
+    return _LayerPopulationSynapseCounts(
+        ff_excitatory=int(
+            _layer_value(
+                connectivity.get("ei_synapses_per_branch_per_layer", []),
+                layer_idx,
+                default=0,
+            )
+        ),
+        ff_inhibitory=int(
+            _layer_value(
+                connectivity.get("ii_synapses_per_branch_per_layer", []),
+                layer_idx,
+                default=0,
+            )
+        ),
+        rec_excitatory=int(_layer_value(counts.rec_ei, layer_idx, default=0)),
+        rec_inhibitory=int(_layer_value(counts.rec_ii, layer_idx, default=0)),
+    )
+
+
+def _resolve_layer_excitatory_synapse_counts(
+    *,
+    connectivity: dict[str, Any],
+    counts: _RecurrentSynapseCounts,
+    layer_idx: int,
+) -> _LayerPopulationSynapseCounts:
+    """Resolve feedforward/recurrent synapse counts for one excitatory population."""
+    return _LayerPopulationSynapseCounts(
+        ff_excitatory=int(
+            _layer_value(
+                connectivity.get("ee_synapses_per_branch_per_layer", []),
+                layer_idx,
+                default=0,
+            )
+        ),
+        ff_inhibitory=int(
+            _layer_value(
+                connectivity.get("ie_synapses_per_branch_per_layer", []),
+                layer_idx,
+                default=0,
+            )
+        ),
+        rec_excitatory=int(_layer_value(counts.rec_ee, layer_idx, default=0)),
+        rec_inhibitory=int(_layer_value(counts.rec_ie, layer_idx, default=0)),
+    )
+
+
+def _should_build_inhibitory_population(
+    *,
+    n_inh: int,
+    synapses: _LayerPopulationSynapseCounts,
+) -> bool:
+    # Positive inhibitory sizes without incoming synapses preserve legacy direct-stream
+    # behavior: the size can be present in the config without constructing a population.
+    return n_inh > 0 and synapses.has_incoming_synapses
+
+
+def _structured_population_sparsity_kwargs(
+    *,
+    sparsity: dict[str, Any],
+    dense_to_sparse: dict[str, Any],
+    indexed: dict[str, Any],
+) -> dict[str, Any]:
+    """Translate structured sparsity config into PopulationConfig kwargs."""
+    return {
+        "topk_init_method": str(sparsity.get("init_method", "xavier_normal")),
+        "topk_noise_level": float(sparsity.get("noise_level", 0.0)),
+        "topk_type": _normalize_sparsity_type(sparsity.get("type", "standard")),
+        "topk_weight_norm_order": sparsity.get("weight_norm_order"),
+        "topk_gamma": float(sparsity.get("gamma", 1.0)),
+        "topk_temperature": float(sparsity.get("temperature", 0.0)),
+        "topk_ultrafast": bool(sparsity.get("ultrafast", False)),
+        "topk_strategy": str(sparsity.get("gradient_scaling", "none")),
+        "dense_to_sparse_initial_density": float(
+            dense_to_sparse.get("initial_density", 1.0)
+        ),
+        "dense_to_sparse_initial_k": dense_to_sparse.get("initial_k"),
+        "dense_to_sparse_start_step": int(dense_to_sparse.get("start_step", 0)),
+        "dense_to_sparse_end_step": int(dense_to_sparse.get("end_step", 1000)),
+        "dense_to_sparse_update_interval": int(
+            dense_to_sparse.get("update_interval", 1)
+        ),
+        "dense_to_sparse_schedule": str(dense_to_sparse.get("schedule", "cubic")),
+        "dense_to_sparse_freeze_on_end": bool(
+            dense_to_sparse.get("freeze_on_end", False)
+        ),
+        "dense_to_sparse_advance_on_forward": bool(
+            dense_to_sparse.get("advance_on_forward", True)
+        ),
+        "dense_to_sparse_prune_metric": str(
+            dense_to_sparse.get("prune_metric", "weight")
+        ),
+        "indexed_seed": indexed.get("seed", sparsity.get("seed")),
+        "indexed_candidate_size": indexed.get("candidate_size"),
+        "indexed_selection": str(indexed.get("selection", "standard")),
+        "indexed_output_chunk_size": int(indexed.get("output_chunk_size", 2048)),
+        "indexed_rewire_frequency": int(indexed.get("rewire_frequency", 100)),
+        "indexed_rewire_quantile": float(indexed.get("rewire_quantile", 0.05)),
+        "indexed_rewire_until_step": indexed.get("rewire_until_step"),
+    }
+
+
+def _structured_population_deepst_kwargs(deepst: dict[str, Any]) -> dict[str, Any]:
+    """Translate structured DeepST config into PopulationConfig kwargs."""
+    return {
+        "excitatory_target_density": float(
+            deepst.get("excitatory_target_density", 0.1)
+        ),
+        "inhibitory_target_density": float(
+            deepst.get("inhibitory_target_density", 0.1)
+        ),
+        "use_noise": bool(deepst.get("use_noise", True)),
+        "sigma": float(deepst.get("sigma", 0.05)),
+        "rewiring_mode": str(deepst.get("rewiring_mode", "global")),
+        "rewire_frequency": int(deepst.get("rewire_frequency", 1)),
+        "synapses_per_branch": deepst.get("synapses_per_branch"),
+        "freeze_excitatory_connectivity": bool(
+            deepst.get("freeze_excitatory_connectivity", False)
+        ),
+        "freeze_inhibitory_connectivity": bool(
+            deepst.get("freeze_inhibitory_connectivity", False)
+        ),
+        "init_method": str(deepst.get("init_method", "xavier_normal")),
+        "weight_threshold": float(deepst.get("weight_threshold", 1e-6)),
+    }
+
+
+def _structured_population_adaptive_init_kwargs(
+    implementation: dict[str, Any],
+) -> dict[str, Any]:
+    """Translate adaptive-initialization implementation settings."""
+    return {
+        "adaptive_initialization": bool(
+            implementation.get("adaptive_initialization", False)
+        ),
+        "adaptive_initialization_policy": str(
+            implementation.get(
+                "adaptive_initialization_policy",
+                "preserve_shunting_center",
+            )
+        ),
+        "adaptive_target_conductance": float(
+            implementation.get("adaptive_target_conductance", 5.0)
+        ),
+    }
+
+
+def _structured_population_dynamics_kwargs(
+    dynamics: dict[str, Any],
+) -> dict[str, Any]:
+    """Translate somatic spiking dynamics config into PopulationConfig kwargs."""
+    return {
+        "dynamics_mode": str(
+            dynamics.get("mode", dynamics.get("dynamics_mode", "rate"))
+        ),
+        "spike_threshold": float(
+            dynamics.get("threshold", dynamics.get("spike_threshold", 1.0))
+        ),
+        "spike_reset": float(dynamics.get("reset", dynamics.get("spike_reset", 0.0))),
+        "spike_tau": float(dynamics.get("tau", dynamics.get("spike_tau", 20.0))),
+        "spike_refractory_steps": int(
+            dynamics.get("refractory_steps", dynamics.get("spike_refractory_steps", 0))
+        ),
+        "spike_surrogate_beta": float(
+            dynamics.get("surrogate_beta", dynamics.get("spike_surrogate_beta", 10.0))
+        ),
+        "spike_readout": str(
+            dynamics.get("readout", dynamics.get("spike_readout", "spikes"))
+        ),
+        "spike_readout_tau": float(
+            dynamics.get("readout_tau", dynamics.get("spike_readout_tau", 20.0))
+        ),
+    }
+
+
+def _structured_population_dendritic_spike_kwargs(
+    *,
+    dendritic_spikes: dict[str, Any],
+    dynamics: dict[str, Any],
+) -> dict[str, Any]:
+    """Translate dendritic-spike config into PopulationConfig kwargs."""
+    return {
+        "dendritic_spikes_enabled": bool(
+            dendritic_spikes.get(
+                "enabled",
+                dynamics.get("dendritic_spikes_enabled", False),
+            )
+        ),
+        "dendritic_spike_mode": str(
+            dendritic_spikes.get(
+                "mode",
+                dynamics.get("dendritic_spike_mode", "plateau"),
+            )
+        ),
+        "dendritic_spike_levels": dendritic_spikes.get(
+            "levels",
+            dynamics.get("dendritic_spike_levels", "non_soma"),
+        ),
+        "dendritic_spike_threshold": float(
+            dendritic_spikes.get(
+                "threshold",
+                dynamics.get("dendritic_spike_threshold", 0.7),
+            )
+        ),
+        "dendritic_spike_plateau_amplitude": float(
+            dendritic_spikes.get(
+                "plateau_amplitude",
+                dynamics.get("dendritic_spike_plateau_amplitude", 1.0),
+            )
+        ),
+        "dendritic_spike_plateau_tau": float(
+            dendritic_spikes.get(
+                "plateau_tau",
+                dynamics.get("dendritic_spike_plateau_tau", 20.0),
+            )
+        ),
+        "dendritic_spike_refractory_steps": int(
+            dendritic_spikes.get(
+                "refractory_steps",
+                dynamics.get("dendritic_spike_refractory_steps", 0),
+            )
+        ),
+        "dendritic_spike_surrogate_beta": float(
+            dendritic_spikes.get(
+                "surrogate_beta",
+                dynamics.get("dendritic_spike_surrogate_beta", 10.0),
+            )
+        ),
+        "dendritic_spike_propagation": str(
+            dendritic_spikes.get(
+                "propagation",
+                dynamics.get("dendritic_spike_propagation", "additive"),
+            )
+        ),
+    }
+
+
+def _structured_population_soma_feedback_kwargs(
+    *,
+    soma_feedback: dict[str, Any],
+    dynamics: dict[str, Any],
+) -> dict[str, Any]:
+    """Translate soma-feedback config into PopulationConfig kwargs."""
+    return {
+        "soma_feedback_enabled": bool(
+            soma_feedback.get(
+                "enabled",
+                dynamics.get("soma_feedback_enabled", False),
+            )
+        ),
+        "soma_feedback_mode": str(
+            soma_feedback.get(
+                "mode",
+                dynamics.get("soma_feedback_mode", "additive"),
+            )
+        ),
+        "soma_feedback_source": str(
+            soma_feedback.get(
+                "source",
+                dynamics.get("soma_feedback_source", "output"),
+            )
+        ),
+        "soma_feedback_levels": soma_feedback.get(
+            "levels",
+            dynamics.get("soma_feedback_levels", "non_soma"),
+        ),
+        "soma_feedback_strength": float(
+            soma_feedback.get(
+                "strength",
+                dynamics.get("soma_feedback_strength", 0.1),
+            )
+        ),
+        "soma_feedback_learnable_strength": bool(
+            soma_feedback.get(
+                "learnable_strength",
+                dynamics.get("soma_feedback_learnable_strength", False),
+            )
+        ),
+        "soma_feedback_per_level": bool(
+            soma_feedback.get(
+                "per_level",
+                dynamics.get("soma_feedback_per_level", True),
+            )
+        ),
+        "soma_feedback_init_std": float(
+            soma_feedback.get(
+                "init_std",
+                dynamics.get("soma_feedback_init_std", 0.0),
+            )
+        ),
+        "soma_feedback_reversal": float(
+            soma_feedback.get(
+                "reversal",
+                dynamics.get("soma_feedback_reversal", 1.0),
+            )
+        ),
+    }
+
+
+def _structured_population_morphology_kwargs(
+    *,
+    morphology: dict[str, Any],
+    use_shunting: bool,
+    use_additive_normalization: bool,
+) -> dict[str, Any]:
+    """Translate morphology config into PopulationConfig kwargs."""
+    return {
+        "weight_transform": str(morphology.get("weight_transform", "softplus")),
+        "use_shunting": use_shunting,
+        "use_additive_normalization": use_additive_normalization,
+        "allow_self_recurrence": bool(morphology.get("allow_self_recurrence", True)),
+        "somatic_synapses": bool(morphology.get("somatic_synapses", False)),
+        "dbl_init_method": str(
+            morphology.get("dbl_init_method", "analytical_expectation")
+        ),
+    }
+
+
+def _structured_population_reactivation_kwargs(
+    *,
+    reactivation: dict[str, Any],
+    reactivation_options: _RecurrentReactivationOptions,
+) -> dict[str, Any]:
+    """Translate reactivation config into PopulationConfig kwargs."""
+    return {
+        "reactivate": reactivation_options.reactivate,
+        "reactivation_type": reactivation_options.reactivation_type,
+        "reactivation_init_m": reactivation_options.init_m,
+        "reactivation_init_b": reactivation_options.init_b,
+        "reactivation_init_policy": reactivation_options.init_policy,
+        "reactivation_occupancy_quantile_low": reactivation.get(
+            "occupancy_quantile_low"
+        ),
+        "reactivation_occupancy_quantile_high": reactivation.get(
+            "occupancy_quantile_high"
+        ),
+        "reactivation_occupancy_target_low": reactivation.get("occupancy_target_low"),
+        "reactivation_occupancy_target_high": reactivation.get("occupancy_target_high"),
+        "reactivation_calibration_min_quantile_width": float(
+            reactivation.get("calibration_min_quantile_width", 1e-3)
+        ),
+        "reactivation_calibration_max_m": float(
+            reactivation.get("calibration_max_m", 50.0)
+        ),
+        "reactivation_calibration_revert_on_invalid": bool(
+            reactivation.get("calibration_revert_on_invalid", True)
+        ),
+        "reactivation_sigma_aware_k": float(reactivation.get("sigma_aware_k", 0.25)),
+        "reactivation_strategy": str(reactivation.get("gradient_scaling", "none")),
+    }
+
+
+def _structured_population_blocklinear_kwargs(
+    *,
+    blocklinear: dict[str, Any],
+    implementation: dict[str, Any],
+) -> dict[str, Any]:
+    """Translate BlockLinear implementation settings into PopulationConfig kwargs."""
+    return {
+        "blocklinear_strategy": str(blocklinear.get("gradient_scaling", "none")),
+        "efficient_blocklinear": bool(blocklinear.get("efficient", False)),
+        "print_hooks": bool(implementation.get("print_hooks", False)),
+    }
+
+
+def _structured_population_timing_kwargs(
+    *,
+    recurrent_cfg: dict[str, Any],
+    tau_base: float,
+    tau_ratio: float,
+) -> dict[str, Any]:
+    """Translate recurrent timing config into PopulationConfig kwargs."""
+    return {
+        "level_taus": list(recurrent_cfg.get("level_taus", [])),
+        "tau_base": tau_base,
+        "tau_ratio": tau_ratio,
+        "learnable_tau": bool(recurrent_cfg.get("learnable_tau", False)),
+        "epsilon": float(recurrent_cfg.get("epsilon", 1e-8)),
+    }
+
+
 def _build_structured_excitatory_population_config(
     *,
     population_config_cls: type[Any],
@@ -491,119 +899,44 @@ def _build_structured_excitatory_population_config(
     dynamics = sections.dynamics
     dendritic_spikes = sections.dendritic_spikes
     soma_feedback = sections.soma_feedback
+    synapses = _resolve_layer_excitatory_synapse_counts(
+        connectivity=connectivity,
+        counts=counts,
+        layer_idx=layer_idx,
+    )
 
     return population_config_cls(
         n_neurons=int(n_exc),
         branch_factors=list(architecture.get("excitatory_branch_factors", [1]) or [1]),
-        ff_excitatory_synapses=int(
-            _layer_value(
-                connectivity.get("ee_synapses_per_branch_per_layer", []),
-                layer_idx,
-                default=0,
-            )
+        ff_excitatory_synapses=synapses.ff_excitatory,
+        ff_inhibitory_synapses=synapses.ff_inhibitory,
+        rec_excitatory_synapses=synapses.rec_excitatory,
+        rec_inhibitory_synapses=synapses.rec_inhibitory,
+        **_structured_population_sparsity_kwargs(
+            sparsity=sparsity,
+            dense_to_sparse=dense_to_sparse,
+            indexed=indexed,
         ),
-        ff_inhibitory_synapses=int(
-            _layer_value(
-                connectivity.get("ie_synapses_per_branch_per_layer", []),
-                layer_idx,
-                default=0,
-            )
+        **_structured_population_morphology_kwargs(
+            morphology=morphology,
+            use_shunting=use_shunting,
+            use_additive_normalization=use_additive_normalization,
         ),
-        rec_excitatory_synapses=int(_layer_value(counts.rec_ee, layer_idx, default=0)),
-        rec_inhibitory_synapses=int(_layer_value(counts.rec_ie, layer_idx, default=0)),
-        topk_init_method=str(sparsity.get("init_method", "xavier_normal")),
-        topk_noise_level=float(sparsity.get("noise_level", 0.0)),
-        topk_type=_normalize_sparsity_type(sparsity.get("type", "standard")),
-        topk_weight_norm_order=sparsity.get("weight_norm_order"),
-        topk_gamma=float(sparsity.get("gamma", 1.0)),
-        topk_temperature=float(sparsity.get("temperature", 0.0)),
-        topk_ultrafast=bool(sparsity.get("ultrafast", False)),
-        topk_strategy=str(sparsity.get("gradient_scaling", "none")),
-        dense_to_sparse_initial_density=float(
-            dense_to_sparse.get("initial_density", 1.0)
+        **_structured_population_reactivation_kwargs(
+            reactivation=reactivation,
+            reactivation_options=reactivation_options,
         ),
-        dense_to_sparse_initial_k=dense_to_sparse.get("initial_k"),
-        dense_to_sparse_start_step=int(dense_to_sparse.get("start_step", 0)),
-        dense_to_sparse_end_step=int(dense_to_sparse.get("end_step", 1000)),
-        dense_to_sparse_update_interval=int(dense_to_sparse.get("update_interval", 1)),
-        dense_to_sparse_schedule=str(dense_to_sparse.get("schedule", "cubic")),
-        dense_to_sparse_freeze_on_end=bool(dense_to_sparse.get("freeze_on_end", False)),
-        dense_to_sparse_advance_on_forward=bool(
-            dense_to_sparse.get("advance_on_forward", True)
+        **_structured_population_blocklinear_kwargs(
+            blocklinear=blocklinear,
+            implementation=implementation,
         ),
-        dense_to_sparse_prune_metric=str(dense_to_sparse.get("prune_metric", "weight")),
-        indexed_seed=indexed.get("seed", sparsity.get("seed")),
-        indexed_candidate_size=indexed.get("candidate_size"),
-        indexed_selection=str(indexed.get("selection", "standard")),
-        indexed_output_chunk_size=int(indexed.get("output_chunk_size", 2048)),
-        indexed_rewire_frequency=int(indexed.get("rewire_frequency", 100)),
-        indexed_rewire_quantile=float(indexed.get("rewire_quantile", 0.05)),
-        indexed_rewire_until_step=indexed.get("rewire_until_step"),
-        weight_transform=str(morphology.get("weight_transform", "softplus")),
-        use_shunting=use_shunting,
-        use_additive_normalization=use_additive_normalization,
-        allow_self_recurrence=bool(morphology.get("allow_self_recurrence", True)),
-        reactivate=reactivation_options.reactivate,
-        reactivation_type=reactivation_options.reactivation_type,
-        reactivation_init_m=reactivation_options.init_m,
-        reactivation_init_b=reactivation_options.init_b,
-        reactivation_init_policy=reactivation_options.init_policy,
-        reactivation_occupancy_quantile_low=reactivation.get("occupancy_quantile_low"),
-        reactivation_occupancy_quantile_high=reactivation.get(
-            "occupancy_quantile_high"
+        **_structured_population_timing_kwargs(
+            recurrent_cfg=recurrent_cfg,
+            tau_base=tau_base,
+            tau_ratio=tau_ratio,
         ),
-        reactivation_occupancy_target_low=reactivation.get("occupancy_target_low"),
-        reactivation_occupancy_target_high=reactivation.get("occupancy_target_high"),
-        reactivation_calibration_min_quantile_width=float(
-            reactivation.get("calibration_min_quantile_width", 1e-3)
-        ),
-        reactivation_calibration_max_m=float(
-            reactivation.get("calibration_max_m", 50.0)
-        ),
-        reactivation_calibration_revert_on_invalid=bool(
-            reactivation.get("calibration_revert_on_invalid", True)
-        ),
-        reactivation_sigma_aware_k=float(reactivation.get("sigma_aware_k", 0.25)),
-        reactivation_strategy=str(reactivation.get("gradient_scaling", "none")),
-        blocklinear_strategy=str(blocklinear.get("gradient_scaling", "none")),
-        level_taus=list(recurrent_cfg.get("level_taus", [])),
-        tau_base=tau_base,
-        tau_ratio=tau_ratio,
-        learnable_tau=bool(recurrent_cfg.get("learnable_tau", False)),
-        epsilon=float(recurrent_cfg.get("epsilon", 1e-8)),
-        somatic_synapses=bool(morphology.get("somatic_synapses", False)),
-        dbl_init_method=str(
-            morphology.get("dbl_init_method", "analytical_expectation")
-        ),
-        efficient_blocklinear=bool(blocklinear.get("efficient", False)),
-        print_hooks=bool(implementation.get("print_hooks", False)),
-        excitatory_target_density=float(deepst.get("excitatory_target_density", 0.1)),
-        inhibitory_target_density=float(deepst.get("inhibitory_target_density", 0.1)),
-        use_noise=bool(deepst.get("use_noise", True)),
-        sigma=float(deepst.get("sigma", 0.05)),
-        rewiring_mode=str(deepst.get("rewiring_mode", "global")),
-        rewire_frequency=int(deepst.get("rewire_frequency", 1)),
-        synapses_per_branch=deepst.get("synapses_per_branch"),
-        freeze_excitatory_connectivity=bool(
-            deepst.get("freeze_excitatory_connectivity", False)
-        ),
-        freeze_inhibitory_connectivity=bool(
-            deepst.get("freeze_inhibitory_connectivity", False)
-        ),
-        init_method=str(deepst.get("init_method", "xavier_normal")),
-        weight_threshold=float(deepst.get("weight_threshold", 1e-6)),
-        adaptive_initialization=bool(
-            implementation.get("adaptive_initialization", False)
-        ),
-        adaptive_initialization_policy=str(
-            implementation.get(
-                "adaptive_initialization_policy",
-                "preserve_shunting_center",
-            )
-        ),
-        adaptive_target_conductance=float(
-            implementation.get("adaptive_target_conductance", 5.0)
-        ),
+        **_structured_population_deepst_kwargs(deepst),
+        **_structured_population_adaptive_init_kwargs(implementation),
         structured_connectivity=_to_plain_mapping(sections.structured_connectivity),
         structured_layer_idx=layer_idx,
         ff_excitatory_pathway="ee",
@@ -611,127 +944,14 @@ def _build_structured_excitatory_population_config(
         rec_excitatory_pathway="rec_ee",
         rec_inhibitory_pathway="rec_ie",
         synapse_types=sections.synapse_types,
-        dynamics_mode=str(dynamics.get("mode", dynamics.get("dynamics_mode", "rate"))),
-        spike_threshold=float(
-            dynamics.get("threshold", dynamics.get("spike_threshold", 1.0))
+        **_structured_population_dynamics_kwargs(dynamics),
+        **_structured_population_dendritic_spike_kwargs(
+            dendritic_spikes=dendritic_spikes,
+            dynamics=dynamics,
         ),
-        spike_reset=float(dynamics.get("reset", dynamics.get("spike_reset", 0.0))),
-        spike_tau=float(dynamics.get("tau", dynamics.get("spike_tau", 20.0))),
-        spike_refractory_steps=int(
-            dynamics.get("refractory_steps", dynamics.get("spike_refractory_steps", 0))
-        ),
-        spike_surrogate_beta=float(
-            dynamics.get("surrogate_beta", dynamics.get("spike_surrogate_beta", 10.0))
-        ),
-        spike_readout=str(
-            dynamics.get("readout", dynamics.get("spike_readout", "spikes"))
-        ),
-        spike_readout_tau=float(
-            dynamics.get("readout_tau", dynamics.get("spike_readout_tau", 20.0))
-        ),
-        dendritic_spikes_enabled=bool(
-            dendritic_spikes.get(
-                "enabled",
-                dynamics.get("dendritic_spikes_enabled", False),
-            )
-        ),
-        dendritic_spike_mode=str(
-            dendritic_spikes.get(
-                "mode",
-                dynamics.get("dendritic_spike_mode", "plateau"),
-            )
-        ),
-        dendritic_spike_levels=dendritic_spikes.get(
-            "levels",
-            dynamics.get("dendritic_spike_levels", "non_soma"),
-        ),
-        dendritic_spike_threshold=float(
-            dendritic_spikes.get(
-                "threshold",
-                dynamics.get("dendritic_spike_threshold", 0.7),
-            )
-        ),
-        dendritic_spike_plateau_amplitude=float(
-            dendritic_spikes.get(
-                "plateau_amplitude",
-                dynamics.get("dendritic_spike_plateau_amplitude", 1.0),
-            )
-        ),
-        dendritic_spike_plateau_tau=float(
-            dendritic_spikes.get(
-                "plateau_tau",
-                dynamics.get("dendritic_spike_plateau_tau", 20.0),
-            )
-        ),
-        dendritic_spike_refractory_steps=int(
-            dendritic_spikes.get(
-                "refractory_steps",
-                dynamics.get("dendritic_spike_refractory_steps", 0),
-            )
-        ),
-        dendritic_spike_surrogate_beta=float(
-            dendritic_spikes.get(
-                "surrogate_beta",
-                dynamics.get("dendritic_spike_surrogate_beta", 10.0),
-            )
-        ),
-        dendritic_spike_propagation=str(
-            dendritic_spikes.get(
-                "propagation",
-                dynamics.get("dendritic_spike_propagation", "additive"),
-            )
-        ),
-        soma_feedback_enabled=bool(
-            soma_feedback.get(
-                "enabled",
-                dynamics.get("soma_feedback_enabled", False),
-            )
-        ),
-        soma_feedback_mode=str(
-            soma_feedback.get(
-                "mode",
-                dynamics.get("soma_feedback_mode", "additive"),
-            )
-        ),
-        soma_feedback_source=str(
-            soma_feedback.get(
-                "source",
-                dynamics.get("soma_feedback_source", "output"),
-            )
-        ),
-        soma_feedback_levels=soma_feedback.get(
-            "levels",
-            dynamics.get("soma_feedback_levels", "non_soma"),
-        ),
-        soma_feedback_strength=float(
-            soma_feedback.get(
-                "strength",
-                dynamics.get("soma_feedback_strength", 0.1),
-            )
-        ),
-        soma_feedback_learnable_strength=bool(
-            soma_feedback.get(
-                "learnable_strength",
-                dynamics.get("soma_feedback_learnable_strength", False),
-            )
-        ),
-        soma_feedback_per_level=bool(
-            soma_feedback.get(
-                "per_level",
-                dynamics.get("soma_feedback_per_level", True),
-            )
-        ),
-        soma_feedback_init_std=float(
-            soma_feedback.get(
-                "init_std",
-                dynamics.get("soma_feedback_init_std", 0.0),
-            )
-        ),
-        soma_feedback_reversal=float(
-            soma_feedback.get(
-                "reversal",
-                dynamics.get("soma_feedback_reversal", 1.0),
-            )
+        **_structured_population_soma_feedback_kwargs(
+            soma_feedback=soma_feedback,
+            dynamics=dynamics,
         ),
     )
 
@@ -773,8 +993,6 @@ def _build_recurrent_einet_from_structured_config(
     morphology = sections.morphology
     reactivation = sections.reactivation
     implementation = sections.implementation
-    rec_ei = counts.rec_ei
-    rec_ii = counts.rec_ii
     has_spiking_dynamics = flags.has_spiking_dynamics
     has_synapse_types = flags.has_synapse_types
 
@@ -817,11 +1035,6 @@ def _build_recurrent_einet_from_structured_config(
     layers: list[EILayerConfig] = []
     for layer_idx, n_exc in enumerate(excitatory_sizes):
         n_inh = int(_layer_value(inhibitory_sizes, layer_idx, default=0))
-        # A positive inhibitory layer size requests an explicit inhibitory
-        # population, but the population is only built when it has at least one
-        # configured incoming synaptic source. This preserves legacy direct
-        # inhibitory-stream configs with ei/ii/rec_ei/rec_ii all zero.
-        requested_inhibitory_population = n_inh > 0
 
         # Per-layer recurrence
         rec_enabled = _layer_recurrence_enabled(
@@ -853,30 +1066,14 @@ def _build_recurrent_einet_from_structured_config(
             tau_ratio=tau_ratio,
         )
 
-        inh_ff_excitatory_synapses = int(
-            _layer_value(
-                connectivity.get("ei_synapses_per_branch_per_layer", []),
-                layer_idx,
-                default=0,
-            )
+        inh_synapses = _resolve_layer_inhibitory_synapse_counts(
+            connectivity=connectivity,
+            counts=counts,
+            layer_idx=layer_idx,
         )
-        inh_ff_inhibitory_synapses = int(
-            _layer_value(
-                connectivity.get("ii_synapses_per_branch_per_layer", []),
-                layer_idx,
-                default=0,
-            )
-        )
-        inh_rec_excitatory_synapses = int(_layer_value(rec_ei, layer_idx, default=0))
-        inh_rec_inhibitory_synapses = int(_layer_value(rec_ii, layer_idx, default=0))
-        build_inhibitory_population = requested_inhibitory_population and any(
-            value > 0
-            for value in (
-                inh_ff_excitatory_synapses,
-                inh_ff_inhibitory_synapses,
-                inh_rec_excitatory_synapses,
-                inh_rec_inhibitory_synapses,
-            )
+        build_inhibitory_population = _should_build_inhibitory_population(
+            n_inh=n_inh,
+            synapses=inh_synapses,
         )
 
         inh_cfg = None
@@ -887,10 +1084,10 @@ def _build_recurrent_einet_from_structured_config(
                 branch_factors=list(
                     architecture.get("inhibitory_branch_factors", [1]) or [1]
                 ),
-                ff_excitatory_synapses=inh_ff_excitatory_synapses,
-                ff_inhibitory_synapses=inh_ff_inhibitory_synapses,
-                rec_excitatory_synapses=inh_rec_excitatory_synapses,
-                rec_inhibitory_synapses=inh_rec_inhibitory_synapses,
+                ff_excitatory_synapses=inh_synapses.ff_excitatory,
+                ff_inhibitory_synapses=inh_synapses.ff_inhibitory,
+                rec_excitatory_synapses=inh_synapses.rec_excitatory,
+                rec_inhibitory_synapses=inh_synapses.rec_inhibitory,
                 structured_layer_idx=layer_idx,
                 ff_excitatory_pathway="ei",
                 ff_inhibitory_pathway="ii",

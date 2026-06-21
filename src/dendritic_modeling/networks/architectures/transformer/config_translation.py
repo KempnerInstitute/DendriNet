@@ -34,6 +34,76 @@ def _structured_blocklinear_kwargs(core: dict[str, Any]) -> dict[str, Any]:
     return {"efficient_blocklinear": bool(blocklinear.get("efficient", False))}
 
 
+def _dense_to_sparse_config(sparsity: dict[str, Any]) -> dict[str, Any]:
+    """Return dense-to-sparse config while preserving legacy alias warnings."""
+    if "annealed_topk" in sparsity and "dense_to_sparse" not in sparsity:
+        logger.warning(
+            "model.core.sparsity.annealed_topk is deprecated; use "
+            "model.core.sparsity.dense_to_sparse instead."
+        )
+    return _to_plain_mapping(
+        sparsity.get("dense_to_sparse", sparsity.get("annealed_topk", {}))
+    )
+
+
+def _replacement_overrides(transformer_replacement: dict[str, Any]) -> dict[str, Any]:
+    """Return replacement kwargs with selector-only keys removed."""
+    replacement_overrides = _to_plain_mapping(
+        transformer_replacement.get("replacement_kwargs", {})
+    )
+    replacement_overrides.pop("kind", None)
+    replacement_overrides.pop("type", None)
+    return replacement_overrides
+
+
+def _structured_sparsity_kwargs(
+    sparsity: dict[str, Any],
+    *,
+    default_temperature: float,
+    include_ultrafast: bool = False,
+) -> dict[str, Any]:
+    """Translate structured sparsity config into replacement constructor kwargs."""
+    indexed = _to_plain_mapping(sparsity.get("indexed", {}))
+    dense_to_sparse = _dense_to_sparse_config(sparsity)
+    kwargs: dict[str, Any] = {
+        "topk_type": _normalize_topk_type(sparsity.get("type", "indexed_rewire")),
+        "topk_init_method": sparsity.get("init_method", "xavier_normal"),
+        "topk_noise_level": float(sparsity.get("noise_level", 0.0)),
+        "topk_temperature": float(sparsity.get("temperature", default_temperature)),
+        "topk_weight_norm_order": sparsity.get("weight_norm_order"),
+        "topk_gamma": float(sparsity.get("gamma", 1.0)),
+        "dense_to_sparse_initial_density": float(
+            dense_to_sparse.get("initial_density", 1.0)
+        ),
+        "dense_to_sparse_initial_k": dense_to_sparse.get("initial_k"),
+        "dense_to_sparse_start_step": int(dense_to_sparse.get("start_step", 0)),
+        "dense_to_sparse_end_step": int(dense_to_sparse.get("end_step", 1000)),
+        "dense_to_sparse_update_interval": int(
+            dense_to_sparse.get("update_interval", 1)
+        ),
+        "dense_to_sparse_schedule": str(dense_to_sparse.get("schedule", "cubic")),
+        "dense_to_sparse_freeze_on_end": bool(
+            dense_to_sparse.get("freeze_on_end", False)
+        ),
+        "dense_to_sparse_advance_on_forward": bool(
+            dense_to_sparse.get("advance_on_forward", True)
+        ),
+        "dense_to_sparse_prune_metric": str(
+            dense_to_sparse.get("prune_metric", "weight")
+        ),
+        "indexed_seed": indexed.get("seed", sparsity.get("seed")),
+        "indexed_candidate_size": indexed.get("candidate_size"),
+        "indexed_selection": indexed.get("selection", "standard"),
+        "indexed_output_chunk_size": int(indexed.get("output_chunk_size", 2048)),
+        "indexed_rewire_frequency": int(indexed.get("rewire_frequency", 100)),
+        "indexed_rewire_quantile": float(indexed.get("rewire_quantile", 0.05)),
+        "indexed_rewire_until_step": indexed.get("rewire_until_step"),
+    }
+    if include_ultrafast:
+        kwargs["topk_ultrafast"] = bool(sparsity.get("ultrafast", False))
+    return kwargs
+
+
 def build_dendritic_ffn_kwargs_from_core_config(
     core_config: Any,
     *,
@@ -59,15 +129,6 @@ def build_dendritic_ffn_kwargs_from_core_config(
     transfer = _to_plain_mapping(core.get("transfer", {}))
     morphology = _to_plain_mapping(core.get("morphology", {}))
     sparsity = _to_plain_mapping(core.get("sparsity", {}))
-    indexed = _to_plain_mapping(sparsity.get("indexed", {}))
-    if "annealed_topk" in sparsity and "dense_to_sparse" not in sparsity:
-        logger.warning(
-            "model.core.sparsity.annealed_topk is deprecated; use "
-            "model.core.sparsity.dense_to_sparse instead."
-        )
-    dense_to_sparse = _to_plain_mapping(
-        sparsity.get("dense_to_sparse", sparsity.get("annealed_topk", {}))
-    )
     reactivation = _to_plain_mapping(core.get("reactivation", {}))
     core_type = str(core.get("type", "")).lower()
     morphology_overrides = get_core_morphology_alias_overrides(core_type)
@@ -106,39 +167,11 @@ def build_dendritic_ffn_kwargs_from_core_config(
             "input_transform",
             transfer.get("input_transform", "signed_split"),
         ),
-        "topk_type": _normalize_topk_type(sparsity.get("type", "indexed_rewire")),
-        "topk_init_method": sparsity.get("init_method", "xavier_normal"),
-        "topk_noise_level": float(sparsity.get("noise_level", 0.0)),
-        "topk_temperature": float(sparsity.get("temperature", 0.5)),
-        "topk_ultrafast": bool(sparsity.get("ultrafast", False)),
-        "topk_weight_norm_order": sparsity.get("weight_norm_order"),
-        "topk_gamma": float(sparsity.get("gamma", 1.0)),
-        "dense_to_sparse_initial_density": float(
-            dense_to_sparse.get("initial_density", 1.0)
+        **_structured_sparsity_kwargs(
+            sparsity,
+            default_temperature=0.5,
+            include_ultrafast=True,
         ),
-        "dense_to_sparse_initial_k": dense_to_sparse.get("initial_k"),
-        "dense_to_sparse_start_step": int(dense_to_sparse.get("start_step", 0)),
-        "dense_to_sparse_end_step": int(dense_to_sparse.get("end_step", 1000)),
-        "dense_to_sparse_update_interval": int(
-            dense_to_sparse.get("update_interval", 1)
-        ),
-        "dense_to_sparse_schedule": str(dense_to_sparse.get("schedule", "cubic")),
-        "dense_to_sparse_freeze_on_end": bool(
-            dense_to_sparse.get("freeze_on_end", False)
-        ),
-        "dense_to_sparse_advance_on_forward": bool(
-            dense_to_sparse.get("advance_on_forward", True)
-        ),
-        "dense_to_sparse_prune_metric": str(
-            dense_to_sparse.get("prune_metric", "weight")
-        ),
-        "indexed_seed": indexed.get("seed", sparsity.get("seed")),
-        "indexed_candidate_size": indexed.get("candidate_size"),
-        "indexed_selection": indexed.get("selection", "standard"),
-        "indexed_output_chunk_size": int(indexed.get("output_chunk_size", 2048)),
-        "indexed_rewire_frequency": int(indexed.get("rewire_frequency", 100)),
-        "indexed_rewire_quantile": float(indexed.get("rewire_quantile", 0.05)),
-        "indexed_rewire_until_step": indexed.get("rewire_until_step"),
         "use_shunting": bool(
             morphology_overrides.get(
                 "use_shunting", morphology.get("use_shunting", True)
@@ -159,10 +192,7 @@ def build_dendritic_ffn_kwargs_from_core_config(
         "output_scale": float(tr.get("output_scale", 1.0)),
         "pre_norm": bool(tr.get("pre_norm", False)),
     }
-    replacement_overrides = _to_plain_mapping(tr.get("replacement_kwargs", {}))
-    replacement_overrides.pop("kind", None)
-    replacement_overrides.pop("type", None)
-    kwargs.update(replacement_overrides)
+    kwargs.update(_replacement_overrides(tr))
     if overrides:
         kwargs.update(overrides)
     return kwargs
@@ -190,15 +220,6 @@ def build_ei_stack_kwargs_from_core_config(
     transfer = _to_plain_mapping(core.get("transfer", {}))
     morphology = _to_plain_mapping(core.get("morphology", {}))
     sparsity = _to_plain_mapping(core.get("sparsity", {}))
-    indexed = _to_plain_mapping(sparsity.get("indexed", {}))
-    if "annealed_topk" in sparsity and "dense_to_sparse" not in sparsity:
-        logger.warning(
-            "model.core.sparsity.annealed_topk is deprecated; use "
-            "model.core.sparsity.dense_to_sparse instead."
-        )
-    dense_to_sparse = _to_plain_mapping(
-        sparsity.get("dense_to_sparse", sparsity.get("annealed_topk", {}))
-    )
     reactivation = _to_plain_mapping(core.get("reactivation", {}))
     core_type = str(core.get("type", "")).lower()
     morphology_overrides = get_core_morphology_alias_overrides(core_type)
@@ -208,10 +229,6 @@ def build_ei_stack_kwargs_from_core_config(
         morphology_overrides,
         context="model.core.morphology",
     )
-
-    replacement_overrides = _to_plain_mapping(tr.get("replacement_kwargs", {}))
-    replacement_overrides.pop("kind", None)
-    replacement_overrides.pop("type", None)
 
     kwargs: dict[str, Any] = {
         "num_layers": int(num_layers),
@@ -262,38 +279,7 @@ def build_ei_stack_kwargs_from_core_config(
         ),
         "weight_transform": morphology.get("weight_transform", "softplus"),
         **_structured_blocklinear_kwargs(core),
-        "topk_type": _normalize_topk_type(sparsity.get("type", "indexed_rewire")),
-        "topk_init_method": sparsity.get("init_method", "xavier_normal"),
-        "topk_noise_level": float(sparsity.get("noise_level", 0.0)),
-        "topk_temperature": float(sparsity.get("temperature", 0.25)),
-        "topk_weight_norm_order": sparsity.get("weight_norm_order"),
-        "topk_gamma": float(sparsity.get("gamma", 1.0)),
-        "dense_to_sparse_initial_density": float(
-            dense_to_sparse.get("initial_density", 1.0)
-        ),
-        "dense_to_sparse_initial_k": dense_to_sparse.get("initial_k"),
-        "dense_to_sparse_start_step": int(dense_to_sparse.get("start_step", 0)),
-        "dense_to_sparse_end_step": int(dense_to_sparse.get("end_step", 1000)),
-        "dense_to_sparse_update_interval": int(
-            dense_to_sparse.get("update_interval", 1)
-        ),
-        "dense_to_sparse_schedule": str(dense_to_sparse.get("schedule", "cubic")),
-        "dense_to_sparse_freeze_on_end": bool(
-            dense_to_sparse.get("freeze_on_end", False)
-        ),
-        "dense_to_sparse_advance_on_forward": bool(
-            dense_to_sparse.get("advance_on_forward", True)
-        ),
-        "dense_to_sparse_prune_metric": str(
-            dense_to_sparse.get("prune_metric", "weight")
-        ),
-        "indexed_seed": indexed.get("seed", sparsity.get("seed")),
-        "indexed_candidate_size": indexed.get("candidate_size"),
-        "indexed_selection": indexed.get("selection", "standard"),
-        "indexed_output_chunk_size": int(indexed.get("output_chunk_size", 2048)),
-        "indexed_rewire_frequency": int(indexed.get("rewire_frequency", 100)),
-        "indexed_rewire_quantile": float(indexed.get("rewire_quantile", 0.05)),
-        "indexed_rewire_until_step": indexed.get("rewire_until_step"),
+        **_structured_sparsity_kwargs(sparsity, default_temperature=0.25),
         "reactivate": bool(reactivation.get("enabled", True)),
         "reactivation_type": reactivation.get("type", "param_tanh"),
         "output_bias": bool(tr.get("output_bias", False)),
@@ -301,7 +287,7 @@ def build_ei_stack_kwargs_from_core_config(
         "output_scale": float(tr.get("output_scale", 1.0)),
         "pre_norm": bool(tr.get("pre_norm", False)),
     }
-    kwargs.update(replacement_overrides)
+    kwargs.update(_replacement_overrides(tr))
     if overrides:
         kwargs.update(overrides)
     return kwargs

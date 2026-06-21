@@ -1,5 +1,6 @@
 """Tests for BlockLinear and EfficientBlockLinear layers."""
 
+import logging
 import unittest
 
 import torch
@@ -184,6 +185,24 @@ class TestEfficientBlockLinear:
         out = ebl(x)
         out.sum().backward()
         assert ebl.log_weight.grad is not None
+
+    def test_shape_mismatch_fallback_logs_and_preserves_zero_output_shape(self, caplog):
+        ebl = EfficientBlockLinear(
+            in_features=12, out_features=4, weight_transform="exp"
+        )
+
+        with caplog.at_level(
+            logging.WARNING,
+            logger="dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.blocklinear",
+        ):
+            out_2d = ebl(torch.randn(2, 15))
+            out_3d = ebl(torch.randn(2, 3, 15))
+
+        assert out_2d.shape == (2, 4)
+        assert out_3d.shape == (2, 3, 4)
+        assert torch.count_nonzero(out_2d) == 0
+        assert torch.count_nonzero(out_3d) == 0
+        assert "input shape mismatch" in caplog.text
 
 
 # ---------------------------------------------------------------------------

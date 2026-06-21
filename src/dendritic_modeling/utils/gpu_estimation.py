@@ -61,6 +61,16 @@ IMAGENET_FLAT_INPUT_SHAPE = (150528,)
 IMAGENET_IMAGE_INPUT_SHAPE = (3, 224, 224)
 GPU_MEMORY_SAFETY_FACTOR = 0.85
 PRACTICAL_FSDP_GPU_LIMIT = 16
+FSDP_CANDIDATE_CONFIGURATIONS = (
+    (2, 1, 2),
+    (4, 1, 4),
+    (8, 2, 4),
+    (16, 4, 4),
+    (32, 8, 4),
+)
+FSDP_FALLBACK_NODES = 8
+FSDP_FALLBACK_GPUS_PER_NODE = 4
+FSDP_FALLBACK_TOTAL_GPUS = 32
 
 
 def _bytes_to_gib(num_bytes: float) -> float:
@@ -555,7 +565,9 @@ class GPUMemoryEstimator:
         )
 
     def get_gpu_recommendations(
-        self, memory_breakdown: MemoryBreakdown, safety_factor: float = 0.85
+        self,
+        memory_breakdown: MemoryBreakdown,
+        safety_factor: float = GPU_MEMORY_SAFETY_FACTOR,
     ) -> list[GPURecommendation]:
         """
         Get GPU recommendations based on memory requirements.
@@ -643,16 +655,7 @@ class GPUMemoryEstimator:
                 "memory_per_gpu": single_gpu_breakdown.total,
             }
 
-        configurations = [
-            # (total_gpus, nodes, gpus_per_node)
-            (2, 1, 2),  # 2 GPUs, 1 node
-            (4, 1, 4),  # 4 GPUs, 1 node
-            (8, 2, 4),  # 8 GPUs, 2 nodes
-            (16, 4, 4),  # 16 GPUs, 4 nodes
-            (32, 8, 4),  # 32 GPUs, 8 nodes
-        ]
-
-        for total_gpus, nodes, gpus_per_node in configurations:
+        for total_gpus, nodes, gpus_per_node in FSDP_CANDIDATE_CONFIGURATIONS:
             param_memory = single_gpu_breakdown.parameters / total_gpus
             grad_memory = single_gpu_breakdown.gradients / total_gpus
             optimizer_memory = single_gpu_breakdown.optimizer_states / total_gpus
@@ -692,9 +695,9 @@ class GPUMemoryEstimator:
         return {
             "single_gpu_fits": False,
             "gpu_type": "H100",
-            "nodes": 8,
-            "gpus_per_node": 4,
-            "total_gpus": 32,
+            "nodes": FSDP_FALLBACK_NODES,
+            "gpus_per_node": FSDP_FALLBACK_GPUS_PER_NODE,
+            "total_gpus": FSDP_FALLBACK_TOTAL_GPUS,
             "memory_per_gpu": total_memory,
             "warning": "Model may be too large - consider optimization",
         }

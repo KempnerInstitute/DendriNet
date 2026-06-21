@@ -2,6 +2,9 @@ import torch
 
 from dendritic_modeling.networks import DendriticBranchLayer, DenseToSparseLinear
 from dendritic_modeling.networks.architectures.factory import get_architecture
+from dendritic_modeling.networks.architectures.recurrent.structured_einet_factory import (
+    _structured_population_sparsity_kwargs,
+)
 from dendritic_modeling.utils.sparse_ops import get_available_sparse_types
 
 
@@ -134,3 +137,66 @@ def test_structured_einet_config_propagates_dense_to_sparse():
     assert dense_layers
     assert all(layer.initial_k == layer.in_features for layer in dense_layers)
     assert all(layer.target_k == 2 for layer in dense_layers)
+
+
+def test_structured_population_sparsity_kwargs_preserve_all_sparse_fields():
+    kwargs = _structured_population_sparsity_kwargs(
+        sparsity={
+            "type": "annealed-topk",
+            "init_method": "xavier_uniform",
+            "noise_level": 0.2,
+            "weight_norm_order": 2,
+            "gamma": 0.8,
+            "temperature": 0.3,
+            "ultrafast": True,
+            "gradient_scaling": "scaled",
+            "seed": 11,
+        },
+        dense_to_sparse={
+            "initial_density": 0.6,
+            "initial_k": 3,
+            "start_step": 2,
+            "end_step": 20,
+            "update_interval": 4,
+            "schedule": "linear",
+            "freeze_on_end": True,
+            "advance_on_forward": False,
+            "prune_metric": "magnitude",
+        },
+        indexed={
+            "seed": 13,
+            "candidate_size": 7,
+            "selection": "stochastic",
+            "output_chunk_size": 128,
+            "rewire_frequency": 5,
+            "rewire_quantile": 0.15,
+            "rewire_until_step": 30,
+        },
+    )
+
+    assert kwargs == {
+        "topk_init_method": "xavier_uniform",
+        "topk_noise_level": 0.2,
+        "topk_type": "dense_to_sparse",
+        "topk_weight_norm_order": 2,
+        "topk_gamma": 0.8,
+        "topk_temperature": 0.3,
+        "topk_ultrafast": True,
+        "topk_strategy": "scaled",
+        "dense_to_sparse_initial_density": 0.6,
+        "dense_to_sparse_initial_k": 3,
+        "dense_to_sparse_start_step": 2,
+        "dense_to_sparse_end_step": 20,
+        "dense_to_sparse_update_interval": 4,
+        "dense_to_sparse_schedule": "linear",
+        "dense_to_sparse_freeze_on_end": True,
+        "dense_to_sparse_advance_on_forward": False,
+        "dense_to_sparse_prune_metric": "magnitude",
+        "indexed_seed": 13,
+        "indexed_candidate_size": 7,
+        "indexed_selection": "stochastic",
+        "indexed_output_chunk_size": 128,
+        "indexed_rewire_frequency": 5,
+        "indexed_rewire_quantile": 0.15,
+        "indexed_rewire_until_step": 30,
+    }

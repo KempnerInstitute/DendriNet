@@ -11,6 +11,7 @@ import torch
 import torch.nn as nn
 
 from dendritic_modeling.utils.gpu_estimation import (
+    GPU_MEMORY_SAFETY_FACTOR,
     GPUMemoryEstimator,
     GPURecommendation,
     MemoryBreakdown,
@@ -396,6 +397,25 @@ class TestGPUMemoryEstimator:
         # Should provide recommendations for large model
         assert len(recommendations) > 0
         # Note: Actual GPU requirement depends on model size and available GPU memory
+
+    def test_get_gpu_recommendations_default_uses_safety_factor_constant(self):
+        """Default recommendations should match the named safety-factor policy."""
+        estimator = GPUMemoryEstimator()
+        breakdown = MemoryBreakdown(
+            parameters=10.0,
+            gradients=10.0,
+            optimizer_states=20.0,
+            activations=1.0,
+            fsdp_overhead=0.0,
+            total=41.0,
+        )
+
+        default_recommendations = estimator.get_gpu_recommendations(breakdown)
+        explicit_recommendations = estimator.get_gpu_recommendations(
+            breakdown, safety_factor=GPU_MEMORY_SAFETY_FACTOR
+        )
+
+        assert default_recommendations == explicit_recommendations
 
     def test_gpu_specs_class_variable(self):
         """Test GPU_SPECS class variable."""

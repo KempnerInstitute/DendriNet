@@ -252,7 +252,6 @@ transform preset and keep fake-data fallback disabled for real runs:
      dataset_params:
        imagenet:
          transform_preset: "pretrained"
-         allow_fake_data: false
          allow_flatten_materialize: false
 
 For shunting E-I models with positive weight transforms, keep the tensors that

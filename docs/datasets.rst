@@ -26,11 +26,9 @@ Standard Datasets
    ``legacy_resize`` resize preset. Pretrained
    backbone runs should set ``transform_preset: "pretrained"`` for
    RandomResizedCrop/flip training transforms and Resize/CenterCrop eval
-   transforms. Missing ImageNet roots raise an error unless
-   ``allow_fake_data: true`` is set explicitly for smoke tests. Flattening is
-   rejected unless ``allow_flatten_materialize: true`` is set because full
-   ImageNet tensors can materialize tens of GB. Parameters:
-   ``transform_preset``, ``allow_fake_data``,
+   transforms. Missing ImageNet roots raise an error. Flattening is rejected
+   unless ``allow_flatten_materialize: true`` is set because full ImageNet
+   tensors can materialize tens of GB. Parameters: ``transform_preset``,
    ``allow_flatten_materialize``, ``train_samples_per_class``,
    ``val_samples_per_class``.
 
@@ -261,14 +259,4 @@ backbone such as AlexNet:
      dataset_params:
        imagenet:
          transform_preset: "pretrained"
-         allow_fake_data: false
          allow_flatten_materialize: false
-
-For loader smoke tests without the real dataset, opt in explicitly:
-
-.. code-block:: yaml
-
-   data:
-     dataset_params:
-       imagenet:
-         allow_fake_data: true

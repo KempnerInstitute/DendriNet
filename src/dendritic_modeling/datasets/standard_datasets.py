@@ -488,22 +488,6 @@ def _build_imagenet_transforms(
     )
 
 
-def _imagenet_fake_transforms(
-    train_transform,
-    eval_transform,
-    *,
-    flatten: bool,
-):
-    """Return transforms used by ImageNet FakeData fallback."""
-    if not flatten:
-        return train_transform, eval_transform
-
-    return (
-        transforms.Compose([train_transform, transforms.Lambda(lambda x: x.view(-1))]),
-        transforms.Compose([eval_transform, transforms.Lambda(lambda x: x.view(-1))]),
-    )
-
-
 def _load_imagenet_dataset_triplet(
     *,
     imagenet_dir: str,
@@ -532,32 +516,34 @@ def _load_imagenet_dataset_triplet(
     )
 
 
-def _make_imagenet_fake_triplet(
+IMAGENET_FLATTEN_MATERIALIZATION_LIMIT = 50_000
+
+
+def _materialize_flattened_tensor_dataset(
+    dataset: Dataset,
     *,
-    train_transform,
-    eval_transform,
-) -> tuple[Dataset, Dataset, Dataset]:
-    """Build the small lazy FakeData fallback for ImageNet smoke tests."""
-    return (
-        datasets.FakeData(
-            size=512,
-            image_size=(3, 224, 224),
-            num_classes=1000,
-            transform=train_transform,
-        ),
-        datasets.FakeData(
-            size=512,
-            image_size=(3, 224, 224),
-            num_classes=1000,
-            transform=eval_transform,
-        ),
-        datasets.FakeData(
-            size=128,
-            image_size=(3, 224, 224),
-            num_classes=1000,
-            transform=eval_transform,
-        ),
-    )
+    max_samples: int = IMAGENET_FLATTEN_MATERIALIZATION_LIMIT,
+) -> Dataset:
+    """Convert an indexable image dataset into a capped flattened TensorDataset."""
+    if not hasattr(dataset, "__getitem__"):
+        return dataset
+
+    data_list = []
+    label_list = []
+    subset_size = min(len(dataset), max_samples)
+    for i in range(subset_size):
+        data, label = dataset[i]
+        if isinstance(data, torch.Tensor) and len(data.shape) > 1:
+            data = data.view(-1)
+        data_list.append(data)
+        label_list.append(label)
+
+    if not data_list:
+        return dataset
+
+    data_tensor = torch.stack(data_list)
+    label_tensor = torch.tensor(label_list)
+    return TensorDataset(data_tensor, label_tensor)
 
 
 class PairedArithmeticDataset(Dataset):
@@ -1401,7 +1387,6 @@ def load_imagenet_as_datasets(
     train_samples_per_class=None,
     val_samples_per_class=None,
     split_seed: int = 0,
-    allow_fake_data: bool = False,
     transform_preset: str = "legacy_resize",
     allow_flatten_materialize: bool = False,
 ):
@@ -1420,8 +1405,6 @@ def load_imagenet_as_datasets(
         task_data_path (str, optional): Path from task.data_path config
         train_samples_per_class (int, optional): Limit training samples per class.
         val_samples_per_class (int, optional): Limit validation/test samples per class.
-        allow_fake_data (bool): If True, missing ImageNet falls back to a small
-            FakeData smoke dataset. Real training should leave this False.
         transform_preset (str): "legacy_resize" preserves the historical
             Resize(224,224) transform; "pretrained" uses train/eval transforms
             appropriate for pretrained torchvision backbones.
@@ -1446,11 +1429,6 @@ def load_imagenet_as_datasets(
         normalize=normalize,
         transform_preset=transform_preset,
     )
-    fake_train_transform, fake_eval_transform = _imagenet_fake_transforms(
-        train_transform,
-        eval_transform,
-        flatten=flatten,
-    )
 
     try:
         train_dataset, train_eval_dataset, test_dataset = (
@@ -1463,26 +1441,10 @@ def load_imagenet_as_datasets(
             )
         )
     except Exception as e:
-        if not allow_fake_data:
-            raise RuntimeError(
-                "Could not load ImageNet. Set data.base_dir or "
-                "IMAGENET_LOCAL_DIR to a valid ImageNet root. For smoke tests "
-                "only, set data.dataset_params.imagenet.allow_fake_data=true."
-            ) from e
-
-        # If ImageNet is not available, fall back to a small lazy synthetic dataset
-        # so smoke tests do not allocate tens of GB of host memory.
-        _ds_logger.warning(
-            "Could not load ImageNet from %s; using FakeData because "
-            "allow_fake_data=True: %s",
-            imagenet_dir,
-            e,
-        )
-
-        train_dataset, train_eval_dataset, test_dataset = _make_imagenet_fake_triplet(
-            train_transform=fake_train_transform,
-            eval_transform=fake_eval_transform,
-        )
+        raise RuntimeError(
+            "Could not load ImageNet. Set data.base_dir or IMAGENET_LOCAL_DIR "
+            "to a valid ImageNet root."
+        ) from e
 
     train_indices = _class_subset_indices(
         train_dataset,
@@ -1512,33 +1474,10 @@ def load_imagenet_as_datasets(
         # Fallback for when we can't determine size
         valid_dataset = test_dataset
 
-    # Convert to tensor datasets if needed and flatten if requested
-    def process_dataset(dataset):
-        if flatten and hasattr(dataset, "__getitem__"):
-            # Convert to flattened tensor dataset
-            data_list = []
-            label_list = []
-            # Sample a subset for memory efficiency
-            subset_size = min(len(dataset), 50000)  # Limit size for memory
-            for i in range(subset_size):
-                data, label = dataset[i]
-                if isinstance(data, torch.Tensor):
-                    if len(data.shape) > 1:  # If not already flattened
-                        data = data.view(-1)
-                data_list.append(data)
-                label_list.append(label)
-
-            if data_list:
-                data_tensor = torch.stack(data_list)
-                label_tensor = torch.tensor(label_list)
-                return TensorDataset(data_tensor, label_tensor)
-
-        return dataset
-
     if flatten:
-        train_dataset = process_dataset(train_dataset)
-        valid_dataset = process_dataset(valid_dataset)
-        test_dataset = process_dataset(test_dataset)
+        train_dataset = _materialize_flattened_tensor_dataset(train_dataset)
+        valid_dataset = _materialize_flattened_tensor_dataset(valid_dataset)
+        test_dataset = _materialize_flattened_tensor_dataset(test_dataset)
 
     return train_dataset, valid_dataset, test_dataset
 
@@ -1643,7 +1582,6 @@ def get_unified_datasets(task_cfg):
             train_samples_per_class=p.get("train_samples_per_class"),
             val_samples_per_class=p.get("val_samples_per_class"),
             split_seed=split_seed,
-            allow_fake_data=bool(p.get("allow_fake_data", False)),
             transform_preset=p.get("transform_preset", "legacy_resize"),
             allow_flatten_materialize=bool(p.get("allow_flatten_materialize", False)),
         )

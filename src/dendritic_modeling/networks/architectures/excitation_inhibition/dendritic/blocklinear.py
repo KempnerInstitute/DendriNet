@@ -5,6 +5,7 @@ This module implements a custom linear layer that aggregates information
 from converging branches in a previous branch layer.
 """
 
+import logging
 from math import floor, log
 
 import torch
@@ -16,6 +17,8 @@ from dendritic_modeling.networks.utils.weight_transforms import (
     inverse_softplus,
     inverse_weight_transform,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class BlockLinear(nn.Module):
@@ -298,15 +301,24 @@ class EfficientBlockLinear(BlockLinear):
             if x.shape[1] % self.block_size == 0:
                 # Could be wrong number of output features
                 implied_out = x.shape[1] // self.block_size
-                print(
-                    f"Warning: EfficientBlockLinear expecting {expected_dim} features (out={self.out_features}, block={self.block_size}), "
-                    f"but got {x.shape[1]} features. This implies out_features should be {implied_out}."
+                logger.warning(
+                    "EfficientBlockLinear expected %s features "
+                    "(out=%s, block=%s), but got %s features. "
+                    "This implies out_features should be %s.",
+                    expected_dim,
+                    self.out_features,
+                    self.block_size,
+                    x.shape[1],
+                    implied_out,
                 )
 
             # Return zeros to allow analysis to continue
-            print(
-                f"Warning: EfficientBlockLinear input shape mismatch: original shape {original_shape}, "
-                f"reshaped to {x.shape}, expected [B, {expected_dim}]. Returning zeros."
+            logger.warning(
+                "EfficientBlockLinear input shape mismatch: original shape %s, "
+                "reshaped to %s, expected [B, %s]. Returning zeros.",
+                original_shape,
+                x.shape,
+                expected_dim,
             )
 
             # If original was higher-dim, return zeros with appropriate shape

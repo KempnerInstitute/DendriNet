@@ -27,6 +27,7 @@ from dendritic_modeling.networks.architectures.transformer import (
     estimate_deepseek_dense_ffn_params,
     estimate_dendritic_ffn_params,
     replace_transformer_mlp_layers,
+    replace_transformer_mlp_layers_with_ei_stack,
 )
 
 TRANSFORMER_BENCHMARK_CONFIGS = sorted(
@@ -357,6 +358,42 @@ def test_replace_transformer_mlp_layers_rejects_bad_index():
         )
 
 
+def test_transformer_replacement_rejects_non_module_target_consistently():
+    model = TinyHFLikeModel(n_layers=2)
+    model.model.layers[0].not_module = object()
+    model.model.layers[1].not_module = object()
+
+    with pytest.raises(TypeError, match=r"not an nn\.Module"):
+        replace_transformer_mlp_layers(
+            model,
+            [0],
+            mlp_attr="not_module",
+            replacement_kwargs={
+                "dendritic_units": 4,
+                "branch_factors": [2],
+                "synapses_per_branch": 2,
+            },
+        )
+
+    with pytest.raises(TypeError, match=r"not an nn\.Module"):
+        replace_transformer_mlp_layers_with_ei_stack(
+            model,
+            [0, 1],
+            mlp_attr="not_module",
+            replacement_kwargs={
+                "excitatory_cells": 4,
+                "inhibitory_cells": 2,
+                "excitatory_branch_factors": [1],
+                "inhibitory_branch_factors": [1],
+                "ee_synapses_per_branch": 2,
+                "ei_synapses_per_branch": 1,
+                "ie_synapses_per_branch": 1,
+                "ii_synapses_per_branch": 1,
+                "use_shunting": False,
+            },
+        )
+
+
 def test_deepseek_parameter_estimates_show_sparse_vs_dense_difference():
     dense = estimate_deepseek_dense_ffn_params(
         hidden_size=7168, intermediate_size=18432
@@ -584,6 +621,104 @@ def test_transformer_ei_stack_core_alias_overrides_morphology_shunting():
         kwargs = build_ei_stack_kwargs_from_core_config(core_config, num_layers=1)
 
     assert kwargs["use_shunting"] is True
+
+
+def test_transformer_structured_sparsity_translation_is_shared_across_replacements():
+    core_config = {
+        "architecture": {
+            "excitatory_layer_sizes": [5],
+            "inhibitory_layer_sizes": [2],
+            "excitatory_branch_factors": [1],
+            "inhibitory_branch_factors": [1],
+        },
+        "connectivity": {
+            "ee_synapses_per_branch_per_layer": [2],
+            "ei_synapses_per_branch_per_layer": [2],
+            "ie_synapses_per_branch_per_layer": [1],
+            "ii_synapses_per_branch_per_layer": [1],
+        },
+        "sparsity": {
+            "type": "indexed_rewire",
+            "init_method": "xavier_uniform",
+            "noise_level": 0.03,
+            "temperature": 0.4,
+            "ultrafast": True,
+            "weight_norm_order": 2,
+            "gamma": 0.9,
+            "dense_to_sparse": {
+                "initial_density": 0.8,
+                "initial_k": 3,
+                "start_step": 4,
+                "end_step": 40,
+                "update_interval": 5,
+                "schedule": "linear",
+                "freeze_on_end": True,
+                "advance_on_forward": False,
+                "prune_metric": "magnitude",
+            },
+            "indexed": {
+                "seed": 13,
+                "candidate_size": 7,
+                "selection": "stochastic",
+                "output_chunk_size": 128,
+                "rewire_frequency": 6,
+                "rewire_quantile": 0.2,
+                "rewire_until_step": 60,
+            },
+        },
+    }
+    transformer_replacement = {
+        "input_transform": "signed_split",
+        "replacement_kwargs": {
+            "kind": "ei_stack",
+            "type": "selector_only",
+            "output_scale": 0.75,
+        },
+    }
+
+    ffn_kwargs = build_dendritic_ffn_kwargs_from_core_config(
+        core_config,
+        transformer_replacement=transformer_replacement,
+    )
+    stack_kwargs = build_ei_stack_kwargs_from_core_config(
+        core_config,
+        transformer_replacement=transformer_replacement,
+        num_layers=2,
+    )
+
+    shared_keys = [
+        "topk_type",
+        "topk_init_method",
+        "topk_noise_level",
+        "topk_temperature",
+        "topk_weight_norm_order",
+        "topk_gamma",
+        "dense_to_sparse_initial_density",
+        "dense_to_sparse_initial_k",
+        "dense_to_sparse_start_step",
+        "dense_to_sparse_end_step",
+        "dense_to_sparse_update_interval",
+        "dense_to_sparse_schedule",
+        "dense_to_sparse_freeze_on_end",
+        "dense_to_sparse_advance_on_forward",
+        "dense_to_sparse_prune_metric",
+        "indexed_seed",
+        "indexed_candidate_size",
+        "indexed_selection",
+        "indexed_output_chunk_size",
+        "indexed_rewire_frequency",
+        "indexed_rewire_quantile",
+        "indexed_rewire_until_step",
+    ]
+    for key in shared_keys:
+        assert ffn_kwargs[key] == stack_kwargs[key]
+
+    assert ffn_kwargs["topk_ultrafast"] is True
+    assert "topk_ultrafast" not in stack_kwargs
+    assert ffn_kwargs["output_scale"] == 0.75
+    assert stack_kwargs["output_scale"] == 0.75
+    assert "kind" not in stack_kwargs
+    assert "type" not in stack_kwargs
 
 
 def test_transformer_replacement_can_patch_shared_ei_stack():

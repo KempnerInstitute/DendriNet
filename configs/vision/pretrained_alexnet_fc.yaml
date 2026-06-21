@@ -33,7 +33,6 @@ data:
   dataset_params:
     imagenet:
       transform_preset: "pretrained"
-      allow_fake_data: false
       allow_flatten_materialize: false
 
 model:

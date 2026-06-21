@@ -75,6 +75,40 @@ class ReplacementRecord:
     replacement: nn.Module
 
 
+def _resolve_layer_target(
+    layers: nn.ModuleList | list[nn.Module],
+    layer_index: int,
+    mlp_attr: str,
+) -> tuple[nn.Module, nn.Module]:
+    """Return a transformer layer and its target module with consistent errors."""
+    if layer_index < 0 or layer_index >= len(layers):
+        raise IndexError(
+            f"layer index {layer_index} out of range for {len(layers)} layers"
+        )
+    layer = layers[layer_index]
+    try:
+        target = _get_attr_path(layer, mlp_attr)
+    except AttributeError as exc:
+        raise AttributeError(
+            f"layer {layer_index} has no target module path {mlp_attr!r}"
+        ) from exc
+    if not isinstance(target, nn.Module):
+        raise TypeError(f"layer {layer_index} target {mlp_attr!r} is not an nn.Module")
+    return layer, target
+
+
+def _move_replacement_like_source(
+    replacement: nn.Module,
+    source: nn.Module,
+) -> nn.Module:
+    """Move replacement to the first source parameter's device and floating dtype."""
+    param = _first_parameter(source)
+    if param is None:
+        return replacement
+    dtype = param.dtype if param.dtype.is_floating_point else None
+    return replacement.to(device=param.device, dtype=dtype)
+
+
 def replace_transformer_mlp_layers(
     model: nn.Module,
     layer_indices: Sequence[int],
@@ -95,30 +129,13 @@ def replace_transformer_mlp_layers(
     records: list[ReplacementRecord] = []
 
     for layer_index in layer_indices:
-        if layer_index < 0 or layer_index >= len(layers):
-            raise IndexError(
-                f"layer index {layer_index} out of range for {len(layers)} layers"
-            )
-        layer = layers[layer_index]
-        try:
-            original_mlp = _get_attr_path(layer, mlp_attr)
-        except AttributeError as exc:
-            raise AttributeError(
-                f"layer {layer_index} has no target module path {mlp_attr!r}"
-            ) from exc
-        if not isinstance(original_mlp, nn.Module):
-            raise TypeError(
-                f"layer {layer_index} target {mlp_attr!r} is not an nn.Module"
-            )
+        layer, original_mlp = _resolve_layer_target(layers, layer_index, mlp_attr)
         replacement = DendriticFFNReplacement.from_mlp(
             original_mlp, **replacement_kwargs
         )
 
         if preserve_device_dtype:
-            param = _first_parameter(original_mlp)
-            if param is not None:
-                dtype = param.dtype if param.dtype.is_floating_point else None
-                replacement = replacement.to(device=param.device, dtype=dtype)
+            replacement = _move_replacement_like_source(replacement, original_mlp)
 
         _set_attr_path(layer, mlp_attr, replacement)
         records.append(
@@ -149,22 +166,9 @@ def replace_transformer_mlp_layers_with_ei_stack(
     if not ordered_indices:
         raise ValueError("layer_indices must contain at least one layer")
     for layer_index in ordered_indices:
-        if layer_index < 0 or layer_index >= len(layers):
-            raise IndexError(
-                f"layer index {layer_index} out of range for {len(layers)} layers"
-            )
-        try:
-            target = _get_attr_path(layers[layer_index], mlp_attr)
-        except AttributeError as exc:
-            raise AttributeError(
-                f"layer {layer_index} has no target module path {mlp_attr!r}"
-            ) from exc
-        if not isinstance(target, nn.Module):
-            raise TypeError(
-                f"layer {layer_index} target {mlp_attr!r} is not an nn.Module"
-            )
+        _resolve_layer_target(layers, layer_index, mlp_attr)
 
-    first_mlp = _get_attr_path(layers[ordered_indices[0]], mlp_attr)
+    _, first_mlp = _resolve_layer_target(layers, ordered_indices[0], mlp_attr)
     hidden_size, _ = _infer_mlp_dims(first_mlp)
     stack_num_layers = int(replacement_kwargs.pop("num_layers", len(ordered_indices)))
     if stack_num_layers != len(ordered_indices):
@@ -178,15 +182,11 @@ def replace_transformer_mlp_layers_with_ei_stack(
         **replacement_kwargs,
     )
     if preserve_device_dtype:
-        param = _first_parameter(first_mlp)
-        if param is not None:
-            dtype = param.dtype if param.dtype.is_floating_point else None
-            stack = stack.to(device=param.device, dtype=dtype)
+        stack = _move_replacement_like_source(stack, first_mlp)
 
     records: list[ReplacementRecord] = []
     for stack_pos, layer_index in enumerate(ordered_indices):
-        layer = layers[layer_index]
-        original_mlp = _get_attr_path(layer, mlp_attr)
+        layer, original_mlp = _resolve_layer_target(layers, layer_index, mlp_attr)
         replacement = EIStackMLPSlot(stack, stack_pos)
         _set_attr_path(layer, mlp_attr, replacement)
         records.append(
