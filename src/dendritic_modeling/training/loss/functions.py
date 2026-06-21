@@ -14,6 +14,7 @@ from dendritic_modeling.networks import (
 from dendritic_modeling.networks.architectures.classical.autoencoder import (
     BaseVariationalAutoencoder,
 )
+from dendritic_modeling.utils.hooks import remove_hook_handles
 
 LossBuilder = Callable[[], "LossFunction"]
 LOSS_FUNCTION_REGISTRY: dict[str, LossBuilder] = {}
@@ -308,8 +309,7 @@ class VoltageStabilizationLoss(LossFunction):
         return handles
 
     def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
-        for handle in handles:
-            handle.remove()
+        remove_hook_handles(handles)
 
     def forward_hook(
         self,
@@ -458,8 +458,7 @@ class ExcitationInhibitionBalanceLoss(LossFunction):
         return handles
 
     def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
-        for handle in handles:
-            handle.remove()
+        remove_hook_handles(handles)
 
     def forward_hook(
         self,
@@ -527,8 +526,7 @@ class HomeostaticControlLoss(LossFunction):
         return handles
 
     def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
-        for handle in handles:
-            handle.remove()
+        remove_hook_handles(handles)
 
     def forward(
         self, model: BaseModel, x: torch.Tensor, y: Optional[torch.Tensor] = None

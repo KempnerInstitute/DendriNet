@@ -13,6 +13,7 @@ from dendritic_modeling.config.reactivation import (
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize_expectations import (
     _aggregate_quantiles_from_chunks,
 )
+from dendritic_modeling.utils.hooks import remove_hook_handles
 
 
 def _apply_reactivation_init(
@@ -254,8 +255,7 @@ def calibrate_reactivation_from_data(
                     x = batch.to(device) if device is not None else batch
                     model(x)
     finally:
-        for h in handles:
-            h.remove()
+        remove_hook_handles(handles)
         if was_training:
             model.train()
 

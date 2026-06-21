@@ -41,6 +41,7 @@ from dendritic_modeling.training.strategies.local_learning_pathways import (
     iter_topk_path_modules,
 )
 from dendritic_modeling.utils import save_dict
+from dendritic_modeling.utils.hooks import remove_hook_handles
 
 logger = logging.getLogger(__name__)
 
@@ -145,8 +146,7 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
 
     def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
         """Remove forward hooks from the model."""
-        for handle in handles:
-            handle.remove()
+        remove_hook_handles(handles)
 
     def forward_hook(
         self,

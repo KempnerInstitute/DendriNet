@@ -21,6 +21,7 @@ from dendritic_modeling.networks import (
     ExcitationInhibitionNetwork,
 )
 from dendritic_modeling.utils import save_dict
+from dendritic_modeling.utils.hooks import remove_hook_handles
 
 
 class BranchActivationAnalyzer:
@@ -78,8 +79,7 @@ class BranchActivationAnalyzer:
 
     def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
         """Remove forward hooks."""
-        for handle in handles:
-            handle.remove()
+        remove_hook_handles(handles)
 
     def forward_hook(
         self,

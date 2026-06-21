@@ -6,6 +6,7 @@ import torch
 
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import DendriticBranchLayer
+from dendritic_modeling.utils.hooks import remove_hook_handles
 
 
 def _has_no_branch_synapses(module: DendriticBranchLayer) -> bool:
@@ -155,8 +156,7 @@ class InformationHooksMixin:
 
     def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
         """Remove forward hooks from the model."""
-        for handle in handles:
-            handle.remove()
+        remove_hook_handles(handles)
         for module, previous_store in getattr(self, "_analysis_hook_modules", []):
             module._store_analysis_currents = previous_store
             if hasattr(module, "_last_analysis_currents"):

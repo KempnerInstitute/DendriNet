@@ -65,6 +65,30 @@ def _apply_optional_alignment(
     return grad
 
 
+def _normalize_batch_gradient(
+    grad: torch.Tensor,
+    *,
+    normalize_by_batch: bool,
+    batch_size: int,
+) -> torch.Tensor:
+    """Average a summed local gradient when the local rule requests it."""
+    if normalize_by_batch:
+        return grad / float(batch_size)
+    return grad
+
+
+def _topk_pre_weight_grad(
+    local_grad: torch.Tensor,
+    *,
+    pre_weight: torch.Tensor,
+    weight_transform: str,
+    derivative_fn: Any,
+) -> torch.Tensor:
+    """Map a local conductance gradient through the TopK weight transform."""
+    chain = derivative_fn(pre_weight.detach(), weight_transform)
+    return local_grad * chain
+
+
 class LocalLearningGradientMixin:
     """Gradient writeback helpers used by ``LocalCreditAssignment``."""
 
@@ -228,8 +252,11 @@ class LocalLearningGradientMixin:
 
         x_pre: torch.Tensor = rec[input_key]
         grad_g = post_factor.t() @ x_pre
-        if self.local_cfg.normalize_by_batch:
-            grad_g = grad_g / float(batch_size)
+        grad_g = _normalize_batch_gradient(
+            grad_g,
+            normalize_by_batch=self.local_cfg.normalize_by_batch,
+            batch_size=batch_size,
+        )
 
         voltage_homeo_error = self._compute_voltage_homeostasis_error(v_n)
         if voltage_homeo_error is not None:
@@ -242,18 +269,16 @@ class LocalLearningGradientMixin:
             else:
                 homeo_factor = voltage_homeo_error
             grad_homeo = homeo_factor.t() @ x_pre
-            if self.local_cfg.normalize_by_batch:
-                grad_homeo = grad_homeo / float(batch_size)
+            grad_homeo = _normalize_batch_gradient(
+                grad_homeo,
+                normalize_by_batch=self.local_cfg.normalize_by_batch,
+                batch_size=batch_size,
+            )
             grad_g = grad_g + grad_homeo
 
         grad_g = _apply_optional_alignment(grad_g, role_synaptic_alignment)
 
-        chain = self._weight_transform_derivative(
-            layer.pre_w.detach(),
-            getattr(layer, "weight_transform", "exp"),
-        )
-        grad_param = grad_g * chain
-        self._add_topk_grad(layer, grad_param, rec.get(mask_key))
+        self._add_topk_transformed_grad(layer, grad_g, rec.get(mask_key))
         return layer
 
     def _apply_inhibitory_topk_local_grad(
@@ -319,8 +344,11 @@ class LocalLearningGradientMixin:
             inh_factor = inh_factor * float(branch_scale)
 
         grad_g = inh_factor.t() @ x_pre
-        if self.local_cfg.normalize_by_batch:
-            grad_g = grad_g / float(batch_size)
+        grad_g = _normalize_batch_gradient(
+            grad_g,
+            normalize_by_batch=self.local_cfg.normalize_by_batch,
+            batch_size=batch_size,
+        )
 
         grad_g = _apply_optional_alignment(grad_g, role_synaptic_alignment)
 
@@ -335,8 +363,11 @@ class LocalLearningGradientMixin:
             else:
                 homeo_factor = -voltage_homeo_error
             grad_homeo = homeo_factor.t() @ x_pre
-            if self.local_cfg.normalize_by_batch:
-                grad_homeo = grad_homeo / float(batch_size)
+            grad_homeo = _normalize_batch_gradient(
+                grad_homeo,
+                normalize_by_batch=self.local_cfg.normalize_by_batch,
+                batch_size=batch_size,
+            )
             grad_g = grad_g + grad_homeo
 
         inhibitory_homeo_factor = self._compute_inhibitory_homeostasis_factor(
@@ -344,17 +375,29 @@ class LocalLearningGradientMixin:
         )
         if inhibitory_homeo_factor is not None:
             grad_homeo = inhibitory_homeo_factor.t() @ x_pre
-            if self.local_cfg.normalize_by_batch:
-                grad_homeo = grad_homeo / float(batch_size)
+            grad_homeo = _normalize_batch_gradient(
+                grad_homeo,
+                normalize_by_batch=self.local_cfg.normalize_by_batch,
+                batch_size=batch_size,
+            )
             grad_g = grad_g + grad_homeo
 
-        chain = self._weight_transform_derivative(
-            layer.pre_w.detach(),
-            getattr(layer, "weight_transform", "exp"),
-        )
-        grad_param = grad_g * chain
-        self._add_topk_grad(layer, grad_param, rec.get(mask_key))
+        self._add_topk_transformed_grad(layer, grad_g, rec.get(mask_key))
         return layer
+
+    def _add_topk_transformed_grad(
+        self,
+        layer: TopKLinear,
+        local_grad: torch.Tensor,
+        mask: torch.Tensor | None,
+    ) -> None:
+        grad_param = _topk_pre_weight_grad(
+            local_grad,
+            pre_weight=layer.pre_w,
+            weight_transform=getattr(layer, "weight_transform", "exp"),
+            derivative_fn=self._weight_transform_derivative,
+        )
+        self._add_topk_grad(layer, grad_param, mask)
 
     def _apply_dendritic_block_local_grad(
         self,

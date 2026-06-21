@@ -17,6 +17,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.b
     BlockLinear,
 )
 from dendritic_modeling.training.strategies.standard import Trainer
+from dendritic_modeling.utils.hooks import remove_hook_handles
 
 logger = logging.getLogger(__name__)
 
@@ -166,8 +167,7 @@ class FeedbackAlignmentTrainer(Trainer):
             try:
                 y_hat = model(x_batch)
             finally:
-                for h in handles:
-                    h.remove()
+                remove_hook_handles(handles)
 
             # --- loss (for logging only) ---
             loss = self.loss_function(model, x_batch, y_batch)
@@ -463,8 +463,7 @@ class ShuntingFeedbackAlignmentTrainer(FeedbackAlignmentTrainer):
                 try:
                     y_hat = model(x_batch)
                 finally:
-                    for h in handles:
-                        h.remove()
+                    remove_hook_handles(handles)
 
                 # --- loss (for logging only) ---
                 loss = self.loss_function(model, x_batch, y_batch)

@@ -54,6 +54,7 @@ from dendritic_modeling.training.strategies.local_learning_pathways import (
     iter_topk_path_modules,
 )
 from dendritic_modeling.utils import save_dict
+from dendritic_modeling.utils.hooks import remove_hook_handles
 
 
 @dataclass(frozen=True)
@@ -717,8 +718,7 @@ class LocalRuleComponentAnalyzer(AbstractAnalyzer):
                                 _ = model(x)
                             delta0 = None
                     finally:
-                        for handle in handles:
-                            handle.remove()
+                        remove_hook_handles(handles)
 
                     depth_labels = self._depth_labels(records)
                     for rec in records:

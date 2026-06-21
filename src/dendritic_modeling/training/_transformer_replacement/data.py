@@ -25,6 +25,7 @@ from dendritic_modeling.training._transformer_replacement.common import (
     DistillationUnit,
     _to_plain_mapping,
 )
+from dendritic_modeling.utils.hooks import remove_hook_handles
 
 
 def _sample_hidden_pairs(
@@ -228,8 +229,7 @@ class _MLPIOCapture:
             value.clear()
 
     def close(self) -> None:
-        for handle in self.handles:
-            handle.remove()
+        remove_hook_handles(self.handles)
         self.handles.clear()
 
 

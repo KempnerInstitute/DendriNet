@@ -15,6 +15,7 @@ from .config_validation import (
 
 # Core utilities
 from .general import Shaper, convert_to_serializable, save_dict, set_seed
+from .hooks import HookHandle, remove_hook_handles
 from .lda import (
     apply_nonnegative_lda,
     apply_random_weights,
@@ -47,6 +48,7 @@ from .training_stability_validator import (
 )
 
 __all__ = [
+    "HookHandle",
     "ModelArchitectureValidator",
     "Shaper",
     "apply_automatic_safeguards",
@@ -59,6 +61,7 @@ __all__ = [
     "get_logger",
     "get_validation_summary",
     "normalize_sparse_layer_type",
+    "remove_hook_handles",
     "roc_auc_score",
     "save_dict",
     "select_topk_features_by_lda",

@@ -37,6 +37,7 @@ from dendritic_modeling.config.analysis import (
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks.activations.parametric import ParametricTanh
 from dendritic_modeling.utils import save_dict
+from dendritic_modeling.utils.hooks import remove_hook_handles
 
 
 def _quantile_stats(v: torch.Tensor) -> dict[str, float]:
@@ -295,8 +296,7 @@ class ReactivationDynamicsAnalyzer(AbstractAnalyzer):
                         )
                         return {}
             finally:
-                for h in handles:
-                    h.remove()
+                remove_hook_handles(handles)
                 if was_training:
                     model.train()
 

@@ -19,6 +19,7 @@ from dendritic_modeling.config.analysis import (
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import LIFSoma
 from dendritic_modeling.utils import save_dict
+from dendritic_modeling.utils.hooks import remove_hook_handles
 
 
 class SpikeTrainAnalyzer(AbstractAnalyzer):
@@ -44,8 +45,7 @@ class SpikeTrainAnalyzer(AbstractAnalyzer):
 
     @staticmethod
     def _remove_hooks(handles: list[torch.utils.hooks.RemovableHandle]) -> None:
-        for handle in handles:
-            handle.remove()
+        remove_hook_handles(handles)
 
     def _forward_hook(
         self,

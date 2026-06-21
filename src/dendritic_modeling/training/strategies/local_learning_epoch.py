@@ -13,6 +13,7 @@ from dendritic_modeling.networks import (
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
     TopKLinear,
 )
+from dendritic_modeling.utils.hooks import remove_hook_handles
 
 
 def _has_dendritic_branch_layers(model: BaseModel) -> bool:
@@ -194,8 +195,7 @@ def _forward_with_local_recorders(
     try:
         y_hat: torch.Tensor = model(x_batch)
     finally:
-        for handle in handles:
-            handle.remove()
+        remove_hook_handles(handles)
         _clear_topk_mask_cache(topk_modules)
 
     return y_hat, layer_records

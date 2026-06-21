@@ -18,6 +18,7 @@ from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import DendriticBranchLayer
 from dendritic_modeling.utils import save_dict
+from dendritic_modeling.utils.hooks import remove_hook_handles
 
 
 class ReceptiveFieldAnalyzer(AbstractAnalyzer):
@@ -207,8 +208,7 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
             with torch.no_grad():
                 _ = model(x)
         finally:
-            for handle in handles:
-                handle.remove()
+            remove_hook_handles(handles)
 
     def _summarize_signal(
         self,
