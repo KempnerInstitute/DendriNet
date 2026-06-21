@@ -48,6 +48,70 @@ from dendritic_modeling.utils.hooks import (
 logger = logging.getLogger(__name__)
 
 
+def _empty_tensor_statistics(
+    prefix: str,
+    *,
+    compute_mean: bool,
+    compute_variance: bool,
+    compute_min_max: bool,
+    compute_percentiles: bool,
+) -> dict[str, float]:
+    """Return the legacy zero-valued statistics for empty tensors."""
+    stats: dict[str, float] = {}
+    if compute_mean:
+        stats[f"{prefix}_mean"] = 0.0
+    if compute_variance:
+        stats[f"{prefix}_var"] = 0.0
+        stats[f"{prefix}_std"] = 0.0
+    if compute_min_max:
+        stats[f"{prefix}_min"] = 0.0
+        stats[f"{prefix}_max"] = 0.0
+    if compute_percentiles:
+        stats[f"{prefix}_q1"] = 0.0
+        stats[f"{prefix}_q2"] = 0.0
+        stats[f"{prefix}_q3"] = 0.0
+    return stats
+
+
+def _tensor_statistics(
+    data_tensor: torch.Tensor,
+    prefix: str,
+    *,
+    compute_mean: bool,
+    compute_variance: bool,
+    compute_min_max: bool,
+    compute_percentiles: bool,
+) -> dict[str, float]:
+    """Compute configured summary statistics with the historical torch reductions."""
+    if not isinstance(data_tensor, torch.Tensor) or data_tensor.numel() == 0:
+        return _empty_tensor_statistics(
+            prefix,
+            compute_mean=compute_mean,
+            compute_variance=compute_variance,
+            compute_min_max=compute_min_max,
+            compute_percentiles=compute_percentiles,
+        )
+
+    stats: dict[str, float] = {}
+    if compute_mean:
+        stats[f"{prefix}_mean"] = data_tensor.mean().item()
+
+    if compute_variance:
+        stats[f"{prefix}_var"] = data_tensor.var().item()
+        stats[f"{prefix}_std"] = data_tensor.std().item()
+
+    if compute_min_max:
+        stats[f"{prefix}_min"] = data_tensor.min().item()
+        stats[f"{prefix}_max"] = data_tensor.max().item()
+
+    if compute_percentiles:
+        stats[f"{prefix}_q1"] = data_tensor.quantile(0.25).item()
+        stats[f"{prefix}_q2"] = data_tensor.median().item()
+        stats[f"{prefix}_q3"] = data_tensor.quantile(0.75).item()
+
+    return stats
+
+
 class CompartmentStatisticsAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
     """
     Analyzer for compartment-level dendritic statistics.
@@ -275,38 +339,16 @@ class CompartmentStatisticsAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         stats_dict: dict[str, float],
     ) -> dict[str, float]:
         """Compute comprehensive statistics for a weight tensor."""
-        # Be robust to empty tensors (e.g., no active synapses selected).
-        if not isinstance(data_tensor, torch.Tensor) or data_tensor.numel() == 0:
-            if self.compute_mean:
-                stats_dict[f"{prefix}_mean"] = 0.0
-            if self.compute_variance:
-                stats_dict[f"{prefix}_var"] = 0.0
-                stats_dict[f"{prefix}_std"] = 0.0
-            if self.compute_min_max:
-                stats_dict[f"{prefix}_min"] = 0.0
-                stats_dict[f"{prefix}_max"] = 0.0
-            if self.compute_percentiles:
-                stats_dict[f"{prefix}_q1"] = 0.0
-                stats_dict[f"{prefix}_q2"] = 0.0
-                stats_dict[f"{prefix}_q3"] = 0.0
-            return stats_dict
-
-        if self.compute_mean:
-            stats_dict[f"{prefix}_mean"] = data_tensor.mean().item()
-
-        if self.compute_variance:
-            stats_dict[f"{prefix}_var"] = data_tensor.var().item()
-            stats_dict[f"{prefix}_std"] = data_tensor.std().item()
-
-        if self.compute_min_max:
-            stats_dict[f"{prefix}_min"] = data_tensor.min().item()
-            stats_dict[f"{prefix}_max"] = data_tensor.max().item()
-
-        if self.compute_percentiles:
-            stats_dict[f"{prefix}_q1"] = data_tensor.quantile(0.25).item()
-            stats_dict[f"{prefix}_q2"] = data_tensor.median().item()
-            stats_dict[f"{prefix}_q3"] = data_tensor.quantile(0.75).item()
-
+        stats_dict.update(
+            _tensor_statistics(
+                data_tensor,
+                prefix,
+                compute_mean=self.compute_mean,
+                compute_variance=self.compute_variance,
+                compute_min_max=self.compute_min_max,
+                compute_percentiles=self.compute_percentiles,
+            )
+        )
         return stats_dict
 
     def _entropy_samples_for_prefix(

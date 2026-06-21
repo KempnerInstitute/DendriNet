@@ -84,6 +84,81 @@ def _scalar_edge_mean_factor(
     ) * edge_weights.mean()
 
 
+def _path_branch_factor(
+    *,
+    parent_path: torch.Tensor,
+    parent_act_deriv: torch.Tensor,
+    parent_r_tot: torch.Tensor,
+    edge_weights: torch.Tensor,
+    block_size: int,
+    child_out_features: int,
+    mode: str,
+) -> torch.Tensor:
+    """Compute per-child path propagation factors for a parent-child edge."""
+    expanded_parent_path = expand_parent_signal_to_children(
+        parent_path, block_size, child_out_features
+    )
+    expanded_parent_act = expand_parent_signal_to_children(
+        parent_act_deriv, block_size, child_out_features
+    )
+    expanded_parent_r_tot = expand_parent_signal_to_children(
+        parent_r_tot, block_size, child_out_features
+    )
+    branch_factor = (
+        expanded_parent_path
+        * expanded_parent_act
+        * expanded_parent_r_tot
+        * edge_weights.reshape(1, -1)
+    )
+    if mode == "scalar_mean":
+        return branch_factor.mean(dim=1, keepdim=True)
+    return branch_factor
+
+
+def _transport_child_error(
+    *,
+    parent_error: torch.Tensor,
+    parent_act_deriv: torch.Tensor,
+    parent_r_tot: torch.Tensor,
+    edge_weights: torch.Tensor,
+    block_size: int,
+    child_v: torch.Tensor,
+) -> torch.Tensor:
+    """Transport parent activation error through a parent-child edge."""
+    child_dtype = child_v.dtype
+    child_device = child_v.device
+    expanded_parent_error = expand_parent_signal_to_children(
+        (
+            parent_error.to(device=child_device, dtype=child_dtype)
+            * parent_act_deriv.to(device=child_device, dtype=child_dtype)
+        ),
+        block_size,
+        child_v.size(1),
+    )
+    expanded_parent_r_tot = expand_parent_signal_to_children(
+        parent_r_tot.to(device=child_device, dtype=child_dtype),
+        block_size,
+        child_v.size(1),
+    )
+    return expanded_parent_error * expanded_parent_r_tot * edge_weights.reshape(1, -1)
+
+
+def _feedback_child_seed(
+    *,
+    parent_feedback: torch.Tensor,
+    edge_weights: torch.Tensor,
+    block_size: int,
+    child_v: torch.Tensor,
+) -> torch.Tensor:
+    """Transport parent feedback seed through a parent-child edge."""
+    expanded_parent = expand_parent_signal_to_children(
+        parent_feedback.to(device=child_v.device, dtype=child_v.dtype),
+        block_size,
+        child_v.size(1),
+    )
+    return expanded_parent * edge_weights.reshape(1, -1)
+
+
 def _expected_child_out_features(edge_weights: torch.Tensor) -> int:
     """Return the child feature count implied by edge weights."""
 
@@ -256,32 +331,15 @@ class LocalLearningPathTransportBroadcastMixin:
 
                 continue
 
-            expanded_parent_path = self._expand_parent_signal_to_children(
-                parent_path, block_size, child_v.size(1)
+            path_factors[layer_idx] = _path_branch_factor(
+                parent_path=parent_path,
+                parent_act_deriv=parent_act_deriv,
+                parent_r_tot=parent_r_tot,
+                edge_weights=edge_weights,
+                block_size=block_size,
+                child_out_features=child_v.size(1),
+                mode=mode,
             )
-
-            expanded_parent_act = self._expand_parent_signal_to_children(
-                parent_act_deriv, block_size, child_v.size(1)
-            )
-
-            expanded_parent_r_tot = self._expand_parent_signal_to_children(
-                parent_r_tot, block_size, child_v.size(1)
-            )
-
-            edge_gain = edge_weights.reshape(1, -1)
-
-            branch_factor = (
-                expanded_parent_path
-                * expanded_parent_act
-                * expanded_parent_r_tot
-                * edge_gain
-            )
-
-            if mode == "scalar_mean":
-
-                branch_factor = branch_factor.mean(dim=1, keepdim=True)
-
-            path_factors[layer_idx] = branch_factor
 
         return path_factors
 
@@ -388,25 +446,13 @@ class LocalLearningPathTransportBroadcastMixin:
 
             parent_r_tot = self._parent_resistance_total(parent_rec, parent_v)
 
-            expanded_parent_error = self._expand_parent_signal_to_children(
-                (
-                    parent_error.to(device=child_v.device, dtype=child_v.dtype)
-                    * parent_act_deriv.to(device=child_v.device, dtype=child_v.dtype)
-                ),
-                block_size,
-                child_v.size(1),
-            )
-
-            expanded_parent_r_tot = self._expand_parent_signal_to_children(
-                parent_r_tot.to(device=child_v.device, dtype=child_v.dtype),
-                block_size,
-                child_v.size(1),
-            )
-
-            transported[layer_idx] = (
-                expanded_parent_error
-                * expanded_parent_r_tot
-                * edge_weights.reshape(1, -1)
+            transported[layer_idx] = _transport_child_error(
+                parent_error=parent_error,
+                parent_act_deriv=parent_act_deriv,
+                parent_r_tot=parent_r_tot,
+                edge_weights=edge_weights,
+                block_size=block_size,
+                child_v=child_v,
             )
 
         return transported
@@ -454,13 +500,12 @@ class LocalLearningPathTransportBroadcastMixin:
 
             edge_weights = _edge_weights_like_child(blk_module, child_v)
 
-            expanded_parent = self._expand_parent_signal_to_children(
-                parent_feedback.to(device=child_v.device, dtype=child_v.dtype),
-                _block_size(blk_module),
-                child_v.size(1),
+            feedback[layer_idx] = _feedback_child_seed(
+                parent_feedback=parent_feedback,
+                edge_weights=edge_weights,
+                block_size=_block_size(blk_module),
+                child_v=child_v,
             )
-
-            feedback[layer_idx] = expanded_parent * edge_weights.reshape(1, -1)
 
         return feedback
 
@@ -473,8 +518,11 @@ __all__ = [
     "_edge_weights_like_child",
     "_expand_scalar_like",
     "_expected_child_out_features",
+    "_feedback_child_seed",
     "_iter_distal_parent_records",
+    "_path_branch_factor",
     "_scalar_edge_mean_factor",
     "_soma_seed_from_delta",
+    "_transport_child_error",
     "_warn_child_out_mismatch",
 ]

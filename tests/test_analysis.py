@@ -2803,6 +2803,20 @@ class TestAnalysisManager(unittest.TestCase):
             str(Path(self.manager.save_root) / spec.save_subdir / "epochs"),
         )
 
+    def test_manager_call_analysis_analyzer_resolves_registry_metadata(self):
+        """Analyzer invocation helper should preserve registry lookup and kwargs."""
+        with patch.object(self.manager, "performance_analyzer") as mock_analyzer:
+            self.manager._call_analysis_analyzer(
+                "performance",
+                model=self.model,
+                filename="direct_call",
+            )
+
+        mock_analyzer.analyze.assert_called_once_with(
+            model=self.model,
+            filename="direct_call",
+        )
+
     def test_manager_performance_phase_helpers_preserve_paths_and_splits(self):
         """Performance helper methods should preserve phase-specific routing."""
         config = AnalysisConfig()

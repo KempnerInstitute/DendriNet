@@ -74,6 +74,43 @@ def _apply_inhibitory_topk_modulators(
     return _apply_output_modulator(factor, branch_scale)
 
 
+def _conductance_inhibitory_topk_factor(
+    *,
+    e_v: torch.Tensor,
+    v_n: torch.Tensor,
+    r_tot: torch.Tensor | float,
+    e_rev_inh: float,
+    theta: float,
+    use_driving_force: bool,
+) -> torch.Tensor:
+    """Compute the inhibitory TopK factor for conductance dynamics."""
+    if use_driving_force:
+        inh_post = e_rev_inh - v_n
+    else:
+        inh_post = theta - v_n
+    return e_v * r_tot * inh_post
+
+
+def _additive_inhibitory_topk_factor(
+    *,
+    e_v: torch.Tensor,
+    v_n: torch.Tensor,
+    post_factor_raw: torch.Tensor,
+    additive_mode: str,
+    theta: float,
+    pseudo_R: torch.Tensor | None,
+) -> torch.Tensor:
+    """Compute the inhibitory TopK factor for additive dynamics."""
+    if additive_mode == "input_dependent":
+        if pseudo_R is None:
+            raise ValueError("pseudo_R is required for input_dependent additive mode.")
+        inh_post = theta - v_n
+        return e_v * pseudo_R * inh_post
+    if additive_mode in ("learned_gain", "running_stats"):
+        return -post_factor_raw
+    return -e_v
+
+
 class LocalLearningTopKGradientMixin:
     """Gradient writeback for TopK feedforward and recurrent pathways."""
 
@@ -319,25 +356,29 @@ class LocalLearningTopKGradientMixin:
     ) -> torch.Tensor:
         """Compute the inhibitory TopK factor before rho/phi/branch modulation."""
         if layer_dynamics_mode == "conductance":
-            if self.local_cfg.three_factor.use_driving_force:
-                inh_post = self.local_cfg.three_factor.e_rev_inh - v_n
-            else:
-                inh_post = self.local_cfg.three_factor.theta - v_n
-            inh_factor = e_v * r_tot * inh_post
-        else:
-            additive_mode = getattr(
-                self.local_cfg.three_factor, "additive_gain_mode", "none"
+            return _conductance_inhibitory_topk_factor(
+                e_v=e_v,
+                v_n=v_n,
+                r_tot=r_tot,
+                e_rev_inh=self.local_cfg.three_factor.e_rev_inh,
+                theta=self.local_cfg.three_factor.theta,
+                use_driving_force=self.local_cfg.three_factor.use_driving_force,
             )
-            if additive_mode == "input_dependent":
-                pseudo_R, _ = self._compute_additive_pseudo_signals(rec, v_n)
-                inh_post = self.local_cfg.three_factor.theta - v_n
-                inh_factor = e_v * pseudo_R * inh_post
-            elif additive_mode in ("learned_gain", "running_stats"):
-                inh_factor = -post_factor_raw
-            else:
-                inh_factor = -e_v
 
-        return inh_factor
+        additive_mode = getattr(
+            self.local_cfg.three_factor, "additive_gain_mode", "none"
+        )
+        pseudo_R = None
+        if additive_mode == "input_dependent":
+            pseudo_R, _ = self._compute_additive_pseudo_signals(rec, v_n)
+        return _additive_inhibitory_topk_factor(
+            e_v=e_v,
+            v_n=v_n,
+            post_factor_raw=post_factor_raw,
+            additive_mode=additive_mode,
+            theta=self.local_cfg.three_factor.theta,
+            pseudo_R=pseudo_R,
+        )
 
     def _add_topk_transformed_grad(
         self,

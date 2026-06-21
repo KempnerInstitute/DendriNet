@@ -6,7 +6,9 @@ import torch
 
 from dendritic_modeling.training.strategies.local_learning_topk_mixin import (
     LocalLearningTopKGradientMixin,
+    _additive_inhibitory_topk_factor,
     _apply_inhibitory_topk_modulators,
+    _conductance_inhibitory_topk_factor,
 )
 
 
@@ -79,6 +81,77 @@ def test_apply_inhibitory_topk_modulators_preserves_tensor_rho_for_3f():
 
     expected = factor * rho.unsqueeze(0) * branch_scale.unsqueeze(0)
     torch.testing.assert_close(actual, expected)
+
+
+def test_conductance_inhibitory_topk_factor_preserves_formula():
+    e_v = torch.tensor([[0.2, -0.4]])
+    v_n = torch.tensor([[0.5, 0.75]])
+    r_tot = torch.tensor([[2.0, 3.0]])
+
+    driving = _conductance_inhibitory_topk_factor(
+        e_v=e_v,
+        v_n=v_n,
+        r_tot=r_tot,
+        e_rev_inh=-0.5,
+        theta=0.25,
+        use_driving_force=True,
+    )
+    non_driving = _conductance_inhibitory_topk_factor(
+        e_v=e_v,
+        v_n=v_n,
+        r_tot=r_tot,
+        e_rev_inh=-0.5,
+        theta=0.25,
+        use_driving_force=False,
+    )
+
+    torch.testing.assert_close(driving, e_v * r_tot * (-0.5 - v_n))
+    torch.testing.assert_close(non_driving, e_v * r_tot * (0.25 - v_n))
+
+
+def test_additive_inhibitory_topk_factor_preserves_modes():
+    e_v = torch.tensor([[0.2, -0.4]])
+    v_n = torch.tensor([[0.5, 0.75]])
+    post_factor_raw = torch.tensor([[9.0, 8.0]])
+    pseudo_R = torch.tensor([[4.0, 2.0]])
+
+    input_dependent = _additive_inhibitory_topk_factor(
+        e_v=e_v,
+        v_n=v_n,
+        post_factor_raw=post_factor_raw,
+        additive_mode="input_dependent",
+        theta=0.25,
+        pseudo_R=pseudo_R,
+    )
+    learned = _additive_inhibitory_topk_factor(
+        e_v=e_v,
+        v_n=v_n,
+        post_factor_raw=post_factor_raw,
+        additive_mode="learned_gain",
+        theta=0.25,
+        pseudo_R=None,
+    )
+    running = _additive_inhibitory_topk_factor(
+        e_v=e_v,
+        v_n=v_n,
+        post_factor_raw=post_factor_raw,
+        additive_mode="running_stats",
+        theta=0.25,
+        pseudo_R=None,
+    )
+    neutral = _additive_inhibitory_topk_factor(
+        e_v=e_v,
+        v_n=v_n,
+        post_factor_raw=post_factor_raw,
+        additive_mode="none",
+        theta=0.25,
+        pseudo_R=None,
+    )
+
+    torch.testing.assert_close(input_dependent, e_v * pseudo_R * (0.25 - v_n))
+    torch.testing.assert_close(learned, -post_factor_raw)
+    torch.testing.assert_close(running, -post_factor_raw)
+    torch.testing.assert_close(neutral, -e_v)
 
 
 def test_base_inhibitory_topk_factor_preserves_conductance_modes():

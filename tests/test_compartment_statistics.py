@@ -4,6 +4,8 @@ from scipy.stats import differential_entropy
 
 from dendritic_modeling.analysis.tools.compartment_statistics import (
     CompartmentStatisticsAnalyzer,
+    _empty_tensor_statistics,
+    _tensor_statistics,
 )
 from dendritic_modeling.config.analysis import CompartmentStatisticsAnalysisParams
 
@@ -19,6 +21,66 @@ def _expected_tensor_stats(prefix, values):
         f"{prefix}_q1": tensor.quantile(0.25).item(),
         f"{prefix}_q2": tensor.median().item(),
         f"{prefix}_q3": tensor.quantile(0.75).item(),
+    }
+
+
+def test_compartment_statistics_tensor_helper_matches_current_reductions():
+    actual = _tensor_statistics(
+        torch.tensor([1.0, 3.0, 5.0]),
+        "exc_weights",
+        compute_mean=True,
+        compute_variance=True,
+        compute_min_max=True,
+        compute_percentiles=True,
+    )
+
+    assert actual == _expected_tensor_stats("exc_weights", [1.0, 3.0, 5.0])
+
+
+def test_compartment_statistics_empty_helper_respects_enabled_fields():
+    assert _empty_tensor_statistics(
+        "empty",
+        compute_mean=True,
+        compute_variance=True,
+        compute_min_max=True,
+        compute_percentiles=True,
+    ) == {
+        "empty_mean": 0.0,
+        "empty_var": 0.0,
+        "empty_std": 0.0,
+        "empty_min": 0.0,
+        "empty_max": 0.0,
+        "empty_q1": 0.0,
+        "empty_q2": 0.0,
+        "empty_q3": 0.0,
+    }
+    assert _empty_tensor_statistics(
+        "empty",
+        compute_mean=False,
+        compute_variance=False,
+        compute_min_max=True,
+        compute_percentiles=False,
+    ) == {
+        "empty_min": 0.0,
+        "empty_max": 0.0,
+    }
+
+
+def test_compartment_statistics_tensor_helper_handles_empty_inputs():
+    actual = _tensor_statistics(
+        torch.tensor([]),
+        "empty",
+        compute_mean=True,
+        compute_variance=False,
+        compute_min_max=False,
+        compute_percentiles=True,
+    )
+
+    assert actual == {
+        "empty_mean": 0.0,
+        "empty_q1": 0.0,
+        "empty_q2": 0.0,
+        "empty_q3": 0.0,
     }
 
 

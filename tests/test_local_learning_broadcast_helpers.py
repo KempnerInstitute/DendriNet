@@ -26,9 +26,12 @@ from dendritic_modeling.training.strategies.local_learning_broadcast_transport_m
     _edge_weights_like_child,
     _expand_scalar_like,
     _expected_child_out_features,
+    _feedback_child_seed,
     _iter_distal_parent_records,
+    _path_branch_factor,
     _scalar_edge_mean_factor,
     _soma_seed_from_delta,
+    _transport_child_error,
     _warn_child_out_mismatch,
 )
 
@@ -340,6 +343,86 @@ def test_scalar_edge_mean_factor_preserves_shape_and_formula():
     ) * edge_weights.mean()
     torch.testing.assert_close(factor, expected)
     assert factor.shape == (2, 1)
+
+
+def test_path_branch_factor_preserves_expansion_product_and_scalar_mode():
+    parent_path = torch.tensor([[1.0, 2.0]])
+    parent_act_deriv = torch.tensor([[0.5, 0.25]])
+    parent_r_tot = torch.tensor([[2.0, 3.0]])
+    edge_weights = torch.tensor([0.25, 0.5, 0.75, 1.0])
+
+    per_branch = _path_branch_factor(
+        parent_path=parent_path,
+        parent_act_deriv=parent_act_deriv,
+        parent_r_tot=parent_r_tot,
+        edge_weights=edge_weights,
+        block_size=2,
+        child_out_features=4,
+        mode="per_branch",
+    )
+    scalar_mean = _path_branch_factor(
+        parent_path=parent_path,
+        parent_act_deriv=parent_act_deriv,
+        parent_r_tot=parent_r_tot,
+        edge_weights=edge_weights,
+        block_size=2,
+        child_out_features=4,
+        mode="scalar_mean",
+    )
+
+    expected = (
+        torch.tensor([[1.0, 1.0, 2.0, 2.0]])
+        * torch.tensor([[0.5, 0.5, 0.25, 0.25]])
+        * torch.tensor([[2.0, 2.0, 3.0, 3.0]])
+        * edge_weights.reshape(1, -1)
+    )
+    torch.testing.assert_close(per_branch, expected)
+    torch.testing.assert_close(scalar_mean, expected.mean(dim=1, keepdim=True))
+
+
+def test_transport_child_error_preserves_expansion_product_dtype_and_device():
+    parent_error = torch.tensor([[1.0, 2.0]], dtype=torch.float32)
+    parent_act_deriv = torch.tensor([[0.5, 0.25]], dtype=torch.float32)
+    parent_r_tot = torch.tensor([[2.0, 3.0]], dtype=torch.float32)
+    edge_weights = torch.tensor([0.25, 0.5, 0.75, 1.0], dtype=torch.float64)
+    child_v = torch.zeros(1, 4, dtype=torch.float64)
+
+    transported = _transport_child_error(
+        parent_error=parent_error,
+        parent_act_deriv=parent_act_deriv,
+        parent_r_tot=parent_r_tot,
+        edge_weights=edge_weights,
+        block_size=2,
+        child_v=child_v,
+    )
+
+    expected = (
+        torch.tensor([[0.5, 0.5, 0.5, 0.5]], dtype=torch.float64)
+        * torch.tensor([[2.0, 2.0, 3.0, 3.0]], dtype=torch.float64)
+        * edge_weights.reshape(1, -1)
+    )
+    torch.testing.assert_close(transported, expected)
+    assert transported.dtype == child_v.dtype
+    assert transported.device == child_v.device
+
+
+def test_feedback_child_seed_preserves_expansion_product_dtype_and_device():
+    parent_feedback = torch.tensor([[1.0, 2.0]], dtype=torch.float32)
+    edge_weights = torch.tensor([0.25, 0.5, 0.75, 1.0], dtype=torch.float64)
+    child_v = torch.zeros(1, 4, dtype=torch.float64)
+
+    feedback = _feedback_child_seed(
+        parent_feedback=parent_feedback,
+        edge_weights=edge_weights,
+        block_size=2,
+        child_v=child_v,
+    )
+
+    expected = torch.tensor([[1.0, 1.0, 2.0, 2.0]], dtype=torch.float64)
+    expected = expected * edge_weights.reshape(1, -1)
+    torch.testing.assert_close(feedback, expected)
+    assert feedback.dtype == child_v.dtype
+    assert feedback.device == child_v.device
 
 
 def test_soma_seed_from_delta_preserves_legacy_delta_reshaping():

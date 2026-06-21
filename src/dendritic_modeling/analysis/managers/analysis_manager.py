@@ -133,6 +133,10 @@ class AnalysisManager:
         spec = _registered_analyzer_spec(registry_name)
         return getattr(self, spec.attribute_name)
 
+    def _call_analysis_analyzer(self, registry_name: str, **kwargs) -> None:
+        """Invoke a registered analyzer with precomputed keyword arguments."""
+        self._analysis_analyzer(registry_name).analyze(**kwargs)
+
     def _has_analysis_analyzer(self, registry_name: str) -> bool:
         """Return whether the registered analyzer has been initialized."""
         spec = _registered_analyzer_spec(registry_name)
@@ -200,7 +204,7 @@ class AnalysisManager:
         if pass_training:
             kwargs["training"] = training
 
-        self._analysis_analyzer(registry_name).analyze(**kwargs)
+        self._call_analysis_analyzer(registry_name, **kwargs)
 
     def _run_test_dataset_analysis_runner(
         self,
@@ -299,7 +303,7 @@ class AnalysisManager:
         self._run_logged_action(
             start_message=start_message,
             complete_message=complete_message,
-            action=lambda: self._analysis_analyzer(registry_name).analyze(**kwargs),
+            action=lambda: self._call_analysis_analyzer(registry_name, **kwargs),
         )
 
     def set_pruning_results(self, pruning_results: dict):
@@ -322,7 +326,8 @@ class AnalysisManager:
         if not self._should_run_config(perf_cfg, training):
             return
 
-        self._analysis_analyzer("performance").analyze(
+        self._call_analysis_analyzer(
+            "performance",
             model=self.model,
             train_ds=self.data["train"],
             valid_ds=self.data["valid"],
@@ -391,7 +396,8 @@ class AnalysisManager:
         ):
             return
 
-        self._analysis_analyzer(registry_name).analyze(
+        self._call_analysis_analyzer(
+            registry_name,
             model=self.model,
             save_path=self._analysis_save_path(registry_name),
             filename=filename,
@@ -451,7 +457,7 @@ class AnalysisManager:
             "training": training,
             "runtime": runtime,
         }
-        self._analysis_analyzer(registry_name).analyze(**kwargs)
+        self._call_analysis_analyzer(registry_name, **kwargs)
 
     def _run_correlation_analysis(
         self, *, filename: str, training: bool, runtime: object | None
@@ -497,7 +503,8 @@ class AnalysisManager:
         self._run_logged_action(
             start_message=start_message,
             complete_message=complete_message,
-            action=lambda: self._analysis_analyzer(registry_name).analyze(
+            action=lambda: self._call_analysis_analyzer(
+                registry_name,
                 model=self.model,
                 device=self.device,
                 save_path=self._analysis_save_path(registry_name),

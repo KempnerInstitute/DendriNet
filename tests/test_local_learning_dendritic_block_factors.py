@@ -6,7 +6,10 @@ import torch
 
 from dendritic_modeling.training.strategies.local_learning_dendritic_block_mixin import (
     LocalLearningDendriticBlockGradientMixin,
+    _additive_dendritic_block_factor,
     _apply_dendritic_block_modulators,
+    _conductance_dendritic_block_factor,
+    _dendritic_block_homeostasis_factor,
     _expand_resistance_for_blocks,
 )
 
@@ -110,6 +113,72 @@ def test_apply_dendritic_block_modulators_preserves_tensor_branch_shapes():
         three_factor_tensor_rho,
         factor * per_neuron_scale[None, :, None],
     )
+
+
+def test_conductance_dendritic_block_factor_preserves_formula():
+    e_v = torch.tensor([[0.2, -0.4]])
+    v_n = torch.tensor([[0.5, 0.75]])
+    r_tot = torch.tensor([[2.0, 3.0]])
+    x_blk = torch.tensor([[[1.0, 0.25], [2.0, 0.5]]])
+
+    actual = _conductance_dendritic_block_factor(
+        e_v=e_v,
+        v_n=v_n,
+        r_tot=r_tot,
+        x_blk=x_blk,
+    )
+
+    expected = e_v.unsqueeze(-1) * r_tot.unsqueeze(-1) * (x_blk - v_n.unsqueeze(-1))
+    torch.testing.assert_close(actual, expected)
+
+
+def test_additive_dendritic_block_factor_preserves_modes():
+    e_v = torch.tensor([[0.2, -0.4]])
+    v_n = torch.tensor([[0.5, 0.75]])
+    x_blk = torch.tensor([[[1.0, 0.25], [2.0, 0.5]]])
+    post_factor_raw = torch.tensor([[9.0, 8.0]])
+    pseudo_R = torch.tensor([[4.0, 2.0]])
+
+    input_dependent = _additive_dendritic_block_factor(
+        e_v=e_v,
+        v_n=v_n,
+        post_factor_raw=post_factor_raw,
+        x_blk=x_blk,
+        additive_mode="input_dependent",
+        pseudo_R=pseudo_R,
+    )
+    learned = _additive_dendritic_block_factor(
+        e_v=e_v,
+        v_n=v_n,
+        post_factor_raw=post_factor_raw,
+        x_blk=x_blk,
+        additive_mode="learned_gain",
+        pseudo_R=None,
+    )
+    running = _additive_dendritic_block_factor(
+        e_v=e_v,
+        v_n=v_n,
+        post_factor_raw=post_factor_raw,
+        x_blk=x_blk,
+        additive_mode="running_stats",
+        pseudo_R=None,
+    )
+    neutral = _additive_dendritic_block_factor(
+        e_v=e_v,
+        v_n=v_n,
+        post_factor_raw=post_factor_raw,
+        x_blk=x_blk,
+        additive_mode="none",
+        pseudo_R=None,
+    )
+
+    torch.testing.assert_close(
+        input_dependent,
+        e_v.unsqueeze(-1) * pseudo_R.unsqueeze(-1) * (x_blk - v_n.unsqueeze(-1)),
+    )
+    torch.testing.assert_close(learned, post_factor_raw.unsqueeze(-1) * x_blk)
+    torch.testing.assert_close(running, post_factor_raw.unsqueeze(-1) * x_blk)
+    torch.testing.assert_close(neutral, e_v.unsqueeze(-1) * x_blk)
 
 
 def test_base_dendritic_block_factor_preserves_conductance_mode():
@@ -235,6 +304,36 @@ def test_dendritic_block_homeostasis_factor_preserves_resistance_modes():
         layer_dynamics_mode="conductance",
     )
     additive = probe._compute_dendritic_block_homeostasis_factor(
+        voltage_homeo_error=voltage_homeo_error,
+        v_n=v_n,
+        r_tot=1.0,
+        x_blk=x_blk,
+        layer_dynamics_mode="additive",
+    )
+
+    torch.testing.assert_close(
+        conductance,
+        voltage_homeo_error.unsqueeze(-1)
+        * r_tot.unsqueeze(-1)
+        * (x_blk - v_n.unsqueeze(-1)),
+    )
+    torch.testing.assert_close(additive, voltage_homeo_error.unsqueeze(-1) * x_blk)
+
+
+def test_dendritic_block_homeostasis_helper_preserves_resistance_modes():
+    voltage_homeo_error = torch.tensor([[0.2, -0.4]])
+    v_n = torch.tensor([[0.5, 0.75]])
+    r_tot = torch.tensor([[2.0, 3.0]])
+    x_blk = torch.tensor([[[1.0, 0.25], [2.0, 0.5]]])
+
+    conductance = _dendritic_block_homeostasis_factor(
+        voltage_homeo_error=voltage_homeo_error,
+        v_n=v_n,
+        r_tot=r_tot,
+        x_blk=x_blk,
+        layer_dynamics_mode="conductance",
+    )
+    additive = _dendritic_block_homeostasis_factor(
         voltage_homeo_error=voltage_homeo_error,
         v_n=v_n,
         r_tot=1.0,

@@ -75,6 +75,55 @@ def _apply_dendritic_block_modulators(
     return _apply_dendritic_branch_scale(factor, dendritic_branch_scale)
 
 
+def _conductance_dendritic_block_factor(
+    *,
+    e_v: torch.Tensor,
+    v_n: torch.Tensor,
+    r_tot: torch.Tensor | float,
+    x_blk: torch.Tensor,
+) -> torch.Tensor:
+    """Compute dendritic-block factors for conductance dynamics."""
+    diff = x_blk - v_n.unsqueeze(-1)
+    r_exp = _expand_resistance_for_blocks(r_tot, v_n)
+    return e_v.unsqueeze(-1) * r_exp * diff
+
+
+def _additive_dendritic_block_factor(
+    *,
+    e_v: torch.Tensor,
+    v_n: torch.Tensor,
+    post_factor_raw: torch.Tensor,
+    x_blk: torch.Tensor,
+    additive_mode: str,
+    pseudo_R: torch.Tensor | None,
+) -> torch.Tensor:
+    """Compute dendritic-block factors for additive dynamics."""
+    if additive_mode == "input_dependent":
+        if pseudo_R is None:
+            raise ValueError("pseudo_R is required for input_dependent additive mode.")
+        diff = x_blk - v_n.unsqueeze(-1)
+        return e_v.unsqueeze(-1) * pseudo_R.unsqueeze(-1) * diff
+    if additive_mode in ("learned_gain", "running_stats"):
+        return post_factor_raw.unsqueeze(-1) * x_blk
+    return e_v.unsqueeze(-1) * x_blk
+
+
+def _dendritic_block_homeostasis_factor(
+    *,
+    voltage_homeo_error: torch.Tensor,
+    v_n: torch.Tensor,
+    r_tot: torch.Tensor | float,
+    x_blk: torch.Tensor,
+    layer_dynamics_mode: str,
+) -> torch.Tensor:
+    """Compute dendritic-block voltage homeostasis factors."""
+    if layer_dynamics_mode == "conductance":
+        diff_homeo = x_blk - v_n.unsqueeze(-1)
+        r_homeo = _expand_resistance_for_blocks(r_tot, v_n)
+        return voltage_homeo_error.unsqueeze(-1) * r_homeo * diff_homeo
+    return voltage_homeo_error.unsqueeze(-1) * x_blk
+
+
 class LocalLearningDendriticBlockGradientMixin:
     """Gradient writeback for dendritic block conductances."""
 
@@ -198,23 +247,27 @@ class LocalLearningDendriticBlockGradientMixin:
     ) -> torch.Tensor:
         """Compute dendritic-block factors before rho/phi/branch modulation."""
         if layer_dynamics_mode == "conductance":
-            diff = x_blk - v_n.unsqueeze(-1)
-            r_exp = _expand_resistance_for_blocks(r_tot, v_n)
-            den_factor = e_v.unsqueeze(-1) * r_exp * diff
-        else:
-            additive_mode = getattr(
-                self.local_cfg.three_factor, "additive_gain_mode", "none"
+            return _conductance_dendritic_block_factor(
+                e_v=e_v,
+                v_n=v_n,
+                r_tot=r_tot,
+                x_blk=x_blk,
             )
-            if additive_mode == "input_dependent":
-                pseudo_R, _ = self._compute_additive_pseudo_signals(rec, v_n)
-                diff = x_blk - v_n.unsqueeze(-1)
-                den_factor = e_v.unsqueeze(-1) * pseudo_R.unsqueeze(-1) * diff
-            elif additive_mode in ("learned_gain", "running_stats"):
-                den_factor = post_factor_raw.unsqueeze(-1) * x_blk
-            else:
-                den_factor = e_v.unsqueeze(-1) * x_blk
 
-        return den_factor
+        additive_mode = getattr(
+            self.local_cfg.three_factor, "additive_gain_mode", "none"
+        )
+        pseudo_R = None
+        if additive_mode == "input_dependent":
+            pseudo_R, _ = self._compute_additive_pseudo_signals(rec, v_n)
+        return _additive_dendritic_block_factor(
+            e_v=e_v,
+            v_n=v_n,
+            post_factor_raw=post_factor_raw,
+            x_blk=x_blk,
+            additive_mode=additive_mode,
+            pseudo_R=pseudo_R,
+        )
 
     def _compute_dendritic_block_homeostasis_factor(
         self,
@@ -225,11 +278,13 @@ class LocalLearningDendriticBlockGradientMixin:
         x_blk: torch.Tensor,
         layer_dynamics_mode: str,
     ) -> torch.Tensor:
-        if layer_dynamics_mode == "conductance":
-            diff_homeo = x_blk - v_n.unsqueeze(-1)
-            r_homeo = _expand_resistance_for_blocks(r_tot, v_n)
-            return voltage_homeo_error.unsqueeze(-1) * r_homeo * diff_homeo
-        return voltage_homeo_error.unsqueeze(-1) * x_blk
+        return _dendritic_block_homeostasis_factor(
+            voltage_homeo_error=voltage_homeo_error,
+            v_n=v_n,
+            r_tot=r_tot,
+            x_blk=x_blk,
+            layer_dynamics_mode=layer_dynamics_mode,
+        )
 
 
 __all__ = ["LocalLearningDendriticBlockGradientMixin"]
