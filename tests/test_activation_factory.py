@@ -104,6 +104,11 @@ def test_create_unknown_raises():
         ActivationFactory.create("leaky_relu")
 
 
+def test_create_unknown_error_uses_normalized_name():
+    with pytest.raises(ValueError, match="Unknown activation type: leaky_relu"):
+        ActivationFactory.create("LEAKY_RELU")
+
+
 def test_create_none_value_raises_clear_error():
     with pytest.raises(ValueError, match="got None"):
         ActivationFactory.create(None)

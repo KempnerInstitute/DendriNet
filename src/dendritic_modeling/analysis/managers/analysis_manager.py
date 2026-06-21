@@ -272,12 +272,24 @@ class AnalysisManager:
         spec = _registered_analyzer_spec(registry_name)
         return self._save_path(spec.save_subdir, *parts, create=create)
 
+    def _should_run_registered_analysis(
+        self,
+        registry_name: str,
+        *,
+        training: bool,
+        require_analyzer: bool = False,
+    ) -> bool:
+        """Return whether a registered analyzer should run in this phase."""
+        if not self._should_run_config(self._analysis_config(registry_name), training):
+            return False
+        if require_analyzer and not self._has_analysis_analyzer(registry_name):
+            return False
+        return True
+
     def _run_test_dataset_analysis(
         self,
         *,
-        cfg: object | None,
-        analyzer_attr: str,
-        save_subdir: str,
+        registry_name: str,
         filename: str,
         training: bool,
         runtime: object | None,
@@ -285,23 +297,25 @@ class AnalysisManager:
         require_analyzer: bool = False,
     ) -> None:
         """Run an analyzer with the common test-dataset call signature."""
-        if not self._should_run_config(cfg, training):
-            return
-        if require_analyzer and not hasattr(self, analyzer_attr):
+        if not self._should_run_registered_analysis(
+            registry_name,
+            training=training,
+            require_analyzer=require_analyzer,
+        ):
             return
 
         kwargs = {
             "model": self.model,
             "test_dataset": self.data["test"],
             "device": self.device,
-            "save_path": self._save_path(save_subdir),
+            "save_path": self._analysis_save_path(registry_name),
             "filename": filename,
             "runtime": runtime,
         }
         if pass_training:
             kwargs["training"] = training
 
-        getattr(self, analyzer_attr).analyze(**kwargs)
+        self._analysis_analyzer(registry_name).analyze(**kwargs)
 
     def _run_test_dataset_analysis_runner(
         self,
@@ -313,9 +327,7 @@ class AnalysisManager:
     ) -> None:
         """Run a table-declared test-dataset analyzer."""
         self._run_test_dataset_analysis(
-            cfg=self._analysis_config(runner.registry_name),
-            analyzer_attr=runner.analyzer_attr,
-            save_subdir=runner.save_subdir,
+            registry_name=runner.registry_name,
             filename=filename,
             training=training,
             runtime=runtime,
@@ -453,11 +465,10 @@ class AnalysisManager:
         self, *, filename: str, training: bool, runtime: object | None
     ) -> None:
         """Run local-rule component analysis."""
-        if not (
-            self._should_run_config(
-                self._analysis_config("local_rule_components"), training
-            )
-            and self._has_analysis_analyzer("local_rule_components")
+        if not self._should_run_registered_analysis(
+            "local_rule_components",
+            training=training,
+            require_analyzer=True,
         ):
             return
 
@@ -496,9 +507,10 @@ class AnalysisManager:
 
     def _run_routing_analysis(self, *, filename: str, training: bool) -> None:
         """Run recurrent routing analysis."""
-        if not (
-            self._should_run_config(self._analysis_config("routing"), training)
-            and self._has_analysis_analyzer("routing")
+        if not self._should_run_registered_analysis(
+            "routing",
+            training=training,
+            require_analyzer=True,
         ):
             return
 
@@ -522,9 +534,10 @@ class AnalysisManager:
         complete_message: str,
     ) -> None:
         """Run an analyzer with the common model/device/save-path signature."""
-        if not (
-            self._should_run_config(self._analysis_config(registry_name), training)
-            and self._has_analysis_analyzer(registry_name)
+        if not self._should_run_registered_analysis(
+            registry_name,
+            training=training,
+            require_analyzer=True,
         ):
             return
 
@@ -575,9 +588,10 @@ class AnalysisManager:
         self, *, filename: str, training: bool, runtime: object | None
     ) -> None:
         """Run spike-train analysis."""
-        if not (
-            self._should_run_config(self._analysis_config("spike_train"), training)
-            and self._has_analysis_analyzer("spike_train")
+        if not self._should_run_registered_analysis(
+            "spike_train",
+            training=training,
+            require_analyzer=True,
         ):
             return
 
@@ -596,20 +610,16 @@ class AnalysisManager:
         self, *, filename: str, training: bool, runtime: object | None
     ) -> None:
         """Run adversarial robustness analysis."""
-        if not (
-            self._should_run_config(
-                self._analysis_config("adversarial_robustness"), training
-            )
-            and self._has_analysis_analyzer("adversarial_robustness")
+        if not self._should_run_registered_analysis(
+            "adversarial_robustness",
+            training=training,
+            require_analyzer=True,
         ):
             return
 
         self.logger.info("Starting adversarial robustness analysis...")
-        spec = _registered_analyzer_spec("adversarial_robustness")
         self._run_test_dataset_analysis(
-            cfg=self._analysis_config("adversarial_robustness"),
-            analyzer_attr=spec.attribute_name,
-            save_subdir=spec.save_subdir,
+            registry_name="adversarial_robustness",
             filename=filename,
             training=training,
             runtime=runtime,

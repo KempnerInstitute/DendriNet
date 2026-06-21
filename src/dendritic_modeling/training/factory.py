@@ -66,6 +66,16 @@ TRAINER_STRATEGY_REGISTRY: dict[str, dict[str, Any]] = {
     "homeostatic_control": {"class": "HomeostaticControlTrainer"},
 }
 
+SHUNTING_FEEDBACK_ALIGNMENT_MODES = {
+    "shunting_fa": "fa",
+    "shunting_dfa": "dfa",
+}
+SPECIAL_TRAINER_STRATEGIES = [
+    *SHUNTING_FEEDBACK_ALIGNMENT_MODES.keys(),
+    "recurrent",
+    "multi_stage",
+]
+
 
 def register_trainer_strategy(
     name: str,
@@ -84,8 +94,7 @@ def register_trainer_strategy(
 
 def get_available_trainer_strategies() -> list[str]:
     """Return supported trainer strategy names."""
-    special = ["shunting_fa", "shunting_dfa", "recurrent", "multi_stage"]
-    return list(TRAINER_STRATEGY_REGISTRY.keys()) + special
+    return list(TRAINER_STRATEGY_REGISTRY.keys()) + SPECIAL_TRAINER_STRATEGIES
 
 
 def _resolve_trainer_class(class_ref: type[Trainer] | str) -> type[Trainer]:
@@ -274,6 +283,20 @@ def _extract_enhanced_configs(trainer_config_dict: dict[str, Any]) -> dict[str, 
     return enhanced_configs
 
 
+def _apply_enhanced_configs(trainer_config_dict: dict[str, Any]) -> None:
+    trainer_config_dict.update(_extract_enhanced_configs(trainer_config_dict))
+
+
+def _build_shunting_feedback_alignment_trainer(
+    mode: str,
+    trainer_config_dict: dict[str, Any],
+) -> ShuntingFeedbackAlignmentTrainer:
+    _apply_enhanced_configs(trainer_config_dict)
+    trainer_config_dict["mode"] = mode
+    e_rev = trainer_config_dict.pop("e_rev_exc", 1.0)
+    return ShuntingFeedbackAlignmentTrainer(**trainer_config_dict, e_rev_exc=e_rev)
+
+
 def get_trainer(
     strategy: str,
     optimizer: torch.optim.Optimizer,
@@ -297,25 +320,17 @@ def get_trainer(
     trainer_config_dict["optimizer"] = optimizer
 
     if strategy in TRAINER_STRATEGY_REGISTRY:
-        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
-        trainer_config_dict.update(enhanced_configs)
+        _apply_enhanced_configs(trainer_config_dict)
         spec = TRAINER_STRATEGY_REGISTRY[strategy]
         trainer_config_dict.update(spec.get("fixed_kwargs", {}))
         trainer_cls = _resolve_trainer_class(spec["class"])
         return trainer_cls(**trainer_config_dict)
 
-    if strategy == "shunting_fa":
-        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
-        trainer_config_dict.update(enhanced_configs)
-        trainer_config_dict["mode"] = "fa"
-        e_rev = trainer_config_dict.pop("e_rev_exc", 1.0)
-        return ShuntingFeedbackAlignmentTrainer(**trainer_config_dict, e_rev_exc=e_rev)
-    elif strategy == "shunting_dfa":
-        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
-        trainer_config_dict.update(enhanced_configs)
-        trainer_config_dict["mode"] = "dfa"
-        e_rev = trainer_config_dict.pop("e_rev_exc", 1.0)
-        return ShuntingFeedbackAlignmentTrainer(**trainer_config_dict, e_rev_exc=e_rev)
+    if strategy in SHUNTING_FEEDBACK_ALIGNMENT_MODES:
+        return _build_shunting_feedback_alignment_trainer(
+            SHUNTING_FEEDBACK_ALIGNMENT_MODES[strategy],
+            trainer_config_dict,
+        )
     elif strategy == "recurrent":
         # Strategy-specific recurrent config takes precedence over generic fields.
         recurrent_cfg = trainer_config_dict.pop("recurrent_config", None)
@@ -334,8 +349,7 @@ def get_trainer(
         use_amp = trainer_config_dict.pop("use_amp", False)
         lr_schedule = trainer_config_dict.pop("lr_schedule", "none")
         lr_warmup_epochs = trainer_config_dict.pop("lr_warmup_epochs", 0)
-        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
-        trainer_config_dict.update(enhanced_configs)
+        _apply_enhanced_configs(trainer_config_dict)
         return RecurrentTrainer(
             task=task,
             grad_clip=grad_clip,
@@ -348,8 +362,7 @@ def get_trainer(
         raw_multi_stage_config = trainer_config_dict.pop("multi_stage_config", None)
         multi_stage_config = _build_multi_stage_config(raw_multi_stage_config)
 
-        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
-        trainer_config_dict.update(enhanced_configs)
+        _apply_enhanced_configs(trainer_config_dict)
 
         base_trainer_config = dict(trainer_config_dict)
         return MultiStageTrainer(

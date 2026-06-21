@@ -26,6 +26,23 @@ def _require_output_dim(output_dim: int | None, activation_name: str) -> int:
     return output_dim
 
 
+def _normalize_activation_type(act_type: Any) -> str:
+    if act_type is None:
+        raise ValueError(
+            "Activation type must be a string, got None. "
+            "Use 'none' for an identity/no-op activation."
+        )
+    return str(act_type).lower()
+
+
+def _resolve_activation_builder(act_type: Any) -> ActivationBuilder:
+    normalized_type = _normalize_activation_type(act_type)
+    builder = _ACTIVATION_REGISTRY.get(normalized_type)
+    if builder is None:
+        raise ValueError(f"Unknown activation type: {normalized_type}")
+    return builder
+
+
 def _identity_builder(**_: Any) -> nn.Module:
     return nn.Identity()
 
@@ -210,15 +227,7 @@ class ActivationFactory:
         nn.Module
             The activation module.
         """
-        if act_type is None:
-            raise ValueError(
-                "Activation type must be a string, got None. "
-                "Use 'none' for an identity/no-op activation."
-            )
-        act_type = str(act_type).lower()
-        builder = _ACTIVATION_REGISTRY.get(act_type)
-        if builder is None:
-            raise ValueError(f"Unknown activation type: {act_type}")
+        builder = _resolve_activation_builder(act_type)
         return builder(
             output_dim=output_dim,
             init_m=init_m,

@@ -2440,6 +2440,52 @@ class TestAnalysisManager(unittest.TestCase):
         self.assertFalse(AnalysisManager._should_run_config(cfg, training=False))
         self.assertFalse(AnalysisManager._should_run_config(None, training=False))
 
+    def test_should_run_registered_analysis_applies_phase_and_analyzer_gates(self):
+        """Registered analysis gate should combine config phase and analyzer presence."""
+        config = AnalysisConfig()
+        config.performance_analysis.enabled = False
+        config.routing_analysis.enabled = True
+        config.routing_analysis.training = False
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manager = AnalysisManager(
+                model=self.model,
+                data=self.data,
+                analysis_config=config,
+                save_root=tmpdir,
+            )
+
+            self.assertTrue(
+                manager._should_run_registered_analysis(
+                    "routing",
+                    training=False,
+                    require_analyzer=True,
+                )
+            )
+            self.assertFalse(
+                manager._should_run_registered_analysis(
+                    "routing",
+                    training=True,
+                    require_analyzer=True,
+                )
+            )
+
+            delattr(manager, "routing_analyzer")
+            self.assertFalse(
+                manager._should_run_registered_analysis(
+                    "routing",
+                    training=False,
+                    require_analyzer=True,
+                )
+            )
+            self.assertTrue(
+                manager._should_run_registered_analysis(
+                    "routing",
+                    training=False,
+                    require_analyzer=False,
+                )
+            )
+
     def test_training_performance_analysis_uses_epoch_path_and_gate(self):
         """Training analysis should remain opt-in and keep the epoch save path."""
         config = AnalysisConfig()
@@ -2525,6 +2571,68 @@ class TestAnalysisManager(unittest.TestCase):
                 manager.config.runtime.final,
             )
             self.assertNotIn("training", call_kwargs)
+
+    def test_common_test_dataset_analysis_resolves_registry_metadata(self):
+        """Common test-dataset helper should resolve config, analyzer, and path by name."""
+        config = AnalysisConfig()
+        config.performance_analysis.enabled = False
+        config.noise_perturbation_analysis.enabled = True
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manager = AnalysisManager(
+                model=self.model,
+                data=self.data,
+                analysis_config=config,
+                save_root=tmpdir,
+            )
+
+            with patch.object(manager, "noise_perturbation_analyzer") as mock_analyzer:
+                manager._run_test_dataset_analysis(
+                    registry_name="noise_perturbation",
+                    filename="direct_eval",
+                    training=False,
+                    runtime=manager.config.runtime.final,
+                )
+
+            mock_analyzer.analyze.assert_called_once()
+            call_kwargs = mock_analyzer.analyze.call_args.kwargs
+            self.assertIs(call_kwargs["model"], self.model)
+            self.assertIs(call_kwargs["test_dataset"], self.data["test"])
+            self.assertEqual(call_kwargs["device"], "cpu")
+            self.assertEqual(
+                call_kwargs["save_path"],
+                str(Path(tmpdir) / "noise_perturbation_analysis"),
+            )
+            self.assertEqual(call_kwargs["filename"], "direct_eval")
+            self.assertIs(call_kwargs["runtime"], manager.config.runtime.final)
+            self.assertNotIn("training", call_kwargs)
+
+    def test_common_test_dataset_analysis_skips_missing_required_analyzer(self):
+        """Required optional analyzers should still skip when no instance exists."""
+        config = AnalysisConfig()
+        config.performance_analysis.enabled = False
+        config.adversarial_robustness_analysis.enabled = True
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manager = AnalysisManager(
+                model=self.model,
+                data=self.data,
+                analysis_config=config,
+                save_root=tmpdir,
+            )
+            if hasattr(manager, "adversarial_robustness_analyzer"):
+                delattr(manager, "adversarial_robustness_analyzer")
+
+            with patch.object(manager, "_analysis_analyzer") as mock_analyzer:
+                manager._run_test_dataset_analysis(
+                    registry_name="adversarial_robustness",
+                    filename="direct_eval",
+                    training=False,
+                    runtime=manager.config.runtime.final,
+                    require_analyzer=True,
+                )
+
+            mock_analyzer.assert_not_called()
 
     def test_common_test_dataset_runners_resolve_registry_metadata(self):
         """Common runner tables should stay synchronized with the registry."""

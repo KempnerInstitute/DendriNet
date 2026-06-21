@@ -349,6 +349,35 @@ class TestGetTrainer:
             assert call_args["stabilize_mode"] == "gate_occupancy"
             assert call_args["target_saturation"] == 0.25
 
+    @pytest.mark.parametrize(
+        ("strategy", "mode"),
+        [
+            ("shunting_fa", "fa"),
+            ("shunting_dfa", "dfa"),
+        ],
+    )
+    def test_get_shunting_feedback_alignment_trainer(
+        self,
+        strategy,
+        mode,
+        mock_optimizer,
+        basic_trainer_config,
+    ):
+        """Test creating shunting feedback-alignment trainers."""
+        trainer_config = dict(basic_trainer_config)
+        trainer_config["e_rev_exc"] = 0.7
+
+        with patch(
+            "dendritic_modeling.training.factory.ShuntingFeedbackAlignmentTrainer"
+        ) as mock_trainer:
+            get_trainer(strategy, mock_optimizer, trainer_config)
+
+            mock_trainer.assert_called_once()
+            call_args = mock_trainer.call_args[1]
+            assert call_args["optimizer"] == mock_optimizer
+            assert call_args["mode"] == mode
+            assert call_args["e_rev_exc"] == 0.7
+
     def test_get_fsdp_trainer_is_not_supported(
         self, mock_optimizer, basic_trainer_config
     ):
