@@ -87,13 +87,15 @@ def _run_warmup_then_standard_training(
         f"=== {warmup_label}: "
         f"Starting pretraining phase for {trainer.pretrain_epochs} epochs ==="
     )
-    pretrain_results = train_fn(model, train_data, valid_data)
-    warmup_loss.remove_forward_hooks(handles)
+    try:
+        pretrain_results = train_fn(model, train_data, valid_data)
+    finally:
+        warmup_loss.remove_forward_hooks(handles)
 
-    if trainer.freeze_reactivation:
-        _set_parametric_activation_trainability(model, True)
+        if trainer.freeze_reactivation:
+            _set_parametric_activation_trainability(model, True)
 
-    _start_standard_phase(trainer, default_loss_fn, default_epochs)
+        _start_standard_phase(trainer, default_loss_fn, default_epochs)
 
     logger.info(
         f"=== {standard_label}: "

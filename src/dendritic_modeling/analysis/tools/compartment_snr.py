@@ -84,9 +84,11 @@ class CompartmentSNRAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
                 self._initialize_branch_records(key, module)
                 handles.extend(self._attach_layer_capture_hooks(key, module))
 
-        with torch.no_grad():
-            _ = model(x)
-        self.remove_forward_hooks(handles)
+        try:
+            with torch.no_grad():
+                _ = model(x)
+        finally:
+            self.remove_forward_hooks(handles)
 
     def _initialize_branch_records(
         self, key: str, module: DendriticBranchLayer

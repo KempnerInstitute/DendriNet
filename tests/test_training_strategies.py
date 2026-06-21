@@ -31,6 +31,7 @@ from dendritic_modeling.training.strategies import (
 )
 from dendritic_modeling.training.strategies.specialized import (
     _merge_warmup_results,
+    _run_warmup_then_standard_training,
     _set_parametric_activation_trainability,
     _start_standard_phase,
     _start_warmup_phase,
@@ -448,6 +449,67 @@ class TestReactivationUpdateModes(unittest.TestCase):
         self.assertEqual(merged["train_losses"], [1.0, 2.0])
         self.assertEqual(merged["valid_losses"], [1.5, 2.5])
         self.assertEqual(merged["best_loss"], 2.5)
+
+    def test_warmup_training_restores_state_after_failure(self):
+        model = _MixedTrainabilityReactivationModel()
+        default_loss_fn = nn.L1Loss()
+        trainer = SimpleNamespace(
+            loss_function=default_loss_fn,
+            epochs=7,
+            pretrain_epochs=3,
+            freeze_reactivation=True,
+            best_loss=0.25,
+        )
+        train_data = object()
+        valid_data = object()
+
+        class _WarmupLoss:
+            def __init__(self):
+                self.handles = [object()]
+                self.removed_handles = None
+
+            def attach_forward_hooks(self, attached_model):
+                self.attached_model = attached_model
+                return self.handles
+
+            def remove_forward_hooks(self, handles):
+                self.removed_handles = handles
+
+        warmup_loss = _WarmupLoss()
+
+        def _failing_train_fn(observed_model, observed_train_data, observed_valid_data):
+            self.assertIs(observed_model, model)
+            self.assertIs(observed_train_data, train_data)
+            self.assertIs(observed_valid_data, valid_data)
+            self.assertIs(trainer.loss_function, warmup_loss)
+            self.assertEqual(trainer.epochs, 3)
+            self.assertFalse(model.trainable.log_m.requires_grad)
+            self.assertFalse(model.frozen.log_m.requires_grad)
+            raise RuntimeError("warmup failed")
+
+        with self.assertRaisesRegex(RuntimeError, "warmup failed"):
+            _run_warmup_then_standard_training(
+                trainer,
+                _failing_train_fn,
+                model,
+                train_data,
+                valid_data,
+                warmup_loss,
+                filename_prefix="warmup_",
+                logger_info_prefix="[Warmup] ",
+                warmup_label="Warmup",
+                standard_label="Standard",
+            )
+
+        self.assertIs(warmup_loss.attached_model, model)
+        self.assertIs(warmup_loss.removed_handles, warmup_loss.handles)
+        self.assertIs(trainer.loss_function, default_loss_fn)
+        self.assertEqual(trainer.epochs, 7)
+        self.assertEqual(trainer.filename_prefix, "standard_")
+        self.assertEqual(trainer.logger_info_prefix, "[Standard] ")
+        self.assertEqual(trainer.best_loss, float("inf"))
+        self.assertTrue(model.trainable.log_m.requires_grad)
+        self.assertTrue(model.frozen.log_m.requires_grad)
 
     def test_quantile_mode_freezes_and_backprop_restores_original_trainability(self):
         model = _MixedTrainabilityReactivationModel()

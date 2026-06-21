@@ -29,6 +29,7 @@ from dendritic_modeling.networks.architectures.transformer import (
     replace_transformer_mlp_layers,
     replace_transformer_mlp_layers_with_ei_stack,
 )
+from dendritic_modeling.training.transformer_replacement import _MLPIOCapture
 
 TRANSFORMER_BENCHMARK_CONFIGS = sorted(
     Path("configs/transformer_replacement_benchmarks").rglob("*.yaml")
@@ -81,6 +82,13 @@ class TinyHFLikeModel(nn.Module):
         return x
 
 
+def _count_forward_hooks(model: nn.Module) -> int:
+    return sum(
+        len(module._forward_hooks) + len(module._forward_pre_hooks)
+        for module in model.modules()
+    )
+
+
 def test_transformer_refactor_preserves_public_imports():
     from dendritic_modeling.networks.architectures.transformer import (
         config_translation,
@@ -99,6 +107,22 @@ def test_transformer_refactor_preserves_public_imports():
     assert dendritic_ffn.build_dendritic_ffn_kwargs_from_core_config is (
         config_translation.build_dendritic_ffn_kwargs_from_core_config
     )
+
+
+def test_mlp_io_capture_removes_hooks_after_partial_init_failure():
+    model = TinyHFLikeModel(n_layers=2)
+    del model.model.layers[1].mlp
+
+    assert _count_forward_hooks(model) == 0
+    with pytest.raises(AttributeError):
+        _MLPIOCapture(
+            model,
+            layer_indices=[0, 1],
+            layers_attr="model.layers",
+            mlp_attr="mlp",
+        )
+
+    assert _count_forward_hooks(model) == 0
 
 
 @pytest.mark.parametrize(

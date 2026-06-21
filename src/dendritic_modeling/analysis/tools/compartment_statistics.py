@@ -109,9 +109,11 @@ class CompartmentStatisticsAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
                 x = x[indices]
                 if self.class_labels is not None:
                     self.class_labels = self.class_labels[indices]
-            with torch.no_grad():
-                _ = model(x)
-            self.remove_forward_hooks(handles)
+            try:
+                with torch.no_grad():
+                    _ = model(x)
+            finally:
+                self.remove_forward_hooks(handles)
 
     def _initialize_branch_records(
         self, key: str, module: DendriticBranchLayer

@@ -196,21 +196,25 @@ class _MLPIOCapture:
     ):
         self.records: dict[int, dict[str, torch.Tensor]] = {}
         self.handles = []
-        layers = resolve_transformer_layers(model, layers_attr=layers_attr)
-        for layer_index in layer_indices:
-            layer = layers[int(layer_index)]
-            mlp = _get_attr_path(layer, mlp_attr)
-            if not isinstance(mlp, nn.Module):
-                raise TypeError(
-                    f"layer {layer_index} target {mlp_attr!r} is not an nn.Module"
+        try:
+            layers = resolve_transformer_layers(model, layers_attr=layers_attr)
+            for layer_index in layer_indices:
+                layer = layers[int(layer_index)]
+                mlp = _get_attr_path(layer, mlp_attr)
+                if not isinstance(mlp, nn.Module):
+                    raise TypeError(
+                        f"layer {layer_index} target {mlp_attr!r} is not an nn.Module"
+                    )
+                self.records[int(layer_index)] = {}
+                self.handles.append(
+                    mlp.register_forward_pre_hook(self._make_pre_hook(int(layer_index)))
                 )
-            self.records[int(layer_index)] = {}
-            self.handles.append(
-                mlp.register_forward_pre_hook(self._make_pre_hook(int(layer_index)))
-            )
-            self.handles.append(
-                mlp.register_forward_hook(self._make_hook(int(layer_index)))
-            )
+                self.handles.append(
+                    mlp.register_forward_hook(self._make_hook(int(layer_index)))
+                )
+        except Exception:
+            self.close()
+            raise
 
     def _make_pre_hook(self, layer_index: int):
         def hook(module: nn.Module, args: tuple[Any, ...]) -> None:

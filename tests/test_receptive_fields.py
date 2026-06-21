@@ -1,3 +1,4 @@
+import pytest
 import torch
 from torch.utils.data import TensorDataset
 
@@ -69,6 +70,20 @@ def _toy_dataset():
     return x, labels, TensorDataset(x, labels)
 
 
+def _count_registered_forward_hooks(model: torch.nn.Module) -> int:
+    return sum(
+        len(module._forward_hooks) + len(module._forward_pre_hooks)
+        for module in model.modules()
+    )
+
+
+def _replace_forward_with_failure(model: torch.nn.Module, message: str) -> None:
+    def _failing_forward(*args, **kwargs):
+        raise RuntimeError(message)
+
+    model.forward = _failing_forward
+
+
 def test_compartment_snr_captures_direct_inhibitory_stream():
     model = _direct_inhibitory_model()
     x, labels, _dataset = _toy_dataset()
@@ -110,6 +125,19 @@ def test_compartment_snr_collects_expected_branch_channels():
         assert branch_data["vout"].shape == (x.shape[0],)
 
 
+def test_compartment_snr_removes_hooks_after_failed_collection():
+    model = _direct_inhibitory_model()
+    x, _labels, _dataset = _toy_dataset()
+    analyzer = CompartmentSNRAnalyzer(CompartmentSNRAnalysisParams())
+    assert _count_registered_forward_hooks(model) == 0
+
+    _replace_forward_with_failure(model, "snr failed")
+    with pytest.raises(RuntimeError, match="snr failed"):
+        analyzer.collect_raw_data(model, x)
+
+    assert _count_registered_forward_hooks(model) == 0
+
+
 def test_compartment_statistics_collects_expected_branch_payloads():
     model = _direct_inhibitory_model()
     x, labels, _dataset = _toy_dataset()
@@ -145,6 +173,21 @@ def test_compartment_statistics_collects_expected_branch_payloads():
     for branch_data in second_layer.values():
         assert set(branch_data) == {"depth", "branch_weights"}
         assert branch_data["branch_weights"].shape == (2,)
+
+
+def test_compartment_statistics_removes_hooks_after_failed_collection():
+    model = _direct_inhibitory_model()
+    x, labels, _dataset = _toy_dataset()
+    analyzer = CompartmentStatisticsAnalyzer(
+        CompartmentStatisticsAnalysisParams(compute_entropy=False)
+    )
+    assert _count_registered_forward_hooks(model) == 0
+
+    _replace_forward_with_failure(model, "statistics failed")
+    with pytest.raises(RuntimeError, match="statistics failed"):
+        analyzer.collect_raw_data(model, x, labels)
+
+    assert _count_registered_forward_hooks(model) == 0
 
 
 def test_receptive_field_checkpoint_and_activation_tuning(tmp_path):

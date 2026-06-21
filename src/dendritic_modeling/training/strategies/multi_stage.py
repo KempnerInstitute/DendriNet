@@ -516,69 +516,70 @@ class MultiStageTrainer(Trainer):
             stage_name,
         )
 
-        stage_trainer_config = _build_stage_trainer_config(
-            self.base_trainer_config,
-            self.multi_stage_config,
-            stage_config,
-        )
+        try:
+            stage_trainer_config = _build_stage_trainer_config(
+                self.base_trainer_config,
+                self.multi_stage_config,
+                stage_config,
+            )
 
-        if stage_config.load_checkpoint is not None:
-            _load_stage_checkpoint(model, stage_config.load_checkpoint)
+            if stage_config.load_checkpoint is not None:
+                _load_stage_checkpoint(model, stage_config.load_checkpoint)
 
-        if stage_config.reset_model:
-            logger.warning(f"Resetting model weights for stage {stage_name}")
-            self._reset_model_weights(model)
+            if stage_config.reset_model:
+                logger.warning(f"Resetting model weights for stage {stage_name}")
+                self._reset_model_weights(model)
 
-        stage_optimizer = _build_stage_optimizer(
-            model,
-            self.base_optimizer,
-            stage_config,
-            stage_idx,
-        )
+            stage_optimizer = _build_stage_optimizer(
+                model,
+                self.base_optimizer,
+                stage_config,
+                stage_idx,
+            )
 
-        stage_trainer = _build_stage_trainer(
-            stage_config,
-            stage_optimizer,
-            stage_trainer_config,
-            self.analysis_manager,
-        )
+            stage_trainer = _build_stage_trainer(
+                stage_config,
+                stage_optimizer,
+                stage_trainer_config,
+                self.analysis_manager,
+            )
 
-        _configure_stage_trainer_save_path(
-            stage_trainer,
-            self.save_path,
-            stage_config,
-            stage_idx,
-            stage_name,
-        )
-
-        logger.info(
-            f"Training with {stage_config.learning_strategy} for {stage_trainer_config.get('epochs', 'default')} epochs"
-        )
-        stage_results = stage_trainer.train(model, train_data, valid_data)
-
-        if hasattr(stage_trainer, "optimizer"):
-            self.base_optimizer = stage_trainer.optimizer
-
-        if stage_config.save_checkpoint and self.save_path:
-            checkpoint_path = _stage_checkpoint_path(
+            _configure_stage_trainer_save_path(
+                stage_trainer,
                 self.save_path,
+                stage_config,
                 stage_idx,
                 stage_name,
             )
 
-            _save_stage_checkpoint(
-                model,
-                stage_config,
-                stage_results,
-                stage_trainer,
-                stage_optimizer,
-                checkpoint_path,
+            logger.info(
+                f"Training with {stage_config.learning_strategy} for {stage_trainer_config.get('epochs', 'default')} epochs"
             )
+            stage_results = stage_trainer.train(model, train_data, valid_data)
 
-        if self.analysis_manager is not None and original_save_root is not None:
-            self.analysis_manager.save_root = original_save_root
+            if hasattr(stage_trainer, "optimizer"):
+                self.base_optimizer = stage_trainer.optimizer
 
-        return stage_results
+            if stage_config.save_checkpoint and self.save_path:
+                checkpoint_path = _stage_checkpoint_path(
+                    self.save_path,
+                    stage_idx,
+                    stage_name,
+                )
+
+                _save_stage_checkpoint(
+                    model,
+                    stage_config,
+                    stage_results,
+                    stage_trainer,
+                    stage_optimizer,
+                    checkpoint_path,
+                )
+
+            return stage_results
+        finally:
+            if self.analysis_manager is not None and original_save_root is not None:
+                self.analysis_manager.save_root = original_save_root
 
     def _reset_model_weights(self, model: nn.Module):
         """Reset model weights to random initialization."""

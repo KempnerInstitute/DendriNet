@@ -10,6 +10,7 @@ from dendritic_modeling.config.multi_stage_training import (
 )
 from dendritic_modeling.training.optimizers.custom import CustomWeightDecayOptimizer
 from dendritic_modeling.training.strategies.multi_stage import (
+    MultiStageTrainer,
     _append_stage_result,
     _build_stage_optimizer,
     _build_stage_trainer,
@@ -390,6 +391,44 @@ def test_build_stage_trainer_delegates_to_factory(monkeypatch):
             "analysis_manager": analysis_manager,
         }
     ]
+
+
+def test_execute_stage_restores_analysis_root_after_failure(tmp_path, monkeypatch):
+    model = nn.Linear(2, 1)
+    optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
+    analysis_manager = SimpleNamespace(save_root=str(tmp_path))
+    trainer = MultiStageTrainer(
+        multi_stage_config=MultiStageTrainingConfig(stages=[TrainingStageConfig()]),
+        base_optimizer=optimizer,
+        base_trainer_config={"epochs": 1},
+        analysis_manager=analysis_manager,
+    )
+
+    class _FailingTrainer:
+        def train(self, model, train_data, valid_data):
+            raise RuntimeError("stage failed")
+
+    monkeypatch.setattr(
+        "dendritic_modeling.training.factory.get_trainer",
+        lambda **kwargs: _FailingTrainer(),
+    )
+
+    try:
+        trainer._execute_stage(
+            model,
+            train_data=[],
+            valid_data=[],
+            stage_config=TrainingStageConfig(),
+            stage_idx=0,
+            stage_name="stage_1",
+            original_save_root=str(tmp_path),
+        )
+    except RuntimeError as exc:
+        assert str(exc) == "stage failed"
+    else:
+        raise AssertionError("Expected stage failure")
+
+    assert analysis_manager.save_root == str(tmp_path)
 
 
 def test_stage_paths_preserve_legacy_string_format():

@@ -61,8 +61,8 @@ class AdversarialRobustnessAnalyzer:
         else:
             loss = nn.functional.cross_entropy(y_hat, y)
 
-        loss.backward()
-        sign_grad = x_adv.grad.sign()
+        (input_grad,) = torch.autograd.grad(loss, x_adv)
+        sign_grad = input_grad.sign()
         x_adv = x_adv + epsilon * sign_grad
         x_adv = torch.clamp(x_adv, 0.0, 1.0)
         return x_adv.detach()
@@ -75,27 +75,31 @@ class AdversarialRobustnessAnalyzer:
         device: str = "cpu",
     ) -> float:
         """Evaluate accuracy under FGSM attack at given epsilon."""
-        model.eval()
-        loader = DataLoader(test_dataset, batch_size=self.batch_size, shuffle=False)
-        correct = 0
-        total = 0
+        was_training = model.training
+        try:
+            model.eval()
+            loader = DataLoader(test_dataset, batch_size=self.batch_size, shuffle=False)
+            correct = 0
+            total = 0
 
-        for batch in loader:
-            x_batch = batch[0].to(device)
-            y_batch = batch[1].to(device)
+            for batch in loader:
+                x_batch = batch[0].to(device)
+                y_batch = batch[1].to(device)
 
-            if epsilon > 0:
-                # Model stays in eval mode. FGSM only needs input gradients,
-                # not train-mode behaviour (BatchNorm/Dropout should remain off).
-                x_adv = self.fgsm_attack(model, x_batch, y_batch, epsilon)
-            else:
-                x_adv = x_batch
+                if epsilon > 0:
+                    # Model stays in eval mode. FGSM only needs input gradients,
+                    # not train-mode behaviour (BatchNorm/Dropout should remain off).
+                    x_adv = self.fgsm_attack(model, x_batch, y_batch, epsilon)
+                else:
+                    x_adv = x_batch
 
-            with torch.no_grad():
-                y_hat = model(x_adv)
-                preds = y_hat.argmax(dim=-1)
-                correct += (preds == y_batch).sum().item()
-                total += len(y_batch)
+                with torch.no_grad():
+                    y_hat = model(x_adv)
+                    preds = y_hat.argmax(dim=-1)
+                    correct += (preds == y_batch).sum().item()
+                    total += len(y_batch)
+        finally:
+            model.train(was_training)
 
         return correct / total if total > 0 else 0.0
 
