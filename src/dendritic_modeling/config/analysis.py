@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Optional
 
+from dendritic_modeling.analysis.registry import get_registered_analyzers
 from dendritic_modeling.config.base import BaseConfig
 
 
@@ -1429,20 +1430,7 @@ class AnalysisConfig(BaseConfig):
 
     def any_enabled(self) -> bool:
         """Return whether the final training analysis gate should run."""
-        final_gate_fields = (
-            "performance_analysis",
-            "information_analysis",
-            "synapse_turnover_analysis",
-            "noise_perturbation_analysis",
-            "single_layer_contribution",
-            "ablation_analysis",
-            "weight_analysis",
-            "synaptic_activation_analysis",
-            "branch_activation_analysis",
-            "correlation_analysis",
-            "routing_analysis",
-        )
         return any(
-            bool(getattr(getattr(self, field_name, None), "enabled", False))
-            for field_name in final_gate_fields
+            bool(getattr(getattr(self, spec.config_field, None), "enabled", False))
+            for spec in get_registered_analyzers().values()
         )

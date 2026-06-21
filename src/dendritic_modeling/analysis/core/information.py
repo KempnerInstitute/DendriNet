@@ -86,6 +86,17 @@ class _SingleBranchLdaSignals:
     shuffled: tuple[tuple[np.ndarray, np.ndarray, np.ndarray | None, np.ndarray], ...]
 
 
+@dataclass(frozen=True)
+class _AllBranchMetricData:
+    """Prepared full-network arrays for all-branch information metrics."""
+
+    excitation: np.ndarray
+    inhibition: np.ndarray
+    output: np.ndarray
+    labels: np.ndarray
+    branch_input: np.ndarray | None
+
+
 class InformationAnalyzer(
     InformationMetricsMixin,
     InformationHooksMixin,
@@ -1353,6 +1364,65 @@ class InformationAnalyzer(
             },
         )
 
+    def _compute_layer_branch_result(
+        self,
+        *,
+        layer_name: str,
+        layer_data: dict[str, Any],
+        C: np.ndarray,
+        seed_offset: int,
+    ) -> dict[str, Any]:
+        """Compute layer-level metrics after aggregating one layer's branches."""
+        E_layer_data_raw = layer_data["excitation"]
+        I_layer_data_raw = layer_data["inhibition"]
+        Vb_layer_data_raw = layer_data.get("branch_input")
+        Vout_layer_data = layer_data["output"]
+
+        has_exc_synapses = bool(layer_data.get("has_exc_synapses", True))
+        has_inh_synapses = bool(layer_data.get("has_inh_synapses", True))
+        has_branch_input = Vb_layer_data_raw is not None
+
+        E_layer_data, I_layer_data = self.ensure_inhibitory_data(
+            E_layer_data_raw, I_layer_data_raw
+        )
+
+        # Keep Vb as None when it does not exist, e.g. in the outermost distal layer.
+        Vb_layer_data = Vb_layer_data_raw if has_branch_input else None
+        E_layer, I_layer, Vout_layer, C_for_layer, Vb_layer = (
+            self._aggregate_layer_branch_arrays_for_metrics(
+                E_layer_data=E_layer_data,
+                I_layer_data=I_layer_data,
+                Vout_layer_data=Vout_layer_data,
+                Vb_layer_data=Vb_layer_data,
+                C=C,
+            )
+        )
+
+        layer_results = self.compute_metrics(
+            E_layer, I_layer, Vout_layer, C_for_layer, None, Vb_layer
+        )
+        self._filter_result_metrics_in_place(
+            layer_results,
+            has_exc_synapses=has_exc_synapses,
+            has_inh_synapses=has_inh_synapses,
+            has_branch_input=has_branch_input,
+        )
+        self._try_add_label_shuffle_null_baselines_in_place(
+            layer_results,
+            E=E_layer,
+            I_var=I_layer,
+            Vout=Vout_layer,
+            C=C_for_layer,
+            Vb=Vb_layer,
+            Vinf=None,
+            has_exc_synapses=has_exc_synapses,
+            has_inh_synapses=has_inh_synapses,
+            has_branch_input=has_branch_input and (Vb_layer is not None),
+            seed_offset=seed_offset,
+            failure_context=f"layer {layer_name}",
+        )
+        return layer_results
+
     def _compute_layer_branch_results(self, C: np.ndarray) -> dict[str, Any] | None:
         """Compute information metrics after aggregating branches within each layer."""
         self.logger.info("Computing MI at layer level...")
@@ -1372,58 +1442,27 @@ class InformationAnalyzer(
             leave=False,
             ncols=100,
         ):
-            E_layer_data_raw = layer_data["excitation"]
-            I_layer_data_raw = layer_data["inhibition"]
-            Vb_layer_data_raw = layer_data.get("branch_input")
-            Vout_layer_data = layer_data["output"]
-
-            has_exc_synapses = bool(layer_data.get("has_exc_synapses", True))
-            has_inh_synapses = bool(layer_data.get("has_inh_synapses", True))
-            has_branch_input = Vb_layer_data_raw is not None
-
-            E_layer_data, I_layer_data = self.ensure_inhibitory_data(
-                E_layer_data_raw, I_layer_data_raw
-            )
-
-            # Keep Vb as None when it doesn't exist (e.g., outermost distal layer)
-            # or when config disables branch input analysis.
-            Vb_layer_data = Vb_layer_data_raw if has_branch_input else None
-            E_layer, I_layer, Vout_layer, C_for_layer, Vb_layer = (
-                self._aggregate_layer_branch_arrays_for_metrics(
-                    E_layer_data=E_layer_data,
-                    I_layer_data=I_layer_data,
-                    Vout_layer_data=Vout_layer_data,
-                    Vb_layer_data=Vb_layer_data,
-                    C=C,
-                )
-            )
-
-            layer_results = self.compute_metrics(
-                E_layer, I_layer, Vout_layer, C_for_layer, None, Vb_layer
-            )
-            self._filter_result_metrics_in_place(
-                layer_results,
-                has_exc_synapses=has_exc_synapses,
-                has_inh_synapses=has_inh_synapses,
-                has_branch_input=has_branch_input,
-            )
-            self._try_add_label_shuffle_null_baselines_in_place(
-                layer_results,
-                E=E_layer,
-                I_var=I_layer,
-                Vout=Vout_layer,
-                C=C_for_layer,
-                Vb=Vb_layer,
-                Vinf=None,
-                has_exc_synapses=has_exc_synapses,
-                has_inh_synapses=has_inh_synapses,
-                has_branch_input=has_branch_input and (Vb_layer is not None),
+            layer_results = self._compute_layer_branch_result(
+                layer_name=layer_name,
+                layer_data=layer_data,
+                C=C,
                 seed_offset=len(all_results),
-                failure_context=f"layer {layer_name}",
             )
             all_results.append(layer_results)
             layer_names.append(layer_name)
 
+        return self._finalize_layer_branch_results(
+            all_results=all_results,
+            layer_names=layer_names,
+        )
+
+    def _finalize_layer_branch_results(
+        self,
+        *,
+        all_results: list[dict[str, Any]],
+        layer_names: list[str],
+    ) -> dict[str, Any] | None:
+        """Average layer metrics and attach layer-branch analysis metadata."""
         if not all_results:
             self.logger.warning("No layer results to average")
             return None
@@ -1437,7 +1476,6 @@ class InformationAnalyzer(
         for layer_name, layer_result in zip(layer_names, all_results):
             layer_stats = self._compute_layer_statistics([layer_result])
             self._apply_layer_synapse_availability_in_place(layer_stats, layer_name)
-
             layer_statistics[layer_name] = layer_stats
 
         results["layer_statistics"] = layer_statistics
@@ -1446,18 +1484,11 @@ class InformationAnalyzer(
         )
         return results
 
-    def _compute_all_branch_results(
+    def _collect_all_branch_metric_data(
         self,
-        *,
-        model: BaseModel,
-        inputs: torch.Tensor,
         C: np.ndarray,
-    ) -> dict[str, Any] | None:
-        """Compute full-network information metrics across all collected branches."""
-        self.logger.info(
-            f"Aggregating branches using method: {self.branch_aggregation} (full network aggregation)"
-        )
-
+    ) -> _AllBranchMetricData | None:
+        """Collect and concatenate full-network branch tensors for metric computation."""
         layer_excitation = []
         layer_inhibition = []
         layer_branch_input = []
@@ -1465,17 +1496,19 @@ class InformationAnalyzer(
         layer_output = []
 
         for layer_data in self.data_dict.values():
-            if "excitation" in layer_data:
-                layer_E, layer_I, layer_Vout, layer_Vb, missing_vb = (
-                    self._aggregate_all_branch_layer_tensors(layer_data)
-                )
-                missing_vb_in_any_layer = missing_vb_in_any_layer or missing_vb
+            if "excitation" not in layer_data:
+                continue
 
-                layer_excitation.append(layer_E)
-                layer_inhibition.append(layer_I)
-                if layer_Vb is not None:
-                    layer_branch_input.append(layer_Vb)
-                layer_output.append(layer_Vout)
+            layer_E, layer_I, layer_Vout, layer_Vb, missing_vb = (
+                self._aggregate_all_branch_layer_tensors(layer_data)
+            )
+            missing_vb_in_any_layer = missing_vb_in_any_layer or missing_vb
+
+            layer_excitation.append(layer_E)
+            layer_inhibition.append(layer_I)
+            if layer_Vb is not None:
+                layer_branch_input.append(layer_Vb)
+            layer_output.append(layer_Vout)
 
         if not layer_excitation:
             self.logger.warning(
@@ -1499,26 +1532,69 @@ class InformationAnalyzer(
             f"E: {E.shape}, I: {I_var.shape}, Vb: {None if Vb is None else Vb.shape}, Vout: {Vout.shape}, C: {C_for_metrics.shape}"
         )
 
-        Vinf = self._compute_final_output_signal(model=model, inputs=inputs)
+        return _AllBranchMetricData(
+            excitation=E,
+            inhibition=I_var,
+            output=Vout,
+            labels=C_for_metrics,
+            branch_input=Vb,
+        )
 
-        results = self.compute_metrics(E, I_var, Vout, C_for_metrics, Vinf, Vb)
+    def _finalize_all_branch_results(
+        self,
+        *,
+        metric_data: _AllBranchMetricData,
+        Vinf: np.ndarray | None,
+    ) -> dict[str, Any]:
+        """Compute all-branch metrics and attach aggregation metadata."""
+        results = self.compute_metrics(
+            metric_data.excitation,
+            metric_data.inhibition,
+            metric_data.output,
+            metric_data.labels,
+            Vinf,
+            metric_data.branch_input,
+        )
         self._try_add_label_shuffle_null_baselines_in_place(
             results,
-            E=E,
-            I_var=I_var,
-            Vout=Vout,
-            C=C_for_metrics,
-            Vb=Vb,
+            E=metric_data.excitation,
+            I_var=metric_data.inhibition,
+            Vout=metric_data.output,
+            C=metric_data.labels,
+            Vb=metric_data.branch_input,
             Vinf=Vinf,
             has_exc_synapses=True,
             has_inh_synapses=True,
-            has_branch_input=Vb is not None,
+            has_branch_input=metric_data.branch_input is not None,
             seed_offset=999_999,
             failure_context="all-branch analysis",
         )
         results["aggregation_method"] = self.branch_aggregation
         results["computation_level"] = "all_branch"
         return results
+
+    def _compute_all_branch_results(
+        self,
+        *,
+        model: BaseModel,
+        inputs: torch.Tensor,
+        C: np.ndarray,
+    ) -> dict[str, Any] | None:
+        """Compute full-network information metrics across all collected branches."""
+        self.logger.info(
+            f"Aggregating branches using method: {self.branch_aggregation} (full network aggregation)"
+        )
+
+        metric_data = self._collect_all_branch_metric_data(C)
+        if metric_data is None:
+            return None
+
+        Vinf = self._compute_final_output_signal(model=model, inputs=inputs)
+
+        return self._finalize_all_branch_results(
+            metric_data=metric_data,
+            Vinf=Vinf,
+        )
 
     def _collect_enhanced_analysis_arrays(
         self,

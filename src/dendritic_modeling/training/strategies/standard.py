@@ -27,7 +27,9 @@ from dendritic_modeling.config.training import (
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import ParametricActivation
 from dendritic_modeling.plotting import plot_loss_curves
-from dendritic_modeling.training.dataloader_utils import resolve_dataloader_tuning
+from dendritic_modeling.training.dataloader_utils import (
+    resolve_dataloader_tuning_from_config,
+)
 from dendritic_modeling.training.distributed_samplers import (
     PaddedDistributedEvalSampler,
 )
@@ -203,13 +205,10 @@ class Trainer:
     def _dataloaders(
         self, train_data: torch.utils.data.Dataset, valid_data: torch.utils.data.Dataset
     ) -> tuple[DataLoader, DataLoader]:
-        tuning = resolve_dataloader_tuning(
+        tuning = resolve_dataloader_tuning_from_config(
             train_data,
             device=getattr(self, "device", None),
-            num_workers=getattr(self, "num_workers", None),
-            pin_memory=getattr(self, "pin_memory", None),
-            persistent_workers=getattr(self, "persistent_workers", None),
-            prefetch_factor=getattr(self, "prefetch_factor", None),
+            config=self,
         )
         if not self.suppress_prints and tuning.auto_num_workers:
             total_cpus = os.cpu_count() or tuning.available_cpus

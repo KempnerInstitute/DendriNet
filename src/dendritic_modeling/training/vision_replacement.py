@@ -16,7 +16,7 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from dendritic_modeling.config import Config
 from dendritic_modeling.scripts.script_utils.setup_utils import initialize_model
-from dendritic_modeling.training.dataloader_utils import resolve_dataloader_tuning
+from dendritic_modeling.training.dataloader_utils import dataloader_kwargs_from_config
 from dendritic_modeling.training.optimizers import create_optimizer
 from dendritic_modeling.training.replacement_common import (
     _compute_distillation_loss as _shared_compute_distillation_loss,
@@ -163,14 +163,7 @@ def _vision_loader_kwargs(
     *,
     device: torch.device,
 ) -> dict[str, Any]:
-    return resolve_dataloader_tuning(
-        dataset,
-        device=device,
-        num_workers=getattr(train_cfg, "num_workers", None),
-        pin_memory=getattr(train_cfg, "pin_memory", None),
-        persistent_workers=getattr(train_cfg, "persistent_workers", None),
-        prefetch_factor=getattr(train_cfg, "prefetch_factor", None),
-    ).as_kwargs()
+    return dataloader_kwargs_from_config(dataset, train_cfg, device=device)
 
 
 def _make_vision_loader(

@@ -1151,6 +1151,126 @@ class TestInformationAnalyzer(unittest.TestCase):
         self.assertIsNone(Vinf)
         np.testing.assert_array_equal(C_for_metrics, C)
 
+    def test_all_branch_metric_data_helper_returns_none_without_excitatory_layers(self):
+        """All-branch metric collection should preserve empty-activation skip behavior."""
+        self.analyzer.data_dict = {"metadata": {"output": torch.ones(2, 1)}}
+
+        with patch.object(self.analyzer.logger, "warning") as mock_warning:
+            metric_data = self.analyzer._collect_all_branch_metric_data(
+                np.array([0, 1])
+            )
+
+        self.assertIsNone(metric_data)
+        mock_warning.assert_called_once_with(
+            "No excitatory activations collected. Skipping information analysis."
+        )
+
+    def test_all_branch_metric_data_helper_collects_layers_and_concatenates(self):
+        """All-branch metric collection should preserve tensor lists and missing-Vb flag."""
+        self.analyzer.data_dict = {
+            "layer0": {"excitation": torch.ones(2, 2)},
+            "skip": {"output": torch.zeros(2, 1)},
+            "layer1": {"excitation": torch.ones(2, 1)},
+        }
+        C = np.array([0, 1])
+        layer0 = (
+            torch.ones(2, 2),
+            torch.ones(2, 2) * 2.0,
+            torch.ones(2, 2) * 3.0,
+            torch.ones(2, 2) * 4.0,
+            False,
+        )
+        layer1 = (
+            torch.ones(2, 1) * 5.0,
+            torch.ones(2, 1) * 6.0,
+            torch.ones(2, 1) * 7.0,
+            None,
+            True,
+        )
+        E = np.ones((2, 3))
+        I_var = np.ones((2, 3)) * 2.0
+        Vout = np.ones((2, 3)) * 3.0
+        Vb = None
+
+        with (
+            patch.object(
+                self.analyzer,
+                "_aggregate_all_branch_layer_tensors",
+                side_effect=[layer0, layer1],
+            ) as mock_aggregate,
+            patch.object(
+                self.analyzer,
+                "_concatenate_all_branch_tensors_for_metrics",
+                return_value=(E, I_var, Vout, C, Vb),
+            ) as mock_concat,
+        ):
+            metric_data = self.analyzer._collect_all_branch_metric_data(C)
+
+        self.assertEqual(mock_aggregate.call_count, 2)
+        self.assertEqual(len(mock_concat.call_args.kwargs["layer_excitation"]), 2)
+        self.assertEqual(len(mock_concat.call_args.kwargs["layer_inhibition"]), 2)
+        self.assertEqual(len(mock_concat.call_args.kwargs["layer_output"]), 2)
+        self.assertEqual(len(mock_concat.call_args.kwargs["layer_branch_input"]), 1)
+        self.assertTrue(mock_concat.call_args.kwargs["missing_vb_in_any_layer"])
+        np.testing.assert_array_equal(mock_concat.call_args.kwargs["C"], C)
+        np.testing.assert_array_equal(metric_data.excitation, E)
+        np.testing.assert_array_equal(metric_data.inhibition, I_var)
+        np.testing.assert_array_equal(metric_data.output, Vout)
+        np.testing.assert_array_equal(metric_data.labels, C)
+        self.assertIsNone(metric_data.branch_input)
+
+    def test_finalize_all_branch_results_preserves_metrics_nulls_and_metadata(self):
+        """All-branch finalization should preserve metric/null arguments and labels."""
+        self.analyzer.branch_aggregation = "multivariate"
+        E = np.ones((3, 2))
+        I_var = np.ones((3, 2)) * 2.0
+        Vout = np.ones((3, 2)) * 3.0
+        C = np.array([0, 1, 0])
+        Vb = np.ones((3, 2)) * 4.0
+        Vinf = np.ones((3, 1)) * 5.0
+        metric_data = Mock()
+        metric_data.excitation = E
+        metric_data.inhibition = I_var
+        metric_data.output = Vout
+        metric_data.labels = C
+        metric_data.branch_input = Vb
+        results = {"basic_mi": {"I(E;C)": 1.0}}
+
+        with (
+            patch.object(
+                self.analyzer,
+                "compute_metrics",
+                return_value=results,
+            ) as mock_metrics,
+            patch.object(
+                self.analyzer,
+                "_try_add_label_shuffle_null_baselines_in_place",
+            ) as mock_null,
+        ):
+            finalized = self.analyzer._finalize_all_branch_results(
+                metric_data=metric_data,
+                Vinf=Vinf,
+            )
+
+        self.assertIs(finalized, results)
+        mock_metrics.assert_called_once_with(E, I_var, Vout, C, Vinf, Vb)
+        mock_null.assert_called_once()
+        np.testing.assert_array_equal(mock_null.call_args.kwargs["E"], E)
+        np.testing.assert_array_equal(mock_null.call_args.kwargs["I_var"], I_var)
+        np.testing.assert_array_equal(mock_null.call_args.kwargs["Vout"], Vout)
+        np.testing.assert_array_equal(mock_null.call_args.kwargs["C"], C)
+        np.testing.assert_array_equal(mock_null.call_args.kwargs["Vb"], Vb)
+        np.testing.assert_array_equal(mock_null.call_args.kwargs["Vinf"], Vinf)
+        self.assertTrue(mock_null.call_args.kwargs["has_exc_synapses"])
+        self.assertTrue(mock_null.call_args.kwargs["has_inh_synapses"])
+        self.assertTrue(mock_null.call_args.kwargs["has_branch_input"])
+        self.assertEqual(mock_null.call_args.kwargs["seed_offset"], 999_999)
+        self.assertEqual(
+            mock_null.call_args.kwargs["failure_context"], "all-branch analysis"
+        )
+        self.assertEqual(finalized["aggregation_method"], "multivariate")
+        self.assertEqual(finalized["computation_level"], "all_branch")
+
     def test_all_branch_layer_tensor_helper_mean_and_default_match(self):
         """All-branch layer tensor helper should mean-pool explicit and fallback modes."""
         layer_data = {
@@ -1546,6 +1666,138 @@ class TestInformationAnalyzer(unittest.TestCase):
         self.assertEqual(second_args[2].shape, (4, 3))
         self.assertEqual(second_args[5].shape, (4, 3))
         np.testing.assert_array_equal(second_args[3], C)
+
+    def test_layer_branch_result_helper_preserves_aggregation_and_null_args(self):
+        """Layer-branch result helper should preserve aggregation and baseline inputs."""
+        C = np.array([0, 1])
+        layer_data = {
+            "excitation": torch.tensor([[1.0, 2.0], [3.0, 4.0]]),
+            "inhibition": torch.tensor([[5.0, 6.0], [7.0, 8.0]]),
+            "branch_input": torch.tensor([[9.0, 10.0], [11.0, 12.0]]),
+            "output": torch.tensor([[13.0, 14.0], [15.0, 16.0]]),
+            "has_exc_synapses": False,
+            "has_inh_synapses": True,
+            "has_branch_input": False,
+        }
+        E_layer = np.array([[1.0], [3.0]])
+        I_layer = np.array([[5.0], [7.0]])
+        Vout_layer = np.array([[13.0], [15.0]])
+        Vb_layer = np.array([[9.0], [11.0]])
+        layer_results = {"basic_mi": {"I(E;C)": 1.0}}
+
+        with (
+            patch.object(
+                self.analyzer,
+                "_aggregate_layer_branch_arrays_for_metrics",
+                return_value=(E_layer, I_layer, Vout_layer, C, Vb_layer),
+            ) as mock_aggregate,
+            patch.object(
+                self.analyzer,
+                "compute_metrics",
+                return_value=layer_results,
+            ) as mock_metrics,
+            patch.object(
+                self.analyzer,
+                "_filter_result_metrics_in_place",
+            ) as mock_filter,
+            patch.object(
+                self.analyzer,
+                "_try_add_label_shuffle_null_baselines_in_place",
+            ) as mock_null,
+        ):
+            result = self.analyzer._compute_layer_branch_result(
+                layer_name="layer0",
+                layer_data=layer_data,
+                C=C,
+                seed_offset=4,
+            )
+
+        self.assertIs(result, layer_results)
+        torch.testing.assert_close(
+            mock_aggregate.call_args.kwargs["E_layer_data"], layer_data["excitation"]
+        )
+        torch.testing.assert_close(
+            mock_aggregate.call_args.kwargs["I_layer_data"], layer_data["inhibition"]
+        )
+        torch.testing.assert_close(
+            mock_aggregate.call_args.kwargs["Vout_layer_data"], layer_data["output"]
+        )
+        torch.testing.assert_close(
+            mock_aggregate.call_args.kwargs["Vb_layer_data"],
+            layer_data["branch_input"],
+        )
+        np.testing.assert_array_equal(mock_aggregate.call_args.kwargs["C"], C)
+        mock_metrics.assert_called_once_with(
+            E_layer, I_layer, Vout_layer, C, None, Vb_layer
+        )
+        mock_filter.assert_called_once_with(
+            layer_results,
+            has_exc_synapses=False,
+            has_inh_synapses=True,
+            has_branch_input=True,
+        )
+        mock_null.assert_called_once()
+        self.assertEqual(mock_null.call_args.kwargs["seed_offset"], 4)
+        self.assertEqual(mock_null.call_args.kwargs["failure_context"], "layer layer0")
+        self.assertFalse(mock_null.call_args.kwargs["has_exc_synapses"])
+        self.assertTrue(mock_null.call_args.kwargs["has_inh_synapses"])
+        self.assertTrue(mock_null.call_args.kwargs["has_branch_input"])
+
+    def test_finalize_layer_branch_results_returns_none_for_empty_results(self):
+        """Layer-branch finalization should preserve empty-result skip behavior."""
+        with patch.object(self.analyzer.logger, "warning") as mock_warning:
+            results = self.analyzer._finalize_layer_branch_results(
+                all_results=[],
+                layer_names=[],
+            )
+
+        self.assertIsNone(results)
+        mock_warning.assert_called_once_with("No layer results to average")
+
+    def test_finalize_layer_branch_results_averages_and_attaches_statistics(self):
+        """Layer-branch finalization should preserve averaged metadata and stats."""
+        all_results = [{"basic_mi": {"I(E;C)": 1.0}}, {"basic_mi": {"I(E;C)": 3.0}}]
+        layer_names = ["layer0", "layer1"]
+
+        with (
+            patch.object(
+                self.analyzer,
+                "_average_mi_results",
+                return_value={"basic_mi": {"I(E;C)": 2.0}},
+            ) as mock_average,
+            patch.object(
+                self.analyzer,
+                "_compute_layer_statistics",
+                side_effect=[{"stat": 0.0}, {"stat": 1.0}],
+            ) as mock_stats,
+            patch.object(
+                self.analyzer,
+                "_apply_layer_synapse_availability_in_place",
+            ) as mock_availability,
+            patch.object(self.analyzer.logger, "info") as mock_info,
+        ):
+            results = self.analyzer._finalize_layer_branch_results(
+                all_results=all_results,
+                layer_names=layer_names,
+            )
+
+        mock_average.assert_called_once_with(all_results)
+        self.assertEqual(mock_stats.call_args_list[0].args[0], [all_results[0]])
+        self.assertEqual(mock_stats.call_args_list[1].args[0], [all_results[1]])
+        self.assertEqual(mock_availability.call_count, 2)
+        self.assertEqual(
+            results,
+            {
+                "basic_mi": {"I(E;C)": 2.0},
+                "layer_names": layer_names,
+                "num_layers": 2,
+                "computation_level": "layer_branch",
+                "layer_statistics": {"layer0": {"stat": 0.0}, "layer1": {"stat": 1.0}},
+            },
+        )
+        mock_info.assert_called_once_with(
+            "Generated layer statistics for 2 layers for plotting"
+        )
 
     def test_metric_merge_helper_renames_existing_nested_groups(self):
         """Metric merge helper should rename tokens without creating new groups."""
@@ -2004,6 +2256,25 @@ class TestAnalysisManager(unittest.TestCase):
         )
         self.assertFalse(self.manager.correlation_analysis_enabled)
 
+    def test_manager_registry_accessors_resolve_registered_metadata(self):
+        """Manager helper methods should resolve through registry metadata."""
+        spec = get_analyzer_spec("performance")
+
+        assert spec is not None
+        self.assertIs(
+            self.manager._analysis_config("performance"),
+            getattr(self.manager.config, spec.config_field),
+        )
+        self.assertTrue(self.manager._has_analysis_analyzer("performance"))
+        self.assertIs(
+            self.manager._analysis_analyzer("performance"),
+            getattr(self.manager, spec.attribute_name),
+        )
+        self.assertEqual(
+            self.manager._analysis_save_path("performance", "epochs"),
+            str(Path(self.manager.save_root) / spec.save_subdir / "epochs"),
+        )
+
     def test_manager_initializes_optional_analyzer_constructor_styles(self):
         """Registry-backed initialization supports params, model+params, and no params."""
         config = AnalysisConfig()
@@ -2125,6 +2396,24 @@ class TestAnalysisManager(unittest.TestCase):
                 manager.config.runtime.final,
             )
             self.assertNotIn("training", call_kwargs)
+
+    def test_common_test_dataset_runners_resolve_registry_metadata(self):
+        """Common runner tables should stay synchronized with the registry."""
+        from dendritic_modeling.analysis.managers.analysis_manager import (
+            _POST_REACTIVATION_TEST_DATASET_ANALYSES,
+            _PRE_WEIGHT_TEST_DATASET_ANALYSES,
+        )
+
+        runners = (
+            *_PRE_WEIGHT_TEST_DATASET_ANALYSES,
+            *_POST_REACTIVATION_TEST_DATASET_ANALYSES,
+        )
+        for runner in runners:
+            spec = get_analyzer_spec(runner.registry_name)
+            self.assertIsNotNone(spec, runner.registry_name)
+            self.assertEqual(runner.config_field, spec.config_field)
+            self.assertEqual(runner.analyzer_attr, spec.attribute_name)
+            self.assertEqual(runner.save_subdir, spec.save_subdir)
 
     def test_common_test_dataset_analysis_path_preserves_training_kwarg(self):
         """Shared runner should preserve training-aware analyzer calls."""

@@ -132,10 +132,43 @@ def resolve_dataloader_tuning(
     )
 
 
+def resolve_dataloader_tuning_from_config(
+    dataset: Dataset,
+    config: Any,
+    *,
+    device: torch.device | str | None = None,
+) -> DataLoaderTuning:
+    """Resolve DataLoader tuning from a config-like object."""
+    return resolve_dataloader_tuning(
+        dataset,
+        device=device,
+        num_workers=getattr(config, "num_workers", None),
+        pin_memory=getattr(config, "pin_memory", None),
+        persistent_workers=getattr(config, "persistent_workers", None),
+        prefetch_factor=getattr(config, "prefetch_factor", None),
+    )
+
+
+def dataloader_kwargs_from_config(
+    dataset: Dataset,
+    config: Any,
+    *,
+    device: torch.device | str | None = None,
+) -> dict[str, Any]:
+    """Return validated DataLoader keyword arguments from a config-like object."""
+    return resolve_dataloader_tuning_from_config(
+        dataset,
+        config,
+        device=device,
+    ).as_kwargs()
+
+
 __all__ = [
     "DataLoaderTuning",
     "auto_num_workers_for_dataset",
+    "dataloader_kwargs_from_config",
     "prefers_main_process_loading",
     "resolve_dataloader_tuning",
+    "resolve_dataloader_tuning_from_config",
     "visible_cpu_count",
 ]

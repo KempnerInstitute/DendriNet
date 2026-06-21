@@ -58,7 +58,7 @@ from dendritic_modeling.scripts.training.train_encoder_network import (
     load_train_encoder_network,
 )
 from dendritic_modeling.training import CustomWeightDecayOptimizer, get_trainer
-from dendritic_modeling.training.dataloader_utils import resolve_dataloader_tuning
+from dendritic_modeling.training.dataloader_utils import dataloader_kwargs_from_config
 from dendritic_modeling.training.optimizers import create_optimizer
 from dendritic_modeling.utils import save_dict
 from dendritic_modeling.utils.training_stability_validator import (
@@ -173,7 +173,7 @@ def _maybe_calibrate_data_driven_reactivation(
         mode = None
         policy_msg = ", ".join(sorted(requested_policies))
 
-    print(f"[reactivation-calibration] init_policy={policy_msg}", flush=True)
+    logger.info("[reactivation-calibration] init_policy=%s", policy_msg)
 
     device = next(model.parameters()).device
     # Don't pass a global k — let each layer use its own
@@ -183,20 +183,12 @@ def _maybe_calibrate_data_driven_reactivation(
     common_config = getattr(
         getattr(getattr(config, "training", None), "main", None), "common", None
     )
-    loader_tuning = resolve_dataloader_tuning(
-        train_dataset,
-        device=device,
-        num_workers=getattr(common_config, "num_workers", None),
-        pin_memory=getattr(common_config, "pin_memory", None),
-        persistent_workers=getattr(common_config, "persistent_workers", None),
-        prefetch_factor=getattr(common_config, "prefetch_factor", None),
-    )
     loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
         drop_last=True,
-        **loader_tuning.as_kwargs(),
+        **dataloader_kwargs_from_config(train_dataset, common_config, device=device),
     )
     is_recurrent = getattr(model, "_is_recurrent_core", False)
     batches = []
@@ -252,9 +244,9 @@ def _maybe_calibrate_data_driven_reactivation(
         batches = normalized_batches
         if is_main:
             shape_msg = "[B, 1, D]" if added_time_axis else "native [B, T, D]"
-            print(
-                f"[reactivation-calibration] recurrent model detected — using {shape_msg} batches",
-                flush=True,
+            logger.info(
+                "[reactivation-calibration] recurrent model detected; using %s batches",
+                shape_msg,
             )
 
     # Iterate: writing new (m, b) at layer i reshapes the V distribution at
@@ -275,24 +267,30 @@ def _maybe_calibrate_data_driven_reactivation(
         )
         if is_main:
             if not diag:
-                print(
+                logger.warning(
                     "[reactivation-calibration] found no DendriticBranchLayers with a non-Identity reactivation",
-                    flush=True,
                 )
                 break
             m_values = [d["m"] for d in diag.values()]
             b_values = [d["b"] for d in diag.values()]
             sig_values = [d["V_std"] for d in diag.values()]
-            print(
-                f"[reactivation-calibration] iter {iteration + 1}/{n_iterations} "
-                f"| mode={(mode if mode is not None else 'per-layer')} "
-                f"| {len(diag)} layers calibrated "
-                f"| m range [{min(m_values):.4f}, {max(m_values):.4f}] "
-                f"| b range [{min(b_values):.4f}, {max(b_values):.4f}] "
-                f"| sigma range [{min(sig_values):.4f}, {max(sig_values):.4f}] "
-                f"| aggregation={quantile_aggregation} "
-                f"| k=per-layer n_batches={n_batches}",
-                flush=True,
+            logger.info(
+                "[reactivation-calibration] iter %s/%s | mode=%s | %s layers "
+                "calibrated | m range [%.4f, %.4f] | b range [%.4f, %.4f] "
+                "| sigma range [%.4f, %.4f] | aggregation=%s | k=per-layer "
+                "n_batches=%s",
+                iteration + 1,
+                n_iterations,
+                mode if mode is not None else "per-layer",
+                len(diag),
+                min(m_values),
+                max(m_values),
+                min(b_values),
+                max(b_values),
+                min(sig_values),
+                max(sig_values),
+                quantile_aggregation,
+                n_batches,
             )
     if is_main and diag:
         for name, d in diag.items():
@@ -305,16 +303,22 @@ def _maybe_calibrate_data_driven_reactivation(
                 )
             if d.get("calibration_reverted"):
                 extra += " REVERTED"
-            print(
-                f"[reactivation-calibration]   {name}: "
-                f"m={d['m']:.4f} b={d['b']:.4f} "
-                f"V[mean={d['V_mean']:.4f} std={d['V_std']:.4f} "
-                f"mad_std={d.get('V_mad_std', float('nan')):.4f} "
-                f"q10={d.get('V_q10', float('nan')):.3g} "
-                f"q90={d.get('V_q90', float('nan')):.3g} "
-                f"min={d.get('V_min', float('nan')):.3g} "
-                f"max={d.get('V_max', float('nan')):.3g}] n={d['n']}{extra}",
-                flush=True,
+            logger.info(
+                "[reactivation-calibration]   %s: m=%.4f b=%.4f "
+                "V[mean=%.4f std=%.4f mad_std=%.4f q10=%.3g q90=%.3g "
+                "min=%.3g max=%.3g] n=%s%s",
+                name,
+                d["m"],
+                d["b"],
+                d["V_mean"],
+                d["V_std"],
+                d.get("V_mad_std", float("nan")),
+                d.get("V_q10", float("nan")),
+                d.get("V_q90", float("nan")),
+                d.get("V_min", float("nan")),
+                d.get("V_max", float("nan")),
+                d["n"],
+                extra,
             )
 
 

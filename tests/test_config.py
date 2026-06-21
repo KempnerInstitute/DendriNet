@@ -8,6 +8,7 @@ from unittest.mock import patch
 import torch
 import yaml
 
+from dendritic_modeling.analysis.registry import get_registered_analyzers
 from dendritic_modeling.config import (
     AnalysisConfig,
     ArchitectureConfig,
@@ -163,18 +164,8 @@ class TestConfigDataclasses(unittest.TestCase):
         analysis = AnalysisConfig()
         self.assertTrue(analysis.any_enabled())
 
-        final_gate_fields = (
-            "performance_analysis",
-            "information_analysis",
-            "synapse_turnover_analysis",
-            "noise_perturbation_analysis",
-            "single_layer_contribution",
-            "ablation_analysis",
-            "weight_analysis",
-            "synaptic_activation_analysis",
-            "branch_activation_analysis",
-            "correlation_analysis",
-            "routing_analysis",
+        final_gate_fields = tuple(
+            spec.config_field for spec in get_registered_analyzers().values()
         )
         for field_name in final_gate_fields:
             getattr(analysis, field_name).enabled = False
@@ -185,6 +176,13 @@ class TestConfigDataclasses(unittest.TestCase):
 
         analysis.information_analysis.enabled = False
         analysis.spike_train_analysis.enabled = True
+        self.assertTrue(analysis.any_enabled())
+
+        analysis.spike_train_analysis.enabled = False
+        analysis.compartment_snr_analysis.enabled = True
+        self.assertTrue(analysis.any_enabled())
+
+        analysis.compartment_snr_analysis.enabled = False
         self.assertFalse(analysis.any_enabled())
 
     def test_local_rule_explicit_inhibitory_update_modes(self):
