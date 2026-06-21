@@ -508,6 +508,52 @@ class TestInformationAnalyzer(unittest.TestCase):
         self.assertIsNone(Vinf)
         np.testing.assert_array_equal(C_for_metrics, C)
 
+    def test_all_branch_layer_tensor_helper_mean_and_default_match(self):
+        """All-branch layer tensor helper should mean-pool explicit and fallback modes."""
+        layer_data = {
+            "excitation": torch.tensor([[1.0, 3.0], [5.0, 7.0]]),
+            "inhibition": torch.tensor([[2.0, 4.0], [6.0, 8.0]]),
+            "branch_input": torch.tensor([[0.5, 1.5], [2.5, 3.5]]),
+            "output": torch.tensor([[10.0, 20.0], [30.0, 40.0]]),
+        }
+
+        self.analyzer.branch_aggregation = "mean"
+        mean_outputs = self.analyzer._aggregate_all_branch_layer_tensors(layer_data)
+        self.analyzer.branch_aggregation = "unknown"
+        fallback_outputs = self.analyzer._aggregate_all_branch_layer_tensors(layer_data)
+
+        for mean_value, fallback_value in zip(mean_outputs[:4], fallback_outputs[:4]):
+            torch.testing.assert_close(mean_value, fallback_value)
+        self.assertFalse(mean_outputs[4])
+        self.assertFalse(fallback_outputs[4])
+        layer_E, layer_I, layer_Vout, layer_Vb, _missing_vb = mean_outputs
+        torch.testing.assert_close(layer_E, torch.tensor([[2.0], [6.0]]))
+        torch.testing.assert_close(layer_I, torch.tensor([[3.0], [7.0]]))
+        torch.testing.assert_close(layer_Vout, torch.tensor([[15.0], [35.0]]))
+        torch.testing.assert_close(layer_Vb, torch.tensor([[1.0], [3.0]]))
+
+    def test_all_branch_layer_tensor_helper_sample_handles_missing_vb(self):
+        """All-branch sample tensor helper should flatten and flag missing Vb."""
+        self.analyzer.branch_aggregation = "sample"
+        layer_data = {
+            "excitation": torch.tensor([[1.0, 3.0], [5.0, 7.0]]),
+            "inhibition": torch.tensor([[2.0, 4.0], [6.0, 8.0]]),
+            "output": torch.tensor([[10.0, 20.0], [30.0, 40.0]]),
+        }
+
+        layer_E, layer_I, layer_Vout, layer_Vb, missing_vb = (
+            self.analyzer._aggregate_all_branch_layer_tensors(layer_data)
+        )
+
+        torch.testing.assert_close(layer_E, torch.tensor([[1.0], [3.0], [5.0], [7.0]]))
+        torch.testing.assert_close(layer_I, torch.tensor([[2.0], [4.0], [6.0], [8.0]]))
+        torch.testing.assert_close(
+            layer_Vout,
+            torch.tensor([[10.0], [20.0], [30.0], [40.0]]),
+        )
+        self.assertIsNone(layer_Vb)
+        self.assertTrue(missing_vb)
+
     def test_layer_branch_helper_sample_aggregation_expands_labels(self):
         """Layer-branch sample aggregation should flatten each layer independently."""
         self.analyzer.branch_aggregation = "sample"
@@ -626,6 +672,331 @@ class TestInformationAnalyzer(unittest.TestCase):
         self.assertEqual(second_args[2].shape, (4, 3))
         self.assertEqual(second_args[5].shape, (4, 3))
         np.testing.assert_array_equal(second_args[3], C)
+
+    def test_metric_merge_helper_renames_existing_nested_groups(self):
+        """Metric merge helper should rename tokens without creating new groups."""
+        target = {"basic_mi": {"I(E;C)": 0.1}, "method": "mock"}
+        source = {
+            "basic_mi": {"I(E;C)": 0.2, "I(Vout;C)": 0.3},
+            "missing_group": {"I(I;C)": 0.4},
+            "method": "lda",
+        }
+
+        self.analyzer._merge_renamed_metric_dicts_in_place(
+            target=target,
+            source=source,
+            token_map={"E": "E_lin", "Vout": "Vout_lin", "I": "I_lin"},
+        )
+
+        self.assertEqual(target["basic_mi"]["I(E;C)"], 0.1)
+        self.assertEqual(target["basic_mi"]["I(E_lin;C)"], 0.2)
+        self.assertEqual(target["basic_mi"]["I(Vout_lin;C)"], 0.3)
+        self.assertNotIn("missing_group", target)
+        self.assertEqual(target["method"], "mock")
+
+    def test_metric_average_merge_helper_averages_numeric_values(self):
+        """Average metric merge helper should ignore non-numeric and missing groups."""
+        target = {
+            "basic_mi": {"I(E;C)": 0.1},
+            "non_dict_target": "unchanged",
+        }
+        sources = [
+            {
+                "basic_mi": {"I(E;C)": 0.2, "I(I;C)": 0.4, "skip": "x"},
+                "missing_group": {"I(Vout;C)": 1.0},
+                "non_dict_target": {"I(E;C)": 5.0},
+            },
+            {
+                "basic_mi": {"I(E;C)": 0.6, "I(I;C)": 0.8, "skip": "y"},
+                "missing_group": {"I(Vout;C)": 3.0},
+                "non_dict_target": {"I(E;C)": 7.0},
+            },
+        ]
+
+        self.analyzer._merge_average_renamed_numeric_metrics_in_place(
+            target=target,
+            sources=sources,
+            token_map={"E": "E_sh", "I": "I_sh", "Vout": "Vout_sh"},
+        )
+
+        self.assertEqual(target["basic_mi"]["I(E;C)"], 0.1)
+        self.assertEqual(target["basic_mi"]["I(E_sh;C)"], 0.4)
+        self.assertAlmostEqual(target["basic_mi"]["I(I_sh;C)"], 0.6)
+        self.assertNotIn("skip", target["basic_mi"])
+        self.assertNotIn("missing_group", target)
+        self.assertEqual(target["non_dict_target"], "unchanged")
+
+    def test_layer_synapse_availability_helper_prunes_synapse_metrics(self):
+        """Synapse-free layer stats should drop E/I metrics and keep other values."""
+        self.analyzer.data_dict = {"soma": {"has_synapses": False}}
+        layer_stats = {
+            "I(E;C)_mean": 0.1,
+            "I(I;C)_mean": 0.2,
+            "I(E_lin;C)_mean": 0.3,
+            "I(I_lin;C)_mean": 0.4,
+            "I(Vout;C)_mean": 0.5,
+            "accuracy_proxy": 0.6,
+        }
+
+        self.analyzer._apply_layer_synapse_availability_in_place(layer_stats, "soma")
+
+        self.assertFalse(layer_stats["has_synapses"])
+        self.assertNotIn("I(E;C)_mean", layer_stats)
+        self.assertNotIn("I(I;C)_mean", layer_stats)
+        self.assertNotIn("I(E_lin;C)_mean", layer_stats)
+        self.assertNotIn("I(I_lin;C)_mean", layer_stats)
+        self.assertEqual(layer_stats["I(Vout;C)_mean"], 0.5)
+        self.assertEqual(layer_stats["accuracy_proxy"], 0.6)
+
+    def test_layer_synapse_availability_helper_preserves_synapse_metrics(self):
+        """Layers with synapses should only receive the availability flag."""
+        self.analyzer.data_dict = {"layer0": {"has_synapses": True}}
+        layer_stats = {"I(E;C)_mean": 0.1, "I(I;C)_mean": 0.2}
+
+        self.analyzer._apply_layer_synapse_availability_in_place(layer_stats, "layer0")
+
+        self.assertTrue(layer_stats["has_synapses"])
+        self.assertEqual(layer_stats["I(E;C)_mean"], 0.1)
+        self.assertEqual(layer_stats["I(I;C)_mean"], 0.2)
+
+    def test_layer_synapse_availability_helper_ignores_unknown_layers(self):
+        """Unknown layers should preserve the prior stats exactly."""
+        self.analyzer.data_dict = {}
+        layer_stats = {"I(E;C)_mean": 0.1}
+
+        self.analyzer._apply_layer_synapse_availability_in_place(layer_stats, "missing")
+
+        self.assertEqual(layer_stats, {"I(E;C)_mean": 0.1})
+
+    def test_layer_branch_aggregation_helper_mean_and_default_match(self):
+        """Layer aggregation helper should use mean for explicit and fallback modes."""
+        E_data = torch.tensor([[1.0, 3.0], [5.0, 7.0]])
+        I_data = torch.tensor([[2.0, 4.0], [6.0, 8.0]])
+        Vout_data = torch.tensor([[10.0, 20.0], [30.0, 40.0]])
+        Vb_data = torch.tensor([[0.5, 1.5], [2.5, 3.5]])
+        C = np.array([0, 1])
+
+        self.analyzer.branch_aggregation = "mean"
+        mean_outputs = self.analyzer._aggregate_layer_branch_arrays_for_metrics(
+            E_layer_data=E_data,
+            I_layer_data=I_data,
+            Vout_layer_data=Vout_data,
+            Vb_layer_data=Vb_data,
+            C=C,
+        )
+        self.analyzer.branch_aggregation = "unknown"
+        fallback_outputs = self.analyzer._aggregate_layer_branch_arrays_for_metrics(
+            E_layer_data=E_data,
+            I_layer_data=I_data,
+            Vout_layer_data=Vout_data,
+            Vb_layer_data=Vb_data,
+            C=C,
+        )
+
+        for mean_value, fallback_value in zip(mean_outputs, fallback_outputs):
+            np.testing.assert_array_equal(mean_value, fallback_value)
+        E_layer, I_layer, Vout_layer, C_for_layer, Vb_layer = mean_outputs
+        np.testing.assert_array_equal(E_layer, np.array([[2.0], [6.0]]))
+        np.testing.assert_array_equal(I_layer, np.array([[3.0], [7.0]]))
+        np.testing.assert_array_equal(Vout_layer, np.array([[15.0], [35.0]]))
+        np.testing.assert_array_equal(Vb_layer, np.array([[1.0], [3.0]]))
+        np.testing.assert_array_equal(C_for_layer, C)
+
+    def test_layer_branch_aggregation_helper_sample_handles_missing_vb(self):
+        """Sample aggregation should flatten branches and preserve missing Vb as None."""
+        self.analyzer.branch_aggregation = "sample"
+        E_data = torch.tensor([[1.0, 3.0], [5.0, 7.0], [9.0, 11.0]])
+        I_data = torch.tensor([[2.0, 4.0], [6.0, 8.0], [10.0, 12.0]])
+        Vout_data = torch.tensor([[10.0, 20.0], [30.0, 40.0], [50.0, 60.0]])
+        C = np.array([0, 1, 2])
+
+        E_layer, I_layer, Vout_layer, C_for_layer, Vb_layer = (
+            self.analyzer._aggregate_layer_branch_arrays_for_metrics(
+                E_layer_data=E_data,
+                I_layer_data=I_data,
+                Vout_layer_data=Vout_data,
+                Vb_layer_data=None,
+                C=C,
+            )
+        )
+
+        np.testing.assert_array_equal(
+            E_layer,
+            np.array([[1.0], [3.0], [5.0], [7.0], [9.0], [11.0]]),
+        )
+        np.testing.assert_array_equal(
+            I_layer,
+            np.array([[2.0], [4.0], [6.0], [8.0], [10.0], [12.0]]),
+        )
+        np.testing.assert_array_equal(
+            Vout_layer,
+            np.array([[10.0], [20.0], [30.0], [40.0], [50.0], [60.0]]),
+        )
+        np.testing.assert_array_equal(C_for_layer, np.repeat(C, 2, axis=0))
+        self.assertIsNone(Vb_layer)
+
+    def test_single_branch_helper_collects_branch_metadata_and_stats(self):
+        """Single-branch helper should preserve branch-level call shapes and metadata."""
+        self.analyzer.compute_lda_weights = False
+        self.analyzer.mi_null_shuffles = 0
+        self.analyzer.compute_layer_total_proxies = True
+        self.analyzer.layer_total_topk = 3
+        self.analyzer.data_dict = {
+            "layer0": {
+                "excitation": torch.arange(6, dtype=torch.float32).reshape(3, 2),
+                "inhibition": torch.ones(3, 2),
+                "branch_input": torch.ones(3, 2) * 2.0,
+                "output": torch.ones(3, 2) * 3.0,
+            },
+        }
+        C = np.array([0, 1, 2])
+        entropy_C = 0.75
+        branch_metric_results = [
+            {"basic_mi": {"I(E;C)": 0.1}},
+            {"basic_mi": {"I(E;C)": 0.2}},
+        ]
+
+        with (
+            patch.object(
+                self.analyzer,
+                "compute_metrics",
+                side_effect=branch_metric_results,
+            ) as mock_metrics,
+            patch.object(self.analyzer, "_filter_result_metrics_in_place"),
+            patch.object(
+                self.analyzer,
+                "_average_mi_results",
+                return_value={"avg": True},
+            ) as mock_average,
+            patch.object(
+                self.analyzer,
+                "_compute_layer_statistics",
+                return_value={"stat": 1.0},
+            ) as mock_stats,
+        ):
+            results = self.analyzer._compute_single_branch_results(C, entropy_C)
+
+        self.assertEqual(
+            results["branch_names"], ["layer0_branch_0", "layer0_branch_1"]
+        )
+        self.assertEqual(results["num_branches"], 2)
+        self.assertEqual(results["computation_level"], "single_branch")
+        self.assertEqual(results["layer_statistics"]["layer0"]["stat"], 1.0)
+        mock_average.assert_called_once_with(branch_metric_results)
+        mock_stats.assert_called_once_with(
+            branch_metric_results,
+            entropy_C=entropy_C,
+            topk=3,
+        )
+
+        first_args = mock_metrics.call_args_list[0].args
+        second_args = mock_metrics.call_args_list[1].args
+        self.assertEqual(first_args[0].shape, (3, 1))
+        self.assertEqual(first_args[1].shape, (3, 1))
+        self.assertEqual(first_args[2].shape, (3, 1))
+        self.assertEqual(first_args[5].shape, (3, 1))
+        np.testing.assert_array_equal(first_args[3], C)
+        self.assertIsNone(first_args[4])
+        np.testing.assert_array_equal(
+            first_args[0].reshape(-1),
+            np.array([0.0, 2.0, 4.0], dtype=np.float32),
+        )
+        np.testing.assert_array_equal(
+            second_args[0].reshape(-1),
+            np.array([1.0, 3.0, 5.0], dtype=np.float32),
+        )
+
+    def test_single_branch_helper_merges_lda_and_shuffle_metrics(self):
+        """Single-branch helper should preserve LDA and random-weight metric naming."""
+        self.analyzer.compute_lda_weights = True
+        self.analyzer.lda_n_shuffles = 2
+        self.analyzer.mi_null_shuffles = 0
+        self.analyzer.data_dict = {
+            "layer0": {
+                "excitation": torch.ones(3, 1),
+                "inhibition": torch.ones(3, 1) * 2.0,
+                "branch_input": torch.ones(3, 1) * 3.0,
+                "output": torch.ones(3, 1) * 4.0,
+            },
+        }
+        C = np.array([0, 1, 0])
+        lda_signals = (
+            np.ones((3, 1)) * 10.0,
+            np.ones((3, 1)) * 11.0,
+            np.ones((3, 1)) * 12.0,
+            np.ones((3, 1)) * 13.0,
+        )
+        shuffle_signals = [
+            (
+                np.ones((3, 1)) * 20.0,
+                np.ones((3, 1)) * 21.0,
+                np.ones((3, 1)) * 22.0,
+                np.ones((3, 1)) * 23.0,
+            ),
+            (
+                np.ones((3, 1)) * 30.0,
+                np.ones((3, 1)) * 31.0,
+                np.ones((3, 1)) * 32.0,
+                np.ones((3, 1)) * 33.0,
+            ),
+        ]
+        base_result = {"basic_mi": {"I(E;C)": 0.1, "I(Vout;C)": 0.2}}
+        lda_result = {
+            "basic_mi": {
+                "I(E;C)": 0.3,
+                "I(I;C)": 0.4,
+                "I(Vb;C)": 0.5,
+                "I(Vout;C)": 0.6,
+            }
+        }
+        shuffle_results = [
+            {"basic_mi": {"I(E;C)": 0.7, "I(I;C)": 0.8, "I(Vout;C)": 0.9}},
+            {"basic_mi": {"I(E;C)": 0.9, "I(I;C)": 1.0, "I(Vout;C)": 1.1}},
+        ]
+
+        with (
+            patch.object(
+                self.analyzer,
+                "compute_lda_aggregated_signals",
+                return_value=lda_signals,
+            ) as mock_lda,
+            patch.object(
+                self.analyzer,
+                "compute_shuffled_aggregated_signals",
+                side_effect=shuffle_signals,
+            ) as mock_shuffle,
+            patch.object(
+                self.analyzer,
+                "compute_metrics",
+                side_effect=[base_result, lda_result, *shuffle_results],
+            ),
+            patch.object(self.analyzer, "_filter_result_metrics_in_place"),
+            patch.object(
+                self.analyzer,
+                "_average_mi_results",
+                side_effect=lambda all_results: {"captured": all_results},
+            ),
+            patch.object(
+                self.analyzer,
+                "_compute_layer_statistics",
+                return_value={"stat": 1.0},
+            ),
+        ):
+            results = self.analyzer._compute_single_branch_results(C, entropy_C=None)
+
+        mock_lda.assert_called_once()
+        self.assertEqual(mock_shuffle.call_count, 2)
+        self.assertEqual(results["branch_names"], ["layer0_branch_0"])
+        branch_metrics = results["captured"][0]["basic_mi"]
+        self.assertEqual(branch_metrics["I(E;C)"], 0.1)
+        self.assertEqual(branch_metrics["I(Vout;C)"], 0.2)
+        self.assertEqual(branch_metrics["I(E_lin;C)"], 0.3)
+        self.assertEqual(branch_metrics["I(I_lin;C)"], 0.4)
+        self.assertEqual(branch_metrics["I(Vb_lin;C)"], 0.5)
+        self.assertEqual(branch_metrics["I(Vout_lin;C)"], 0.6)
+        self.assertEqual(branch_metrics["I(E_sh;C)"], 0.8)
+        self.assertEqual(branch_metrics["I(I_sh;C)"], 0.9)
+        self.assertEqual(branch_metrics["I(Vout_sh;C)"], 1.0)
 
 
 class TestActivationAnalyzers(unittest.TestCase):
