@@ -35,6 +35,7 @@ from dendritic_modeling.training.utils.evaluation import (
     evaluate_mse,
 )
 from dendritic_modeling.utils import save_dict
+from dendritic_modeling.utils.hooks import iter_named_modules_of_type
 
 
 class SingleLayerContributionAnalyzer(AbstractAnalyzer):
@@ -72,15 +73,14 @@ class SingleLayerContributionAnalyzer(AbstractAnalyzer):
         results_dict[contribution_type][module_name] = {}
         results_dict[contribution_type][module_name]["depth"] = module.layer_idx
 
-        for name, mod in model.named_modules():
-            if isinstance(mod, DendriticBranchLayer):
-                if (
-                    name != module_name
-                    and mod.branch_excitation is not None
-                    and mod.branch_inhibition is not None
-                ):
-                    mod.branch_excitation.pre_w.data.fill_(-1000)
-                    mod.branch_inhibition.pre_w.data.fill_(-1000)
+        for name, mod in iter_named_modules_of_type(model, DendriticBranchLayer):
+            if (
+                name != module_name
+                and mod.branch_excitation is not None
+                and mod.branch_inhibition is not None
+            ):
+                mod.branch_excitation.pre_w.data.fill_(-1000)
+                mod.branch_inhibition.pre_w.data.fill_(-1000)
 
         if contribution_type == "excitation":
             module.branch_inhibition.pre_w.data.fill_(-1000)
@@ -143,10 +143,9 @@ class SingleLayerContributionAnalyzer(AbstractAnalyzer):
             if self.both_contribution:
                 results["both"] = {}
 
-            for name, module in model.named_modules():
+            for name, module in iter_named_modules_of_type(model, DendriticBranchLayer):
                 if (
-                    isinstance(module, DendriticBranchLayer)
-                    and module.branch_excitation is not None
+                    module.branch_excitation is not None
                     and module.branch_inhibition is not None
                 ):
                     if self.both_contribution:

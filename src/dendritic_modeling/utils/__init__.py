@@ -19,6 +19,7 @@ from .hooks import (
     ForwardHookRemovalMixin,
     HookHandle,
     iter_named_modules_of_type,
+    register_named_forward_hooks,
     remove_hook_handles,
 )
 from .lda import (
@@ -68,6 +69,7 @@ __all__ = [
     "get_validation_summary",
     "iter_named_modules_of_type",
     "normalize_sparse_layer_type",
+    "register_named_forward_hooks",
     "remove_hook_handles",
     "roc_auc_score",
     "save_dict",

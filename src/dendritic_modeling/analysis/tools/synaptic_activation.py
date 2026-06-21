@@ -22,7 +22,10 @@ from dendritic_modeling.training.strategies.local_learning_pathways import (
     iter_topk_path_modules,
 )
 from dendritic_modeling.utils import save_dict
-from dendritic_modeling.utils.hooks import ForwardHookRemovalMixin
+from dendritic_modeling.utils.hooks import (
+    ForwardHookRemovalMixin,
+    iter_named_modules_of_type,
+)
 
 
 class SynapticActivationAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
@@ -67,9 +70,10 @@ class SynapticActivationAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         """
         handles = []
         try:
-            for layer_name, module in model.named_modules():
-                if isinstance(module, DendriticBranchLayer):
-                    handles.extend(self._attach_layer_hooks(layer_name, module))
+            for layer_name, module in iter_named_modules_of_type(
+                model, DendriticBranchLayer
+            ):
+                handles.extend(self._attach_layer_hooks(layer_name, module))
             return handles
         except Exception:
             self.remove_forward_hooks(handles)

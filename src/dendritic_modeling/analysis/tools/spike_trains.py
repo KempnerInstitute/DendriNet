@@ -19,7 +19,11 @@ from dendritic_modeling.config.analysis import (
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import LIFSoma
 from dendritic_modeling.utils import save_dict
-from dendritic_modeling.utils.hooks import ForwardHookRemovalMixin
+from dendritic_modeling.utils.hooks import (
+    ForwardHookRemovalMixin,
+    iter_named_modules_of_type,
+    register_named_forward_hooks,
+)
 
 
 def _binarize_spike_sequences(
@@ -97,26 +101,26 @@ class SpikeTrainAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
     def _attach_hooks(
         self, model: BaseModel
     ) -> list[torch.utils.hooks.RemovableHandle]:
-        handles = []
-        try:
-            for name, module in self._iter_lif_somas(model):
-                handles.append(self._register_spike_hook(name, module))
-            return handles
-        except Exception:
-            self.remove_forward_hooks(handles)
-            raise
+        return register_named_forward_hooks(
+            model,
+            LIFSoma,
+            self._forward_hook,
+            prepare=self._prepare_spike_hook,
+        )
 
     def _iter_lif_somas(self, model: BaseModel):
-        for name, module in model.named_modules():
-            if isinstance(module, LIFSoma):
-                yield name, module
+        yield from iter_named_modules_of_type(model, LIFSoma)
+
+    @staticmethod
+    def _prepare_spike_hook(name: str, module: LIFSoma) -> None:
+        module._analysis_name = name
 
     def _register_spike_hook(
         self,
         name: str,
         module: LIFSoma,
     ) -> torch.utils.hooks.RemovableHandle:
-        module._analysis_name = name
+        self._prepare_spike_hook(name, module)
         return module.register_forward_hook(self._forward_hook)
 
     def _forward_hook(

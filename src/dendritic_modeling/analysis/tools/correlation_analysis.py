@@ -34,7 +34,10 @@ from dendritic_modeling.networks import (
     ExcitationInhibitionNetwork,
 )
 from dendritic_modeling.utils import save_dict
-from dendritic_modeling.utils.hooks import ForwardHookRemovalMixin
+from dendritic_modeling.utils.hooks import (
+    ForwardHookRemovalMixin,
+    register_named_forward_hooks,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -331,20 +334,31 @@ class CorrelationAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
     def _attach_branch_level_hooks(
         self, model: BaseModel
     ) -> list[torch.utils.hooks.RemovableHandle]:
-        handles = []
-        try:
-            for name, module in model.named_modules():
-                if isinstance(module, DendriticBranchLayer) and (
-                    module.branch_excitation is not None
-                    and module.branch_inhibition is not None
-                ):
-                    self.data_dict[name] = {}
-                    module._name = name
-                    handles.append(module.register_forward_hook(self.forward_hook))
-            return handles
-        except Exception:
-            self.remove_forward_hooks(handles)
-            raise
+        return register_named_forward_hooks(
+            model,
+            DendriticBranchLayer,
+            self.forward_hook,
+            predicate=self._should_attach_branch_level_hook,
+            prepare=self._prepare_branch_level_hook,
+        )
+
+    @staticmethod
+    def _should_attach_branch_level_hook(
+        _layer_name: str,
+        module: DendriticBranchLayer,
+    ) -> bool:
+        return (
+            module.branch_excitation is not None
+            and module.branch_inhibition is not None
+        )
+
+    def _prepare_branch_level_hook(
+        self,
+        layer_name: str,
+        module: DendriticBranchLayer,
+    ) -> None:
+        self.data_dict[layer_name] = {}
+        module._name = layer_name
 
     def forward_hook(
         self, module: DendriticBranchLayer, input: tuple, output: torch.Tensor

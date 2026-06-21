@@ -20,6 +20,7 @@ from dendritic_modeling.config import WeightAnalysisParams
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import DendriNet, DendriticBranchLayer
 from dendritic_modeling.utils import save_dict
+from dendritic_modeling.utils.hooks import iter_named_modules_of_type
 
 logger = logging.getLogger(__name__)
 
@@ -186,38 +187,37 @@ class WeightAnalyzer(AbstractAnalyzer):
         inh_weights = []
         branch_weights = []
 
-        for _name, module in model.named_modules():
-            if isinstance(module, DendriticBranchLayer):
-                # Collect excitatory synapse weights
-                if (
-                    self.synapse_weights
-                    and self.analyze_excitatory
-                    and module.branch_excitation is not None
-                ):
-                    exc_w = self._active_weights(
-                        module.branch_excitation.pruned_weight().flatten()
-                    ).cpu()
-                    exc_weights.append(exc_w)
+        for _name, module in iter_named_modules_of_type(model, DendriticBranchLayer):
+            # Collect excitatory synapse weights
+            if (
+                self.synapse_weights
+                and self.analyze_excitatory
+                and module.branch_excitation is not None
+            ):
+                exc_w = self._active_weights(
+                    module.branch_excitation.pruned_weight().flatten()
+                ).cpu()
+                exc_weights.append(exc_w)
 
-                # Collect inhibitory synapse weights
-                if (
-                    self.synapse_weights
-                    and self.analyze_inhibitory
-                    and module.branch_inhibition is not None
-                ):
-                    inh_w = self._active_weights(
-                        module.branch_inhibition.pruned_weight().flatten()
-                    ).cpu()
-                    inh_weights.append(inh_w)
+            # Collect inhibitory synapse weights
+            if (
+                self.synapse_weights
+                and self.analyze_inhibitory
+                and module.branch_inhibition is not None
+            ):
+                inh_w = self._active_weights(
+                    module.branch_inhibition.pruned_weight().flatten()
+                ).cpu()
+                inh_weights.append(inh_w)
 
-                # Collect branch-to-output weights
-                if (
-                    self.branch_weights
-                    and self.analyze_branch_output
-                    and hasattr(module, "branches_to_output")
-                ):
-                    branch_w = module.branches_to_output.weight().cpu().flatten()
-                    branch_weights.append(branch_w)
+            # Collect branch-to-output weights
+            if (
+                self.branch_weights
+                and self.analyze_branch_output
+                and hasattr(module, "branches_to_output")
+            ):
+                branch_w = module.branches_to_output.weight().cpu().flatten()
+                branch_weights.append(branch_w)
 
         global_stats = {}
 

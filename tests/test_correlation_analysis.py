@@ -100,6 +100,25 @@ def test_correlation_branch_hooks_collect_expected_payloads():
     assert layer_data["inhibitory_input"].shape == (8, 3)
 
 
+def test_correlation_branch_hooks_remove_registration_failure(monkeypatch):
+    model = _direct_inhibitory_model()
+    analyzer = CorrelationAnalyzer(CorrelationAnalysisParams())
+    branch_layer = model.core_network.layers[0].excitatory_cells.branch_layers[0]
+
+    def _failing_register(*args, **kwargs):
+        raise RuntimeError("correlation branch hook registration failed")
+
+    monkeypatch.setattr(branch_layer, "register_forward_hook", _failing_register)
+
+    with pytest.raises(
+        RuntimeError,
+        match="correlation branch hook registration failed",
+    ):
+        analyzer.attach_forward_hooks(model)
+
+    assert _count_registered_forward_hooks(model) == 0
+
+
 def test_correlation_synaptic_hooks_collect_expected_payloads():
     model = _direct_inhibitory_model()
     x, _labels, _dataset = _toy_dataset()

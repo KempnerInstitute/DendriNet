@@ -24,7 +24,7 @@ from dendritic_modeling.networks import (
 from dendritic_modeling.utils import save_dict
 from dendritic_modeling.utils.hooks import (
     ForwardHookRemovalMixin,
-    iter_named_modules_of_type,
+    register_named_forward_hooks,
 )
 
 
@@ -72,20 +72,28 @@ class BranchActivationAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         Returns:
             List of hook handles for later removal
         """
-        handles = []
-        try:
-            for _name, module in iter_named_modules_of_type(
-                model, DendriticBranchLayer
-            ):
-                if _name not in self.data_dict.keys():
-                    self.data_dict[_name] = {}
-                    module._name = _name
-                    handle = module.register_forward_hook(self.forward_hook)
-                    handles.append(handle)
-            return handles
-        except Exception:
-            self.remove_forward_hooks(handles)
-            raise
+        return register_named_forward_hooks(
+            model,
+            DendriticBranchLayer,
+            self.forward_hook,
+            predicate=self._should_hook_branch_layer,
+            prepare=self._prepare_branch_layer_hook,
+        )
+
+    def _should_hook_branch_layer(
+        self,
+        layer_name: str,
+        _module: DendriticBranchLayer,
+    ) -> bool:
+        return layer_name not in self.data_dict
+
+    def _prepare_branch_layer_hook(
+        self,
+        layer_name: str,
+        module: DendriticBranchLayer,
+    ) -> None:
+        self.data_dict[layer_name] = {}
+        module._name = layer_name
 
     def forward_hook(
         self,

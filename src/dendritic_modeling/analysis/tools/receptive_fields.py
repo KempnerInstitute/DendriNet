@@ -18,7 +18,10 @@ from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import DendriticBranchLayer
 from dendritic_modeling.utils import save_dict
-from dendritic_modeling.utils.hooks import ForwardHookRemovalMixin
+from dendritic_modeling.utils.hooks import (
+    ForwardHookRemovalMixin,
+    iter_named_modules_of_type,
+)
 
 
 class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
@@ -125,10 +128,9 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         self.raw_dict = {}
 
         branch_counter = 0
-        for module_name, module in model.named_modules():
-            if not isinstance(module, DendriticBranchLayer):
-                continue
-
+        for module_name, module in iter_named_modules_of_type(
+            model, DendriticBranchLayer
+        ):
             exc_weights = self._effective_weight(module.branch_excitation)
             inh_weights = self._effective_weight(module.branch_inhibition)
             if exc_weights is None and inh_weights is None:
@@ -172,10 +174,9 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         handles = []
 
         try:
-            for module_name, module in model.named_modules():
-                if not isinstance(module, DendriticBranchLayer):
-                    continue
-
+            for module_name, module in iter_named_modules_of_type(
+                model, DendriticBranchLayer
+            ):
                 self._initialize_activation_records(module_name, module)
                 handles.extend(self._attach_activation_hooks(module_name, module))
 

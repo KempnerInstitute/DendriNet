@@ -37,7 +37,10 @@ from dendritic_modeling.networks import (
     TopKLinear,
 )
 from dendritic_modeling.utils import save_dict
-from dendritic_modeling.utils.hooks import ForwardHookRemovalMixin
+from dendritic_modeling.utils.hooks import (
+    ForwardHookRemovalMixin,
+    iter_named_modules_of_type,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -80,10 +83,11 @@ class CompartmentSNRAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         exc_dendrinet = model.core_network.layers[-1].excitatory_cells
 
         try:
-            for key, module in exc_dendrinet.named_modules():
-                if isinstance(module, DendriticBranchLayer):
-                    self._initialize_branch_records(key, module)
-                    handles.extend(self._attach_layer_capture_hooks(key, module))
+            for key, module in iter_named_modules_of_type(
+                exc_dendrinet, DendriticBranchLayer
+            ):
+                self._initialize_branch_records(key, module)
+                handles.extend(self._attach_layer_capture_hooks(key, module))
 
             with torch.no_grad():
                 _ = model(x)

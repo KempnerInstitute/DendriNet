@@ -20,6 +20,7 @@ from dendritic_modeling.plotting.visualizations.general_analysis_plots import (
     plot_synapse_turnover,
 )
 from dendritic_modeling.utils import save_dict
+from dendritic_modeling.utils.hooks import iter_named_modules_of_type
 
 logger = logging.getLogger(__name__)
 
@@ -193,9 +194,8 @@ class SynapticTurnoverAnalyzer(AbstractAnalyzer):
     def _collect_synaptic_mask_snapshot(self, model: BaseModel) -> dict:
         data_dict = {}
         with torch.no_grad():
-            for name, module in model.named_modules():
-                if isinstance(module, DendriticBranchLayer):
-                    data_dict[name] = self._collect_layer_masks(module)
+            for name, module in iter_named_modules_of_type(model, DendriticBranchLayer):
+                data_dict[name] = self._collect_layer_masks(module)
         return data_dict
 
     @staticmethod

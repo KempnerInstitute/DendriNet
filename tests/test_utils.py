@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import numpy as np
+import pytest
 import torch
 import torch.nn as nn
 
@@ -40,10 +41,12 @@ def test_utils_reexports_hook_helpers():
     from dendritic_modeling.utils.hooks import (
         ForwardHookRemovalMixin,
         iter_named_modules_of_type,
+        register_named_forward_hooks,
     )
 
     assert utils.ForwardHookRemovalMixin is ForwardHookRemovalMixin
     assert utils.iter_named_modules_of_type is iter_named_modules_of_type
+    assert utils.register_named_forward_hooks is register_named_forward_hooks
 
 
 def test_iter_named_modules_of_type_preserves_model_order():
@@ -57,6 +60,66 @@ def test_iter_named_modules_of_type_preserves_model_order():
 
     assert [name for name, _module in matches] == ["first", "block.1"]
     assert [module.out_features for _name, module in matches] == [3, 1]
+
+
+def test_register_named_forward_hooks_preserves_order_and_predicate():
+    from dendritic_modeling.utils.hooks import (
+        register_named_forward_hooks,
+        remove_hook_handles,
+    )
+
+    model = nn.Sequential(nn.Linear(2, 3), nn.ReLU(), nn.Linear(3, 1))
+    prepared = []
+    captured = []
+
+    def prepare(name, module):
+        prepared.append((name, module.out_features))
+
+    def hook(module, _inputs, output):
+        captured.append((module.out_features, tuple(output.shape)))
+
+    handles = register_named_forward_hooks(
+        model,
+        nn.Linear,
+        hook,
+        predicate=lambda name, _module: name == "0",
+        prepare=prepare,
+    )
+
+    try:
+        assert len(handles) == 1
+        assert prepared == [("0", 3)]
+        model(torch.ones(2, 2))
+        assert captured == [(3, (2, 3))]
+    finally:
+        remove_hook_handles(handles)
+
+    assert sum(len(module._forward_hooks) for module in model.modules()) == 0
+
+
+def test_register_named_forward_hooks_removes_partial_registration_on_failure(
+    monkeypatch,
+):
+    from dendritic_modeling.utils.hooks import register_named_forward_hooks
+
+    model = nn.Sequential(nn.Linear(2, 3), nn.Linear(3, 1))
+    original_register = nn.Linear.register_forward_hook
+    call_count = 0
+
+    def register_once_then_fail(module, *args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return original_register(module, *args, **kwargs)
+        raise RuntimeError("hook registration failed")
+
+    monkeypatch.setattr(nn.Linear, "register_forward_hook", register_once_then_fail)
+
+    with pytest.raises(RuntimeError, match="hook registration failed"):
+        register_named_forward_hooks(model, nn.Linear, lambda *_args: None)
+
+    assert call_count == 2
+    assert sum(len(module._forward_hooks) for module in model.modules()) == 0
 
 
 class TestShaper(unittest.TestCase):
