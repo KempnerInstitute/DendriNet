@@ -207,6 +207,45 @@ def test_explicit_runtime_overrides_single_gpu_default(tmp_path):
     assert cfg.analysis.runtime.final.batch_size == 32
 
 
+def test_explicit_runtime_ignores_legacy_split_fields(tmp_path):
+    config_data = {
+        "experiment": {"seed": 0},
+        "data": {"dataset_name": "mnist", "processing": {"flatten": True}},
+        "model": {"task": "classification"},
+        "training": {},
+        "wandb": {"use_wandb": False},
+        "outputs": {"results_dir": str(tmp_path / "outputs")},
+        "analysis": {
+            "runtime": {
+                "training": {
+                    "mode": "stream",
+                    "batch_size": 17,
+                    "num_workers": 0,
+                    "splits": ["train"],
+                },
+                "final": {
+                    "mode": "materialize",
+                    "batch_size": 23,
+                    "num_workers": 0,
+                    "splits": ["test"],
+                },
+            },
+            "performance": {"enabled": True},
+        },
+    }
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(yaml.safe_dump(config_data))
+
+    cfg = load_config(str(config_path))
+
+    assert cfg.analysis.runtime.training.mode == "stream"
+    assert cfg.analysis.runtime.training.batch_size == 17
+    assert cfg.analysis.runtime.final.mode == "materialize"
+    assert cfg.analysis.runtime.final.batch_size == 23
+    assert not hasattr(cfg.analysis.runtime.training, "splits")
+    assert not hasattr(cfg.analysis.runtime.final, "splits")
+
+
 def test_materialize_dataset_streams_without_slice_support():
     x = torch.arange(40, dtype=torch.float32).reshape(10, 4)
     y = torch.arange(10, dtype=torch.long)

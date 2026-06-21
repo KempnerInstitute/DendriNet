@@ -1,9 +1,8 @@
-"""
-Unified Weight Analysis Module.
+"""Compartment signal-to-noise analysis.
 
-This module provides comprehensive analysis of synaptic weights across the dendritic network,
-including both global statistics and hierarchical per-layer analysis with plotting capabilities.
-Provides comprehensive weight analysis with both global and hierarchical statistics.
+This module computes discriminability metrics for dendritic inputs, branch
+activations, and layer outputs, with global, per-layer, and per-branch
+aggregation plus plotting helpers for final and training-time summaries.
 """
 
 import logging
@@ -512,7 +511,7 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
         runtime: Optional[EvaluationRuntimeConfig] = None,
     ):
         """
-        Perform comprehensive weight analysis including global and hierarchical statistics.
+        Perform compartment SNR analysis with optional hierarchical summaries.
 
         Args:
             model: The model to analyze (must have ExcitationInhibitionNetwork)
@@ -521,7 +520,7 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
             training: If True, only save data (no plots). If False, generate plots.
 
         Returns:
-            Dictionary containing all weight analysis results
+            Dictionary containing compartment SNR analysis results.
         """
         try:
             assert isinstance(model.core_network, ExcitationInhibitionNetwork)

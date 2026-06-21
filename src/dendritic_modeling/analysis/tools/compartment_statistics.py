@@ -1,9 +1,8 @@
-"""
-Unified Weight Analysis Module.
+"""Compartment statistics analysis.
 
-This module provides comprehensive analysis of synaptic weights across the dendritic network,
-including both global statistics and hierarchical per-layer analysis with plotting capabilities.
-Provides comprehensive weight analysis with both global and hierarchical statistics.
+This module collects dendritic synapse weights, branch weights, inputs, and
+activations, then summarizes them at branch, layer, and global granularity with
+optional entropy and per-class statistics.
 """
 
 import logging
@@ -48,10 +47,10 @@ logger = logging.getLogger(__name__)
 
 class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
     """
-    Unified analyzer for comprehensive synaptic weight analysis.
+    Analyzer for compartment-level dendritic statistics.
 
-    Provides both global weight statistics and hierarchical per-layer analysis
-    with enhanced plotting capabilities including min/max and dendritic strength plots.
+    Provides branch, layer, and global summaries for synapse weights, branch
+    weights, inputs, activations, entropy, and optional per-class statistics.
     """
 
     def __init__(self, params: CompartmentStatisticsAnalysisParams):
@@ -518,7 +517,7 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
         runtime: Optional[EvaluationRuntimeConfig] = None,
     ):
         """
-        Perform comprehensive weight analysis including global and hierarchical statistics.
+        Perform compartment statistics analysis with optional hierarchical summaries.
 
         Args:
             model: The model to analyze (must have ExcitationInhibitionNetwork)
@@ -527,7 +526,7 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
             training: If True, only save data (no plots). If False, generate plots.
 
         Returns:
-            Dictionary containing all weight analysis results
+            Dictionary containing compartment statistics analysis results.
         """
         core = getattr(model, "core_network", model)
         if not any(
@@ -566,12 +565,14 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
             results["branch_statistics"] = branch_statistics
 
         elapsed_time = time.time() - start_time
-        self.logger.info(f"Weight analysis completed in {elapsed_time:.2f} seconds")
+        self.logger.info(
+            f"Compartment statistics analysis completed in {elapsed_time:.2f} seconds"
+        )
 
         # Save results and generate plots
         if save_path is not None:
             self.logger.info(
-                f"Saving weight analysis results to {save_path}/{filename}"
+                f"Saving compartment statistics results to {save_path}/{filename}"
             )
             save_dict(results, save_path, filename)
 
@@ -625,8 +626,8 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
     def _generate_all_plots(
         self, results: dict[str, Any], save_path: str, model: BaseModel
     ):
-        """Generate all weight analysis plots."""
-        self.logger.info("Generating weight analysis plots...")
+        """Generate all compartment statistics plots."""
+        self.logger.info("Generating compartment statistics plots...")
         self.logger.info(f"Results keys: {list(results.keys())}")
         self.logger.info(f"Save path: {save_path}")
 
