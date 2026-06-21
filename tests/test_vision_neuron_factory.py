@@ -103,6 +103,19 @@ def test_build_neuron_from_yaml_uses_template_registry() -> None:
     _assert_same_push_pull_weights(actual, expected)
 
 
+def test_motion_unit_supports_leftward_odd_kernel() -> None:
+    params = {"preferred_direction": "leftward", "kernel_size": 9}
+
+    actual = _build_neuron_from_template("motion_ds", params)
+    expected = create_motion_unit(direction="leftward", kernel_size=9)
+
+    _assert_same_push_pull_weights(actual, expected)
+    assert actual.weight_E_raw.shape[-2:] == (9, 9)
+    assert actual.weight_I_raw.shape[-2:] == (9, 9)
+    assert torch.isfinite(actual.weight_E_raw).all()
+    assert torch.isfinite(actual.weight_I_raw).all()
+
+
 def test_build_neuron_from_yaml_rejects_unknown_template() -> None:
     config = {"bad": {"weight_template": "unknown", "params": {}}}
 

@@ -145,20 +145,15 @@ def create_motion_unit(
 ) -> DendriteConv2d:
     E = np.zeros((kernel_size, kernel_size))
     I_var = np.zeros_like(E)
+    midpoint = kernel_size // 2
+    left_width = midpoint
+    right_width = kernel_size - midpoint
     if direction == "rightward":
-        E[:, : kernel_size // 2] = gaussian_filter(
-            np.ones((kernel_size, kernel_size // 2)), 2
-        )
-        I_var[:, kernel_size // 2 :] = gaussian_filter(
-            np.ones((kernel_size, kernel_size // 2 + 1)), 2
-        )
+        E[:, :midpoint] = gaussian_filter(np.ones((kernel_size, left_width)), 2)
+        I_var[:, midpoint:] = gaussian_filter(np.ones((kernel_size, right_width)), 2)
     else:
-        E[:, kernel_size // 2 :] = gaussian_filter(
-            np.ones((kernel_size, kernel_size // 2)), 2
-        )
-        I_var[:, : kernel_size // 2] = gaussian_filter(
-            np.ones((kernel_size, kernel_size // 2 + 1)), 2
-        )
+        E[:, midpoint:] = gaussian_filter(np.ones((kernel_size, right_width)), 2)
+        I_var[:, :midpoint] = gaussian_filter(np.ones((kernel_size, left_width)), 2)
     E = E / (E.max() + 1e-6)
     I_var = I_var / (I_var.max() + 1e-6) + 0.1
     return _push_pull_layer(E, I_var)

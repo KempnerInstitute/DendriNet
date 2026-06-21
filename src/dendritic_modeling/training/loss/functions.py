@@ -20,6 +20,28 @@ LossBuilder = Callable[[], "LossFunction"]
 LOSS_FUNCTION_REGISTRY: dict[str, LossBuilder] = {}
 
 
+def _identity_reduction(loss: torch.Tensor) -> torch.Tensor:
+    """Return unreduced loss tensors for non-mean/sum reductions."""
+
+    return loss
+
+
+def _loss_reduction_fn(reduction: str) -> Callable[[torch.Tensor], torch.Tensor]:
+    """Return the callable form of the project loss reduction convention."""
+
+    if reduction == "mean":
+        return torch.mean
+    if reduction == "sum":
+        return torch.sum
+    return _identity_reduction
+
+
+def _reduce_tensor_loss(loss: torch.Tensor, reduction: str) -> torch.Tensor:
+    """Apply the project loss reduction convention to a tensor."""
+
+    return _loss_reduction_fn(reduction)(loss)
+
+
 def register_loss_function(
     name: str,
     builder: LossBuilder,
@@ -121,12 +143,7 @@ class CategoricalNLLLoss(LossFunction):
     ) -> torch.Tensor:
         logits = model(x)
         nll = -1 * Categorical(logits=logits).log_prob(y)
-        if self.reduction == "mean":
-            return torch.mean(nll)
-        elif self.reduction == "sum":
-            return torch.sum(nll)
-        else:
-            return nll
+        return _reduce_tensor_loss(nll, self.reduction)
 
 
 class VaeElboLoss(LossFunction):
@@ -159,12 +176,7 @@ class VaeElboLoss(LossFunction):
 
         loss = mse + kl_div
 
-        if self.reduction == "mean":
-            return torch.mean(loss)
-        elif self.reduction == "sum":
-            return torch.sum(loss)
-        else:
-            return loss
+        return _reduce_tensor_loss(loss, self.reduction)
 
 
 class NegativeCosineSimilarityLoss(LossFunction):
@@ -178,12 +190,7 @@ class NegativeCosineSimilarityLoss(LossFunction):
     ) -> torch.Tensor:
         y_hat = model(x)
         cosine_similarity = self.cosine_similarity(y_hat, y)
-        if self.reduction == "mean":
-            return torch.mean(-1 * cosine_similarity)
-        elif self.reduction == "sum":
-            return torch.sum(-1 * cosine_similarity)
-        else:
-            return -1 * cosine_similarity
+        return _reduce_tensor_loss(-1 * cosine_similarity, self.reduction)
 
 
 class LogAdjustedNegativeCosineSimilarityLoss(NegativeCosineSimilarityLoss):
@@ -262,14 +269,7 @@ class VoltageStabilizationLoss(ForwardHookRemovalMixin, LossFunction):
             # gate_occupancy hooks on the reactivation output (r)
             self.save_outputs = True
 
-        if self.reduction == "mean":
-            reduction_fn = torch.mean
-        elif self.reduction == "sum":
-            reduction_fn = torch.sum
-        else:
-
-            def reduction_fn(x):
-                return x
+        reduction_fn = _loss_reduction_fn(self.reduction)
 
         if loss_metric == "mse":
             self.metric_fn = lambda x, y: reduction_fn((x - y) ** 2)
@@ -398,14 +398,7 @@ class ExcitationInhibitionBalanceLoss(ForwardHookRemovalMixin, LossFunction):
         self._loss_name = "Excitation-Inhibition Balance"
         self.loss_metric = loss_metric
 
-        if self.reduction == "mean":
-            reduction_fn = torch.mean
-        elif self.reduction == "sum":
-            reduction_fn = torch.sum
-        else:
-
-            def reduction_fn(x):
-                return x
+        reduction_fn = _loss_reduction_fn(self.reduction)
 
         if loss_metric == "mse":
             self.metric_fn = lambda x, y: reduction_fn((x - y) ** 2)
@@ -568,12 +561,7 @@ class EIWeightRatioLoss(LossFunction):
         self.scope = scope  # "per_branch", "per_layer", "global"
         self.metric = metric  # "mean", "median", "rms"
 
-        if self.reduction == "mean":
-            self.reduction_fn = torch.mean
-        elif self.reduction == "sum":
-            self.reduction_fn = torch.sum
-        else:
-            self.reduction_fn = lambda x: x
+        self.reduction_fn = _loss_reduction_fn(self.reduction)
 
     def forward(
         self, model: BaseModel, x: torch.Tensor, y: Optional[torch.Tensor] = None

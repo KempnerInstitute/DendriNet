@@ -16,8 +16,15 @@ import torch.nn as nn
 from torch.utils.data import TensorDataset
 
 import dendritic_modeling.scripts.training.train_experiments_fsdp as fsdp_script
+from dendritic_modeling.networks.activations import ParametricTanh
 from dendritic_modeling.networks.architectures.classical.autoencoder import (
     BaseAutoencoder,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.blocklinear import (
+    BlockLinear,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
+    TopKLinear,
 )
 from dendritic_modeling.scripts.training.train_experiments_fsdp import (
     _build_fsdp_runtime_configs,
@@ -46,6 +53,7 @@ from dendritic_modeling.training.fsdp_utils import (
     save_fsdp_checkpoint,
     wrap_model_with_fsdp,
 )
+from dendritic_modeling.training.strategies.fsdp_standard import FSDPTrainer
 
 
 def test_fsdp_dataloader_kwargs_from_common_config():
@@ -662,6 +670,61 @@ def test_build_fsdp_runtime_configs_preserves_defaults_and_slot_fsdp_config(
             "fsdp_config_dict": None,
         }
     ]
+
+
+def test_fsdp_optimizer_split_groups_assign_each_parameter_once():
+    """FSDP split optimizer groups should be single-assignment and ordered."""
+
+    class GroupedModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.topk = TopKLinear(4, 3, K=2)
+            self.blocklinear = BlockLinear(4, 2)
+            self.reactivation = ParametricTanh(2)
+            self.decoder_network = nn.Sequential(ParametricTanh(2), nn.Linear(2, 2))
+            self.other = nn.Linear(2, 1)
+
+    trainer = FSDPTrainer.__new__(FSDPTrainer)
+    trainer.optimizer_config = {
+        "split_params": True,
+        "lr": 0.05,
+        "topk_lr": 0.01,
+        "blocklinear_lr": 0.02,
+        "reactivation_lr": 0.03,
+        "decoder_lr": 0.04,
+        "weight_decay": 0.001,
+    }
+    model = GroupedModel()
+
+    optimizer = trainer.create_optimizer(model)
+
+    assert [group["lr"] for group in optimizer.param_groups] == [
+        0.01,
+        0.02,
+        0.03,
+        0.04,
+        0.05,
+    ]
+    assert optimizer.defaults["weight_decay"] == 0.001
+
+    grouped_param_ids = [
+        id(param) for group in optimizer.param_groups for param in group["params"]
+    ]
+    model_param_ids = {id(param) for param in model.parameters()}
+    assert len(grouped_param_ids) == len(set(grouped_param_ids))
+    assert set(grouped_param_ids) == model_param_ids
+
+    lr_by_param_id = {
+        id(param): group["lr"]
+        for group in optimizer.param_groups
+        for param in group["params"]
+    }
+    assert lr_by_param_id[id(model.topk.pre_w)] == 0.01
+    assert lr_by_param_id[id(model.blocklinear.log_weight)] == 0.02
+    assert lr_by_param_id[id(model.reactivation.log_m)] == 0.03
+    assert lr_by_param_id[id(model.decoder_network[0].log_m)] == 0.03
+    assert lr_by_param_id[id(model.decoder_network[1].weight)] == 0.04
+    assert lr_by_param_id[id(model.other.weight)] == 0.05
 
 
 def test_create_fsdp_trainer_preserves_rank0_custom_kwargs(monkeypatch):

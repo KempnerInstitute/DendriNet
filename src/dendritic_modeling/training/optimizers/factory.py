@@ -18,6 +18,19 @@ OptimizerBuilder = Callable[
 ]
 
 OPTIMIZER_REGISTRY: dict[str, OptimizerBuilder] = {}
+_PARAMETER_GROUP_ORDER = ("default", "topk", "blocklinear", "reactivation", "decoder")
+_SPECIAL_PARAMETER_GROUP_PATTERNS = (
+    ("topk", "topk"),
+    ("blocklinear", "blocklinear"),
+    ("reactivation", "reactivation"),
+    ("decoder", "decoder"),
+)
+_PARAMETER_GROUP_LR_KEYS = {
+    "topk": "topk_lr",
+    "blocklinear": "blocklinear_lr",
+    "reactivation": "reactivation_lr",
+    "decoder": "decoder_lr",
+}
 
 
 def register_optimizer(
@@ -53,6 +66,36 @@ def get_available_optimizers() -> list[str]:
 
 def _base_optimizer_params(config: OptimizerConfig) -> dict[str, Any]:
     return {"lr": config.lr, "weight_decay": config.weight_decay}
+
+
+def _parameter_group_name(parameter_name: str) -> str:
+    normalized_name = parameter_name.lower()
+    for group_name, pattern in _SPECIAL_PARAMETER_GROUP_PATTERNS:
+        if pattern in normalized_name:
+            return group_name
+    return "default"
+
+
+def _split_named_parameters(
+    model: torch.nn.Module,
+) -> dict[str, list[torch.nn.Parameter]]:
+    grouped_params: dict[str, list[torch.nn.Parameter]] = {
+        group_name: [] for group_name in _PARAMETER_GROUP_ORDER
+    }
+    for name, param in model.named_parameters():
+        grouped_params[_parameter_group_name(name)].append(param)
+    return grouped_params
+
+
+def _parameter_group_lr(
+    group_name: str,
+    config: OptimizerConfig,
+    param_groups_config: dict[str, Any],
+) -> float:
+    if group_name == "default":
+        return config.lr
+    lr_key = _PARAMETER_GROUP_LR_KEYS[group_name]
+    return param_groups_config.get(lr_key, config.lr)
 
 
 def _build_adam(model_parameters, config: OptimizerConfig) -> torch.optim.Optimizer:
@@ -134,63 +177,17 @@ def create_parameter_groups(
         # Return all parameters with default config
         return [{"params": model.parameters(), "lr": config.lr}]
 
-    # Create differential parameter groups
+    grouped_params = _split_named_parameters(model)
     param_groups = []
-
-    # Default group
-    default_params = []
-
-    # Special groups for different component types
-    topk_params = []
-    blocklinear_params = []
-    reactivation_params = []
-    decoder_params = []
-
-    for name, param in model.named_parameters():
-        if "topk" in name.lower():
-            topk_params.append(param)
-        elif "blocklinear" in name.lower():
-            blocklinear_params.append(param)
-        elif "reactivation" in name.lower():
-            reactivation_params.append(param)
-        elif "decoder" in name.lower():
-            decoder_params.append(param)
-        else:
-            default_params.append(param)
-
-    # Add groups if they have parameters
-    if default_params:
-        param_groups.append({"params": default_params, "lr": config.lr})
-
-    if topk_params:
-        param_groups.append(
-            {"params": topk_params, "lr": param_groups_config.get("topk_lr", config.lr)}
-        )
-
-    if blocklinear_params:
-        param_groups.append(
-            {
-                "params": blocklinear_params,
-                "lr": param_groups_config.get("blocklinear_lr", config.lr),
-            }
-        )
-
-    if reactivation_params:
-        param_groups.append(
-            {
-                "params": reactivation_params,
-                "lr": param_groups_config.get("reactivation_lr", config.lr),
-            }
-        )
-
-    if decoder_params:
-        param_groups.append(
-            {
-                "params": decoder_params,
-                "lr": param_groups_config.get("decoder_lr", config.lr),
-            }
-        )
-
+    for group_name in _PARAMETER_GROUP_ORDER:
+        params = grouped_params[group_name]
+        if params:
+            param_groups.append(
+                {
+                    "params": params,
+                    "lr": _parameter_group_lr(group_name, config, param_groups_config),
+                }
+            )
     return param_groups
 
 

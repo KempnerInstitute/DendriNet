@@ -21,6 +21,7 @@ from dendritic_modeling.training.loss.functions import (
     BCELoss,
     CategoricalNLLLoss,
     CrossEntropyLoss,
+    EIWeightRatioLoss,
     ExcitationInhibitionBalanceLoss,
     HomeostaticControlLoss,
     LogAdjustedNegativeCosineSimilarityLoss,
@@ -30,6 +31,8 @@ from dendritic_modeling.training.loss.functions import (
     NegativeCosineSimilarityLoss,
     VaeElboLoss,
     VoltageStabilizationLoss,
+    _loss_reduction_fn,
+    _reduce_tensor_loss,
     get_loss_function,
 )
 
@@ -57,6 +60,23 @@ class TestLossFunction:
 
         with pytest.raises(NotImplementedError):
             loss_fn(model, x, y)
+
+
+def test_reduce_tensor_loss_preserves_reduction_convention():
+    loss = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
+
+    torch.testing.assert_close(_reduce_tensor_loss(loss, "mean"), loss.mean())
+    torch.testing.assert_close(_reduce_tensor_loss(loss, "sum"), loss.sum())
+    assert _reduce_tensor_loss(loss, "none") is loss
+    assert _reduce_tensor_loss(loss, "custom") is loss
+
+
+def test_loss_reduction_fn_preserves_callable_convention():
+    loss = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
+
+    torch.testing.assert_close(_loss_reduction_fn("mean")(loss), loss.mean())
+    torch.testing.assert_close(_loss_reduction_fn("sum")(loss), loss.sum())
+    assert _loss_reduction_fn("none")(loss) is loss
 
 
 class TestMSELoss:
@@ -267,6 +287,19 @@ class TestCategoricalNLLLoss:
         # This should work without error
         assert log_probs.shape == (4, 5)
 
+    def test_reductions_match_manual_nll(self, log_softmax_model):
+        x = torch.randn(4, 10)
+        y = torch.randint(0, 5, (4,))
+        logits = log_softmax_model(x)
+        expected = -1 * torch.distributions.Categorical(logits=logits).log_prob(y)
+
+        for reduction in ("mean", "sum", "none"):
+            actual = CategoricalNLLLoss(reduction=reduction)(log_softmax_model, x, y)
+            torch.testing.assert_close(
+                actual,
+                _reduce_tensor_loss(expected, reduction),
+            )
+
 
 class TestVaeElboLoss:
     """Test the VaeElboLoss class."""
@@ -332,6 +365,18 @@ class TestVaeElboLoss:
         assert isinstance(loss, torch.Tensor)
         assert loss.dim() == 0
 
+    def test_reductions_preserve_elbo_shape(self, vae_model):
+        x = torch.randn(2, 20)
+        y = torch.randn(2, 20)
+
+        none_loss = VaeElboLoss(reduction="none")(vae_model, x, y)
+        mean_loss = VaeElboLoss(reduction="mean")(vae_model, x, y)
+        sum_loss = VaeElboLoss(reduction="sum")(vae_model, x, y)
+
+        assert none_loss.shape == (2,)
+        assert mean_loss.dim() == 0
+        assert sum_loss.dim() == 0
+
 
 class TestNegativeCosineSimilarityLoss:
     """Test the NegativeCosineSimilarityLoss class."""
@@ -382,6 +427,20 @@ class TestNegativeCosineSimilarityLoss:
 
         # Cosine similarity of identical vectors is 1, so negative is -1
         assert torch.allclose(loss, torch.tensor(-1.0), atol=1e-6)
+
+    def test_reductions_match_manual_negative_cosine(self, simple_model):
+        x = torch.randn(4, 10)
+        y = torch.randn(4, 5)
+        expected = -1 * nn.CosineSimilarity(dim=-1)(simple_model(x), y)
+
+        for reduction in ("mean", "sum", "none"):
+            actual = NegativeCosineSimilarityLoss(reduction=reduction)(
+                simple_model, x, y
+            )
+            torch.testing.assert_close(
+                actual,
+                _reduce_tensor_loss(expected, reduction),
+            )
 
 
 class TestLogAdjustedNegativeCosineSimilarityLoss:
@@ -563,6 +622,18 @@ class TestVoltageStabilizationLoss:
 
         assert high_val < low_val
 
+    def test_metric_reduction_modes_preserve_mean_sum_and_passthrough(self):
+        x = torch.zeros(2, 2)
+        y = torch.ones(2, 2)
+
+        mean_loss = VoltageStabilizationLoss(loss_metric="mse", reduction="mean")
+        sum_loss = VoltageStabilizationLoss(loss_metric="mse", reduction="sum")
+        none_loss = VoltageStabilizationLoss(loss_metric="mse", reduction="none")
+
+        torch.testing.assert_close(mean_loss.metric_fn(x, y), ((x - y) ** 2).mean())
+        torch.testing.assert_close(sum_loss.metric_fn(x, y), ((x - y) ** 2).sum())
+        torch.testing.assert_close(none_loss.metric_fn(x, y), (x - y) ** 2)
+
     def test_voltage_hooks_removed_after_failed_registration(self, monkeypatch):
         model = self.TinyDendriticModel()
         loss_fn = VoltageStabilizationLoss()
@@ -622,6 +693,18 @@ class TestVoltageStabilizationLoss:
             loss_fn.attach_forward_hooks(model)
 
         assert sum(len(module._forward_hooks) for module in model.modules()) == 0
+
+
+def test_ei_weight_ratio_reduction_fn_preserves_modes():
+    values = torch.tensor([1.0, 2.0, 3.0])
+
+    mean_loss = EIWeightRatioLoss(reduction="mean")
+    sum_loss = EIWeightRatioLoss(reduction="sum")
+    none_loss = EIWeightRatioLoss(reduction="none")
+
+    torch.testing.assert_close(mean_loss.reduction_fn(values), values.mean())
+    torch.testing.assert_close(sum_loss.reduction_fn(values), values.sum())
+    assert none_loss.reduction_fn(values) is values
 
 
 class TestGetLossFunction:
