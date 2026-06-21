@@ -22,8 +22,8 @@ Standard Datasets
    CIFAR-10. 32x32 color, 10 classes.
 
 ``imagenet``
-   ImageNet classification. By default, preprocessing uses the historical
-   ``legacy_resize`` preset for backward-compatible configs. Pretrained
+   ImageNet classification. By default, preprocessing uses the
+   ``legacy_resize`` resize preset. Pretrained
    backbone runs should set ``transform_preset: "pretrained"`` for
    RandomResizedCrop/flip training transforms and Resize/CenterCrop eval
    transforms. Missing ImageNet roots raise an error unless
@@ -110,7 +110,11 @@ Sequence Datasets
 -----------------
 
 For use with recurrent architectures (``ei_unified``, ``gru``, ``lstm``,
-``vanilla_rnn``).
+``vanilla_rnn``). Implementations live under
+``dendritic_modeling.datasets.sequence`` and are grouped by task family:
+``memory_tasks.py``, ``neuro_tasks.py``, ``signal_tasks.py``, and
+``decision_tasks.py``. ``sequence_datasets.py`` remains the public
+compatibility import path.
 
 ``sequential_mnist``
    MNIST presented as a sequence. Mode: ``"pixel"`` (seq_len=784, dim=1) or

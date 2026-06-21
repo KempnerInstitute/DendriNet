@@ -36,14 +36,17 @@ data:
 
 model:
   task: "classification"
-  pretrained_replacement:
+  vision_replacement:
     enabled: true
     backbone: "alexnet"
     weights: "IMAGENET1K_V1"
     input_shape: [3, 224, 224]
-    replace:
-      start: "classifier.1"
-      end: "classifier.5"
+    target_modules:
+      - "classifier.1"
+      - "classifier.2"
+      - "classifier.3"
+      - "classifier.4"
+      - "classifier.5"
     trainability:
       encoder:
         mode: "frozen"

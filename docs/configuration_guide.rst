@@ -2,10 +2,9 @@ Configuration Guide
 ===================
 
 The primary configuration reference is ``configs/config_exp.yaml``.  That file
-lists **every parameter** accepted by the framework together with its default
-value and valid options.  This page summarises the structure and highlights
-the most important settings; for the full parameter list, consult the YAML
-file directly or the :doc:`config_reference` page.
+is the runnable single-GPU template for the ``population_network``
+schema. This page summarises the structure and highlights the most important
+settings; focused feature examples live under ``configs/examples``.
 
 Quick Start
 -----------
@@ -21,7 +20,7 @@ Quick Start
 
 Templates:
 
-- ``configs/config_exp.yaml`` -- single-GPU training (complete reference)
+- ``configs/config_exp.yaml`` -- single-GPU population-network reference
 - ``configs/config_exp_fsdp.yaml`` -- FSDP multi-GPU training
 - ``configs/sweep_config.yaml`` -- generic parameter-sweep template
 
@@ -32,7 +31,7 @@ Top-Level Structure
 
    experiment:   # seed, profiling, checkpointing
    data:         # dataset, processing, dataset-specific params
-   model:        # encoder, core network, decoder, pretrained_replacement
+   model:        # encoder, core network, decoder, vision/transformer replacement
    training:     # encoder + main training, strategies, regularization, pruning, AMP
    analysis:     # 20 analysis modules
    wandb:        # Weights & Biases logging
@@ -73,7 +72,7 @@ Set ``model.core.type`` to one of:
    * - ``rnn_dendritic_shunting``, ``rnn_dendritic_additive``, ``rnn_dendritic_normalized_additive``
      - Unified recurrent E-I aliases with shunting/raw-additive/normalized-additive defaults applied
    * - ``population_network``
-     - Canonical notation for feedforward stacks and recurrent microcircuits
+     - Population-network notation for feedforward stacks and recurrent microcircuits
        with named E/I populations, per-population morphology, explicit
        directed connections, synapse types, spiking soma, and feedback
    * - ``gru``, ``lstm``
@@ -84,15 +83,15 @@ Set ``model.core.type`` to one of:
      - MLP baseline
 
 See :doc:`network_architectures` for architecture details. For recurrent
-``ei_unified`` models, the biology-facing configuration now also supports
+``ei_unified`` models, the biology-facing configuration supports
 ``allow_self_recurrence: false`` inside each population block to disable
 same-population E->E and I->I self-feedback while keeping cross-population
 recurrence intact. Structured feedforward EINet configs and recurrent
-PopulationConfig blocks now share the same positive-weight default
+PopulationConfig blocks share the same positive-weight default
 (``weight_transform: softplus``). Use ``weight_transform: exp`` explicitly
 when you want the sharper positive-conductance parameterization.
 
-Shunting/additive precedence is intentionally path-specific but canonical:
+Shunting/additive precedence is path-specific:
 ``dendritic_shunting`` / ``dendritic_additive`` /
 ``dendritic_normalized_additive`` / ``flat_*`` types define the effective
 feedforward mode, and contradictory
@@ -109,8 +108,8 @@ their source of truth. Transformer replacement builders follow the same
 For additive modes, prefer ``reactivation.init_policy: "occupancy_quantile"``.
 When an additive YAML config omits ``reactivation.init_policy``, typed config
 loading chooses ``occupancy_quantile`` by default; explicit policies such as
-``analytical`` or ``fixed`` are preserved for reproduction. The legacy spelling
-``quantile`` is accepted as a deprecated alias for ``occupancy_quantile``.
+``analytical`` or ``fixed`` are preserved for reproduction. The deprecated
+spelling ``quantile`` is accepted as an alias for ``occupancy_quantile``.
 When you use a data-driven gate init policy
 (``occupancy_quantile`` or ``empirical``), each run also writes
 ``init_gate_stats.json`` into its run directory. Use that artifact to confirm
@@ -121,15 +120,15 @@ For example, invalid ``input_mode`` values, impossible per-layer synapse-list
 lengths, duplicate population names, unknown connection endpoints, delayed
 population edges without ``recurrent: true``, and same-step population cycles
 raise a clear ``ConfigValidationError`` from ``load_config``. Training-stability
-and scientific plausibility checks remain in the training validators so older
+and scientific plausibility checks remain in the training validators so existing
 experiments are not rejected for warning-level choices.
 
-Canonical Config Choices
-------------------------
+Population-Network Config Choices
+---------------------------------
 
-Use these defaults when writing new configs. They keep the code path modular
-and make feedforward, recurrent, additive, shunting, local-learning, and sweep
-runs easier to compare.
+Use these defaults for population-network configs. They keep the code path
+modular and make feedforward, recurrent, additive, shunting, local-learning,
+and sweep runs easier to compare.
 
 .. list-table::
    :header-rows: 1
@@ -300,23 +299,21 @@ Each module lives under ``analysis.<module_name>`` with ``enabled`` and
 ``analysis.runtime`` is the shared dataset-iteration policy for all analysis
 modules. Use ``mode: "stream"`` for large datasets that should not be fully
 materialized on the device, and use ``max_samples`` for expensive analyses
-that still accumulate tensors on CPU. If you want older small-dataset
+that still accumulate tensors on CPU. If you want exact small-dataset
 single-GPU behavior for hook-based analyses, set ``mode: "materialize"``:
 the runtime will use one full batch again when the dataset supports slicing.
 Analyzers may temporarily move the model to the requested analysis device, but
 the original device and train/eval mode are restored automatically after the
 analysis finishes.
-For most runs, keep the default ``mode: "auto"``: it behaves like the old path
-on small datasets and switches to streaming only when the dataset estimate is large.
-If you omit ``analysis.runtime`` entirely, non-distributed runs default to the
-old ``materialize`` behavior for backward compatibility, while DDP/FSDP runs
-keep the generic ``auto`` default.
+For most runs, keep the default ``mode: "auto"``: it materializes small
+datasets and switches to streaming when the dataset estimate is large.
+If you omit ``analysis.runtime`` entirely, non-distributed runs default to
+``materialize``, while DDP/FSDP runs keep the shared ``auto`` default.
 The ``pin_memory`` flag is also interpreted per device: CPU analysis disables
 it automatically even if the shared runtime block leaves it set to ``true``.
 
 Preferred short names are ``performance``, ``information``, ``ablation``, and
-``correlation``. The longer ``*_analysis`` aliases are still accepted for
-backward compatibility.
+``correlation``. The longer ``*_analysis`` names are accepted as aliases.
 
 Available modules: ``performance``, ``information``, ``correlation``,
 ``ablation``, ``synapse_turnover``, ``noise_perturbation``, ``weight``,
@@ -328,14 +325,14 @@ Available modules: ``performance``, ``information``, ``correlation``,
 
 See :doc:`analysis` for per-module parameter details.
 
-Backward compatibility:
+Compatibility:
 
-- Older configs using ``performance_analysis`` instead of ``performance`` still load.
-- Older performance-only ``training_runtime`` / ``final_runtime`` blocks still load
+- Configs using ``performance_analysis`` instead of ``performance`` still load.
+- Performance-only ``training_runtime`` / ``final_runtime`` blocks still load
   and are migrated into the shared ``analysis.runtime`` structure.
 
-Pretrained Backbone Replacement
---------------------------------
+Vision Backbone Replacement
+---------------------------
 
 Replace one or more layers of a pretrained torchvision backbone (e.g. AlexNet,
 VGG) with an EINet core.  The backbone is loaded once and split into three
@@ -345,23 +342,22 @@ segments:
 - **core**: the dendritic EI network that replaces the removed layers
 - **suffix** (decoder): all layers after the replacement range
 
-When ``model.pretrained_replacement.enabled`` is ``true``, the legacy
-``model.encoder`` and ``model.decoder`` sections are ignored.
+When ``model.vision_replacement.enabled`` is ``true``, the standard
+``model.encoder`` and ``model.decoder`` sections are ignored.  Older configs
+using ``model.pretrained_replacement`` still load as a compatibility alias.
 
 .. code-block:: yaml
 
    model:
-     pretrained_replacement:
+     vision_replacement:
        enabled: true
        backbone: "alexnet"                    # torchvision model name
        weights: "IMAGENET1K_V1"               # pretrained weights (null = random init)
        input_shape: [3, 224, 224]
 
-       # Layers to replace (inclusive range).
+       # Backbone modules to replace. They must form one contiguous span.
        # Use list_backbone_layers("alexnet") to see all available names.
-       replace:
-         start: "classifier.4"                # fc7 Linear
-         end: "classifier.5"                  # fc7 ReLU
+       target_modules: ["classifier.4", "classifier.5"]  # fc7 Linear + ReLU
 
        # Drop layers entirely (e.g. Dropout that is not useful with EI nets).
        omit_layers: ["classifier.0", "classifier.3"]
@@ -401,7 +397,10 @@ Current spatial-replacement scope:
   effective receptive field of an arbitrary multi-layer CNN block automatically.
 - Sequential backbones such as AlexNet and VGG are the primary supported cases.
 
-Learning rates for the prefix and suffix are controlled in the training config::
+Supervised full-model training uses the standard trainer.  Set the replacement
+trainability fields to decide whether the prefix/suffix are frozen or trainable;
+the replacement core is trainable by default.  Learning rates for the prefix
+and suffix are controlled in the training config::
 
    training.main.common.param_groups.encoder_lr    # prefix LR (0.0 = frozen)
    training.main.common.param_groups.decoder_lr    # suffix LR
@@ -422,16 +421,28 @@ works for AlexNet, VGG, and coarse splits of ResNet (e.g. at ``avgpool`` or
 ``fc``).  Replacing layers *inside* residual blocks requires an FX-graph
 backend (planned).
 
+Block-output distillation is configured separately with
+``training.vision_replacement``.  For ``teacher_source: tensor_cache``, cache
+the inputs to the replaced span and the original span outputs, then train the
+replacement core directly.  For ``teacher_source: image_tensor_cache``, cache
+images and teacher logits/features and choose ``train_target: replacement_only``,
+``train_target: replacement_and_decoder``, or ``train_target: full_model``.
+When checkpoint saving is enabled, the trainer always writes the replacement
+core and also writes the decoder or full student state for train targets that
+update those parameters.
+
 The runnable examples page includes ``configs/vision/alexnet_fc7_dendritic_500.yaml``,
 which replaces AlexNet ``fc7`` with a 500E-only dendritic tensor-map core. See
 :doc:`examples` for all four primary example configs.
 
-Additional pretrained replacement configs:
+Additional vision replacement configs:
 
 - ``configs/vision/alexnet_k1_einet_single.yaml`` — replace fc7 only (K=1), single-GPU / non-DDP
 - ``configs/vision/alexnet_k1_einet_ddp.yaml`` — same K=1 replacement configured for DDP launch
-- ``configs/vision/pretrained_alexnet_fc.yaml`` — tensor-map pretrained replacement around AlexNet FC layers
-- ``configs/vision/pretrained_alexnet_conv.yaml`` — spatial pretrained replacement example for AlexNet conv/feature maps
+- ``configs/vision/pretrained_alexnet_fc.yaml`` — tensor-map vision
+  replacement around AlexNet FC layers
+- ``configs/vision/pretrained_alexnet_conv.yaml`` — spatial vision
+  replacement example for AlexNet conv/feature maps
 - ``scripts/test_pretrained_training.sh`` — generates a temporary 1-epoch AlexNet smoke config
 
 Transformer MLP / FFN Replacement
@@ -440,9 +451,17 @@ Transformer MLP / FFN Replacement
 Transformer replacement follows the same idea as AlexNet replacement: define
 the source network and replacement sites, then define the dendritic replacement
 with ``model.core``.  The source-network block is
-``model.transformer_replacement`` instead of ``model.pretrained_replacement``
+``model.transformer_replacement`` instead of ``model.vision_replacement``
 because transformer MLPs live inside decoder blocks rather than in a flat
 ``nn.Sequential`` layer list.
+
+Both vision and transformer replacements use the same internal replacement-cell
+contract: an input adapter maps source activations into a dendritic-compatible
+domain, the dendritic core performs the replacement computation, and an output
+adapter maps activity back to the source model's expected tensor shape.  The
+placement logic is domain-specific: vision splits a backbone into
+prefix/core/suffix segments, while transformer replacement patches the target
+module in-place inside each decoder layer.
 
 DeepSeek-V3/R1-style models are a natural first target because the first three
 decoder blocks use dense FFNs before the later MoE blocks.  Public DeepSeek-V3
@@ -457,7 +476,7 @@ approximately ``3 * hidden_size * intermediate_size``.
        enabled: true
        model_name: deepseek-ai/DeepSeek-V3
        layers: [0, 1, 2]
-       target_module: mlp
+       target_module: mlp          # or a dotted path such as self_attn.o_proj
        layers_attr: model.layers
        input_transform: signed_split
        model_kwargs:
@@ -466,26 +485,40 @@ approximately ``3 * hidden_size * intermediate_size``.
 
      core:
        type: dendritic_ffn
-       architecture:
-         excitatory_layer_sizes: [512]
-         excitatory_branch_factors: [3, 3]
-       connectivity:
-         ee_synapses_per_branch_per_layer: [40]
-       morphology:
-         use_shunting: true
-         weight_transform: softplus
-       sparsity:
-         type: indexed_dynamic
-         temperature: 0.5
-       indexed:
-         candidate_size: 256
-         selection: stochastic
-         seed: 42
+       population_network:
+         input_transform: signed_split
+         layers:
+           - name: transformer_mlp
+             readout_population: ffn
+             population_defaults:
+               ff_excitatory_synapses: 40
+               ff_inhibitory_synapses: 0
+               somatic_synapses: true
+               use_shunting: true
+               reactivate: true
+               reactivation_type: param_tanh
+               weight_transform: softplus
+               topk_type: indexed_rewire
+               indexed_seed: 42
+               indexed_rewire_frequency: 100
+               indexed_rewire_quantile: 0.05
+               indexed_rewire_until_step: null
+               indexed_output_chunk_size: 2048
+               efficient_blocklinear: true
+             populations:
+               - name: ffn
+                 polarity: excitatory
+                 n_neurons: 512
+                 branch_factors: [3, 3]
+             connections:
+               - source: input
+                 target: ffn
 
 Training the replacement is configured separately under
-``training.transformer_replacement``.  The first supported training mode is
-layerwise distillation: freeze the teacher MLP, feed hidden states through the
-original MLP, and train the dendritic module to match that MLP output.
+``training.transformer_replacement``.  The most controlled training mode is
+layerwise distillation: freeze the teacher module, feed hidden states through
+the original target module, and train the dendritic module to match that
+output.
 
 .. math::
 
@@ -522,13 +555,18 @@ original MLP, and train the dendritic module to match that MLP output.
          tokenizer_name: deepseek-ai/DeepSeek-V3
          max_tokens: 1000000
 
+After layerwise distillation, ``joint_lm_distillation`` trains the patched
+causal LM on token windows from ``hf_text``.  Use
+``train_target: replacement_only`` to keep the original backbone frozen, or
+``train_target: full_model`` to fine-tune the entire patched student.
+
 Run the distillation trainer with:
 
 .. code-block:: bash
 
    PYTHONPATH=src:$PYTHONPATH python -m \
      dendritic_modeling.scripts.training.train_transformer_replacement \
-     jobs/transformer_replacement_benchmarks/configs/templates/deepseek_v3_mlp_dendritic_replacement.yaml
+     configs/transformer_replacement_benchmarks/templates/deepseek_v3_mlp_dendritic_replacement.yaml
 
 For a quick local learning check that does not load a Hugging Face model, use
 ``configs/examples/transformer_replacement_synthetic_distillation.yaml``.
@@ -575,7 +613,7 @@ Important replacement parameters:
    ``indexed`` stores only exactly active fixed synapses. ``indexed_dynamic``
    stores a larger candidate pool and dynamically selects the active ``K`` from
    that pool. ``indexed_rewire`` stores only ``K`` active synapses and
-   periodically replaces the weakest adaptive-quantile slots with new random
+   periodically replaces the weakest adaptive-quantile slots with fresh random
    allowed inputs.
 
 ``sparsity.dense_to_sparse``
@@ -587,7 +625,9 @@ Important replacement parameters:
 ``sparsity.indexed.candidate_size``
    Candidate-pool size ``C`` for ``indexed_dynamic``.  Stored synapse
    parameters scale as ``out_features * C`` instead of
-   ``out_features * input_features``.
+   ``out_features * input_features``. If omitted, the implementation uses an
+   automatic pool size; when hard connection masks are present, that automatic
+   pool is capped to the largest value every masked output row can support.
 
 ``sparsity.indexed.rewire_frequency``
    Number of optimizer steps between ``indexed_rewire`` updates.  Use larger
@@ -632,7 +672,7 @@ Recommended experimental order:
 4. Repeat for layers ``[0, 1]`` and then ``[0, 1, 2]``.
 
 Template config:
-``jobs/transformer_replacement_benchmarks/configs/templates/deepseek_v3_mlp_dendritic_replacement.yaml``.
+``configs/transformer_replacement_benchmarks/templates/deepseek_v3_mlp_dendritic_replacement.yaml``.
 
 Recurrent Networks
 ------------------
@@ -719,11 +759,11 @@ The recurrent extensions use a few related terms that are easy to mix up:
      - A conductance/receptor subtype within an excitatory or inhibitory
        stream, such as ``AMPA``, ``NMDA``, ``GABA_A``, or a custom continuous
        class. It changes kinetics, fractions, voltage gates, and reversal
-       potentials; it does not create a new neuron population.
+       potentials; it does not create a separate neuron population.
    * - Soma dynamics
      - ``dynamics_mode`` / ``spike_*`` or ``model.core.dynamics``
-     - The output rule for each dendritic population. ``rate`` is legacy;
-       ``spike`` routes the soma through a LIF module.
+     - The output rule for each dendritic population. ``rate`` is the
+       continuous-output rule; ``spike`` routes the soma through a LIF module.
 
 In short: populations define **who the neurons are**, population connections
 define **who can talk to whom**, structured connectivity defines **which
@@ -731,8 +771,8 @@ individual synapse slots are allowed**, synapse types define **how a signal is
 filtered and driven once it arrives**, and soma dynamics define **how the
 population emits its output**.
 
-For new population-network experiments, use ``core.type: population_network``.
-It is the single notation for feedforward stacks and recurrent microcircuits:
+For population-network experiments, use ``core.type: population_network``.
+It is the notation for feedforward stacks and recurrent microcircuits:
 each layer contains named populations, and each edge is an explicit directed
 connection. ``timing: same_step`` is feedforward/default; ``timing: delayed``
 uses previous-timestep outputs and enables recurrence. Each population is still
@@ -932,12 +972,12 @@ both as named synapse types with kinetics and reversal parameters.
 
 When ``enabled: true``, define both an ``excitatory`` list and an
 ``inhibitory`` list explicitly. This keeps a partially specified receptor block
-from silently falling back to the legacy single-trace path. Fractions are
+from silently falling back to the single-trace path. Fractions are
 normalized within each polarity. ``tau: null`` inherits the population's
 existing per-level dendritic time constant, so a single ``AMPA``/``GABA_A``
-pair with ``tau: null`` is legacy-equivalent. In shunting mode,
+pair with ``tau: null`` matches the standard recurrent dynamics. In shunting mode,
 ``reversal_potential`` is used directly in the conductance numerator. In
-additive mode, typed synapses intentionally support only the normalized legacy
+additive mode, typed synapses intentionally support only the normalized additive
 reversal convention: excitatory types use ``reversal_potential: 1.0`` and
 inhibitory types use ``reversal_potential: 0.0``. Use shunting mode for
 continuous or biophysical reversal potentials such as GABA-B-like negative
@@ -1126,9 +1166,8 @@ or in an individual population's ``population`` block:
            soma_feedback_init_std: 0.01
 
 For recurrent EINet-family configs translated from the structured core config,
-prefer the canonical ``model.core.soma_feedback`` block. The older
-``model.core.recurrent_ei.soma_feedback`` location is still accepted for
-backward compatibility:
+use ``model.core.soma_feedback``. The
+``model.core.recurrent_ei.soma_feedback`` location is also accepted:
 
 .. code-block:: yaml
 
@@ -1281,9 +1320,8 @@ Dedicated launchers are also available:
 
 See :doc:`fsdp_troubleshooting` for FSDP-specific troubleshooting.
 
-Full Parameter Reference
-------------------------
+Reference Config
+----------------
 
-The complete annotated configuration with every parameter and its valid
-options is in ``configs/config_exp.yaml`` and reproduced in
-:doc:`config_reference`.
+The annotated population-network reference config is in
+``configs/config_exp.yaml`` and reproduced in :doc:`config_reference`.

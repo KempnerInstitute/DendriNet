@@ -1,5 +1,5 @@
 # ============================================================================
-# AlexNet K=1: Replace fc7 with a dendritic EI layer (canonical single-GPU config)
+# AlexNet K=1: Replace fc7 with a dendritic EI layer (single-GPU config)
 # ============================================================================
 #
 # This config replaces ONE fully-connected layer (fc7) inside a pretrained
@@ -78,16 +78,14 @@ model:
   # --- Pretrained replacement config ---
   # When enabled, this replaces model.encoder / model.decoder entirely.
   # The backbone is loaded once and split at the layer boundaries below.
-  pretrained_replacement:
+  vision_replacement:
     enabled: true
     backbone: "alexnet"                            # torchvision model name
     weights: "IMAGENET1K_V1"                       # pretrained weights (null = random)
     input_shape: [3, 224, 224]                     # expected input tensor shape
 
-    # Which layers to replace with the EINet core (inclusive range).
-    replace:
-      start: "classifier.4"                        # fc7 Linear(4096 → 4096)
-      end: "classifier.5"                          # fc7 ReLU
+    # Which backbone modules to replace with the EINet core.
+    target_modules: ["classifier.4", "classifier.5"]  # fc7 Linear + ReLU
 
     # Layers to drop entirely (e.g. Dropout — not useful during training
     # with EI networks that have their own regularization).
@@ -139,11 +137,16 @@ model:
     sparsity:
       init_method: "xavier_normal"
       noise_level: 0.0
-      type: "standard"
+      type: "indexed_rewire"
       weight_norm_order: null
       gamma: 1.0
-      temperature: 0.0
       gradient_scaling: "none"
+      indexed:
+        seed: 42
+        rewire_frequency: 100
+        rewire_quantile: 0.05
+        rewire_until_step: null
+        output_chunk_size: 2048
       deepst:
         excitatory_target_density: 0.1
         inhibitory_target_density: 0.1
@@ -167,7 +170,7 @@ model:
 
     blocklinear:
       gradient_scaling: "none"
-      efficient: false
+      efficient: true
 
     implementation:
       adaptive_initialization: false

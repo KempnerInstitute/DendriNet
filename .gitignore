@@ -235,6 +235,8 @@ figures/
 outputs_smoke/
 outputs_sweep_smoke/
 tmp/
+generated/
+jobs/
 .claude/*.lock
 /analysis/
 !src/dendritic_modeling/analysis/

@@ -159,6 +159,34 @@ class TestConfigDataclasses(unittest.TestCase):
         self.assertIsInstance(config.training, TrainingConfig)
         self.assertEqual(config.data.dataset_name, "mnist")
 
+    def test_analysis_config_any_enabled_matches_final_analysis_gate(self):
+        analysis = AnalysisConfig()
+        self.assertTrue(analysis.any_enabled())
+
+        final_gate_fields = (
+            "performance_analysis",
+            "information_analysis",
+            "synapse_turnover_analysis",
+            "noise_perturbation_analysis",
+            "single_layer_contribution",
+            "ablation_analysis",
+            "weight_analysis",
+            "synaptic_activation_analysis",
+            "branch_activation_analysis",
+            "correlation_analysis",
+            "routing_analysis",
+        )
+        for field_name in final_gate_fields:
+            getattr(analysis, field_name).enabled = False
+        self.assertFalse(analysis.any_enabled())
+
+        analysis.information_analysis.enabled = True
+        self.assertTrue(analysis.any_enabled())
+
+        analysis.information_analysis.enabled = False
+        analysis.spike_train_analysis.enabled = True
+        self.assertFalse(analysis.any_enabled())
+
     def test_local_rule_explicit_inhibitory_update_modes(self):
         local_cfg = LocalRuleConfig(explicit_inhibitory_update_mode="local_ca")
         self.assertEqual(local_cfg.explicit_inhibitory_update_mode, "local_ca")
@@ -696,6 +724,36 @@ class TestConfigLoading(unittest.TestCase):
         self.assertEqual(training.layers, [0])
         self.assertEqual(training.hidden_size, 8)
         self.assertEqual(training.synthetic_teacher["kind"], "linear")
+
+    def test_load_config_preserves_vision_replacement_training(self):
+        load_config.cache_clear()
+        vision_training_config = {
+            **self.sample_config,
+            "training": {
+                "vision_replacement": {
+                    "enabled": True,
+                    "mode": "blockwise_distillation",
+                    "teacher_source": "tensor_cache",
+                    "train_target": "replacement_only",
+                    "max_steps": 25,
+                    "tensor_cache": {"train_inputs": "train_x.pt"},
+                }
+            },
+        }
+        vision_training_file = os.path.join(
+            self.temp_dir, "vision_replacement_training_config.yaml"
+        )
+        with open(vision_training_file, "w") as f:
+            yaml.safe_dump(vision_training_config, f)
+
+        config = load_config(vision_training_file)
+
+        training = config.training.vision_replacement
+        self.assertTrue(training.enabled)
+        self.assertEqual(training.teacher_source, "tensor_cache")
+        self.assertEqual(training.train_target, "replacement_only")
+        self.assertEqual(training.max_steps, 25)
+        self.assertEqual(training.tensor_cache["train_inputs"], "train_x.pt")
 
     def test_load_config_maps_spike_train_analysis(self):
         load_config.cache_clear()

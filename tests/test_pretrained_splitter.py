@@ -257,6 +257,35 @@ class TestBuildSplitPlan:
         assert "classifier.1" in plan.replaced_names
         assert "classifier.5" in plan.replaced_names
 
+    def test_target_modules_resolve_contiguous_replacement_span(self):
+        with patch(
+            "dendritic_modeling.networks.architectures.classical.pretrained._load_backbone",
+            return_value=_MiniAlexNet(),
+        ):
+            plan = build_split_plan(
+                "mini_alexnet",
+                weights=None,
+                target_modules=["classifier.5", "classifier.4"],
+                input_shape=[3, 8, 8],
+            )
+
+        assert plan.replaced_names == ["classifier.4", "classifier.5"]
+        assert plan.prefix_output_dim == 16
+        assert plan.suffix_input_dim == 16
+
+    def test_target_modules_must_be_contiguous(self):
+        with patch(
+            "dendritic_modeling.networks.architectures.classical.pretrained._load_backbone",
+            return_value=_MiniAlexNet(),
+        ):
+            with pytest.raises(ValueError, match="contiguous span"):
+                build_split_plan(
+                    "mini_alexnet",
+                    weights=None,
+                    target_modules=["classifier.1", "classifier.5"],
+                    input_shape=[3, 8, 8],
+                )
+
     def test_invalid_start_layer_raises(self):
         with pytest.raises(ValueError, match="not found"):
             build_split_plan(
@@ -692,6 +721,79 @@ outputs:
         with torch.no_grad():
             out = model(x)
         assert out.shape == (2, 1000)
+
+    def test_initialize_model_from_vision_replacement_target_modules(self, tmp_path):
+        """vision_replacement mirrors transformer-style target-module naming."""
+        from dendritic_modeling.config import load_config
+        from dendritic_modeling.scripts.script_utils.setup_utils import initialize_model
+
+        yaml_content = """\
+experiment:
+  seed: 42
+
+data:
+  dataset_name: "imagenet"
+  base_dir: "/tmp/fake"
+  processing:
+    flatten: false
+
+model:
+  task: "classification"
+  vision_replacement:
+    enabled: true
+    backbone: "mini_alexnet"
+    weights: null
+    input_shape: [3, 8, 8]
+    target_modules: ["classifier.4", "classifier.5"]
+    omit_layers: ["classifier.0", "classifier.3"]
+    trainability:
+      encoder:
+        mode: "frozen"
+      decoder:
+        mode: "trainable"
+  core:
+    type: "einet"
+    architecture:
+      excitatory_layer_sizes: [16]
+      inhibitory_layer_sizes: [4]
+      excitatory_branch_factors: [1]
+      inhibitory_branch_factors: [1]
+    connectivity:
+      ee_synapses_per_branch_per_layer: [2]
+      ei_synapses_per_branch_per_layer: [2]
+      ie_synapses_per_branch_per_layer: [1]
+      ii_synapses_per_branch_per_layer: [0]
+
+training:
+  main:
+    common:
+      param_groups:
+        lr: 0.001
+"""
+        config_path = tmp_path / "vision_replacement.yaml"
+        config_path.write_text(yaml_content)
+
+        with patch(
+            "dendritic_modeling.networks.architectures.classical.pretrained._load_backbone",
+            return_value=_MiniAlexNet(),
+        ):
+            config = load_config(str(config_path))
+            model, _encoder_network = initialize_model(config.model)
+
+        assert config.model.vision_replacement.enabled is True
+        assert config.model.vision_replacement.target_modules == [
+            "classifier.4",
+            "classifier.5",
+        ]
+        assert isinstance(model.encoder_network, BackboneSegment)
+        assert isinstance(model.decoder_network, BackboneSegment)
+        assert model.encoder_network.output_dim == 16
+        assert model.decoder_network.output_dim == 10
+
+        x = torch.randn(2, 3, 8, 8)
+        with torch.no_grad():
+            out = model(x)
+        assert out.shape == (2, 10)
 
     def test_initialize_model_warns_for_ignored_legacy_sections(self, tmp_path):
         """Legacy encoder/decoder config should warn when replacement is enabled."""

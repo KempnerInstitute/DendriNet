@@ -44,14 +44,12 @@ data:
 model:
   task: "classification"
 
-  pretrained_replacement:
+  vision_replacement:
     enabled: true
     backbone: "alexnet"
     weights: "IMAGENET1K_V1"
     input_shape: [3, 224, 224]
-    replace:
-      start: "classifier.4"                 # fc7 Linear(4096 -> 4096)
-      end: "classifier.5"                   # fc7 ReLU
+    target_modules: ["classifier.4", "classifier.5"]  # fc7 Linear + ReLU
     omit_layers: ["classifier.0", "classifier.3"]
     trainability:
       encoder:
@@ -81,7 +79,13 @@ model:
       dbl_init_method: "analytical_expectation"
     sparsity:
       init_method: "xavier_normal"
-      type: "standard"
+      type: "indexed_rewire"
+      indexed:
+        seed: 42
+        rewire_frequency: 100
+        rewire_quantile: 0.05
+        rewire_until_step: null
+        output_chunk_size: 2048
     reactivation:
       enabled: true
       type: "param_tanh"
@@ -90,7 +94,7 @@ model:
       init_b: 0.5
     blocklinear:
       gradient_scaling: "none"
-      efficient: false
+      efficient: true
 
 training:
   encoder:

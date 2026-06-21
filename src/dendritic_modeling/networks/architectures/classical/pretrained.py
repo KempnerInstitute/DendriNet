@@ -12,14 +12,11 @@ residual blocks — typically ``avgpool`` or ``fc``.
 Config::
 
     model:
-      pretrained_replacement:
+      vision_replacement:
         backbone: "alexnet"
         weights: "IMAGENET1K_V1"
         input_shape: [3, 224, 224]
-
-        replace:
-          start: "classifier.4"       # first replaced layer (inclusive)
-          end: "classifier.5"         # last replaced layer (inclusive)
+        target_modules: ["classifier.4", "classifier.5"]
 
         omit_layers: ["classifier.0", "classifier.3"]   # e.g. dropout
 
@@ -328,8 +325,9 @@ def build_split_plan(
     backbone: str,
     weights: str | None = None,
     *,
-    replace_start: str,
-    replace_end: str,
+    replace_start: str = "",
+    replace_end: str = "",
+    target_modules: list[str] | None = None,
     omit_layers: list[str] | None = None,
     input_shape: list[int] | None = None,
     spatial: bool = False,
@@ -339,8 +337,13 @@ def build_split_plan(
     Args:
         backbone: Torchvision model name.
         weights: Weight string, local path, or None.
-        replace_start: First layer to replace (inclusive).
-        replace_end: Last layer to replace (inclusive).
+        replace_start: First layer to replace (inclusive). Optional when
+            ``target_modules`` is provided.
+        replace_end: Last layer to replace (inclusive). Optional when
+            ``target_modules`` is provided.
+        target_modules: Ordered or unordered list of module names to replace.
+            The names must resolve to one contiguous span in the flattened
+            backbone order.
         omit_layers: Layer names to drop entirely (e.g. dropout).
         input_shape: Model input shape ``[C, H, W]``. Defaults to ``[3, 224, 224]``.
         spatial: If True, compute and store ``TensorSpec`` for the prefix output
@@ -352,6 +355,41 @@ def build_split_plan(
     all_layers = _flatten_model_layers(model)
     all_names = [name for name, _ in all_layers]
     omit_set = set(omit_layers or [])
+
+    targets = [str(name) for name in (target_modules or [])]
+    if targets:
+        missing = [name for name in targets if name not in all_names]
+        if missing:
+            raise ValueError(
+                f"target_modules contains unknown layer(s) {missing}. "
+                f"Available: {all_names}"
+            )
+        target_indices = sorted(all_names.index(name) for name in targets)
+        expected = list(range(target_indices[0], target_indices[-1] + 1))
+        if target_indices != expected:
+            raise ValueError(
+                "target_modules must form one contiguous span in backbone "
+                f"order; got {targets}"
+            )
+        resolved_start = all_names[target_indices[0]]
+        resolved_end = all_names[target_indices[-1]]
+        if replace_start and replace_start != resolved_start:
+            raise ValueError(
+                "replace.start conflicts with target_modules: "
+                f"{replace_start!r} != {resolved_start!r}"
+            )
+        if replace_end and replace_end != resolved_end:
+            raise ValueError(
+                "replace.end conflicts with target_modules: "
+                f"{replace_end!r} != {resolved_end!r}"
+            )
+        replace_start = resolved_start
+        replace_end = resolved_end
+
+    if not replace_start or not replace_end:
+        raise ValueError(
+            "Vision replacement requires replace.start/replace.end or " "target_modules"
+        )
 
     for required in (replace_start, replace_end):
         if required not in all_names:

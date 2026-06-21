@@ -211,7 +211,7 @@ def _compute_metric_score(
         "_compute_mse",
         "_compute_cosine_similarity",
     ]:
-        print(f"Skipping {computation_func.__name__} for Classifier model")
+        logger.debug("Skipping %s for Classifier model", computation_func.__name__)
         return torch.tensor(float("nan"))
 
     try:
@@ -236,9 +236,16 @@ def _compute_metric_score(
                 )
             return computation_func(model, inputs, labels, reduce_dim)
     except Exception as e:
-        print(f"Error computing metric in {computation_func.__name__}: {e}")
-        print(f"  Input dtypes: inputs={inputs.dtype}, labels={labels.dtype}")
-        print(f"  Input shapes: inputs={inputs.shape}, labels={labels.shape}")
+        logger.warning(
+            "Error computing metric in %s: %s; input dtypes: inputs=%s, "
+            "labels=%s; input shapes: inputs=%s, labels=%s",
+            computation_func.__name__,
+            e,
+            inputs.dtype,
+            labels.dtype,
+            tuple(inputs.shape),
+            tuple(labels.shape),
+        )
         nan_tensor = torch.tensor(torch.nan)
         nan_tensor = nan_tensor.to(inputs.device)
         return nan_tensor

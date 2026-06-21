@@ -8,6 +8,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic i
     BlockLinear,
     DendriNet,
     DendriticBranchLayer,
+    DendriticSynapseConfig,
     GradientScaler,
     analytical_expectation_dbl_init,
 )
@@ -47,6 +48,7 @@ __all__ = [
     "DeepstLinear",
     "DendriNet",
     "DendriticBranchLayer",
+    "DendriticSynapseConfig",
     "DenseToSparseLinear",
     "ExcitationInhibitionLayer",
     "ExcitationInhibitionNetwork",

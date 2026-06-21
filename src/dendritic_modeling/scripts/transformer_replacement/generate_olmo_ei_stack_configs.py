@@ -15,7 +15,7 @@ def main() -> None:
     parser.add_argument("--variant", default="1b")
     parser.add_argument(
         "--config-root",
-        default="jobs/transformer_replacement_benchmarks/configs/generated",
+        default="generated/transformer_replacement_benchmarks/configs",
     )
     parser.add_argument(
         "--results-root",

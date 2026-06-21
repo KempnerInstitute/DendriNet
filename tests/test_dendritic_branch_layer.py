@@ -79,6 +79,34 @@ class TestDendriticBranchLayer(unittest.TestCase):
         output = layer(x, inhibitory_input, branch_input)
         self.assertEqual(output.shape, (2, self.output_dim))
 
+    def test_analysis_current_cache_matches_forward_currents(self):
+        for use_shunting in (True, False):
+            layer = DendriticBranchLayer(
+                self.output_dim,
+                self.excitatory_input_dim,
+                self.excitatory_synapses_per_branch,
+                self.inhibitory_input_dim,
+                self.inhibitory_synapses_per_branch,
+                self.input_branch_factor,
+                reactivate=False,
+                use_shunting=use_shunting,
+            )
+            x = torch.rand(2, self.excitatory_input_dim)
+            inhibitory_input = torch.rand(2, self.inhibitory_input_dim)
+            branch_input = torch.rand(2, self.output_dim * self.input_branch_factor)
+
+            layer._store_analysis_currents = True
+            layer(x, inhibitory_input, branch_input)
+            cached = layer._last_analysis_currents
+
+            assert torch.allclose(cached["excitation"], layer.branch_excitation(x))
+            assert torch.allclose(
+                cached["inhibition"], layer.branch_inhibition(inhibitory_input)
+            )
+            assert torch.allclose(
+                cached["branch_input"], layer.branches_to_output(branch_input)
+            )
+
     def test_forward_with_reactivation(self):
         # Test reactivation in forward pass
         layer = DendriticBranchLayer(

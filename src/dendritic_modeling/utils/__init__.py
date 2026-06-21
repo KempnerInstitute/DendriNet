@@ -37,6 +37,7 @@ from .sparse_ops import (
     estimate_memory_usage,
     get_available_sparse_types,
     get_sparse_layer,
+    normalize_sparse_layer_type,
     parallel_topk_selection,
 )
 from .training_stability_validator import (
@@ -57,6 +58,7 @@ __all__ = [
     "generate_random_nonnegative_weights",
     "get_logger",
     "get_validation_summary",
+    "normalize_sparse_layer_type",
     "roc_auc_score",
     "save_dict",
     "select_topk_features_by_lda",

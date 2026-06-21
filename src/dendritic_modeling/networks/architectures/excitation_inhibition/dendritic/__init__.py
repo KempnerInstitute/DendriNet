@@ -20,6 +20,9 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.g
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize import (
     analytical_expectation_dbl_init,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.synapse_config import (
+    DendriticSynapseConfig,
+)
 
 # Vision neuron factories
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.vision_factories import (
@@ -34,6 +37,7 @@ __all__ = [
     "BlockLinear",
     "DendriNet",
     "DendriticBranchLayer",
+    "DendriticSynapseConfig",
     "GradientScaler",
     "analytical_expectation_dbl_init",
     "build_neuron_from_yaml",

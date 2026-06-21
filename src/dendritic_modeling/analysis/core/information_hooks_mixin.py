@@ -1,0 +1,141 @@
+"""Forward-hook collection helpers for information analysis."""
+
+from __future__ import annotations
+
+import torch
+
+from dendritic_modeling.models import BaseModel
+from dendritic_modeling.networks import DendriticBranchLayer
+
+
+class InformationHooksMixin:
+    """Collects branch-layer currents and outputs during model evaluation."""
+
+    def attach_forward_hooks(self, model: BaseModel):
+        """Attach forward hooks to the model."""
+        # Initialize data_dict attribute and store somatic_synapses config
+        self.data_dict = {}
+        self._analysis_hook_modules = []
+        self.somatic_synapses_enabled = getattr(
+            model.core_network, "somatic_synapses", True
+        )
+
+        handles = []
+        for _name, module in model.named_modules():
+            if isinstance(module, DendriticBranchLayer):
+                # Hook layers that have E/I synapses OR receive branch input
+                # This ensures soma layers without synapses are still analyzed
+                # for I(Vb;C) - the information in branch input
+                has_synapses = (
+                    module.branch_excitation is not None
+                    or module.branch_inhibition is not None
+                )
+                has_branch_input = module.input_branches  # Has upstream branches
+
+                if has_synapses or has_branch_input:
+                    self.data_dict[_name] = {}
+                    module._name = _name
+                    previous_store = getattr(module, "_store_analysis_currents", False)
+                    self._analysis_hook_modules.append((module, previous_store))
+                    module._store_analysis_currents = True
+                    handle = module.register_forward_hook(self.forward_hook)
+                    handles.append(handle)
+
+        return handles
+
+    def forward_hook(
+        self,
+        module: DendriticBranchLayer,
+        input: tuple[torch.Tensor, torch.Tensor, torch.Tensor],
+        output: torch.Tensor,
+    ):
+        """Forward hook to collect branch data."""
+        excitatory_input, inhibitory_input, branch_input = input
+
+        # A layer can legitimately have only E synapses or only I synapses.
+        # "No synapses" means BOTH synapse modules are absent (e.g. soma when
+        # somatic_synapses=False).
+        has_no_synapses = (
+            module.branch_excitation is None and module.branch_inhibition is None
+        )
+
+        cached_currents = getattr(module, "_last_analysis_currents", None)
+
+        if has_no_synapses:
+            # For soma without synapses, create zero tensors for E/I but keep real output
+            batch_size = output.shape[0]
+            n_branches = output.shape[1] if len(output.shape) > 1 else 1
+
+            # Zero excitation and inhibition since there are no synapses
+            excitation_per_branch = torch.zeros(
+                batch_size, n_branches, device=output.device
+            )
+            inhibition_per_branch = torch.zeros(
+                batch_size, n_branches, device=output.device
+            )
+        elif isinstance(cached_currents, dict):
+            excitation_per_branch = cached_currents.get("excitation")
+            inhibition_per_branch = cached_currents.get("inhibition")
+            if excitation_per_branch is None:
+                excitation_per_branch = torch.zeros_like(output)
+            if inhibition_per_branch is None:
+                inhibition_per_branch = torch.zeros_like(output)
+        else:
+            # Normal processing for layers with actual synapses
+            # Get the outputs from TopKLinear layers
+            # These represent the weighted sum for each branch (already computed by TopKLinear)
+            # Shape: (batch_size, num_branches)
+            excitation_per_branch = (
+                module.branch_excitation(excitatory_input)
+                if module.branch_excitation is not None and excitatory_input is not None
+                else torch.zeros_like(output)
+            )
+            inhibition_per_branch = (
+                module.branch_inhibition(inhibitory_input)
+                if module.branch_inhibition is not None and inhibitory_input is not None
+                else torch.zeros_like(output)
+            )
+
+        # Compute branch_input contribution if available
+        if isinstance(cached_currents, dict):
+            branch_current = cached_currents.get("branch_input")
+        elif branch_input is not None and module.input_branches:
+            branch_current = module.branches_to_output(branch_input)
+        else:
+            branch_current = None
+
+        # Store per-branch data
+        self.data_dict[module._name]["excitation"] = excitation_per_branch
+        self.data_dict[module._name]["inhibition"] = inhibition_per_branch
+        self.data_dict[module._name]["branch_input"] = branch_current
+        self.data_dict[module._name]["output"] = output
+        self.data_dict[module._name]["has_synapses"] = not has_no_synapses
+        self.data_dict[module._name]["has_exc_synapses"] = (
+            module.branch_excitation is not None
+        )
+        self.data_dict[module._name]["has_inh_synapses"] = (
+            module.branch_inhibition is not None and inhibitory_input is not None
+        )
+        self.data_dict[module._name]["has_branch_input"] = (
+            branch_input is not None and module.input_branches
+        )
+
+        # Store raw inputs and module for LDA computation if needed
+        if hasattr(self, "compute_lda_weights") and self.compute_lda_weights:
+            self.data_dict[module._name]["raw_excitatory_input"] = excitatory_input
+            self.data_dict[module._name]["raw_inhibitory_input"] = inhibitory_input
+            self.data_dict[module._name]["raw_branch_input"] = branch_input
+            self.data_dict[module._name]["module"] = module
+
+    def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
+        """Remove forward hooks from the model."""
+        for handle in handles:
+            handle.remove()
+        for module, previous_store in getattr(self, "_analysis_hook_modules", []):
+            module._store_analysis_currents = previous_store
+            if hasattr(module, "_last_analysis_currents"):
+                delattr(module, "_last_analysis_currents")
+        self._analysis_hook_modules = []
+
+
+__all__ = ["InformationHooksMixin"]

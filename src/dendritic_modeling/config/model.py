@@ -341,20 +341,20 @@ class TrainabilityConfig(BaseConfig):
 
 @dataclass
 class PretrainedReplacementConfig(BaseConfig):
-    """Single-source config for replacing layers in a pretrained backbone.
+    """Config for replacing vision-backbone modules with a dendritic core.
 
     When ``enabled=true``, ``model.encoder`` and ``model.decoder`` are
     ignored — the encoder and decoder are built from the backbone split.
+    ``vision_replacement`` is the preferred config name; the older
+    ``pretrained_replacement`` field remains supported as an alias.
 
     Example::
 
-        pretrained_replacement:
+        vision_replacement:
           backbone: "alexnet"
           weights: "IMAGENET1K_V1"
           input_shape: [3, 224, 224]
-          replace:
-            start: "classifier.4"
-            end: "classifier.5"
+          target_modules: ["classifier.4", "classifier.5"]
           omit_layers: ["classifier.0", "classifier.3"]
           trainability:
             encoder:
@@ -371,6 +371,7 @@ class PretrainedReplacementConfig(BaseConfig):
     weights: Optional[str] = "IMAGENET1K_V1"
     input_shape: list[int] = field(default_factory=lambda: [3, 224, 224])
     replace: ReplacementRegionConfig = field(default_factory=ReplacementRegionConfig)
+    target_modules: list[str] = field(default_factory=list)
     omit_layers: list[str] = field(default_factory=list)
     trainability: TrainabilityConfig = field(default_factory=TrainabilityConfig)
 
@@ -405,7 +406,11 @@ class ModelConfig(BaseConfig):
     core: CoreConfig = field(default_factory=CoreConfig)
     decoder: DecoderConfig = field(default_factory=DecoderConfig)
 
-    # New unified pretrained replacement config
+    # Vision backbone replacement. ``pretrained_replacement`` is kept as a
+    # compatibility alias for older configs.
+    vision_replacement: PretrainedReplacementConfig = field(
+        default_factory=PretrainedReplacementConfig
+    )
     pretrained_replacement: PretrainedReplacementConfig = field(
         default_factory=PretrainedReplacementConfig
     )

@@ -772,23 +772,7 @@ def main(config_path: str, args=None):
 
     # Run analysis if enabled (rank 0 only)
     if is_main:
-        any_analysis_enabled = any(
-            [
-                analysis_config.performance_analysis.enabled,
-                analysis_config.information_analysis.enabled,
-                analysis_config.synapse_turnover_analysis.enabled,
-                analysis_config.noise_perturbation_analysis.enabled,
-                analysis_config.single_layer_contribution.enabled,
-                analysis_config.ablation_analysis.enabled,
-                analysis_config.weight_analysis.enabled,
-                analysis_config.synaptic_activation_analysis.enabled,
-                analysis_config.branch_activation_analysis.enabled,
-                hasattr(analysis_config, "correlation_analysis")
-                and analysis_config.correlation_analysis.enabled,
-                hasattr(analysis_config, "routing_analysis")
-                and analysis_config.routing_analysis.enabled,
-            ]
-        )
+        any_analysis_enabled = analysis_config.any_enabled()
 
         if strategy == "multi_stage":
             if analysis_config.performance_analysis.training:

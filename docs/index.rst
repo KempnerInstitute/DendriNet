@@ -29,15 +29,15 @@ Start here:
    :widths: 24 36 40
 
    * - Goal
-     - Recommended page
+     - Page
      - First config to open
-   * - Run a canonical E/I MNIST model
+   * - Run an E/I MNIST model
      - :doc:`quickstart`
      - ``configs/examples/population_network_feedforward.yaml``
-   * - Write new feedforward or recurrent population models
+   * - Configure feedforward or recurrent population models
      - :doc:`network_architectures`
      - ``configs/examples/population_network_feedforward.yaml``
-   * - Learn the curated config examples
+   * - Browse config examples
      - :doc:`examples`
      - ``configs/examples/population_network_feedforward.yaml``
    * - Add heterogeneous morphologies, synapse types, spiking soma, or feedback
@@ -50,11 +50,10 @@ Start here:
      - :doc:`analysis`
      - ``analysis:`` in ``configs/config_exp.yaml``
 
-For new architecture work, prefer ``model.core.type: population_network``. It
-is the single notation for feedforward stacks, recurrent microcircuits, named
-E/I populations, per-population morphologies, typed synapses, spiking soma, and
-soma-to-dendrite feedback. Older E/I aliases remain supported so published and
-in-progress runs can still be reproduced.
+``model.core.type: population_network`` is the main notation for feedforward
+stacks, recurrent microcircuits, named E/I populations, per-population
+morphologies, typed synapses, spiking soma, and soma-to-dendrite feedback. E/I
+alias configs are supported for saved experiments and comparison runs.
 
 .. toctree::
    :maxdepth: 2

@@ -17,25 +17,17 @@ EXTENDED_EXAMPLES = [
     "configs/examples/population_network_spiking.yaml",
     "configs/examples/population_network_soma_feedback.yaml",
     "configs/examples/population_network_taus_and_delays.yaml",
-    "configs/examples/population_network_multilayer_recurrent.yaml",
-    "configs/examples/population_network_spiking_multilayer_recurrent.yaml",
 ]
 
 POPULATION_NETWORK_EXAMPLES = [
     "configs/examples/population_network_feedforward.yaml",
     "configs/examples/population_network_heterogeneous_feedforward.yaml",
-    "configs/examples/population_network_independent_transfer.yaml",
-    "configs/examples/population_network_input_mode0_one_layer.yaml",
-    "configs/examples/population_network_input_mode1_one_layer.yaml",
-    "configs/examples/population_network_input_mode0_two_layer.yaml",
-    "configs/examples/population_network_input_mode1_two_layer.yaml",
     "configs/examples/population_network_two_layer.yaml",
     "configs/examples/population_network_cifar10.yaml",
     "configs/examples/population_network_dense_to_sparse_cifar10.yaml",
     "configs/examples/population_network_indexed_rewire_mnist.yaml",
     "configs/examples/population_network_normalized_additive_mnist.yaml",
     "configs/examples/population_network_local_learning_mnist.yaml",
-    "configs/examples/population_network_multistage_cifar10.yaml",
 ]
 
 
@@ -95,7 +87,6 @@ def test_population_network_examples_make_reactivation_policy_explicit(config_pa
     "config_path",
     [
         "configs/examples/population_network_recurrent_pyr_pv_sst.yaml",
-        "configs/examples/population_network_multilayer_recurrent.yaml",
     ],
 )
 def test_recurrent_population_examples_drive_inhibitory_gradients(config_path):
@@ -128,11 +119,9 @@ def test_recurrent_population_examples_drive_inhibitory_gradients(config_path):
     assert dead == []
 
 
-def test_spiking_multilayer_example_drives_core_gradients_on_configured_data():
+def test_spiking_example_drives_core_gradients_on_configured_data():
     """The public spiking example should not be a silent readout-only model."""
-    config_path = (
-        "configs/examples/population_network_spiking_multilayer_recurrent.yaml"
-    )
+    config_path = "configs/examples/population_network_spiking.yaml"
     load_config.cache_clear()
     torch.manual_seed(0)
     cfg = load_config(config_path)

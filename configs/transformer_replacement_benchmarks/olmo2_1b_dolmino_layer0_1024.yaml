@@ -1,0 +1,100 @@
+# OLMo-2 replacement benchmark on OLMo training data.
+#
+# Target model: allenai/OLMo-2-0425-1B
+# Data: allenai/dolmino-mix-1124, streamed from Hugging Face.
+#
+# This is the OLMo analogue of the Pythia/DeepSeek replacement path: replace a
+# transformer MLP with a sparse dendritic FFN, train by layerwise distillation
+# from text activations, then measure causal-LM loss after patching the model.
+
+experiment:
+  seed: 610
+model:
+  task: language_modeling
+  transformer_replacement:
+    enabled: true
+    model_name: allenai/OLMo-2-0425-1B
+    layers:
+    - 0
+    target_module: mlp
+    layers_attr: model.layers
+    input_transform: signed_split
+    preserve_device_dtype: true
+    model_kwargs:
+      trust_remote_code: true
+      torch_dtype: auto
+    replacement_kwargs:
+      output_init_std: 0.02
+  core:
+    type: dendritic_ffn
+    population_network:
+      layers:
+      - name: transformer_mlp
+        readout_population: ffn
+        population_defaults:
+          ff_excitatory_synapses: 64
+          ff_inhibitory_synapses: 0
+          rec_excitatory_synapses: 0
+          rec_inhibitory_synapses: 0
+          somatic_synapses: true
+          use_shunting: false
+          use_additive_normalization: false
+          reactivate: true
+          reactivation_type: param_tanh
+          reactivation_init_policy: occupancy_quantile
+          weight_transform: softplus
+          topk_type: indexed_rewire
+          topk_init_method: xavier_normal
+          topk_noise_level: 0.0
+          indexed_seed: 610
+          indexed_rewire_frequency: 100
+          indexed_rewire_quantile: 0.05
+          indexed_rewire_until_step: null
+          indexed_output_chunk_size: 2048
+          efficient_blocklinear: true
+        populations:
+        - name: ffn
+          polarity: excitatory
+          n_neurons: 1024
+          branch_factors:
+          - 2
+          - 2
+        connections:
+        - source: input
+          target: ffn
+      input_transform: signed_split
+training:
+  main:
+    optimizer:
+      name: adamw
+      lr: 0.0007
+      weight_decay: 0.0001
+  transformer_replacement:
+    enabled: true
+    mode: layerwise_distillation
+    teacher_source: hf_text
+    train_target: replacement_only
+    layers:
+    - 0
+    device: auto
+    dtype: float32
+    use_amp: true
+    sequence_length: 128
+    train_samples: 8192
+    valid_samples: 64
+    batch_size: 4
+    max_steps: 800
+    eval_every: 100
+    log_every: 25
+    loss: mse
+    save_dir: results/transformer_replacement_benchmarks/olmo2_1b_dolmino_layer0_1024
+    save_replacements: true
+    text:
+      dataset_name: allenai/dolmino-mix-1124
+      dataset_config: default
+      split: train
+      text_field: text
+      streaming: true
+      max_documents: 1200
+      tokenizer_name: allenai/OLMo-2-0425-1B
+      max_tokens: 200000

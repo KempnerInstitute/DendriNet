@@ -65,15 +65,15 @@ Analysis runtime is configured centrally under `analysis.runtime` in YAML.
 Use `mode: "stream"` there for large datasets, and set `max_samples` for
 expensive analyses that should only inspect a bounded subset. Keep
 `mode: "auto"` for the normal default, and use `mode: "materialize"` when you
-want the closest match to the old exact small-dataset single-GPU analysis path.
+want exact small-dataset single-GPU analysis behavior.
 If `analysis.runtime` is omitted entirely, non-distributed runs default to that
-backward-compatible materialized behavior automatically.
+single-process materialized behavior automatically.
 Analyzers may temporarily move the model to the requested analysis device, but
 they restore the original device and train/eval mode before returning.
 
 ## Documentation
 
-The maintained user docs live under [docs/README.md](docs/README.md).
+The user docs live under [docs/README.md](docs/README.md).
 Start with:
 
 - [docs/examples.rst](docs/examples.rst)
@@ -97,11 +97,11 @@ Feedforward dendritic cores:
 
 Recurrent dendritic cores:
 
-- `population_network` — canonical feedforward/recurrent notation with named
+- `population_network` — feedforward/recurrent notation with named
   populations, explicit directed connections, per-population morphologies,
   synapse types, spiking soma, and feedback
 - `unified_ei` — hierarchical recurrent E-I with learnable time constants
-- `ei_unified` — equivalent canonical factory name
+- `ei_unified` — equivalent factory name
 - `rnn_dendritic_*` / `rnn_flat_*` — recurrent shunting, raw additive, and normalized-additive aliases
 
 Pretrained-replacement cores (vision):

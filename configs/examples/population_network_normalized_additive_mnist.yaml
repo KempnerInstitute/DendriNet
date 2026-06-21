@@ -1,9 +1,8 @@
 # ============================================================================
 # Population Network Normalized Additive MNIST DendriNet
 # ============================================================================
-# Population-format normalized additive MNIST example. It keeps legacy
-# input_mode=1 transfer semantics while making additive inhibition explicit at
-# the population level:
+# Normalized additive MNIST example in the population-network schema. Additive
+# inhibition is explicit at the population level:
 #   use_shunting: false
 #   use_additive_normalization: true
 #   reactivation_init_policy: occupancy_quantile
@@ -61,11 +60,16 @@ model:
             reactivation_init_b: 0.5
             dbl_init_method: "analytical_expectation"
             weight_transform: "softplus"
-            topk_type: "standard"
+            topk_type: "indexed_rewire"
             topk_init_method: "xavier_normal"
+            indexed_seed: 42
+            indexed_rewire_frequency: 100
+            indexed_rewire_quantile: 0.05
+            indexed_rewire_until_step: null
+            indexed_output_chunk_size: 2048
             blocklinear_strategy: "none"
             reactivation_strategy: "none"
-            efficient_blocklinear: false
+            efficient_blocklinear: true
           populations:
             - name: "e"
               polarity: "excitatory"

@@ -77,6 +77,7 @@ from dendritic_modeling.config.training import (
     TrainingConfig,
     TrainingStrategiesConfig,
     TransformerReplacementTrainingConfig,
+    VisionReplacementTrainingConfig,
     VoltageStabilizationStrategyConfig,
 )
 from dendritic_modeling.config.validation import validate_loaded_config
@@ -417,6 +418,7 @@ def _build_pretrained_replacement_config(
             start=str(replace_dict.get("start", "")),
             end=str(replace_dict.get("end", "")),
         ),
+        target_modules=[str(name) for name in pr_dict.get("target_modules", [])],
         omit_layers=list(pr_dict.get("omit_layers", [])),
         trainability=trainability,
     )
@@ -584,6 +586,19 @@ def _build_transformer_replacement_training_config(
     )
 
 
+def _build_vision_replacement_training_config(
+    training_data: Any,
+) -> VisionReplacementTrainingConfig:
+    """Build typed config for vision replacement distillation."""
+    training_dict = _to_plain_dict(training_data)
+    return VisionReplacementTrainingConfig(
+        **_filter_dataclass_kwargs(
+            VisionReplacementTrainingConfig,
+            training_dict,
+        )
+    )
+
+
 def _build_model_config(model_data: Any) -> ModelConfig:
     """Build a typed ModelConfig from possibly nested dict/OmegaConf payload."""
     model_dict = _to_plain_dict(model_data)
@@ -592,6 +607,8 @@ def _build_model_config(model_data: Any) -> ModelConfig:
 
     pr_data = model_dict.get("pretrained_replacement", {})
     pr_config = _build_pretrained_replacement_config(pr_data)
+    vr_data = model_dict.get("vision_replacement", {})
+    vr_config = _build_pretrained_replacement_config(vr_data)
     tr_data = model_dict.get("transformer_replacement", {})
     tr_config = _build_transformer_replacement_config(tr_data)
 
@@ -613,6 +630,7 @@ def _build_model_config(model_data: Any) -> ModelConfig:
                 **_to_plain_dict(decoder_dict.get("params", {}))
             ),
         ),
+        vision_replacement=vr_config,
         pretrained_replacement=pr_config,
         transformer_replacement=tr_config,
     )
@@ -697,10 +715,14 @@ def _load_config_cached(path: Optional[str] = None) -> Config:
                 mapped_training.get("transformer_distillation", {}),
             )
         )
+        vision_training = _build_vision_replacement_training_config(
+            mapped_training.get("vision_replacement", {})
+        )
         training_config = TrainingConfig(
             encoder=encoder_config,
             main=main_config,
             transformer_replacement=transformer_training,
+            vision_replacement=vision_training,
         )
 
         config = Config(

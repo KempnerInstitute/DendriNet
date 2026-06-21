@@ -194,10 +194,10 @@ synapses per branch are selected inside the allowed mask. Pathway polarity is
 inferred from the source population or named input stream.
 
 External sources are named. ``source: input`` is the compatibility stream and
-keeps the old behavior. When ``population_network.use_transfer: true`` is set,
+matches the default input stream. When ``population_network.use_transfer: true`` is set,
 ``source: input_e`` receives the excitatory stream returned by
 ``TransferLayer`` and ``source: input_i`` receives the inhibitory stream. This
-allows an old independent-pathway transfer split to be represented explicitly:
+represents independent-pathway transfer splits explicitly:
 
 .. code-block:: yaml
 
@@ -289,11 +289,7 @@ For feedforward examples, see
 ``configs/examples/population_network_cifar10.yaml``,
 ``configs/examples/population_network_dense_to_sparse_cifar10.yaml``,
 ``configs/examples/population_network_normalized_additive_mnist.yaml``, and
-``configs/examples/population_network_two_layer.yaml``. These examples use the
-same named-population schema instead of maintaining parallel legacy
-``einet`` YAMLs. When transfer-stream behavior is needed, use
-``configs/examples/population_network_independent_transfer.yaml`` and address
-the split streams explicitly as ``input_e`` and ``input_i``.
+``configs/examples/population_network_two_layer.yaml``.
 
 When ``input_projection_dims`` is used together with ``use_transfer: true``,
 the projection is applied to the compatibility/excitatory stream
@@ -305,6 +301,7 @@ Canonical examples are
 ``configs/examples/population_network_feedforward.yaml``,
 ``configs/examples/population_network_heterogeneous_feedforward.yaml``,
 ``configs/examples/population_network_recurrent_pyr_pv_sst.yaml``,
+``configs/examples/population_network_taus_and_delays.yaml``,
 ``configs/examples/population_network_synapse_types_ampa_nmda_gaba.yaml``,
 ``configs/examples/population_network_spiking.yaml``, and
 ``configs/examples/population_network_soma_feedback.yaml``.
@@ -344,31 +341,26 @@ TransferLayer
 Controls how input is routed to the E and I pathways.
 
 ``input_mode``
-   Selects the inhibitory-input convention used by the legacy feedforward E/I
+   Selects the inhibitory-input convention used by the feedforward E/I
    builder. ``input_mode: 0`` builds explicit inhibitory cells whenever
    ``architecture.inhibitory_layer_sizes`` contains positive sizes.
-   ``input_mode: 1`` preserves the older direct-inhibition path: the
+   ``input_mode: 1`` uses the direct-inhibition path: the
    ``TransferLayer`` inhibitory stream is fed directly into E dendrites and
    explicit I cells are not built by default, even if stale inhibitory sizes
    remain in the config.
 
 ``input_mode1_build_inhibitory_population``
-   Optional feedforward opt-in for newer experiments that intentionally want
-   ``input_mode: 1`` plus explicit inhibitory cells. The legacy-compatible
-   default is ``false``.
+   Optional feedforward opt-in for configs that use
+   ``input_mode: 1`` plus explicit inhibitory cells. The default is ``false``.
 
-The same conventions can be written explicitly in ``population_network``:
-``configs/examples/population_network_input_mode0_one_layer.yaml`` and
-``population_network_input_mode0_two_layer.yaml`` use named inhibitory
-populations, while ``population_network_input_mode1_one_layer.yaml`` and
-``population_network_input_mode1_two_layer.yaml`` use direct
-``ff_inhibitory`` pathways into E populations.
+The same conventions can be written explicitly in ``population_network`` by
+declaring named populations and ``connections``.
 
 ``require_explicit_direct_inhibitory_stream``
    Optional safety flag. When ``true``, direct input-mode-1 inhibition requires
    ``allow_direct_inhibitory_stream: true``. The deprecated
-   ``allow_direct_inhibitory_input`` spelling is still normalized by the legacy
-   config adapter, but new configs should not use it. The default is ``false``
+   ``allow_direct_inhibitory_input`` spelling is still normalized by the
+   config adapter. The default is ``false``
    for compatibility with existing configs.
 
 ``independent_pathways``
@@ -424,7 +416,13 @@ E-I Network Configuration
          dbl_init_method: "analytical_expectation"
        sparsity:
          init_method: "xavier_normal"
-         type: "standard"
+         type: "indexed_rewire"
+         indexed:
+           seed: 42
+           rewire_frequency: 100
+           rewire_quantile: 0.05
+           rewire_until_step: null
+           output_chunk_size: 2048
          gamma: 1.0
        reactivation:
          enabled: true
@@ -647,14 +645,16 @@ large, high-sparsity networks where memory is the bottleneck, prefer
    Each forward pass selects ``K`` active candidates, so inactive candidates
    can later become active without storing the full dense matrix.  Set
    ``sparsity.indexed.selection: stochastic`` to use rank-probabilistic
-   selection inside the candidate pool.
+   selection inside the candidate pool. If ``candidate_size`` is omitted and a
+   hard connection mask is present, the automatic candidate pool is capped to
+   the largest size supported by every masked output row.
 
 ``indexed_rewire``
    Adaptive-quantile indexed rewiring. It stores only
    ``out_features x K`` sparse weights plus integer input indices, like
    ``indexed``, but periodically replaces the weakest fraction of same-row
    synapses with newly sampled allowed inputs. This is the memory-efficient
-   version of "weak synapses disappear and new random synapses appear on the
+   version of "weak synapses disappear and fresh random synapses appear on the
    same dendrite." It is different from ``indexed_dynamic``: the candidate
    pool itself changes over training rather than remaining fixed.
 
@@ -719,16 +719,49 @@ where ``block_size = in_features / out_features``.
 ``EfficientBlockLinear`` is a memory-efficient variant that uses reshape
 operations instead of a sparse matrix. Same API and behavior.
 
-Config path: ``model.core.blocklinear``.
+Config paths: ``model.core.blocklinear.efficient`` for structured EINet-style
+cores, and ``efficient_blocklinear`` under
+``population_network.layers[].population_defaults`` or an individual
+population override for population-network cores and transformer/vision
+replacement cores that use the population-network schema.
+
+Shared Replacement Cells
+------------------------
+
+Replacement experiments use a common cell contract:
+
+.. code-block:: text
+
+   input adapter -> dendritic core -> output adapter
+
+The shared implementation lives in
+``dendritic_modeling.networks.architectures.replacement``.  Input adapters such
+as ``signed_split`` and ``relu`` map source-network activity into the
+non-negative domain expected by positive-conductance dendritic cores.  The core
+then runs a DendriNet, E/I population stack, or spatial dendritic module.  The
+output adapter maps the dendritic activity back to the tensor contract expected
+by the source model.
+
+Placement remains domain-specific:
+
+- vision replacement uses ``classical.pretrained`` to split a torchvision
+  backbone into prefix / replacement core / suffix segments
+- transformer replacement uses ``transformer.patching`` to patch a target
+  module inside each decoder block while preserving residual, cache, and
+  Hugging Face model contracts
+
+This separation keeps the biological/dendritic computation reusable without
+forcing every source model into the same surgery mechanism.
 
 Vision Backbone Replacement
 ---------------------------
 
-Vision replacement uses ``model.pretrained_replacement`` to split a torchvision
+Vision replacement uses ``model.vision_replacement`` to split a torchvision
 backbone into three parts: a pretrained prefix, a dendritic replacement core,
 and a pretrained or trainable suffix. This is the image-model analogue of the
 transformer replacement path, but the target modules are named layers in a
 sequential vision backbone such as AlexNet or VGG.
+Older ``model.pretrained_replacement`` configs remain supported as aliases.
 
 Two dendritic core styles are supported:
 
@@ -768,14 +801,12 @@ Minimal skeleton:
 .. code-block:: yaml
 
    model:
-     pretrained_replacement:
+     vision_replacement:
        enabled: true
        backbone: alexnet
        weights: IMAGENET1K_V1
        input_shape: [3, 224, 224]
-       replace:
-         start: classifier.4
-         end: classifier.5
+       target_modules: [classifier.4, classifier.5]
        omit_layers: [classifier.0, classifier.3]
        trainability:
          encoder: {mode: frozen}
@@ -793,6 +824,14 @@ Minimal skeleton:
        reactivation:
          init_policy: occupancy_quantile
 
+``target_modules`` must resolve to one contiguous span in the flattened
+backbone order.  This is what lets the runtime construct a single
+encoder-core-decoder tensor contract.  Fully supervised training uses the
+standard trainer; block-output distillation from cached tensors uses
+``training.vision_replacement``. Distillation can train only the replacement
+core, the replacement plus decoder, or the full student model; saved artifacts
+include the parameters required by the selected train target.
+
 Transformer FFN Replacement
 ---------------------------
 
@@ -800,9 +839,23 @@ The AlexNet/VGG replacement path and the transformer replacement path share the
 same conceptual split: choose a backbone, choose the layers/modules to replace,
 and describe the dendritic replacement with ``model.core``.  The difference is
 mechanical: AlexNet/VGG are sequential torchvision modules, while transformer
-MLPs sit inside decoder blocks.  For transformers the target is described by
+targets sit inside decoder blocks.  For transformers the target is described by
 ``model.transformer_replacement`` and the dendritic FFN is described by the
-usual ``model.core`` fields.
+shared ``model.core.population_network`` schema.  ``target_module`` may be a
+simple name such as ``mlp`` or a dotted path relative to each decoder layer,
+such as ``self_attn.o_proj``.  Generic replacement currently expects a
+tensor-in/tensor-out module with the same final hidden dimension; modules with
+tuple outputs or multi-input attention APIs need a small adapter before they can
+be replaced safely.
+
+The implementation is split across ``transformer.modules`` for replacement
+modules, ``transformer.config_translation`` for config-to-constructor mapping,
+and ``transformer.patching`` for Hugging Face module replacement.  Public
+imports remain available from
+``dendritic_modeling.networks.architectures.transformer``.
+The token-wise transformer modules use the shared replacement-cell components
+internally while preserving the historical ``core`` and ``output_projection``
+state-dict keys.
 
 The replacement module preserves the transformer MLP contract
 
@@ -861,21 +914,34 @@ projection.
 
      core:
        type: dendritic_ffn
-       architecture:
-         excitatory_layer_sizes: [512]
-         excitatory_branch_factors: [3, 3]
-       connectivity:
-         ee_synapses_per_branch_per_layer: [40]
-       morphology:
-         use_shunting: true
-         weight_transform: softplus
-       sparsity:
-         type: indexed_dynamic      # or indexed_rewire for adaptive turnover
-         temperature: 0.5
-         indexed:
-           candidate_size: 256
-           selection: stochastic
-           seed: 42
+       population_network:
+         input_transform: signed_split
+         layers:
+           - name: transformer_mlp
+             readout_population: ffn
+             population_defaults:
+               ff_excitatory_synapses: 40
+               ff_inhibitory_synapses: 0
+               somatic_synapses: true
+               use_shunting: true
+               reactivate: true
+               reactivation_type: param_tanh
+               weight_transform: softplus
+               topk_type: indexed_rewire
+               indexed_seed: 42
+               indexed_rewire_frequency: 100
+               indexed_rewire_quantile: 0.05
+               indexed_rewire_until_step: null
+               indexed_output_chunk_size: 2048
+               efficient_blocklinear: true
+             populations:
+               - name: ffn
+                 polarity: excitatory
+                 n_neurons: 512
+                 branch_factors: [3, 3]
+             connections:
+               - source: input
+                 target: ffn
 
 The YAML can be applied to a loaded Hugging Face model with:
 
@@ -907,9 +973,11 @@ both polarities.  The final ``W_out`` is signed, because the transformer block
 must return a signed residual update.
 
 This replacement path should be trained first by block-output distillation:
-freeze the original transformer, collect inputs and original MLP outputs for
-the target layers, and train the dendritic replacement to match those outputs
-before evaluating full language-model perplexity.
+freeze the original transformer, collect inputs and original target-module
+outputs for the selected layers, and train the dendritic replacement to match
+those outputs before evaluating full language-model perplexity.  After that
+smoke test, ``joint_lm_distillation`` can train the patched causal LM directly
+with either ``train_target: replacement_only`` or ``train_target: full_model``.
 
 The dedicated trainer is selected by ``training.transformer_replacement`` and
 currently supports three teacher-data sources:
@@ -925,9 +993,9 @@ currently supports three teacher-data sources:
    once to build an activation cache.
 
 ``hf_text``
-   Loads a Hugging Face causal LM, registers hooks on the selected MLP modules,
-   samples token windows from a text file, and trains the dendritic replacement
-   from the captured ``(hidden_state, teacher_mlp_output)`` pairs.
+   Loads a Hugging Face causal LM, registers hooks on the selected target
+   modules, samples token windows from a text file or Hugging Face dataset, and
+   trains the dendritic replacement from the captured input/output pairs.
 
 .. code-block:: bash
 
@@ -1004,7 +1072,7 @@ keeps the same interface usable across shunting and additive morphologies.
    bulk of the observed voltage mass into the gate's sensitive region while
    keeping the tails as margin.
 
-   Quantile-based calibration now includes safeguards for ill-conditioned
+   Quantile-based calibration includes safeguards for ill-conditioned
    upper-layer fits. If the observed quantile span is too small or the fitted
    slope would have to exceed the configured ``calibration_max_m``, the layer
    falls back to its pre-calibration gate state instead of forcing a saturated
@@ -1021,8 +1089,8 @@ keeps the same interface usable across shunting and additive morphologies.
    automatically written ``init_gate_stats.json`` artifact in the run
    directory before treating a run as healthy.
 
-   ``quantile`` is accepted as a legacy alias and is normalized to
-   ``occupancy_quantile``. New configs should use ``occupancy_quantile``.
+   ``quantile`` is accepted as an alias and is normalized to
+   ``occupancy_quantile``. Prefer ``occupancy_quantile`` in YAML configs.
 
    For local learning, use ``q_low=0.05, q_high=0.95`` mapping to gate outputs
    ``r_low=0.2, r_high=0.8``. This gives the gate a wider active region and
@@ -1073,8 +1141,8 @@ module and flags suspicious patterns such as:
 - repeated identical values across a full layer combined with saturation
 - gate centers pushed to the voltage-range edge
 
-This diagnostic is especially useful when using ``occupancy_quantile`` on new
-datasets or new recurrent settings.
+This diagnostic is especially useful when using ``occupancy_quantile`` on
+unfamiliar datasets or recurrent settings.
 
 **Standard backprop** (both morphologies):
 
@@ -1227,9 +1295,8 @@ Making an E-I core recurrent
      main:
        strategy: recurrent
 
-For recurrent ``einet``-style configs, ``use_transfer`` defaults to ``true``
-for legacy parity, so a TransferLayer is built for both ``input_mode=1`` and
-``input_mode=0``.
+For recurrent ``einet``-style configs, ``use_transfer`` defaults to ``true``,
+so a TransferLayer is built for both ``input_mode=1`` and ``input_mode=0``.
 Set ``recurrent_ei.use_transfer: false`` to disable it explicitly.
 
 Population Network / Named Populations
@@ -1239,10 +1306,10 @@ Population Network / Named Populations
    :alt: Extended recurrent dendritic components showing named populations, connectivity masks, synapse types, dendrites, optional spiking soma, decoder, and analysis readouts.
    :width: 100%
 
-   The new recurrent extensions are opt-in layers around the existing
-   dendritic computation path. Named populations feed source-target masks,
-   typed synapse traces feed dendritic integration, and the soma can remain
-   rate-valued or emit LIF spikes with a decoder-compatible readout.
+   Recurrent population features are opt-in layers around the dendritic
+   computation path. Named populations feed source-target masks, typed synapse
+   traces feed dendritic integration, and the soma can remain rate-valued or
+   emit LIF spikes with a decoder-compatible readout.
 
 Terminology and computation boundaries:
 
@@ -1277,7 +1344,7 @@ Terminology and computation boundaries:
        kinetic traces, voltage gates, reversal potentials, nonlinearities, and
        short-term plasticity.
    * - Soma dynamics
-     - ``LIFSoma`` or legacy rate output
+     - ``LIFSoma`` or rate output
      - The final population output rule after dendritic integration.
 
 These concepts compose but do not replace each other. A PV population can send
@@ -1514,17 +1581,17 @@ Component summary
    * - Analysis compatibility
      - ``analysis.routing``, ``analysis.dendritic_timetraces``,
        ``analysis.inhibitory_specialization``, ``analysis.spike_train``
-     - Legacy E/I keys remain valid; named-population cores expose additional
+     - Structured E/I keys remain valid; named-population cores expose additional
        population keys.
    * - Recurrent protocol
      - ``dendritic_modeling.networks.RecurrentCore``
      - Lightweight trainer-facing sequence interface plus
        ``SteppableRecurrentCore`` for one-step dendritic populations.
 
-This backend is intentionally separate from legacy ``EILayer`` so existing E/I
-configs and analysis assumptions remain untouched. The implementation keeps
-inputs grouped by polarity for compatibility, while ``connections`` adds
-pair-specific hard masks inside those grouped streams.
+This backend is separate from ``EILayer`` so structured E/I configs and
+analysis assumptions remain stable. The implementation keeps inputs grouped by
+polarity, while ``connections`` adds pair-specific hard masks inside those
+grouped streams.
 
 Config-to-code map
 ~~~~~~~~~~~~~~~~~~
@@ -1537,26 +1604,44 @@ Config-to-code map
      - Implementation
      - Notes
    * - ``population_network.layers[].populations``
-     - ``recurrent.population_network.PopulationNetwork``
-     - Builds one ``StatefulDendriNet`` per named population.
+     - ``recurrent.population_network.PopulationNetwork`` plus
+       ``recurrent.population_layer.PopulationLayer``
+     - Builds ordered population-network layers and one ``StatefulDendriNet``
+       per named population.
    * - ``population_network.layers[].connections``
-     - ``PopulationLayer`` connection routing and masks
+     - ``PopulationLayer`` connection routing, ``population_sources.py``, and
+       ``population_configs.py``
      - Adds deterministic source-target masks inside grouped E/I streams.
    * - ``population_defaults.synapse_types`` or
        ``model.core.synapse_types``
-     - ``recurrent.synapse_types.TypedSynapseBank``
+     - ``recurrent.synapse_types.TypedSynapseBank`` and
+       ``recurrent.stateful_typed_dynamics.StatefulTypedDynamicsMixin``
      - Splits raw E/I currents into typed conductance traces before dendritic
        voltage integration.
    * - ``connectivity.structured``
      - ``structured_mask.sample_*`` plus sparse synapse ``connection_mask``
      - Restricts which presynaptic indices TopK, indexed TopK, stochastic
        TopK, variance TopK, and DeepST can select or rewire.
+   * - ``sparsity.type: indexed_rewire`` / ``indexed`` /
+       ``indexed_dynamic``
+     - ``synapse.factory`` sparse-layer lookup and ``synapse.indexed`` public
+       facade, backed by ``indexed_sparse``, ``indexed_rewire``,
+       ``indexed_dynamic``, and ``indexed_common``
+     - Keeps the historical import path while separating fixed-index,
+       adaptive-rewire, and candidate-pool behavior.
    * - ``dynamics_mode: spike`` / ``model.core.dynamics.mode``
      - ``recurrent.spiking_soma.LIFSoma``
      - Replaces rate-valued soma output with spikes, spike traces, or membrane
        readout without changing the trainer-facing sequence API.
+   * - ``dendritic_spikes_enabled`` /
+       ``model.core.dynamics.dendritic_spikes``
+     - ``recurrent.dendritic_spikes.DendriticSpikeDynamics``
+     - Applies optional local branch threshold or plateau events before the
+       final soma readout.
    * - ``model.transformer_replacement.replacement_kwargs.kind``
-     - ``transformer.dendritic_ffn`` and
+     - ``transformer.modules``, ``transformer.config_translation``,
+       ``transformer.config_translation_population``,
+       ``transformer.patching``, and
        ``training.transformer_replacement``
      - ``dendritic_ffn`` builds per-layer token-wise dendritic FFNs;
        ``ei_stack`` builds ``LayerwiseEIStackReplacement`` slots. Joint and
@@ -1576,7 +1661,7 @@ Synapse Types / Receptor Kinetics
    the shunting/additive voltage uses the summed E vs I conductances.
 
 The recurrent dendritic backend supports optional named synapse types inside a
-population. This extends the old E/I distinction without removing it: E and I
+population. This extends the base E/I distinction: E and I
 still define the sign/polarity and source streams, while named synapse types
 define the conductance mixture, time constants, and reversal potentials within
 each polarity.
@@ -1601,7 +1686,7 @@ Definition levels:
    * - Synapse type
      - A named component within a polarity: fraction, rise/decay kinetics,
        reversal potential, optional voltage gate, nonlinearity, and STP.
-     - A new population, recurrent source, or readout target.
+     - A separate population, recurrent source, or readout target.
    * - Structured mask
      - Which presynaptic indices are allowed to form sparse synapses.
      - Kinetics, reversal potential, or biological receptor identity.
@@ -1671,20 +1756,20 @@ For ``population_network`` models, the same block can live in a layer's
 ``population_defaults`` or inside an individual population's ``population``
 block, allowing different named populations to use different receptor mixtures.
 
-When ``enabled`` is false, the code uses the legacy trace path. When enabled,
+When ``enabled`` is false, the code uses the single-trace path. When enabled,
 both ``excitatory`` and ``inhibitory`` lists must be configured explicitly, and
 each raw E/I current is split by ``fraction`` into per-type traces. A synapse
 type with ``tau: null`` inherits the population's existing per-level tau, which
 makes the single-type AMPA/GABA-A configuration numerically equivalent to the
-legacy recurrent dynamics. In shunting mode, ``reversal_potential`` sets the
+standard recurrent dynamics. In shunting mode, ``reversal_potential`` sets the
 conductance numerator directly. This supports both biologically named receptor
 types and more abstract continuous conductance classes parameterized by their
 effective reversal potential. In additive mode, typed synapses are restricted to
-the normalized legacy convention: excitatory reversal ``1.0`` and inhibitory
+the normalized additive convention: excitatory reversal ``1.0`` and inhibitory
 reversal ``0.0``. Use shunting mode for continuous or biophysical reversal
 potentials.
 
-The kinetics block now supports both compact and biophysical-style forms:
+The kinetics block supports both compact and biophysical-style forms:
 ``tau`` gives a single filtered trace, while ``tau_rise``/``tau_decay`` create
 a double-exponential conductance. NMDA-like voltage dependence is enabled with
 ``magnesium_block: true`` or ``voltage_gate: nmda_magnesium``. The default
@@ -1756,7 +1841,7 @@ the same fields can be supplied under ``model.core.dynamics``:
 
 ``spike_readout: spikes`` returns binary spikes with a fast-sigmoid surrogate
 gradient. ``spike_readout: rate`` returns a leaky spike trace that can be passed
-to the existing decoder and trainer without a new loss function.
+to the existing decoder and trainer without a separate loss function.
 ``spike_readout: membrane`` returns the LIF membrane before thresholding for
 diagnostic rate-vs-spike ablations.
 
@@ -1865,10 +1950,9 @@ modulate dendrites on the next recurrent step.
                soma_feedback_per_level: true
                soma_feedback_init_std: 0.01
 
-For recurrent EINet-style configs translated through the factory, prefer the
-canonical ``model.core.soma_feedback`` block. The older
-``model.core.recurrent_ei.soma_feedback`` location is still accepted for
-backward compatibility:
+For recurrent EINet-style configs translated through the factory, use
+``model.core.soma_feedback``. The
+``model.core.recurrent_ei.soma_feedback`` location is also accepted:
 
 .. code-block:: yaml
 
@@ -2020,9 +2104,11 @@ with the ``unified_ei`` config. Each layer is an ``EILayerConfig`` containing
 ``excitatory`` and ``inhibitory`` ``PopulationConfig`` objects.
 
 The recurrent unified-EI path reuses the same ``DendriticBranchLayer`` and
-``initialize.py`` logic as the feedforward EI stack. The main difference is
-that recurrent populations wrap those branch layers with per-level temporal
-traces and optional recurrent synapse banks.
+dendritic initialization modules as the feedforward EI stack. ``initialize.py``
+is the compatibility facade; expectation math, reactivation calibration,
+scaling, and named initialization methods live in adjacent ``initialize_*``
+modules. Recurrent populations then wrap those branch layers with per-level
+temporal traces and optional recurrent synapse banks.
 
 PopulationConfig fields
 ^^^^^^^^^^^^^^^^^^^^^^^

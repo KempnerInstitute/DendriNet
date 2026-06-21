@@ -1,8 +1,11 @@
 # ============================================================================
-# DENDRITIC MODELING FRAMEWORK -- COMPLETE CONFIGURATION REFERENCE
+# DENDRITIC MODELING FRAMEWORK -- POPULATION-NETWORK REFERENCE CONFIG
 # ============================================================================
-# Every parameter accepted by the framework is listed below with its default
-# value and the full set of valid options.
+# This is the runnable single-GPU reference config. The active core is defined
+# with the named-population schema under model.core.population_network.
+# E/I compatibility fields are supported by the loader and factory for existing
+# configs, but they are not listed here because population_network does not read
+# them.
 #
 # USAGE:
 #   python src/dendritic_modeling/scripts/training/train_experiments.py configs/config_exp.yaml
@@ -149,189 +152,14 @@ model:
 
   # ---------- Core network ----------
   core:
-    # Canonical named-population model:
-    #   "population_network"
-    #
-    # Legacy EI (feedforward / recurrent-capable via core.recurrent_ei or connectivity.rec_*):
-    #   "einet" | "dendritic_shunting" | "dendritic_additive" | "dendritic_normalized_additive" | "flat_shunting" | "flat_additive" | "flat_normalized_additive" | "dendritic_mlp" | "flat_mlp"
-    # Unified EI (recommended): "unified_ei" | "ei_unified"
-    # Recurrent unified-EI aliases:
-    #   "rnn_dendritic_shunting" | "rnn_dendritic_additive" | "rnn_dendritic_normalized_additive" | "rnn_flat_shunting" | "rnn_flat_additive" | "rnn_flat_normalized_additive"
-    # Baseline RNN: "gru" | "lstm" | "vanilla_rnn" | "rnn"
-    # Point neuron MLP: "mlp" | "point_mlp" | "total_param_mlp" | "active_param_mlp" | "ss_mlp" | "ss_mlp_flat"
-    # Spatial dendritic pretrained-replacement cores:
-    #   "hierarchical_dendritic_tensor_map" | "dendritic_tensor_map" | "tensor_map"
-    #       -> pretrained-replacement baseline/control: use pretrained prefix/suffix, but initialize a new dendritic core;
-    #          flatten prefix tensor, run EINet, and optionally project core_dim -> flat suffix input dim
-    #   "hierarchical_dendritic_conv" | "spatial_dendritic_conv"
-    #       -> local spatial dendritic operator for convolutional suffixes
-    # Transformer-replacement FFN: "dendritic_ffn" (dendritic MLP replacing a transformer MLP block)
-    # Classical: "alexnet" | "cnn" | "cnn_down" | "cnn_up" | "identity" | "none"
+    # Named-population model. See configs/examples/ for focused variants
+    # covering spiking, receptor kinetics, recurrent timing, additive
+    # normalization, sparse rewiring, and local learning.
     type: "population_network"
-
-    # ---- Architecture ----
-    architecture:
-      excitatory_layer_sizes: [128]     # list[int]: Legacy EI neurons per excitatory layer
-      inhibitory_layer_sizes: [32]      # list[int]: Legacy EI neurons per inhibitory layer
-      excitatory_branch_factors: [3, 3, 3]  # list[int]: Legacy EI branches per excitatory neuron
-      inhibitory_branch_factors: [1]    # list[int]: Branches per inhibitory neuron per layer
-      input_projection_dims: []         # list[int]: Per-layer input projection dims (empty = none)
-      inhibitory_network_type: "dendritic"  # str: "dendritic" | "mlp"
-      mlp_inhibitory_network_params:    # dict: MLP inhibitory network params
-        hidden_dims: [200]              # list[int]: MLP hidden layer sizes
-        activation: "relu"              # str: MLP activation function
-
-    # ---- Connectivity ----
-    connectivity:
-      ee_synapses_per_branch_per_layer: [40]  # list[int]: E->E synapses per branch per layer
-      ei_synapses_per_branch_per_layer: [10]  # list[int]: E->I synapses per branch per layer
-      ie_synapses_per_branch_per_layer: [10]  # list[int]: I->E synapses per branch per layer
-      ii_synapses_per_branch_per_layer: [0]   # list[int]: I->I synapses per branch per layer
-      rec_ee_synapses_per_branch: [0]   # list[int]: Recurrent E->E synapses per branch per layer
-      rec_ie_synapses_per_branch: [0]   # list[int]: Recurrent I->E synapses per branch per layer
-      rec_ei_synapses_per_branch: [0]   # list[int]: Recurrent E->I synapses per branch per layer
-      rec_ii_synapses_per_branch: [0]   # list[int]: Recurrent I->I synapses per branch per layer
-      structured:
-        enabled: false                  # bool: Hard mask allowed synapse locations before TopK/DeepST
-        seed: null                      # int | null: Random seed for sampled masks
-        method: "bernoulli"             # str: "bernoulli" | "fixed_indegree" | "distance"
-        probability: null               # float | list[float] | null: Default Bernoulli p
-        indegree: null                  # int | list[int] | null: Default fixed incoming degree
-        distance_kernel: "none"         # str: "none" | "gaussian" | "exponential"
-        distance_sigma: 1.0             # float: Spatial kernel width for distance masks
-        pathways: {}                    # dict: Optional per-pathway overrides: ee, ie, ei, ii, rec_ee, rec_ie, rec_ei, rec_ii
-
-    # ---- Transfer function ----
-    transfer:
-      input_mode: 0                     # int: Input routing mode (0, 1, 2, 3, ...)
-      allow_direct_inhibitory_stream: true  # bool: Explicitly use transferred inhibitory stream without I cells
-      independent_pathways: false       # bool: Independent pathway processing
-      excitatory_dim: null              # int | null: Override excitatory dim
-      inhibitory_dim: null              # int | null: Override inhibitory dim
-      output_activation: null           # str | null: Output activation (null = none)
-      inhibitory_mode: "first"          # str: "none" | "first" | "all"
-
-    # ---- Morphology ----
-    morphology:
-      somatic_synapses: false           # bool: Direct somatic synapses
-      use_shunting: true                # bool: Shunting inhibition
-      use_additive_normalization: false  # bool: Normalize voltage in additive mode
-      allow_self_recurrence: true       # bool: Allow same-neuron recurrent self-connections in translated recurrent cores
-      weight_transform: "softplus"      # str: "exp" | "softplus" | "relu" | "identity"
-      dbl_init_method: "analytical_expectation"  # str: "analytical_expectation" | "uniform" | "ones"
-
-    # ---- Sparsity ----
-    sparsity:
-      init_method: "xavier_normal"      # str: "xavier_normal" | "kaiming_normal" | "uniform"
-      noise_level: 0.0                  # float: Additive noise on init
-      type: "standard"                  # str: "standard" | "stochastic" | "variance" | "deepst" | "indexed" | "indexed_dynamic" | "indexed_rewire" | "dense_to_sparse" (legacy "topk" -> "standard")
-      weight_norm_order: null           # int | null: Weight norm order (null = off)
-      gamma: 1.0                        # float: TopK gamma
-      temperature: 0.0                  # float: TopK temperature (0 = hard)
-      gradient_scaling: "none"          # str: "none" | "fan_in" | "fan_out"
-      deepst:
-        excitatory_target_density: 0.1  # float: Target sparsity for excitatory
-        inhibitory_target_density: 0.1  # float: Target sparsity for inhibitory
-        use_noise: true                 # bool: Noise in rewiring
-        sigma: 0.05                     # float: Rewiring noise std
-        rewiring_mode: "global"         # str: "global" | "local"
-        rewire_frequency: 1             # int: Rewire every N epochs
-        synapses_per_branch: null       # int | null: Fixed synapse budget (null = auto)
-        freeze_excitatory_connectivity: false  # bool: Freeze E connectivity
-        freeze_inhibitory_connectivity: false  # bool: Freeze I connectivity
-        init_method: "xavier_normal"    # str: Init method for DeepST
-        weight_threshold: 0.000001      # float: Minimum weight threshold
-      indexed:
-        candidate_size: null            # int | null: Candidate pool size for indexed_dynamic
-        selection: "standard"           # str: "standard" | "stochastic"
-        seed: null                      # int | null: Reproducible sampled sparse indices
-        output_chunk_size: 2048         # int: Chunked sparse gather output rows
-        rewire_frequency: 100           # int: indexed_rewire update period in optimizer steps
-        rewire_quantile: 0.05           # float: Weakest active same-row fraction to replace
-        rewire_until_step: null         # int | null: Stop rewiring after this step
-
-    # ---- Reactivation ----
-    reactivation:
-      enabled: true                     # bool: Enable reactivation function
-      type: "param_tanh"                # str: "param_tanh" | "relu" | "sigmoid" | "none"
-      init_policy: "occupancy_quantile"
-      init_m: 1.5                       # float: Initial slope (m)
-      init_b: 0.5                       # float: Initial bias (b)
-      gradient_scaling: "none"          # str: "none" | "fan_in" | "fan_out"
-
-    # ---- BlockLinear ----
-    blocklinear:
-      gradient_scaling: "none"          # str: "none" | "fan_in" | "fan_out"
-      efficient: false                  # bool: Use memory-efficient implementation
-
-    # ---- Implementation ----
-    implementation:
-      adaptive_initialization: false    # bool: Adaptive weight initialization
-      adaptive_initialization_policy: "preserve_shunting_center"  # str: "preserve_shunting_center" | "legacy_scale"
-      adaptive_target_conductance: 5.0   # float: Conductance budget for adaptive initialization
-      print_hooks: false                # bool: Print hook debug info
-      store_routing: false              # bool: Store routing (alpha) info for analysis
-
-    # ---- Spatial (for hierarchical_dendritic_conv core type) ----
-    # Used only when the pretrained replacement suffix still expects spatial input.
-    # Geometry is user-specified here; it is not inferred from an arbitrary replaced block.
-    spatial:
-      kernel_size: 3                    # int: Receptive field size (unfold kernel)
-      stride: 1                         # int: Stride for unfold
-      padding: 0                        # int: Padding before unfold (set = kernel_size//2 for same-size)
-
-    # ---- Synapse types / receptor kinetics (opt-in recurrent cores) ----
-    synapse_types:
-      enabled: false                    # bool: Enable receptor/conductance-style synapse mixtures
-      excitatory:
-        - name: "AMPA"                  # str: Synapse/receptor name
-          fraction: 1.0                 # float: Mixture weight within excitatory input
-          tau: null                     # float | null: Single exponential tau (legacy if null)
-          tau_rise: null                # float | null: Double-exponential rise tau
-          tau_decay: null               # float | null: Double-exponential decay tau
-          reversal_potential: 1.0       # float: Driving-force reversal potential
-          nonlinearity: "linear"        # str: "linear" | "relu" | "sigmoid" | "tanh" | "softplus"
-          conductance_power: 1.0        # float: Optional conductance exponent
-          magnesium_block: false        # bool: Alias for voltage_gate="nmda_magnesium"
-          voltage_gate: "none"          # str: "none" | "nmda_magnesium" | "sigmoid"
-          mg_concentration: 1.0         # float: NMDA magnesium concentration
-          mg_scale: 3.57                # float: NMDA Mg-block scale
-          mg_slope: 16.13               # float: NMDA Mg-block voltage slope
-          mg_v_offset: 0.0              # float: NMDA Mg-block voltage offset
-          voltage_scale_mv: 100.0       # float: Unitless branch voltage -> mV scale for voltage gates
-          stp:
-            enabled: false              # bool: Enable short-term plasticity gate
-            u0: 0.2                     # float: Baseline utilization
-            tau_u: 200.0                # float: Facilitation recovery tau
-            tau_x: 700.0                # float: Depression recovery tau
-            facilitation: 0.0           # float: Facilitation strength
-            depression: 1.0             # float: Depression strength
-            differentiable_state: false  # bool: Let BPTT flow through STP state history
-      inhibitory:
-        - name: "GABA_A"
-          fraction: 1.0
-          tau: null
-          tau_rise: null
-          tau_decay: null
-          reversal_potential: 0.0
-          nonlinearity: "linear"
-          conductance_power: 1.0
-          voltage_gate: "none"
-
-    # ---- Soma dynamics (opt-in recurrent cores) ----
-    dynamics:
-      mode: "rate"                      # str: "rate" | "spike"; rate preserves legacy behavior
-      threshold: 1.0                    # float: LIF spike threshold when mode="spike"
-      reset: 0.0                        # float: LIF reset voltage
-      tau: 20.0                         # float: LIF membrane tau
-      refractory_steps: 0               # int: Refractory steps after spike
-      surrogate_beta: 10.0              # float: Surrogate-gradient sharpness
-      readout: "spikes"                 # str: "spikes" | "rate" | "membrane"
-      readout_tau: 20.0                 # float: Rate-decoded spike trace tau
 
     # ---- Population network / named populations (core.type: population_network) ----
     population_network:
-      use_transfer: false               # bool: use legacy TransferLayer before first population layer
+      use_transfer: false               # bool: Use TransferLayer before first population layer
       transfer_params: {}               # dict: input_mode, independent_pathways, output_activation, etc.
       output_mode: "last"               # str: "last" | "mean" | "all" for recurrent sequence output
       input_projection_dims: []         # list[int]: Optional input projection MLP dims
@@ -353,8 +181,14 @@ model:
             reactivation_init_b: 0.5
             dbl_init_method: "analytical_expectation"
             weight_transform: "softplus"
-            topk_type: "standard"
+            topk_type: "indexed_rewire"
             topk_init_method: "xavier_normal"
+            indexed_seed: 42
+            indexed_rewire_frequency: 100
+            indexed_rewire_quantile: 0.05
+            indexed_rewire_until_step: null
+            indexed_output_chunk_size: 2048
+            efficient_blocklinear: true
           populations:
             - name: "i"
               polarity: "inhibitory"
@@ -374,18 +208,6 @@ model:
             - source: "i"
               target: "e"
 
-    # Old core.recurrent/BranchConfig payloads are deprecated and intentionally
-    # omitted from this template. Use unified_ei, recurrent_ei, or baseline_rnn.
-
-    # ---- Unified EI (dict, structure depends on architecture) ----
-    unified_ei: {}                      # dict: Unified E-I architecture config payload
-
-    # ---- Recurrent EI (dict, for EINet-family recurrent mode) ----
-    recurrent_ei: {}                    # dict: Recurrent EINetwork config payload
-
-    # ---- Baseline RNN (dict, for gru/lstm/vanilla_rnn) ----
-    baseline_rnn: {}                    # dict: Baseline recurrent core config payload
-
   # ---------- Decoder ----------
   decoder:
     type: "MLP"                         # str: "MLP" | "linear"
@@ -395,8 +217,8 @@ model:
       activation: "relu"               # str: "relu" | "gelu" | "tanh" | "sigmoid"
       output_dim: 10                    # int: Number of output classes/dims
 
-  # ---------- Pretrained replacement ----------
-  pretrained_replacement:
+  # ---------- Vision replacement ----------
+  vision_replacement:
     enabled: false                      # bool: Replace layers in pretrained backbone
     backbone: "alexnet"                 # str: "alexnet" | "resnet18" | "resnet50" | "vgg16" | etc.
     weights: "IMAGENET1K_V1"            # str | null: Pretrained weights identifier
@@ -404,9 +226,7 @@ model:
     # Replacement contract:
     #   tensor_map core -> use when suffix expects flat input
     #   dendritic_conv core -> use when suffix expects spatial input
-    replace:
-      start: ""                         # str: First replaced layer name (inclusive)
-      end: ""                           # str: Last replaced layer name (inclusive)
+    target_modules: []                  # list[str]: Contiguous backbone module names to replace
     omit_layers: []                     # list[str]: Layers to omit from encoder/decoder
     trainability:
       encoder:
@@ -501,7 +321,7 @@ training:
         freeze_reactivation: true       # bool: Freeze reactivation during stabilization
         target_voltage: 0.5             # float: Target voltage
         loss_metric: "mse"              # str: "mse" | "mae"
-        # NOTE: this is the older autograd-based warm-up trainer.
+        # NOTE: this is the autograd-based warm-up trainer.
         # For the strictly local counterpart, use local_ca with
         # learning_strategy_config.rule_variant = "3f_vh" / "4f_vh" / "5f_vh".
 
@@ -832,9 +652,9 @@ training:
 analysis:
   # Shared dataset-iteration policy for all analysis modules.
   # Recommended defaults:
-  #   auto        -> best default; small datasets behave like the old path
+  #   auto        -> best default; small datasets use the materialized path
   #                  because they stay materialized, large datasets stream.
-  #   materialize -> closest match to the old exact single-GPU path; hook-based
+  #   materialize -> exact single-GPU materialized tensor path; hook-based
   #                  analyses use one full batch when dataset slicing is supported.
   #   stream      -> safest choice for large datasets such as ImageNet.
   # Models may be moved temporarily to the requested analysis device, but the
@@ -855,7 +675,7 @@ analysis:
       pin_memory: true                  # bool: Pin memory for GPU transfer (auto-disabled on CPU analysis)
       max_batches: null                 # int | null: Optional cap (usually leave null for final analysis)
       max_samples: null                 # int | null: Use when heavy analyses must inspect only a bounded subset
-      materialize_threshold_mb: 1024    # int: Auto-mode threshold (MB); use materialize for exact old small-dataset behavior
+      materialize_threshold_mb: 1024    # int: Auto-mode threshold (MB); use materialize for exact small-dataset analysis
 
   # ---------- Performance ----------
   performance:
@@ -875,12 +695,11 @@ analysis:
     enabled: true                       # bool: Enable information analysis
     training: false                     # bool: Run during training
     params:
-      # -- New grouped structure (preferred) --
+      # -- Grouped structure --
       selection:
         components: []                  # list[str]: "basic" | "pairwise" | "conditional" | "gaussian_fisher" | "pid" | "ablation_aligned" | "layer_proxies" | "upstream_unique_cmi"
         scopes: []                      # list[str]: "layer" | "einet" | "neuron"
         signal_variants: []             # list[str]: "network" | "lda" | "random"
-        views: []                       # list[str]: Deprecated alias for scopes
       compute:
         max_samples: null               # int | null: Limit samples (null = all)
         include_vinf: true              # bool: Include soma activation
@@ -895,10 +714,6 @@ analysis:
           mi_transform: "half_log1p"    # str: "half_log1p" | "log1p" | "none"
           eps: 0.00000001               # float: Numerical epsilon
           ridge: null                   # float | null: Ridge parameter (null = use eps)
-        per_neuron_analysis: false      # bool: (deprecated) Per-neuron MI
-        per_einet_analysis: false       # bool: (deprecated) Per-EI-net MI
-        per_layer_analysis: false       # bool: (deprecated) Per-layer MI
-        compute_lda_weights: false      # bool: (deprecated) Compute LDA variants
       estimator:
         method: "kraskov"               # str: "kraskov" | "decoder" | "binned" | "sklearn" | "copula" | "auto"
         kraskov:
@@ -934,54 +749,12 @@ analysis:
         binarize_method: "median"       # str: "median" | "mean" | "quantile"
         binarize_threshold: 0.5         # float: Binarization threshold
 
-      # -- Legacy flat keys (deprecated) --
-      method: "kraskov"                 # str: (deprecated) -> estimator.method
-      max_samples: null                 # int | null: (deprecated) -> compute.max_samples
-      n_neighbors: 10                   # int: (deprecated) -> estimator.kraskov.n_neighbors
-      n_bins: 20                        # int: (deprecated) -> estimator.binned.n_bins
-      copula_type: "gaussian"           # str: (deprecated) -> estimator.copula.type
-      decoder_cv_folds: 5              # int: (deprecated) -> estimator.decoder.cv_folds
-      decoder_C: 1.0                   # float: (deprecated) -> estimator.decoder.C
-      decoder_standardize: true        # bool: (deprecated) -> estimator.decoder.standardize
-      decoder_seed: 0                  # int: (deprecated) -> estimator.decoder.seed
-      decoder_continuous_strategy: "none"  # str: (deprecated) -> estimator.decoder.continuous.strategy
-      decoder_continuous_max_total_dim: 2  # int: (deprecated) -> estimator.decoder.continuous.max_total_dim
-      decoder_gaussian_ridge: 0.000001  # float: (deprecated) -> estimator.decoder.continuous.gaussian_ridge
-      binning_strategy: "quantile"     # str: (deprecated) -> estimator.binned.binning_strategy
-      binning_bias_correction: "none"  # str: (deprecated) -> estimator.binned.bias_correction
-      mi_null_shuffles: 0              # int: (deprecated) -> baselines.label_shuffle_null.n_shuffles
-      mi_null_seed: 0                  # int: (deprecated) -> baselines.label_shuffle_null.seed
-      compute_basic_mi: true           # bool: (deprecated) -> selection.components
-      compute_pairwise_mi: true        # bool: (deprecated) -> selection.components
-      compute_conditional_mi: true     # bool: (deprecated) -> selection.components
-      components: []                   # list[str]: (deprecated) -> selection.components
-      compute_ablation_aligned_mi: true  # bool: (deprecated) -> selection.components
-      compute_upstream_unique_cmi: false  # bool: (deprecated) -> selection.components
-      compute_layer_total_proxies: true  # bool: (deprecated) -> selection.components
-      layer_total_topk: 10             # int: (deprecated) -> compute.layer_total_topk
-      scopes: []                       # list[str]: (deprecated) -> selection.scopes
-      views: []                        # list[str]: (deprecated) -> selection.scopes
-      pid_binarize: true               # bool: (deprecated) -> pid.binarize
-      pid_binarize_method: "median"    # str: (deprecated) -> pid.binarize_method
-      pid_binarize_threshold: 0.5      # float: (deprecated) -> pid.binarize_threshold
-      include_vinf: true               # bool: (deprecated) -> compute.include_vinf
-      normalize_mi: false              # bool: (deprecated) -> compute.normalize_mi
-      verbose: false                   # bool: (deprecated) -> compute.verbose
-      computation_level: "single_branch"  # str: (deprecated) -> compute.computation_level
-      branch_aggregation: "mean"       # str: (deprecated) -> compute.branch_aggregation
-      per_neuron_analysis: false       # bool: (deprecated) -> selection.scopes
-      per_einet_analysis: false        # bool: (deprecated) -> selection.scopes
-      per_layer_analysis: false        # bool: (deprecated) -> selection.scopes
-      compute_lda_weights: false       # bool: (deprecated) -> selection.signal_variants
-      signal_variants: []              # list[str]: (deprecated) -> selection.signal_variants
-      lda_n_shuffles: 0               # int: (deprecated) -> baselines.random_weights.n_shuffles
-
   # ---------- Correlation ----------
   correlation:
     enabled: false                      # bool: Enable correlation analysis
     training: false                     # bool: Run during training
     params:
-      # -- New grouped structure (preferred) --
+      # -- Grouped structure --
       selection:
         components: []                  # list[str]: "total" | "noise" | "signal" | "tuning"
         pairs: []                       # list[str]: "EE" | "II" | "EI" | "E_output" | "I_output" | "output_output"
@@ -998,30 +771,6 @@ analysis:
         sampling_strategy: "stratified" # str: "random" | "stratified" | "importance"
         stratified_categories: ["within_branch", "within_layer", "across_layer"]  # list[str]
         max_pairs_per_category: 1000    # int: Max pairs per stratified category
-      # -- Legacy flat keys (deprecated) --
-      computation_level: "layer_branch" # str: (deprecated) -> compute.computation_level
-      components: []                    # list[str]: (deprecated) -> selection.components
-      pairs: []                         # list[str]: (deprecated) -> selection.pairs
-      scopes: []                        # list[str]: (deprecated) -> selection.scopes
-      compute_noise_correlations: true  # bool: (deprecated) Within-class correlations
-      compute_signal_correlations: true # bool: (deprecated) Between-class correlations
-      compute_total_correlations: true  # bool: (deprecated) All-data correlations
-      compute_tuning_curves: true       # bool: (deprecated) Class selectivity
-      analyze_EE: true                  # bool: (deprecated) E-E correlations
-      analyze_II: true                  # bool: (deprecated) I-I correlations
-      analyze_EI: true                  # bool: (deprecated) E-I correlations
-      analyze_E_output: true            # bool: (deprecated) E-output correlations
-      analyze_I_output: true            # bool: (deprecated) I-output correlations
-      analyze_output_output: true       # bool: (deprecated) Output-output correlations
-      per_layer_analysis: true          # bool: (deprecated) -> compute.per_layer_analysis
-      per_einet_analysis: true          # bool: (deprecated) -> compute.per_einet_analysis
-      per_neuron_analysis: false        # bool: (deprecated) -> compute.per_neuron_analysis
-      n_synapse_pairs: 10000            # int: (deprecated) -> sampling.n_synapse_pairs
-      sampling_strategy: "stratified"   # str: (deprecated) -> sampling.sampling_strategy
-      stratified_categories: ["within_branch", "within_layer", "across_layer"]
-      max_pairs_per_category: 1000      # int: (deprecated) -> sampling.max_pairs_per_category
-      max_samples: 5000                 # int | null: (deprecated) -> compute.max_samples
-      batch_process: true               # bool: (deprecated) -> compute.batch_process
 
   # ---------- Ablation ----------
   ablation:

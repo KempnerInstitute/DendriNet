@@ -14,7 +14,7 @@ from dendritic_modeling.config import load_config
 from dendritic_modeling.networks.architectures.transformer import (
     apply_transformer_replacement_config,
 )
-from dendritic_modeling.training.transformer_replacement import _to_plain_mapping
+from dendritic_modeling.training.replacement_common import _to_plain_mapping
 
 DEFAULT_PROMPTS = [
     "Question: What is the main purpose of the hippocampus in memory?\nAnswer:",

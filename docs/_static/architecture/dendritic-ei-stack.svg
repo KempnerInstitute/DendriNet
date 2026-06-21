@@ -91,7 +91,7 @@
   <text x="182" y="821" class="label">h_I^(l)</text>
   <rect x="400" y="788" width="182" height="50" class="exc"/>
   <text x="464" y="821" class="label">h_E^(l)</text>
-  <text x="110" y="848" class="small">repeat with new sizes, branch_factors, and synapse budgets</text>
+  <text x="110" y="848" class="small">repeat with chosen sizes, branch_factors, and synapse budgets</text>
 
   <rect x="680" y="468" width="580" height="200" class="formula"/>
   <text x="710" y="510" class="label">Layer update</text>

@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the dendritic schematic used in the README.
-
-Restored from the historical docs figure pipeline and simplified to emit a
-text-free schematic by default.
-"""
+"""Generate the dendritic schematic used in the README."""
 
 from __future__ import annotations
 
@@ -254,7 +250,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--with-text",
         action="store_true",
-        help="Include labels, legend, and title from the historical figure.",
+        help="Include labels, legend, and title.",
     )
     return parser.parse_args()
 

@@ -33,7 +33,7 @@ When to Use What
    * - Mode
      - When to use
    * - ``none``
-     - Model fits on one GPU; development and debugging
+     - Model fits on one GPU; single-process debugging
    * - ``ddp``
      - Model fits on one GPU; want data-parallel speedup across GPUs
    * - ``fsdp``

@@ -11,8 +11,22 @@ import torch.nn as nn
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer import (
     DendriticBranchLayer,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.synapse_config import (
+    DendriticSynapseConfig,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.structured_mask import (
     sample_configured_mask,
+)
+from dendritic_modeling.networks.architectures.recurrent.dendritic_geometry import (
+    compute_input_branch_factors,
+    compute_level_sizes,
+    compute_output_owner_index_per_level,
+    resolve_synapses_by_level,
+)
+from dendritic_modeling.networks.architectures.recurrent.dendritic_spikes import (
+    DendriticSpikeDynamics,
+    previous_dendritic_spike_state,
+    resolve_dendritic_spike_levels,
 )
 from dendritic_modeling.networks.architectures.recurrent.ei_config import (
     PopulationConfig,
@@ -20,73 +34,16 @@ from dendritic_modeling.networks.architectures.recurrent.ei_config import (
 from dendritic_modeling.networks.architectures.recurrent.ei_state import DendriNetState
 from dendritic_modeling.networks.architectures.recurrent.spiking_soma import (
     LIFSoma,
-    SurrogateSpike,
+)
+from dendritic_modeling.networks.architectures.recurrent.stateful_typed_dynamics import (
+    StatefulTypedDynamicsMixin,
 )
 from dendritic_modeling.networks.architectures.recurrent.synapse_types import (
-    SynapseTypeConfig,
     build_synapse_type_set,
 )
 
 
-def _compute_level_sizes(n_soma: int, branch_factors: list[int]) -> list[int]:
-    """Compute output dimensions per level (distal to soma order).
-
-    For n_soma=10, branch_factors=[3,2]:
-      soma=10, level_1=10*2=20, level_0=20*3=60
-      Returns [60, 20, 10] (distal first, soma last).
-    """
-    sizes = [n_soma]
-    for bf in branch_factors:
-        sizes.append(sizes[-1] * bf)
-    sizes.reverse()
-    return sizes
-
-
-def _compute_input_branch_factors(branch_factors: list[int]) -> list[Optional[int]]:
-    """Compute branch aggregation factors per level.
-
-    First (most distal) level has no branch input (None).
-    Each subsequent level aggregates children from previous level.
-    """
-    rev_bf = list(reversed(branch_factors))
-    return [None, *rev_bf]
-
-
-def _compute_output_owner_index_per_level(
-    level_dims: list[int], n_soma: int
-) -> list[torch.Tensor]:
-    """Map each branch output at a level to its parent soma-neuron index."""
-    owner_indices = []
-    for level_dim in level_dims:
-        if level_dim % n_soma != 0:
-            raise ValueError(
-                f"Level dimension {level_dim} must be divisible by soma count {n_soma}"
-            )
-        repeats_per_soma = level_dim // n_soma
-        owner_indices.append(
-            torch.arange(level_dim, dtype=torch.long) // repeats_per_soma
-        )
-    return owner_indices
-
-
-def _resolve_synapses_by_level(
-    *,
-    per_level: list[int],
-    fallback: int,
-    n_levels: int,
-    field_name: str,
-) -> list[int]:
-    if not per_level:
-        return [int(fallback)] * n_levels
-    if len(per_level) != n_levels:
-        raise ValueError(
-            f"{field_name} length must match number of dendritic levels "
-            f"({n_levels}), got {len(per_level)}"
-        )
-    return [int(v) for v in per_level]
-
-
-class StatefulDendriNet(nn.Module):
+class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
     """Dendritic population module for feedforward and recurrent operation.
 
     Constructs a hierarchy of DendriticBranchLayers with all 4 synaptic
@@ -136,11 +93,11 @@ class StatefulDendriNet(nn.Module):
         self._last_routing_info: dict = {}
         self._active_level_silencing: Optional[torch.Tensor] = None
         self._n_soma = pop_config.n_neurons
-        self._level_dims = _compute_level_sizes(
+        self._level_dims = compute_level_sizes(
             n_soma=pop_config.n_neurons,
             branch_factors=pop_config.branch_factors,
         )
-        self._output_owner_index_per_level = _compute_output_owner_index_per_level(
+        self._output_owner_index_per_level = compute_output_owner_index_per_level(
             self._level_dims, self._n_soma
         )
         self.n_levels = len(self._level_dims)
@@ -160,8 +117,22 @@ class StatefulDendriNet(nn.Module):
         self.dendritic_spike_propagation = str(
             pop_config.dendritic_spike_propagation
         ).lower()
-        self.dendritic_spike_level_indices = self._resolve_dendritic_spike_levels(
-            pop_config.dendritic_spike_levels
+        self.dendritic_spike_level_indices = resolve_dendritic_spike_levels(
+            self.dendritic_spikes_enabled,
+            pop_config.dendritic_spike_levels,
+            self.n_levels,
+        )
+        self.dendritic_spike_dynamics = DendriticSpikeDynamics(
+            enabled=self.dendritic_spikes_enabled,
+            level_indices=self.dendritic_spike_level_indices,
+            mode=self.dendritic_spike_mode,
+            threshold=self.dendritic_spike_threshold,
+            plateau_amplitude=self.dendritic_spike_plateau_amplitude,
+            plateau_tau=self.dendritic_spike_plateau_tau,
+            refractory_steps=self.dendritic_spike_refractory_steps,
+            surrogate_beta=self.dendritic_spike_surrogate_beta,
+            propagation=self.dendritic_spike_propagation,
+            dt=self.dt,
         )
         self.soma_feedback_enabled = bool(pop_config.soma_feedback_enabled)
         self.soma_feedback_mode = str(pop_config.soma_feedback_mode).lower()
@@ -248,26 +219,26 @@ class StatefulDendriNet(nn.Module):
 
         # Build branch layers (distal to soma)
         self.branch_layers = nn.ModuleList()
-        input_branch_factors = _compute_input_branch_factors(pop_config.branch_factors)
-        ff_exc_by_level = _resolve_synapses_by_level(
+        input_branch_factors = compute_input_branch_factors(pop_config.branch_factors)
+        ff_exc_by_level = resolve_synapses_by_level(
             per_level=pop_config.ff_excitatory_synapses_by_level,
             fallback=pop_config.ff_excitatory_synapses,
             n_levels=self.n_levels,
             field_name="ff_excitatory_synapses_by_level",
         )
-        ff_inh_by_level = _resolve_synapses_by_level(
+        ff_inh_by_level = resolve_synapses_by_level(
             per_level=pop_config.ff_inhibitory_synapses_by_level,
             fallback=pop_config.ff_inhibitory_synapses,
             n_levels=self.n_levels,
             field_name="ff_inhibitory_synapses_by_level",
         )
-        rec_exc_by_level = _resolve_synapses_by_level(
+        rec_exc_by_level = resolve_synapses_by_level(
             per_level=pop_config.rec_excitatory_synapses_by_level,
             fallback=pop_config.rec_excitatory_synapses,
             n_levels=self.n_levels,
             field_name="rec_excitatory_synapses_by_level",
         )
-        rec_inh_by_level = _resolve_synapses_by_level(
+        rec_inh_by_level = resolve_synapses_by_level(
             per_level=pop_config.rec_inhibitory_synapses_by_level,
             fallback=pop_config.rec_inhibitory_synapses,
             n_levels=self.n_levels,
@@ -275,70 +246,72 @@ class StatefulDendriNet(nn.Module):
         )
         direct_connection_masks = connection_masks_by_pathway or {}
 
-        # Common DendriticBranchLayer kwargs from PopulationConfig
-        common_kwargs = {
-            "topk_init_method": pop_config.topk_init_method,
-            "topk_noise_level": pop_config.topk_noise_level,
-            "topk_type": pop_config.topk_type,
-            "topk_weight_norm_order": pop_config.topk_weight_norm_order,
-            "topk_gamma": pop_config.topk_gamma,
-            "topk_temperature": pop_config.topk_temperature,
-            "topk_ultrafast": pop_config.topk_ultrafast,
-            "topk_strategy": pop_config.topk_strategy,
-            "indexed_seed": pop_config.indexed_seed,
-            "indexed_candidate_size": pop_config.indexed_candidate_size,
-            "indexed_selection": pop_config.indexed_selection,
-            "indexed_output_chunk_size": pop_config.indexed_output_chunk_size,
-            "indexed_rewire_frequency": pop_config.indexed_rewire_frequency,
-            "indexed_rewire_quantile": pop_config.indexed_rewire_quantile,
-            "indexed_rewire_until_step": pop_config.indexed_rewire_until_step,
-            "dense_to_sparse_initial_density": pop_config.dense_to_sparse_initial_density,
-            "dense_to_sparse_initial_k": pop_config.dense_to_sparse_initial_k,
-            "dense_to_sparse_start_step": pop_config.dense_to_sparse_start_step,
-            "dense_to_sparse_end_step": pop_config.dense_to_sparse_end_step,
-            "dense_to_sparse_update_interval": pop_config.dense_to_sparse_update_interval,
-            "dense_to_sparse_schedule": pop_config.dense_to_sparse_schedule,
-            "dense_to_sparse_freeze_on_end": pop_config.dense_to_sparse_freeze_on_end,
-            "dense_to_sparse_advance_on_forward": pop_config.dense_to_sparse_advance_on_forward,
-            "dense_to_sparse_prune_metric": pop_config.dense_to_sparse_prune_metric,
-            "use_shunting": pop_config.use_shunting,
-            "use_additive_normalization": pop_config.use_additive_normalization,
-            "reactivate": pop_config.reactivate,
-            "reactivation_type": pop_config.reactivation_type,
-            "reactivation_init_m": pop_config.reactivation_init_m,
-            "reactivation_init_b": pop_config.reactivation_init_b,
-            "reactivation_init_policy": pop_config.reactivation_init_policy,
-            "reactivation_occupancy_quantile_low": pop_config.reactivation_occupancy_quantile_low,
-            "reactivation_occupancy_quantile_high": pop_config.reactivation_occupancy_quantile_high,
-            "reactivation_occupancy_target_low": pop_config.reactivation_occupancy_target_low,
-            "reactivation_occupancy_target_high": pop_config.reactivation_occupancy_target_high,
-            "reactivation_calibration_min_quantile_width": pop_config.reactivation_calibration_min_quantile_width,
-            "reactivation_calibration_max_m": pop_config.reactivation_calibration_max_m,
-            "reactivation_calibration_revert_on_invalid": pop_config.reactivation_calibration_revert_on_invalid,
-            "reactivation_sigma_aware_k": pop_config.reactivation_sigma_aware_k,
-            "reactivation_strategy": pop_config.reactivation_strategy,
-            "blocklinear_strategy": pop_config.blocklinear_strategy,
-            "weight_transform": pop_config.weight_transform,
-            "epsilon": pop_config.epsilon,
-            "dbl_init_method": pop_config.dbl_init_method,
-            "efficient_blocklinear": pop_config.efficient_blocklinear,
-            "print_hooks": pop_config.print_hooks,
-            "excitatory_target_density": pop_config.excitatory_target_density,
-            "inhibitory_target_density": pop_config.inhibitory_target_density,
-            "use_noise": pop_config.use_noise,
-            "sigma": pop_config.sigma,
-            "rewiring_mode": pop_config.rewiring_mode,
-            "rewire_frequency": pop_config.rewire_frequency,
-            "synapses_per_branch": pop_config.synapses_per_branch,
-            "freeze_excitatory_connectivity": pop_config.freeze_excitatory_connectivity,
-            "freeze_inhibitory_connectivity": pop_config.freeze_inhibitory_connectivity,
-            "init_method": pop_config.init_method,
-            "weight_threshold": pop_config.weight_threshold,
-            "adaptive_initialization": pop_config.adaptive_initialization,
-            "adaptive_initialization_policy": pop_config.adaptive_initialization_policy,
-            "adaptive_target_conductance": pop_config.adaptive_target_conductance,
-            "branch_factors": pop_config.branch_factors,
-        }
+        # Common DendriticBranchLayer options from PopulationConfig
+        common_synapse_config = DendriticSynapseConfig.from_kwargs(
+            {
+                "topk_init_method": pop_config.topk_init_method,
+                "topk_noise_level": pop_config.topk_noise_level,
+                "topk_type": pop_config.topk_type,
+                "topk_weight_norm_order": pop_config.topk_weight_norm_order,
+                "topk_gamma": pop_config.topk_gamma,
+                "topk_temperature": pop_config.topk_temperature,
+                "topk_ultrafast": pop_config.topk_ultrafast,
+                "topk_strategy": pop_config.topk_strategy,
+                "indexed_seed": pop_config.indexed_seed,
+                "indexed_candidate_size": pop_config.indexed_candidate_size,
+                "indexed_selection": pop_config.indexed_selection,
+                "indexed_output_chunk_size": pop_config.indexed_output_chunk_size,
+                "indexed_rewire_frequency": pop_config.indexed_rewire_frequency,
+                "indexed_rewire_quantile": pop_config.indexed_rewire_quantile,
+                "indexed_rewire_until_step": pop_config.indexed_rewire_until_step,
+                "dense_to_sparse_initial_density": pop_config.dense_to_sparse_initial_density,
+                "dense_to_sparse_initial_k": pop_config.dense_to_sparse_initial_k,
+                "dense_to_sparse_start_step": pop_config.dense_to_sparse_start_step,
+                "dense_to_sparse_end_step": pop_config.dense_to_sparse_end_step,
+                "dense_to_sparse_update_interval": pop_config.dense_to_sparse_update_interval,
+                "dense_to_sparse_schedule": pop_config.dense_to_sparse_schedule,
+                "dense_to_sparse_freeze_on_end": pop_config.dense_to_sparse_freeze_on_end,
+                "dense_to_sparse_advance_on_forward": pop_config.dense_to_sparse_advance_on_forward,
+                "dense_to_sparse_prune_metric": pop_config.dense_to_sparse_prune_metric,
+                "use_shunting": pop_config.use_shunting,
+                "use_additive_normalization": pop_config.use_additive_normalization,
+                "reactivate": pop_config.reactivate,
+                "reactivation_type": pop_config.reactivation_type,
+                "reactivation_init_m": pop_config.reactivation_init_m,
+                "reactivation_init_b": pop_config.reactivation_init_b,
+                "reactivation_init_policy": pop_config.reactivation_init_policy,
+                "reactivation_occupancy_quantile_low": pop_config.reactivation_occupancy_quantile_low,
+                "reactivation_occupancy_quantile_high": pop_config.reactivation_occupancy_quantile_high,
+                "reactivation_occupancy_target_low": pop_config.reactivation_occupancy_target_low,
+                "reactivation_occupancy_target_high": pop_config.reactivation_occupancy_target_high,
+                "reactivation_calibration_min_quantile_width": pop_config.reactivation_calibration_min_quantile_width,
+                "reactivation_calibration_max_m": pop_config.reactivation_calibration_max_m,
+                "reactivation_calibration_revert_on_invalid": pop_config.reactivation_calibration_revert_on_invalid,
+                "reactivation_sigma_aware_k": pop_config.reactivation_sigma_aware_k,
+                "reactivation_strategy": pop_config.reactivation_strategy,
+                "blocklinear_strategy": pop_config.blocklinear_strategy,
+                "weight_transform": pop_config.weight_transform,
+                "epsilon": pop_config.epsilon,
+                "dbl_init_method": pop_config.dbl_init_method,
+                "efficient_blocklinear": pop_config.efficient_blocklinear,
+                "print_hooks": pop_config.print_hooks,
+                "excitatory_target_density": pop_config.excitatory_target_density,
+                "inhibitory_target_density": pop_config.inhibitory_target_density,
+                "use_noise": pop_config.use_noise,
+                "sigma": pop_config.sigma,
+                "rewiring_mode": pop_config.rewiring_mode,
+                "rewire_frequency": pop_config.rewire_frequency,
+                "synapses_per_branch": pop_config.synapses_per_branch,
+                "freeze_excitatory_connectivity": pop_config.freeze_excitatory_connectivity,
+                "freeze_inhibitory_connectivity": pop_config.freeze_inhibitory_connectivity,
+                "init_method": pop_config.init_method,
+                "weight_threshold": pop_config.weight_threshold,
+                "adaptive_initialization": pop_config.adaptive_initialization,
+                "adaptive_initialization_policy": pop_config.adaptive_initialization_policy,
+                "adaptive_target_conductance": pop_config.adaptive_target_conductance,
+                "branch_factors": pop_config.branch_factors,
+            }
+        )
 
         # Helper to compute conditional dims
         def _exc_dim(synapses):
@@ -441,7 +414,7 @@ class StatefulDendriNet(nn.Module):
                     rec_inh_in,
                 ),
                 layer_idx=self.n_levels - level_idx,
-                **common_kwargs,
+                synapse_config=common_synapse_config,
             )
             if pop_config.topk_strategy == "conductance_dynamic":
                 branch_layer.set_forward_dynamic_grad_scaling(True)
@@ -531,36 +504,6 @@ class StatefulDendriNet(nn.Module):
             track_dendritic_spikes=self.dendritic_spikes_enabled,
             track_soma_output=self.soma_feedback_enabled,
         )
-
-    def _resolve_dendritic_spike_levels(self, levels) -> set[int]:
-        if not self.dendritic_spikes_enabled:
-            return set()
-        dendritic_levels = list(range(max(self.n_levels - 1, 0)))
-        if isinstance(levels, str):
-            key = levels.lower()
-            if key in {"all", "dendritic", "non_soma", "non-soma"}:
-                return set(dendritic_levels)
-            if key == "distal":
-                return {0} if dendritic_levels else set()
-            if key == "proximal":
-                return {dendritic_levels[-1]} if dendritic_levels else set()
-            if key in {"none", ""}:
-                return set()
-            raise ValueError(
-                "dendritic_spike_levels must be one of 'non_soma', 'all', "
-                "'distal', 'proximal', 'none', or a list of non-soma level indices, "
-                f"got {levels!r}"
-            )
-        resolved = set()
-        for value in levels:
-            level_idx = int(value)
-            if level_idx < 0 or level_idx >= self.n_levels - 1:
-                raise ValueError(
-                    "dendritic_spike_levels entries are distal-to-soma non-soma "
-                    f"indices in [0, {self.n_levels - 2}], got {level_idx}"
-                )
-            resolved.add(level_idx)
-        return resolved
 
     def _resolve_soma_feedback_levels(self, levels) -> set[int]:
         if not self.soma_feedback_enabled:
@@ -684,16 +627,6 @@ class StatefulDendriNet(nn.Module):
             state.spike_readout,
         )[:4]
 
-    def _previous_dendritic_spike_state(
-        self,
-        values: list[torch.Tensor] | None,
-        level_idx: int,
-        reference: torch.Tensor,
-    ) -> torch.Tensor:
-        if values is None or level_idx >= len(values):
-            return torch.zeros_like(reference)
-        return values[level_idx]
-
     def _apply_dendritic_spike_dynamics(
         self,
         *,
@@ -702,66 +635,23 @@ class StatefulDendriNet(nn.Module):
         state: DendriNetState,
         keep_mask: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        prev_plateau = self._previous_dendritic_spike_state(
+        prev_plateau = previous_dendritic_spike_state(
             state.dendritic_spike_plateau,
             level_idx,
             branch_voltage,
         )
-        prev_refractory = self._previous_dendritic_spike_state(
+        prev_refractory = previous_dendritic_spike_state(
             state.dendritic_spike_refractory,
             level_idx,
             branch_voltage,
         )
-        if keep_mask is not None:
-            prev_plateau = prev_plateau * keep_mask
-            prev_refractory = prev_refractory * keep_mask
-
-        if level_idx not in self.dendritic_spike_level_indices:
-            zeros = torch.zeros_like(branch_voltage)
-            return branch_voltage, zeros, zeros, zeros
-
-        active = (prev_refractory <= 0).to(dtype=branch_voltage.dtype)
-        event = SurrogateSpike.apply(
-            branch_voltage - self.dendritic_spike_threshold,
-            self.dendritic_spike_surrogate_beta,
+        return self.dendritic_spike_dynamics.apply(
+            level_idx=level_idx,
+            branch_voltage=branch_voltage,
+            prev_plateau=prev_plateau,
+            prev_refractory=prev_refractory,
+            keep_mask=keep_mask,
         )
-        event = event * active
-
-        if self.dendritic_spike_mode == "plateau":
-            plateau_decay = torch.as_tensor(
-                math.exp(-self.dt / self.dendritic_spike_plateau_tau),
-                device=branch_voltage.device,
-                dtype=branch_voltage.dtype,
-            )
-            plateau = plateau_decay * prev_plateau + (1 - plateau_decay) * event
-        else:
-            plateau = event
-
-        next_refractory = torch.clamp(prev_refractory - 1, min=0)
-        if self.dendritic_spike_refractory_steps > 0:
-            next_refractory = torch.where(
-                event.detach() > 0,
-                torch.full_like(
-                    next_refractory, float(self.dendritic_spike_refractory_steps)
-                ),
-                next_refractory,
-            )
-
-        amplitude = self.dendritic_spike_plateau_amplitude
-        if self.dendritic_spike_propagation == "additive":
-            modified_voltage = branch_voltage + amplitude * plateau
-        elif self.dendritic_spike_propagation == "replace":
-            modified_voltage = branch_voltage * (1 - plateau) + amplitude * plateau
-        else:
-            modified_voltage = branch_voltage * (1 + amplitude * plateau)
-
-        if keep_mask is not None:
-            modified_voltage = modified_voltage * keep_mask
-            plateau = plateau * keep_mask
-            next_refractory = next_refractory * keep_mask
-            event = event * keep_mask
-
-        return modified_voltage, plateau, next_refractory, event
 
     def forward(
         self,
@@ -787,317 +677,6 @@ class StatefulDendriNet(nn.Module):
                 rec_inhibitory_input=None,
             )
         return branch_output
-
-    def _ensure_tensor(
-        self,
-        value,
-        batch_size: int,
-        level_idx: int,
-        device: torch.device,
-        dtype: torch.dtype,
-    ) -> torch.Tensor:
-        """Ensure value is a tensor; if scalar 0, create zeros tensor."""
-        if torch.is_tensor(value):
-            return value
-        return torch.zeros(
-            batch_size, self._level_dims[level_idx], device=device, dtype=dtype
-        )
-
-    def _typed_trace_key(self, compartment: str, synapse_type: str) -> str:
-        return f"{compartment}:{synapse_type}"
-
-    def _previous_typed_trace(
-        self,
-        traces: dict[str, list[torch.Tensor]] | None,
-        key: str,
-        level_idx: int,
-        reference: torch.Tensor,
-        default: float = 0.0,
-    ) -> torch.Tensor:
-        if traces is None or key not in traces or level_idx >= len(traces[key]):
-            return torch.full_like(reference, float(default))
-        return traces[key][level_idx]
-
-    def _decay_for_tau(
-        self, tau: float | None, legacy_decay: torch.Tensor, reference: torch.Tensor
-    ) -> torch.Tensor:
-        if tau is None:
-            return legacy_decay.to(device=reference.device, dtype=reference.dtype)
-        return torch.exp(
-            torch.as_tensor(
-                -self.dt / tau, device=reference.device, dtype=reference.dtype
-            )
-        )
-
-    def _synapse_decay(
-        self,
-        synapse_type: SynapseTypeConfig,
-        legacy_decay: torch.Tensor,
-        *,
-        device: torch.device,
-        dtype: torch.dtype,
-    ) -> torch.Tensor:
-        if synapse_type.tau_decay is None:
-            return legacy_decay
-        return torch.exp(
-            torch.as_tensor(
-                -self.dt / synapse_type.tau_decay, device=device, dtype=dtype
-            )
-        )
-
-    def _apply_synapse_nonlinearity(
-        self, raw: torch.Tensor, synapse_type: SynapseTypeConfig
-    ) -> torch.Tensor:
-        mode = synapse_type.nonlinearity
-        if mode == "relu":
-            raw = torch.relu(raw)
-        elif mode == "sigmoid":
-            raw = torch.sigmoid(raw)
-        elif mode == "tanh":
-            raw = torch.tanh(raw)
-        elif mode == "softplus":
-            raw = torch.nn.functional.softplus(raw)
-
-        power = float(synapse_type.conductance_power)
-        if power != 1.0:
-            magnitude = raw.abs()
-            if power < 1.0 and torch.is_floating_point(magnitude):
-                zero = magnitude == 0
-                safe_magnitude = torch.where(
-                    zero, torch.ones_like(magnitude), magnitude
-                )
-                powered = safe_magnitude.pow(power)
-                powered = torch.where(zero, torch.zeros_like(powered), powered)
-            else:
-                powered = magnitude.pow(power)
-            raw = raw.sign() * powered
-        return raw
-
-    def _apply_short_term_plasticity(
-        self,
-        *,
-        raw: torch.Tensor,
-        prev_typed_traces: dict[str, list[torch.Tensor]] | None,
-        new_typed_traces: dict[str, list[torch.Tensor]],
-        key: str,
-        level_idx: int,
-        synapse_type: SynapseTypeConfig,
-    ) -> torch.Tensor:
-        if not synapse_type.stp_enabled:
-            return raw
-
-        u_key = f"{key}:stp_u"
-        x_key = f"{key}:stp_x"
-        prev_u = self._previous_typed_trace(
-            prev_typed_traces,
-            u_key,
-            level_idx,
-            raw,
-            default=synapse_type.stp_u0,
-        )
-        prev_x = self._previous_typed_trace(
-            prev_typed_traces, x_key, level_idx, raw, default=1.0
-        )
-        # Aggregate STP uses the local raw current as a presynaptic-rate proxy.
-        activity_source = raw if synapse_type.stp_differentiable_state else raw.detach()
-        activity = torch.sigmoid(activity_source)
-        dt_over_tau_u = self.dt / float(synapse_type.stp_tau_u)
-        dt_over_tau_x = self.dt / float(synapse_type.stp_tau_x)
-        next_u = prev_u + dt_over_tau_u * (synapse_type.stp_u0 - prev_u)
-        next_u = (
-            next_u + float(synapse_type.stp_facilitation) * (1.0 - prev_u) * activity
-        )
-        next_x = prev_x + dt_over_tau_x * (1.0 - prev_x)
-        next_x = (
-            next_x - float(synapse_type.stp_depression) * next_u * prev_x * activity
-        )
-        next_u = next_u.clamp(0.0, 1.0)
-        next_x = next_x.clamp(0.0, 1.0)
-        new_typed_traces.setdefault(u_key, []).append(next_u)
-        new_typed_traces.setdefault(x_key, []).append(next_x)
-        return raw * next_u * next_x
-
-    def _apply_voltage_gate(
-        self,
-        trace: torch.Tensor,
-        synapse_type: SynapseTypeConfig,
-        voltage_reference: torch.Tensor,
-    ) -> torch.Tensor:
-        gate_mode = synapse_type.voltage_gate
-        if gate_mode == "none":
-            return trace
-        v_ref = voltage_reference.to(device=trace.device, dtype=trace.dtype)
-        v_gate = v_ref * float(synapse_type.voltage_scale_mv) + float(
-            synapse_type.mg_v_offset
-        )
-        if gate_mode == "nmda_magnesium":
-            exponent = -v_gate / float(synapse_type.mg_slope)
-            gate = 1.0 / (
-                1.0
-                + float(synapse_type.mg_concentration)
-                * torch.exp(exponent)
-                / float(synapse_type.mg_scale)
-            )
-            return trace * gate
-        if gate_mode == "sigmoid":
-            gate = torch.sigmoid(v_gate / float(synapse_type.mg_slope))
-            return trace * gate
-        return trace
-
-    def _integrate_single_or_double_exponential(
-        self,
-        *,
-        raw: torch.Tensor,
-        prev_typed_traces: dict[str, list[torch.Tensor]] | None,
-        new_typed_traces: dict[str, list[torch.Tensor]],
-        key: str,
-        level_idx: int,
-        synapse_type: SynapseTypeConfig,
-        legacy_decay: torch.Tensor,
-    ) -> torch.Tensor:
-        if synapse_type.tau_rise is None:
-            prev_trace = self._previous_typed_trace(
-                prev_typed_traces, key, level_idx, raw
-            )
-            decay = self._synapse_decay(
-                synapse_type,
-                legacy_decay,
-                device=raw.device,
-                dtype=raw.dtype,
-            )
-            return decay * prev_trace + (1 - decay) * (
-                raw * float(synapse_type.fraction)
-            )
-
-        drive = raw * float(synapse_type.fraction)
-        rise_key = f"{key}:rise"
-        decay_key = f"{key}:decay"
-        prev_rise = self._previous_typed_trace(
-            prev_typed_traces, rise_key, level_idx, raw
-        )
-        prev_decay = self._previous_typed_trace(
-            prev_typed_traces, decay_key, level_idx, raw
-        )
-        rise_decay = self._decay_for_tau(
-            synapse_type.tau_rise, legacy_decay, reference=raw
-        )
-        decay_decay = self._decay_for_tau(
-            synapse_type.tau_decay, legacy_decay, reference=raw
-        )
-        rise_trace = rise_decay * prev_rise + drive
-        decay_trace = decay_decay * prev_decay + drive
-        new_typed_traces.setdefault(rise_key, []).append(rise_trace)
-        new_typed_traces.setdefault(decay_key, []).append(decay_trace)
-        return (decay_trace - rise_trace).clamp_min(0.0)
-
-    def _integrate_typed_compartment(
-        self,
-        *,
-        raw: torch.Tensor,
-        prev_typed_traces: dict[str, list[torch.Tensor]] | None,
-        new_typed_traces: dict[str, list[torch.Tensor]],
-        level_idx: int,
-        compartment: str,
-        synapse_types: list[SynapseTypeConfig],
-        legacy_decay: torch.Tensor,
-        voltage_reference: torch.Tensor,
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        conductance = torch.zeros_like(raw)
-        shunting_current = torch.zeros_like(raw)
-        additive_drive = torch.zeros_like(raw)
-
-        for synapse_type in synapse_types:
-            key = self._typed_trace_key(compartment, synapse_type.name)
-            raw_type = self._apply_synapse_nonlinearity(raw, synapse_type)
-            raw_type = self._apply_short_term_plasticity(
-                raw=raw_type,
-                prev_typed_traces=prev_typed_traces,
-                new_typed_traces=new_typed_traces,
-                key=key,
-                level_idx=level_idx,
-                synapse_type=synapse_type,
-            )
-            trace = self._integrate_single_or_double_exponential(
-                raw=raw_type,
-                prev_typed_traces=prev_typed_traces,
-                new_typed_traces=new_typed_traces,
-                key=key,
-                level_idx=level_idx,
-                synapse_type=synapse_type,
-                legacy_decay=legacy_decay,
-            )
-            trace = self._apply_voltage_gate(trace, synapse_type, voltage_reference)
-            new_typed_traces.setdefault(key, []).append(trace)
-            conductance = conductance + trace
-            reversal = float(synapse_type.reversal_potential)
-            shunting_current = shunting_current + trace * reversal
-            if synapse_type.polarity == "inhibitory":
-                additive_drive = additive_drive + trace * (1.0 - reversal)
-            else:
-                additive_drive = additive_drive + trace * reversal
-
-        return conductance, shunting_current, additive_drive
-
-    def _branch_conductance_tensor(
-        self,
-        layer: DendriticBranchLayer,
-        reference: torch.Tensor,
-    ) -> torch.Tensor:
-        if not layer.input_branches or not hasattr(layer, "branches_to_output"):
-            return torch.zeros_like(reference)
-        conductance = layer.branches_to_output.sum_conductances()
-        return conductance.to(device=reference.device, dtype=reference.dtype).unsqueeze(
-            0
-        )
-
-    def _maybe_update_dynamic_grad_scales(
-        self,
-        layer: DendriticBranchLayer,
-        denominator: torch.Tensor | None,
-    ) -> None:
-        if not self.training:
-            return
-        if "conductance_dynamic" not in [
-            layer.topk_strategy,
-            layer.blocklinear_strategy,
-        ]:
-            return
-        layer.compute_grad_scales(
-            g_total=denominator if layer.use_shunting else None,
-            use_forward_hooks=True,
-        )
-
-    def _apply_typed_voltage(
-        self,
-        layer: DendriticBranchLayer,
-        *,
-        trace_E: torch.Tensor,
-        trace_E_rec: torch.Tensor,
-        trace_I: torch.Tensor,
-        trace_I_rec: torch.Tensor,
-        current_E: torch.Tensor,
-        current_E_rec: torch.Tensor,
-        current_I: torch.Tensor,
-        current_I_rec: torch.Tensor,
-        drive_E: torch.Tensor,
-        drive_E_rec: torch.Tensor,
-        drive_I: torch.Tensor,
-        drive_I_rec: torch.Tensor,
-        trace_branch: torch.Tensor,
-        branch_conductance: torch.Tensor,
-    ) -> torch.Tensor:
-        denominator = None
-        if layer.use_shunting:
-            numerator = current_E + current_E_rec + current_I + current_I_rec
-            numerator = numerator + trace_branch
-            denominator = 1 + trace_E + trace_E_rec + trace_I + trace_I_rec
-            denominator = denominator + branch_conductance
-            voltage = numerator / (denominator + layer.epsilon)
-        else:
-            voltage = drive_E + drive_E_rec - drive_I - drive_I_rec + trace_branch
-            voltage = layer.normalize_additive_voltage(voltage)
-        self._maybe_update_dynamic_grad_scales(layer, denominator)
-        return layer.reactivation(voltage)
 
     def step(
         self,

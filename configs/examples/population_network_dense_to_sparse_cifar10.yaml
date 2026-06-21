@@ -64,7 +64,7 @@ model:
             dense_to_sparse_prune_metric: "weight"
             blocklinear_strategy: "none"
             reactivation_strategy: "none"
-            efficient_blocklinear: false
+            efficient_blocklinear: true
           populations:
             - name: "e"
               polarity: "excitatory"

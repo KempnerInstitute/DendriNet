@@ -10,6 +10,17 @@ from dendritic_modeling.networks.architectures.recurrent.baseline_rnn import (
     BaselineRNN,
     BaselineRNNConfig,
 )
+from dendritic_modeling.networks.architectures.recurrent.dendritic_geometry import (
+    compute_input_branch_factors,
+    compute_level_sizes,
+    compute_output_owner_index_per_level,
+    resolve_synapses_by_level,
+)
+from dendritic_modeling.networks.architectures.recurrent.dendritic_spikes import (
+    DendriticSpikeDynamics,
+    previous_dendritic_spike_state,
+    resolve_dendritic_spike_levels,
+)
 from dendritic_modeling.networks.architectures.recurrent.ei_config import (
     EILayerConfig,
     EINetworkConfig,
@@ -52,6 +63,7 @@ __all__ = [
     "BaselineRNN",
     "BaselineRNNConfig",
     "DendriNetState",
+    "DendriticSpikeDynamics",
     "EILayer",
     "EILayerConfig",
     "EINetwork",
@@ -74,4 +86,10 @@ __all__ = [
     "SynapseTypeGroup",
     "SynapseTypeSet",
     "build_synapse_type_set",
+    "compute_input_branch_factors",
+    "compute_level_sizes",
+    "compute_output_owner_index_per_level",
+    "previous_dendritic_spike_state",
+    "resolve_dendritic_spike_levels",
+    "resolve_synapses_by_level",
 ]

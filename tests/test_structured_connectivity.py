@@ -214,6 +214,48 @@ def test_indexed_sparse_linear_seed_none_follows_global_rng():
     assert not torch.equal(first.connection_indices, third.connection_indices)
 
 
+def test_indexed_dynamic_auto_candidate_size_respects_connection_mask():
+    connection_mask = torch.tensor(
+        [
+            [True, True, True, True, False, False],
+            [True, True, False, False, False, False],
+            [False, False, True, True, True, False],
+        ]
+    )
+
+    layer = IndexedDynamicTopKLinear(
+        in_features=6,
+        out_features=3,
+        K=2,
+        candidate_size=None,
+        connection_mask=connection_mask,
+        seed=5,
+    )
+
+    row = torch.arange(layer.out_features)[:, None]
+    assert layer.candidate_size == 2
+    assert bool(connection_mask[row, layer.connection_indices].all())
+
+
+def test_indexed_dynamic_explicit_candidate_size_remains_strict_with_mask():
+    connection_mask = torch.tensor(
+        [
+            [True, True, True, False],
+            [True, True, False, False],
+        ]
+    )
+
+    with pytest.raises(ValueError, match="at least K allowed inputs"):
+        IndexedDynamicTopKLinear(
+            in_features=4,
+            out_features=2,
+            K=2,
+            candidate_size=3,
+            connection_mask=connection_mask,
+            seed=5,
+        )
+
+
 def test_indexed_sparse_linear_forward_param_gradient_scale():
     layer = IndexedSparseLinear(
         in_features=4,

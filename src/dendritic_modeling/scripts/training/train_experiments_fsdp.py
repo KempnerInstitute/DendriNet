@@ -201,16 +201,21 @@ def create_large_model(config):
     """Create a large dendritic model from configuration."""
     model_config = config.model
 
+    vision_replacement = getattr(model_config, "vision_replacement", None)
     pretrained_replacement = getattr(model_config, "pretrained_replacement", None)
-    if pretrained_replacement is not None and getattr(
-        pretrained_replacement, "enabled", False
-    ):
+    replacement_enabled = (
+        vision_replacement is not None and getattr(vision_replacement, "enabled", False)
+    ) or (
+        pretrained_replacement is not None
+        and getattr(pretrained_replacement, "enabled", False)
+    )
+    if replacement_enabled:
         model, _ = initialize_model(model_config)
 
         total_params = sum(p.numel() for p in model.parameters())
         trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
         logger.info(
-            "Model created from pretrained_replacement with %s total parameters",
+            "Model created from vision/pretrained replacement with %s total parameters",
             f"{total_params:,}",
         )
         logger.info("Trainable parameters: %s", f"{trainable_params:,}")

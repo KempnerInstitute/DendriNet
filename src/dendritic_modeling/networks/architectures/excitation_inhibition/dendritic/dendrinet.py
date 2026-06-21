@@ -14,6 +14,9 @@ from dendritic_modeling.networks.activations import resolve_dendritic_activation
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer import (
     DendriticBranchLayer,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.synapse_config import (
+    DendriticSynapseConfig,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.structured_mask import (
     sample_configured_mask,
 )
@@ -131,6 +134,49 @@ class DendriNet(nn.Module):
         branch_factors.reverse()
         branch_factors.insert(0, None)
         branch_layers = []
+        formal_synapse_kwargs = {
+            "topk_init_method": topk_init_method,
+            "topk_noise_level": topk_noise_level,
+            "topk_type": topk_type,
+            "topk_weight_norm_order": topk_weight_norm_order,
+            "topk_gamma": topk_gamma,
+            "topk_temperature": topk_temperature,
+            "topk_ultrafast": topk_ultrafast,
+            "topk_strategy": topk_strategy,
+            "use_shunting": use_shunting,
+            "reactivate": reactivate,
+            "reactivation_type": reactivation_type,
+            "dendritic_activation": dendritic_activation,
+            "reactivation_strategy": reactivation_strategy,
+            "blocklinear_strategy": blocklinear_strategy,
+            "print_hooks": print_hooks,
+            "reactivation_init_m": reactivation_init_m,
+            "reactivation_init_b": reactivation_init_b,
+            "reactivation_init_policy": reactivation_init_policy,
+            "reactivation_sigma_aware_k": reactivation_sigma_aware_k,
+            "dbl_init_method": dbl_init_method,
+            "excitatory_target_density": excitatory_target_density,
+            "inhibitory_target_density": inhibitory_target_density,
+            "use_noise": use_noise,
+            "sigma": sigma,
+            "rewiring_mode": rewiring_mode,
+            "rewire_frequency": rewire_frequency,
+            "synapses_per_branch": synapses_per_branch,
+            "efficient_blocklinear": efficient_blocklinear,
+            "freeze_excitatory_connectivity": freeze_excitatory_connectivity,
+            "freeze_inhibitory_connectivity": freeze_inhibitory_connectivity,
+            "init_method": init_method,
+            "weight_threshold": weight_threshold,
+            "adaptive_initialization": adaptive_initialization,
+            "adaptive_initialization_policy": adaptive_initialization_policy,
+            "adaptive_target_conductance": adaptive_target_conductance,
+            "branch_factors": self.branch_factors,
+            "weight_transform": weight_transform,
+        }
+        synapse_config = DendriticSynapseConfig.from_kwargs(
+            {**kwargs, **formal_synapse_kwargs}
+        )
+        _, branch_extra_kwargs = DendriticSynapseConfig.split_kwargs(kwargs)
 
         def _structured_mask(pathway, out_dim, in_dim, synapses_per_branch, level_idx):
             if (
@@ -172,45 +218,9 @@ class DendriNet(nn.Module):
                 excitatory_connection_mask=excitatory_connection_mask,
                 inhibitory_connection_mask=inhibitory_connection_mask,
                 input_branch_factor=branch_factors[i],
-                topk_init_method=topk_init_method,
-                topk_noise_level=topk_noise_level,
-                topk_type=topk_type,  # Pass the parameter
-                topk_weight_norm_order=topk_weight_norm_order,
-                topk_gamma=topk_gamma,
-                weight_transform=weight_transform,
-                topk_temperature=topk_temperature,  # Pass the temperature
-                topk_ultrafast=topk_ultrafast,  # Pass the ultrafast flag
-                topk_strategy=topk_strategy,
-                use_shunting=use_shunting,
-                reactivate=reactivate,
-                dendritic_activation=dendritic_activation,
-                reactivation_init_m=reactivation_init_m,
-                reactivation_init_b=reactivation_init_b,
-                reactivation_init_policy=reactivation_init_policy,
-                reactivation_sigma_aware_k=reactivation_sigma_aware_k,
-                dbl_init_method=dbl_init_method,
-                reactivation_type=reactivation_type,
-                reactivation_strategy=reactivation_strategy,
-                blocklinear_strategy=blocklinear_strategy,
-                efficient_blocklinear=efficient_blocklinear,
                 layer_idx=self.n_branch_layers - i,
-                print_hooks=print_hooks,
-                use_noise=use_noise,
-                sigma=sigma,
-                rewiring_mode=rewiring_mode,
-                rewire_frequency=rewire_frequency,
-                synapses_per_branch=synapses_per_branch,
-                excitatory_target_density=excitatory_target_density,
-                inhibitory_target_density=inhibitory_target_density,
-                freeze_excitatory_connectivity=freeze_excitatory_connectivity,
-                freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
-                init_method=init_method,
-                weight_threshold=weight_threshold,
-                adaptive_initialization=adaptive_initialization,
-                adaptive_initialization_policy=adaptive_initialization_policy,
-                adaptive_target_conductance=adaptive_target_conductance,
-                branch_factors=self.branch_factors,  # Pass branch_factors
-                **kwargs,
+                synapse_config=synapse_config,
+                **branch_extra_kwargs,
             )
             branch_layers.append(lyr)
 
@@ -240,45 +250,9 @@ class DendriNet(nn.Module):
                     excitatory_connection_mask=excitatory_connection_mask,
                     inhibitory_connection_mask=inhibitory_connection_mask,
                     input_branch_factor=branch_factors[-1],
-                    topk_init_method=topk_init_method,
-                    topk_noise_level=topk_noise_level,
-                    topk_type=topk_type,  # Pass the parameter
-                    topk_weight_norm_order=topk_weight_norm_order,
-                    topk_gamma=topk_gamma,
-                    weight_transform=weight_transform,
-                    topk_temperature=topk_temperature,  # Pass the temperature
-                    topk_ultrafast=topk_ultrafast,  # Pass the ultrafast flag
-                    topk_strategy=topk_strategy,
-                    use_shunting=use_shunting,
-                    reactivate=reactivate,
-                    dendritic_activation=dendritic_activation,
-                    reactivation_init_m=reactivation_init_m,
-                    reactivation_init_b=reactivation_init_b,
-                    reactivation_init_policy=reactivation_init_policy,
-                    reactivation_sigma_aware_k=reactivation_sigma_aware_k,
-                    dbl_init_method=dbl_init_method,
-                    reactivation_type=reactivation_type,
-                    reactivation_strategy=reactivation_strategy,
-                    blocklinear_strategy=blocklinear_strategy,
-                    efficient_blocklinear=efficient_blocklinear,
                     layer_idx=0,
-                    print_hooks=print_hooks,
-                    use_noise=use_noise,
-                    sigma=sigma,
-                    rewiring_mode=rewiring_mode,
-                    rewire_frequency=rewire_frequency,
-                    synapses_per_branch=synapses_per_branch,
-                    excitatory_target_density=excitatory_target_density,
-                    inhibitory_target_density=inhibitory_target_density,
-                    freeze_excitatory_connectivity=freeze_excitatory_connectivity,
-                    freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
-                    init_method=init_method,
-                    weight_threshold=weight_threshold,
-                    adaptive_initialization=adaptive_initialization,
-                    adaptive_initialization_policy=adaptive_initialization_policy,
-                    adaptive_target_conductance=adaptive_target_conductance,
-                    branch_factors=self.branch_factors,  # Pass branch_factors
-                    **kwargs,
+                    synapse_config=synapse_config,
+                    **branch_extra_kwargs,
                 )
             )
         else:
@@ -290,45 +264,9 @@ class DendriNet(nn.Module):
                     inhibitory_input_dim=None,
                     inhibitory_synapses_per_branch=None,
                     input_branch_factor=branch_factors[-1],
-                    topk_init_method=topk_init_method,
-                    topk_noise_level=topk_noise_level,
-                    topk_type=topk_type,  # Pass the parameter
-                    topk_weight_norm_order=topk_weight_norm_order,
-                    topk_gamma=topk_gamma,
-                    weight_transform=weight_transform,
-                    topk_temperature=topk_temperature,  # Pass the temperature
-                    topk_ultrafast=topk_ultrafast,  # Pass the ultrafast flag
-                    topk_strategy=topk_strategy,
-                    use_shunting=use_shunting,
-                    reactivate=reactivate,
-                    dendritic_activation=dendritic_activation,
-                    reactivation_init_m=reactivation_init_m,
-                    reactivation_init_b=reactivation_init_b,
-                    reactivation_init_policy=reactivation_init_policy,
-                    reactivation_sigma_aware_k=reactivation_sigma_aware_k,
-                    dbl_init_method=dbl_init_method,
-                    reactivation_type=reactivation_type,
-                    reactivation_strategy=reactivation_strategy,
-                    blocklinear_strategy=blocklinear_strategy,
-                    efficient_blocklinear=efficient_blocklinear,
                     layer_idx=0,
-                    print_hooks=print_hooks,
-                    use_noise=use_noise,
-                    sigma=sigma,
-                    rewiring_mode=rewiring_mode,
-                    rewire_frequency=rewire_frequency,
-                    synapses_per_branch=synapses_per_branch,
-                    excitatory_target_density=excitatory_target_density,
-                    inhibitory_target_density=inhibitory_target_density,
-                    freeze_excitatory_connectivity=freeze_excitatory_connectivity,
-                    freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
-                    init_method=init_method,
-                    weight_threshold=weight_threshold,
-                    adaptive_initialization=adaptive_initialization,
-                    adaptive_initialization_policy=adaptive_initialization_policy,
-                    adaptive_target_conductance=adaptive_target_conductance,
-                    branch_factors=self.branch_factors,  # Pass branch_factors
-                    **kwargs,
+                    synapse_config=synapse_config,
+                    **branch_extra_kwargs,
                 )
             )
 

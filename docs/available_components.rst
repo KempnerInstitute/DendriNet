@@ -6,9 +6,9 @@ Quick reference of all implemented components and their configuration strings.
 Extension Registries
 --------------------
 
-Most built-in components below are still selected by YAML strings. For
-project-local extensions, use the registry APIs so new components can be added
-without editing central dispatch chains:
+Most built-in components below are selected by YAML strings. For project-local
+extensions, use the registry APIs so additional components can be added without
+editing central dispatch chains:
 
 .. list-table::
    :header-rows: 1
@@ -34,8 +34,8 @@ without editing central dispatch chains:
      - metadata/discovery only; execution remains in ``AnalysisManager``
 
 Built-in architecture names are reserved and cannot be shadowed by extension
-registrations. This keeps existing experiments reproducible while allowing new
-components to be introduced cleanly.
+registrations. This keeps existing experiments reproducible while allowing
+project-local components to be introduced cleanly.
 
 Extension workflow:
 
@@ -43,7 +43,7 @@ Extension workflow:
    :header-rows: 1
    :widths: 22 38 40
 
-   * - New component
+   * - Component type
      - Add
      - Keep stable
    * - Architecture or layer family
@@ -112,7 +112,10 @@ Core Network Types
    * - ``ss_mlp_flat``
      - Flattened sparse structured MLP baseline
    * - ``hierarchical_dendritic_tensor_map``
-     - Pretrained-replacement baseline: keep the pretrained prefix/suffix around a newly initialized dendritic core, flatten the prefix tensor, run an EINet-style hierarchical dendritic core, then optionally project to a flat suffix input
+     - Vision-replacement baseline: keep the pretrained prefix/suffix around a
+       newly initialized dendritic core, flatten the prefix tensor, run an
+       EINet-style hierarchical dendritic core, then optionally project to a
+       flat suffix input
    * - ``hierarchical_dendritic_conv``
      - Spatial dendritic convolutional core over local patches; preserves the prefix/suffix spatial tensor contract for convolutional replacement
    * - ``gru``
@@ -183,7 +186,7 @@ Set via ``model.core.sparsity.type``. Canonical values are:
        stores only ``out_features x K`` weights and periodically replaces weak
        same-row synapses with newly sampled allowed inputs
 
-``topk`` is retained as a backward-compatible alias for ``standard``.
+``topk`` is retained as an alias for ``standard``.
 ``annealed_topk`` is retained as a readable alias for ``dense_to_sparse``.
 
 Weight Transforms
@@ -241,26 +244,38 @@ Recurrent Extensions
      - ``soma_feedback_enabled`` or ``model.core.soma_feedback.enabled``
      - Optional previous-timestep soma output/voltage/readout projected back
        into dendritic levels as additive, shunting, or gated feedback.
+   * - Shared replacement cells
+     - ``networks.architectures.replacement``
+     - Reusable ``input_adapter -> dendritic_core -> output_adapter``
+       components used by domain-specific vision and transformer placement
+       code. ``signed_split`` maps signed activations into non-negative
+       dendritic channels.
    * - Vision backbone replacement
-     - ``model.pretrained_replacement`` plus
+     - ``model.vision_replacement`` plus
        ``hierarchical_dendritic_tensor_map`` or ``hierarchical_dendritic_conv``
      - Torchvision backbone splitter for replacing AlexNet/VGG classifier or
-       feature-map blocks with dendritic cores while preserving prefix/suffix
-       tensor contracts.
+       feature-map blocks named in ``target_modules`` with dendritic cores
+       while preserving prefix/suffix tensor contracts.
+   * - Vision replacement distillation
+     - ``training.vision_replacement``
+     - Block-output distillation from cached replacement inputs/targets or
+       image-level teacher outputs; supports replacement-only or full-model
+       trainable scope for image-level caches.
    * - Transformer FFN replacement
      - ``model.transformer_replacement`` plus ``model.core.type: dendritic_ffn``
-     - Hugging Face model patcher for replacing decoder-block MLP/FFN modules
-       with token-wise ``DendriticFFNReplacement`` modules; use
-       ``sparsity.type: indexed_dynamic`` or ``indexed_rewire`` for
+     - Hugging Face model patcher for replacing decoder-block target modules
+       identified by ``target_module`` names or dotted paths; use
+       ``population_defaults.topk_type: indexed_rewire`` for
        low-parameter sparse synapses.
    * - Transformer replacement distillation
      - ``training.transformer_replacement``
-     - Layerwise block-output distillation for dendritic FFN replacements using
-       ``synthetic_mlp``, ``hidden_cache``, or ``hf_text`` teacher sources.
+     - Layerwise block-output distillation or joint LM training for patched
+       causal LMs using ``synthetic_mlp``, ``hidden_cache``, or ``hf_text``
+       teacher sources.
    * - Recurrent analysis introspection
      - ``analysis.utils.recurrent_introspection`` and
        ``analysis.spike_train``
-     - Shared helper for legacy E/I and named-population analysis tools, plus
+     - Shared helper for structured E/I and named-population analysis tools, plus
        LIF raster/rate/ISI/Fano summaries.
    * - Recurrent protocols
      - ``networks.RecurrentCore``, ``networks.SteppableRecurrentCore``
@@ -308,9 +323,9 @@ The current two-population E/I feedforward layer is the simple special case:
                - source: i
                  target: e
 
-For legacy-style independent transfer streams, enable the transfer layer and
-use explicit external source names. ``source: input`` remains the compatibility
-stream; ``source: input_e`` and ``source: input_i`` refer to the excitatory and
+For independent transfer streams, enable the transfer layer and use explicit
+external source names. ``source: input`` is the default stream;
+``source: input_e`` and ``source: input_i`` refer to the excitatory and
 inhibitory tensors returned by ``TransferLayer`` on the first layer:
 
 .. code-block:: yaml
@@ -454,8 +469,8 @@ Analysis Modules
 Each enabled under ``analysis.<module_name>.enabled``:
 
 Preferred short names in YAML are ``performance``, ``information``,
-``ablation``, and ``correlation``. The longer ``*_analysis`` names are still
-accepted for backward compatibility.
+``ablation``, and ``correlation``. The longer ``*_analysis`` names are accepted
+as aliases.
 
 Available modules: ``performance``, ``information``, ``ablation``,
 ``correlation``, ``weight``, ``synapse_turnover``, ``noise_perturbation``,

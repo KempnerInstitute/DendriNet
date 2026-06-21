@@ -38,14 +38,14 @@ Analyzers may temporarily move the model to the requested analysis device,
 but they restore the original device and train/eval mode before returning, so
 post-training analysis does not leave the model in a different execution state.
 When ``mode: "materialize"`` is selected and the dataset supports slicing,
-hook-based analyses also use a single full batch again, matching the old
-single-pass behavior on small single-GPU runs.
+hook-based analyses use a single full batch, matching single-pass behavior on
+small single-GPU runs.
 The default ``"auto"`` mode is preferred for most experiments: it preserves
-the old materialized behavior on small datasets while switching to streaming
+materialized behavior on small datasets while switching to streaming
 automatically when the estimated dataset footprint becomes large.
-If a config omits ``analysis.runtime`` entirely, non-distributed runs default
-to ``"materialize"`` for backward compatibility, while DDP/FSDP runs keep the
-generic ``"auto"`` default.
+If a config omits ``analysis.runtime`` entirely, non-distributed runs use
+``"materialize"`` by default, while DDP/FSDP runs keep the shared ``"auto"``
+default.
 
 .. contents:: On this page
    :local:
@@ -390,9 +390,9 @@ Each module follows the same ``enabled``/``training``/``params`` pattern.
 ``dendritic_timetraces``
    Synthetic time-trace simulator that uses the trained per-level ``tau`` and
    reactivation parameters to illustrate how a learned dendritic cascade
-   responds to a configurable input protocol. Legacy recurrent E/I layers keep
-   their historical ``layer_N`` keys; named population networks report keys such
-   as ``population_network/microcircuit.pyr``.
+   responds to a configurable input protocol. Structured recurrent E/I layers
+   report ``layer_N`` keys; named population networks report keys such as
+   ``population_network/microcircuit.pyr``.
 
    .. code-block:: yaml
 
@@ -426,18 +426,18 @@ Each module follows the same ``enabled``/``training``/``params`` pattern.
 Compatibility Notes
 -------------------
 
-Recurrent analysis helpers now share a small duck-typed introspection layer in
-``dendritic_modeling.analysis.utils.recurrent_introspection``. This preserves
-legacy E/I analysis outputs while allowing new analyzers and scripts to discover
-named populations, synapse-type support, and spiking soma state without knowing
-the concrete core class.
+Recurrent analysis helpers share a duck-typed introspection layer in
+``dendritic_modeling.analysis.utils.recurrent_introspection``. This keeps E/I
+analysis outputs stable while letting analyzers and scripts discover named
+populations, synapse-type support, and spiking soma state without knowing the
+concrete core class.
 The same compatibility pass lets hook-based synaptic activation and compartment
 statistics run on named recurrent population graphs when their underlying
 ``TopKLinear`` branch modules are present.
 
-Older configs that still use ``performance_analysis`` or the legacy
-``training_runtime`` / ``final_runtime`` performance blocks are still accepted
-and are migrated automatically at load time. New configs should prefer:
+Configs using ``performance_analysis`` or the
+``training_runtime`` / ``final_runtime`` performance blocks are accepted and
+migrated automatically at load time. Prefer:
 
 - ``analysis.runtime.training``
 - ``analysis.runtime.final``
@@ -446,8 +446,8 @@ and are migrated automatically at load time. New configs should prefer:
 
 If ``analysis.runtime`` is omitted entirely:
 
-- ``distributed.mode: none`` defaults to ``materialize`` for backward-compatible
-  single-process analysis.
+- ``distributed.mode: none`` defaults to ``materialize`` for single-process
+  analysis.
 - ``distributed.mode: ddp`` and ``distributed.mode: fsdp`` keep the shared
   ``auto`` default.
 - CPU analysis automatically disables ``pin_memory`` even if the runtime block

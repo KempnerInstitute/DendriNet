@@ -30,6 +30,9 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.i
     naive_dbl_init,
     normalize_reactivation_init_policy,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.synapse_config import (
+    DendriticSynapseConfig,
+)
 
 
 class DendriticBranchLayer(nn.Module):
@@ -141,9 +144,172 @@ class DendriticBranchLayer(nn.Module):
         inhibitory_connection_mask=None,
         recurrent_connection_mask=None,
         rec_inhibitory_connection_mask=None,
+        synapse_config=None,
         **kwargs,
     ):
         super().__init__()
+        formal_synapse_kwargs = {
+            "topk_init_method": topk_init_method,
+            "topk_noise_level": topk_noise_level,
+            "topk_type": topk_type,
+            "topk_weight_norm_order": topk_weight_norm_order,
+            "topk_gamma": topk_gamma,
+            "topk_temperature": topk_temperature,
+            "topk_ultrafast": topk_ultrafast,
+            "topk_strategy": topk_strategy,
+            "dense_to_sparse_initial_density": dense_to_sparse_initial_density,
+            "dense_to_sparse_initial_k": dense_to_sparse_initial_k,
+            "dense_to_sparse_start_step": dense_to_sparse_start_step,
+            "dense_to_sparse_end_step": dense_to_sparse_end_step,
+            "dense_to_sparse_update_interval": dense_to_sparse_update_interval,
+            "dense_to_sparse_schedule": dense_to_sparse_schedule,
+            "dense_to_sparse_freeze_on_end": dense_to_sparse_freeze_on_end,
+            "dense_to_sparse_advance_on_forward": dense_to_sparse_advance_on_forward,
+            "dense_to_sparse_prune_metric": dense_to_sparse_prune_metric,
+            "indexed_rewire_frequency": indexed_rewire_frequency,
+            "indexed_rewire_quantile": indexed_rewire_quantile,
+            "indexed_rewire_until_step": indexed_rewire_until_step,
+            "use_shunting": use_shunting,
+            "reactivate": reactivate,
+            "reactivation_type": reactivation_type,
+            "dendritic_activation": dendritic_activation,
+            "reactivation_init_m": reactivation_init_m,
+            "reactivation_init_b": reactivation_init_b,
+            "reactivation_init_policy": reactivation_init_policy,
+            "reactivation_occupancy_quantile_low": reactivation_occupancy_quantile_low,
+            "reactivation_occupancy_quantile_high": (
+                reactivation_occupancy_quantile_high
+            ),
+            "reactivation_occupancy_target_low": reactivation_occupancy_target_low,
+            "reactivation_occupancy_target_high": reactivation_occupancy_target_high,
+            "reactivation_calibration_min_quantile_width": (
+                reactivation_calibration_min_quantile_width
+            ),
+            "reactivation_calibration_max_m": reactivation_calibration_max_m,
+            "reactivation_calibration_revert_on_invalid": (
+                reactivation_calibration_revert_on_invalid
+            ),
+            "reactivation_sigma_aware_k": reactivation_sigma_aware_k,
+            "dbl_init_method": dbl_init_method,
+            "reactivation_strategy": reactivation_strategy,
+            "blocklinear_strategy": blocklinear_strategy,
+            "efficient_blocklinear": efficient_blocklinear,
+            "print_hooks": print_hooks,
+            "use_noise": use_noise,
+            "rewiring_mode": rewiring_mode,
+            "rewire_frequency": rewire_frequency,
+            "synapses_per_branch": synapses_per_branch,
+            "sigma": sigma,
+            "excitatory_target_density": excitatory_target_density,
+            "inhibitory_target_density": inhibitory_target_density,
+            "freeze_excitatory_connectivity": freeze_excitatory_connectivity,
+            "freeze_inhibitory_connectivity": freeze_inhibitory_connectivity,
+            "init_method": init_method,
+            "weight_threshold": weight_threshold,
+            "adaptive_initialization": adaptive_initialization,
+            "adaptive_initialization_policy": adaptive_initialization_policy,
+            "adaptive_target_conductance": adaptive_target_conductance,
+            "branch_factors": branch_factors,
+            "epsilon": epsilon,
+            "weight_transform": weight_transform,
+        }
+        if synapse_config is None:
+            config_source = {**kwargs, **formal_synapse_kwargs}
+            normalized_config = DendriticSynapseConfig.from_kwargs(config_source)
+        else:
+            normalized_config = DendriticSynapseConfig.from_config(synapse_config)
+        synapse_options = normalized_config.to_kwargs()
+        _, kwargs = DendriticSynapseConfig.split_kwargs(kwargs)
+
+        topk_init_method = synapse_options["topk_init_method"]
+        topk_noise_level = synapse_options["topk_noise_level"]
+        topk_type = synapse_options["topk_type"]
+        topk_weight_norm_order = synapse_options["topk_weight_norm_order"]
+        topk_gamma = synapse_options["topk_gamma"]
+        topk_temperature = synapse_options["topk_temperature"]
+        topk_ultrafast = synapse_options["topk_ultrafast"]
+        topk_strategy = synapse_options["topk_strategy"]
+        dense_to_sparse_initial_density = synapse_options[
+            "dense_to_sparse_initial_density"
+        ]
+        dense_to_sparse_initial_k = synapse_options["dense_to_sparse_initial_k"]
+        dense_to_sparse_start_step = synapse_options["dense_to_sparse_start_step"]
+        dense_to_sparse_end_step = synapse_options["dense_to_sparse_end_step"]
+        dense_to_sparse_update_interval = synapse_options[
+            "dense_to_sparse_update_interval"
+        ]
+        dense_to_sparse_schedule = synapse_options["dense_to_sparse_schedule"]
+        dense_to_sparse_freeze_on_end = synapse_options["dense_to_sparse_freeze_on_end"]
+        dense_to_sparse_advance_on_forward = synapse_options[
+            "dense_to_sparse_advance_on_forward"
+        ]
+        dense_to_sparse_prune_metric = synapse_options["dense_to_sparse_prune_metric"]
+        indexed_seed = synapse_options["indexed_seed"]
+        indexed_output_chunk_size = synapse_options["indexed_output_chunk_size"]
+        indexed_candidate_size = synapse_options["indexed_candidate_size"]
+        indexed_selection = synapse_options["indexed_selection"]
+        indexed_rewire_frequency = synapse_options["indexed_rewire_frequency"]
+        indexed_rewire_quantile = synapse_options["indexed_rewire_quantile"]
+        indexed_rewire_until_step = synapse_options["indexed_rewire_until_step"]
+        use_shunting = synapse_options["use_shunting"]
+        use_additive_normalization = synapse_options["use_additive_normalization"]
+        reactivate = synapse_options["reactivate"]
+        reactivation_type = synapse_options["reactivation_type"]
+        dendritic_activation = synapse_options["dendritic_activation"]
+        reactivation_init_m = synapse_options["reactivation_init_m"]
+        reactivation_init_b = synapse_options["reactivation_init_b"]
+        reactivation_init_policy = synapse_options["reactivation_init_policy"]
+        reactivation_occupancy_quantile_low = synapse_options[
+            "reactivation_occupancy_quantile_low"
+        ]
+        reactivation_occupancy_quantile_high = synapse_options[
+            "reactivation_occupancy_quantile_high"
+        ]
+        reactivation_occupancy_target_low = synapse_options[
+            "reactivation_occupancy_target_low"
+        ]
+        reactivation_occupancy_target_high = synapse_options[
+            "reactivation_occupancy_target_high"
+        ]
+        reactivation_calibration_min_quantile_width = synapse_options[
+            "reactivation_calibration_min_quantile_width"
+        ]
+        reactivation_calibration_max_m = synapse_options[
+            "reactivation_calibration_max_m"
+        ]
+        reactivation_calibration_revert_on_invalid = synapse_options[
+            "reactivation_calibration_revert_on_invalid"
+        ]
+        reactivation_sigma_aware_k = synapse_options["reactivation_sigma_aware_k"]
+        dbl_init_method = synapse_options["dbl_init_method"]
+        reactivation_strategy = synapse_options["reactivation_strategy"]
+        blocklinear_strategy = synapse_options["blocklinear_strategy"]
+        efficient_blocklinear = synapse_options["efficient_blocklinear"]
+        print_hooks = synapse_options["print_hooks"]
+        use_noise = synapse_options["use_noise"]
+        rewiring_mode = synapse_options["rewiring_mode"]
+        rewire_frequency = synapse_options["rewire_frequency"]
+        synapses_per_branch = synapse_options["synapses_per_branch"]
+        sigma = synapse_options["sigma"]
+        excitatory_target_density = synapse_options["excitatory_target_density"]
+        inhibitory_target_density = synapse_options["inhibitory_target_density"]
+        freeze_excitatory_connectivity = synapse_options[
+            "freeze_excitatory_connectivity"
+        ]
+        freeze_inhibitory_connectivity = synapse_options[
+            "freeze_inhibitory_connectivity"
+        ]
+        init_method = synapse_options["init_method"]
+        weight_threshold = synapse_options["weight_threshold"]
+        adaptive_initialization = synapse_options["adaptive_initialization"]
+        adaptive_initialization_policy = synapse_options[
+            "adaptive_initialization_policy"
+        ]
+        adaptive_target_conductance = synapse_options["adaptive_target_conductance"]
+        branch_factors = synapse_options["branch_factors"]
+        epsilon = synapse_options["epsilon"]
+        weight_transform = synapse_options["weight_transform"]
+
         reactivate, reactivation_type = resolve_dendritic_activation(
             dendritic_activation,
             reactivate,
@@ -155,9 +321,7 @@ class DendriticBranchLayer(nn.Module):
         self.blocklinear_strategy = blocklinear_strategy
         self.efficient_blocklinear = efficient_blocklinear
         self.use_shunting = use_shunting
-        self.use_additive_normalization = kwargs.pop(
-            "use_additive_normalization", False
-        )
+        self.use_additive_normalization = use_additive_normalization
         self.dbl_init_method = dbl_init_method
         self.epsilon = epsilon  # Store epsilon for numerical stability
         self.topk_type = topk_type  # Store the strategy
@@ -177,19 +341,13 @@ class DendriticBranchLayer(nn.Module):
         self.dense_to_sparse_freeze_on_end = dense_to_sparse_freeze_on_end
         self.dense_to_sparse_advance_on_forward = dense_to_sparse_advance_on_forward
         self.dense_to_sparse_prune_metric = dense_to_sparse_prune_metric
-        self.indexed_seed = kwargs.pop("indexed_seed", None)
-        self.indexed_output_chunk_size = kwargs.pop("indexed_output_chunk_size", 2048)
-        self.indexed_candidate_size = kwargs.pop("indexed_candidate_size", None)
-        self.indexed_selection = kwargs.pop("indexed_selection", "standard")
-        self.indexed_rewire_frequency = int(
-            kwargs.pop("indexed_rewire_frequency", indexed_rewire_frequency)
-        )
-        self.indexed_rewire_quantile = float(
-            kwargs.pop("indexed_rewire_quantile", indexed_rewire_quantile)
-        )
-        self.indexed_rewire_until_step = kwargs.pop(
-            "indexed_rewire_until_step", indexed_rewire_until_step
-        )
+        self.indexed_seed = indexed_seed
+        self.indexed_output_chunk_size = indexed_output_chunk_size
+        self.indexed_candidate_size = indexed_candidate_size
+        self.indexed_selection = indexed_selection
+        self.indexed_rewire_frequency = int(indexed_rewire_frequency)
+        self.indexed_rewire_quantile = float(indexed_rewire_quantile)
+        self.indexed_rewire_until_step = indexed_rewire_until_step
         self.input_excitatory = excitatory_input_dim is not None
         self.print_hooks = print_hooks
 
@@ -392,28 +550,12 @@ class DendriticBranchLayer(nn.Module):
         if K is not None and K > in_features:
             K = in_features
 
-        layer_type = (
-            "standard" if self.topk_type is None else str(self.topk_type).lower()
+        from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.factory import (
+            get_sparse_layer,
+            normalize_sparse_layer_type,
         )
-        if layer_type in {
-            "topk",
-            "indexed-dynamic",
-            "indexed_dynamic_topk",
-            "indexed-rewire",
-            "indexed_rewire_topk",
-            "dense-to-sparse",
-            "dense_to_sparse_topk",
-            "annealed-topk",
-        }:
-            if layer_type == "topk":
-                layer_type = "standard"
-            elif layer_type in {"indexed-dynamic", "indexed_dynamic_topk"}:
-                layer_type = "indexed_dynamic"
-            elif layer_type in {"indexed-rewire", "indexed_rewire_topk"}:
-                layer_type = "indexed_rewire"
-            else:
-                layer_type = "dense_to_sparse"
-        from dendritic_modeling.utils.sparse_ops import get_sparse_layer
+
+        layer_type = normalize_sparse_layer_type(self.topk_type)
 
         if layer_type == "standard":
             return get_sparse_layer(
@@ -657,6 +799,10 @@ class DendriticBranchLayer(nn.Module):
         recurrent_input=None,
         rec_inhibitory_input=None,
     ):
+        excitation = None
+        inhibition = None
+        branch_current = None
+
         if self.use_shunting:
             numerator = 0
             denominator = 1
@@ -676,8 +822,8 @@ class DendriticBranchLayer(nn.Module):
                 denominator = denominator + rec_excitation
 
             if self.input_branches and branch_input is not None:
-                current = self.branches_to_output(branch_input)
-                numerator = numerator + current
+                branch_current = self.branches_to_output(branch_input)
+                numerator = numerator + branch_current
                 conductance = self.branches_to_output.sum_conductances()
                 denominator = denominator + conductance
 
@@ -710,7 +856,8 @@ class DendriticBranchLayer(nn.Module):
             voltage = 0
 
             if self.input_excitatory and self.branch_excitation is not None:
-                voltage = voltage + self.branch_excitation(x)
+                excitation = self.branch_excitation(x)
+                voltage = voltage + excitation
 
             if (
                 self.input_recurrent
@@ -720,14 +867,16 @@ class DendriticBranchLayer(nn.Module):
                 voltage = voltage + self.branch_recurrent(recurrent_input)
 
             if self.input_branches and branch_input is not None:
-                voltage = voltage + self.branches_to_output(branch_input)
+                branch_current = self.branches_to_output(branch_input)
+                voltage = voltage + branch_current
 
             if (
                 self.input_inhibitory
                 and self.branch_inhibition is not None
                 and inhibitory_input is not None
             ):
-                voltage = voltage - self.branch_inhibition(inhibitory_input)
+                inhibition = self.branch_inhibition(inhibitory_input)
+                voltage = voltage - inhibition
 
             if (
                 self.input_rec_inhibitory
@@ -748,6 +897,12 @@ class DendriticBranchLayer(nn.Module):
             self.compute_grad_scales(g_total=denominator if self.use_shunting else None)
 
         result = self.reactivation(voltage)
+        if getattr(self, "_store_analysis_currents", False):
+            self._last_analysis_currents = {
+                "excitation": excitation,
+                "inhibition": inhibition,
+                "branch_input": branch_current,
+            }
         return result
 
     def compute_raw_currents(

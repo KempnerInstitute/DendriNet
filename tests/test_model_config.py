@@ -12,6 +12,7 @@ from dendritic_modeling.config.model import (
     ImplementationConfig,
     ModelConfig,
     MorphologyConfig,
+    PretrainedReplacementConfig,
     ReactivationConfig,
     SparsityConfig,
     StructuredConnectivityConfig,
@@ -30,6 +31,8 @@ def test_model_config_defaults():
     assert isinstance(cfg.encoder, EncoderConfig)
     assert isinstance(cfg.core, CoreConfig)
     assert isinstance(cfg.decoder, DecoderConfig)
+    assert isinstance(cfg.vision_replacement, PretrainedReplacementConfig)
+    assert isinstance(cfg.pretrained_replacement, PretrainedReplacementConfig)
     assert isinstance(cfg.transformer_replacement, TransformerReplacementConfig)
 
 

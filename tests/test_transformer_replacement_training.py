@@ -14,6 +14,7 @@ from dendritic_modeling.training import (
 from dendritic_modeling.training.transformer_replacement import (
     _load_replacement_record_checkpoints,
     _make_replacement,
+    _select_joint_trainable_parameters,
 )
 
 
@@ -33,12 +34,12 @@ def _small_distillation_config(tmp_path):
     cfg.model.core.connectivity.ee_synapses_per_branch_per_layer = [3]
     cfg.model.core.morphology.use_shunting = False
     cfg.model.core.morphology.weight_transform = "softplus"
-    cfg.model.core.sparsity.type = "indexed_dynamic"
-    cfg.model.core.sparsity.temperature = 0.25
+    cfg.model.core.sparsity.type = "indexed_rewire"
     cfg.model.core.sparsity.indexed = {
-        "candidate_size": 6,
-        "selection": "standard",
         "seed": 19,
+        "rewire_frequency": 100,
+        "rewire_quantile": 0.05,
+        "rewire_until_step": None,
         "output_chunk_size": 128,
     }
     cfg.model.core.reactivation.enabled = True
@@ -192,3 +193,38 @@ def test_ei_stack_checkpoint_loader_maps_single_layer_slots(tmp_path):
         shared_stack.output_projections[1].weight,
         torch.full_like(shared_stack.output_projections[1].weight, 2.0),
     )
+
+
+def test_joint_trainable_parameter_selection_supports_full_model():
+    original = torch.nn.Linear(4, 4)
+    replacement = torch.nn.Linear(4, 4)
+    model = torch.nn.Sequential(original, replacement)
+    records = [
+        ReplacementRecord(
+            layer_index=0,
+            mlp_attr="mlp",
+            original_mlp=original,
+            replacement=replacement,
+        )
+    ]
+
+    replacement_params = _select_joint_trainable_parameters(
+        model,
+        records,
+        "replacement_only",
+    )
+    assert {id(param) for param in replacement_params} == {
+        id(param) for param in replacement.parameters()
+    }
+    assert all(not param.requires_grad for param in original.parameters())
+    assert all(param.requires_grad for param in replacement.parameters())
+
+    full_model_params = _select_joint_trainable_parameters(
+        model,
+        records,
+        "full_model",
+    )
+    assert {id(param) for param in full_model_params} == {
+        id(param) for param in model.parameters()
+    }
+    assert all(param.requires_grad for param in model.parameters())

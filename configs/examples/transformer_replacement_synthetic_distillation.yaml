@@ -1,9 +1,8 @@
 # ============================================================================
-# Synthetic transformer MLP distillation smoke test
+# Synthetic Transformer MLP Distillation Example
 # ============================================================================
 # This trains a token-wise DendriticFFNReplacement to imitate a small teacher
-# MLP on random hidden states. It is intentionally small enough to run as a
-# quick correctness/learning check before trying a full Hugging Face model.
+# MLP on random hidden states.
 # ============================================================================
 
 experiment:
@@ -22,32 +21,38 @@ model:
 
   core:
     type: "dendritic_ffn"
-    architecture:
-      excitatory_layer_sizes: [32]
-      excitatory_branch_factors: [2]
-    connectivity:
-      ee_synapses_per_branch_per_layer: [4]
-      ei_synapses_per_branch_per_layer: [0]
-      ie_synapses_per_branch_per_layer: [0]
-      ii_synapses_per_branch_per_layer: [0]
-    transfer:
+    population_network:
       input_transform: "signed_split"
-    morphology:
-      use_shunting: false
-      weight_transform: "softplus"
-    sparsity:
-      type: "indexed_dynamic"
-      init_method: "xavier_normal"
-      temperature: 0.25
-      indexed:
-        candidate_size: 8
-        selection: "standard"
-        seed: 11
-        output_chunk_size: 512
-    reactivation:
-      enabled: true
-      type: "param_tanh"
-      init_policy: "occupancy_quantile"
+      layers:
+        - name: "transformer_mlp"
+          readout_population: "ffn"
+          population_defaults:
+            ff_excitatory_synapses: 4
+            ff_inhibitory_synapses: 0
+            rec_excitatory_synapses: 0
+            rec_inhibitory_synapses: 0
+            somatic_synapses: true
+            use_shunting: false
+            reactivate: true
+            reactivation_type: "param_tanh"
+            reactivation_init_policy: "occupancy_quantile"
+            weight_transform: "softplus"
+            topk_type: "indexed_rewire"
+            topk_init_method: "xavier_normal"
+            indexed_seed: 11
+            indexed_rewire_frequency: 100
+            indexed_rewire_quantile: 0.05
+            indexed_rewire_until_step: null
+            indexed_output_chunk_size: 512
+            efficient_blocklinear: true
+          populations:
+            - name: "ffn"
+              polarity: "excitatory"
+              n_neurons: 32
+              branch_factors: [2]
+          connections:
+            - source: "input"
+              target: "ffn"
 
 training:
   main:
