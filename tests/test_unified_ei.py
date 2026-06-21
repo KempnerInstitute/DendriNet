@@ -22,6 +22,9 @@ from dendritic_modeling.networks.architectures.recurrent import (
     PopulationConfig,
     StatefulDendriNet,
 )
+from dendritic_modeling.networks.architectures.recurrent.stateful_dendrinet import (
+    _resolve_stateful_level_taus,
+)
 from dendritic_modeling.scripts.script_utils.setup_utils import (
     _is_recurrent_core_config,
 )
@@ -2285,6 +2288,33 @@ def test_fixed_tau_has_no_log_tau_parameter():
 # ---------------------------------------------------------------------------
 # Tau stability tests
 # ---------------------------------------------------------------------------
+
+
+def test_resolve_stateful_level_taus_preserves_explicit_and_geometric_rules():
+    explicit = PopulationConfig(
+        n_neurons=4,
+        branch_factors=[2],
+        ff_excitatory_synapses=4,
+        level_taus=[7.0, 3.0],
+    )
+    geometric = PopulationConfig(
+        n_neurons=4,
+        branch_factors=[2],
+        ff_excitatory_synapses=4,
+        tau_base=10.0,
+        tau_ratio=3.0,
+    )
+    mismatched = PopulationConfig(
+        n_neurons=4,
+        branch_factors=[2],
+        ff_excitatory_synapses=4,
+        level_taus=[7.0],
+    )
+
+    assert _resolve_stateful_level_taus(explicit, 2) == [7.0, 3.0]
+    assert _resolve_stateful_level_taus(geometric, 2) == [30.0, 10.0]
+    with pytest.raises(ValueError, match="level_taus length"):
+        _resolve_stateful_level_taus(mismatched, 2)
 
 
 def test_tau_stability_extreme_ratios():

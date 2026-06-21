@@ -173,8 +173,42 @@ def _build_paired_arithmetic_dataset(
     )
 
 
+def _build_iterative_modulo10_dataset(
+    dataset: Dataset,
+    *,
+    shuffle_iterations: int,
+    pair_seed: int,
+) -> TensorDataset:
+    """Build the deterministic split-half modulo-10 pairing dataset."""
+    generator = torch.Generator().manual_seed(int(pair_seed))
+    indices = torch.randperm(len(dataset), generator=generator)
+    n_pairs = len(dataset) // 2
+    left_indices = indices[:n_pairs]
+    right_indices = indices[n_pairs : n_pairs + n_pairs]
+
+    left_inputs, left_labels = dataset[left_indices]
+    right_inputs, right_labels = dataset[right_indices]
+
+    inputs = []
+    labels = []
+    for _ in range(int(shuffle_iterations)):
+        inputs.append(torch.cat([left_inputs, right_inputs], dim=-1))
+        labels.append((left_labels + right_labels) % 10)
+
+        left_perm = torch.randperm(left_inputs.shape[0], generator=generator)
+        left_inputs = left_inputs[left_perm]
+        left_labels = left_labels[left_perm]
+
+        right_perm = torch.randperm(right_inputs.shape[0], generator=generator)
+        right_inputs = right_inputs[right_perm]
+        right_labels = right_labels[right_perm]
+
+    return TensorDataset(torch.cat(inputs, dim=0), torch.cat(labels, dim=0))
+
+
 __all__ = [
     "PairedArithmeticDataset",
+    "_build_iterative_modulo10_dataset",
     "_build_paired_arithmetic_dataset",
     "_make_pair_indices",
 ]

@@ -102,6 +102,25 @@ def _active_synapse_count(input_dim: Optional[int], synapses: int) -> Optional[i
     return synapses if input_dim is not None and synapses > 0 else None
 
 
+def _resolve_stateful_level_taus(
+    pop_config: PopulationConfig,
+    n_levels: int,
+) -> list[float]:
+    """Resolve explicit or geometric per-level time constants."""
+    if pop_config.level_taus:
+        if len(pop_config.level_taus) != n_levels:
+            raise ValueError(
+                "level_taus length must match number of dendritic levels "
+                f"({n_levels}), got {len(pop_config.level_taus)}"
+            )
+        return list(pop_config.level_taus)
+
+    ratio = pop_config.tau_ratio
+    return [
+        pop_config.tau_base * (ratio ** (n_levels - 1 - i)) for i in range(n_levels)
+    ]
+
+
 class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
     """Dendritic population module for feedforward and recurrent operation.
 
@@ -242,23 +261,7 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
         else:
             self.register_buffer("soma_feedback_strength", strength)
 
-        # Compute per-level time constants
-        if pop_config.level_taus:
-            if len(pop_config.level_taus) != self.n_levels:
-                raise ValueError(
-                    "level_taus length must match number of dendritic levels "
-                    f"({self.n_levels}), got {len(pop_config.level_taus)}"
-                )
-            level_taus = list(pop_config.level_taus)
-        else:
-            # Geometrically spaced taus: distal levels get longer time constants.
-            # Level 0 (most distal) = tau_base * ratio^(n_levels-1)
-            # Level n_levels-1 (soma) = tau_base
-            ratio = pop_config.tau_ratio
-            level_taus = [
-                pop_config.tau_base * (ratio ** (self.n_levels - 1 - i))
-                for i in range(self.n_levels)
-            ]
+        level_taus = _resolve_stateful_level_taus(pop_config, self.n_levels)
 
         self.learnable_tau = bool(pop_config.learnable_tau)
         if self.learnable_tau:

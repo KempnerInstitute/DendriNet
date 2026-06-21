@@ -2,6 +2,7 @@ import torch
 from torch.utils.data import TensorDataset
 
 from dendritic_modeling.datasets.standard_datasets import (
+    _build_iterative_modulo10_dataset,
     _build_paired_arithmetic_dataset,
     _build_paired_arithmetic_triplet,
 )
@@ -107,3 +108,32 @@ def test_paired_arithmetic_triplet_matches_direct_split_seed_offsets() -> None:
         expected_x, expected_y = expected[split_name][0]
         assert torch.equal(x, expected_x)
         assert torch.equal(y, expected_y)
+
+
+def test_iterative_modulo10_dataset_preserves_split_half_shuffle() -> None:
+    inputs = torch.arange(8 * 2, dtype=torch.float32).reshape(8, 2)
+    labels = torch.arange(8, dtype=torch.long)
+    base = TensorDataset(inputs, labels)
+
+    dataset = _build_iterative_modulo10_dataset(
+        base,
+        shuffle_iterations=2,
+        pair_seed=11,
+    )
+
+    expected_inputs = torch.tensor(
+        [
+            [2.0, 3.0, 0.0, 1.0],
+            [6.0, 7.0, 8.0, 9.0],
+            [4.0, 5.0, 14.0, 15.0],
+            [10.0, 11.0, 12.0, 13.0],
+            [2.0, 3.0, 14.0, 15.0],
+            [4.0, 5.0, 8.0, 9.0],
+            [10.0, 11.0, 12.0, 13.0],
+            [6.0, 7.0, 0.0, 1.0],
+        ]
+    )
+    expected_labels = torch.tensor([1, 7, 9, 1, 8, 6, 1, 3], dtype=torch.long)
+
+    torch.testing.assert_close(dataset.tensors[0], expected_inputs)
+    torch.testing.assert_close(dataset.tensors[1], expected_labels)

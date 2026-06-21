@@ -55,6 +55,8 @@ from dendritic_modeling.datasets.standard_datasets import (
     _is_official_imagenet_root,
     _load_experimental_dataset_triplet,
     _load_imagenet_dataset_triplet,
+    _load_mnist_style_as_datasets,
+    _load_paired_arithmetic_from_options,
     _load_standard_vision_dataset_triplet,
     _load_torchvision_train_test_pair,
     _materialize_cifar10_tensor_triplet,
@@ -69,6 +71,7 @@ from dendritic_modeling.datasets.standard_datasets import (
     _resolve_imagefolder_roots,
     _resolve_imagenet_data_location,
     _split_imagenet_train_valid_or_use_test,
+    _split_train_valid_dataset,
     _split_train_valid_pair,
     _standard_dataset_option_kwargs,
     _subset_by_indices,
@@ -403,6 +406,62 @@ class TestRealDatasets(unittest.TestCase):
         self.assertEqual(len(normalized_transform.transforms), 2)
         self.assertEqual(tuple(normalized_transform.transforms[1].mean), (0.1,))
         self.assertEqual(tuple(normalized_transform.transforms[1].std), (0.2,))
+
+    def test_split_train_valid_dataset_is_deterministic(self):
+        dataset = self._TinyVisionDataset(10, (1, 4, 4))
+
+        train_a, valid_a = _split_train_valid_dataset(
+            dataset,
+            train_valid_split=0.6,
+            split_seed=13,
+        )
+        train_b, valid_b = _split_train_valid_dataset(
+            dataset,
+            train_valid_split=0.6,
+            split_seed=13,
+        )
+
+        self.assertEqual(len(train_a), 6)
+        self.assertEqual(len(valid_a), 4)
+        self.assertEqual(train_a.indices, train_b.indices)
+        self.assertEqual(valid_a.indices, valid_b.indices)
+
+    @patch(
+        "dendritic_modeling.datasets.standard_datasets._load_torchvision_train_test_pair"
+    )
+    def test_load_mnist_style_as_datasets_forwards_loader_metadata(
+        self,
+        mock_load_pair,
+    ):
+        mock_load_pair.return_value = (
+            self._TinyVisionDataset(10, (1, 4, 4)),
+            self._TinyVisionDataset(4, (1, 4, 4)),
+        )
+
+        train_ds, valid_ds, test_ds = _load_mnist_style_as_datasets(
+            dataset_key="unit_mnist",
+            dataset_cls=object,
+            dataset_name="UnitMNIST",
+            mean=(0.1,),
+            std=(0.2,),
+            train_valid_split=0.6,
+            flatten=True,
+            normalize=True,
+            task_data_path=self.temp_dir,
+            split_seed=7,
+        )
+
+        self.assertEqual(tuple(train_ds.tensors[0].shape), (6, 16))
+        self.assertEqual(tuple(valid_ds.tensors[0].shape), (4, 16))
+        self.assertEqual(tuple(test_ds.tensors[0].shape), (4, 16))
+        self.assertIs(mock_load_pair.call_args.args[0], object)
+        call_kwargs = mock_load_pair.call_args.kwargs
+        self.assertEqual(call_kwargs["dataset_name"], "UnitMNIST")
+        self.assertEqual(
+            call_kwargs["root"],
+            get_data_directory("unit_mnist", self.temp_dir),
+        )
+        self.assertEqual(len(call_kwargs["transform"].transforms), 2)
 
     @patch(
         "dendritic_modeling.datasets.standard_datasets._load_torchvision_train_test_pair"
@@ -1281,6 +1340,49 @@ class TestDatasetUtilities(unittest.TestCase):
         self.assertEqual(contextual_kwargs["pair_seed"], 9)
         self.assertEqual(contextual_kwargs["context_seed"], 99)
         self.assertEqual(contextual_kwargs["split_seed"], 5)
+
+    def test_load_paired_arithmetic_from_options_preserves_fallback_mapping(self):
+        options = SimpleNamespace(
+            train_valid_split=0.7,
+            flatten=True,
+            normalize=False,
+            task_data_path="/tmp/data",
+            split_seed=3,
+            parameters={"shuffle_iterations": 4, "pair_seed": 11},
+        )
+        train_ds = TensorDataset(torch.zeros(1, 2), torch.zeros(1, dtype=torch.long))
+        test_ds = TensorDataset(torch.ones(1, 2), torch.ones(1, dtype=torch.long))
+        calls = []
+
+        def fake_loader(**kwargs):
+            calls.append(kwargs)
+            return {"train": train_ds, "test": test_ds}
+
+        out_train, out_valid, out_test = _load_paired_arithmetic_from_options(
+            options,
+            fake_loader,
+            default_shuffle_iterations=2,
+            include_context=False,
+            valid_fallback_to_test=True,
+        )
+
+        self.assertEqual(
+            calls,
+            [
+                {
+                    "train_valid_split": 0.7,
+                    "flatten": True,
+                    "normalize": False,
+                    "task_data_path": "/tmp/data",
+                    "split_seed": 3,
+                    "shuffle_iterations": 4,
+                    "pair_seed": 11,
+                }
+            ],
+        )
+        self.assertIs(out_train, train_ds)
+        self.assertIs(out_valid, test_ds)
+        self.assertIs(out_test, test_ds)
 
     def test_standard_vision_loader_registry_preserves_dispatch_and_noise_hook(self):
         train_ds = TensorDataset(torch.zeros(4, 2), torch.arange(4, dtype=torch.long))

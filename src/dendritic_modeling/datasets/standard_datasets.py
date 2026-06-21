@@ -48,6 +48,7 @@ from .indexing import (
 )
 from .paired import (
     PairedArithmeticDataset as PairedArithmeticDataset,
+    _build_iterative_modulo10_dataset as _build_iterative_modulo10_dataset,
     _build_paired_arithmetic_dataset as _build_paired_arithmetic_dataset,
     _make_pair_indices as _make_pair_indices,
 )
@@ -281,6 +282,21 @@ def _build_to_tensor_transform(
     return transforms.Compose(transform_steps)
 
 
+def _split_train_valid_dataset(
+    train_dataset: Dataset,
+    *,
+    train_valid_split: float,
+    split_seed: int,
+) -> tuple[Dataset, Dataset]:
+    train_size = int(len(train_dataset) * train_valid_split)
+    valid_size = len(train_dataset) - train_size
+    return torch.utils.data.random_split(
+        train_dataset,
+        [train_size, valid_size],
+        generator=_split_generator(split_seed),
+    )
+
+
 def _materialize_mnist_style_tensor_triplet(
     train_dataset: Dataset,
     test_dataset: Dataset,
@@ -290,13 +306,10 @@ def _materialize_mnist_style_tensor_triplet(
     split_seed: int,
 ) -> tuple[TensorDataset, TensorDataset, TensorDataset]:
     """Split and materialize MNIST-style torchvision datasets as TensorDatasets."""
-    train_size = int(len(train_dataset) * train_valid_split)
-    valid_size = len(train_dataset) - train_size
-
-    train_dataset, valid_dataset = torch.utils.data.random_split(
+    train_dataset, valid_dataset = _split_train_valid_dataset(
         train_dataset,
-        [train_size, valid_size],
-        generator=_split_generator(split_seed),
+        train_valid_split=train_valid_split,
+        split_seed=split_seed,
     )
 
     x_train, y_train = _dataset_to_tensors(train_dataset)
@@ -325,6 +338,42 @@ def _materialize_mnist_style_tensor_triplet(
     )
 
 
+def _load_mnist_style_as_datasets(
+    *,
+    dataset_key: str,
+    dataset_cls: Callable[..., Dataset],
+    dataset_name: str,
+    mean: tuple[float, ...],
+    std: tuple[float, ...],
+    train_valid_split: float,
+    flatten: bool,
+    normalize: bool,
+    task_data_path: str | None,
+    split_seed: int,
+) -> tuple[TensorDataset, TensorDataset, TensorDataset]:
+    data_dir = get_data_directory(dataset_key, task_data_path)
+    transform = _build_to_tensor_transform(
+        normalize=normalize,
+        mean=mean,
+        std=std,
+    )
+
+    train_dataset, test_dataset = _load_torchvision_train_test_pair(
+        dataset_cls,
+        root=data_dir,
+        transform=transform,
+        dataset_name=dataset_name,
+    )
+
+    return _materialize_mnist_style_tensor_triplet(
+        train_dataset,
+        test_dataset,
+        train_valid_split=train_valid_split,
+        flatten=flatten,
+        split_seed=split_seed,
+    )
+
+
 def load_mnist_as_datasets(
     train_valid_split=0.8,
     flatten=False,
@@ -344,25 +393,16 @@ def load_mnist_as_datasets(
     Returns:
         tuple: (train_dataset, valid_dataset, test_dataset)
     """
-    mnist_dir = get_data_directory("mnist", task_data_path)
-    transform = _build_to_tensor_transform(
-        normalize=normalize,
+    return _load_mnist_style_as_datasets(
+        dataset_key="mnist",
+        dataset_cls=datasets.MNIST,
+        dataset_name="MNIST",
         mean=(0.1307,),
         std=(0.3081,),
-    )
-
-    train_dataset, test_dataset = _load_torchvision_train_test_pair(
-        datasets.MNIST,
-        root=mnist_dir,
-        transform=transform,
-        dataset_name="MNIST",
-    )
-
-    return _materialize_mnist_style_tensor_triplet(
-        train_dataset,
-        test_dataset,
         train_valid_split=train_valid_split,
         flatten=flatten,
+        normalize=normalize,
+        task_data_path=task_data_path,
         split_seed=split_seed,
     )
 
@@ -386,25 +426,16 @@ def load_fashion_mnist_as_datasets(
     Returns:
         tuple: (train_dataset, valid_dataset, test_dataset)
     """
-    fmnist_dir = get_data_directory("fashion_mnist", task_data_path)
-    transform = _build_to_tensor_transform(
-        normalize=normalize,
+    return _load_mnist_style_as_datasets(
+        dataset_key="fashion_mnist",
+        dataset_cls=datasets.FashionMNIST,
+        dataset_name="FashionMNIST",
         mean=(0.2860,),
         std=(0.3530,),
-    )
-
-    train_dataset, test_dataset = _load_torchvision_train_test_pair(
-        datasets.FashionMNIST,
-        root=fmnist_dir,
-        transform=transform,
-        dataset_name="FashionMNIST",
-    )
-
-    return _materialize_mnist_style_tensor_triplet(
-        train_dataset,
-        test_dataset,
         train_valid_split=train_valid_split,
         flatten=flatten,
+        normalize=normalize,
+        task_data_path=task_data_path,
         split_seed=split_seed,
     )
 
@@ -441,34 +472,12 @@ def load_mnist_modulo10(
     data = {"train": train_ds, "valid": valid_ds, "test": test_ds}
 
     effective_pair_seed = int(pair_seed) + 1009 * max(1, int(shuffle_iterations))
-    for split_idx, (key, ds) in enumerate(data.items()):
-        generator = torch.Generator().manual_seed(effective_pair_seed + split_idx)
-        ix = torch.randperm(len(ds), generator=generator)
-        n_pairs = len(ds) // 2
-        ix0 = ix[:n_pairs]
-        ix1 = ix[n_pairs : n_pairs + n_pairs]
-
-        input0, label0 = ds[ix0]
-        input1, label1 = ds[ix1]
-
-        inputs = []
-        labels = []
-        for _ in range(shuffle_iterations):
-            inputs.append(torch.cat([input0, input1], dim=-1))
-            labels.append((label0 + label1) % 10)
-
-            ix0 = torch.randperm(input0.shape[0], generator=generator)
-            input0 = input0[ix0]
-            label0 = label0[ix0]
-
-            ix1 = torch.randperm(input1.shape[0], generator=generator)
-            input1 = input1[ix1]
-            label1 = label1[ix1]
-
-        inputs = torch.cat(inputs, dim=0)
-        labels = torch.cat(labels, dim=0)
-
-        data[key] = TensorDataset(inputs, labels)
+    for split_idx, (key, dataset) in enumerate(data.items()):
+        data[key] = _build_iterative_modulo10_dataset(
+            dataset,
+            shuffle_iterations=shuffle_iterations,
+            pair_seed=effective_pair_seed + split_idx,
+        )
 
     return data
 
@@ -483,13 +492,10 @@ def _materialize_cifar10_tensor_triplet(
 ) -> tuple[TensorDataset, TensorDataset, TensorDataset]:
     """Split and materialize CIFAR-10 while preserving clone-valid semantics."""
     if train_valid_split < 1.0:
-        train_size = int(len(train_dataset) * train_valid_split)
-        valid_size = len(train_dataset) - train_size
-
-        train_dataset, valid_dataset = torch.utils.data.random_split(
+        train_dataset, valid_dataset = _split_train_valid_dataset(
             train_dataset,
-            [train_size, valid_size],
-            generator=_split_generator(split_seed),
+            train_valid_split=train_valid_split,
+            split_seed=split_seed,
         )
 
         x_train, y_train = _dataset_to_tensors(train_dataset, flatten=flatten)
@@ -1010,56 +1016,75 @@ def _paired_arithmetic_option_kwargs(
     return kwargs
 
 
+def _load_paired_arithmetic_from_options(
+    options: _UnifiedDatasetOptions,
+    loader: Callable[..., dict[str, Dataset]],
+    *,
+    default_shuffle_iterations: int,
+    include_context: bool,
+    valid_fallback_to_test: bool = False,
+    slice_safe: bool = False,
+) -> _DatasetTriplet:
+    data = loader(
+        **_paired_arithmetic_option_kwargs(
+            options,
+            default_shuffle_iterations=default_shuffle_iterations,
+            include_context=include_context,
+        )
+    )
+    return _dataset_mapping_to_triplet(
+        data,
+        valid_fallback_to_test=valid_fallback_to_test,
+        slice_safe=slice_safe,
+    )
+
+
 def _load_mnist_modulo10_from_options(
     options: _UnifiedDatasetOptions,
 ) -> _DatasetTriplet:
-    data = load_mnist_modulo10(
-        **_paired_arithmetic_option_kwargs(
-            options,
-            default_shuffle_iterations=2,
-            include_context=False,
-        )
+    return _load_paired_arithmetic_from_options(
+        options,
+        load_mnist_modulo10,
+        default_shuffle_iterations=2,
+        include_context=False,
+        valid_fallback_to_test=True,
     )
-    return _dataset_mapping_to_triplet(data, valid_fallback_to_test=True)
 
 
 def _load_cifar10_modulo10_from_options(
     options: _UnifiedDatasetOptions,
 ) -> _DatasetTriplet:
-    data = load_cifar10_modulo10(
-        **_paired_arithmetic_option_kwargs(
-            options,
-            default_shuffle_iterations=1,
-            include_context=False,
-        )
+    return _load_paired_arithmetic_from_options(
+        options,
+        load_cifar10_modulo10,
+        default_shuffle_iterations=1,
+        include_context=False,
+        slice_safe=True,
     )
-    return _dataset_mapping_to_triplet(data, slice_safe=True)
 
 
 def _load_double_cifar10_contextual_mod10_from_options(
     options: _UnifiedDatasetOptions,
 ) -> _DatasetTriplet:
-    data = load_double_cifar10_contextual_mod10(
-        **_paired_arithmetic_option_kwargs(
-            options,
-            default_shuffle_iterations=1,
-            include_context=True,
-        )
+    return _load_paired_arithmetic_from_options(
+        options,
+        load_double_cifar10_contextual_mod10,
+        default_shuffle_iterations=1,
+        include_context=True,
+        slice_safe=True,
     )
-    return _dataset_mapping_to_triplet(data, slice_safe=True)
 
 
 def _load_double_mnist_contextual_mod10_from_options(
     options: _UnifiedDatasetOptions,
 ) -> _DatasetTriplet:
-    data = load_double_mnist_contextual_mod10(
-        **_paired_arithmetic_option_kwargs(
-            options,
-            default_shuffle_iterations=1,
-            include_context=True,
-        )
+    return _load_paired_arithmetic_from_options(
+        options,
+        load_double_mnist_contextual_mod10,
+        default_shuffle_iterations=1,
+        include_context=True,
+        slice_safe=True,
     )
-    return _dataset_mapping_to_triplet(data, slice_safe=True)
 
 
 _SPECIAL_DATASET_LOADERS: dict[
