@@ -21,7 +21,7 @@ from dendritic_modeling.training.strategies.local_learning_pathways import (
     iter_topk_path_modules,
 )
 from dendritic_modeling.utils import save_dict
-from dendritic_modeling.utils.hooks import ForwardHookRemovalMixin, remove_hook_handles
+from dendritic_modeling.utils.hooks import ForwardHookRemovalMixin
 
 
 class SynapticActivationAnalyzer(ForwardHookRemovalMixin):
@@ -89,7 +89,7 @@ class SynapticActivationAnalyzer(ForwardHookRemovalMixin):
                 )
             return handles
         except Exception:
-            remove_hook_handles(handles)
+            self.remove_forward_hooks(handles)
             raise
 
     def _register_synapse_hook(

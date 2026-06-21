@@ -57,7 +57,7 @@ from dendritic_modeling.training.strategies.local_learning_pathways import (
     iter_topk_path_modules,
 )
 from dendritic_modeling.utils import save_dict
-from dendritic_modeling.utils.hooks import remove_hook_handles
+from dendritic_modeling.utils.hooks import ForwardHookRemovalMixin
 
 
 @dataclass(frozen=True)
@@ -158,7 +158,7 @@ def _parse_branch_module_index(module_name: str) -> int:
     return int(match.group(1))
 
 
-class LocalRuleComponentAnalyzer(AbstractAnalyzer):
+class LocalRuleComponentAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
     """Record LocalCA eligibility factors by E/I type and dendritic depth."""
 
     def __init__(self, params: LocalRuleComponentAnalysisParams):
@@ -222,7 +222,7 @@ class LocalRuleComponentAnalyzer(AbstractAnalyzer):
 
                 records.append(rec)
         except Exception:
-            remove_hook_handles(handles)
+            self.remove_forward_hooks(handles)
             raise
 
         return records, handles, decoder_cache
@@ -278,7 +278,7 @@ class LocalRuleComponentAnalyzer(AbstractAnalyzer):
                 handles.append(self._register_topk_hook(rec, path, topk_layer))
             return handles
         except Exception:
-            remove_hook_handles(handles)
+            self.remove_forward_hooks(handles)
             raise
 
     def _register_topk_hook(
@@ -800,7 +800,7 @@ class LocalRuleComponentAnalyzer(AbstractAnalyzer):
                     _ = model(x)
                 delta0 = None
         finally:
-            remove_hook_handles(handles)
+            self.remove_forward_hooks(handles)
         return records, delta0
 
     def _record_batch_components(

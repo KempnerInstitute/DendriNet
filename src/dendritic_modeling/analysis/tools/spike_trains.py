@@ -19,7 +19,7 @@ from dendritic_modeling.config.analysis import (
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import LIFSoma
 from dendritic_modeling.utils import save_dict
-from dendritic_modeling.utils.hooks import remove_hook_handles
+from dendritic_modeling.utils.hooks import ForwardHookRemovalMixin
 
 
 def _binarize_spike_sequences(
@@ -83,7 +83,7 @@ def _isi_stats(isi_values: torch.Tensor, dt: float) -> dict[str, float]:
     }
 
 
-class SpikeTrainAnalyzer(AbstractAnalyzer):
+class SpikeTrainAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
     """Collect raster and population statistics from ``LIFSoma`` modules."""
 
     def __init__(self, params: SpikeTrainAnalysisParams | None = None):
@@ -103,7 +103,7 @@ class SpikeTrainAnalyzer(AbstractAnalyzer):
                 handles.append(self._register_spike_hook(name, module))
             return handles
         except Exception:
-            self._remove_hooks(handles)
+            self.remove_forward_hooks(handles)
             raise
 
     def _iter_lif_somas(self, model: BaseModel):
@@ -118,10 +118,6 @@ class SpikeTrainAnalyzer(AbstractAnalyzer):
     ) -> torch.utils.hooks.RemovableHandle:
         module._analysis_name = name
         return module.register_forward_hook(self._forward_hook)
-
-    @staticmethod
-    def _remove_hooks(handles: list[torch.utils.hooks.RemovableHandle]) -> None:
-        remove_hook_handles(handles)
 
     def _forward_hook(
         self,
@@ -162,14 +158,14 @@ class SpikeTrainAnalyzer(AbstractAnalyzer):
             return {}
         if data is None:
             self.logger.info("Skipping spike-train analysis: no dataset provided")
-            self._remove_hooks(handles)
+            self.remove_forward_hooks(handles)
             return {}
 
         sample_cap = getattr(self.params, "max_samples", None)
         try:
             self._collect_spike_sequences(model, data, device, runtime, sample_cap)
         finally:
-            self._remove_hooks(handles)
+            self.remove_forward_hooks(handles)
 
         results = {
             "dt": float(self.params.dt),

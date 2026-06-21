@@ -107,7 +107,7 @@ def test_spike_train_hook_registration_tags_lif_somas():
         name, module = lif_somas[0]
         assert module._analysis_name == name
     finally:
-        analyzer._remove_hooks(handles)
+        analyzer.remove_forward_hooks(handles)
 
 
 def test_spike_train_hook_registration_removes_hooks_after_failure(monkeypatch):
@@ -123,6 +123,20 @@ def test_spike_train_hook_registration_removes_hooks_after_failure(monkeypatch):
         analyzer._attach_hooks(model)
 
     assert sum(len(module._forward_hooks) for module in model.modules()) == 0
+
+
+def test_spike_train_analyzer_removes_hooks_when_dataset_missing(monkeypatch):
+    analyzer = SpikeTrainAnalyzer()
+    removed = []
+
+    class Handle:
+        def remove(self):
+            removed.append("removed")
+
+    monkeypatch.setattr(analyzer, "_attach_hooks", lambda model: [Handle()])
+
+    assert analyzer.analyze(model=object(), data=None) == {}
+    assert removed == ["removed"]
 
 
 def test_spike_train_summary_helpers_match_loop_semantics():

@@ -18,10 +18,10 @@ from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import DendriticBranchLayer
 from dendritic_modeling.utils import save_dict
-from dendritic_modeling.utils.hooks import remove_hook_handles
+from dendritic_modeling.utils.hooks import ForwardHookRemovalMixin
 
 
-class ReceptiveFieldAnalyzer(AbstractAnalyzer):
+class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
     """Analyzer for dendritic receptive fields and optional branch tuning."""
 
     _RAW_VERSION = 1
@@ -182,7 +182,7 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
             with torch.no_grad():
                 _ = model(x)
         finally:
-            remove_hook_handles(handles)
+            self.remove_forward_hooks(handles)
 
     def _initialize_activation_records(
         self, module_name: str, module: DendriticBranchLayer
@@ -226,7 +226,7 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
             )
             return handles
         except Exception:
-            remove_hook_handles(handles)
+            self.remove_forward_hooks(handles)
             raise
 
     def _summarize_signal(

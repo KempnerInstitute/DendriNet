@@ -37,7 +37,7 @@ from dendritic_modeling.config.analysis import (
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks.activations.parametric import ParametricTanh
 from dendritic_modeling.utils import save_dict
-from dendritic_modeling.utils.hooks import remove_hook_handles
+from dendritic_modeling.utils.hooks import ForwardHookRemovalMixin
 
 
 def _quantile_stats(v: torch.Tensor) -> dict[str, float]:
@@ -154,7 +154,7 @@ def _param_tanh_params(reactivation: ParametricTanh) -> dict[str, float]:
     return out
 
 
-class ReactivationDynamicsAnalyzer(AbstractAnalyzer):
+class ReactivationDynamicsAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
     """Per-epoch trajectory tracker for parametric reactivation gates.
 
     For every ``ParametricTanh`` in the model, on each ``analyze()`` call
@@ -308,7 +308,7 @@ class ReactivationDynamicsAnalyzer(AbstractAnalyzer):
                     )
                     return None
         finally:
-            remove_hook_handles(handles)
+            self.remove_forward_hooks(handles)
             if was_training:
                 model.train()
         return captured
@@ -326,7 +326,7 @@ class ReactivationDynamicsAnalyzer(AbstractAnalyzer):
                 )
             return handles
         except Exception:
-            remove_hook_handles(handles)
+            self.remove_forward_hooks(handles)
             raise
 
     @staticmethod
