@@ -40,6 +40,7 @@ from dendritic_modeling.utils import save_dict
 from dendritic_modeling.utils.hooks import (
     ForwardHookRemovalMixin,
     iter_named_modules_of_type,
+    register_hook_groups,
 )
 
 
@@ -317,16 +318,18 @@ class ReactivationDynamicsAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         layers: list[tuple[str, ParametricTanh]],
         captured: dict[str, torch.Tensor],
     ) -> list[torch.utils.hooks.RemovableHandle]:
-        handles = []
-        try:
-            for name, layer in layers:
-                handles.append(
-                    layer.register_forward_pre_hook(self._make_hook(name, captured))
-                )
-            return handles
-        except Exception:
-            self.remove_forward_hooks(handles)
-            raise
+        return register_hook_groups(
+            layers,
+            lambda layer_entry: [self._register_capture_hook(layer_entry, captured)],
+        )
+
+    def _register_capture_hook(
+        self,
+        layer_entry: tuple[str, ParametricTanh],
+        captured: dict[str, torch.Tensor],
+    ) -> torch.utils.hooks.RemovableHandle:
+        name, layer = layer_entry
+        return layer.register_forward_pre_hook(self._make_hook(name, captured))
 
     @staticmethod
     def _make_hook(layer_name: str, captured: dict[str, torch.Tensor]):

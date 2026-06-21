@@ -117,6 +117,23 @@ def _restore_requires_grad_states(
         param.requires_grad_(requires_grad)
 
 
+def _clip_replacement_grad_norm(
+    parameters: Iterable[torch.nn.Parameter],
+    *,
+    max_grad_norm: Any,
+    scaler: GradScaler,
+    optimizer: torch.optim.Optimizer,
+) -> None:
+    """Apply optional replacement-training gradient clipping."""
+    if max_grad_norm is None:
+        return
+    max_norm = float(max_grad_norm)
+    if max_norm <= 0:
+        return
+    scaler.unscale_(optimizer)
+    torch.nn.utils.clip_grad_norm_(parameters, max_norm)
+
+
 def _base_distillation_loss(
     prediction: torch.Tensor,
     target: torch.Tensor,
@@ -312,6 +329,7 @@ def _write_metrics_json(
 __all__ = [
     "ReplacementTrainingHistory",
     "_capture_requires_grad_states",
+    "_clip_replacement_grad_norm",
     "_compute_distillation_loss",
     "_compute_transformer_distillation_loss",
     "_compute_vision_distillation_loss",

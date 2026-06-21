@@ -17,6 +17,7 @@ from dendritic_modeling.networks.architectures.classical.autoencoder import (
 from dendritic_modeling.utils.hooks import (
     ForwardHookRemovalMixin,
     iter_modules_of_type,
+    register_forward_hook_groups,
 )
 
 LossBuilder = Callable[[], "LossFunction"]
@@ -337,15 +338,18 @@ class VoltageStabilizationLoss(ForwardHookRemovalMixin, LossFunction):
         )
 
     def attach_forward_hooks(self, model: BaseModel):
-        handles = []
-        try:
-            for module in iter_modules_of_type(model, DendriticBranchLayer):
-                if self._should_hook_reactivation(module):
-                    handles.append(self._register_reactivation_hook(module))
-            return handles
-        except Exception:
-            self.remove_forward_hooks(handles)
-            raise
+        return register_forward_hook_groups(
+            model,
+            DendriticBranchLayer,
+            self._attach_reactivation_hooks,
+            predicate=self._should_hook_reactivation,
+        )
+
+    def _attach_reactivation_hooks(
+        self,
+        module: DendriticBranchLayer,
+    ) -> list[torch.utils.hooks.RemovableHandle]:
+        return [self._register_reactivation_hook(module)]
 
     def _should_hook_reactivation(self, module: DendriticBranchLayer) -> bool:
         if self.stabilize_mode != "gate_occupancy":
@@ -452,14 +456,11 @@ class ExcitationInhibitionBalanceLoss(ForwardHookRemovalMixin, LossFunction):
         )
 
     def attach_forward_hooks(self, model: BaseModel):
-        handles = []
-        try:
-            for module in iter_modules_of_type(model, DendriticBranchLayer):
-                handles.extend(self._attach_branch_balance_hooks(module))
-            return handles
-        except Exception:
-            self.remove_forward_hooks(handles)
-            raise
+        return register_forward_hook_groups(
+            model,
+            DendriticBranchLayer,
+            self._attach_branch_balance_hooks,
+        )
 
     def _attach_branch_balance_hooks(
         self,

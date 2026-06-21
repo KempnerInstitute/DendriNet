@@ -8,6 +8,7 @@ from typing import TypeVar
 import torch
 
 HookHandle = torch.utils.hooks.RemovableHandle
+ItemT = TypeVar("ItemT")
 ModuleT = TypeVar("ModuleT", bound=torch.nn.Module)
 ResultT = TypeVar("ResultT")
 ForwardHook = Callable[..., object]
@@ -17,6 +18,21 @@ def remove_hook_handles(handles: Iterable[HookHandle]) -> None:
     """Remove all registered hook handles."""
     for handle in handles:
         handle.remove()
+
+
+def register_hook_groups(
+    items: Iterable[ItemT],
+    register: Callable[[ItemT], Iterable[HookHandle]],
+) -> list[HookHandle]:
+    """Register grouped hooks for arbitrary items with partial-failure cleanup."""
+    handles: list[HookHandle] = []
+    try:
+        for item in items:
+            handles.extend(register(item))
+        return handles
+    except Exception:
+        remove_hook_handles(handles)
+        raise
 
 
 def run_with_forward_hooks(
@@ -109,6 +125,33 @@ def register_named_forward_hooks(
         raise
 
 
+def register_forward_hook_groups(
+    model: torch.nn.Module,
+    module_type: type[ModuleT],
+    register: Callable[[ModuleT], Iterable[HookHandle]],
+    *,
+    predicate: Callable[[ModuleT], bool] | None = None,
+    prepare: Callable[[ModuleT], None] | None = None,
+) -> list[HookHandle]:
+    """Register one or more forward hooks per matching module.
+
+    This mirrors ``register_named_forward_hook_groups`` for callers whose hook
+    records are keyed by object state rather than module names.
+    """
+    handles: list[HookHandle] = []
+    try:
+        for module in iter_modules_of_type(model, module_type):
+            if predicate is not None and not predicate(module):
+                continue
+            if prepare is not None:
+                prepare(module)
+            handles.extend(register(module))
+        return handles
+    except Exception:
+        remove_hook_handles(handles)
+        raise
+
+
 def register_named_forward_hook_groups(
     model: torch.nn.Module,
     module_type: type[ModuleT],
@@ -153,6 +196,8 @@ __all__ = [
     "iter_modules_of_type",
     "iter_named_modules_matching",
     "iter_named_modules_of_type",
+    "register_forward_hook_groups",
+    "register_hook_groups",
     "register_named_forward_hook_groups",
     "register_named_forward_hooks",
     "remove_hook_handles",

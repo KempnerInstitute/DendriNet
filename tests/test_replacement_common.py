@@ -10,6 +10,7 @@ from dendritic_modeling.training._transformer_replacement.common import (
 )
 from dendritic_modeling.training.replacement_common import (
     ReplacementTrainingHistory,
+    _clip_replacement_grad_norm,
     _compute_distillation_loss as _compute_shared_distillation_loss,
     _infinite_loader,
     _load_required_tensor,
@@ -182,6 +183,38 @@ def test_shared_amp_scaler_respects_disabled_amp_on_cuda_device():
     scaler = _make_cuda_grad_scaler(use_amp=False, device=torch.device("cuda"))
 
     assert scaler.is_enabled() is False
+
+
+def test_shared_replacement_grad_clip_preserves_nonpositive_noop():
+    param = torch.nn.Parameter(torch.tensor([0.0, 0.0]))
+    param.grad = torch.tensor([3.0, 4.0])
+    optimizer = torch.optim.SGD([param], lr=0.1)
+    scaler = _make_cuda_grad_scaler(use_amp=False, device=torch.device("cpu"))
+
+    _clip_replacement_grad_norm(
+        [param],
+        max_grad_norm=0.0,
+        scaler=scaler,
+        optimizer=optimizer,
+    )
+
+    torch.testing.assert_close(param.grad, torch.tensor([3.0, 4.0]))
+
+
+def test_shared_replacement_grad_clip_matches_torch_clip_norm():
+    param = torch.nn.Parameter(torch.tensor([0.0, 0.0]))
+    param.grad = torch.tensor([3.0, 4.0])
+    optimizer = torch.optim.SGD([param], lr=0.1)
+    scaler = _make_cuda_grad_scaler(use_amp=False, device=torch.device("cpu"))
+
+    _clip_replacement_grad_norm(
+        [param],
+        max_grad_norm=1.0,
+        scaler=scaler,
+        optimizer=optimizer,
+    )
+
+    torch.testing.assert_close(param.grad.norm(), torch.tensor(1.0))
 
 
 def test_shared_distillation_loss_rejects_unknown_cosine_flatten_mode():

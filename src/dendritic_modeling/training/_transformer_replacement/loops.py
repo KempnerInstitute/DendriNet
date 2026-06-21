@@ -53,6 +53,7 @@ from dendritic_modeling.training._transformer_replacement.joint import (
 from dendritic_modeling.training.optimizers import create_optimizer
 from dendritic_modeling.training.replacement_common import (
     ReplacementTrainingHistory,
+    _clip_replacement_grad_norm,
     _infinite_loader,
     _make_cuda_grad_scaler,
     _should_run_periodic_step,
@@ -459,10 +460,12 @@ def _train_joint_hf_text_source(
             )
 
         scaler.scale(loss).backward()
-        max_grad_norm = getattr(train_cfg, "max_grad_norm", None)
-        if max_grad_norm is not None and float(max_grad_norm) > 0:
-            scaler.unscale_(optimizer)
-            torch.nn.utils.clip_grad_norm_(trainable_params, float(max_grad_norm))
+        _clip_replacement_grad_norm(
+            trainable_params,
+            max_grad_norm=getattr(train_cfg, "max_grad_norm", None),
+            scaler=scaler,
+            optimizer=optimizer,
+        )
         scaler.step(optimizer)
         scaler.update()
         history.record_train_loss(float(loss.detach().float().item()))

@@ -61,6 +61,7 @@ from dendritic_modeling.utils.hooks import (
     ForwardHookRemovalMixin,
     iter_modules_of_type,
     iter_named_modules_of_type,
+    register_hook_groups,
 )
 
 
@@ -570,16 +571,12 @@ class LocalRuleComponentAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         module: DendriticBranchLayer,
         rec: dict[str, Any],
     ) -> list[torch.utils.hooks.RemovableHandle]:
-        handles = []
-        try:
-            for path, topk_layer in iter_topk_path_modules(
-                module, _LOCAL_RULE_TOPK_PATHS
-            ):
-                handles.append(self._register_topk_hook(rec, path, topk_layer))
-            return handles
-        except Exception:
-            self.remove_forward_hooks(handles)
-            raise
+        return register_hook_groups(
+            iter_topk_path_modules(module, _LOCAL_RULE_TOPK_PATHS),
+            lambda path_layer: [
+                self._register_topk_hook(rec, path_layer[0], path_layer[1])
+            ],
+        )
 
     def _register_topk_hook(
         self,

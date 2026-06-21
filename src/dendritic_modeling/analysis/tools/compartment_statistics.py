@@ -43,6 +43,7 @@ from dendritic_modeling.utils import save_dict
 from dendritic_modeling.utils.hooks import (
     ForwardHookRemovalMixin,
     iter_named_modules_of_type,
+    register_named_forward_hook_groups,
 )
 
 logger = logging.getLogger(__name__)
@@ -156,8 +157,11 @@ class CompartmentStatisticsAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         self.class_labels = y if self.per_class_analysis and y is not None else None
         handles = []
         try:
-            for key, module in iter_named_modules_of_type(model, DendriticBranchLayer):
-                handles.extend(self._collect_layer_raw_data(key, module))
+            handles = register_named_forward_hook_groups(
+                model,
+                DendriticBranchLayer,
+                self._collect_layer_raw_data,
+            )
 
             if self.inputs or self.activations:
                 if self.n_samples is not None:

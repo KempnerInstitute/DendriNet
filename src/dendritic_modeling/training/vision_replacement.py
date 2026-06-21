@@ -19,6 +19,7 @@ from dendritic_modeling.training.optimizers import create_optimizer
 from dendritic_modeling.training.replacement_common import (
     ReplacementTrainingHistory,
     _capture_requires_grad_states,
+    _clip_replacement_grad_norm,
     _compute_vision_distillation_loss as _compute_distillation_loss,
     _infinite_loader,
     _load_required_tensor,
@@ -328,10 +329,12 @@ def run_vision_replacement_training(
                 cosine_weight=train_cfg.cosine_weight,
             )
         scaler.scale(loss).backward()
-        max_grad_norm = getattr(train_cfg, "max_grad_norm", None)
-        if max_grad_norm is not None and float(max_grad_norm) > 0:
-            scaler.unscale_(optimizer)
-            torch.nn.utils.clip_grad_norm_(trainable_params, float(max_grad_norm))
+        _clip_replacement_grad_norm(
+            trainable_params,
+            max_grad_norm=getattr(train_cfg, "max_grad_norm", None),
+            scaler=scaler,
+            optimizer=optimizer,
+        )
         scaler.step(optimizer)
         scaler.update()
         history.record_train_loss(float(loss.detach().item()))
