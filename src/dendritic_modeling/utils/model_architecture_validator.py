@@ -20,6 +20,14 @@ from typing import Any, Union
 
 logger = logging.getLogger(__name__)
 
+DATASET_INPUT_DIMS = {
+    "cifar10": 3072,
+    "imagenet": 150528,
+    "mnist": 784,
+}
+DEFAULT_MULTIXOR_BITS = 4
+DEFAULT_UNKNOWN_INPUT_DIM = 64
+
 
 def _get_config_value(
     config: Union[dict, object], key: str, default: Any = None
@@ -31,53 +39,163 @@ def _get_config_value(
         return getattr(config, key, default)
 
 
+def _as_plain_dict(config_section: Union[dict, object]) -> dict[str, Any]:
+    """Convert a config section to a plain dict while preserving existing behavior."""
+    if hasattr(config_section, "__dict__"):
+        return dict(config_section.__dict__)
+    return dict(config_section)
+
+
+def _build_network_config(config) -> dict[str, Any]:
+    """Build the merged network config used by architecture validation."""
+    if not (hasattr(config, "model") and hasattr(config.model, "core")):
+        return {}
+
+    core_config = config.model.core
+    network_config: dict[str, Any] = {}
+
+    for section_name in ("architecture", "connectivity"):
+        if hasattr(core_config, section_name):
+            network_config.update(_as_plain_dict(getattr(core_config, section_name)))
+
+    if hasattr(core_config, "transfer"):
+        network_config["transfer_params"] = _as_plain_dict(core_config.transfer)
+
+    if hasattr(core_config, "morphology"):
+        network_config.update(_as_plain_dict(core_config.morphology))
+
+    return network_config
+
+
+def _resolve_input_dim(
+    *,
+    dataset_name: str,
+    task_params: dict[str, Any],
+    network_config: dict[str, Any],
+    transfer_params: dict[str, Any],
+) -> int:
+    """Resolve the validator input dimension from dataset and config metadata."""
+    if dataset_name in DATASET_INPUT_DIMS:
+        return DATASET_INPUT_DIMS[dataset_name]
+
+    if dataset_name == "multixor":
+        n_bits = task_params.get("n_bits", DEFAULT_MULTIXOR_BITS)
+        return n_bits * 2
+
+    return (
+        network_config.get("input_dim")
+        or task_params.get("input_dim")
+        or transfer_params.get("excitatory_dim")
+        or DEFAULT_UNKNOWN_INPUT_DIM
+    )
+
+
+def _layer_value(values: list[int], layer_idx: int, *, default: int = 1) -> int:
+    """Return a layer-specific value, reusing the final value as the legacy fallback."""
+    if layer_idx < len(values):
+        return values[layer_idx]
+    if values:
+        return values[-1]
+    return default
+
+
+def _has_inhibitory_neurons(inhibitory_layer_sizes: list[int]) -> bool:
+    """Return whether any inhibitory layer has a positive size."""
+    return any(size for size in inhibitory_layer_sizes if size and size > 0)
+
+
+def _same_layer_inhibitory_size(
+    inhibitory_layer_sizes: list[int], layer_idx: int
+) -> int:
+    """Return the positive inhibitory size for a layer, or zero when absent."""
+    if layer_idx >= len(inhibitory_layer_sizes):
+        return 0
+
+    size = inhibitory_layer_sizes[layer_idx]
+    return size if size and size > 0 else 0
+
+
+def _previous_layer_inhibitory_size(
+    inhibitory_layer_sizes: list[int], layer_idx: int
+) -> int:
+    """Return the previous layer's inhibitory size with the legacy absent-layer fallback."""
+    previous_idx = layer_idx - 1
+    if 0 <= previous_idx < len(inhibitory_layer_sizes):
+        return inhibitory_layer_sizes[previous_idx]
+    return 0
+
+
+def _initial_layer_input_dims(
+    *,
+    input_dim: int,
+    independent_pathways: bool,
+    excitatory_dim: int | None,
+    inhibitory_dim: int | None,
+) -> tuple[int, int]:
+    """Resolve first-layer excitatory and inhibitory input dimensions."""
+    if independent_pathways:
+        return (
+            excitatory_dim if excitatory_dim else input_dim // 2,
+            inhibitory_dim if inhibitory_dim else input_dim // 2,
+        )
+
+    return input_dim, input_dim
+
+
+def _layer_input_dims(
+    *,
+    layer_idx: int,
+    input_dim: int,
+    independent_pathways: bool,
+    excitatory_dim: int | None,
+    inhibitory_dim: int | None,
+    excitatory_layer_sizes: list[int],
+    inhibitory_layer_sizes: list[int],
+) -> tuple[int, int]:
+    """Resolve excitatory and inhibitory input dimensions for a validator layer."""
+    if layer_idx == 0:
+        return _initial_layer_input_dims(
+            input_dim=input_dim,
+            independent_pathways=independent_pathways,
+            excitatory_dim=excitatory_dim,
+            inhibitory_dim=inhibitory_dim,
+        )
+
+    return (
+        excitatory_layer_sizes[layer_idx - 1],
+        _previous_layer_inhibitory_size(inhibitory_layer_sizes, layer_idx),
+    )
+
+
+def _ie_inhibitory_source_dim(
+    *,
+    layer_idx: int,
+    input_mode: int,
+    independent_pathways: bool,
+    input_dim: int,
+    excitatory_dim: int | None,
+    inhibitory_dim: int | None,
+    inhibitory_layer_sizes: list[int],
+) -> int:
+    """Resolve the source dimension used to validate IE synapse counts."""
+    if input_mode == 1:
+        if independent_pathways:
+            return inhibitory_dim if inhibitory_dim else input_dim // 2
+
+        return excitatory_dim if excitatory_dim else input_dim
+
+    if layer_idx == 0:
+        return _same_layer_inhibitory_size(inhibitory_layer_sizes, layer_idx)
+
+    return _previous_layer_inhibitory_size(inhibitory_layer_sizes, layer_idx)
+
+
 class ModelArchitectureValidator:
     """Validates structural/architectural parameters for dendritic networks"""
 
     def __init__(self, config):
         self.config = config
-
-        # Extract network configuration using standard structure
-        if hasattr(config, "model") and hasattr(config.model, "core"):
-            core_config = config.model.core
-            # Combine all network parameters from different sections
-            self.network_config = {}
-
-            # Add architecture parameters
-            if hasattr(core_config, "architecture"):
-                arch_config = core_config.architecture
-                if hasattr(arch_config, "__dict__"):
-                    self.network_config.update(arch_config.__dict__)
-                else:
-                    self.network_config.update(arch_config)
-
-            # Add connectivity parameters
-            if hasattr(core_config, "connectivity"):
-                conn_config = core_config.connectivity
-                if hasattr(conn_config, "__dict__"):
-                    self.network_config.update(conn_config.__dict__)
-                else:
-                    self.network_config.update(conn_config)
-
-            # Add transfer parameters (source of input_mode/independent_pathways).
-            if hasattr(core_config, "transfer"):
-                transfer_config = core_config.transfer
-                if hasattr(transfer_config, "__dict__"):
-                    self.network_config["transfer_params"] = dict(
-                        transfer_config.__dict__
-                    )
-                else:
-                    self.network_config["transfer_params"] = dict(transfer_config)
-
-            # Add morphology parameters
-            if hasattr(core_config, "morphology"):
-                morph_config = core_config.morphology
-                if hasattr(morph_config, "__dict__"):
-                    self.network_config.update(morph_config.__dict__)
-                else:
-                    self.network_config.update(morph_config)
-        else:
-            self.network_config = {}
+        self.network_config = _build_network_config(config)
 
         self.errors: list[str] = []
         self.warnings: list[str] = []
@@ -94,19 +212,26 @@ class ModelArchitectureValidator:
         self.extract_parameters()
 
         # Run all checks
-        self.check_input_mode_consistency()
-        self.check_layer_dimensions()
-        self.check_synapses_per_branch()
-        self.check_topk_constraints()
-        self.check_branch_factors()
-        self.check_empty_lists()
-        self.check_transfer_dimensions()
-        self.check_biological_plausibility()
+        for check in self._validation_checks():
+            check()
 
         # Report results
         self.report_results()
 
         return len(self.errors) == 0
+
+    def _validation_checks(self):
+        """Return validation checks in their legacy execution order."""
+        return (
+            self.check_input_mode_consistency,
+            self.check_layer_dimensions,
+            self.check_synapses_per_branch,
+            self.check_topk_constraints,
+            self.check_branch_factors,
+            self.check_empty_lists,
+            self.check_transfer_dimensions,
+            self.check_biological_plausibility,
+        )
 
     def extract_parameters(self):
         """Extract key parameters from config"""
@@ -124,25 +249,12 @@ class ModelArchitectureValidator:
         task_config = self._get_config_value("task", {})
         task_params = _get_config_value(task_config, "parameters", {})
 
-        if dataset_name == "cifar10":
-            self.input_dim = 3072  # 32x32x3
-        elif dataset_name == "imagenet":
-            self.input_dim = 150528  # 224x224x3
-        elif dataset_name == "mnist":
-            self.input_dim = 784  # 28x28
-        elif dataset_name == "multixor":
-            # MultiXOR typically has small input dimensions (2-8 bits per input)
-            # Default to a reasonable size for XOR-like problems
-            n_bits = task_params.get("n_bits", 4)  # Default 4-bit XOR
-            self.input_dim = n_bits * 2  # Two inputs of n_bits each
-        else:
-            # Try to get input_dim from various sources
-            self.input_dim = (
-                self.network_config.get("input_dim")
-                or task_params.get("input_dim")
-                or self.transfer_params.get("excitatory_dim")
-                or 64  # Reasonable default for unknown datasets
-            )
+        self.input_dim = _resolve_input_dim(
+            dataset_name=dataset_name,
+            task_params=task_params,
+            network_config=self.network_config,
+            transfer_params=self.transfer_params,
+        )
 
         self.excitatory_layer_sizes = self.network_config.get(
             "excitatory_layer_sizes", []
@@ -221,49 +333,25 @@ class ModelArchitectureValidator:
         # Determine expected lengths (empty lists will be extended with default=1)
         expected_len = self.num_layers
 
-        # Check if there are any inhibitory neurons in the network
-        any(size for size in self.inhibitory_layer_sizes if size and size > 0)
-
         # Check each synapse type
         for layer_idx in range(expected_len):
-            # Get dimensions for this layer
-            if layer_idx == 0:
-                # First layer receives from transfer/encoder
-                if self.independent_pathways:
-                    exc_input = (
-                        self.excitatory_dim
-                        if self.excitatory_dim
-                        else self.input_dim // 2
-                    )
-                    inh_input = (
-                        self.inhibitory_dim
-                        if self.inhibitory_dim
-                        else self.input_dim // 2
-                    )
-                else:
-                    exc_input = self.input_dim
-                    inh_input = self.input_dim
-            else:
-                # Subsequent layers receive from previous layer
-                exc_input = self.excitatory_layer_sizes[layer_idx - 1]
-                # Only get inhibitory input if inhibitory layers exist
-                if layer_idx - 1 < len(self.inhibitory_layer_sizes):
-                    inh_input = self.inhibitory_layer_sizes[layer_idx - 1]
-                else:
-                    inh_input = 0
+            exc_input, inh_input = _layer_input_dims(
+                layer_idx=layer_idx,
+                input_dim=self.input_dim,
+                independent_pathways=self.independent_pathways,
+                excitatory_dim=self.excitatory_dim,
+                inhibitory_dim=self.inhibitory_dim,
+                excitatory_layer_sizes=self.excitatory_layer_sizes,
+                inhibitory_layer_sizes=self.inhibitory_layer_sizes,
+            )
 
             # Inhibitory input to excitatory cells comes from same layer (if exists)
-            if layer_idx < len(self.inhibitory_layer_sizes):
-                inh_to_exc = self.inhibitory_layer_sizes[layer_idx]
-            else:
-                inh_to_exc = 0
+            inh_to_exc = _same_layer_inhibitory_size(
+                self.inhibitory_layer_sizes, layer_idx
+            )
 
             # Check EE synapses
-            ee_val = (
-                self.ee_synapses[layer_idx]
-                if layer_idx < len(self.ee_synapses)
-                else (self.ee_synapses[-1] if self.ee_synapses else 1)
-            )
+            ee_val = _layer_value(self.ee_synapses, layer_idx)
             if ee_val > exc_input:
                 self.errors.append(
                     f"Layer {layer_idx} - ee_synapses ({ee_val}) > "
@@ -272,11 +360,7 @@ class ModelArchitectureValidator:
 
             # Check EI synapses (only if ei_synapses list is not empty)
             if self.ei_synapses:
-                ei_val = (
-                    self.ei_synapses[layer_idx]
-                    if layer_idx < len(self.ei_synapses)
-                    else self.ei_synapses[-1]
-                )
+                ei_val = _layer_value(self.ei_synapses, layer_idx)
                 if inh_to_exc > 0 and ei_val > inh_to_exc:
                     self.errors.append(
                         f"Layer {layer_idx} - ei_synapses ({ei_val}) > "
@@ -289,47 +373,16 @@ class ModelArchitectureValidator:
 
             # Check IE synapses (inhibitory TO excitatory connections) - only if list is not empty
             if self.ie_synapses:
-                ie_val = (
-                    self.ie_synapses[layer_idx]
-                    if layer_idx < len(self.ie_synapses)
-                    else self.ie_synapses[-1]
+                ie_val = _layer_value(self.ie_synapses, layer_idx)
+                inhibitory_source_dim = _ie_inhibitory_source_dim(
+                    layer_idx=layer_idx,
+                    input_mode=self.input_mode,
+                    independent_pathways=self.independent_pathways,
+                    input_dim=self.input_dim,
+                    excitatory_dim=self.excitatory_dim,
+                    inhibitory_dim=self.inhibitory_dim,
+                    inhibitory_layer_sizes=self.inhibitory_layer_sizes,
                 )
-
-                # Determine the source of inhibitory input for IE constraint checking
-                if self.input_mode == 1:
-                    # In input_mode=1, ALL layers can receive inhibitory input from transfer function
-                    if self.independent_pathways:
-                        inhibitory_source_dim = (
-                            self.inhibitory_dim
-                            if self.inhibitory_dim
-                            else self.input_dim // 2
-                        )
-                    else:
-                        # When independent_pathways=false, input feeds both E and I synapses
-                        # So inhibitory input dimension equals excitatory input dimension
-                        inhibitory_source_dim = (
-                            self.excitatory_dim
-                            if self.excitatory_dim
-                            else self.input_dim
-                        )
-                elif layer_idx == 0:
-                    # For input_mode=0: first layer excitatory neurons can receive inhibitory input
-                    # from same layer's inhibitory neurons (if they exist)
-                    if (
-                        layer_idx < len(self.inhibitory_layer_sizes)
-                        and self.inhibitory_layer_sizes[layer_idx] > 0
-                    ):
-                        inhibitory_source_dim = self.inhibitory_layer_sizes[layer_idx]
-                    else:
-                        inhibitory_source_dim = 0
-                else:
-                    # Subsequent layers get inhibitory input from previous layer's inhibitory neurons
-                    if layer_idx - 1 < len(self.inhibitory_layer_sizes):
-                        inhibitory_source_dim = self.inhibitory_layer_sizes[
-                            layer_idx - 1
-                        ]
-                    else:
-                        inhibitory_source_dim = 0
 
                 # Check IE constraint
                 if inhibitory_source_dim > 0 and ie_val > inhibitory_source_dim:
@@ -347,11 +400,7 @@ class ModelArchitectureValidator:
                 layer_idx < len(self.inhibitory_layer_sizes)
                 and self.inhibitory_layer_sizes[layer_idx] > 0
             ):
-                ii_val = (
-                    self.ii_synapses[layer_idx]
-                    if layer_idx < len(self.ii_synapses)
-                    else (self.ii_synapses[-1] if self.ii_synapses else 1)
-                )
+                ii_val = _layer_value(self.ii_synapses, layer_idx)
                 if ii_val > inh_input:
                     self.errors.append(
                         f"Layer {layer_idx} - ii_synapses ({ii_val}) > "
@@ -438,9 +487,7 @@ class ModelArchitectureValidator:
 
     def check_empty_lists(self):
         """Check for empty synapse lists and validate they're appropriate for the configuration"""
-        has_inhibitory_neurons = any(
-            size for size in self.inhibitory_layer_sizes if size and size > 0
-        )
+        has_inhibitory_neurons = _has_inhibitory_neurons(self.inhibitory_layer_sizes)
 
         # EE synapses are always required
         if not self.ee_synapses:

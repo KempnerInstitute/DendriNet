@@ -329,23 +329,11 @@ def _resolve_replacement_span(
     replace_end: str,
     target_modules: list[str] | None,
 ) -> tuple[str, str, int, int]:
-    targets = [str(name) for name in (target_modules or [])]
-    if targets:
-        missing = [name for name in targets if name not in all_names]
-        if missing:
-            raise ValueError(
-                f"target_modules contains unknown layer(s) {missing}. "
-                f"Available: {all_names}"
-            )
-        target_indices = sorted(all_names.index(name) for name in targets)
-        expected = list(range(target_indices[0], target_indices[-1] + 1))
-        if target_indices != expected:
-            raise ValueError(
-                "target_modules must form one contiguous span in backbone "
-                f"order; got {targets}"
-            )
-        resolved_start = all_names[target_indices[0]]
-        resolved_end = all_names[target_indices[-1]]
+    target_span = _resolve_target_module_span(all_names, target_modules)
+    if target_span is not None:
+        start_idx, end_idx = target_span
+        resolved_start = all_names[start_idx]
+        resolved_end = all_names[end_idx]
         if replace_start and replace_start != resolved_start:
             raise ValueError(
                 "replace.start conflicts with target_modules: "
@@ -364,15 +352,8 @@ def _resolve_replacement_span(
             "Vision replacement requires replace.start/replace.end or " "target_modules"
         )
 
-    for required in (replace_start, replace_end):
-        if required not in all_names:
-            raise ValueError(
-                f"Layer {required!r} not found in {backbone}. "
-                f"Available: {all_names}"
-            )
-
-    start_idx = all_names.index(replace_start)
-    end_idx = all_names.index(replace_end)
+    start_idx = _require_layer_index(all_names, replace_start, backbone=backbone)
+    end_idx = _require_layer_index(all_names, replace_end, backbone=backbone)
     if start_idx > end_idx:
         raise ValueError(
             f"replace_start={replace_start!r} comes after "
@@ -381,12 +362,68 @@ def _resolve_replacement_span(
     return replace_start, replace_end, start_idx, end_idx
 
 
+def _resolve_target_module_span(
+    all_names: list[str], target_modules: list[str] | None
+) -> tuple[int, int] | None:
+    targets = [str(name) for name in (target_modules or [])]
+    if not targets:
+        return None
+
+    missing = [name for name in targets if name not in all_names]
+    if missing:
+        raise ValueError(
+            f"target_modules contains unknown layer(s) {missing}. "
+            f"Available: {all_names}"
+        )
+
+    target_indices = sorted(all_names.index(name) for name in targets)
+    expected = list(range(target_indices[0], target_indices[-1] + 1))
+    if target_indices != expected:
+        raise ValueError(
+            "target_modules must form one contiguous span in backbone "
+            f"order; got {targets}"
+        )
+    return target_indices[0], target_indices[-1]
+
+
+def _require_layer_index(
+    all_names: list[str], layer_name: str, *, backbone: str
+) -> int:
+    if layer_name not in all_names:
+        raise ValueError(
+            f"Layer {layer_name!r} not found in {backbone}. " f"Available: {all_names}"
+        )
+    return all_names.index(layer_name)
+
+
 def _filter_omitted_layers(
     layers: list[tuple[str, nn.Module]],
     omit_layers: list[str] | None,
 ) -> list[tuple[str, nn.Module]]:
     omit_set = set(omit_layers or [])
     return [(name, module) for name, module in layers if name not in omit_set]
+
+
+def _slice_layers_by_span(
+    layers: list[tuple[str, nn.Module]], start_idx: int, end_idx: int
+) -> tuple[
+    list[tuple[str, nn.Module]],
+    list[tuple[str, nn.Module]],
+    list[tuple[str, nn.Module]],
+]:
+    """Split flattened layers into prefix, replaced span, and suffix."""
+    return (
+        layers[:start_idx],
+        layers[start_idx : end_idx + 1],
+        layers[end_idx + 1 :],
+    )
+
+
+def _names_and_modules(
+    layers: list[tuple[str, nn.Module]],
+) -> tuple[list[str], list[nn.Module]]:
+    """Return parallel layer-name and module lists."""
+    return [name for name, _ in layers], [module for _, module in layers]
 
 
 def _resolve_split_input_size(input_shape: list[int] | None) -> tuple[int, ...]:
@@ -544,18 +581,16 @@ def build_split_plan(
         target_modules=target_modules,
     )
 
-    prefix_layers = all_layers[:start_idx]
-    replaced_layers = all_layers[start_idx : end_idx + 1]
-    suffix_layers = all_layers[end_idx + 1 :]
+    prefix_layers, replaced_layers, suffix_layers = _slice_layers_by_span(
+        all_layers, start_idx, end_idx
+    )
 
     prefix_filtered = _filter_omitted_layers(prefix_layers, omit_layers)
     suffix_filtered = _filter_omitted_layers(suffix_layers, omit_layers)
 
-    prefix_names = [n for n, _ in prefix_filtered]
-    prefix_modules = [m for _, m in prefix_filtered]
-    replaced_names = [n for n, _ in replaced_layers]
-    suffix_names = [n for n, _ in suffix_filtered]
-    suffix_modules = [m for _, m in suffix_filtered]
+    prefix_names, prefix_modules = _names_and_modules(prefix_filtered)
+    replaced_names, _ = _names_and_modules(replaced_layers)
+    suffix_names, suffix_modules = _names_and_modules(suffix_filtered)
 
     # Compute prefix output shape
     input_size = _resolve_split_input_size(input_shape)

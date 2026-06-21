@@ -9,8 +9,13 @@ import torch.nn as nn
 from dendritic_modeling.networks.architectures.classical.pretrained import (
     BackboneSegment,
     _extract_layers,
+    _filter_omitted_layers,
     _flatten_model_layers,
     _load_backbone,
+    _names_and_modules,
+    _require_layer_index,
+    _resolve_target_module_span,
+    _slice_layers_by_span,
     build_encoder_decoder_from_plan,
     build_split_plan,
     list_backbone_layers,
@@ -337,6 +342,66 @@ class TestBuildSplitPlan:
         assert "prefix" in s
         assert "replace" in s
         assert "suffix" in s
+
+
+class TestReplacementSpanHelpers:
+    def test_resolve_target_module_span_accepts_unordered_contiguous_targets(self):
+        all_names = ["features.0", "features.1", "classifier.1", "classifier.2"]
+
+        assert _resolve_target_module_span(
+            all_names, ["classifier.2", "classifier.1"]
+        ) == (2, 3)
+
+    def test_resolve_target_module_span_returns_none_without_targets(self):
+        assert _resolve_target_module_span(["features.0"], None) is None
+        assert _resolve_target_module_span(["features.0"], []) is None
+
+    def test_resolve_target_module_span_rejects_unknown_target(self):
+        with pytest.raises(ValueError, match="unknown layer"):
+            _resolve_target_module_span(["features.0"], ["classifier.1"])
+
+    def test_resolve_target_module_span_rejects_non_contiguous_targets(self):
+        all_names = ["features.0", "features.1", "classifier.1"]
+
+        with pytest.raises(ValueError, match="contiguous span"):
+            _resolve_target_module_span(all_names, ["features.0", "classifier.1"])
+
+    def test_require_layer_index_returns_index_or_raises_with_backbone_context(self):
+        all_names = ["features.0", "classifier.1"]
+
+        assert _require_layer_index(all_names, "classifier.1", backbone="mini") == 1
+        with pytest.raises(ValueError, match="Layer 'missing' not found in mini"):
+            _require_layer_index(all_names, "missing", backbone="mini")
+
+
+class TestLayerSplitHelpers:
+    def test_slice_layers_by_span_returns_prefix_replaced_and_suffix(self):
+        layers = [(f"layer.{idx}", nn.Identity()) for idx in range(5)]
+
+        prefix, replaced, suffix = _slice_layers_by_span(layers, 1, 3)
+
+        assert [name for name, _ in prefix] == ["layer.0"]
+        assert [name for name, _ in replaced] == ["layer.1", "layer.2", "layer.3"]
+        assert [name for name, _ in suffix] == ["layer.4"]
+
+    def test_names_and_modules_preserves_order_and_identity(self):
+        layers = [("a", nn.Identity()), ("b", nn.ReLU())]
+
+        names, modules = _names_and_modules(layers)
+
+        assert names == ["a", "b"]
+        assert modules == [layers[0][1], layers[1][1]]
+
+    def test_omit_filtering_is_applied_outside_replacement_span_only(self):
+        layers = [(f"layer.{idx}", nn.Identity()) for idx in range(5)]
+        prefix, replaced, suffix = _slice_layers_by_span(layers, 1, 3)
+
+        prefix_filtered = _filter_omitted_layers(prefix, ["layer.0", "layer.2"])
+        suffix_filtered = _filter_omitted_layers(suffix, ["layer.4", "layer.2"])
+
+        assert prefix_filtered == []
+        assert [name for name, _ in replaced] == ["layer.1", "layer.2", "layer.3"]
+        assert suffix_filtered == []
 
 
 # ---------------------------------------------------------------------------
