@@ -25,9 +25,16 @@ from dendritic_modeling.training.strategies.local_learning import (
     _zero_optimizer_gradients,
 )
 from dendritic_modeling.training.strategies.local_learning_epoch import (
+    _accumulate_detached_parameter_grad,
     _apply_training_schedule_update_modes,
+    _collect_trainable_parameters,
+    _compute_decoder_local_gradients,
+    _decoder_local_scale,
+    _is_class_index_target,
+    _prepare_label_hsic_target,
     _resolve_freeze_update_modes,
     _resolve_schedule_epoch_range,
+    _set_topk_mask_cache,
 )
 from dendritic_modeling.training.strategies.local_learning_gradients_mixin import (
     LocalLearningGradientMixin,
@@ -485,6 +492,19 @@ def test_topk_mask_cache_helpers_toggle_flags_and_clear_last_masks():
     assert topk_b._last_forward_weight_mask is None
 
 
+def test_set_topk_mask_cache_only_toggles_cache_flags():
+    topk = TopKLinear(in_features=4, out_features=2, K=2)
+    topk._last_forward_weight_mask = torch.ones_like(topk.pre_w, dtype=torch.bool)
+
+    _set_topk_mask_cache([topk], True)
+    assert topk.cache_mask is True
+    assert topk._last_forward_weight_mask is not None
+
+    _set_topk_mask_cache([topk], False)
+    assert topk.cache_mask is False
+    assert topk._last_forward_weight_mask is not None
+
+
 def test_topk_mask_cache_helpers_do_not_mutate_topk_parameters():
     topk = TopKLinear(in_features=4, out_features=2, K=2)
     before = topk.pre_w.detach().clone()
@@ -522,6 +542,28 @@ def test_prepare_hsic_target_one_hots_column_integer_labels():
     target = _prepare_hsic_target(_hsic_cfg(), y_batch, y_hat)
 
     assert torch.equal(target, torch.tensor([[0.0, 1.0], [1.0, 0.0]]))
+
+
+def test_class_index_target_detection_matches_legacy_shapes():
+    assert _is_class_index_target(torch.tensor([1, 0]))
+    assert _is_class_index_target(torch.tensor([[1], [0]]))
+    assert not _is_class_index_target(torch.tensor([[0.0, 1.0], [1.0, 0.0]]))
+
+
+def test_prepare_label_hsic_target_preserves_class_and_soft_label_paths():
+    y_hat = torch.zeros(2, 3, dtype=torch.float64)
+
+    class_target = _prepare_label_hsic_target(torch.tensor([2, 0]), y_hat)
+    soft_target = _prepare_label_hsic_target(
+        torch.tensor([[0.25, 0.75, 0.0], [1.0, 0.0, 0.0]], dtype=torch.float32),
+        y_hat,
+    )
+
+    assert torch.equal(
+        class_target,
+        torch.tensor([[0.0, 0.0, 1.0], [1.0, 0.0, 0.0]], dtype=torch.float64),
+    )
+    assert soft_target.dtype == torch.float64
 
 
 def test_prepare_hsic_target_casts_soft_label_targets_to_prediction_dtype():
@@ -588,6 +630,18 @@ def test_collect_backprop_param_groups_preserves_encoder_then_decoder_order():
     ]
 
 
+def test_collect_trainable_parameters_preserves_module_order_and_filtering():
+    module = nn.Sequential(nn.Linear(3, 4), nn.Linear(4, 2))
+    module[0].bias.requires_grad_(False)
+    module[1].weight.requires_grad_(False)
+
+    params = _collect_trainable_parameters(module)
+
+    assert len(params) == 2
+    assert params[0] is module[0].weight
+    assert params[1] is module[1].bias
+
+
 def test_collect_backprop_param_groups_skips_disabled_modes_and_empty_groups():
     encoder = nn.Linear(3, 2)
     for param in encoder.parameters():
@@ -620,6 +674,25 @@ def test_accumulate_backprop_gradients_preserves_old_accumulation_semantics():
     assert torch.equal(p2.grad, torch.tensor(12.0))
 
 
+def test_accumulate_detached_parameter_grad_preserves_clone_and_add_semantics():
+    param = nn.Parameter(torch.tensor([0.0, 0.0]))
+
+    _accumulate_detached_parameter_grad(param, None)
+    assert param.grad is None
+
+    first_grad = torch.tensor([1.0, 2.0], requires_grad=True)
+    _accumulate_detached_parameter_grad(param, first_grad)
+
+    assert param.grad is not None
+    assert torch.equal(param.grad, torch.tensor([1.0, 2.0]))
+    assert param.grad.requires_grad is False
+    assert param.grad.data_ptr() != first_grad.data_ptr()
+
+    _accumulate_detached_parameter_grad(param, torch.tensor([0.5, -1.0]))
+
+    assert torch.equal(param.grad, torch.tensor([1.5, 1.0]))
+
+
 def test_apply_decoder_local_gradients_preserves_exact_accumulation_semantics():
     lin = nn.Linear(2, 2, bias=True)
     lin.weight.grad = torch.full_like(lin.weight, 10.0)
@@ -642,6 +715,28 @@ def test_apply_decoder_local_gradients_preserves_exact_accumulation_semantics():
     assert torch.equal(lin.bias.grad, torch.full_like(lin.bias, -1.0) + expected_grad_b)
     assert lin.weight.grad.requires_grad is False
     assert lin.bias.grad.requires_grad is False
+
+
+def test_decoder_local_scale_preserves_empty_batch_guard():
+    assert _decoder_local_scale(normalize_by_batch=True, batch_size=4) == 0.25
+    assert _decoder_local_scale(normalize_by_batch=True, batch_size=0) == 1.0
+    assert _decoder_local_scale(normalize_by_batch=False, batch_size=4) == 1.0
+
+
+def test_compute_decoder_local_gradients_matches_legacy_formula():
+    h_in = torch.tensor([[1.0, 2.0], [3.0, 4.0]], requires_grad=True)
+    delta_out = torch.tensor([[0.5, 1.0], [1.5, -0.5]], requires_grad=True)
+
+    grad_w, grad_b = _compute_decoder_local_gradients(
+        h_in=h_in,
+        delta_out=delta_out,
+        normalize_by_batch=True,
+    )
+
+    torch.testing.assert_close(grad_w, 0.5 * (delta_out.detach().t() @ h_in.detach()))
+    torch.testing.assert_close(grad_b, 0.5 * delta_out.detach().sum(dim=0))
+    assert grad_w.requires_grad is False
+    assert grad_b.requires_grad is False
 
 
 def test_apply_decoder_local_gradients_uses_parameter_dtype():

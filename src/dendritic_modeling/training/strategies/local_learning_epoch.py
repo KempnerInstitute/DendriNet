@@ -114,14 +114,21 @@ def _collect_topk_modules(model: BaseModel) -> list[TopKLinear]:
     return [m for m in model.modules() if isinstance(m, TopKLinear)]
 
 
-def _enable_topk_mask_cache(topk_modules: list[TopKLinear]) -> None:
+def _set_topk_mask_cache(
+    topk_modules: list[TopKLinear],
+    enabled: bool,
+) -> None:
     for module in topk_modules:
-        module.cache_mask = True
+        module.cache_mask = enabled
+
+
+def _enable_topk_mask_cache(topk_modules: list[TopKLinear]) -> None:
+    _set_topk_mask_cache(topk_modules, True)
 
 
 def _clear_topk_mask_cache(topk_modules: list[TopKLinear]) -> None:
+    _set_topk_mask_cache(topk_modules, False)
     for module in topk_modules:
-        module.cache_mask = False
         module._last_forward_weight_mask = None
 
 
@@ -136,6 +143,27 @@ def _remove_local_recorders(
         remove_hook_handles(handles)
 
 
+def _is_class_index_target(y_batch: torch.Tensor) -> bool:
+    """Return whether a target tensor stores class indices rather than soft labels."""
+
+    return y_batch.dim() == 1 or (y_batch.dim() == 2 and y_batch.size(1) == 1)
+
+
+def _prepare_label_hsic_target(
+    y_batch: torch.Tensor,
+    y_hat: torch.Tensor,
+) -> torch.Tensor:
+    """Prepare label-derived HSIC targets with legacy one-hot handling."""
+
+    if _is_class_index_target(y_batch):
+        num_classes = y_hat.size(-1)
+        return torch.nn.functional.one_hot(
+            y_batch.view(-1),
+            num_classes=num_classes,
+        ).to(y_hat.dtype)
+    return y_batch.to(y_hat.dtype)
+
+
 def _prepare_hsic_target(
     local_cfg,
     y_batch: torch.Tensor,
@@ -145,13 +173,7 @@ def _prepare_hsic_target(
         return None
 
     if local_cfg.hsic.target_source == "labels":
-        if y_batch.dim() == 1 or (y_batch.dim() == 2 and y_batch.size(1) == 1):
-            num_classes = y_hat.size(-1)
-            return torch.nn.functional.one_hot(
-                y_batch.view(-1),
-                num_classes=num_classes,
-            ).to(y_hat.dtype)
-        return y_batch.to(y_hat.dtype)
+        return _prepare_label_hsic_target(y_batch, y_hat)
 
     return y_hat.detach()
 
@@ -161,6 +183,12 @@ def _zero_optimizer_gradients(optimizer: torch.optim.Optimizer) -> None:
         optimizer.zero_grad(set_to_none=True)
     except TypeError:
         optimizer.zero_grad()
+
+
+def _collect_trainable_parameters(module: nn.Module) -> list[torch.nn.Parameter]:
+    """Return trainable parameters in module order."""
+
+    return [param for param in module.parameters() if param.requires_grad]
 
 
 def _collect_backprop_param_groups(
@@ -174,16 +202,31 @@ def _collect_backprop_param_groups(
         and hasattr(model, "encoder_network")
         and model.encoder_network is not None
     ):
-        enc_params = [p for p in model.encoder_network.parameters() if p.requires_grad]
+        enc_params = _collect_trainable_parameters(model.encoder_network)
         if enc_params:
             backprop_param_groups.append(enc_params)
 
     if hasattr(model, "decoder_network") and decoder_update_mode == "backprop":
-        dec_params = [p for p in model.decoder_network.parameters() if p.requires_grad]
+        dec_params = _collect_trainable_parameters(model.decoder_network)
         if dec_params:
             backprop_param_groups.append(dec_params)
 
     return backprop_param_groups
+
+
+def _accumulate_detached_parameter_grad(
+    param: torch.nn.Parameter,
+    grad_value: torch.Tensor | None,
+) -> None:
+    """Accumulate a detached autograd gradient with legacy clone-on-first semantics."""
+
+    if grad_value is None:
+        return
+    grad = grad_value.detach()
+    if param.grad is None:
+        param.grad = grad.clone()
+    else:
+        param.grad = param.grad + grad
 
 
 def _accumulate_backprop_gradients(
@@ -198,13 +241,33 @@ def _accumulate_backprop_gradients(
             allow_unused=True,
         )
         for param, grad_value in zip(params, grads):
-            if grad_value is None:
-                continue
-            grad = grad_value.detach()
-            if param.grad is None:
-                param.grad = grad.clone()
-            else:
-                param.grad = param.grad + grad
+            _accumulate_detached_parameter_grad(param, grad_value)
+
+
+def _decoder_local_scale(
+    normalize_by_batch: bool,
+    batch_size: int,
+) -> float:
+    """Return decoder-local batch scaling with legacy empty-batch behavior."""
+
+    if normalize_by_batch and batch_size > 0:
+        return 1.0 / float(batch_size)
+    return 1.0
+
+
+def _compute_decoder_local_gradients(
+    *,
+    h_in: torch.Tensor,
+    delta_out: torch.Tensor,
+    normalize_by_batch: bool,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Compute local decoder weight and bias gradients from cached activations."""
+
+    e_out = delta_out.detach()  # [B, out]
+    scale = _decoder_local_scale(normalize_by_batch, e_out.size(0))
+    grad_w = scale * (e_out.t() @ h_in.detach())  # [out, in]
+    grad_b = scale * e_out.sum(dim=0)
+    return grad_w, grad_b
 
 
 def _apply_decoder_local_gradients(
@@ -216,17 +279,14 @@ def _apply_decoder_local_gradients(
     if not isinstance(lin_mod, nn.Linear) or not isinstance(h_in, torch.Tensor):
         return
 
-    e_out = delta_out.detach()  # [B, out]
-    if normalize_by_batch and e_out.size(0) > 0:
-        scale = 1.0 / float(e_out.size(0))
-    else:
-        scale = 1.0
-
-    grad_w = scale * (e_out.t() @ h_in.detach())  # [out, in]
+    grad_w, grad_b = _compute_decoder_local_gradients(
+        h_in=h_in,
+        delta_out=delta_out,
+        normalize_by_batch=normalize_by_batch,
+    )
     _accumulate_parameter_grad(lin_mod.weight, grad_w)
 
     if lin_mod.bias is not None:
-        grad_b = scale * e_out.sum(dim=0)
         _accumulate_parameter_grad(lin_mod.bias, grad_b)
 
 
