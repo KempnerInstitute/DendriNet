@@ -17,6 +17,11 @@ from dendritic_modeling.training.strategies.local_learning_broadcast import (
     resolve_recent_role_profile,
     role_mass_from_weight_matrix,
 )
+from dendritic_modeling.training.strategies.local_learning_broadcast_transport_mixin import (
+    _edge_weights_like_child,
+    _expand_scalar_like,
+    _soma_seed_from_delta,
+)
 
 
 def test_apply_broadcast_bandwidth_modes():
@@ -99,6 +104,77 @@ def test_expand_parent_signal_to_children_repeat_and_truncate():
         expand_parent_signal_to_children(sig, 1, 6),
         torch.tensor([[1.0, 2.0, 1.0, 2.0, 1.0, 2.0]]),
     )
+
+
+def test_soma_seed_from_delta_preserves_vector_and_scalar_paths():
+    soma_v = torch.zeros(2, 3, dtype=torch.float64)
+    delta = torch.tensor([[1.0, 2.0, 3.0], [0.5, 0.25, -1.0]])
+    delta_scalar = torch.tensor([[0.1], [0.2]])
+
+    torch.testing.assert_close(
+        _soma_seed_from_delta(soma_v, delta, delta_scalar),
+        delta.to(dtype=soma_v.dtype),
+    )
+
+    mismatched_delta = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
+    torch.testing.assert_close(
+        _soma_seed_from_delta(soma_v, mismatched_delta, delta_scalar),
+        delta_scalar.to(dtype=soma_v.dtype).expand(-1, soma_v.size(1)),
+    )
+
+
+def test_expand_scalar_like_matches_reference_shape_dtype_and_device():
+    reference = torch.zeros(2, 4, dtype=torch.float64)
+    scalar = torch.tensor([[0.25], [-0.5]], dtype=torch.float32)
+
+    expanded = _expand_scalar_like(reference, scalar)
+
+    torch.testing.assert_close(
+        expanded,
+        scalar.to(dtype=reference.dtype).expand(-1, reference.size(1)),
+    )
+    assert expanded.dtype == reference.dtype
+    assert expanded.device == reference.device
+
+
+def test_edge_weights_like_child_detaches_and_matches_child_dtype_device():
+    class _Block:
+        def __init__(self):
+            self.raw_weight = torch.tensor([1.0, -2.0], requires_grad=True)
+
+        def weight(self):
+            return self.raw_weight
+
+    child_v = torch.zeros(3, 2, dtype=torch.float64)
+    edge_weights = _edge_weights_like_child(_Block(), child_v)
+
+    torch.testing.assert_close(
+        edge_weights,
+        torch.tensor([1.0, -2.0], dtype=child_v.dtype),
+    )
+    assert edge_weights.requires_grad is False
+    assert edge_weights.dtype == child_v.dtype
+    assert edge_weights.device == child_v.device
+
+
+def test_soma_seed_from_delta_preserves_legacy_delta_reshaping():
+    one_dim_soma = torch.zeros(2, 1)
+    one_dim_delta = torch.tensor([0.5, -0.25])
+    delta_scalar = torch.tensor([[1.0], [2.0]])
+
+    torch.testing.assert_close(
+        _soma_seed_from_delta(one_dim_soma, one_dim_delta, delta_scalar),
+        one_dim_delta.unsqueeze(-1),
+    )
+
+    high_rank_soma = torch.zeros(2, 4)
+    high_rank_delta = torch.arange(8, dtype=torch.float32).view(2, 2, 2)
+    torch.testing.assert_close(
+        _soma_seed_from_delta(high_rank_soma, high_rank_delta, delta_scalar),
+        high_rank_delta.view(2, -1),
+    )
+
+    assert _soma_seed_from_delta(None, high_rank_delta, delta_scalar) is None
 
 
 def test_role_mass_from_weight_matrix():

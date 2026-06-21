@@ -5,12 +5,17 @@ import logging
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.networks.activations.parametric import (
+    ParametricTanh,
+    ParametricTanhOnlyM,
+)
 from dendritic_modeling.training.strategies.local_learning import LocalCreditAssignment
 from dendritic_modeling.training.strategies.local_learning_signals import (
     _decoder_linear_layers,
     _has_single_linear_decoder,
     _linear_decoder_shapes_compatible,
     _map_decoder_input_error,
+    _parametric_tanh_derivative,
     _prepare_bce_prediction,
     _prepare_ce_target,
 )
@@ -254,6 +259,31 @@ def test_prepare_ce_target_preserves_class_index_and_soft_label_paths():
         torch.tensor([[0.0, 0.0, 1.0], [1.0, 0.0, 0.0]], dtype=torch.float64),
     )
     assert _prepare_ce_target(y_hat, soft_target) is soft_target
+
+
+def test_parametric_tanh_derivative_matches_legacy_formula_for_both_variants():
+    v_n = torch.tensor(
+        [[-0.4, 0.2, 0.8], [0.1, 0.5, 1.2]],
+        dtype=torch.float64,
+    )
+    modules = [
+        ParametricTanh(output_dim=3, init_m=1.25, init_b=0.4),
+        ParametricTanhOnlyM(output_dim=3, init_m=1.75, fixed_b=0.55),
+    ]
+    trainer = _make_trainer()
+
+    for module in modules:
+        v_out = module(v_n)
+        m = module.log_m.detach().exp().to(device=v_n.device, dtype=v_n.dtype)
+        expected = 0.5 * m.unsqueeze(0) * (1.0 - (2.0 * v_out - 1.0).square())
+
+        direct = _parametric_tanh_derivative(module, v_n, v_out)
+        recomputed = _parametric_tanh_derivative(module, v_n)
+        through_mixin = trainer._compute_reactivation_derivative(module, v_n, v_out)
+
+        torch.testing.assert_close(direct, expected)
+        torch.testing.assert_close(recomputed, expected)
+        torch.testing.assert_close(through_mixin, expected)
 
 
 def test_error_by_mode_uses_extracted_ce_and_bce_helpers():

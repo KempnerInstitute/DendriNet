@@ -14,6 +14,41 @@ from dendritic_modeling.training.strategies.local_learning_broadcast import (
 logger = logging.getLogger(__name__)
 
 
+def _expand_scalar_like(reference: torch.Tensor, scalar: torch.Tensor) -> torch.Tensor:
+    """Expand a batch scalar to a reference layer's feature dimension."""
+
+    return scalar.to(device=reference.device, dtype=reference.dtype).expand(
+        -1, reference.size(1)
+    )
+
+
+def _edge_weights_like_child(blk_module: Any, child_v: torch.Tensor) -> torch.Tensor:
+    """Return detached edge weights on the child tensor's device and dtype."""
+
+    return blk_module.weight().detach().to(device=child_v.device, dtype=child_v.dtype)
+
+
+def _soma_seed_from_delta(
+    soma_v: Any,
+    delta: torch.Tensor,
+    delta_scalar: torch.Tensor,
+) -> torch.Tensor | None:
+    """Resolve the soma-level vector or scalar-expanded feedback seed."""
+
+    if not isinstance(soma_v, torch.Tensor):
+        return None
+
+    if delta.dim() == 1:
+        delta = delta.unsqueeze(-1)
+    elif delta.dim() != 2:
+        delta = delta.view(delta.size(0), -1)
+
+    if delta.size(1) == soma_v.size(1):
+        return delta.to(device=soma_v.device, dtype=soma_v.dtype)
+
+    return _expand_scalar_like(soma_v, delta_scalar)
+
+
 class LocalLearningPathTransportBroadcastMixin:
     """Recursive transport of local-rule feedback through dendritic trees."""
 
@@ -129,11 +164,7 @@ class LocalLearningPathTransportBroadcastMixin:
 
             block_size = int(getattr(blk_module, "block_size", 1))
 
-            edge_weights = (
-                blk_module.weight()
-                .detach()
-                .to(device=child_v.device, dtype=child_v.dtype)
-            )
+            edge_weights = _edge_weights_like_child(blk_module, child_v)
 
             expected_child_out = edge_weights.numel()
 
@@ -219,25 +250,7 @@ class LocalLearningPathTransportBroadcastMixin:
 
         soma_v = layer_records[-1].get("v_n")
 
-        if isinstance(soma_v, torch.Tensor):
-
-            if delta.dim() == 1:
-
-                delta = delta.unsqueeze(-1)
-
-            elif delta.dim() != 2:
-
-                delta = delta.view(delta.size(0), -1)
-
-            if delta.size(1) == soma_v.size(1):
-
-                transported[-1] = delta.to(device=soma_v.device, dtype=soma_v.dtype)
-
-            else:
-
-                transported[-1] = delta_scalar.to(
-                    device=soma_v.device, dtype=soma_v.dtype
-                ).expand(-1, soma_v.size(1))
+        transported[-1] = _soma_seed_from_delta(soma_v, delta, delta_scalar)
 
         for layer_idx in range(len(layer_records) - 2, -1, -1):
 
@@ -263,17 +276,11 @@ class LocalLearningPathTransportBroadcastMixin:
 
                 if isinstance(child_v, torch.Tensor):
 
-                    transported[layer_idx] = delta_scalar.to(
-                        device=child_v.device, dtype=child_v.dtype
-                    ).expand(-1, child_v.size(1))
+                    transported[layer_idx] = _expand_scalar_like(child_v, delta_scalar)
 
                 continue
 
-            edge_weights = (
-                blk_module.weight()
-                .detach()
-                .to(device=child_v.device, dtype=child_v.dtype)
-            )
+            edge_weights = _edge_weights_like_child(blk_module, child_v)
 
             expected_child_out = edge_weights.numel()
 
@@ -360,25 +367,7 @@ class LocalLearningPathTransportBroadcastMixin:
 
         soma_v = layer_records[-1].get("v_n")
 
-        if isinstance(soma_v, torch.Tensor):
-
-            if delta.dim() == 1:
-
-                delta = delta.unsqueeze(-1)
-
-            elif delta.dim() != 2:
-
-                delta = delta.view(delta.size(0), -1)
-
-            if delta.size(1) == soma_v.size(1):
-
-                feedback[-1] = delta.to(device=soma_v.device, dtype=soma_v.dtype)
-
-            else:
-
-                feedback[-1] = delta_scalar.to(
-                    device=soma_v.device, dtype=soma_v.dtype
-                ).expand(-1, soma_v.size(1))
+        feedback[-1] = _soma_seed_from_delta(soma_v, delta, delta_scalar)
 
         for layer_idx in range(len(layer_records) - 2, -1, -1):
 
@@ -401,17 +390,11 @@ class LocalLearningPathTransportBroadcastMixin:
 
                 if isinstance(child_v, torch.Tensor):
 
-                    feedback[layer_idx] = delta_scalar.to(
-                        device=child_v.device, dtype=child_v.dtype
-                    ).expand(-1, child_v.size(1))
+                    feedback[layer_idx] = _expand_scalar_like(child_v, delta_scalar)
 
                 continue
 
-            edge_weights = (
-                blk_module.weight()
-                .detach()
-                .to(device=child_v.device, dtype=child_v.dtype)
-            )
+            edge_weights = _edge_weights_like_child(blk_module, child_v)
 
             expanded_parent = self._expand_parent_signal_to_children(
                 parent_feedback.to(device=child_v.device, dtype=child_v.dtype),
@@ -424,4 +407,9 @@ class LocalLearningPathTransportBroadcastMixin:
         return feedback
 
 
-__all__ = ["LocalLearningPathTransportBroadcastMixin"]
+__all__ = [
+    "LocalLearningPathTransportBroadcastMixin",
+    "_edge_weights_like_child",
+    "_expand_scalar_like",
+    "_soma_seed_from_delta",
+]
