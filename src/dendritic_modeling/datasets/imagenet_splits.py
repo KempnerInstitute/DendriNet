@@ -82,6 +82,54 @@ def _split_train_valid_pair(
     )
 
 
+def _apply_imagenet_class_subsets(
+    *,
+    train_dataset: Dataset,
+    train_eval_dataset: Dataset,
+    test_dataset: Dataset,
+    train_samples_per_class: int | None,
+    val_samples_per_class: int | None,
+    split_seed: int,
+) -> tuple[Dataset, Dataset, Dataset]:
+    """Apply deterministic per-class train/test subsetting."""
+    train_indices = _class_subset_indices(
+        train_dataset,
+        train_samples_per_class,
+        split_name="train",
+        seed=int(split_seed),
+    )
+    test_indices = _class_subset_indices(
+        test_dataset,
+        val_samples_per_class,
+        split_name="val",
+        seed=int(split_seed) + 1,
+    )
+    return (
+        _subset_by_indices(train_dataset, train_indices),
+        _subset_by_indices(train_eval_dataset, train_indices),
+        _subset_by_indices(test_dataset, test_indices),
+    )
+
+
+def _split_imagenet_train_valid_or_use_test(
+    *,
+    train_dataset: Dataset,
+    train_eval_dataset: Dataset,
+    test_dataset: Dataset,
+    train_valid_split: float,
+    split_seed: int,
+) -> tuple[Dataset, Dataset]:
+    """Split train/validation when possible, otherwise reuse the test dataset."""
+    if hasattr(train_dataset, "__len__"):
+        return _split_train_valid_pair(
+            train_dataset,
+            train_eval_dataset,
+            train_valid_split=train_valid_split,
+            split_seed=split_seed,
+        )
+    return train_dataset, test_dataset
+
+
 def _materialize_flattened_tensor_dataset(
     dataset: Dataset,
     *,
@@ -109,6 +157,23 @@ def _materialize_flattened_tensor_dataset(
     return TensorDataset(data_tensor, label_tensor)
 
 
+def _maybe_materialize_flattened_imagenet_triplet(
+    train_dataset: Dataset,
+    valid_dataset: Dataset,
+    test_dataset: Dataset,
+    *,
+    flatten: bool,
+) -> tuple[Dataset, Dataset, Dataset]:
+    """Materialize flattened datasets only when explicitly requested."""
+    if not flatten:
+        return train_dataset, valid_dataset, test_dataset
+    return (
+        _materialize_flattened_tensor_dataset(train_dataset),
+        _materialize_flattened_tensor_dataset(valid_dataset),
+        _materialize_flattened_tensor_dataset(test_dataset),
+    )
+
+
 def _prepare_imagenet_dataset_triplet(
     *,
     train_dataset: Dataset,
@@ -121,45 +186,37 @@ def _prepare_imagenet_dataset_triplet(
     flatten: bool,
 ) -> tuple[Dataset, Dataset, Dataset]:
     """Apply ImageNet subsetting, validation split, and optional flattening."""
-    train_indices = _class_subset_indices(
+    train_dataset, train_eval_dataset, test_dataset = _apply_imagenet_class_subsets(
+        train_dataset=train_dataset,
+        train_eval_dataset=train_eval_dataset,
+        test_dataset=test_dataset,
+        train_samples_per_class=train_samples_per_class,
+        val_samples_per_class=val_samples_per_class,
+        split_seed=split_seed,
+    )
+    train_dataset, valid_dataset = _split_imagenet_train_valid_or_use_test(
+        train_dataset=train_dataset,
+        train_eval_dataset=train_eval_dataset,
+        test_dataset=test_dataset,
+        train_valid_split=train_valid_split,
+        split_seed=split_seed,
+    )
+    return _maybe_materialize_flattened_imagenet_triplet(
         train_dataset,
-        train_samples_per_class,
-        split_name="train",
-        seed=int(split_seed),
-    )
-    train_dataset = _subset_by_indices(train_dataset, train_indices)
-    train_eval_dataset = _subset_by_indices(train_eval_dataset, train_indices)
-    test_indices = _class_subset_indices(
+        valid_dataset,
         test_dataset,
-        val_samples_per_class,
-        split_name="val",
-        seed=int(split_seed) + 1,
+        flatten=flatten,
     )
-    test_dataset = _subset_by_indices(test_dataset, test_indices)
-
-    if hasattr(train_dataset, "__len__"):
-        train_dataset, valid_dataset = _split_train_valid_pair(
-            train_dataset,
-            train_eval_dataset,
-            train_valid_split=train_valid_split,
-            split_seed=split_seed,
-        )
-    else:
-        valid_dataset = test_dataset
-
-    if flatten:
-        train_dataset = _materialize_flattened_tensor_dataset(train_dataset)
-        valid_dataset = _materialize_flattened_tensor_dataset(valid_dataset)
-        test_dataset = _materialize_flattened_tensor_dataset(test_dataset)
-
-    return train_dataset, valid_dataset, test_dataset
 
 
 __all__ = [
     "IMAGENET_FLATTEN_MATERIALIZATION_LIMIT",
+    "_apply_imagenet_class_subsets",
     "_class_subset_indices",
     "_materialize_flattened_tensor_dataset",
+    "_maybe_materialize_flattened_imagenet_triplet",
     "_prepare_imagenet_dataset_triplet",
+    "_split_imagenet_train_valid_or_use_test",
     "_split_train_valid_pair",
     "_subset_by_indices",
 ]

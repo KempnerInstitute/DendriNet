@@ -74,11 +74,17 @@ def _outer_layer_ablation_aligned_cmi_specs(
 class InformationMutualInformationMixin(InformationValidationMixin):
     """Computes basic, pairwise, conditional, and class MI metrics."""
 
+    def _active_information_estimator(self):
+        """Return the estimator selected by the current analysis method."""
+        return self.estimators[self.method]
+
     def compute_class_mi(self, activations, labels):
-        return self.estimators[self.method].mutual_information(activations, labels)
+        return self._active_information_estimator().mutual_information(
+            activations, labels
+        )
 
     def compute_conditional_mi(self, activations, labels, condition):
-        return self.estimators[self.method].conditional_mutual_information(
+        return self._active_information_estimator().conditional_mutual_information(
             activations, labels, condition
         )
 
@@ -86,9 +92,11 @@ class InformationMutualInformationMixin(InformationValidationMixin):
         self,
         metric_key: str,
         estimate_fn: Callable[[], float],
+        *,
+        computing_label: str | None = None,
     ) -> float:
         """Compute one metric while preserving the debug timing format."""
-        self.logger.debug(f"  Computing {metric_key}...")
+        self.logger.debug(f"  Computing {computing_label or metric_key}...")
         start_time = time.time()
         value = estimate_fn()
         self.logger.debug(
@@ -105,7 +113,7 @@ class InformationMutualInformationMixin(InformationValidationMixin):
         """Compute one MI metric with the existing debug timing format."""
         return self._estimate_timed_metric(
             metric_key,
-            lambda: self.estimators[self.method].mutual_information(x, y),
+            lambda: self._active_information_estimator().mutual_information(x, y),
         )
 
     def _estimate_cmi(
@@ -118,7 +126,7 @@ class InformationMutualInformationMixin(InformationValidationMixin):
         """Compute one conditional MI metric with the existing debug timing format."""
         return self._estimate_timed_metric(
             metric_key,
-            lambda: self.estimators[self.method].conditional_mutual_information(
+            lambda: self._active_information_estimator().conditional_mutual_information(
                 x, y, condition
             ),
         )
@@ -134,8 +142,10 @@ class InformationMutualInformationMixin(InformationValidationMixin):
 
         def estimate() -> float:
             try:
-                return self.estimators[self.method].conditional_mutual_information(
-                    x, y, condition
+                return (
+                    self._active_information_estimator().conditional_mutual_information(
+                        x, y, condition
+                    )
                 )
             except Exception as e:
                 self.logger.warning(f"  Failed to compute {metric_key}: {e}")
@@ -166,11 +176,11 @@ class InformationMutualInformationMixin(InformationValidationMixin):
 
     def _estimate_class_entropy_for_normalization(self, C: np.ndarray) -> float:
         """Compute H(C) while preserving the entropy-normalization debug format."""
-        self.logger.debug("  Computing entropy H(C) for normalization...")
-        start_time = time.time()
-        H_C = self.estimators[self.method].entropy(C.reshape(-1, 1))
-        self.logger.debug(f"  H(C) = {H_C:.4f} (took {time.time() - start_time:.1f}s)")
-        return H_C
+        return self._estimate_timed_metric(
+            "H(C)",
+            lambda: self._active_information_estimator().entropy(C.reshape(-1, 1)),
+            computing_label="entropy H(C) for normalization",
+        )
 
     def _add_entropy_normalized_metrics(
         self,

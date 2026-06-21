@@ -20,6 +20,7 @@ from torchvision import datasets, transforms
 
 from .imagenet import (
     IMAGENET_FLATTEN_MATERIALIZATION_LIMIT as IMAGENET_FLATTEN_MATERIALIZATION_LIMIT,
+    _apply_imagenet_class_subsets as _apply_imagenet_class_subsets,
     _apply_imagenet_local_override as _apply_imagenet_local_override,
     _build_imagenet_transforms as _build_imagenet_transforms,
     _class_subset_indices as _class_subset_indices,
@@ -27,11 +28,13 @@ from .imagenet import (
     _is_official_imagenet_root as _is_official_imagenet_root,
     _load_imagenet_dataset_triplet as _load_imagenet_dataset_triplet,
     _materialize_flattened_tensor_dataset as _materialize_flattened_tensor_dataset,
+    _maybe_materialize_flattened_imagenet_triplet as _maybe_materialize_flattened_imagenet_triplet,
     _normalized_imagenet_loader_backend as _normalized_imagenet_loader_backend,
     _normalized_imagenet_preset_name as _normalized_imagenet_preset_name,
     _prepare_imagenet_dataset_triplet as _prepare_imagenet_dataset_triplet,
     _resolve_imagefolder_roots as _resolve_imagefolder_roots,
     _resolve_imagenet_data_location as _resolve_imagenet_data_location,
+    _split_imagenet_train_valid_or_use_test as _split_imagenet_train_valid_or_use_test,
     _split_train_valid_pair as _split_train_valid_pair,
     _subset_by_indices as _subset_by_indices,
     load_imagenet_as_datasets,
@@ -762,6 +765,23 @@ def load_poisson_generator_datasets(
     return train_ds, valid_ds, test_ds
 
 
+_STANDARD_VISION_DATASET_LOADERS: dict[str, str | Callable[..., _DatasetTriplet]] = {
+    "mnist": "load_mnist_as_datasets",
+    "fashion_mnist": "load_fashion_mnist_as_datasets",
+    "cifar10": "load_cifar10_as_datasets",
+}
+
+
+def _resolve_standard_vision_dataset_loader(
+    dataset_name: str,
+) -> Callable[..., _DatasetTriplet] | None:
+    """Resolve a standard vision loader without freezing monkeypatch targets."""
+    loader = _STANDARD_VISION_DATASET_LOADERS.get(dataset_name)
+    if isinstance(loader, str):
+        return globals()[loader]
+    return loader
+
+
 def _load_standard_vision_dataset_triplet(
     *,
     dataset_name: str,
@@ -774,12 +794,7 @@ def _load_standard_vision_dataset_triplet(
     label_noise_seed: int,
 ) -> tuple[Dataset, Dataset, Dataset] | None:
     """Load MNIST/Fashion-MNIST/CIFAR-10 with shared post-processing."""
-    loaders = {
-        "mnist": load_mnist_as_datasets,
-        "fashion_mnist": load_fashion_mnist_as_datasets,
-        "cifar10": load_cifar10_as_datasets,
-    }
-    loader = loaders.get(dataset_name)
+    loader = _resolve_standard_vision_dataset_loader(dataset_name)
     if loader is None:
         return None
 

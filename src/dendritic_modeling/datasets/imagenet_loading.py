@@ -66,6 +66,18 @@ def _load_torchvision_imagenet_dataset_triplet(
     )
 
 
+def _validate_imagefolder_backend_roots(
+    backend: str,
+    train_root: str | None,
+    val_root: str | None,
+) -> None:
+    if backend == "imagefolder" and (not train_root or not val_root):
+        raise RuntimeError(
+            "ImageNet loader_backend='imagefolder' requires train/val "
+            "class-directory roots."
+        )
+
+
 def _load_imagenet_dataset_triplet(
     *,
     imagenet_dir: str,
@@ -77,11 +89,7 @@ def _load_imagenet_dataset_triplet(
 ) -> tuple[Dataset, Dataset, Dataset]:
     """Load ImageNet train/eval/test datasets from ImageFolder or ImageNet roots."""
     backend = _normalized_imagenet_loader_backend(loader_backend)
-    if backend == "imagefolder" and (not train_root or not val_root):
-        raise RuntimeError(
-            "ImageNet loader_backend='imagefolder' requires train/val "
-            "class-directory roots."
-        )
+    _validate_imagefolder_backend_roots(backend, train_root, val_root)
     if train_root is not None:
         return _load_imagefolder_dataset_triplet(
             train_root=train_root,

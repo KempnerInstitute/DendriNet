@@ -8,7 +8,9 @@ from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import DendriticBranchLayer
 from dendritic_modeling.utils.hooks import (
     ForwardHookRemovalMixin,
+    HookHandle,
     iter_named_modules_of_type,
+    remove_hook_handles,
 )
 
 
@@ -106,6 +108,39 @@ def _prepare_branch_hook_capture(
     hook_modules.append((module, previous_store))
 
 
+def _restore_branch_hook_capture(
+    hook_modules: list[tuple[DendriticBranchLayer, object]],
+) -> None:
+    for module, previous_store in hook_modules:
+        _restore_analysis_current_capture(module, previous_store)
+    hook_modules.clear()
+
+
+def _attach_analyzable_branch_hooks(
+    *,
+    model: BaseModel,
+    data_dict: dict,
+    hook_modules: list[tuple[DendriticBranchLayer, object]],
+    hook,
+) -> list[HookHandle]:
+    handles: list[HookHandle] = []
+    try:
+        for _name, module in iter_named_modules_of_type(model, DendriticBranchLayer):
+            if _has_analyzable_branch_signals(module):
+                _prepare_branch_hook_capture(
+                    data_dict,
+                    hook_modules,
+                    _name,
+                    module,
+                )
+                handles.append(module.register_forward_hook(hook))
+        return handles
+    except Exception:
+        remove_hook_handles(handles)
+        _restore_branch_hook_capture(hook_modules)
+        raise
+
+
 def _store_branch_hook_data(
     data_dict: dict,
     module: DendriticBranchLayer,
@@ -151,24 +186,12 @@ class InformationHooksMixin(ForwardHookRemovalMixin):
             model.core_network, "somatic_synapses", True
         )
 
-        handles = []
-        try:
-            for _name, module in iter_named_modules_of_type(
-                model, DendriticBranchLayer
-            ):
-                if _has_analyzable_branch_signals(module):
-                    _prepare_branch_hook_capture(
-                        self.data_dict,
-                        self._analysis_hook_modules,
-                        _name,
-                        module,
-                    )
-                    handle = module.register_forward_hook(self.forward_hook)
-                    handles.append(handle)
-            return handles
-        except Exception:
-            self.remove_forward_hooks(handles)
-            raise
+        return _attach_analyzable_branch_hooks(
+            model=model,
+            data_dict=self.data_dict,
+            hook_modules=self._analysis_hook_modules,
+            hook=self.forward_hook,
+        )
 
     def forward_hook(
         self,
@@ -214,9 +237,7 @@ class InformationHooksMixin(ForwardHookRemovalMixin):
     def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
         """Remove forward hooks from the model."""
         super().remove_forward_hooks(handles)
-        for module, previous_store in getattr(self, "_analysis_hook_modules", []):
-            _restore_analysis_current_capture(module, previous_store)
-        self._analysis_hook_modules = []
+        _restore_branch_hook_capture(getattr(self, "_analysis_hook_modules", []))
 
 
 __all__ = ["InformationHooksMixin"]

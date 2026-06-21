@@ -15,9 +15,12 @@ from .imagenet_paths import (
 )
 from .imagenet_splits import (
     IMAGENET_FLATTEN_MATERIALIZATION_LIMIT,
+    _apply_imagenet_class_subsets,
     _class_subset_indices,
     _materialize_flattened_tensor_dataset,
+    _maybe_materialize_flattened_imagenet_triplet,
     _prepare_imagenet_dataset_triplet,
+    _split_imagenet_train_valid_or_use_test,
     _split_train_valid_pair,
     _subset_by_indices,
 )
@@ -144,6 +147,7 @@ def load_imagenet_as_datasets(
 __all__ = [
     "IMAGENET_FLATTEN_MATERIALIZATION_LIMIT",
     "_append_imagenet_normalize",
+    "_apply_imagenet_class_subsets",
     "_apply_imagenet_local_override",
     "_build_imagenet_transforms",
     "_class_subset_indices",
@@ -152,11 +156,13 @@ __all__ = [
     "_is_official_imagenet_root",
     "_load_imagenet_dataset_triplet",
     "_materialize_flattened_tensor_dataset",
+    "_maybe_materialize_flattened_imagenet_triplet",
     "_normalized_imagenet_loader_backend",
     "_normalized_imagenet_preset_name",
     "_prepare_imagenet_dataset_triplet",
     "_resolve_imagefolder_roots",
     "_resolve_imagenet_data_location",
+    "_split_imagenet_train_valid_or_use_test",
     "_split_train_valid_pair",
     "_subset_by_indices",
     "load_imagenet_as_datasets",

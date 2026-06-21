@@ -241,6 +241,28 @@ def test_prepare_branch_hook_capture_preserves_registration_state():
     assert module._store_analysis_currents == "previous"
 
 
+def test_information_hooks_attach_only_analyzable_layers_and_restore_on_remove():
+    model = _InformationHookModel()
+    model.layer_a._store_analysis_currents = "previous_a"
+    model.layer_b.branch_excitation = None
+    model.layer_b.branch_inhibition = None
+    model.layer_b.input_branches = False
+    hook = InformationHooksMixin()
+
+    handles = hook.attach_forward_hooks(model)
+    try:
+        assert len(handles) == 1
+        assert list(hook.data_dict) == ["layer_a"]
+        assert model.layer_a._store_analysis_currents is True
+        assert sum(len(module._forward_hooks) for module in model.modules()) == 1
+    finally:
+        hook.remove_forward_hooks(handles)
+
+    assert sum(len(module._forward_hooks) for module in model.modules()) == 0
+    assert model.layer_a._store_analysis_currents == "previous_a"
+    assert hook._analysis_hook_modules == []
+
+
 def test_information_hook_stores_resolved_currents_and_flags():
     module = SimpleNamespace(
         _name="layer0",

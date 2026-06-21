@@ -27,6 +27,7 @@ from dendritic_modeling.datasets import (
 )
 from dendritic_modeling.datasets.imagenet_loading import (
     _load_imagefolder_dataset_triplet,
+    _validate_imagefolder_backend_roots,
 )
 from dendritic_modeling.datasets.imagenet_paths import _imagefolder_root_candidates
 from dendritic_modeling.datasets.imagenet_transforms import (
@@ -40,6 +41,8 @@ from dendritic_modeling.datasets.sequence_datasets import (
     unregister_sequence_dataset_builder,
 )
 from dendritic_modeling.datasets.standard_datasets import (
+    _STANDARD_VISION_DATASET_LOADERS,
+    _apply_imagenet_class_subsets,
     _apply_imagenet_local_override,
     _build_imagenet_transforms,
     _class_subset_indices,
@@ -48,13 +51,16 @@ from dendritic_modeling.datasets.standard_datasets import (
     _is_official_imagenet_root,
     _load_experimental_dataset_triplet,
     _load_imagenet_dataset_triplet,
+    _load_standard_vision_dataset_triplet,
     _load_torchvision_train_test_pair,
     _materialize_flattened_tensor_dataset,
     _maybe_apply_label_noise_to_triplet,
+    _maybe_materialize_flattened_imagenet_triplet,
     _normalized_imagenet_loader_backend,
     _normalized_imagenet_preset_name,
     _resolve_imagefolder_roots,
     _resolve_imagenet_data_location,
+    _split_imagenet_train_valid_or_use_test,
     _split_train_valid_pair,
     _subset_by_indices,
 )
@@ -674,6 +680,73 @@ class TestRealDatasets(unittest.TestCase):
         self.assertIs(train_subset.dataset, train_dataset)
         self.assertIs(valid_subset.dataset, train_eval_dataset)
 
+    def test_apply_imagenet_class_subsets_preserves_train_eval_alignment(self):
+        train_dataset = self._TinyVisionDataset(6, (3, 224, 224), num_classes=3)
+        train_eval_dataset = self._TinyVisionDataset(6, (3, 224, 224), num_classes=3)
+        test_dataset = self._TinyVisionDataset(6, (3, 224, 224), num_classes=3)
+
+        subset_train, subset_train_eval, subset_test = _apply_imagenet_class_subsets(
+            train_dataset=train_dataset,
+            train_eval_dataset=train_eval_dataset,
+            test_dataset=test_dataset,
+            train_samples_per_class=1,
+            val_samples_per_class=1,
+            split_seed=11,
+        )
+
+        self.assertEqual(len(subset_train), 3)
+        self.assertEqual(len(subset_train_eval), 3)
+        self.assertEqual(len(subset_test), 3)
+        self.assertEqual(list(subset_train.indices), list(subset_train_eval.indices))
+        self.assertIs(subset_train.dataset, train_dataset)
+        self.assertIs(subset_train_eval.dataset, train_eval_dataset)
+        self.assertIs(subset_test.dataset, test_dataset)
+
+    def test_split_imagenet_train_valid_or_use_test_preserves_no_len_fallback(self):
+        class NoLenDataset(torch.utils.data.Dataset):
+            def __getitem__(self, idx):
+                raise IndexError(idx)
+
+        train_dataset = NoLenDataset()
+        train_eval_dataset = NoLenDataset()
+        test_dataset = NoLenDataset()
+
+        train_out, valid_out = _split_imagenet_train_valid_or_use_test(
+            train_dataset=train_dataset,
+            train_eval_dataset=train_eval_dataset,
+            test_dataset=test_dataset,
+            train_valid_split=0.8,
+            split_seed=0,
+        )
+
+        self.assertIs(train_out, train_dataset)
+        self.assertIs(valid_out, test_dataset)
+
+    def test_maybe_materialize_flattened_imagenet_triplet_respects_flatten_flag(self):
+        images = torch.arange(24, dtype=torch.float32).reshape(4, 2, 3)
+        labels = torch.arange(4)
+        train_dataset = TensorDataset(images, labels)
+        valid_dataset = TensorDataset(images + 100, labels)
+        test_dataset = TensorDataset(images + 200, labels)
+
+        unchanged = _maybe_materialize_flattened_imagenet_triplet(
+            train_dataset,
+            valid_dataset,
+            test_dataset,
+            flatten=False,
+        )
+        flattened = _maybe_materialize_flattened_imagenet_triplet(
+            train_dataset,
+            valid_dataset,
+            test_dataset,
+            flatten=True,
+        )
+
+        self.assertEqual(unchanged, (train_dataset, valid_dataset, test_dataset))
+        for dataset in flattened:
+            self.assertIsInstance(dataset, TensorDataset)
+            self.assertEqual(tuple(dataset.tensors[0].shape), (4, 6))
+
     def test_normalized_imagenet_preset_name_normalizes_aliases(self):
         self.assertEqual(
             _normalized_imagenet_preset_name("legacy-resize"), "legacy_resize"
@@ -797,6 +870,25 @@ class TestRealDatasets(unittest.TestCase):
                 val_root=None,
                 train_transform=Mock(),
                 eval_transform=Mock(),
+            )
+
+    def test_validate_imagefolder_backend_roots_preserves_backend_specific_error(self):
+        _validate_imagefolder_backend_roots(
+            "auto",
+            train_root=None,
+            val_root=None,
+        )
+        _validate_imagefolder_backend_roots(
+            "imagefolder",
+            train_root="/imagenet/train",
+            val_root="/imagenet/val",
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "loader_backend='imagefolder'"):
+            _validate_imagefolder_backend_roots(
+                "imagefolder",
+                train_root="/imagenet/train",
+                val_root=None,
             )
 
     @patch("dendritic_modeling.datasets.imagenet.datasets.ImageNet")
@@ -1053,6 +1145,50 @@ class TestDatasetUtilities(unittest.TestCase):
         import shutil
 
         shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_standard_vision_loader_registry_preserves_dispatch_and_noise_hook(self):
+        train_ds = TensorDataset(torch.zeros(4, 2), torch.arange(4, dtype=torch.long))
+        valid_ds = TensorDataset(torch.ones(2, 2), torch.ones(2, dtype=torch.long))
+        test_ds = TensorDataset(
+            torch.full((2, 2), 2.0), torch.ones(2, dtype=torch.long)
+        )
+        calls = []
+
+        def fake_loader(**kwargs):
+            calls.append(kwargs)
+            return train_ds, valid_ds, test_ds
+
+        with patch.dict(
+            _STANDARD_VISION_DATASET_LOADERS,
+            {"custom_vision": fake_loader},
+        ):
+            noisy_train, out_valid, out_test = _load_standard_vision_dataset_triplet(
+                dataset_name="custom_vision",
+                train_valid_split=0.75,
+                flatten=True,
+                normalize=False,
+                task_data_path="/tmp/data",
+                split_seed=9,
+                label_noise_rate=1.0,
+                label_noise_seed=0,
+            )
+
+        self.assertEqual(
+            calls,
+            [
+                {
+                    "train_valid_split": 0.75,
+                    "flatten": True,
+                    "normalize": False,
+                    "task_data_path": "/tmp/data",
+                    "split_seed": 9,
+                }
+            ],
+        )
+        self.assertIs(out_valid, valid_ds)
+        self.assertIs(out_test, test_ds)
+        self.assertTrue(torch.equal(noisy_train.tensors[0], train_ds.tensors[0]))
+        self.assertFalse(torch.equal(noisy_train.tensors[1], train_ds.tensors[1]))
 
     def test_maybe_apply_label_noise_only_changes_training_tensor_labels(self):
         """Label noise should not touch validation/test datasets."""
