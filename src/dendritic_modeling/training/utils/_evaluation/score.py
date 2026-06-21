@@ -14,6 +14,32 @@ from dendritic_modeling.models import Classifier, Regressor
 logger = logging.getLogger("dendritic_modeling.training.utils.evaluation")
 
 
+def _metric_accepts_seq_lengths(computation_func: Callable) -> bool:
+    """Return whether a metric computation accepts variable sequence lengths."""
+    return "seq_lengths" in inspect.signature(computation_func).parameters
+
+
+def _call_metric_computation(
+    computation_func: Callable,
+    model: Classifier | Regressor,
+    inputs: torch.Tensor,
+    labels: torch.Tensor,
+    reduce_dim: int,
+    *,
+    seq_lengths: torch.Tensor | None,
+) -> torch.Tensor:
+    """Call a metric function with the optional seq_lengths argument when supported."""
+    if _metric_accepts_seq_lengths(computation_func):
+        return computation_func(
+            model,
+            inputs,
+            labels,
+            reduce_dim,
+            seq_lengths=seq_lengths,
+        )
+    return computation_func(model, inputs, labels, reduce_dim)
+
+
 def _compute_metric_score(
     computation_func: Callable,
     model: Classifier | Regressor,
@@ -56,19 +82,22 @@ def _compute_metric_score(
                     labels = labels.to(analysis_device)
                     if seq_lengths is not None:
                         seq_lengths = seq_lengths.to(analysis_device)
-                    sig = inspect.signature(computation_func)
-                    if "seq_lengths" in sig.parameters:
-                        return computation_func(
-                            model, inputs, labels, reduce_dim, seq_lengths=seq_lengths
-                        )
-                    return computation_func(model, inputs, labels, reduce_dim)
-            # Pass seq_lengths to classification metrics that support it
-            sig = inspect.signature(computation_func)
-            if "seq_lengths" in sig.parameters:
-                return computation_func(
-                    model, inputs, labels, reduce_dim, seq_lengths=seq_lengths
-                )
-            return computation_func(model, inputs, labels, reduce_dim)
+                    return _call_metric_computation(
+                        computation_func,
+                        model,
+                        inputs,
+                        labels,
+                        reduce_dim,
+                        seq_lengths=seq_lengths,
+                    )
+            return _call_metric_computation(
+                computation_func,
+                model,
+                inputs,
+                labels,
+                reduce_dim,
+                seq_lengths=seq_lengths,
+            )
     except Exception as e:
         logger.warning(
             "Error computing metric in %s: %s; input dtypes: inputs=%s, "
@@ -85,4 +114,8 @@ def _compute_metric_score(
         return nan_tensor
 
 
-__all__ = ["_compute_metric_score"]
+__all__ = [
+    "_call_metric_computation",
+    "_compute_metric_score",
+    "_metric_accepts_seq_lengths",
+]

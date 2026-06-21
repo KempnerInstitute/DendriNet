@@ -2636,6 +2636,38 @@ class TestAnalysisManager(unittest.TestCase):
         self.assertTrue(hasattr(manager, "routing_analyzer"))
         self.assertTrue(manager.correlation_analysis_enabled)
 
+    def test_correlation_analysis_skips_when_analyzer_not_initialized(self):
+        """Correlation analysis should use the shared missing-analyzer guard."""
+        self.analysis_config.correlation_analysis.enabled = True
+
+        self.manager._run_correlation_analysis(
+            filename="missing_correlation",
+            training=False,
+            runtime=None,
+        )
+
+        self.assertFalse(hasattr(self.manager, "correlation_analyzer"))
+
+    def test_correlation_analysis_runs_initialized_analyzer(self):
+        """Correlation analysis should use the shared test-dataset call path."""
+        self.analysis_config.correlation_analysis.enabled = True
+        self.manager.correlation_analyzer = Mock()
+
+        self.manager._run_correlation_analysis(
+            filename="correlation_epoch",
+            training=False,
+            runtime=None,
+        )
+
+        self.manager.correlation_analyzer.analyze.assert_called_once_with(
+            model=self.model,
+            test_dataset=self.data["test"],
+            device="cpu",
+            save_path=str(Path(self.manager.save_root) / "correlation_analysis"),
+            filename="correlation_epoch",
+            runtime=None,
+        )
+
     def test_analyzer_initializer_builds_from_registered_constructor_style(self):
         """Initializer metadata should own analyzer construction semantics."""
         from dendritic_modeling.analysis.managers.analysis_plan import (

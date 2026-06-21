@@ -52,6 +52,17 @@ def _flatten_labels_for_grouped_logits(
     return labels.reshape(-1)
 
 
+def _sequence_valid_mask(
+    seq_lengths: torch.Tensor,
+    *,
+    n_timesteps: int,
+    device: torch.device,
+) -> torch.Tensor:
+    """Return [B, T] mask selecting valid timesteps for variable-length batches."""
+    time_index = torch.arange(n_timesteps, device=device).unsqueeze(0)
+    return time_index < seq_lengths.to(device).unsqueeze(1)
+
+
 def _prepare_classification_logits_and_labels(
     classifier: Classifier,
     inputs: torch.Tensor,
@@ -78,10 +89,11 @@ def _prepare_classification_logits_and_labels(
     if logits.dim() == 3 and is_recurrent_core:
         if labels.dim() == 2 and labels.shape[:2] == logits.shape[:2]:
             if seq_lengths is not None:
-                time_index = torch.arange(
-                    logits.shape[1], device=logits.device
-                ).unsqueeze(0)
-                valid_mask = time_index < seq_lengths.to(logits.device).unsqueeze(1)
+                valid_mask = _sequence_valid_mask(
+                    seq_lengths,
+                    n_timesteps=logits.shape[1],
+                    device=logits.device,
+                )
                 logits = logits[valid_mask]
                 labels = labels.to(logits.device)[valid_mask]
             else:
@@ -128,11 +140,10 @@ def _prepare_regression_predictions_and_labels(
     if predictions.dim() == 3 and is_recurrent_core:
         if labels.dim() == 3 and labels.shape[:2] == predictions.shape[:2]:
             if seq_lengths is not None:
-                time_index = torch.arange(
-                    predictions.shape[1], device=predictions.device
-                ).unsqueeze(0)
-                valid_mask = time_index < seq_lengths.to(predictions.device).unsqueeze(
-                    1
+                valid_mask = _sequence_valid_mask(
+                    seq_lengths,
+                    n_timesteps=predictions.shape[1],
+                    device=predictions.device,
                 )
                 predictions = predictions[valid_mask]
                 labels = labels.to(predictions.device)[valid_mask]
@@ -155,4 +166,5 @@ __all__ = [
     "_prepare_regression_predictions_and_labels",
     "_reduce_temporal",
     "_reduce_temporal_labels",
+    "_sequence_valid_mask",
 ]

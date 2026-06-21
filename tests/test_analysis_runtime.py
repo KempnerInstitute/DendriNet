@@ -269,6 +269,102 @@ def test_performance_analyzer_stream_matches_materialize():
         assert abs(float(lhs) - float(rhs)) < 1e-6
 
 
+def test_evaluate_metric_generic_forwards_seq_lengths_across_runtime_modes():
+    x = torch.arange(12, dtype=torch.float32).reshape(4, 3)
+    y = torch.arange(4, dtype=torch.long)
+    seq_lengths = torch.tensor([1, 2, 3, 1])
+    dataset = TensorDataset(x, y, seq_lengths)
+    model = nn.Identity()
+    seen_seq_lengths = []
+
+    def metric_with_lengths(
+        model,
+        inputs,
+        labels,
+        reduce_dim=0,
+        move_device=True,
+        device="cpu",
+        seq_lengths=None,
+    ):
+        assert seq_lengths is not None
+        seen_seq_lengths.append(seq_lengths.clone())
+        return seq_lengths.float().sum()
+
+    def metric_without_lengths(
+        model,
+        inputs,
+        labels,
+        reduce_dim=0,
+        move_device=True,
+        device="cpu",
+    ):
+        return labels.float().sum()
+
+    for mode in ("materialize", "stream"):
+        with_lengths = evaluation_utils._evaluate_metric_generic(
+            metric_func=metric_with_lengths,
+            metric_name="seq_length_sum",
+            model=model,
+            test_ds=dataset,
+            move_device=False,
+            device="cpu",
+            eval_mode=mode,
+            eval_batch_size=2,
+            eval_num_workers=0,
+            eval_pin_memory=False,
+        )
+        without_lengths = evaluation_utils._evaluate_metric_generic(
+            metric_func=metric_without_lengths,
+            metric_name="label_sum",
+            model=model,
+            test_ds=dataset,
+            move_device=False,
+            device="cpu",
+            eval_mode=mode,
+            eval_batch_size=2,
+            eval_num_workers=0,
+            eval_pin_memory=False,
+        )
+
+        assert with_lengths == (None, None, float(seq_lengths.sum()))
+        assert without_lengths == (None, None, float(y.sum()))
+
+    assert len(seen_seq_lengths) == 2
+    for observed in seen_seq_lengths:
+        torch.testing.assert_close(observed, seq_lengths)
+
+
+def test_stream_model_outputs_forwards_seq_lengths_to_compatible_model():
+    class SeqLengthAwareIdentity(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.seen_seq_lengths = []
+
+        def forward(self, x, seq_lengths=None):
+            assert seq_lengths is not None
+            self.seen_seq_lengths.append(seq_lengths.detach().cpu().clone())
+            return x
+
+    x = torch.arange(12, dtype=torch.float32).reshape(4, 3)
+    y = torch.arange(4, dtype=torch.long)
+    seq_lengths = torch.tensor([1, 2, 3, 1])
+    loader = DataLoader(TensorDataset(x, y, seq_lengths), batch_size=2)
+    model = SeqLengthAwareIdentity()
+
+    outputs, labels, observed_seq_lengths = evaluation_utils._stream_model_outputs(
+        model=model,
+        loader=loader,
+        device="cpu",
+    )
+
+    torch.testing.assert_close(outputs, x)
+    torch.testing.assert_close(labels, y)
+    torch.testing.assert_close(observed_seq_lengths, seq_lengths)
+    assert len(model.seen_seq_lengths) == 2
+    torch.testing.assert_close(model.seen_seq_lengths[0], seq_lengths[:2])
+    torch.testing.assert_close(model.seen_seq_lengths[1], seq_lengths[2:])
+
+
 def test_analysis_device_context_supports_parameterless_models():
     class EmptyModule(nn.Module):
         def forward(self, x):

@@ -38,6 +38,7 @@ from dendritic_modeling.training.utils._evaluation.prepare import (
     _prepare_regression_predictions_and_labels,
     _reduce_temporal,
     _reduce_temporal_labels,
+    _sequence_valid_mask,
 )
 from dendritic_modeling.training.utils._evaluation.regression import (
     _compute_cosine_similarity,
@@ -52,7 +53,11 @@ from dendritic_modeling.training.utils._evaluation.runtime import (
     _should_materialize,
     _stream_model_outputs,
 )
-from dendritic_modeling.training.utils._evaluation.score import _compute_metric_score
+from dendritic_modeling.training.utils._evaluation.score import (
+    _call_metric_computation,
+    _compute_metric_score,
+    _metric_accepts_seq_lengths,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -374,6 +379,7 @@ def evaluate_cosine_similarity(
 
 __all__ = [
     "_CachedOutputModel",
+    "_call_metric_computation",
     "_compute_accuracy",
     "_compute_auc",
     "_compute_cosine_similarity",
@@ -384,11 +390,13 @@ __all__ = [
     "_evaluate_metric_generic",
     "_flatten_labels_for_grouped_logits",
     "_make_eval_loader",
+    "_metric_accepts_seq_lengths",
     "_pred_label_mi_bits",
     "_prepare_classification_logits_and_labels",
     "_prepare_regression_predictions_and_labels",
     "_reduce_temporal",
     "_reduce_temporal_labels",
+    "_sequence_valid_mask",
     "_should_materialize",
     "_stream_model_outputs",
     "accuracy_score",

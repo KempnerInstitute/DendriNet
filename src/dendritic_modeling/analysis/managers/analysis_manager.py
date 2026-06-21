@@ -418,12 +418,6 @@ class AnalysisManager:
         self, *, filename: str, training: bool, runtime: object | None
     ) -> None:
         """Run correlation analysis."""
-        if not (
-            self.correlation_analysis_enabled
-            and self._should_run_config(self._analysis_config("correlation"), training)
-        ):
-            return
-
         self._run_logged_test_dataset_analysis(
             registry_name="correlation",
             filename=filename,
@@ -431,6 +425,7 @@ class AnalysisManager:
             runtime=runtime,
             start_message="Starting correlation analysis...",
             complete_message="Correlation analysis completed successfully",
+            require_analyzer=True,
         )
 
     def _run_routing_analysis(self, *, filename: str, training: bool) -> None:

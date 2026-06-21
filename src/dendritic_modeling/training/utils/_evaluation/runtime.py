@@ -17,6 +17,9 @@ from dendritic_modeling.analysis.utils.runtime import (
     should_materialize_dataset,
 )
 from dendritic_modeling.models import Classifier, RecurrentClassifier, Regressor
+from dendritic_modeling.training.utils._evaluation.score import (
+    _metric_accepts_seq_lengths,
+)
 from dendritic_modeling.utils.general import save_dict
 
 logger = logging.getLogger("dendritic_modeling.training.utils.evaluation")
@@ -47,6 +50,11 @@ def _should_materialize(
         materialize_threshold_mb=threshold_mb,
     )
     return should_materialize_dataset(dataset, runtime)
+
+
+def _model_accepts_seq_lengths(model: torch.nn.Module) -> bool:
+    """Return whether ``model.forward`` accepts variable sequence lengths."""
+    return "seq_lengths" in inspect.signature(model.forward).parameters
 
 
 def _stream_model_outputs(
@@ -83,8 +91,7 @@ def _stream_model_outputs(
                     inputs,
                     **(
                         {"seq_lengths": seq_lengths.to(analysis_device)}
-                        if seq_lengths is not None
-                        and "seq_lengths" in inspect.signature(model.forward).parameters
+                        if seq_lengths is not None and _model_accepts_seq_lengths(model)
                         else {}
                     ),
                 )
@@ -239,9 +246,7 @@ def _evaluate_metric_generic(
     results = []
 
     # Check once whether metric_func accepts seq_lengths.
-    _metric_accepts_seq_lengths = (
-        "seq_lengths" in inspect.signature(metric_func).parameters
-    )
+    metric_accepts_seq_lengths = _metric_accepts_seq_lengths(metric_func)
 
     for dataset in datasets:
         if dataset is None:
@@ -267,7 +272,7 @@ def _evaluate_metric_generic(
                     device=device,
                     **metric_kwargs,
                 )
-                if _metric_accepts_seq_lengths:
+                if metric_accepts_seq_lengths:
                     call_kwargs["seq_lengths"] = seq_lengths
                 result: torch.Tensor = metric_func(
                     model,
@@ -325,7 +330,7 @@ def _evaluate_metric_generic(
             device="cpu",
             **metric_kwargs,
         )
-        if _metric_accepts_seq_lengths:
+        if metric_accepts_seq_lengths:
             stream_kwargs["seq_lengths"] = cat_seq_lengths
         result = metric_func(
             cached_model,
@@ -363,6 +368,7 @@ __all__ = [
     "_MetricEvaluationRuntime",
     "_evaluate_metric_generic",
     "_make_eval_loader",
+    "_model_accepts_seq_lengths",
     "_should_materialize",
     "_stream_model_outputs",
 ]
