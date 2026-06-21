@@ -5,18 +5,29 @@ This module contains custom optimizer wrappers and implementations for
 dendritic network training.
 """
 
+from collections.abc import Iterator
+
+import torch
 from torch.optim import Optimizer
 
 from dendritic_modeling.models import BaseModel
 
 
-def _clear_rewired_optimizer_state(model, optimizer: Optimizer) -> None:
-    """Clear optimizer moments for sparse slots replaced during rewiring."""
+def _iter_rewired_optimizer_modules(
+    model,
+) -> Iterator[tuple[object, torch.nn.Parameter]]:
+    """Yield modules that expose rewiring masks and optimizer-backed weights."""
     for module in model.modules():
         consume = getattr(module, "consume_rewired_mask", None)
         pre_w = getattr(module, "pre_w", None)
-        if not callable(consume) or pre_w is None:
-            continue
+        if callable(consume) and pre_w is not None:
+            yield module, pre_w
+
+
+def _clear_rewired_optimizer_state(model, optimizer: Optimizer) -> None:
+    """Clear optimizer moments for sparse slots replaced during rewiring."""
+    for module, pre_w in _iter_rewired_optimizer_modules(model):
+        consume = module.consume_rewired_mask
         mask = consume()
         if mask is None:
             continue

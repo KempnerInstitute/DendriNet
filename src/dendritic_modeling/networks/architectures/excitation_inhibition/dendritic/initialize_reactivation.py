@@ -13,7 +13,10 @@ from dendritic_modeling.config.reactivation import (
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize_expectations import (
     _aggregate_quantiles_from_chunks,
 )
-from dendritic_modeling.utils.hooks import remove_hook_handles
+from dendritic_modeling.utils.hooks import (
+    iter_named_modules_of_type,
+    remove_hook_handles,
+)
 
 
 def _apply_reactivation_init(
@@ -197,9 +200,7 @@ def calibrate_reactivation_from_data(
 
     # Collect the branch layers we will calibrate, keyed by module name.
     targets: dict[str, DendriticBranchLayer] = {}
-    for name, mod in model.named_modules():
-        if not isinstance(mod, DendriticBranchLayer):
-            continue
+    for name, mod in iter_named_modules_of_type(model, DendriticBranchLayer):
         initialize = getattr(mod.reactivation, "initialize", None)
         if isinstance(mod.reactivation, torch.nn.Identity) or not callable(initialize):
             continue

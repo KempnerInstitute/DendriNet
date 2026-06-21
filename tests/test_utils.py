@@ -42,6 +42,7 @@ def test_utils_reexports_hook_helpers():
         ForwardHookRemovalMixin,
         iter_child_modules_of_type,
         iter_modules_of_type,
+        iter_named_modules_matching,
         iter_named_modules_of_type,
         register_named_forward_hooks,
     )
@@ -49,6 +50,7 @@ def test_utils_reexports_hook_helpers():
     assert utils.ForwardHookRemovalMixin is ForwardHookRemovalMixin
     assert utils.iter_child_modules_of_type is iter_child_modules_of_type
     assert utils.iter_modules_of_type is iter_modules_of_type
+    assert utils.iter_named_modules_matching is iter_named_modules_matching
     assert utils.iter_named_modules_of_type is iter_named_modules_of_type
     assert utils.register_named_forward_hooks is register_named_forward_hooks
 
@@ -98,6 +100,25 @@ def test_iter_named_modules_of_type_preserves_model_order():
 
     assert [name for name, _module in matches] == ["first", "block.1"]
     assert [module.out_features for _name, module in matches] == [3, 1]
+
+
+def test_iter_named_modules_matching_preserves_order_and_predicate():
+    from dendritic_modeling.utils.hooks import iter_named_modules_matching
+
+    model = nn.Module()
+    model.first = nn.Linear(2, 3)
+    model.activation = nn.ReLU()
+    model.block = nn.Sequential(nn.ReLU(), nn.Linear(3, 1))
+
+    matches = list(
+        iter_named_modules_matching(
+            model,
+            lambda name, module: name.endswith("activation")
+            or isinstance(module, nn.ReLU),
+        )
+    )
+
+    assert [name for name, _module in matches] == ["activation", "block.0"]
 
 
 def test_register_named_forward_hooks_preserves_order_and_predicate():

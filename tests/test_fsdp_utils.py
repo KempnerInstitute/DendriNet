@@ -1584,6 +1584,28 @@ class TestApplyGradientCheckpointing:
         assert torch.isfinite(x.grad).all()
         assert torch.isfinite(layer.weight.grad).all()
 
+    def test_apply_gradient_checkpointing_selects_targets_in_module_order(
+        self, monkeypatch
+    ):
+        """Only eligible modules should be checkpointed, in named-module order."""
+        first = nn.Linear(1001, 3)
+        small = nn.Linear(3, 3)
+        second = nn.Linear(1002, 4)
+        model = nn.Module()
+        model.first = first
+        model.small = small
+        model.block = nn.Sequential(nn.ReLU(), second)
+        patched = []
+
+        monkeypatch.setattr(
+            "dendritic_modeling.training.fsdp_utils._checkpoint_module_forward",
+            lambda module: patched.append(module),
+        )
+
+        _apply_gradient_checkpointing(model)
+
+        assert patched == [first, second]
+
     def test_apply_gradient_checkpointing_nested_model(self):
         """Test gradient checkpointing on nested model."""
         model = nn.ModuleDict(

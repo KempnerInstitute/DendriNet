@@ -7,7 +7,10 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.ind
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
     TopKLinear,
 )
-from dendritic_modeling.training.optimizers.custom import CustomWeightDecayOptimizer
+from dendritic_modeling.training.optimizers.custom import (
+    CustomWeightDecayOptimizer,
+    _iter_rewired_optimizer_modules,
+)
 from dendritic_modeling.utils.sparse_ops import get_available_sparse_types
 
 
@@ -137,6 +140,27 @@ def test_custom_optimizer_rewires_after_step_and_clears_adam_state():
     assert not bool(rewired.any())  # consumed by optimizer-state reset
     assert int((state["exp_avg"] == 0).sum().item()) >= 1
     assert int((state["exp_avg"] != 0).sum().item()) >= 1
+
+
+def test_rewired_optimizer_module_iterator_preserves_duck_typed_order():
+    class RewiredModule(torch.nn.Module):
+        def __init__(self, size: int):
+            super().__init__()
+            self.pre_w = torch.nn.Parameter(torch.ones(size))
+
+        def consume_rewired_mask(self):
+            return None
+
+    first = RewiredModule(2)
+    second = RewiredModule(3)
+    missing_weight = torch.nn.Module()
+    missing_weight.consume_rewired_mask = lambda: None
+    model = torch.nn.Sequential(first, missing_weight, torch.nn.Sequential(second))
+
+    assert list(_iter_rewired_optimizer_modules(model)) == [
+        (first, first.pre_w),
+        (second, second.pre_w),
+    ]
 
 
 def test_indexed_rewire_compares_to_standard_topk_on_tiny_regression():

@@ -37,7 +37,10 @@ from dendritic_modeling.config.analysis import (
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks.activations.parametric import ParametricTanh
 from dendritic_modeling.utils import save_dict
-from dendritic_modeling.utils.hooks import ForwardHookRemovalMixin
+from dendritic_modeling.utils.hooks import (
+    ForwardHookRemovalMixin,
+    iter_named_modules_of_type,
+)
 
 
 def _quantile_stats(v: torch.Tensor) -> dict[str, float]:
@@ -188,11 +191,7 @@ class ReactivationDynamicsAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         self, model: torch.nn.Module
     ) -> list[tuple[str, ParametricTanh]]:
         """Return ``(dotted_name, module)`` pairs for every ParametricTanh in the model."""
-        return [
-            (name, mod)
-            for name, mod in model.named_modules()
-            if isinstance(mod, ParametricTanh)
-        ]
+        return list(iter_named_modules_of_type(model, ParametricTanh))
 
     def _sample_inputs(
         self,

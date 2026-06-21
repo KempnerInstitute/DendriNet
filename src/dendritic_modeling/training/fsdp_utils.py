@@ -26,6 +26,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition import (
     ExcitationInhibitionLayer,
     ExcitationInhibitionNetwork,
 )
+from dendritic_modeling.utils.hooks import iter_named_modules_matching
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +63,13 @@ def _is_dendritic_fsdp_module(module: torch.nn.Module) -> bool:
 def _is_large_linear_checkpoint_candidate(module: torch.nn.Module) -> bool:
     """Return whether a Linear module meets the checkpointing size rule."""
     return isinstance(module, torch.nn.Linear) and module.in_features > 1000
+
+
+def _is_gradient_checkpoint_candidate(_name: str, module: torch.nn.Module) -> bool:
+    """Return whether a module should have activation checkpointing applied."""
+    return _is_dendritic_fsdp_module(module) or _is_large_linear_checkpoint_candidate(
+        module
+    )
 
 
 def create_fsdp_wrap_policy(min_num_params: int = 1e6):
@@ -312,7 +320,10 @@ def _apply_gradient_checkpointing(model: torch.nn.Module):
         model: Model to apply checkpointing to
     """
     # Apply checkpointing to large linear layers and dendritic components
-    for name, module in model.named_modules():
+    for name, module in iter_named_modules_matching(
+        model,
+        _is_gradient_checkpoint_candidate,
+    ):
         if _is_dendritic_fsdp_module(module):
             _checkpoint_module_forward(module)
             logger.debug(f"Applied gradient checkpointing to {name}")

@@ -49,6 +49,17 @@ def _make_dataset(n: int = 64, dim: int = 16, n_classes: int = 4) -> TensorDatas
     return TensorDataset(x, y)
 
 
+def test_analyzer_lists_parametric_tanh_layers_in_module_order():
+    model = _StackedReactivationModel()
+    analyzer = ReactivationDynamicsAnalyzer(
+        ReactivationDynamicsAnalysisParams(max_samples=8)
+    )
+
+    layers = analyzer._list_parametric_tanh_layers(model)
+
+    assert layers == [("r1", model.r1), ("r2", model.r2)]
+
+
 def test_analyzer_snapshots_all_reactivation_layers():
     model = _StackedReactivationModel()
     model.train()

@@ -472,6 +472,48 @@ class TestEmpiricalCalibration:
             b_before, rel=1e-6
         )
 
+    def test_calibration_diagnostics_preserve_branch_layer_order(self):
+        """Diagnostics should follow module traversal order for eligible layers."""
+        torch.manual_seed(0)
+        first = DendriticBranchLayer(
+            output_dim=8,
+            excitatory_input_dim=20,
+            excitatory_synapses_per_branch=5,
+            use_shunting=True,
+            reactivate=True,
+            reactivation_type="param_tanh",
+            reactivation_init_policy="occupancy_quantile",
+        )
+        second = DendriticBranchLayer(
+            output_dim=4,
+            excitatory_input_dim=8,
+            excitatory_synapses_per_branch=2,
+            use_shunting=True,
+            reactivate=True,
+            reactivation_type="param_tanh",
+            reactivation_init_policy="occupancy_quantile",
+        )
+
+        class Wrapper(torch.nn.Module):
+            def __init__(self, layer1, layer2):
+                super().__init__()
+                self.first = layer1
+                self.unrelated = torch.nn.Identity()
+                self.second = layer2
+
+            def forward(self, x):
+                x = self.first(x)
+                x = self.unrelated(x)
+                return self.second(x)
+
+        model = Wrapper(first, second)
+        batches = [torch.rand(32, 20) for _ in range(2)]
+
+        diag = calibrate_reactivation_from_data(model, batches, mode=None)
+
+        assert list(diag) == ["first", "second"]
+        assert all(stats["n"] > 0 for stats in diag.values())
+
     def test_maybe_calibrate_uses_per_layer_mode_when_top_level_missing(self):
         """Launcher helper should preserve per-layer policy boundaries."""
 
