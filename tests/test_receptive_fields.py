@@ -2,18 +2,24 @@ import pytest
 import torch
 from torch.utils.data import TensorDataset
 
+from dendritic_modeling.analysis.core.branch_activation import BranchActivationAnalyzer
 from dendritic_modeling.analysis.tools.compartment_snr import CompartmentSNRAnalyzer
 from dendritic_modeling.analysis.tools.compartment_statistics import (
     CompartmentStatisticsAnalyzer,
 )
 from dendritic_modeling.analysis.tools.receptive_fields import ReceptiveFieldAnalyzer
+from dendritic_modeling.analysis.tools.synaptic_activation import (
+    SynapticActivationAnalyzer,
+)
 from dendritic_modeling.config.analysis import (
+    BranchActivationAnalysisParams,
     CompartmentSNRAnalysisParams,
     CompartmentStatisticsAnalysisParams,
     ReceptiveFieldAnalysisParams,
+    SynapticActivationAnalysisParams,
 )
 from dendritic_modeling.models import Classifier
-from dendritic_modeling.networks import Identity
+from dendritic_modeling.networks import DendriticBranchLayer, Identity
 from dendritic_modeling.networks.architectures.factory import get_architecture
 
 
@@ -138,6 +144,22 @@ def test_compartment_snr_removes_hooks_after_failed_collection():
     assert _count_registered_forward_hooks(model) == 0
 
 
+def test_compartment_snr_removes_hooks_after_failed_hook_registration(monkeypatch):
+    model = _direct_inhibitory_model()
+    x, _labels, _dataset = _toy_dataset()
+    analyzer = CompartmentSNRAnalyzer(CompartmentSNRAnalysisParams())
+
+    def _failing_register(*_args, **_kwargs):
+        raise RuntimeError("snr hook registration failed")
+
+    monkeypatch.setattr(analyzer, "_register_activation_hook", _failing_register)
+
+    with pytest.raises(RuntimeError, match="snr hook registration failed"):
+        analyzer.collect_raw_data(model, x)
+
+    assert _count_registered_forward_hooks(model) == 0
+
+
 def test_compartment_statistics_collects_expected_branch_payloads():
     model = _direct_inhibitory_model()
     x, labels, _dataset = _toy_dataset()
@@ -187,6 +209,89 @@ def test_compartment_statistics_removes_hooks_after_failed_collection():
     with pytest.raises(RuntimeError, match="statistics failed"):
         analyzer.collect_raw_data(model, x, labels)
 
+    assert _count_registered_forward_hooks(model) == 0
+
+
+def test_compartment_statistics_removes_hooks_after_failed_hook_registration(
+    monkeypatch,
+):
+    model = _direct_inhibitory_model()
+    x, labels, _dataset = _toy_dataset()
+    analyzer = CompartmentStatisticsAnalyzer(
+        CompartmentStatisticsAnalysisParams(compute_entropy=False)
+    )
+    original_register = analyzer._register_synapse_capture_hook
+    call_count = 0
+
+    def _register_once_then_fail(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return original_register(*args, **kwargs)
+        raise RuntimeError("statistics hook registration failed")
+
+    monkeypatch.setattr(
+        analyzer,
+        "_register_synapse_capture_hook",
+        _register_once_then_fail,
+    )
+
+    with pytest.raises(RuntimeError, match="statistics hook registration failed"):
+        analyzer.collect_raw_data(model, x, labels)
+
+    assert call_count == 2
+    assert _count_registered_forward_hooks(model) == 0
+
+
+def test_synaptic_activation_removes_hooks_after_failed_hook_registration(
+    monkeypatch,
+):
+    model = _direct_inhibitory_model()
+    analyzer = SynapticActivationAnalyzer(SynapticActivationAnalysisParams())
+    analyzer.data_dict = {}
+    original_register = analyzer._register_synapse_hook
+    call_count = 0
+
+    def _register_once_then_fail(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return original_register(*args, **kwargs)
+        raise RuntimeError("synaptic hook registration failed")
+
+    monkeypatch.setattr(analyzer, "_register_synapse_hook", _register_once_then_fail)
+
+    with pytest.raises(RuntimeError, match="synaptic hook registration failed"):
+        analyzer.attach_forward_hooks(model)
+
+    assert call_count == 2
+    assert _count_registered_forward_hooks(model) == 0
+
+
+def test_branch_activation_removes_hooks_after_failed_hook_registration(monkeypatch):
+    model = _direct_inhibitory_model()
+    analyzer = BranchActivationAnalyzer(BranchActivationAnalysisParams())
+    analyzer.data_dict = {}
+    original_register = DendriticBranchLayer.register_forward_hook
+    call_count = 0
+
+    def _register_once_then_fail(module, *args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return original_register(module, *args, **kwargs)
+        raise RuntimeError("branch hook registration failed")
+
+    monkeypatch.setattr(
+        DendriticBranchLayer,
+        "register_forward_hook",
+        _register_once_then_fail,
+    )
+
+    with pytest.raises(RuntimeError, match="branch hook registration failed"):
+        analyzer.attach_forward_hooks(model)
+
+    assert call_count == 2
     assert _count_registered_forward_hooks(model) == 0
 
 

@@ -21,7 +21,7 @@ from dendritic_modeling.training.strategies.local_learning_pathways import (
     iter_topk_path_modules,
 )
 from dendritic_modeling.utils import save_dict
-from dendritic_modeling.utils.hooks import ForwardHookRemovalMixin
+from dendritic_modeling.utils.hooks import ForwardHookRemovalMixin, remove_hook_handles
 
 
 class SynapticActivationAnalyzer(ForwardHookRemovalMixin):
@@ -64,25 +64,33 @@ class SynapticActivationAnalyzer(ForwardHookRemovalMixin):
             List of hook handles for later removal
         """
         handles = []
-        for layer_name, module in model.named_modules():
-            if isinstance(module, DendriticBranchLayer):
-                handles.extend(self._attach_layer_hooks(layer_name, module))
-        return handles
+        try:
+            for layer_name, module in model.named_modules():
+                if isinstance(module, DendriticBranchLayer):
+                    handles.extend(self._attach_layer_hooks(layer_name, module))
+            return handles
+        except Exception:
+            self.remove_forward_hooks(handles)
+            raise
 
     def _attach_layer_hooks(
         self, layer_name: str, module: DendriticBranchLayer
     ) -> list[torch.utils.hooks.RemovableHandle]:
         self.data_dict.setdefault(layer_name, {})
         handles = []
-        for path, synapse_module in iter_topk_path_modules(module):
-            handles.append(
-                self._register_synapse_hook(
-                    layer_name,
-                    path.pathway,
-                    synapse_module,
+        try:
+            for path, synapse_module in iter_topk_path_modules(module):
+                handles.append(
+                    self._register_synapse_hook(
+                        layer_name,
+                        path.pathway,
+                        synapse_module,
+                    )
                 )
-            )
-        return handles
+            return handles
+        except Exception:
+            remove_hook_handles(handles)
+            raise
 
     def _register_synapse_hook(
         self,

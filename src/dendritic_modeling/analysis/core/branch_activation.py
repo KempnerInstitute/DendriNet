@@ -68,14 +68,18 @@ class BranchActivationAnalyzer(ForwardHookRemovalMixin):
             List of hook handles for later removal
         """
         handles = []
-        for _name, module in model.named_modules():
-            if isinstance(module, DendriticBranchLayer):
-                if _name not in self.data_dict.keys():
-                    self.data_dict[_name] = {}
-                    module._name = _name
-                    handle = module.register_forward_hook(self.forward_hook)
-                    handles.append(handle)
-        return handles
+        try:
+            for _name, module in model.named_modules():
+                if isinstance(module, DendriticBranchLayer):
+                    if _name not in self.data_dict.keys():
+                        self.data_dict[_name] = {}
+                        module._name = _name
+                        handle = module.register_forward_hook(self.forward_hook)
+                        handles.append(handle)
+            return handles
+        except Exception:
+            self.remove_forward_hooks(handles)
+            raise
 
     def forward_hook(
         self,

@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 import torch
 from torch.utils.data import TensorDataset
 
@@ -63,6 +64,10 @@ def _toy_dataset() -> tuple[torch.Tensor, torch.Tensor, TensorDataset]:
     x = torch.rand(8, 6)
     labels = torch.tensor([0, 0, 0, 0, 1, 1, 1, 1])
     return x, labels, TensorDataset(x, labels)
+
+
+def _count_registered_forward_hooks(model: torch.nn.Module) -> int:
+    return sum(len(module._forward_hooks) for module in model.modules())
 
 
 def test_correlation_branch_hooks_collect_expected_payloads():
@@ -138,6 +143,33 @@ def test_correlation_synaptic_hooks_collect_expected_payloads():
     ]
     assert set(second_layer) == {"output"}
     assert second_layer["output"].shape == (8, 4)
+
+
+def test_correlation_synaptic_hooks_remove_partial_registration(monkeypatch):
+    model = _direct_inhibitory_model()
+    params = CorrelationAnalysisParams(computation_level="synaptic")
+    analyzer = CorrelationAnalyzer(params)
+    first_layer = model.core_network.layers[0].excitatory_cells.branch_layers[0]
+    original_register = first_layer.branch_inhibition.register_forward_hook
+
+    def _failing_register(*args, **kwargs):
+        raise RuntimeError("correlation hook registration failed")
+
+    monkeypatch.setattr(
+        first_layer.branch_inhibition,
+        "register_forward_hook",
+        _failing_register,
+    )
+
+    with pytest.raises(RuntimeError, match="correlation hook registration failed"):
+        analyzer.attach_forward_hooks(model)
+
+    monkeypatch.setattr(
+        first_layer.branch_inhibition,
+        "register_forward_hook",
+        original_register,
+    )
+    assert _count_registered_forward_hooks(model) == 0
 
 
 def test_correlation_nested_compute_config_overrides_legacy_flat_fields():

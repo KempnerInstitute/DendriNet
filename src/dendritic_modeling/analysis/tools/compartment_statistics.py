@@ -88,32 +88,32 @@ class CompartmentStatisticsAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         self.raw_dict = {}
         self.class_labels = y if self.per_class_analysis and y is not None else None
         handles = []
-        for key, module in model.named_modules():
-            if isinstance(module, DendriticBranchLayer):
-                self._initialize_branch_records(key, module)
-                synapse_modules = self._iter_synapse_modules(module)
-                self._collect_layer_static_data(key, module, synapse_modules)
+        try:
+            for key, module in model.named_modules():
+                if isinstance(module, DendriticBranchLayer):
+                    self._initialize_branch_records(key, module)
+                    synapse_modules = self._iter_synapse_modules(module)
+                    self._collect_layer_static_data(key, module, synapse_modules)
 
-                if self.inputs or self.activations:
-                    handles.extend(
-                        self._attach_synapse_capture_hooks(key, synapse_modules)
-                    )
+                    if self.inputs or self.activations:
+                        handles.extend(
+                            self._attach_synapse_capture_hooks(key, synapse_modules)
+                        )
 
-        if self.inputs or self.activations:
-            if self.n_samples is not None:
-                generator = torch.Generator(device=x.device)
-                generator.manual_seed(self.seed)
-                indices = torch.randperm(
-                    x.shape[0], generator=generator, device=x.device
-                )[: self.n_samples]
-                x = x[indices]
-                if self.class_labels is not None:
-                    self.class_labels = self.class_labels[indices]
-            try:
+            if self.inputs or self.activations:
+                if self.n_samples is not None:
+                    generator = torch.Generator(device=x.device)
+                    generator.manual_seed(self.seed)
+                    indices = torch.randperm(
+                        x.shape[0], generator=generator, device=x.device
+                    )[: self.n_samples]
+                    x = x[indices]
+                    if self.class_labels is not None:
+                        self.class_labels = self.class_labels[indices]
                 with torch.no_grad():
                     _ = model(x)
-            finally:
-                self.remove_forward_hooks(handles)
+        finally:
+            self.remove_forward_hooks(handles)
 
     def _initialize_branch_records(
         self, key: str, module: DendriticBranchLayer
@@ -171,13 +171,19 @@ class CompartmentStatisticsAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         synapse_modules: list[tuple[str, TopKLinear | None]],
     ) -> list[torch.utils.hooks.RemovableHandle]:
         handles = []
-        for synapse_type, synapse_module in synapse_modules:
-            if synapse_module is None:
-                continue
-            handles.append(
-                self._register_synapse_capture_hook(key, synapse_type, synapse_module)
-            )
-        return handles
+        try:
+            for synapse_type, synapse_module in synapse_modules:
+                if synapse_module is None:
+                    continue
+                handles.append(
+                    self._register_synapse_capture_hook(
+                        key, synapse_type, synapse_module
+                    )
+                )
+            return handles
+        except Exception:
+            self.remove_forward_hooks(handles)
+            raise
 
     def forward_hook(
         self,

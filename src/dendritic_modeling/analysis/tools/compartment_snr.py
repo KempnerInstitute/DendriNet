@@ -79,12 +79,12 @@ class CompartmentSNRAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
 
         exc_dendrinet = model.core_network.layers[-1].excitatory_cells
 
-        for key, module in exc_dendrinet.named_modules():
-            if isinstance(module, DendriticBranchLayer):
-                self._initialize_branch_records(key, module)
-                handles.extend(self._attach_layer_capture_hooks(key, module))
-
         try:
+            for key, module in exc_dendrinet.named_modules():
+                if isinstance(module, DendriticBranchLayer):
+                    self._initialize_branch_records(key, module)
+                    handles.extend(self._attach_layer_capture_hooks(key, module))
+
             with torch.no_grad():
                 _ = model(x)
         finally:
@@ -114,34 +114,42 @@ class CompartmentSNRAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
     ) -> list[torch.utils.hooks.RemovableHandle]:
         handles = []
 
-        if self.input_analysis:
-            handle = module.register_forward_pre_hook(
-                lambda module, input, layer_key=key: self.branch_input_hook(
-                    module, input, layer_key
+        try:
+            if self.input_analysis:
+                handle = module.register_forward_pre_hook(
+                    lambda module, input, layer_key=key: self.branch_input_hook(
+                        module, input, layer_key
+                    )
                 )
-            )
-            handles.append(handle)
+                handles.append(handle)
 
-        if module.branch_excitation is not None:
-            handles.append(
-                self._register_activation_hook(module.branch_excitation, key, "exc")
-            )
-
-        if module.branch_inhibition is not None:
-            handles.append(
-                self._register_activation_hook(module.branch_inhibition, key, "inh")
-            )
-
-        if hasattr(module, "branches_to_output"):
-            handles.append(
-                self._register_activation_hook(
-                    module.branches_to_output, key, "upstream"
+            if module.branch_excitation is not None:
+                handles.append(
+                    self._register_activation_hook(module.branch_excitation, key, "exc")
                 )
-            )
 
-        handles.append(self._register_activation_hook(module.reactivation, key, "vinf"))
-        handles.append(self._register_activation_hook(module.reactivation, key, "vout"))
-        return handles
+            if module.branch_inhibition is not None:
+                handles.append(
+                    self._register_activation_hook(module.branch_inhibition, key, "inh")
+                )
+
+            if hasattr(module, "branches_to_output"):
+                handles.append(
+                    self._register_activation_hook(
+                        module.branches_to_output, key, "upstream"
+                    )
+                )
+
+            handles.append(
+                self._register_activation_hook(module.reactivation, key, "vinf")
+            )
+            handles.append(
+                self._register_activation_hook(module.reactivation, key, "vout")
+            )
+            return handles
+        except Exception:
+            self.remove_forward_hooks(handles)
+            raise
 
     def _capture_input_once(self, name: str, tensor: torch.Tensor | None) -> None:
         if tensor is None or hasattr(self, name):

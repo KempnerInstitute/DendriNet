@@ -247,32 +247,44 @@ class CorrelationAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         self, model: BaseModel
     ) -> list[torch.utils.hooks.RemovableHandle]:
         handles = []
-        for layer_name, module in model.named_modules():
-            if isinstance(module, DendriticBranchLayer):
-                self.data_dict[layer_name] = {}
-                handles.extend(self._attach_synaptic_layer_hooks(layer_name, module))
-        return handles
+        try:
+            for layer_name, module in model.named_modules():
+                if isinstance(module, DendriticBranchLayer):
+                    self.data_dict[layer_name] = {}
+                    handles.extend(
+                        self._attach_synaptic_layer_hooks(layer_name, module)
+                    )
+            return handles
+        except Exception:
+            self.remove_forward_hooks(handles)
+            raise
 
     def _attach_synaptic_layer_hooks(
         self, layer_name: str, module: DendriticBranchLayer
     ) -> list[torch.utils.hooks.RemovableHandle]:
         handles = []
-        if module.branch_excitation is not None:
-            handles.append(
-                module.branch_excitation.register_forward_hook(
-                    self._make_synapse_hook(layer_name, "E")
+        try:
+            if module.branch_excitation is not None:
+                handles.append(
+                    module.branch_excitation.register_forward_hook(
+                        self._make_synapse_hook(layer_name, "E")
+                    )
                 )
-            )
 
-        if module.branch_inhibition is not None:
-            handles.append(
-                module.branch_inhibition.register_forward_hook(
-                    self._make_synapse_hook(layer_name, "I")
+            if module.branch_inhibition is not None:
+                handles.append(
+                    module.branch_inhibition.register_forward_hook(
+                        self._make_synapse_hook(layer_name, "I")
+                    )
                 )
-            )
 
-        handles.append(module.register_forward_hook(self._make_output_hook(layer_name)))
-        return handles
+            handles.append(
+                module.register_forward_hook(self._make_output_hook(layer_name))
+            )
+            return handles
+        except Exception:
+            self.remove_forward_hooks(handles)
+            raise
 
     def _make_synapse_hook(self, layer_name: str, synapse_type: str):
         def hook(module, input, output):
@@ -320,15 +332,19 @@ class CorrelationAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         self, model: BaseModel
     ) -> list[torch.utils.hooks.RemovableHandle]:
         handles = []
-        for name, module in model.named_modules():
-            if isinstance(module, DendriticBranchLayer) and (
-                module.branch_excitation is not None
-                and module.branch_inhibition is not None
-            ):
-                self.data_dict[name] = {}
-                module._name = name
-                handles.append(module.register_forward_hook(self.forward_hook))
-        return handles
+        try:
+            for name, module in model.named_modules():
+                if isinstance(module, DendriticBranchLayer) and (
+                    module.branch_excitation is not None
+                    and module.branch_inhibition is not None
+                ):
+                    self.data_dict[name] = {}
+                    module._name = name
+                    handles.append(module.register_forward_hook(self.forward_hook))
+            return handles
+        except Exception:
+            self.remove_forward_hooks(handles)
+            raise
 
     def forward_hook(
         self, module: DendriticBranchLayer, input: tuple, output: torch.Tensor
