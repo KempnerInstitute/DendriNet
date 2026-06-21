@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import torch
 
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer import (
@@ -10,6 +12,24 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.b
 from dendritic_modeling.networks.architectures.recurrent.synapse_types import (
     SynapseTypeConfig,
 )
+
+
+@dataclass(frozen=True)
+class _StatefulTypedLevelTraces:
+    """Integrated typed traces, conductances, and additive drives for one level."""
+
+    trace_E: torch.Tensor
+    trace_E_rec: torch.Tensor
+    trace_I: torch.Tensor
+    trace_I_rec: torch.Tensor
+    current_E: torch.Tensor
+    current_E_rec: torch.Tensor
+    current_I: torch.Tensor
+    current_I_rec: torch.Tensor
+    drive_E: torch.Tensor
+    drive_E_rec: torch.Tensor
+    drive_I: torch.Tensor
+    drive_I_rec: torch.Tensor
 
 
 class StatefulTypedDynamicsMixin:
@@ -264,6 +284,75 @@ class StatefulTypedDynamicsMixin:
                 additive_drive = additive_drive + trace * reversal
 
         return conductance, shunting_current, additive_drive
+
+    def _integrate_typed_level_traces(
+        self,
+        *,
+        raw_E: torch.Tensor,
+        raw_E_rec: torch.Tensor,
+        raw_I: torch.Tensor,
+        raw_I_rec: torch.Tensor,
+        prev_typed_traces: dict[str, list[torch.Tensor]] | None,
+        new_typed_traces: dict[str, list[torch.Tensor]],
+        level_idx: int,
+        legacy_decay: torch.Tensor,
+        voltage_reference: torch.Tensor,
+    ) -> _StatefulTypedLevelTraces:
+        """Integrate all typed synaptic compartments for one recurrent level."""
+        trace_E, current_E, drive_E = self._integrate_typed_compartment(
+            raw=raw_E,
+            prev_typed_traces=prev_typed_traces,
+            new_typed_traces=new_typed_traces,
+            level_idx=level_idx,
+            compartment="ff_exc",
+            synapse_types=self.synapse_types.excitatory.types,
+            legacy_decay=legacy_decay,
+            voltage_reference=voltage_reference,
+        )
+        trace_E_rec, current_E_rec, drive_E_rec = self._integrate_typed_compartment(
+            raw=raw_E_rec,
+            prev_typed_traces=prev_typed_traces,
+            new_typed_traces=new_typed_traces,
+            level_idx=level_idx,
+            compartment="rec_exc",
+            synapse_types=self.synapse_types.excitatory.types,
+            legacy_decay=legacy_decay,
+            voltage_reference=voltage_reference,
+        )
+        trace_I, current_I, drive_I = self._integrate_typed_compartment(
+            raw=raw_I,
+            prev_typed_traces=prev_typed_traces,
+            new_typed_traces=new_typed_traces,
+            level_idx=level_idx,
+            compartment="ff_inh",
+            synapse_types=self.synapse_types.inhibitory.types,
+            legacy_decay=legacy_decay,
+            voltage_reference=voltage_reference,
+        )
+        trace_I_rec, current_I_rec, drive_I_rec = self._integrate_typed_compartment(
+            raw=raw_I_rec,
+            prev_typed_traces=prev_typed_traces,
+            new_typed_traces=new_typed_traces,
+            level_idx=level_idx,
+            compartment="rec_inh",
+            synapse_types=self.synapse_types.inhibitory.types,
+            legacy_decay=legacy_decay,
+            voltage_reference=voltage_reference,
+        )
+        return _StatefulTypedLevelTraces(
+            trace_E=trace_E,
+            trace_E_rec=trace_E_rec,
+            trace_I=trace_I,
+            trace_I_rec=trace_I_rec,
+            current_E=current_E,
+            current_E_rec=current_E_rec,
+            current_I=current_I,
+            current_I_rec=current_I_rec,
+            drive_E=drive_E,
+            drive_E_rec=drive_E_rec,
+            drive_I=drive_I,
+            drive_I_rec=drive_I_rec,
+        )
 
     def _branch_conductance_tensor(
         self,

@@ -169,8 +169,21 @@ def _resolve_prefetch_factor(
     return max(1, int(prefetch_factor))
 
 
-def _resolve_in_order(in_order: bool | None) -> bool | None:
-    return bool(in_order) if in_order is not None else None
+def _resolve_in_order(
+    in_order: bool | None,
+    *,
+    dataset_profile: DatasetLoaderProfile | None = None,
+    num_workers: int = 0,
+) -> bool | None:
+    if in_order is not None:
+        return bool(in_order)
+    if (
+        dataset_profile is not None
+        and num_workers > 0
+        and dataset_profile.is_torchvision_image_dataset
+    ):
+        return False
+    return None
 
 
 def resolve_dataloader_tuning(
@@ -210,7 +223,11 @@ def resolve_dataloader_tuning(
         dataset_profile=dataset_profile,
         num_workers=resolved_workers,
     )
-    resolved_in_order = _resolve_in_order(in_order)
+    resolved_in_order = _resolve_in_order(
+        in_order,
+        dataset_profile=dataset_profile,
+        num_workers=resolved_workers,
+    )
 
     return DataLoaderTuning(
         num_workers=resolved_workers,

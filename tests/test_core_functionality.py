@@ -404,7 +404,7 @@ def test_dataloader_local_process_count_parser_preserves_slurm_prefix_rules():
 
 
 def test_dataloader_auto_prefetches_torchvision_image_datasets(monkeypatch):
-    """ImageNet/ImageFolder-style datasets should prefetch more worker batches."""
+    """ImageNet/ImageFolder-style datasets should prefetch and avoid HOL blocking."""
 
     from dendritic_modeling.training.dataloader_utils import resolve_dataloader_tuning
 
@@ -429,7 +429,37 @@ def test_dataloader_auto_prefetches_torchvision_image_datasets(monkeypatch):
     assert tuning.pin_memory is True
     assert tuning.persistent_workers is True
     assert tuning.prefetch_factor == 4
+    assert tuning.in_order is False
     assert tuning.as_kwargs()["prefetch_factor"] == 4
+    assert tuning.as_kwargs()["in_order"] is False
+
+
+def test_dataloader_in_order_explicit_true_overrides_image_auto(monkeypatch):
+    """Explicit ordering should override the ImageNet auto throughput default."""
+
+    from dendritic_modeling.training.dataloader_utils import resolve_dataloader_tuning
+
+    class ImageNet(torch.utils.data.Dataset):
+        def __len__(self):
+            return 16
+
+        def __getitem__(self, idx):
+            return torch.zeros(3, 224, 224), torch.tensor(idx % 2)
+
+    ImageNet.__module__ = "torchvision.datasets.imagenet"
+
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(
+        "dendritic_modeling.training.dataloader_utils.visible_cpu_count",
+        lambda: 8,
+    )
+
+    tuning = resolve_dataloader_tuning(ImageNet(), device="cuda", in_order=True)
+
+    assert tuning.num_workers == 8
+    assert tuning.prefetch_factor == 4
+    assert tuning.in_order is True
+    assert tuning.as_kwargs()["in_order"] is True
 
 
 def test_dataloader_auto_prefetches_torchvision_image_dataset_subclasses(monkeypatch):
@@ -456,6 +486,7 @@ def test_dataloader_auto_prefetches_torchvision_image_dataset_subclasses(monkeyp
     assert tuning.pin_memory is True
     assert tuning.persistent_workers is True
     assert tuning.prefetch_factor == 4
+    assert tuning.in_order is False
 
 
 def test_dataloader_auto_tuning_unwraps_dataset_adapters(monkeypatch):
@@ -492,6 +523,7 @@ def test_dataloader_auto_tuning_unwraps_dataset_adapters(monkeypatch):
     assert imagenet_tuning.num_workers == 8
     assert imagenet_tuning.pin_memory is True
     assert imagenet_tuning.prefetch_factor == 4
+    assert imagenet_tuning.in_order is False
 
 
 def test_dataloader_dataset_profile_preserves_legacy_helpers():
@@ -581,6 +613,7 @@ def test_dataloader_auto_tuning_profiles_concat_dataset_leaves(monkeypatch):
     assert imagenet_tuning.num_workers == 8
     assert imagenet_tuning.pin_memory is True
     assert imagenet_tuning.prefetch_factor == 4
+    assert imagenet_tuning.in_order is False
 
 
 def test_dataloader_tuning_summary_reports_unwrapped_dataset(monkeypatch):
@@ -613,6 +646,7 @@ def test_dataloader_tuning_summary_reports_unwrapped_dataset(monkeypatch):
     assert "num_workers=8" in summary
     assert "pin_memory=True" in summary
     assert "prefetch_factor=4" in summary
+    assert "in_order=False" in summary
 
 
 def test_trainer_logs_dataloader_tuning_summary(caplog):

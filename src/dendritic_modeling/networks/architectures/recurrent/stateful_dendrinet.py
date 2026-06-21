@@ -38,13 +38,16 @@ from dendritic_modeling.networks.architectures.recurrent.stateful_step import (
     _apply_stateful_branch_voltage_modulators,
     _apply_stateful_dendritic_spike_dynamics,
     _apply_stateful_keep_mask_to_level_tensors,
+    _apply_stateful_legacy_voltage,
     _apply_stateful_soma_dynamics,
     _build_stateful_next_state,
     _build_stateful_routing_info,
     _init_stateful_dendrinet_state,
+    _integrate_stateful_legacy_traces,
     _stateful_current_taus,
     _stateful_decay_factors,
     _stateful_level_keep_mask,
+    _stateful_previous_level_tensors,
     _stateful_raw_branch_drive,
 )
 from dendritic_modeling.networks.architectures.recurrent.stateful_typed_dynamics import (
@@ -455,17 +458,14 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
                 device=device,
                 dtype=dtype,
             )
-            prev_trace_E = state.trace_E[level_idx]
-            prev_trace_E_rec = state.trace_E_rec[level_idx]
-            prev_trace_I = state.trace_I[level_idx]
-            prev_trace_I_rec = state.trace_I_rec[level_idx]
-            prev_trace_branch = state.trace_branch[level_idx]
-            prev_branch_voltage = (
-                state.branch_voltage[level_idx]
-                if state.branch_voltage is not None
-                and level_idx < len(state.branch_voltage)
-                else prev_trace_branch
-            )
+            (
+                prev_trace_E,
+                prev_trace_E_rec,
+                prev_trace_I,
+                prev_trace_I_rec,
+                prev_trace_branch,
+                prev_branch_voltage,
+            ) = _stateful_previous_level_tensors(state, level_idx=level_idx)
             (
                 raw_E,
                 raw_E_rec,
@@ -521,48 +521,53 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
 
             if self.synapse_types_enabled:
                 assert new_typed_traces is not None
-                trace_E, current_E, drive_E = self._integrate_typed_compartment(
-                    raw=raw_E,
+                typed_level = self._integrate_typed_level_traces(
+                    raw_E=raw_E,
+                    raw_E_rec=raw_E_rec,
+                    raw_I=raw_I,
+                    raw_I_rec=raw_I_rec,
                     prev_typed_traces=state.typed_traces,
                     new_typed_traces=new_typed_traces,
                     level_idx=level_idx,
-                    compartment="ff_exc",
-                    synapse_types=self.synapse_types.excitatory.types,
                     legacy_decay=decay,
                     voltage_reference=prev_branch_voltage,
                 )
-                trace_E_rec, current_E_rec, drive_E_rec = (
-                    self._integrate_typed_compartment(
-                        raw=raw_E_rec,
-                        prev_typed_traces=state.typed_traces,
-                        new_typed_traces=new_typed_traces,
-                        level_idx=level_idx,
-                        compartment="rec_exc",
-                        synapse_types=self.synapse_types.excitatory.types,
-                        legacy_decay=decay,
-                        voltage_reference=prev_branch_voltage,
-                    )
+                new_trace_E.append(typed_level.trace_E)
+                new_trace_E_rec.append(typed_level.trace_E_rec)
+                new_trace_I.append(typed_level.trace_I)
+                new_trace_I_rec.append(typed_level.trace_I_rec)
+
+                # 4. Shunting/additive computation from typed conductances.
+                branch_voltage = self._apply_typed_voltage(
+                    layer,
+                    trace_E=typed_level.trace_E,
+                    trace_E_rec=typed_level.trace_E_rec,
+                    trace_I=typed_level.trace_I,
+                    trace_I_rec=typed_level.trace_I_rec,
+                    current_E=typed_level.current_E,
+                    current_E_rec=typed_level.current_E_rec,
+                    current_I=typed_level.current_I,
+                    current_I_rec=typed_level.current_I_rec,
+                    drive_E=typed_level.drive_E,
+                    drive_E_rec=typed_level.drive_E_rec,
+                    drive_I=typed_level.drive_I,
+                    drive_I_rec=typed_level.drive_I_rec,
+                    trace_branch=effective_trace_branch,
+                    branch_conductance=effective_branch_conductance,
                 )
-                trace_I, current_I, drive_I = self._integrate_typed_compartment(
-                    raw=raw_I,
-                    prev_typed_traces=state.typed_traces,
-                    new_typed_traces=new_typed_traces,
-                    level_idx=level_idx,
-                    compartment="ff_inh",
-                    synapse_types=self.synapse_types.inhibitory.types,
-                    legacy_decay=decay,
-                    voltage_reference=prev_branch_voltage,
-                )
-                trace_I_rec, current_I_rec, drive_I_rec = (
-                    self._integrate_typed_compartment(
-                        raw=raw_I_rec,
-                        prev_typed_traces=state.typed_traces,
-                        new_typed_traces=new_typed_traces,
-                        level_idx=level_idx,
-                        compartment="rec_inh",
-                        synapse_types=self.synapse_types.inhibitory.types,
-                        legacy_decay=decay,
-                        voltage_reference=prev_branch_voltage,
+            else:
+                trace_E, trace_E_rec, trace_I, trace_I_rec = (
+                    _integrate_stateful_legacy_traces(
+                        decay=decay,
+                        one_minus_decay=one_minus_decay,
+                        prev_trace_E=prev_trace_E,
+                        prev_trace_E_rec=prev_trace_E_rec,
+                        prev_trace_I=prev_trace_I,
+                        prev_trace_I_rec=prev_trace_I_rec,
+                        raw_E=raw_E,
+                        raw_E_rec=raw_E_rec,
+                        raw_I=raw_I,
+                        raw_I_rec=raw_I_rec,
                     )
                 )
                 new_trace_E.append(trace_E)
@@ -570,45 +575,17 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
                 new_trace_I.append(trace_I)
                 new_trace_I_rec.append(trace_I_rec)
 
-                # 4. Shunting/additive computation from typed conductances.
-                branch_voltage = self._apply_typed_voltage(
-                    layer,
+                # 4. Shunting/additive computation from integrated traces.
+                branch_voltage, denominator = _apply_stateful_legacy_voltage(
+                    layer=layer,
                     trace_E=trace_E,
                     trace_E_rec=trace_E_rec,
                     trace_I=trace_I,
                     trace_I_rec=trace_I_rec,
-                    current_E=current_E,
-                    current_E_rec=current_E_rec,
-                    current_I=current_I,
-                    current_I_rec=current_I_rec,
-                    drive_E=drive_E,
-                    drive_E_rec=drive_E_rec,
-                    drive_I=drive_I,
-                    drive_I_rec=drive_I_rec,
-                    trace_branch=effective_trace_branch,
-                    branch_conductance=effective_branch_conductance,
-                )
-            else:
-                new_trace_E.append(decay * prev_trace_E + one_minus_decay * raw_E)
-                new_trace_E_rec.append(
-                    decay * prev_trace_E_rec + one_minus_decay * raw_E_rec
-                )
-                new_trace_I.append(decay * prev_trace_I + one_minus_decay * raw_I)
-                new_trace_I_rec.append(
-                    decay * prev_trace_I_rec + one_minus_decay * raw_I_rec
-                )
-
-                # 4. Shunting/additive computation from integrated traces.
-                voltage, denominator = layer.voltage_from_currents(
-                    trace_E=new_trace_E[level_idx],
-                    trace_E_rec=new_trace_E_rec[level_idx],
-                    trace_I=new_trace_I[level_idx],
-                    trace_I_rec=new_trace_I_rec[level_idx],
                     trace_branch=effective_trace_branch,
                     branch_conductance=effective_branch_conductance,
                 )
                 self._maybe_update_dynamic_grad_scales(layer, denominator)
-                branch_voltage = layer.reactivation(voltage)
             branch_voltage = _apply_stateful_branch_voltage_modulators(
                 branch_voltage=branch_voltage,
                 soma_feedback_gate=soma_feedback_gate,

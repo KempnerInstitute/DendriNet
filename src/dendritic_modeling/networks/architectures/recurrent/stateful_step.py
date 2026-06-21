@@ -157,6 +157,54 @@ def _stateful_raw_branch_drive(
     return torch.zeros(batch_size, level_dim, device=device, dtype=dtype)
 
 
+def _stateful_previous_level_tensors(
+    state: DendriNetState,
+    *,
+    level_idx: int,
+) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
+    """Return previous traces and branch voltage for one dendritic level."""
+    prev_trace_E = state.trace_E[level_idx]
+    prev_trace_E_rec = state.trace_E_rec[level_idx]
+    prev_trace_I = state.trace_I[level_idx]
+    prev_trace_I_rec = state.trace_I_rec[level_idx]
+    prev_trace_branch = state.trace_branch[level_idx]
+    prev_branch_voltage = (
+        state.branch_voltage[level_idx]
+        if state.branch_voltage is not None and level_idx < len(state.branch_voltage)
+        else prev_trace_branch
+    )
+    return (
+        prev_trace_E,
+        prev_trace_E_rec,
+        prev_trace_I,
+        prev_trace_I_rec,
+        prev_trace_branch,
+        prev_branch_voltage,
+    )
+
+
+def _integrate_stateful_legacy_traces(
+    *,
+    decay: Tensor,
+    one_minus_decay: Tensor,
+    prev_trace_E: Tensor,
+    prev_trace_E_rec: Tensor,
+    prev_trace_I: Tensor,
+    prev_trace_I_rec: Tensor,
+    raw_E: Tensor,
+    raw_E_rec: Tensor,
+    raw_I: Tensor,
+    raw_I_rec: Tensor,
+) -> tuple[Tensor, Tensor, Tensor, Tensor]:
+    """Integrate legacy excitatory/inhibitory traces for one stateful level."""
+    return (
+        decay * prev_trace_E + one_minus_decay * raw_E,
+        decay * prev_trace_E_rec + one_minus_decay * raw_E_rec,
+        decay * prev_trace_I + one_minus_decay * raw_I,
+        decay * prev_trace_I_rec + one_minus_decay * raw_I_rec,
+    )
+
+
 def _apply_stateful_keep_mask_to_level_tensors(
     *,
     keep_mask: Tensor | None,
@@ -232,6 +280,28 @@ def _apply_stateful_branch_voltage_modulators(
     return branch_voltage
 
 
+def _apply_stateful_legacy_voltage(
+    *,
+    layer: torch.nn.Module,
+    trace_E: Tensor,
+    trace_E_rec: Tensor,
+    trace_I: Tensor,
+    trace_I_rec: Tensor,
+    trace_branch: Tensor,
+    branch_conductance: Tensor,
+) -> tuple[Tensor, Tensor | None]:
+    """Compute legacy branch voltage from integrated E/I traces."""
+    voltage, denominator = layer.voltage_from_currents(
+        trace_E=trace_E,
+        trace_E_rec=trace_E_rec,
+        trace_I=trace_I,
+        trace_I_rec=trace_I_rec,
+        trace_branch=trace_branch,
+        branch_conductance=branch_conductance,
+    )
+    return layer.reactivation(voltage), denominator
+
+
 def _build_stateful_next_state(
     *,
     trace_E: list[Tensor],
@@ -304,12 +374,15 @@ __all__ = [
     "_apply_stateful_branch_voltage_modulators",
     "_apply_stateful_dendritic_spike_dynamics",
     "_apply_stateful_keep_mask_to_level_tensors",
+    "_apply_stateful_legacy_voltage",
     "_apply_stateful_soma_dynamics",
     "_build_stateful_next_state",
     "_build_stateful_routing_info",
     "_init_stateful_dendrinet_state",
+    "_integrate_stateful_legacy_traces",
     "_stateful_current_taus",
     "_stateful_decay_factors",
     "_stateful_level_keep_mask",
+    "_stateful_previous_level_tensors",
     "_stateful_raw_branch_drive",
 ]
