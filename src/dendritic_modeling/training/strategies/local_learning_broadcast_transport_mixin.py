@@ -28,6 +28,12 @@ def _edge_weights_like_child(blk_module: Any, child_v: torch.Tensor) -> torch.Te
     return blk_module.weight().detach().to(device=child_v.device, dtype=child_v.dtype)
 
 
+def _block_size(blk_module: Any) -> int:
+    """Return a BlockLinear-style module's branch block size."""
+
+    return int(getattr(blk_module, "block_size", 1))
+
+
 def _soma_seed_from_delta(
     soma_v: Any,
     delta: torch.Tensor,
@@ -49,6 +55,34 @@ def _soma_seed_from_delta(
     return _expand_scalar_like(soma_v, delta_scalar)
 
 
+def _align_parent_path(
+    parent_path: torch.Tensor | float,
+    parent_v: torch.Tensor,
+) -> torch.Tensor:
+    """Align a cached parent path factor to parent voltage features."""
+
+    if not isinstance(parent_path, torch.Tensor):
+        return torch.ones_like(parent_v)
+
+    if parent_path.size(1) == 1 and parent_v.size(1) > 1:
+        return parent_path.expand(-1, parent_v.size(1))
+
+    return parent_path
+
+
+def _scalar_edge_mean_factor(
+    parent_signal: torch.Tensor,
+    parent_act_deriv: torch.Tensor,
+    parent_r_tot: torch.Tensor,
+    edge_weights: torch.Tensor,
+) -> torch.Tensor:
+    """Return scalar fallback transport through averaged parent and edge terms."""
+
+    return (parent_signal * parent_act_deriv * parent_r_tot).mean(
+        dim=1, keepdim=True
+    ) * edge_weights.mean()
+
+
 class LocalLearningPathTransportBroadcastMixin:
     """Recursive transport of local-rule feedback through dendritic trees."""
 
@@ -59,6 +93,33 @@ class LocalLearningPathTransportBroadcastMixin:
         """Broadcast a parent-layer signal to its grouped child branches."""
 
         return expand_parent_signal_to_children(signal, block_size, child_out_features)
+
+    def _parent_activation_derivative_or_ones(
+        self,
+        parent_rec: dict[str, Any],
+        parent_v: torch.Tensor,
+        *,
+        enabled: bool = True,
+    ) -> torch.Tensor:
+        """Resolve parent activation derivative, falling back to unit slope."""
+
+        if not enabled:
+            return torch.ones_like(parent_v)
+
+        parent_act_deriv = self._get_layer_activation_derivative(parent_rec, parent_v)
+        if isinstance(parent_act_deriv, torch.Tensor):
+            return parent_act_deriv.to(device=parent_v.device, dtype=parent_v.dtype)
+        return torch.ones_like(parent_v)
+
+    def _parent_resistance_total(
+        self,
+        parent_rec: dict[str, Any],
+        parent_v: torch.Tensor,
+    ) -> torch.Tensor:
+        """Return stabilized parent total resistance for path transport."""
+
+        parent_g_tot = self._compute_layer_total_conductance(parent_rec, parent_v)
+        return 1.0 / (parent_g_tot + 1e-8)
 
     def _precompute_path_propagation_factors(
         self,
@@ -134,35 +195,17 @@ class LocalLearningPathTransportBroadcastMixin:
 
                 continue
 
-            parent_path = path_factors[layer_idx + 1]
+            parent_path = _align_parent_path(path_factors[layer_idx + 1], parent_v)
 
-            if not isinstance(parent_path, torch.Tensor):
+            parent_act_deriv = self._parent_activation_derivative_or_ones(
+                parent_rec,
+                parent_v,
+                enabled=include_parent_activation_derivative,
+            )
 
-                parent_path = torch.ones_like(parent_v)
+            parent_r_tot = self._parent_resistance_total(parent_rec, parent_v)
 
-            elif parent_path.size(1) == 1 and parent_v.size(1) > 1:
-
-                parent_path = parent_path.expand(-1, parent_v.size(1))
-
-            parent_act_deriv = torch.ones_like(parent_v)
-
-            if include_parent_activation_derivative:
-
-                parent_act_deriv_candidate = self._get_layer_activation_derivative(
-                    parent_rec, parent_v
-                )
-
-                if isinstance(parent_act_deriv_candidate, torch.Tensor):
-
-                    parent_act_deriv = parent_act_deriv_candidate.to(
-                        device=parent_v.device, dtype=parent_v.dtype
-                    )
-
-            parent_g_tot = self._compute_layer_total_conductance(parent_rec, parent_v)
-
-            parent_r_tot = 1.0 / (parent_g_tot + 1e-8)
-
-            block_size = int(getattr(blk_module, "block_size", 1))
+            block_size = _block_size(blk_module)
 
             edge_weights = _edge_weights_like_child(blk_module, child_v)
 
@@ -177,9 +220,12 @@ class LocalLearningPathTransportBroadcastMixin:
                     expected_child_out,
                 )
 
-                scalar_factor = (parent_path * parent_act_deriv * parent_r_tot).mean(
-                    dim=1, keepdim=True
-                ) * edge_weights.mean()
+                scalar_factor = _scalar_edge_mean_factor(
+                    parent_path,
+                    parent_act_deriv,
+                    parent_r_tot,
+                    edge_weights,
+                )
 
                 path_factors[layer_idx] = scalar_factor
 
@@ -293,40 +339,32 @@ class LocalLearningPathTransportBroadcastMixin:
                     expected_child_out,
                 )
 
-                parent_act_deriv = self._get_layer_activation_derivative(
-                    parent_rec, parent_v
+                parent_act_deriv = self._parent_activation_derivative_or_ones(
+                    parent_rec,
+                    parent_v,
                 )
 
-                if not isinstance(parent_act_deriv, torch.Tensor):
-
-                    parent_act_deriv = torch.ones_like(parent_v)
-
-                parent_r_tot = 1.0 / (
-                    self._compute_layer_total_conductance(parent_rec, parent_v) + 1e-8
-                )
+                parent_r_tot = self._parent_resistance_total(parent_rec, parent_v)
 
                 transported[layer_idx] = (
-                    (parent_error * parent_act_deriv * parent_r_tot).mean(
-                        dim=1, keepdim=True
+                    _scalar_edge_mean_factor(
+                        parent_error,
+                        parent_act_deriv,
+                        parent_r_tot,
+                        edge_weights,
                     )
-                    * edge_weights.mean()
                 ).expand(-1, child_v.size(1))
 
                 continue
 
-            block_size = int(getattr(blk_module, "block_size", 1))
+            block_size = _block_size(blk_module)
 
-            parent_act_deriv = self._get_layer_activation_derivative(
-                parent_rec, parent_v
+            parent_act_deriv = self._parent_activation_derivative_or_ones(
+                parent_rec,
+                parent_v,
             )
 
-            if not isinstance(parent_act_deriv, torch.Tensor):
-
-                parent_act_deriv = torch.ones_like(parent_v)
-
-            parent_r_tot = 1.0 / (
-                self._compute_layer_total_conductance(parent_rec, parent_v) + 1e-8
-            )
+            parent_r_tot = self._parent_resistance_total(parent_rec, parent_v)
 
             expanded_parent_error = self._expand_parent_signal_to_children(
                 (
@@ -398,7 +436,7 @@ class LocalLearningPathTransportBroadcastMixin:
 
             expanded_parent = self._expand_parent_signal_to_children(
                 parent_feedback.to(device=child_v.device, dtype=child_v.dtype),
-                int(getattr(blk_module, "block_size", 1)),
+                _block_size(blk_module),
                 child_v.size(1),
             )
 
@@ -409,7 +447,10 @@ class LocalLearningPathTransportBroadcastMixin:
 
 __all__ = [
     "LocalLearningPathTransportBroadcastMixin",
+    "_align_parent_path",
+    "_block_size",
     "_edge_weights_like_child",
     "_expand_scalar_like",
+    "_scalar_edge_mean_factor",
     "_soma_seed_from_delta",
 ]

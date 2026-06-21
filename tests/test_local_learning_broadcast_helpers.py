@@ -18,8 +18,12 @@ from dendritic_modeling.training.strategies.local_learning_broadcast import (
     role_mass_from_weight_matrix,
 )
 from dendritic_modeling.training.strategies.local_learning_broadcast_transport_mixin import (
+    LocalLearningPathTransportBroadcastMixin,
+    _align_parent_path,
+    _block_size,
     _edge_weights_like_child,
     _expand_scalar_like,
+    _scalar_edge_mean_factor,
     _soma_seed_from_delta,
 )
 
@@ -123,6 +127,27 @@ def test_soma_seed_from_delta_preserves_vector_and_scalar_paths():
     )
 
 
+def test_align_parent_path_preserves_legacy_alignment_branches():
+    parent_v = torch.zeros(2, 3, dtype=torch.float64)
+
+    torch.testing.assert_close(
+        _align_parent_path(1.0, parent_v),
+        torch.ones_like(parent_v),
+    )
+
+    scalar_path = torch.tensor([[0.5], [2.0]], dtype=torch.float64)
+    torch.testing.assert_close(
+        _align_parent_path(scalar_path, parent_v),
+        scalar_path.expand(-1, parent_v.size(1)),
+    )
+
+    vector_path = torch.tensor(
+        [[0.5, 0.75, 1.0], [2.0, 3.0, 4.0]],
+        dtype=torch.float64,
+    )
+    assert _align_parent_path(vector_path, parent_v) is vector_path
+
+
 def test_expand_scalar_like_matches_reference_shape_dtype_and_device():
     reference = torch.zeros(2, 4, dtype=torch.float64)
     scalar = torch.tensor([[0.25], [-0.5]], dtype=torch.float32)
@@ -135,6 +160,11 @@ def test_expand_scalar_like_matches_reference_shape_dtype_and_device():
     )
     assert expanded.dtype == reference.dtype
     assert expanded.device == reference.device
+
+
+def test_block_size_preserves_default_and_int_coercion():
+    assert _block_size(SimpleNamespace()) == 1
+    assert _block_size(SimpleNamespace(block_size="3")) == 3
 
 
 def test_edge_weights_like_child_detaches_and_matches_child_dtype_device():
@@ -155,6 +185,86 @@ def test_edge_weights_like_child_detaches_and_matches_child_dtype_device():
     assert edge_weights.requires_grad is False
     assert edge_weights.dtype == child_v.dtype
     assert edge_weights.device == child_v.device
+
+
+def test_parent_activation_derivative_helper_preserves_disabled_and_fallback_paths():
+    transport = LocalLearningPathTransportBroadcastMixin()
+    parent_rec = {"name": "parent"}
+    parent_v = torch.zeros(2, 3, dtype=torch.float64)
+
+    def fail_if_called(*_args):
+        raise AssertionError("activation derivative lookup should be skipped")
+
+    transport._get_layer_activation_derivative = fail_if_called
+    torch.testing.assert_close(
+        transport._parent_activation_derivative_or_ones(
+            parent_rec,
+            parent_v,
+            enabled=False,
+        ),
+        torch.ones_like(parent_v),
+    )
+
+    calls = []
+
+    def tensor_derivative(rec, v_n):
+        calls.append((rec, v_n))
+        return torch.full_like(v_n.float(), 0.25)
+
+    transport._get_layer_activation_derivative = tensor_derivative
+    derivative = transport._parent_activation_derivative_or_ones(parent_rec, parent_v)
+    torch.testing.assert_close(derivative, torch.full_like(parent_v, 0.25))
+    assert len(calls) == 1
+    assert calls[0][0] is parent_rec
+    assert calls[0][1] is parent_v
+    assert derivative.dtype == parent_v.dtype
+
+    transport._get_layer_activation_derivative = lambda *_args: None
+    torch.testing.assert_close(
+        transport._parent_activation_derivative_or_ones(parent_rec, parent_v),
+        torch.ones_like(parent_v),
+    )
+
+
+def test_parent_resistance_total_preserves_stabilized_formula():
+    transport = LocalLearningPathTransportBroadcastMixin()
+    parent_rec = {"name": "parent"}
+    parent_v = torch.zeros(2, 2, dtype=torch.float64)
+    conductance = torch.tensor([[1.0, 3.0], [0.5, 2.0]], dtype=torch.float64)
+    calls = []
+
+    def total_conductance(rec, v_n):
+        calls.append((rec, v_n))
+        return conductance
+
+    transport._compute_layer_total_conductance = total_conductance
+
+    resistance = transport._parent_resistance_total(parent_rec, parent_v)
+
+    torch.testing.assert_close(resistance, 1.0 / (conductance + 1e-8))
+    assert len(calls) == 1
+    assert calls[0][0] is parent_rec
+    assert calls[0][1] is parent_v
+
+
+def test_scalar_edge_mean_factor_preserves_shape_and_formula():
+    parent_signal = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
+    parent_act_deriv = torch.tensor([[0.5, 0.25], [1.0, 0.75]])
+    parent_r_tot = torch.tensor([[2.0, 3.0], [0.5, 1.5]])
+    edge_weights = torch.tensor([0.25, 0.5, 0.75])
+
+    factor = _scalar_edge_mean_factor(
+        parent_signal,
+        parent_act_deriv,
+        parent_r_tot,
+        edge_weights,
+    )
+
+    expected = (parent_signal * parent_act_deriv * parent_r_tot).mean(
+        dim=1, keepdim=True
+    ) * edge_weights.mean()
+    torch.testing.assert_close(factor, expected)
+    assert factor.shape == (2, 1)
 
 
 def test_soma_seed_from_delta_preserves_legacy_delta_reshaping():
