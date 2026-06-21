@@ -22,12 +22,18 @@ from dendritic_modeling.analysis.core.base import AbstractAnalyzer
 from dendritic_modeling.analysis.core.information_hooks_mixin import (
     InformationHooksMixin,
 )
+from dendritic_modeling.analysis.core.information_lda_mixin import (
+    InformationLdaComparisonMixin,
+)
 from dendritic_modeling.analysis.core.information_metric_merge import (
     merge_average_renamed_numeric_metrics_in_place,
     merge_renamed_metric_dicts_in_place,
 )
 from dendritic_modeling.analysis.core.information_metrics_mixin import (
     InformationMetricsMixin,
+)
+from dendritic_modeling.analysis.core.information_plotting_mixin import (
+    InformationPlottingMixin,
 )
 from dendritic_modeling.analysis.core.information_signal_mixin import (
     InformationSignalAggregationMixin,
@@ -43,13 +49,6 @@ from dendritic_modeling.analysis.utils.runtime import (
 from dendritic_modeling.config import InformationAnalysisParams
 from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.models import BaseModel
-from dendritic_modeling.plotting.visualizations.information_plots import (
-    plot_fully_aggregated_analysis,
-    plot_info_vs_ei_depth_per_dendritic_layer,
-    plot_layer_wise_aggregated_analysis,
-    plot_network_wise_aggregated_analysis,
-    plot_structured_ei_network_analysis,
-)
 from dendritic_modeling.utils import save_dict
 from dendritic_modeling.utils.information.estimators import (
     EstimatorConfig,
@@ -190,6 +189,8 @@ class InformationAnalyzer(
     InformationHooksMixin,
     InformationSyntheticSomaMixin,
     InformationSignalAggregationMixin,
+    InformationLdaComparisonMixin,
+    InformationPlottingMixin,
     AbstractAnalyzer,
 ):
     """Unified analyzer for computing information-theoretic metrics in dendritic networks.
@@ -508,10 +509,26 @@ class InformationAnalyzer(
             self.logger.error(f"Error in information analysis: {e}")
             traceback.print_exc()
         finally:
-            if moved:
-                model.to(original_device)
-                if was_training:
-                    model.train()
+            self._restore_model_after_analysis(
+                model=model,
+                original_device=original_device,
+                was_training=was_training,
+                moved=moved,
+            )
+
+    def _restore_model_after_analysis(
+        self,
+        *,
+        model: BaseModel,
+        original_device: torch.device,
+        was_training: bool,
+        moved: bool,
+    ) -> None:
+        """Restore model placement and train/eval state after analysis."""
+        if moved:
+            model.to(original_device)
+            if was_training:
+                model.train()
 
     def _run_analysis_pipeline(
         self,
@@ -1472,11 +1489,7 @@ class InformationAnalyzer(
         self, results: dict[str, Any], C: np.ndarray
     ) -> None:
         """Add optional per-layer, per-neuron, and EI-specific analysis results."""
-        if not (
-            self.per_neuron_analysis
-            or self.per_einet_analysis
-            or self.per_layer_analysis
-        ):
+        if not self._enhanced_analysis_requested():
             return
 
         self.logger.info("Running enhanced analysis modes...")
@@ -1485,7 +1498,7 @@ class InformationAnalyzer(
             per_layer_results = self.compute_per_layer_enhanced_analysis(C)
             results["per_layer_analysis"] = per_layer_results
 
-        if not (self.per_neuron_analysis or self.per_einet_analysis):
+        if not self._enhanced_array_analysis_requested():
             return
 
         enhanced_arrays = self._collect_enhanced_analysis_arrays()
@@ -1501,6 +1514,16 @@ class InformationAnalyzer(
         if self.per_einet_analysis:
             ei_specific_results = self.compute_ei_specific_mi(E_all, I_all, Vout_all, C)
             results["per_einet_analysis"] = ei_specific_results
+
+    def _enhanced_analysis_requested(self) -> bool:
+        return (
+            self.per_neuron_analysis
+            or self.per_einet_analysis
+            or self.per_layer_analysis
+        )
+
+    def _enhanced_array_analysis_requested(self) -> bool:
+        return self.per_neuron_analysis or self.per_einet_analysis
 
     def _complete_analysis_results(
         self,
@@ -1701,256 +1724,3 @@ class InformationAnalyzer(
         return self.estimators[self.method].conditional_mutual_information(
             activations, labels, condition
         )
-
-    def compare_lda_vs_trained_performance(
-        self,
-        model: torch.nn.Module,
-        inputs: torch.Tensor,
-        labels: torch.Tensor,
-        device: torch.device = None,
-    ) -> dict:
-        """Compare classification performance using trained weights vs LDA-optimal weights.
-
-        This method uses the data already collected in self.data_dict from the main analysis.
-        It computes:
-        1. Performance with trained network weights (original model)
-        2. Performance with LDA-optimized input aggregation (Vout_lin passed through decoder)
-
-        Args:
-            model: Trained model with encoder, core_network, and decoder
-            inputs: Input tensor (already processed in main analysis)
-            labels: Label tensor (already processed in main analysis)
-            device: Device to run computations on
-
-        Returns:
-            Dictionary with:
-            - trained_accuracy: Accuracy with trained weights
-            - lda_accuracy: Accuracy with LDA-optimal aggregation
-            - accuracy_difference: LDA - Trained accuracy
-        """
-        from sklearn.metrics import accuracy_score
-
-        if device is None:
-            device = get_model_device(model)
-
-        # Ensure model is in eval mode (same state used for all comparisons)
-        model.eval()
-
-        self.logger.info("Computing LDA vs trained weights performance comparison...")
-        self.logger.info(
-            "Note: Using the SAME model for both trained and LDA predictions. "
-            "Only the intermediate representations differ."
-        )
-
-        # Move labels to CPU/numpy
-        if hasattr(labels, "cpu"):
-            labels_np = labels.cpu().numpy()
-        elif hasattr(labels, "numpy"):
-            labels_np = labels.numpy()
-        else:
-            labels_np = np.array(labels)
-
-        # Get trained model predictions
-        with torch.no_grad():
-            trained_outputs = model(inputs.to(device))
-            trained_preds = trained_outputs.argmax(dim=1).cpu().numpy()
-
-        trained_accuracy = accuracy_score(labels_np, trained_preds)
-
-        # Compute CHAINED LDA through all layers
-        # Sort layers by branch index to process in order
-        layer_names = list(self.data_dict.keys())
-
-        # Extract and sort layers by branch index
-        layers_with_idx = []
-        for layer_name in layer_names:
-            idx = self._parse_branch_layer_index(layer_name)
-            if idx is not None:
-                layers_with_idx.append((idx, layer_name))
-        layers_with_idx.sort(key=lambda x: x[0])
-
-        # Chain LDA through all layers
-        prev_vout_lin = None  # Output from previous layer (None for first layer)
-        final_vout_lin = None
-
-        for _layer_idx, layer_name in layers_with_idx:
-            layer_data = self.data_dict[layer_name]
-            if "excitation" not in layer_data:
-                continue
-
-            # Compute LDA signals with chained branch input
-            lda_result = self.compute_lda_aggregated_signals_chained(
-                layer_data, labels_np, prev_vout_lin
-            )
-
-            if lda_result[0] is not None:
-                _E_lin, _I_lin, _Vb_lin, Vout_lin = lda_result
-                prev_vout_lin = Vout_lin  # Use as input for next layer
-                final_vout_lin = Vout_lin
-            else:
-                # Fall back to trained network output
-                prev_vout_lin = layer_data["output"].detach().cpu().numpy()
-                final_vout_lin = prev_vout_lin
-
-        # Use LDA outputs to compute accuracy
-        # Note: final_vout_lin is already the LDA-computed output of the soma layer
-        # (since the loop above processes ALL layers including soma).
-        # We only need to apply the decoder if there is one.
-        lda_accuracy = None
-        lda_preds = None
-
-        if final_vout_lin is not None:
-            with torch.no_grad():
-                vout_tensor = torch.tensor(final_vout_lin, dtype=torch.float32).to(
-                    device
-                )
-
-                if hasattr(model, "decoder") and model.decoder is not None:
-                    # Use decoder if available
-                    lda_logits = model.decoder(vout_tensor)
-                else:
-                    # No decoder - final_vout_lin is already the soma layer's output
-                    # (LDA was applied to all layers including soma in the loop above)
-                    # Use it directly as logits
-                    lda_logits = vout_tensor
-
-                lda_preds = lda_logits.argmax(dim=1).cpu().numpy()
-                lda_accuracy = accuracy_score(labels_np, lda_preds)
-        results = {
-            "trained_accuracy": trained_accuracy,
-            "lda_accuracy": lda_accuracy,
-            "trained_predictions": trained_preds.tolist(),
-            "lda_predictions": lda_preds.tolist() if lda_preds is not None else None,
-            "accuracy_difference": (
-                lda_accuracy - trained_accuracy if lda_accuracy is not None else None
-            ),
-        }
-
-        if lda_accuracy is not None:
-            self.logger.info(
-                f"Difference (LDA - Trained): {results['accuracy_difference']:+.4f}"
-            )
-
-        return results
-
-    def _generate_information_plots(
-        self, results: dict, save_path: str, somatic_synapses: bool
-    ):
-        """Generate plots for information analysis results."""
-        try:
-            # Initialize plotter for enhanced visualizations
-            # plotter = InformationAnalysisPlotter()  # Unused variable
-
-            # Generate dendritic depth plots based on enabled analysis modes
-            if results and "layer_statistics" in results:
-                per_layer_enabled = results.get("per_layer_analysis_enabled", False)
-                per_einet_enabled = results.get("per_einet_analysis_enabled", False)
-
-                if per_layer_enabled and per_einet_enabled:
-                    self.logger.info(
-                        "Both per_layer and per_einet analysis enabled - generating detailed comparison plots..."
-                    )
-                    # Generate structured plots grouped by major layer and network type
-                    plot_structured_ei_network_analysis(
-                        results["layer_statistics"],
-                        save_path=save_path,
-                        logger=self.logger,
-                        somatic_synapses=somatic_synapses,
-                    )
-                elif per_layer_enabled and not per_einet_enabled:
-                    self.logger.info(
-                        "per_layer analysis enabled, per_einet disabled - generating layer-wise plots..."
-                    )
-                    # Aggregate E/I networks, but keep layers separate
-                    plot_layer_wise_aggregated_analysis(
-                        results["layer_statistics"],
-                        save_path=save_path,
-                        logger=self.logger,
-                        somatic_synapses=somatic_synapses,
-                    )
-                elif not per_layer_enabled and per_einet_enabled:
-                    self.logger.info(
-                        "per_einet analysis enabled, per_layer disabled - generating network-wise plots..."
-                    )
-                    # Aggregate layers, but keep E/I networks separate
-                    plot_network_wise_aggregated_analysis(
-                        results["layer_statistics"],
-                        save_path=save_path,
-                        logger=self.logger,
-                        somatic_synapses=somatic_synapses,
-                    )
-                else:
-                    self.logger.info(
-                        "Both per_layer and per_einet analysis disabled - generating overall aggregated plots..."
-                    )
-                    # Aggregate both layers and E/I networks
-                    plot_fully_aggregated_analysis(
-                        results["layer_statistics"],
-                        save_path=save_path,
-                        logger=self.logger,
-                        somatic_synapses=somatic_synapses,
-                    )
-
-            # Generate info vs EI depth per dendritic layer plots if we have layer statistics
-            self.logger.debug(
-                f"Checking for layer_statistics: results exists={results is not None}"
-            )
-            if results:
-                self.logger.debug(f"Results keys: {list(results.keys())}")
-                self.logger.debug(
-                    f"layer_statistics in results: {'layer_statistics' in results}"
-                )
-                if "layer_statistics" in results:
-                    self.logger.debug(
-                        f"layer_statistics length: {len(results['layer_statistics'])}"
-                    )
-
-            if (
-                results
-                and "layer_statistics" in results
-                and len(results["layer_statistics"]) > 0
-            ):
-                self.logger.debug(
-                    f"Calling plot_info_vs_ei_depth_per_dendritic_layer with {len(results['layer_statistics'])} layer statistics"
-                )
-                plot_info_vs_ei_depth_per_dendritic_layer(
-                    results["layer_statistics"],
-                    save_path=save_path,
-                    logger=self.logger,
-                    somatic_synapses=somatic_synapses,
-                )
-            else:
-                self.logger.warning(
-                    "Skipping plot_info_vs_ei_depth_per_dendritic_layer - no layer statistics found"
-                )
-
-            # Generate variance analysis plots if variance analysis was computed
-            if results and "variance_analysis" in results:
-                try:
-                    self.logger.info(
-                        "Generating information variance analysis plots..."
-                    )
-                    self.logger.debug(
-                        f"Variance analysis keys: {list(results['variance_analysis'].keys())}"
-                    )
-                    from dendritic_modeling.plotting.visualizations.information_plots import (
-                        plot_information_variance_analysis,
-                    )
-
-                    plot_information_variance_analysis(
-                        results["variance_analysis"],
-                        save_path=save_path,
-                        somatic_synapses=somatic_synapses,
-                        logger=self.logger,
-                    )
-                    self.logger.info("Variance plots completed successfully!")
-                except Exception as e:
-                    self.logger.error(f"Error generating variance plots: {e}")
-                    traceback.print_exc()
-            else:
-                self.logger.warning(
-                    "No variance_analysis found in results - skipping variance plots"
-                )
-
-        except Exception as e:
-            self.logger.error(f"Error generating information plots: {e}")

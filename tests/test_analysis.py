@@ -1179,6 +1179,115 @@ class TestInformationAnalyzer(unittest.TestCase):
             "LDA vs trained performance comparison completed!"
         )
 
+    def test_lda_label_conversion_preserves_supported_inputs(self):
+        """LDA label conversion should preserve tensor, numpy, and sequence labels."""
+        np.testing.assert_array_equal(
+            self.analyzer._labels_to_numpy(torch.tensor([0, 1, 2])),
+            np.array([0, 1, 2]),
+        )
+
+        labels_np = np.array([2, 1, 0])
+        np.testing.assert_array_equal(
+            self.analyzer._labels_to_numpy(labels_np),
+            labels_np,
+        )
+
+        np.testing.assert_array_equal(
+            self.analyzer._labels_to_numpy([1, 0, 1]),
+            np.array([1, 0, 1]),
+        )
+
+    def test_lda_ordered_branch_layers_uses_valid_indices(self):
+        """LDA layer ordering should match the existing branch-index parser."""
+        self.analyzer.data_dict = {
+            "metadata": {},
+            "core.branch_layers.2": {},
+            "core.branch_layers.bad": {},
+            "core.branch_layers.0": {},
+            "core.branch_layers.1.output": {},
+        }
+
+        self.assertEqual(
+            self.analyzer._ordered_branch_layer_names(),
+            [
+                "core.branch_layers.0",
+                "core.branch_layers.1.output",
+                "core.branch_layers.2",
+            ],
+        )
+
+    def test_lda_chained_output_preserves_order_and_fallback(self):
+        """Chained LDA output should pass prior outputs and keep fallback behavior."""
+        labels = np.array([0, 1])
+        first_output = np.array([[0.2, 0.8], [0.7, 0.3]], dtype=np.float32)
+        fallback_output = torch.tensor([[3.0, 1.0], [1.0, 4.0]])
+        self.analyzer.data_dict = {
+            "core.branch_layers.1": {
+                "excitation": torch.ones(2, 2),
+                "output": fallback_output,
+            },
+            "core.branch_layers.0": {
+                "excitation": torch.ones(2, 2),
+                "output": torch.zeros(2, 2),
+            },
+        }
+
+        with patch.object(
+            self.analyzer,
+            "compute_lda_aggregated_signals_chained",
+            side_effect=[
+                (np.zeros((2, 2)), np.zeros((2, 2)), None, first_output),
+                (None, None, None, None),
+            ],
+        ) as mock_chained:
+            final_output = self.analyzer._compute_chained_lda_output(labels)
+
+        self.assertEqual(mock_chained.call_count, 2)
+        np.testing.assert_array_equal(mock_chained.call_args_list[0].args[1], labels)
+        self.assertIsNone(mock_chained.call_args_list[0].args[2])
+        np.testing.assert_array_equal(
+            mock_chained.call_args_list[1].args[2], first_output
+        )
+        np.testing.assert_array_equal(final_output, fallback_output.numpy())
+
+    def test_lda_prediction_helper_uses_optional_decoder(self):
+        """LDA class prediction should preserve direct-logit and decoder paths."""
+        final_vout = np.array([[0.2, 0.8], [0.9, 0.1]], dtype=np.float32)
+        model_without_decoder = torch.nn.Module()
+
+        np.testing.assert_array_equal(
+            self.analyzer._predict_lda_model_classes(
+                model_without_decoder,
+                final_vout,
+                torch.device("cpu"),
+            ),
+            np.array([1, 0]),
+        )
+
+        model_with_decoder = torch.nn.Module()
+        model_with_decoder.decoder = torch.nn.Linear(2, 2, bias=False)
+        with torch.no_grad():
+            model_with_decoder.decoder.weight.copy_(
+                torch.tensor([[0.0, 1.0], [1.0, 0.0]])
+            )
+
+        np.testing.assert_array_equal(
+            self.analyzer._predict_lda_model_classes(
+                model_with_decoder,
+                final_vout,
+                torch.device("cpu"),
+            ),
+            np.array([0, 1]),
+        )
+
+        self.assertIsNone(
+            self.analyzer._predict_lda_model_classes(
+                model_with_decoder,
+                None,
+                torch.device("cpu"),
+            )
+        )
+
     def test_analysis_summary_file_helper_writes_summary_text(self):
         """Summary file helper should write get_summary output next to results."""
         results = {"metric": 1.0}
