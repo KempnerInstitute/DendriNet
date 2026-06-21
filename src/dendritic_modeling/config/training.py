@@ -410,6 +410,13 @@ class VisionReplacementTrainingConfig(BaseConfig):
     eval_every: int = 50
     log_every: int = 25
     batch_size: int = 32
+    # DataLoader controls for tensor/image-cache distillation. None uses
+    # conservative auto-selection: in-memory tensor caches stay single-process,
+    # while non-tensor datasets can use workers.
+    num_workers: Optional[int] = None
+    pin_memory: Optional[bool] = None
+    persistent_workers: Optional[bool] = None
+    prefetch_factor: Optional[int] = None
 
     tensor_cache: dict[str, Any] = field(
         default_factory=lambda: {

@@ -7,7 +7,6 @@ import logging
 import os
 from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass
-from itertools import cycle
 from typing import Any
 
 import torch
@@ -17,6 +16,7 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from dendritic_modeling.config import Config
 from dendritic_modeling.scripts.script_utils.setup_utils import initialize_model
+from dendritic_modeling.training.dataloader_utils import resolve_dataloader_tuning
 from dendritic_modeling.training.optimizers import create_optimizer
 from dendritic_modeling.training.replacement_common import (
     _compute_distillation_loss as _shared_compute_distillation_loss,
@@ -157,17 +157,54 @@ def _validate_source_train_target(teacher_source: str, train_target: str) -> Non
         )
 
 
+def _vision_loader_kwargs(
+    train_cfg: Any,
+    dataset: torch.utils.data.Dataset,
+    *,
+    device: torch.device,
+) -> dict[str, Any]:
+    return resolve_dataloader_tuning(
+        dataset,
+        device=device,
+        num_workers=getattr(train_cfg, "num_workers", None),
+        pin_memory=getattr(train_cfg, "pin_memory", None),
+        persistent_workers=getattr(train_cfg, "persistent_workers", None),
+        prefetch_factor=getattr(train_cfg, "prefetch_factor", None),
+    ).as_kwargs()
+
+
+def _make_vision_loader(
+    dataset: torch.utils.data.Dataset,
+    train_cfg: Any,
+    *,
+    device: torch.device,
+    shuffle: bool,
+) -> DataLoader:
+    return DataLoader(
+        dataset,
+        batch_size=train_cfg.batch_size,
+        shuffle=shuffle,
+        drop_last=False,
+        **_vision_loader_kwargs(train_cfg, dataset, device=device),
+    )
+
+
+def _infinite_loader(loader: DataLoader):
+    while True:
+        yield from loader
+
+
 def _evaluate_dataset(
     forward_fn: Callable[[torch.Tensor], torch.Tensor],
     dataset: TensorDataset,
     *,
-    batch_size: int,
+    train_cfg: Any,
     device: torch.device,
     dtype: torch.dtype,
     loss_name: str,
     cosine_weight: float,
 ) -> float:
-    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+    loader = _make_vision_loader(dataset, train_cfg, device=device, shuffle=False)
     total = 0.0
     count = 0
     with torch.no_grad():
@@ -266,19 +303,15 @@ def run_vision_replacement_training(
     scaler = GradScaler(
         "cuda", enabled=bool(train_cfg.use_amp and device.type == "cuda")
     )
-    loader = cycle(
-        DataLoader(
-            train_dataset,
-            batch_size=train_cfg.batch_size,
-            shuffle=True,
-            drop_last=False,
-        )
+    train_loader = _make_vision_loader(
+        train_dataset, train_cfg, device=device, shuffle=True
     )
+    loader = _infinite_loader(train_loader)
 
     initial_valid = _evaluate_dataset(
         forward_fn,
         valid_dataset,
-        batch_size=train_cfg.batch_size,
+        train_cfg=train_cfg,
         device=device,
         dtype=dtype,
         loss_name=train_cfg.loss,
@@ -320,7 +353,7 @@ def run_vision_replacement_training(
             valid = _evaluate_dataset(
                 forward_fn,
                 valid_dataset,
-                batch_size=train_cfg.batch_size,
+                train_cfg=train_cfg,
                 device=device,
                 dtype=dtype,
                 loss_name=train_cfg.loss,

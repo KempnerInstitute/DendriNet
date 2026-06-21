@@ -201,6 +201,10 @@ training:
     common:
       epochs: 50
       batch_size: 256                               # larger batch for throughput (fits in 80GB with AMP)
+      num_workers: 8                                # per-process ImageNet workers
+      pin_memory: true
+      persistent_workers: true
+      prefetch_factor: 4
       shuffle: true
       grad_clip_value: 5.0
       loss_function: "cat_nll"
@@ -267,11 +271,17 @@ analysis:
       mode: "stream"                               # ImageNet training analysis: stream batches instead of materializing the split
       batch_size: 256
       num_workers: 4
+      pin_memory: true
+      persistent_workers: true
+      prefetch_factor: 4
       max_batches: 20                              # cap to ~5K samples per eval
     final:
       mode: "stream"                               # safest default for full validation/test runs on ImageNet
       batch_size: 256
       num_workers: 4
+      pin_memory: true
+      persistent_workers: true
+      prefetch_factor: 4
   performance:
     enabled: true
     training: false                                # disabled for throughput; keep final validation/test only

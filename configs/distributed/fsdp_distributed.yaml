@@ -82,6 +82,10 @@ training:
     common:
       epochs: 100
       batch_size: 64                    # per-GPU batch size (effective = 64 * n_gpus)
+      num_workers: 8                    # per-rank ImageNet workers
+      pin_memory: true
+      persistent_workers: true
+      prefetch_factor: 4
       shuffle: true
       grad_clip_value: 5.0
       loss_function: "cat_nll"

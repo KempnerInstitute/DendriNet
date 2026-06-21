@@ -6,7 +6,6 @@ import json
 import logging
 import os
 from collections.abc import Sequence
-from itertools import cycle
 
 import torch
 import torch.nn as nn
@@ -55,6 +54,11 @@ from dendritic_modeling.training.optimizers import create_optimizer
 logger = logging.getLogger(__name__)
 
 
+def _infinite_loader(loader: DataLoader):
+    while True:
+        yield from loader
+
+
 def _save_result(
     result: TransformerReplacementTrainingResult,
     units: Sequence[DistillationUnit],
@@ -90,7 +94,7 @@ def _train_tensor_dataset_source(
 ) -> TransformerReplacementTrainingResult:
     train_cfg = config.training.transformer_replacement
     loaders = [
-        cycle(
+        _infinite_loader(
             DataLoader(
                 dataset,
                 batch_size=train_cfg.batch_size,

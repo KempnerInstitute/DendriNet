@@ -82,14 +82,10 @@ class DendriNet(nn.Module):
         structured_layer_idx: int = 0,
         structured_excitatory_pathway: str = "ee",
         structured_inhibitory_pathway: str = "ie",
+        synapse_config=None,
         **kwargs,
     ):
         super().__init__()
-        reactivate, reactivation_type = resolve_dendritic_activation(
-            dendritic_activation,
-            reactivate,
-            reactivation_type,
-        )
 
         if not isinstance(n_soma, int):
             raise TypeError("n_soma must be an integer")
@@ -106,7 +102,6 @@ class DendriNet(nn.Module):
 
         # Store branch factors for network-aware initialization
         self.branch_factors = deepcopy(branch_factors)
-        self.dendritic_activation = reactivation_type if reactivate else "none"
 
         if (
             inhibitory_input_dim is not None
@@ -173,9 +168,30 @@ class DendriNet(nn.Module):
             "branch_factors": self.branch_factors,
             "weight_transform": weight_transform,
         }
-        synapse_config = DendriticSynapseConfig.from_kwargs(
-            {**kwargs, **formal_synapse_kwargs}
-        )
+        if synapse_config is None:
+            reactivate, reactivation_type = resolve_dendritic_activation(
+                dendritic_activation,
+                reactivate,
+                reactivation_type,
+            )
+            formal_synapse_kwargs["reactivate"] = reactivate
+            formal_synapse_kwargs["reactivation_type"] = reactivation_type
+            synapse_config = DendriticSynapseConfig.from_kwargs(
+                {**kwargs, **formal_synapse_kwargs}
+            )
+        else:
+            synapse_config = DendriticSynapseConfig.from_config(synapse_config)
+            synapse_options = synapse_config.to_kwargs()
+            reactivate, reactivation_type = resolve_dendritic_activation(
+                synapse_options["dendritic_activation"],
+                synapse_options["reactivate"],
+                synapse_options["reactivation_type"],
+            )
+            synapse_options["reactivate"] = reactivate
+            synapse_options["reactivation_type"] = reactivation_type
+            synapse_config = DendriticSynapseConfig.from_kwargs(synapse_options)
+        synapse_config = synapse_config.with_branch_factors(self.branch_factors)
+        self.dendritic_activation = reactivation_type if reactivate else "none"
         _, branch_extra_kwargs = DendriticSynapseConfig.split_kwargs(kwargs)
 
         def _structured_mask(pathway, out_dim, in_dim, synapses_per_branch, level_idx):

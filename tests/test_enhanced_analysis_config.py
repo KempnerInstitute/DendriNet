@@ -2,6 +2,8 @@
 Test new parameters added for enhanced analysis and trainer configurations.
 """
 
+from types import SimpleNamespace
+
 from dendritic_modeling.analysis.core.information import InformationAnalyzer
 from dendritic_modeling.config.analysis import (
     InformationAnalysisParams,
@@ -126,3 +128,59 @@ def test_backward_compatibility():
     trainer = CommonTrainerConfig()
     assert hasattr(trainer, "enable_nan_checking")
     assert hasattr(trainer, "enable_adaptive_clipping")
+
+
+def test_synthetic_soma_entry_uses_real_soma_statistics():
+    analyzer = InformationAnalyzer(InformationAnalysisParams())
+    model = SimpleNamespace(core_network=SimpleNamespace(somatic_synapses=False))
+    results = {
+        "layer_statistics": {
+            "core.branch_layers.0": {
+                "has_synapses": True,
+                "I(Vout;C)_mean": 0.1,
+                "I(Vb;C)_mean": 0.2,
+            },
+            "core.branch_layers.2": {
+                "has_synapses": True,
+                "I(Vout;C)_mean": 1.2,
+                "I(Vout;C)_std": 0.12,
+                "I(Vb;C)_mean": 0.7,
+                "I(Vb;C)_std": 0.07,
+                "I(Vb;Vout)_mean": 0.4,
+                "I(Vb;Vout|C)_mean": 0.33,
+                "I(Vb_lin;Vout_lin)_mean": 0.22,
+                "I(Vb_lin;Vout_lin|C)_mean": 0.11,
+            },
+        }
+    }
+
+    somatic_synapses = analyzer._add_synthetic_soma_entry_if_needed(results, model)
+
+    assert somatic_synapses is False
+    soma = results["layer_statistics"]["synthetic_soma"]
+    assert soma["has_synapses"] is False
+    assert soma["I(Vout;C)_mean"] == 1.2
+    assert soma["I(Vout;C)_std"] == 0.12
+    assert soma["I(Vb;C)_mean"] == 0.7
+    assert soma["I(Vb;Vout)_mean"] == 0.4
+    assert soma["I(Vb;Vout|C)_mean"] == 0.33
+    assert soma["I(Vb_lin;Vout_lin)_mean"] == 0.22
+    assert soma["I(Vb_lin;Vout_lin|C)_mean"] == 0.11
+    assert "I(E;C)_mean" not in soma
+    assert "I(I;C)_mean" not in soma
+
+
+def test_synthetic_soma_entry_skips_when_soma_already_captured():
+    analyzer = InformationAnalyzer(InformationAnalysisParams())
+    model = SimpleNamespace(core_network=SimpleNamespace(somatic_synapses=False))
+    results = {
+        "layer_statistics": {
+            "core.branch_layers.0": {"has_synapses": True},
+            "core.branch_layers.1": {"has_synapses": False},
+        }
+    }
+
+    somatic_synapses = analyzer._add_synthetic_soma_entry_if_needed(results, model)
+
+    assert somatic_synapses is False
+    assert "synthetic_soma" not in results["layer_statistics"]

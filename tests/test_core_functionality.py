@@ -230,9 +230,9 @@ def test_dataloader_optimization():
     small_train_loader, _ = trainer._dataloaders(small_data, small_data)
     large_train_loader, _ = trainer._dataloaders(large_data, large_data)
 
-    # Auto-detected worker count should be valid
-    assert small_train_loader.num_workers >= 0
-    assert large_train_loader.num_workers >= 0
+    # In-memory tensor data should avoid worker-process overhead.
+    assert small_train_loader.num_workers == 0
+    assert large_train_loader.num_workers == 0
     expected_pin_memory = (
         torch.cuda.is_available() and small_train_loader.num_workers > 0
     )
@@ -275,6 +275,54 @@ def test_dataloader_optimization():
         invalid_trainer._dataloaders(small_data, small_data)
 
     print("DataLoader optimization test passed")
+
+
+def test_dataloader_optimization_uses_workers_for_lazy_datasets(monkeypatch):
+    """Image/file-backed datasets should keep multi-worker loading by default."""
+
+    from dendritic_modeling.training.dataloader_utils import resolve_dataloader_tuning
+
+    class LazyDataset(torch.utils.data.Dataset):
+        def __len__(self):
+            return 16
+
+        def __getitem__(self, idx):
+            return torch.zeros(3, 224, 224), torch.tensor(idx % 2)
+
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+    monkeypatch.setattr(
+        "dendritic_modeling.training.dataloader_utils.visible_cpu_count",
+        lambda: 4,
+    )
+
+    tuning = resolve_dataloader_tuning(LazyDataset(), device="cpu")
+
+    assert tuning.num_workers == 3
+    assert tuning.pin_memory is False
+    assert tuning.persistent_workers is True
+
+
+def test_analysis_loader_runtime_preserves_worker_options():
+    from dendritic_modeling.analysis.utils.runtime import make_analysis_loader
+    from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
+
+    dataset = torch.utils.data.TensorDataset(
+        torch.randn(8, 3), torch.randint(0, 2, (8,))
+    )
+    runtime = EvaluationRuntimeConfig(
+        batch_size=2,
+        num_workers=1,
+        pin_memory=False,
+        persistent_workers=True,
+        prefetch_factor=3,
+    )
+
+    loader = make_analysis_loader(dataset, runtime, device="cpu")
+
+    assert loader.num_workers == 1
+    assert loader.pin_memory is False
+    assert loader.persistent_workers is True
+    assert loader.prefetch_factor == 3
 
 
 if __name__ == "__main__":

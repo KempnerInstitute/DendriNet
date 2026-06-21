@@ -11,6 +11,9 @@ from dendritic_modeling.training import (
     benchmark_saved_transformer_replacement,
     run_transformer_replacement_training,
 )
+from dendritic_modeling.training._transformer_replacement.loops import (
+    _infinite_loader,
+)
 from dendritic_modeling.training.transformer_replacement import (
     _load_replacement_record_checkpoints,
     _make_replacement,
@@ -91,6 +94,18 @@ def test_synthetic_transformer_replacement_distillation_reduces_loss(tmp_path):
     benchmark = benchmark_saved_transformer_replacement(cfg)
     assert benchmark.trained["mse"] < benchmark.initial["mse"]
     assert (tmp_path / "benchmark_metrics.json").exists()
+
+
+def test_transformer_replacement_infinite_loader_restarts_without_cycle_cache():
+    dataset = torch.utils.data.TensorDataset(
+        torch.arange(3).unsqueeze(1), torch.arange(3).unsqueeze(1)
+    )
+    loader = torch.utils.data.DataLoader(dataset, batch_size=2, shuffle=False)
+
+    iterator = _infinite_loader(loader)
+    batches = [next(iterator)[0].squeeze(1).tolist() for _ in range(4)]
+
+    assert batches == [[0, 1], [2], [0, 1], [2]]
 
 
 def test_layerwise_replacement_factory_honors_ei_stack_kind(tmp_path):

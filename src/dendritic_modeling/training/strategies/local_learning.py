@@ -9,6 +9,7 @@ by a broadcast soma error and optional morphology/information factors.
 """
 
 import logging
+from dataclasses import dataclass
 from typing import Any, Optional
 
 import torch
@@ -47,6 +48,30 @@ from dendritic_modeling.training.strategies.local_learning_stdp_mixin import (
 from dendritic_modeling.training.strategies.standard import Trainer
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class _BroadcastState:
+    mode: str
+    transported_errors: list[Optional[torch.Tensor]]
+    feedback_seeds: list[Optional[torch.Tensor]]
+
+
+@dataclass(frozen=True)
+class _LayerModulators:
+    rho: Any
+    phi: Any
+    branch_scale: torch.Tensor | float
+    dendritic_branch_scale: torch.Tensor | float
+    role_synaptic_alignment: Optional[torch.Tensor]
+    role_block_alignment: Optional[torch.Tensor]
+
+
+@dataclass(frozen=True)
+class _PostFactors:
+    e_v: torch.Tensor
+    post_factor: torch.Tensor
+    post_factor_raw: torch.Tensor
 
 
 class LocalCreditAssignment(
@@ -337,48 +362,12 @@ class LocalCreditAssignment(
     ) -> None:
         batch_size = v0.size(0)
         delta_scalar: torch.Tensor = self._reduce_error_to_scalar(delta)  # [B, 1]
-
-        # Initialize branch morphology if using morphology-aware features
-        if (
-            (self.local_cfg.error_broadcast_mode or "scalar").lower()
-            == "pathway_vector"
-            or (self.local_cfg.error_broadcast_mode or "scalar").lower()
-            == "path_transport"
-            or self.local_cfg.morphology_aware.use_path_propagation
-            or self.local_cfg.morphology_aware.morphology_modulator_mode != "none"
-            or self.local_cfg.morphology_aware.use_branch_type_rules
-            or self.local_cfg.morphology_aware.use_branch_role_rules
-            or self.local_cfg.morphology_aware.use_branch_length_modulation
-        ):
-            self._initialize_branch_morphology(model, layer_records)
-
-        if self.local_cfg.morphology_aware.use_path_propagation:
-            path_factors = self._precompute_path_propagation_factors(
-                layer_records,
-                include_parent_activation_derivative=True,
-            )
-            for rec, path_factor in zip(layer_records, path_factors):
-                rec["path_factor"] = path_factor
-
-        transported_errors: list[Optional[torch.Tensor]] = []
-        if (
-            self.local_cfg.error_broadcast_mode or "scalar"
-        ).lower() == "path_transport":
-            transported_errors = self._precompute_path_transport_errors(
-                layer_records=layer_records,
-                delta=delta,
-                delta_scalar=delta_scalar,
-            )
-
-        feedback_seeds: list[Optional[torch.Tensor]] = []
-        if (
-            self.local_cfg.error_broadcast_mode or "scalar"
-        ).lower() == "pathway_vector":
-            feedback_seeds = self._precompute_feedback_seeds(
-                layer_records=layer_records,
-                delta=delta,
-                delta_scalar=delta_scalar,
-            )
+        broadcast_state = self._prepare_local_rule_broadcast_state(
+            model=model,
+            layer_records=layer_records,
+            delta=delta,
+            delta_scalar=delta_scalar,
+        )
 
         # Iterate in the order records were captured
         for layer_idx, rec in enumerate(layer_records):
@@ -396,764 +385,896 @@ class LocalCreditAssignment(
             layer_depth = layer_idx + 1
             out_features = v_n.size(1)
 
-            # Error term per compartment
-            # Modes:
-            # - 'scalar': broadcast per-sample scalar to all somas in layer (default)
-            # - 'per_soma': map output-dim error to soma-dim if sizes match, else fallback to scalar
-            # - 'local_mismatch': modulate scalar error by local parent-vs-soma voltage mismatch
-            bmode = (self.local_cfg.error_broadcast_mode or "scalar").lower()
-            if (
-                bmode == "per_soma"
-                and delta.dim() == 2
-                and delta.size(1) == out_features
-            ):
-                e_n = delta  # [B, out]
-            elif bmode == "low_rank":
-                e_n = self._compute_low_rank_broadcast(
-                    delta=delta,
-                    layer_idx=layer_idx,
-                    out_features=out_features,
-                    device=v_n.device,
-                    dtype=v_n.dtype,
-                )
-            elif bmode == "pathway_vector":
-                e_n = self._compute_pathway_vector_broadcast(
-                    seed_error=(
-                        feedback_seeds[layer_idx]
-                        if layer_idx < len(feedback_seeds)
-                        else None
-                    ),
-                    delta=delta,
-                    delta_scalar=delta_scalar,
-                    rec=rec,
-                    v_n=v_n,
-                )
-            elif bmode == "path_transport":
-                transported = (
-                    transported_errors[layer_idx]
-                    if layer_idx < len(transported_errors)
-                    else None
-                )
-                if isinstance(transported, torch.Tensor):
-                    e_n = transported.to(device=v_n.device, dtype=v_n.dtype)
-                else:
-                    e_n = delta_scalar.expand(-1, out_features)
-            elif bmode == "local_mismatch":
-                parent = rec.get("blk_out")
-                if parent is None:
-                    parent = rec.get("exc_out")
-                if parent is None:
-                    parent = rec.get("inh_out")
-                e_n = self._compute_local_mismatch_broadcast(
-                    delta_scalar=delta_scalar,
-                    v_n=v_n,
-                    parent=parent,
-                )
-            else:
-                # Scalar broadcast
-                e_n = delta_scalar.expand(-1, out_features)  # [B, out]
-
-            # Additive Gaussian noise on broadcast error (for robustness testing)
-            noise_sigma = getattr(self.local_cfg, "error_noise_sigma", 0.0)
-            if noise_sigma > 0.0:
-                e_n = e_n + noise_sigma * torch.randn_like(e_n)
-
-            # Low-bandwidth broadcast compression
-            bandwidth = getattr(self.local_cfg, "broadcast_bandwidth", "full")
-            if bandwidth != "full":
-                e_n = self._apply_broadcast_bandwidth(e_n, bandwidth)
-
+            e_n = self._compute_local_broadcast_error(
+                rec=rec,
+                layer_idx=layer_idx,
+                out_features=out_features,
+                v_n=v_n,
+                delta=delta,
+                delta_scalar=delta_scalar,
+                broadcast_state=broadcast_state,
+            )
             stdp_error_signal = e_n
             if str(getattr(self.local_cfg, "rule_variant", "")).lower() == "stdp":
                 e_n = torch.zeros_like(e_n)
 
             layer_dynamics_mode = self._resolve_layer_dynamics_mode(rec)
-            if layer_dynamics_mode == "conductance":
-                # Conductance scaling: R_tot = 1 / g_tot
-                if self.local_cfg.three_factor.use_conductance_scaling:
-                    g_tot = self._compute_layer_total_conductance(rec, v_n)
-                    R_tot = 1.0 / (g_tot + 1e-8)
-                else:
-                    R_tot = 1.0
-            else:
-                # Additive dendritic integration does not include divisive input resistance.
-                R_tot = 1.0
+            R_tot = self._compute_local_input_resistance(
+                rec=rec,
+                v_n=v_n,
+                layer_dynamics_mode=layer_dynamics_mode,
+            )
 
             # === PATH PROPAGATION FACTOR ===
             # Apply path-integrated attenuation if enabled
             if (
                 self.local_cfg.morphology_aware.use_path_propagation
-                and bmode != "path_transport"
+                and broadcast_state.mode != "path_transport"
             ):
                 path_factor = rec.get("path_factor", 1.0)
                 # Modulate error by path attenuation
                 if isinstance(path_factor, torch.Tensor):
                     e_n = e_n * path_factor
 
-            # === MORPHOLOGY CORRELATION RHO (scalar or per-branch) ===
-            rho = 1.0
-            if self.local_cfg.rule_variant in {"4f", "5f"}:
-                rho = self._compute_layer_rho(rec, v0)
-                # Apply layer-wise scaling if enabled
-                if self.local_cfg.four_factor.layer_wise_rho_scale > 0:
-                    rho = rho / (
-                        layer_depth**0.5
-                        * self.local_cfg.four_factor.layer_wise_rho_scale
-                    )
-
-                # Branch-specific morphology modulation
-                if self.local_cfg.morphology_aware.morphology_modulator_mode == "depth":
-                    rho = self._compute_branch_depth_modulator(rec, rho)
-                elif (
-                    self.local_cfg.morphology_aware.morphology_modulator_mode
-                    == "centrality"
-                ):
-                    rho = self._compute_branch_centrality_modulator(rec, rho)
-
-            # === INFORMATION PROXY PHI (scalar per layer) ===
-            phi = 1.0
-            if self.local_cfg.rule_variant == "5f":
-                phi_mode = self.local_cfg.five_factor.phi_mode.lower()
-                phi_estimator = self.local_cfg.five_factor.phi_estimator.lower()
-                if phi_mode == "conditional":
-                    if phi_estimator == "variance_ema":
-                        phi = self._compute_layer_phi(rec)
-                    else:
-                        phi = self._compute_layer_phi_conditional(rec)
-                else:
-                    phi = self._compute_layer_phi(rec)
-                # Apply layer-wise scaling if enabled
-                if self.local_cfg.five_factor.layer_wise_phi_scale > 0:
-                    phi = phi / (
-                        layer_depth**0.5
-                        * self.local_cfg.five_factor.layer_wise_phi_scale
-                    )
-
-            # === BRANCH TYPE SCALING ===
-            branch_scale: torch.Tensor | float = 1.0
-            dendritic_branch_scale: torch.Tensor | float = 1.0
-            role_synaptic_alignment: Optional[torch.Tensor] = None
-            role_block_alignment: Optional[torch.Tensor] = None
-            using_branch_role_scale = (
-                self.local_cfg.morphology_aware.use_branch_role_rules
+            modulators = self._compute_local_layer_modulators(
+                rec=rec,
+                v0=v0,
+                layer_depth=layer_depth,
             )
-            if using_branch_role_scale:
-                branch_scale, dendritic_branch_scale = self._get_branch_role_scales(rec)
-                (
-                    role_synaptic_alignment,
-                    role_block_alignment,
-                ) = self._get_branch_role_alignment_factors(rec)
-            if not using_branch_role_scale and (
-                self.local_cfg.morphology_aware.use_branch_type_rules
-                or self.local_cfg.morphology_aware.use_branch_length_modulation
-            ):
-                branch_scale = self._get_branch_type_scale(rec)
-                dendritic_branch_scale = branch_scale
+            post_factors = self._compute_local_post_factors(
+                rec=rec,
+                e_n=e_n,
+                v_n=v_n,
+                r_tot=R_tot,
+                layer_dynamics_mode=layer_dynamics_mode,
+                layer_idx=layer_idx,
+                modulators=modulators,
+            )
+            self._apply_layer_local_gradients(
+                rec=rec,
+                layer_idx=layer_idx,
+                num_layers=len(layer_records),
+                y_target=y_target,
+                batch_size=batch_size,
+                e_n=e_n,
+                stdp_error_signal=stdp_error_signal,
+                v_n=v_n,
+                r_tot=R_tot,
+                layer_dynamics_mode=layer_dynamics_mode,
+                modulators=modulators,
+                post_factors=post_factors,
+                update_reactivation=update_reactivation,
+            )
 
-            activation_derivative = self._get_layer_activation_derivative(
+    def _prepare_local_rule_broadcast_state(
+        self,
+        *,
+        model: BaseModel,
+        layer_records: list[dict[str, Any]],
+        delta: torch.Tensor,
+        delta_scalar: torch.Tensor,
+    ) -> _BroadcastState:
+        bmode = (self.local_cfg.error_broadcast_mode or "scalar").lower()
+
+        if (
+            bmode == "pathway_vector"
+            or bmode == "path_transport"
+            or self.local_cfg.morphology_aware.use_path_propagation
+            or self.local_cfg.morphology_aware.morphology_modulator_mode != "none"
+            or self.local_cfg.morphology_aware.use_branch_type_rules
+            or self.local_cfg.morphology_aware.use_branch_role_rules
+            or self.local_cfg.morphology_aware.use_branch_length_modulation
+        ):
+            self._initialize_branch_morphology(model, layer_records)
+
+        if self.local_cfg.morphology_aware.use_path_propagation:
+            path_factors = self._precompute_path_propagation_factors(
+                layer_records,
+                include_parent_activation_derivative=True,
+            )
+            for rec, path_factor in zip(layer_records, path_factors):
+                rec["path_factor"] = path_factor
+
+        transported_errors: list[Optional[torch.Tensor]] = []
+        if bmode == "path_transport":
+            transported_errors = self._precompute_path_transport_errors(
+                layer_records=layer_records,
+                delta=delta,
+                delta_scalar=delta_scalar,
+            )
+
+        feedback_seeds: list[Optional[torch.Tensor]] = []
+        if bmode == "pathway_vector":
+            feedback_seeds = self._precompute_feedback_seeds(
+                layer_records=layer_records,
+                delta=delta,
+                delta_scalar=delta_scalar,
+            )
+
+        return _BroadcastState(
+            mode=bmode,
+            transported_errors=transported_errors,
+            feedback_seeds=feedback_seeds,
+        )
+
+    def _compute_local_broadcast_error(
+        self,
+        *,
+        rec: dict[str, Any],
+        layer_idx: int,
+        out_features: int,
+        v_n: torch.Tensor,
+        delta: torch.Tensor,
+        delta_scalar: torch.Tensor,
+        broadcast_state: _BroadcastState,
+    ) -> torch.Tensor:
+        # Error term per compartment.
+        # Modes:
+        # - 'scalar': broadcast per-sample scalar to all somas in layer (default)
+        # - 'per_soma': map output-dim error to soma-dim if sizes match, else scalar
+        # - 'local_mismatch': modulate scalar error by parent-vs-soma mismatch
+        bmode = broadcast_state.mode
+        if bmode == "per_soma" and delta.dim() == 2 and delta.size(1) == out_features:
+            e_n = delta  # [B, out]
+        elif bmode == "low_rank":
+            e_n = self._compute_low_rank_broadcast(
+                delta=delta,
+                layer_idx=layer_idx,
+                out_features=out_features,
+                device=v_n.device,
+                dtype=v_n.dtype,
+            )
+        elif bmode == "pathway_vector":
+            e_n = self._compute_pathway_vector_broadcast(
+                seed_error=(
+                    broadcast_state.feedback_seeds[layer_idx]
+                    if layer_idx < len(broadcast_state.feedback_seeds)
+                    else None
+                ),
+                delta=delta,
+                delta_scalar=delta_scalar,
                 rec=rec,
                 v_n=v_n,
-                v_out=rec.get("v_out"),
             )
-            if not isinstance(activation_derivative, torch.Tensor):
-                activation_derivative = torch.ones_like(v_n)
-            activation_derivative = activation_derivative.to(
-                device=v_n.device, dtype=v_n.dtype
+        elif bmode == "path_transport":
+            transported = (
+                broadcast_state.transported_errors[layer_idx]
+                if layer_idx < len(broadcast_state.transported_errors)
+                else None
             )
-            e_v = e_n * activation_derivative
-
-            # Post-synaptic modulation per-sample, per-neuron.
-            if layer_dynamics_mode == "conductance":
-                if self.local_cfg.three_factor.use_driving_force:
-                    post_mod = self.local_cfg.three_factor.e_rev_exc - v_n  # [B, out]
-                else:
-                    post_mod = v_n - self.local_cfg.three_factor.theta
-                post_factor = e_v * R_tot * post_mod  # [B, out]
+            if isinstance(transported, torch.Tensor):
+                e_n = transported.to(device=v_n.device, dtype=v_n.dtype)
             else:
-                # Additive rule -- with optional gain control modes.
-                additive_mode = getattr(
-                    self.local_cfg.three_factor, "additive_gain_mode", "none"
-                )
-                if additive_mode == "learned_gain":
-                    gain_params = self._ensure_additive_gain_params(
-                        v_n.size(1), v_n.device
-                    )
-                    gain_n = torch.sigmoid(gain_params)  # [out]
-                    post_factor = e_v * gain_n.unsqueeze(0)  # [B, out]
-                elif additive_mode == "input_dependent":
-                    pseudo_R, pseudo_drive = self._compute_additive_pseudo_signals(
-                        rec, v_n
-                    )
-                    post_factor = e_v * pseudo_R * pseudo_drive  # [B, out]
-                elif additive_mode == "running_stats":
-                    inv_std = self._get_additive_running_inv_std(layer_idx, v_n)
-                    post_factor = e_v * inv_std  # [B, out]
-                else:
-                    post_factor = e_v  # Original behavior
+                e_n = delta_scalar.expand(-1, out_features)
+        elif bmode == "local_mismatch":
+            parent = rec.get("blk_out")
+            if parent is None:
+                parent = rec.get("exc_out")
+            if parent is None:
+                parent = rec.get("inh_out")
+            e_n = self._compute_local_mismatch_broadcast(
+                delta_scalar=delta_scalar,
+                v_n=v_n,
+                parent=parent,
+            )
+        else:
+            e_n = delta_scalar.expand(-1, out_features)  # [B, out]
 
-            # Save raw post_factor before morphology scaling so inhibitory/dendritic
-            # sections can reuse it without double-applying rho/phi/branch_scale.
-            post_factor_raw = post_factor
+        noise_sigma = getattr(self.local_cfg, "error_noise_sigma", 0.0)
+        if noise_sigma > 0.0:
+            e_n = e_n + noise_sigma * torch.randn_like(e_n)
 
-            # Apply morphology/information factors
-            if isinstance(rho, torch.Tensor):
-                # Per-branch rho (depth modulation)
-                post_factor = post_factor * rho.unsqueeze(
-                    0
-                )  # Broadcast [out] to [B, out]
-            else:
-                post_factor = post_factor * float(rho)
+        bandwidth = getattr(self.local_cfg, "broadcast_bandwidth", "full")
+        if bandwidth != "full":
+            e_n = self._apply_broadcast_bandwidth(e_n, bandwidth)
+        return e_n
 
-            post_factor = post_factor * float(phi)
+    def _compute_local_input_resistance(
+        self,
+        *,
+        rec: dict[str, Any],
+        v_n: torch.Tensor,
+        layer_dynamics_mode: str,
+    ) -> torch.Tensor | float:
+        if layer_dynamics_mode != "conductance":
+            # Additive dendritic integration does not include divisive input resistance.
+            return 1.0
+        if not self.local_cfg.three_factor.use_conductance_scaling:
+            return 1.0
+        g_tot = self._compute_layer_total_conductance(rec, v_n)
+        return 1.0 / (g_tot + 1e-8)
 
-            # Apply branch type scaling
-            if isinstance(branch_scale, torch.Tensor):
-                post_factor = post_factor * branch_scale.unsqueeze(0)  # [B, out]
-            else:
-                post_factor = post_factor * float(branch_scale)
-
-            # Synaptic (TopKLinear) - excitatory
-            exc_layer: Optional[TopKLinear] = rec.get("exc_module")
-            if exc_layer is not None and rec.get("x_exc") is not None:
-                x_exc: torch.Tensor = rec["x_exc"]  # [B, in]
-                # dL/dg ≈ E_batch[ e_n * R_tot * (E_rev - V_n) * x ]
-                grad_g = post_factor.t() @ x_exc
-                if self.local_cfg.normalize_by_batch:
-                    grad_g = grad_g / float(batch_size)
-                voltage_homeo_error = self._compute_voltage_homeostasis_error(v_n)
-                if voltage_homeo_error is not None:
-                    if layer_dynamics_mode == "conductance":
-                        exc_homeo_factor = (
-                            voltage_homeo_error
-                            * R_tot
-                            * (self.local_cfg.three_factor.e_rev_exc - v_n)
-                        )
-                    else:
-                        exc_homeo_factor = voltage_homeo_error
-                    grad_homeo_exc = exc_homeo_factor.t() @ x_exc
-                    if self.local_cfg.normalize_by_batch:
-                        grad_homeo_exc = grad_homeo_exc / float(batch_size)
-                    grad_g = grad_g + grad_homeo_exc
-                if (
-                    isinstance(role_synaptic_alignment, torch.Tensor)
-                    and role_synaptic_alignment.size() == grad_g.size()
-                ):
-                    grad_g = grad_g * role_synaptic_alignment.to(
-                        device=grad_g.device, dtype=grad_g.dtype
-                    )
-                exc_chain = self._weight_transform_derivative(
-                    exc_layer.pre_w.detach(),
-                    getattr(exc_layer, "weight_transform", "exp"),
-                )
-                grad_param = grad_g * exc_chain
-                self._add_topk_grad(exc_layer, grad_param, rec.get("exc_mask"))
-
-            # Synaptic (TopKLinear) - recurrent excitatory (if present)
-            rec_exc_layer: Optional[TopKLinear] = rec.get("rec_exc_module")
-            if rec_exc_layer is not None and rec.get("x_rec_exc") is not None:
-                x_rec_exc: torch.Tensor = rec["x_rec_exc"]  # [B, in]
-                grad_g_rec_exc = post_factor.t() @ x_rec_exc
-                if self.local_cfg.normalize_by_batch:
-                    grad_g_rec_exc = grad_g_rec_exc / float(batch_size)
-                voltage_homeo_error = self._compute_voltage_homeostasis_error(v_n)
-                if voltage_homeo_error is not None:
-                    if layer_dynamics_mode == "conductance":
-                        rec_exc_homeo_factor = (
-                            voltage_homeo_error
-                            * R_tot
-                            * (self.local_cfg.three_factor.e_rev_exc - v_n)
-                        )
-                    else:
-                        rec_exc_homeo_factor = voltage_homeo_error
-                    grad_homeo_rec_exc = rec_exc_homeo_factor.t() @ x_rec_exc
-                    if self.local_cfg.normalize_by_batch:
-                        grad_homeo_rec_exc = grad_homeo_rec_exc / float(batch_size)
-                    grad_g_rec_exc = grad_g_rec_exc + grad_homeo_rec_exc
-                if (
-                    isinstance(role_synaptic_alignment, torch.Tensor)
-                    and role_synaptic_alignment.size() == grad_g_rec_exc.size()
-                ):
-                    grad_g_rec_exc = grad_g_rec_exc * role_synaptic_alignment.to(
-                        device=grad_g_rec_exc.device, dtype=grad_g_rec_exc.dtype
-                    )
-                rec_exc_chain = self._weight_transform_derivative(
-                    rec_exc_layer.pre_w.detach(),
-                    getattr(rec_exc_layer, "weight_transform", "exp"),
-                )
-                grad_param_rec_exc = grad_g_rec_exc * rec_exc_chain
-                self._add_topk_grad(
-                    rec_exc_layer, grad_param_rec_exc, rec.get("rec_exc_mask")
+    def _compute_local_layer_modulators(
+        self,
+        *,
+        rec: dict[str, Any],
+        v0: torch.Tensor,
+        layer_depth: int,
+    ) -> _LayerModulators:
+        rho = 1.0
+        if self.local_cfg.rule_variant in {"4f", "5f"}:
+            rho = self._compute_layer_rho(rec, v0)
+            if self.local_cfg.four_factor.layer_wise_rho_scale > 0:
+                rho = rho / (
+                    layer_depth**0.5 * self.local_cfg.four_factor.layer_wise_rho_scale
                 )
 
-            # Synaptic (TopKLinear) - inhibitory (if present)
-            inh_layer: Optional[TopKLinear] = rec.get("inh_module")
-            if inh_layer is not None and rec.get("x_inh") is not None:
-                x_inh: torch.Tensor = rec["x_inh"]  # [B, in]
-                if layer_dynamics_mode == "conductance":
-                    if self.local_cfg.three_factor.use_driving_force:
-                        inh_post = self.local_cfg.three_factor.e_rev_inh - v_n
-                    else:
-                        inh_post = self.local_cfg.three_factor.theta - v_n
-                    inh_factor = e_v * R_tot * inh_post  # [B, out]
-                else:
-                    # Additive inhibitory rule -- with optional gain control.
-                    additive_mode = getattr(
-                        self.local_cfg.three_factor, "additive_gain_mode", "none"
-                    )
-                    if additive_mode == "input_dependent":
-                        pseudo_R, _ = self._compute_additive_pseudo_signals(rec, v_n)
-                        inh_post = self.local_cfg.three_factor.theta - v_n
-                        inh_factor = e_v * pseudo_R * inh_post  # [B, out]
-                    elif additive_mode in ("learned_gain", "running_stats"):
-                        # Reuse raw (pre-morphology) post_factor, negate for inhibitory.
-                        # Morphology factors (rho, phi, branch_scale) are applied below.
-                        inh_factor = -post_factor_raw
-                    else:
-                        inh_factor = -e_v  # Original behavior
-
-                # Apply morphology/information factors (same as excitatory)
-                if isinstance(rho, torch.Tensor):
-                    # Per-branch rho (depth modulation)
-                    inh_factor = inh_factor * rho.unsqueeze(
-                        0
-                    )  # Broadcast [out] to [B, out]
-                else:
-                    inh_factor = (
-                        inh_factor * float(rho)
-                        if self.local_cfg.rule_variant in {"4f", "5f"}
-                        else inh_factor
-                    )
-
-                inh_factor = (
-                    inh_factor * float(phi)
-                    if self.local_cfg.rule_variant == "5f"
-                    else inh_factor
-                )
-
-                # Apply branch type scaling (same as excitatory)
-                if isinstance(branch_scale, torch.Tensor):
-                    inh_factor = inh_factor * branch_scale.unsqueeze(0)  # [B, out]
-                else:
-                    inh_factor = inh_factor * float(branch_scale)
-
-                # dL/dg_inh ≈ E_batch[ e_n * R_tot * inh_post * x ]
-                grad_g_inh = inh_factor.t() @ x_inh
-                if self.local_cfg.normalize_by_batch:
-                    grad_g_inh = grad_g_inh / float(batch_size)
-                if (
-                    isinstance(role_synaptic_alignment, torch.Tensor)
-                    and role_synaptic_alignment.size() == grad_g_inh.size()
-                ):
-                    grad_g_inh = grad_g_inh * role_synaptic_alignment.to(
-                        device=grad_g_inh.device, dtype=grad_g_inh.dtype
-                    )
-                voltage_homeo_error = self._compute_voltage_homeostasis_error(v_n)
-                if voltage_homeo_error is not None:
-                    if layer_dynamics_mode == "conductance":
-                        inh_homeo_factor = (
-                            voltage_homeo_error
-                            * R_tot
-                            * (self.local_cfg.three_factor.e_rev_inh - v_n)
-                        )
-                    else:
-                        inh_homeo_factor = -voltage_homeo_error
-                    grad_homeo_inh = inh_homeo_factor.t() @ x_inh
-                    if self.local_cfg.normalize_by_batch:
-                        grad_homeo_inh = grad_homeo_inh / float(batch_size)
-                    grad_g_inh = grad_g_inh + grad_homeo_inh
-                homeo_factor = self._compute_inhibitory_homeostasis_factor(
-                    rec=rec, R_tot=R_tot, v_n=v_n
-                )
-                if homeo_factor is not None:
-                    grad_homeo = homeo_factor.t() @ x_inh
-                    if self.local_cfg.normalize_by_batch:
-                        grad_homeo = grad_homeo / float(batch_size)
-                    grad_g_inh = grad_g_inh + grad_homeo
-                inh_chain = self._weight_transform_derivative(
-                    inh_layer.pre_w.detach(),
-                    getattr(inh_layer, "weight_transform", "exp"),
-                )
-                grad_param_inh = grad_g_inh * inh_chain
-                self._add_topk_grad(inh_layer, grad_param_inh, rec.get("inh_mask"))
-
-            # Synaptic (TopKLinear) - recurrent inhibitory (if present)
-            rec_inh_layer: Optional[TopKLinear] = rec.get("rec_inh_module")
-            if rec_inh_layer is not None and rec.get("x_rec_inh") is not None:
-                x_rec_inh: torch.Tensor = rec["x_rec_inh"]  # [B, in]
-                if layer_dynamics_mode == "conductance":
-                    if self.local_cfg.three_factor.use_driving_force:
-                        rec_inh_post = self.local_cfg.three_factor.e_rev_inh - v_n
-                    else:
-                        rec_inh_post = self.local_cfg.three_factor.theta - v_n
-                    rec_inh_factor = e_v * R_tot * rec_inh_post  # [B, out]
-                else:
-                    additive_mode = getattr(
-                        self.local_cfg.three_factor, "additive_gain_mode", "none"
-                    )
-                    if additive_mode == "input_dependent":
-                        pseudo_R, _ = self._compute_additive_pseudo_signals(rec, v_n)
-                        rec_inh_post = self.local_cfg.three_factor.theta - v_n
-                        rec_inh_factor = e_v * pseudo_R * rec_inh_post
-                    elif additive_mode in ("learned_gain", "running_stats"):
-                        rec_inh_factor = -post_factor_raw
-                    else:
-                        rec_inh_factor = -e_v
-
-                if isinstance(rho, torch.Tensor):
-                    rec_inh_factor = rec_inh_factor * rho.unsqueeze(0)
-                else:
-                    rec_inh_factor = (
-                        rec_inh_factor * float(rho)
-                        if self.local_cfg.rule_variant in {"4f", "5f"}
-                        else rec_inh_factor
-                    )
-
-                rec_inh_factor = (
-                    rec_inh_factor * float(phi)
-                    if self.local_cfg.rule_variant == "5f"
-                    else rec_inh_factor
-                )
-
-                if isinstance(branch_scale, torch.Tensor):
-                    rec_inh_factor = rec_inh_factor * branch_scale.unsqueeze(0)
-                else:
-                    rec_inh_factor = rec_inh_factor * float(branch_scale)
-
-                grad_g_rec_inh = rec_inh_factor.t() @ x_rec_inh
-                if self.local_cfg.normalize_by_batch:
-                    grad_g_rec_inh = grad_g_rec_inh / float(batch_size)
-                if (
-                    isinstance(role_synaptic_alignment, torch.Tensor)
-                    and role_synaptic_alignment.size() == grad_g_rec_inh.size()
-                ):
-                    grad_g_rec_inh = grad_g_rec_inh * role_synaptic_alignment.to(
-                        device=grad_g_rec_inh.device, dtype=grad_g_rec_inh.dtype
-                    )
-                voltage_homeo_error = self._compute_voltage_homeostasis_error(v_n)
-                if voltage_homeo_error is not None:
-                    if layer_dynamics_mode == "conductance":
-                        rec_inh_homeo_factor = (
-                            voltage_homeo_error
-                            * R_tot
-                            * (self.local_cfg.three_factor.e_rev_inh - v_n)
-                        )
-                    else:
-                        rec_inh_homeo_factor = -voltage_homeo_error
-                    grad_homeo_rec_inh = rec_inh_homeo_factor.t() @ x_rec_inh
-                    if self.local_cfg.normalize_by_batch:
-                        grad_homeo_rec_inh = grad_homeo_rec_inh / float(batch_size)
-                    grad_g_rec_inh = grad_g_rec_inh + grad_homeo_rec_inh
-                homeo_factor = self._compute_inhibitory_homeostasis_factor(
-                    rec=rec, R_tot=R_tot, v_n=v_n
-                )
-                if homeo_factor is not None:
-                    grad_homeo = homeo_factor.t() @ x_rec_inh
-                    if self.local_cfg.normalize_by_batch:
-                        grad_homeo = grad_homeo / float(batch_size)
-                    grad_g_rec_inh = grad_g_rec_inh + grad_homeo
-                rec_inh_chain = self._weight_transform_derivative(
-                    rec_inh_layer.pre_w.detach(),
-                    getattr(rec_inh_layer, "weight_transform", "exp"),
-                )
-                grad_param_rec_inh = grad_g_rec_inh * rec_inh_chain
-                self._add_topk_grad(
-                    rec_inh_layer, grad_param_rec_inh, rec.get("rec_inh_mask")
-                )
-
-            # Dendritic (BlockLinear)
-            blk_layer = rec.get("blk_module")
-            x_blk_raw = rec.get("x_blk_raw")
-            if blk_layer is not None and x_blk_raw is not None:
-                block_size = blk_layer.block_size
-                x_blk = x_blk_raw.view(
-                    x_blk_raw.size(0), blk_layer.out_features, block_size
-                )
-                if layer_dynamics_mode == "conductance":
-                    # dL/dg_den ≈ E_batch[ e_n * R_tot * (V_j - V_n) * ... ]
-                    diff = x_blk - v_n.unsqueeze(-1)  # [B, out, block]
-                    # Ensure R_tot is a tensor for broadcasting
-                    if isinstance(R_tot, torch.Tensor):
-                        R_exp = R_tot.unsqueeze(-1)
-                    else:
-                        R_exp = torch.ones_like(v_n).unsqueeze(-1) * float(R_tot)
-                    den_factor = e_v.unsqueeze(-1) * R_exp * diff
-                else:
-                    # Additive dendritic rule -- with optional gain control.
-                    additive_mode = getattr(
-                        self.local_cfg.three_factor, "additive_gain_mode", "none"
-                    )
-                    if additive_mode == "input_dependent":
-                        pseudo_R, pseudo_drive = self._compute_additive_pseudo_signals(
-                            rec, v_n
-                        )
-                        diff = x_blk - v_n.unsqueeze(-1)
-                        den_factor = e_v.unsqueeze(-1) * pseudo_R.unsqueeze(-1) * diff
-                    elif additive_mode in ("learned_gain", "running_stats"):
-                        # Use raw (pre-morphology) post_factor; rho/phi/branch_scale
-                        # are applied below to avoid double-counting.
-                        den_factor = post_factor_raw.unsqueeze(-1) * x_blk
-                    else:
-                        den_factor = e_v.unsqueeze(-1) * x_blk
-
-                # Apply rho (may be tensor if using depth modulation)
-                if self.local_cfg.rule_variant in {"4f", "5f"}:
-                    if isinstance(rho, torch.Tensor):
-                        den_factor = den_factor * rho.unsqueeze(0).unsqueeze(
-                            -1
-                        )  # [1, out, 1]
-                    else:
-                        den_factor = den_factor * float(rho)
-
-                # Apply phi
-                if self.local_cfg.rule_variant == "5f":
-                    den_factor = den_factor * float(phi)
-
-                # Apply branch type scaling
-                if isinstance(dendritic_branch_scale, torch.Tensor):
-                    if dendritic_branch_scale.dim() == 2:
-                        den_factor = den_factor * dendritic_branch_scale.unsqueeze(0)
-                    else:
-                        den_factor = den_factor * dendritic_branch_scale.unsqueeze(
-                            0
-                        ).unsqueeze(
-                            -1
-                        )  # [1, out, 1]
-                else:
-                    den_factor = den_factor * float(dendritic_branch_scale)
-
-                grad_g_den = den_factor.mean(dim=0)  # [out, block]
-                if not self.local_cfg.normalize_by_batch:
-                    grad_g_den = grad_g_den * float(batch_size)
-                voltage_homeo_error = self._compute_voltage_homeostasis_error(v_n)
-                if voltage_homeo_error is not None:
-                    if layer_dynamics_mode == "conductance":
-                        diff_homeo = x_blk - v_n.unsqueeze(-1)
-                        if isinstance(R_tot, torch.Tensor):
-                            R_homeo = R_tot.unsqueeze(-1)
-                        else:
-                            R_homeo = torch.ones_like(v_n).unsqueeze(-1) * float(R_tot)
-                        den_homeo_factor = (
-                            voltage_homeo_error.unsqueeze(-1) * R_homeo * diff_homeo
-                        )
-                    else:
-                        den_homeo_factor = voltage_homeo_error.unsqueeze(-1) * x_blk
-                    grad_homeo_den = den_homeo_factor.mean(dim=0)
-                    if not self.local_cfg.normalize_by_batch:
-                        grad_homeo_den = grad_homeo_den * float(batch_size)
-                    grad_g_den = grad_g_den + grad_homeo_den
-                if (
-                    isinstance(role_block_alignment, torch.Tensor)
-                    and role_block_alignment.size() == grad_g_den.size()
-                ):
-                    grad_g_den = grad_g_den * role_block_alignment.to(
-                        device=grad_g_den.device, dtype=grad_g_den.dtype
-                    )
-
-                # Apply dendritic normalization if enabled
-                if self.local_cfg.morphology_aware.use_dendritic_normalization:
-                    grad_g_den = self._compute_dendritic_normalization(rec, grad_g_den)
-
-                den_chain = self._weight_transform_derivative(
-                    blk_layer.log_weight.detach(),
-                    getattr(blk_layer, "weight_transform", "exp"),
-                )
-                grad_param_den = grad_g_den * den_chain
-                if blk_layer.log_weight.grad is None:
-                    blk_layer.log_weight.grad = grad_param_den.to(
-                        blk_layer.log_weight.dtype
-                    )
-                else:
-                    blk_layer.log_weight.grad = (
-                        blk_layer.log_weight.grad
-                        + grad_param_den.to(blk_layer.log_weight.dtype)
-                    )
-
-            # Reactivation parameters (ParametricActivation): local eligibility times factors
-            react_module = getattr(rec.get("layer"), "reactivation", None)
-            v_out = rec.get("v_out")
-            if (
-                update_reactivation
-                and isinstance(react_module, ParametricActivation)
-                and v_n is not None
-                and v_out is not None
+            if self.local_cfg.morphology_aware.morphology_modulator_mode == "depth":
+                rho = self._compute_branch_depth_modulator(rec, rho)
+            elif (
+                self.local_cfg.morphology_aware.morphology_modulator_mode
+                == "centrality"
             ):
-                # Generic eligibility via autograd: d f(V;θ)/dθ approximated by local derivative on outputs
-                # Here we use analytic tanh-based eligibilities when available
-                if hasattr(react_module, "log_m"):
-                    # y = f(V) in [0,1] for ParametricTanh variants
-                    y = v_out
-                    one_minus_y2 = (
-                        1 - (2 * y - 1) ** 2
-                    )  # since y = (tanh(z)+1)/2 => 2y-1 = tanh(z)
-                    # For ParametricTanh: z = m (V - b), m = exp(log_m)
-                    if hasattr(react_module, "b"):
-                        # d y / d m ∝ (1 - tanh(z)^2) * (V - b)
-                        elig_m = one_minus_y2 * (v_n - react_module.b.detach())
-                    else:
-                        elig_m = one_minus_y2 * v_n
-                    # Map to raw parameter log_m via chain rule: dm/dlog_m = m = exp(log_m)
-                    m_vec = react_module.log_m.detach().exp()
-                    # Use post error factor without dendritic driving for activation params
-                    react_factor = e_n
-                    # Apply rho
-                    if isinstance(rho, torch.Tensor):
-                        react_factor = react_factor * rho.unsqueeze(0)
-                    else:
-                        react_factor = react_factor * float(rho)
-                    # Apply phi
-                    react_factor = react_factor * float(phi)
-                    # Apply branch scale
-                    if isinstance(branch_scale, torch.Tensor):
-                        react_factor = react_factor * branch_scale.unsqueeze(0)
-                    else:
-                        react_factor = react_factor * float(branch_scale)
-                    # Aggregate over batch to per-neuron grads
-                    grad_m = (react_factor * elig_m).mean(dim=0)
-                    grad_log_m = grad_m * m_vec
-                    if react_module.log_m.grad is None:
-                        react_module.log_m.grad = grad_log_m.to(
-                            react_module.log_m.dtype
-                        )
-                    else:
-                        react_module.log_m.grad = (
-                            react_module.log_m.grad
-                            + grad_log_m.to(react_module.log_m.dtype)
-                        )
-                if hasattr(react_module, "b"):
-                    # d y / d b ∝ -(1 - tanh(z)^2) * m
-                    y = v_out
-                    one_minus_y2 = 1 - (2 * y - 1) ** 2
-                    m_vec = (
-                        react_module.log_m.detach().exp()
-                        if hasattr(react_module, "log_m")
-                        else 1.0
-                    )
-                    elig_b = -one_minus_y2 * m_vec
-                    # Reuse react_factor from above
-                    react_factor_b = e_n
-                    if isinstance(rho, torch.Tensor):
-                        react_factor_b = react_factor_b * rho.unsqueeze(0)
-                    else:
-                        react_factor_b = react_factor_b * float(rho)
-                    react_factor_b = react_factor_b * float(phi)
-                    if isinstance(branch_scale, torch.Tensor):
-                        react_factor_b = react_factor_b * branch_scale.unsqueeze(0)
-                    else:
-                        react_factor_b = react_factor_b * float(branch_scale)
-                    grad_b = (react_factor_b * elig_b).mean(dim=0)
-                    if react_module.b.grad is None:
-                        react_module.b.grad = grad_b.to(react_module.b.dtype)
-                    else:
-                        react_module.b.grad = react_module.b.grad + grad_b.to(
-                            react_module.b.dtype
-                        )
+                rho = self._compute_branch_centrality_modulator(rec, rho)
 
-                aux_grad_log_m, aux_grad_b = self._compute_gate_homeostasis_aux_grads(
-                    react_module=react_module,
-                    v_n=v_n,
-                    v_out=v_out,
-                )
-                if aux_grad_log_m is not None and hasattr(react_module, "log_m"):
-                    if react_module.log_m.grad is None:
-                        react_module.log_m.grad = aux_grad_log_m.to(
-                            react_module.log_m.dtype
-                        )
-                    else:
-                        react_module.log_m.grad = (
-                            react_module.log_m.grad
-                            + aux_grad_log_m.to(react_module.log_m.dtype)
-                        )
-                if (
-                    aux_grad_b is not None
-                    and hasattr(react_module, "b")
-                    and react_module.b is not None
-                ):
-                    if react_module.b.grad is None:
-                        react_module.b.grad = aux_grad_b.to(react_module.b.dtype)
-                    else:
-                        react_module.b.grad = react_module.b.grad + aux_grad_b.to(
-                            react_module.b.dtype
-                        )
-
-            if self._stdp_enabled():
-                post_signal = rec.get("v_out")
-                if not isinstance(post_signal, torch.Tensor):
-                    post_signal = v_n
-                self._apply_stdp_pathways(
-                    rec=rec,
-                    post_signal=post_signal,
-                    error_signal=stdp_error_signal,
+        phi = 1.0
+        if self.local_cfg.rule_variant == "5f":
+            phi_mode = self.local_cfg.five_factor.phi_mode.lower()
+            phi_estimator = self.local_cfg.five_factor.phi_estimator.lower()
+            if phi_mode == "conditional":
+                if phi_estimator == "variance_ema":
+                    phi = self._compute_layer_phi(rec)
+                else:
+                    phi = self._compute_layer_phi_conditional(rec)
+            else:
+                phi = self._compute_layer_phi(rec)
+            if self.local_cfg.five_factor.layer_wise_phi_scale > 0:
+                phi = phi / (
+                    layer_depth**0.5 * self.local_cfg.five_factor.layer_wise_phi_scale
                 )
 
-            # HSIC/pHSIC auxiliary: add kernel-based gradients
-            if self.local_cfg.hsic.enabled:
-                v_out = rec.get("v_out")
-                if v_out is not None:
-                    z = v_out - v_out.mean(dim=0, keepdim=True)  # [B, out]
-                    # Optional warmup for HSIC weights over initial epochs
-                    hsic_warm = 1.0
-                    if (
-                        self.local_cfg.hsic.warmup_epochs > 0
-                        and self.epoch_counter < self.local_cfg.hsic.warmup_epochs
-                    ):
-                        hsic_warm = max(
-                            0.0,
-                            float(self.epoch_counter)
-                            / float(max(1, self.local_cfg.hsic.warmup_epochs)),
-                        )
-                    # Optionally restrict HSIC to last dendritic layer only
-                    if self.local_cfg.hsic.apply_last_layer_only:
-                        is_last = layer_idx == len(layer_records) - 1
-                        if not is_last:
-                            hsic_warm = 0.0
-                    if self.local_cfg.hsic.self_weight != 0.0:
-                        grad_z_self = self._compute_hsic_gradient(
-                            z, z, self.local_cfg.hsic.self_weight * hsic_warm, "self"
-                        )
-                        # Optional HSIC grad clipping
-                        if self.local_cfg.hsic.grad_clip_value > 0:
-                            grad_z_self = torch.clamp(
-                                grad_z_self,
-                                min=-self.local_cfg.hsic.grad_clip_value,
-                                max=self.local_cfg.hsic.grad_clip_value,
-                            )
-                        if exc_layer is not None and rec.get("x_exc") is not None:
-                            x_exc = rec["x_exc"]
-                            grad_g_self = grad_z_self.t() @ x_exc
-                            if self.local_cfg.normalize_by_batch:
-                                grad_g_self = grad_g_self / float(batch_size)
-                            g_curr = exc_layer.weight().detach()
-                            grad_param_self = grad_g_self * g_curr
-                            self._add_topk_grad(
-                                exc_layer, grad_param_self, rec.get("exc_mask")
-                            )
-                    if (
-                        self.local_cfg.hsic.target_weight != 0.0
-                        and y_target is not None
-                    ):
-                        y_centered = y_target - y_target.mean(dim=0, keepdim=True)
-                        grad_z_tgt = self._compute_hsic_gradient(
-                            z,
-                            y_centered,
-                            self.local_cfg.hsic.target_weight * hsic_warm,
-                            "target",
-                        )
-                        if self.local_cfg.hsic.grad_clip_value > 0:
-                            grad_z_tgt = torch.clamp(
-                                grad_z_tgt,
-                                min=-self.local_cfg.hsic.grad_clip_value,
-                                max=self.local_cfg.hsic.grad_clip_value,
-                            )
-                        if exc_layer is not None and rec.get("x_exc") is not None:
-                            x_exc = rec["x_exc"]
-                            grad_g_tgt = grad_z_tgt.t() @ x_exc
-                            if self.local_cfg.normalize_by_batch:
-                                grad_g_tgt = grad_g_tgt / float(batch_size)
-                            g_curr = exc_layer.weight().detach()
-                            grad_param_tgt = grad_g_tgt * g_curr
-                            self._add_topk_grad(
-                                exc_layer, grad_param_tgt, rec.get("exc_mask")
-                            )
+        branch_scale: torch.Tensor | float = 1.0
+        dendritic_branch_scale: torch.Tensor | float = 1.0
+        role_synaptic_alignment: Optional[torch.Tensor] = None
+        role_block_alignment: Optional[torch.Tensor] = None
+        using_branch_role_scale = self.local_cfg.morphology_aware.use_branch_role_rules
+        if using_branch_role_scale:
+            branch_scale, dendritic_branch_scale = self._get_branch_role_scales(rec)
+            (
+                role_synaptic_alignment,
+                role_block_alignment,
+            ) = self._get_branch_role_alignment_factors(rec)
+        if not using_branch_role_scale and (
+            self.local_cfg.morphology_aware.use_branch_type_rules
+            or self.local_cfg.morphology_aware.use_branch_length_modulation
+        ):
+            branch_scale = self._get_branch_type_scale(rec)
+            dendritic_branch_scale = branch_scale
+
+        return _LayerModulators(
+            rho=rho,
+            phi=phi,
+            branch_scale=branch_scale,
+            dendritic_branch_scale=dendritic_branch_scale,
+            role_synaptic_alignment=role_synaptic_alignment,
+            role_block_alignment=role_block_alignment,
+        )
+
+    def _compute_local_post_factors(
+        self,
+        *,
+        rec: dict[str, Any],
+        e_n: torch.Tensor,
+        v_n: torch.Tensor,
+        r_tot: torch.Tensor | float,
+        layer_dynamics_mode: str,
+        layer_idx: int,
+        modulators: _LayerModulators,
+    ) -> _PostFactors:
+        activation_derivative = self._get_layer_activation_derivative(
+            rec=rec,
+            v_n=v_n,
+            v_out=rec.get("v_out"),
+        )
+        if not isinstance(activation_derivative, torch.Tensor):
+            activation_derivative = torch.ones_like(v_n)
+        activation_derivative = activation_derivative.to(
+            device=v_n.device, dtype=v_n.dtype
+        )
+        e_v = e_n * activation_derivative
+
+        if layer_dynamics_mode == "conductance":
+            if self.local_cfg.three_factor.use_driving_force:
+                post_mod = self.local_cfg.three_factor.e_rev_exc - v_n  # [B, out]
+            else:
+                post_mod = v_n - self.local_cfg.three_factor.theta
+            post_factor = e_v * r_tot * post_mod  # [B, out]
+        else:
+            additive_mode = getattr(
+                self.local_cfg.three_factor, "additive_gain_mode", "none"
+            )
+            if additive_mode == "learned_gain":
+                gain_params = self._ensure_additive_gain_params(v_n.size(1), v_n.device)
+                gain_n = torch.sigmoid(gain_params)  # [out]
+                post_factor = e_v * gain_n.unsqueeze(0)  # [B, out]
+            elif additive_mode == "input_dependent":
+                pseudo_R, pseudo_drive = self._compute_additive_pseudo_signals(rec, v_n)
+                post_factor = e_v * pseudo_R * pseudo_drive  # [B, out]
+            elif additive_mode == "running_stats":
+                inv_std = self._get_additive_running_inv_std(layer_idx, v_n)
+                post_factor = e_v * inv_std  # [B, out]
+            else:
+                post_factor = e_v
+
+        post_factor_raw = post_factor
+        if isinstance(modulators.rho, torch.Tensor):
+            post_factor = post_factor * modulators.rho.unsqueeze(0)
+        else:
+            post_factor = post_factor * float(modulators.rho)
+
+        post_factor = post_factor * float(modulators.phi)
+
+        if isinstance(modulators.branch_scale, torch.Tensor):
+            post_factor = post_factor * modulators.branch_scale.unsqueeze(0)
+        else:
+            post_factor = post_factor * float(modulators.branch_scale)
+
+        return _PostFactors(
+            e_v=e_v,
+            post_factor=post_factor,
+            post_factor_raw=post_factor_raw,
+        )
+
+    def _apply_layer_local_gradients(
+        self,
+        *,
+        rec: dict[str, Any],
+        layer_idx: int,
+        num_layers: int,
+        y_target: Optional[torch.Tensor],
+        batch_size: int,
+        e_n: torch.Tensor,
+        stdp_error_signal: torch.Tensor,
+        v_n: torch.Tensor,
+        r_tot: torch.Tensor | float,
+        layer_dynamics_mode: str,
+        modulators: _LayerModulators,
+        post_factors: _PostFactors,
+        update_reactivation: bool,
+    ) -> None:
+        exc_layer = self._apply_excitatory_topk_local_grad(
+            rec=rec,
+            module_key="exc_module",
+            input_key="x_exc",
+            mask_key="exc_mask",
+            post_factor=post_factors.post_factor,
+            v_n=v_n,
+            r_tot=r_tot,
+            layer_dynamics_mode=layer_dynamics_mode,
+            batch_size=batch_size,
+            role_synaptic_alignment=modulators.role_synaptic_alignment,
+        )
+
+        self._apply_excitatory_topk_local_grad(
+            rec=rec,
+            module_key="rec_exc_module",
+            input_key="x_rec_exc",
+            mask_key="rec_exc_mask",
+            post_factor=post_factors.post_factor,
+            v_n=v_n,
+            r_tot=r_tot,
+            layer_dynamics_mode=layer_dynamics_mode,
+            batch_size=batch_size,
+            role_synaptic_alignment=modulators.role_synaptic_alignment,
+        )
+
+        self._apply_inhibitory_topk_local_grad(
+            rec=rec,
+            module_key="inh_module",
+            input_key="x_inh",
+            mask_key="inh_mask",
+            e_v=post_factors.e_v,
+            post_factor_raw=post_factors.post_factor_raw,
+            v_n=v_n,
+            r_tot=r_tot,
+            rho=modulators.rho,
+            phi=modulators.phi,
+            branch_scale=modulators.branch_scale,
+            layer_dynamics_mode=layer_dynamics_mode,
+            batch_size=batch_size,
+            role_synaptic_alignment=modulators.role_synaptic_alignment,
+        )
+
+        self._apply_inhibitory_topk_local_grad(
+            rec=rec,
+            module_key="rec_inh_module",
+            input_key="x_rec_inh",
+            mask_key="rec_inh_mask",
+            e_v=post_factors.e_v,
+            post_factor_raw=post_factors.post_factor_raw,
+            v_n=v_n,
+            r_tot=r_tot,
+            rho=modulators.rho,
+            phi=modulators.phi,
+            branch_scale=modulators.branch_scale,
+            layer_dynamics_mode=layer_dynamics_mode,
+            batch_size=batch_size,
+            role_synaptic_alignment=modulators.role_synaptic_alignment,
+        )
+
+        self._apply_dendritic_block_local_grad(
+            rec=rec,
+            e_v=post_factors.e_v,
+            post_factor_raw=post_factors.post_factor_raw,
+            v_n=v_n,
+            r_tot=r_tot,
+            rho=modulators.rho,
+            phi=modulators.phi,
+            dendritic_branch_scale=modulators.dendritic_branch_scale,
+            role_block_alignment=modulators.role_block_alignment,
+            layer_dynamics_mode=layer_dynamics_mode,
+            batch_size=batch_size,
+        )
+
+        self._apply_reactivation_local_grad(
+            rec=rec,
+            e_n=e_n,
+            v_n=v_n,
+            rho=modulators.rho,
+            phi=modulators.phi,
+            branch_scale=modulators.branch_scale,
+            update_reactivation=update_reactivation,
+        )
+
+        if self._stdp_enabled():
+            post_signal = rec.get("v_out")
+            if not isinstance(post_signal, torch.Tensor):
+                post_signal = v_n
+            self._apply_stdp_pathways(
+                rec=rec,
+                post_signal=post_signal,
+                error_signal=stdp_error_signal,
+            )
+
+        self._apply_hsic_auxiliary_gradients(
+            rec=rec,
+            exc_layer=exc_layer,
+            layer_idx=layer_idx,
+            num_layers=num_layers,
+            y_target=y_target,
+            batch_size=batch_size,
+        )
+
+    def _apply_excitatory_topk_local_grad(
+        self,
+        *,
+        rec: dict[str, Any],
+        module_key: str,
+        input_key: str,
+        mask_key: str,
+        post_factor: torch.Tensor,
+        v_n: torch.Tensor,
+        r_tot: Any,
+        layer_dynamics_mode: str,
+        batch_size: int,
+        role_synaptic_alignment: Optional[torch.Tensor],
+    ) -> Optional[TopKLinear]:
+        layer: Optional[TopKLinear] = rec.get(module_key)
+        if layer is None or rec.get(input_key) is None:
+            return layer
+
+        x_pre: torch.Tensor = rec[input_key]
+        grad_g = post_factor.t() @ x_pre
+        if self.local_cfg.normalize_by_batch:
+            grad_g = grad_g / float(batch_size)
+
+        voltage_homeo_error = self._compute_voltage_homeostasis_error(v_n)
+        if voltage_homeo_error is not None:
+            if layer_dynamics_mode == "conductance":
+                homeo_factor = (
+                    voltage_homeo_error
+                    * r_tot
+                    * (self.local_cfg.three_factor.e_rev_exc - v_n)
+                )
+            else:
+                homeo_factor = voltage_homeo_error
+            grad_homeo = homeo_factor.t() @ x_pre
+            if self.local_cfg.normalize_by_batch:
+                grad_homeo = grad_homeo / float(batch_size)
+            grad_g = grad_g + grad_homeo
+
+        if (
+            isinstance(role_synaptic_alignment, torch.Tensor)
+            and role_synaptic_alignment.size() == grad_g.size()
+        ):
+            grad_g = grad_g * role_synaptic_alignment.to(
+                device=grad_g.device, dtype=grad_g.dtype
+            )
+
+        chain = self._weight_transform_derivative(
+            layer.pre_w.detach(),
+            getattr(layer, "weight_transform", "exp"),
+        )
+        grad_param = grad_g * chain
+        self._add_topk_grad(layer, grad_param, rec.get(mask_key))
+        return layer
+
+    def _apply_inhibitory_topk_local_grad(
+        self,
+        *,
+        rec: dict[str, Any],
+        module_key: str,
+        input_key: str,
+        mask_key: str,
+        e_v: torch.Tensor,
+        post_factor_raw: torch.Tensor,
+        v_n: torch.Tensor,
+        r_tot: Any,
+        rho: Any,
+        phi: float,
+        branch_scale: Any,
+        layer_dynamics_mode: str,
+        batch_size: int,
+        role_synaptic_alignment: Optional[torch.Tensor],
+    ) -> Optional[TopKLinear]:
+        layer: Optional[TopKLinear] = rec.get(module_key)
+        if layer is None or rec.get(input_key) is None:
+            return layer
+
+        x_pre: torch.Tensor = rec[input_key]
+        if layer_dynamics_mode == "conductance":
+            if self.local_cfg.three_factor.use_driving_force:
+                inh_post = self.local_cfg.three_factor.e_rev_inh - v_n
+            else:
+                inh_post = self.local_cfg.three_factor.theta - v_n
+            inh_factor = e_v * r_tot * inh_post
+        else:
+            additive_mode = getattr(
+                self.local_cfg.three_factor, "additive_gain_mode", "none"
+            )
+            if additive_mode == "input_dependent":
+                pseudo_R, _ = self._compute_additive_pseudo_signals(rec, v_n)
+                inh_post = self.local_cfg.three_factor.theta - v_n
+                inh_factor = e_v * pseudo_R * inh_post
+            elif additive_mode in ("learned_gain", "running_stats"):
+                inh_factor = -post_factor_raw
+            else:
+                inh_factor = -e_v
+
+        if isinstance(rho, torch.Tensor):
+            inh_factor = inh_factor * rho.unsqueeze(0)
+        else:
+            inh_factor = (
+                inh_factor * float(rho)
+                if self.local_cfg.rule_variant in {"4f", "5f"}
+                else inh_factor
+            )
+
+        inh_factor = (
+            inh_factor * float(phi)
+            if self.local_cfg.rule_variant == "5f"
+            else inh_factor
+        )
+
+        if isinstance(branch_scale, torch.Tensor):
+            inh_factor = inh_factor * branch_scale.unsqueeze(0)
+        else:
+            inh_factor = inh_factor * float(branch_scale)
+
+        grad_g = inh_factor.t() @ x_pre
+        if self.local_cfg.normalize_by_batch:
+            grad_g = grad_g / float(batch_size)
+
+        if (
+            isinstance(role_synaptic_alignment, torch.Tensor)
+            and role_synaptic_alignment.size() == grad_g.size()
+        ):
+            grad_g = grad_g * role_synaptic_alignment.to(
+                device=grad_g.device, dtype=grad_g.dtype
+            )
+
+        voltage_homeo_error = self._compute_voltage_homeostasis_error(v_n)
+        if voltage_homeo_error is not None:
+            if layer_dynamics_mode == "conductance":
+                homeo_factor = (
+                    voltage_homeo_error
+                    * r_tot
+                    * (self.local_cfg.three_factor.e_rev_inh - v_n)
+                )
+            else:
+                homeo_factor = -voltage_homeo_error
+            grad_homeo = homeo_factor.t() @ x_pre
+            if self.local_cfg.normalize_by_batch:
+                grad_homeo = grad_homeo / float(batch_size)
+            grad_g = grad_g + grad_homeo
+
+        inhibitory_homeo_factor = self._compute_inhibitory_homeostasis_factor(
+            rec=rec, R_tot=r_tot, v_n=v_n
+        )
+        if inhibitory_homeo_factor is not None:
+            grad_homeo = inhibitory_homeo_factor.t() @ x_pre
+            if self.local_cfg.normalize_by_batch:
+                grad_homeo = grad_homeo / float(batch_size)
+            grad_g = grad_g + grad_homeo
+
+        chain = self._weight_transform_derivative(
+            layer.pre_w.detach(),
+            getattr(layer, "weight_transform", "exp"),
+        )
+        grad_param = grad_g * chain
+        self._add_topk_grad(layer, grad_param, rec.get(mask_key))
+        return layer
+
+    def _apply_dendritic_block_local_grad(
+        self,
+        *,
+        rec: dict[str, Any],
+        e_v: torch.Tensor,
+        post_factor_raw: torch.Tensor,
+        v_n: torch.Tensor,
+        r_tot: Any,
+        rho: Any,
+        phi: float,
+        dendritic_branch_scale: Any,
+        role_block_alignment: Optional[torch.Tensor],
+        layer_dynamics_mode: str,
+        batch_size: int,
+    ) -> None:
+        blk_layer = rec.get("blk_module")
+        x_blk_raw = rec.get("x_blk_raw")
+        if blk_layer is None or x_blk_raw is None:
+            return
+
+        block_size = blk_layer.block_size
+        x_blk = x_blk_raw.view(x_blk_raw.size(0), blk_layer.out_features, block_size)
+        if layer_dynamics_mode == "conductance":
+            diff = x_blk - v_n.unsqueeze(-1)
+            if isinstance(r_tot, torch.Tensor):
+                r_exp = r_tot.unsqueeze(-1)
+            else:
+                r_exp = torch.ones_like(v_n).unsqueeze(-1) * float(r_tot)
+            den_factor = e_v.unsqueeze(-1) * r_exp * diff
+        else:
+            additive_mode = getattr(
+                self.local_cfg.three_factor, "additive_gain_mode", "none"
+            )
+            if additive_mode == "input_dependent":
+                pseudo_R, _ = self._compute_additive_pseudo_signals(rec, v_n)
+                diff = x_blk - v_n.unsqueeze(-1)
+                den_factor = e_v.unsqueeze(-1) * pseudo_R.unsqueeze(-1) * diff
+            elif additive_mode in ("learned_gain", "running_stats"):
+                den_factor = post_factor_raw.unsqueeze(-1) * x_blk
+            else:
+                den_factor = e_v.unsqueeze(-1) * x_blk
+
+        if self.local_cfg.rule_variant in {"4f", "5f"}:
+            if isinstance(rho, torch.Tensor):
+                den_factor = den_factor * rho.unsqueeze(0).unsqueeze(-1)
+            else:
+                den_factor = den_factor * float(rho)
+
+        if self.local_cfg.rule_variant == "5f":
+            den_factor = den_factor * float(phi)
+
+        if isinstance(dendritic_branch_scale, torch.Tensor):
+            if dendritic_branch_scale.dim() == 2:
+                den_factor = den_factor * dendritic_branch_scale.unsqueeze(0)
+            else:
+                den_factor = den_factor * dendritic_branch_scale.unsqueeze(0).unsqueeze(
+                    -1
+                )
+        else:
+            den_factor = den_factor * float(dendritic_branch_scale)
+
+        grad_g_den = den_factor.mean(dim=0)
+        if not self.local_cfg.normalize_by_batch:
+            grad_g_den = grad_g_den * float(batch_size)
+
+        voltage_homeo_error = self._compute_voltage_homeostasis_error(v_n)
+        if voltage_homeo_error is not None:
+            if layer_dynamics_mode == "conductance":
+                diff_homeo = x_blk - v_n.unsqueeze(-1)
+                if isinstance(r_tot, torch.Tensor):
+                    r_homeo = r_tot.unsqueeze(-1)
+                else:
+                    r_homeo = torch.ones_like(v_n).unsqueeze(-1) * float(r_tot)
+                den_homeo_factor = (
+                    voltage_homeo_error.unsqueeze(-1) * r_homeo * diff_homeo
+                )
+            else:
+                den_homeo_factor = voltage_homeo_error.unsqueeze(-1) * x_blk
+            grad_homeo_den = den_homeo_factor.mean(dim=0)
+            if not self.local_cfg.normalize_by_batch:
+                grad_homeo_den = grad_homeo_den * float(batch_size)
+            grad_g_den = grad_g_den + grad_homeo_den
+
+        if (
+            isinstance(role_block_alignment, torch.Tensor)
+            and role_block_alignment.size() == grad_g_den.size()
+        ):
+            grad_g_den = grad_g_den * role_block_alignment.to(
+                device=grad_g_den.device, dtype=grad_g_den.dtype
+            )
+
+        if self.local_cfg.morphology_aware.use_dendritic_normalization:
+            grad_g_den = self._compute_dendritic_normalization(rec, grad_g_den)
+
+        den_chain = self._weight_transform_derivative(
+            blk_layer.log_weight.detach(),
+            getattr(blk_layer, "weight_transform", "exp"),
+        )
+        grad_param_den = grad_g_den * den_chain
+        if blk_layer.log_weight.grad is None:
+            blk_layer.log_weight.grad = grad_param_den.to(blk_layer.log_weight.dtype)
+        else:
+            blk_layer.log_weight.grad = blk_layer.log_weight.grad + grad_param_den.to(
+                blk_layer.log_weight.dtype
+            )
+
+    def _apply_reactivation_local_grad(
+        self,
+        *,
+        rec: dict[str, Any],
+        e_n: torch.Tensor,
+        v_n: torch.Tensor,
+        rho: Any,
+        phi: float,
+        branch_scale: Any,
+        update_reactivation: bool,
+    ) -> None:
+        react_module = getattr(rec.get("layer"), "reactivation", None)
+        v_out = rec.get("v_out")
+        if not (
+            update_reactivation
+            and isinstance(react_module, ParametricActivation)
+            and v_n is not None
+            and v_out is not None
+        ):
+            return
+
+        if hasattr(react_module, "log_m"):
+            y = v_out
+            one_minus_y2 = 1 - (2 * y - 1) ** 2
+            if hasattr(react_module, "b"):
+                elig_m = one_minus_y2 * (v_n - react_module.b.detach())
+            else:
+                elig_m = one_minus_y2 * v_n
+            m_vec = react_module.log_m.detach().exp()
+            react_factor = e_n
+            if isinstance(rho, torch.Tensor):
+                react_factor = react_factor * rho.unsqueeze(0)
+            else:
+                react_factor = react_factor * float(rho)
+            react_factor = react_factor * float(phi)
+            if isinstance(branch_scale, torch.Tensor):
+                react_factor = react_factor * branch_scale.unsqueeze(0)
+            else:
+                react_factor = react_factor * float(branch_scale)
+            grad_m = (react_factor * elig_m).mean(dim=0)
+            grad_log_m = grad_m * m_vec
+            if react_module.log_m.grad is None:
+                react_module.log_m.grad = grad_log_m.to(react_module.log_m.dtype)
+            else:
+                react_module.log_m.grad = react_module.log_m.grad + grad_log_m.to(
+                    react_module.log_m.dtype
+                )
+
+        if hasattr(react_module, "b"):
+            y = v_out
+            one_minus_y2 = 1 - (2 * y - 1) ** 2
+            m_vec = (
+                react_module.log_m.detach().exp()
+                if hasattr(react_module, "log_m")
+                else 1.0
+            )
+            elig_b = -one_minus_y2 * m_vec
+            react_factor_b = e_n
+            if isinstance(rho, torch.Tensor):
+                react_factor_b = react_factor_b * rho.unsqueeze(0)
+            else:
+                react_factor_b = react_factor_b * float(rho)
+            react_factor_b = react_factor_b * float(phi)
+            if isinstance(branch_scale, torch.Tensor):
+                react_factor_b = react_factor_b * branch_scale.unsqueeze(0)
+            else:
+                react_factor_b = react_factor_b * float(branch_scale)
+            grad_b = (react_factor_b * elig_b).mean(dim=0)
+            if react_module.b.grad is None:
+                react_module.b.grad = grad_b.to(react_module.b.dtype)
+            else:
+                react_module.b.grad = react_module.b.grad + grad_b.to(
+                    react_module.b.dtype
+                )
+
+        aux_grad_log_m, aux_grad_b = self._compute_gate_homeostasis_aux_grads(
+            react_module=react_module,
+            v_n=v_n,
+            v_out=v_out,
+        )
+        if aux_grad_log_m is not None and hasattr(react_module, "log_m"):
+            if react_module.log_m.grad is None:
+                react_module.log_m.grad = aux_grad_log_m.to(react_module.log_m.dtype)
+            else:
+                react_module.log_m.grad = react_module.log_m.grad + aux_grad_log_m.to(
+                    react_module.log_m.dtype
+                )
+        if (
+            aux_grad_b is not None
+            and hasattr(react_module, "b")
+            and react_module.b is not None
+        ):
+            if react_module.b.grad is None:
+                react_module.b.grad = aux_grad_b.to(react_module.b.dtype)
+            else:
+                react_module.b.grad = react_module.b.grad + aux_grad_b.to(
+                    react_module.b.dtype
+                )
+
+    def _apply_hsic_auxiliary_gradients(
+        self,
+        *,
+        rec: dict[str, Any],
+        exc_layer: Optional[TopKLinear],
+        layer_idx: int,
+        num_layers: int,
+        y_target: Optional[torch.Tensor],
+        batch_size: int,
+    ) -> None:
+        if not self.local_cfg.hsic.enabled:
+            return
+
+        v_out = rec.get("v_out")
+        if v_out is None:
+            return
+
+        z = v_out - v_out.mean(dim=0, keepdim=True)
+        hsic_warm = 1.0
+        if (
+            self.local_cfg.hsic.warmup_epochs > 0
+            and self.epoch_counter < self.local_cfg.hsic.warmup_epochs
+        ):
+            hsic_warm = max(
+                0.0,
+                float(self.epoch_counter)
+                / float(max(1, self.local_cfg.hsic.warmup_epochs)),
+            )
+
+        if self.local_cfg.hsic.apply_last_layer_only:
+            is_last = layer_idx == num_layers - 1
+            if not is_last:
+                hsic_warm = 0.0
+
+        if self.local_cfg.hsic.self_weight != 0.0:
+            grad_z_self = self._compute_hsic_gradient(
+                z, z, self.local_cfg.hsic.self_weight * hsic_warm, "self"
+            )
+            if self.local_cfg.hsic.grad_clip_value > 0:
+                grad_z_self = torch.clamp(
+                    grad_z_self,
+                    min=-self.local_cfg.hsic.grad_clip_value,
+                    max=self.local_cfg.hsic.grad_clip_value,
+                )
+            if exc_layer is not None and rec.get("x_exc") is not None:
+                x_exc = rec["x_exc"]
+                grad_g_self = grad_z_self.t() @ x_exc
+                if self.local_cfg.normalize_by_batch:
+                    grad_g_self = grad_g_self / float(batch_size)
+                g_curr = exc_layer.weight().detach()
+                grad_param_self = grad_g_self * g_curr
+                self._add_topk_grad(exc_layer, grad_param_self, rec.get("exc_mask"))
+
+        if self.local_cfg.hsic.target_weight != 0.0 and y_target is not None:
+            y_centered = y_target - y_target.mean(dim=0, keepdim=True)
+            grad_z_tgt = self._compute_hsic_gradient(
+                z,
+                y_centered,
+                self.local_cfg.hsic.target_weight * hsic_warm,
+                "target",
+            )
+            if self.local_cfg.hsic.grad_clip_value > 0:
+                grad_z_tgt = torch.clamp(
+                    grad_z_tgt,
+                    min=-self.local_cfg.hsic.grad_clip_value,
+                    max=self.local_cfg.hsic.grad_clip_value,
+                )
+            if exc_layer is not None and rec.get("x_exc") is not None:
+                x_exc = rec["x_exc"]
+                grad_g_tgt = grad_z_tgt.t() @ x_exc
+                if self.local_cfg.normalize_by_batch:
+                    grad_g_tgt = grad_g_tgt / float(batch_size)
+                g_curr = exc_layer.weight().detach()
+                grad_param_tgt = grad_g_tgt * g_curr
+                self._add_topk_grad(exc_layer, grad_param_tgt, rec.get("exc_mask"))
 
     # ----------------------- Helper: HSIC kernel functions ------------------
 

@@ -7,6 +7,8 @@ analysis:
       batch_size: 256
       num_workers: 4
       pin_memory: true
+      persistent_workers: true
+      prefetch_factor: 4
       max_batches: null
       max_samples: null
       materialize_threshold_mb: 1024
@@ -15,6 +17,8 @@ analysis:
       batch_size: 256
       num_workers: 4
       pin_memory: true
+      persistent_workers: true
+      prefetch_factor: 4
       max_batches: null
       max_samples: null
       materialize_threshold_mb: 1024
@@ -344,10 +348,10 @@ training:
     strategy: standard
   main:
     common:
-      num_workers: 4
+      num_workers: 8
       pin_memory: true
       persistent_workers: true
-      prefetch_factor: null
+      prefetch_factor: 4
       param_groups: {}
       weight_decay_rate: 0.0
     pruning: {}

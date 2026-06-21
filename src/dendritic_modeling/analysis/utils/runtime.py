@@ -100,12 +100,22 @@ def make_analysis_loader(
         runtime = EvaluationRuntimeConfig()
     dataset_view = subset_dataset_for_runtime(dataset, runtime, explicit_max_samples)
     pin = resolve_analysis_pin_memory(runtime, device)
+    num_workers = max(0, int(getattr(runtime, "num_workers", 0)))
+    persistent_workers = bool(getattr(runtime, "persistent_workers", False))
+    if persistent_workers and num_workers == 0:
+        raise ValueError("persistent_workers=True requires num_workers > 0")
+    loader_kwargs = {}
+    prefetch_factor = getattr(runtime, "prefetch_factor", None)
+    if prefetch_factor is not None and num_workers > 0:
+        loader_kwargs["prefetch_factor"] = max(1, int(prefetch_factor))
     return DataLoader(
         dataset_view,
         batch_size=runtime.batch_size,
         shuffle=False,
-        num_workers=runtime.num_workers,
+        num_workers=num_workers,
         pin_memory=pin,
+        persistent_workers=persistent_workers,
+        **loader_kwargs,
     )
 
 

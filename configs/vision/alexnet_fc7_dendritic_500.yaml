@@ -106,6 +106,10 @@ training:
     common:
       epochs: 50
       batch_size: 128
+      num_workers: 8
+      pin_memory: true
+      persistent_workers: true
+      prefetch_factor: 4
       shuffle: true
       grad_clip_value: 5.0
       loss_function: "cat_nll"
@@ -133,6 +137,9 @@ analysis:
       mode: "stream"
       batch_size: 128
       num_workers: 4
+      pin_memory: true
+      persistent_workers: true
+      prefetch_factor: 4
   performance:
     enabled: true
     training: false

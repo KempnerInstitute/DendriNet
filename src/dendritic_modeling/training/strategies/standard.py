@@ -27,6 +27,7 @@ from dendritic_modeling.config.training import (
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import ParametricActivation
 from dendritic_modeling.plotting import plot_loss_curves
+from dendritic_modeling.training.dataloader_utils import resolve_dataloader_tuning
 from dendritic_modeling.training.distributed_samplers import (
     PaddedDistributedEvalSampler,
 )
@@ -202,62 +203,22 @@ class Trainer:
     def _dataloaders(
         self, train_data: torch.utils.data.Dataset, valid_data: torch.utils.data.Dataset
     ) -> tuple[DataLoader, DataLoader]:
-        # Respect scheduler CPU affinity when available (e.g., SLURM cpus-per-task).
-        available_cpus = os.cpu_count() or 1
-        if hasattr(os, "sched_getaffinity"):
-            try:
-                available_cpus = len(os.sched_getaffinity(0))
-            except OSError:
-                pass
-
-        # Determine number of workers automatically or use override
-        if hasattr(self, "num_workers") and self.num_workers is not None:
-            num_workers = max(0, int(self.num_workers))
-        else:
-            if torch.cuda.is_available():
-                # On GPU jobs, cap workers to avoid oversubscription warnings/freezes.
-                num_workers = min(16, available_cpus)
-            else:
-                # On CPU-only runs, leave one core for the main process and cap to 8.
-                num_workers = min(8, max(0, available_cpus - 1))
-
-        # Never spawn more workers than visible CPUs.
-        if num_workers > available_cpus:
-            num_workers = available_cpus
-
-        # Log the auto-detected value
-        if not self.suppress_prints and (
-            not hasattr(self, "num_workers") or self.num_workers is None
-        ):
-            total_cpus = os.cpu_count() or available_cpus
+        tuning = resolve_dataloader_tuning(
+            train_data,
+            device=getattr(self, "device", None),
+            num_workers=getattr(self, "num_workers", None),
+            pin_memory=getattr(self, "pin_memory", None),
+            persistent_workers=getattr(self, "persistent_workers", None),
+            prefetch_factor=getattr(self, "prefetch_factor", None),
+        )
+        if not self.suppress_prints and tuning.auto_num_workers:
+            total_cpus = os.cpu_count() or tuning.available_cpus
             logger.info(
                 "Auto-detected num_workers=%s (visible CPUs: %s, total system CPUs: %s)",
-                num_workers,
-                available_cpus,
+                tuning.num_workers,
+                tuning.available_cpus,
                 total_cpus,
             )
-
-        pin_memory_cfg = getattr(self, "pin_memory", None)
-        persistent_workers_cfg = getattr(self, "persistent_workers", None)
-        prefetch_factor_cfg = getattr(self, "prefetch_factor", None)
-
-        use_pin_memory = (
-            bool(pin_memory_cfg)
-            if pin_memory_cfg is not None
-            else torch.cuda.is_available() and num_workers > 0
-        )
-        if persistent_workers_cfg is None:
-            use_persistent = num_workers > 0
-        else:
-            use_persistent = bool(persistent_workers_cfg)
-            if use_persistent and num_workers == 0:
-                raise ValueError("persistent_workers=True requires num_workers > 0")
-        if prefetch_factor_cfg is not None and num_workers == 0:
-            raise ValueError("prefetch_factor requires num_workers > 0")
-
-        loader_kwargs = {}
-        if prefetch_factor_cfg is not None:
-            loader_kwargs["prefetch_factor"] = max(1, int(prefetch_factor_cfg))
 
         # Use distributed samplers for training and validation under DDP.
         # Validation uses an explicit padding sentinel sampler so every rank
@@ -289,20 +250,14 @@ class Trainer:
             batch_size=self.batch_size,
             shuffle=train_shuffle,
             sampler=self._train_sampler,
-            num_workers=num_workers,
-            pin_memory=use_pin_memory,
-            persistent_workers=use_persistent,
-            **loader_kwargs,
+            **tuning.as_kwargs(),
         )
         valid_loader = DataLoader(
             valid_data,
             batch_size=self.batch_size,
             shuffle=False,
             sampler=self._valid_sampler,
-            num_workers=num_workers,
-            pin_memory=use_pin_memory,
-            persistent_workers=use_persistent,
-            **loader_kwargs,
+            **tuning.as_kwargs(),
         )
         return train_loader, valid_loader
 

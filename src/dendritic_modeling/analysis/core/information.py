@@ -1386,305 +1386,22 @@ class InformationAnalyzer(
             if "num_layers" in results:
                 self.logger.info(f"   - Layers processed: {results['num_layers']}")
 
-            # Check if we need to add synthetic soma entry
-            # This is only needed when somatic_synapses=False AND the soma layer
-            # wasn't captured by forward hooks (shouldn't happen now that we fixed hooks)
-            somatic_synapses = getattr(model.core_network, "somatic_synapses", True)
-            self.logger.info(f"Somatic synapses enabled: {somatic_synapses}")
-
-            # Find if the actual soma layer is already in layer_statistics
-            soma_already_captured = False
-            if "layer_statistics" in results:
-                for layer_name in results["layer_statistics"].keys():
-                    if "branch_layers." in layer_name:
-                        try:
-                            # Find the highest index layer (soma)
-                            branch_idx = int(
-                                layer_name.split("branch_layers.")[1].split(".")[0]
-                            )
-                            # Check if this is a soma layer (no synapses)
-                            layer_data = results["layer_statistics"][layer_name]
-                            if layer_data.get("has_synapses") is False:
-                                soma_already_captured = True
-                                self.logger.info(
-                                    f"Soma layer already captured: {layer_name}"
-                                )
-                                break
-                        except (ValueError, IndexError):
-                            continue
-
-            # Only add synthetic soma if the real soma wasn't captured
-            if (
-                not somatic_synapses
-                and "layer_statistics" in results
-                and not soma_already_captured
-            ):
-                self.logger.info(
-                    f"Adding synthetic soma entry to {len(results['layer_statistics'])} existing layers"
-                )
-
-                # Find the real soma layer to get its Vout information
-                # The real soma is the layer with the highest branch index (corresponds to layer_idx=0)
-                soma_vout_mean = 0.0
-                soma_vout_std = 0.0
-
-                # Find the layer with the highest branch index in layer_statistics
-                max_branch_idx = -1
-                real_soma_layer = None
-
-                for layer_name, _layer_data in results["layer_statistics"].items():
-                    if "branch_layers." in layer_name:
-                        try:
-                            branch_idx = int(
-                                layer_name.split("branch_layers.")[1].split(".")[0]
-                            )
-                            if branch_idx > max_branch_idx:
-                                max_branch_idx = branch_idx
-                                real_soma_layer = layer_name
-                        except (ValueError, IndexError):
-                            continue
-
-                # Extract I(Vout;C) and I(Vb;C) from the real soma layer
-                # The soma still receives branch input from dendrites (Vb),
-                # even when somatic_synapses=False (no E/I synapses at soma)
-                soma_vb_mean = 0.0
-                soma_vb_std = 0.0
-                soma_vb_lin_mean = 0.0
-                soma_vb_lin_std = 0.0
-                soma_vb_vout_mean = 0.0
-                soma_vb_vout_std = 0.0
-                soma_vb_vout_c_mean = 0.0
-                soma_vb_vout_c_std = 0.0
-                soma_vb_lin_vout_mean = 0.0
-                soma_vb_lin_vout_std = 0.0
-                soma_vb_lin_vout_c_mean = 0.0
-                soma_vb_lin_vout_c_std = 0.0
-                # Vout_lin metrics
-                soma_vout_lin_mean = 0.0
-                soma_vout_lin_std = 0.0
-
-                if real_soma_layer and real_soma_layer in results["layer_statistics"]:
-                    real_soma_stats = results["layer_statistics"][real_soma_layer]
-                    soma_vout_mean = real_soma_stats.get("I(Vout;C)_mean", 0.0)
-                    soma_vout_std = real_soma_stats.get("I(Vout;C)_std", 0.0)
-                    # Get Vb metrics from real soma layer - these represent dendrites feeding into soma
-                    soma_vb_mean = real_soma_stats.get("I(Vb;C)_mean", 0.0)
-                    soma_vb_std = real_soma_stats.get("I(Vb;C)_std", 0.0)
-                    soma_vb_lin_mean = real_soma_stats.get("I(Vb_lin;C)_mean", 0.0)
-                    soma_vb_lin_std = real_soma_stats.get("I(Vb_lin;C)_std", 0.0)
-                    # Get Vb-related pairwise and conditional MI
-                    soma_vb_vout_mean = real_soma_stats.get("I(Vb;Vout)_mean", 0.0)
-                    soma_vb_vout_std = real_soma_stats.get("I(Vb;Vout)_std", 0.0)
-                    soma_vb_vout_c_mean = real_soma_stats.get("I(Vb;Vout|C)_mean", 0.0)
-                    soma_vb_vout_c_std = real_soma_stats.get("I(Vb;Vout|C)_std", 0.0)
-                    soma_vb_lin_vout_mean = real_soma_stats.get(
-                        "I(Vb_lin;Vout_lin)_mean", 0.0
-                    )
-                    soma_vb_lin_vout_std = real_soma_stats.get(
-                        "I(Vb_lin;Vout_lin)_std", 0.0
-                    )
-                    soma_vb_lin_vout_c_mean = real_soma_stats.get(
-                        "I(Vb_lin;Vout_lin|C)_mean", 0.0
-                    )
-                    soma_vb_lin_vout_c_std = real_soma_stats.get(
-                        "I(Vb_lin;Vout_lin|C)_std", 0.0
-                    )
-                    # Get Vout_lin metrics from real soma layer
-                    soma_vout_lin_mean = real_soma_stats.get("I(Vout_lin;C)_mean", 0.0)
-                    soma_vout_lin_std = real_soma_stats.get("I(Vout_lin;C)_std", 0.0)
-                    self.logger.info(f"Found real soma layer: {real_soma_layer}")
-                    self.logger.info(
-                        f"Using real soma I(Vout;C): {soma_vout_mean:.4f} ± {soma_vout_std:.4f}"
-                    )
-                    self.logger.info(
-                        f"Using real soma I(Vb;C): {soma_vb_mean:.4f} ± {soma_vb_std:.4f}"
-                    )
-                else:
-                    self.logger.warning(
-                        "Could not find real soma layer for I(Vout;C) computation"
-                    )
-
-                # Add synthetic soma entry with appropriate values
-                # Note: E/I synapses are zero, but Vb (branch input from dendrites) carries information
-                soma_entry = {
-                    "I(E;C)_mean": 0.0,  # Zero - no excitatory synapses
-                    "I(E;C)_std": 0.0,
-                    "I(I;C)_mean": 0.0,  # Zero - no inhibitory synapses
-                    "I(I;C)_std": 0.0,
-                    # Dendrites still feed into soma - use real soma layer's Vb values
-                    "I(Vb;C)_mean": soma_vb_mean,
-                    "I(Vb;C)_std": soma_vb_std,
-                    "I(Vout;C)_mean": soma_vout_mean,  # Real computed value from soma output
-                    "I(Vout;C)_std": soma_vout_std,  # Real computed std from soma output
-                    "I(E,I;C)_mean": 0.0,  # Zero - no synapses
-                    "I(E,I;C)_std": 0.0,
-                    # LDA metrics - E/I are zero (no synapses), but Vb_lin carries information
-                    "I(E_lin;C)_mean": 0.0,
-                    "I(E_lin;C)_std": 0.0,
-                    "I(I_lin;C)_mean": 0.0,
-                    "I(I_lin;C)_std": 0.0,
-                    "I(Vb_lin;C)_mean": soma_vb_lin_mean,
-                    "I(Vb_lin;C)_std": soma_vb_lin_std,
-                    "I(Vout_lin;C)_mean": soma_vout_lin_mean,
-                    "I(Vout_lin;C)_std": soma_vout_lin_std,
-                    "I(E_lin,I_lin;C)_mean": 0.0,
-                    "I(E_lin,I_lin;C)_std": 0.0,
-                    # Pairwise MI
-                    "I(E;I)_mean": 0.0,  # Zero - no synapses
-                    "I(E;I)_std": 0.0,
-                    "I(E;Vout)_mean": 0.0,  # Zero - no excitatory synapses
-                    "I(E;Vout)_std": 0.0,
-                    "I(I;Vout)_mean": 0.0,  # Zero - no inhibitory synapses
-                    "I(I;Vout)_std": 0.0,
-                    "I(E;Vb)_mean": 0.0,
-                    "I(E;Vb)_std": 0.0,
-                    "I(I;Vb)_mean": 0.0,
-                    "I(I;Vb)_std": 0.0,
-                    # Vb;Vout is meaningful - dendrites to soma output
-                    "I(Vb;Vout)_mean": soma_vb_vout_mean,
-                    "I(Vb;Vout)_std": soma_vb_vout_std,
-                    # LDA pairwise MI - use Vout_lin for consistency
-                    "I(E_lin;I_lin)_mean": 0.0,
-                    "I(E_lin;I_lin)_std": 0.0,
-                    "I(E_lin;Vout_lin)_mean": 0.0,
-                    "I(E_lin;Vout_lin)_std": 0.0,
-                    "I(I_lin;Vout_lin)_mean": 0.0,
-                    "I(I_lin;Vout_lin)_std": 0.0,
-                    "I(E_lin;Vb_lin)_mean": 0.0,
-                    "I(E_lin;Vb_lin)_std": 0.0,
-                    "I(I_lin;Vb_lin)_mean": 0.0,
-                    "I(I_lin;Vb_lin)_std": 0.0,
-                    # Vb_lin;Vout_lin is meaningful
-                    "I(Vb_lin;Vout_lin)_mean": soma_vb_lin_vout_mean,
-                    "I(Vb_lin;Vout_lin)_std": soma_vb_lin_vout_std,
-                    # Conditional MI
-                    "I(E;I|C)_mean": 0.0,  # Zero - no synapses
-                    "I(E;I|C)_std": 0.0,
-                    "I(E;Vout|C)_mean": 0.0,  # Zero - no excitatory synapses
-                    "I(E;Vout|C)_std": 0.0,
-                    "I(I;Vout|C)_mean": 0.0,  # Zero - no inhibitory synapses
-                    "I(I;Vout|C)_std": 0.0,
-                    "I(E;Vb|C)_mean": 0.0,
-                    "I(E;Vb|C)_std": 0.0,
-                    "I(I;Vb|C)_mean": 0.0,
-                    "I(I;Vb|C)_std": 0.0,
-                    # Vb;Vout|C is meaningful
-                    "I(Vb;Vout|C)_mean": soma_vb_vout_c_mean,
-                    "I(Vb;Vout|C)_std": soma_vb_vout_c_std,
-                    # LDA conditional MI - use Vout_lin for consistency
-                    "I(E_lin;I_lin|C)_mean": 0.0,
-                    "I(E_lin;I_lin|C)_std": 0.0,
-                    "I(E_lin;Vout_lin|C)_mean": 0.0,
-                    "I(E_lin;Vout_lin|C)_std": 0.0,
-                    "I(I_lin;Vout_lin|C)_mean": 0.0,
-                    "I(I_lin;Vout_lin|C)_std": 0.0,
-                    "I(E_lin;Vb_lin|C)_mean": 0.0,
-                    "I(E_lin;Vb_lin|C)_std": 0.0,
-                    "I(I_lin;Vb_lin|C)_mean": 0.0,
-                    "I(I_lin;Vb_lin|C)_std": 0.0,
-                    # Vb_lin;Vout_lin|C is meaningful
-                    "I(Vb_lin;Vout_lin|C)_mean": soma_vb_lin_vout_c_mean,
-                    "I(Vb_lin;Vout_lin|C)_std": soma_vb_lin_vout_c_std,
-                }
-                # Remove any metrics that depend on non-existent synapses (E/I) so we don't
-                # implicitly treat them as zero-valued measurements.
-                soma_entry = {
-                    k: v
-                    for k, v in soma_entry.items()
-                    if self._keep_metric_key_given_availability(
-                        k,
-                        has_exc_synapses=False,
-                        has_inh_synapses=False,
-                        has_branch_input=True,
-                    )
-                }
-                soma_entry["has_synapses"] = False
-                # Add soma entry to layer_statistics
-                results["layer_statistics"]["synthetic_soma"] = soma_entry
-                self.logger.info(
-                    f"Added synthetic soma with real I(Vout;C)={soma_vout_mean:.4f}. Total layers now: {len(results['layer_statistics'])}"
-                )
-            elif not somatic_synapses and "layer_statistics" in results:
-                # The real soma layer (has_synapses=False) was captured by hooks.
-                self.logger.info(
-                    "Soma layer already captured; skipping synthetic soma."
-                )
-            elif not somatic_synapses and "layer_statistics" not in results:
-                self.logger.warning(
-                    "somatic_synapses=False but no layer_statistics found in results"
-                )
-
-            # ------------------------------------------------------------------
-            # Unit handling: estimators produce nats; optionally convert to bits
-            # for saved results and plots.
-            # ------------------------------------------------------------------
-            results["information_units"] = getattr(self, "output_units", "nats")
-            if results["information_units"] == "bits":
-                self._convert_information_units_in_place(results)
-
-            # Compute variance analysis for plotting (AFTER synthetic soma is added)
-            self.logger.info("Computing variance analysis for plotting...")
-            variance_analysis = self._compute_variance_analysis(results)
-            results["variance_analysis"] = variance_analysis
-            self.logger.info(
-                f"Variance analysis computed with {len(variance_analysis.get('layer_variances', {}))} layers"
+            somatic_synapses = self._add_synthetic_soma_entry_if_needed(results, model)
+            self._finalize_information_units_and_variance(results)
+            self._maybe_add_lda_vs_trained_performance(
+                results=results,
+                model=model,
+                inputs=inputs,
+                labels=labels,
+                device=device,
+                save_path=save_path,
             )
-
-            # Compute LDA vs trained performance comparison if LDA weights are enabled
-            if self.compute_lda_weights and save_path is not None:
-                try:
-                    # Use the inputs/labels already loaded in the analyze method
-                    lda_comparison = self.compare_lda_vs_trained_performance(
-                        model, inputs, labels, device
-                    )
-                    results["lda_vs_trained_performance"] = lda_comparison
-
-                    # Plot the comparison if LDA accuracy was computed
-                    if lda_comparison.get("lda_accuracy") is not None:
-                        from dendritic_modeling.plotting.visualizations.information_plots import (
-                            plot_lda_vs_trained_performance,
-                        )
-
-                        plot_lda_vs_trained_performance(
-                            lda_comparison, save_path, self.logger
-                        )
-                        self.logger.info(
-                            "LDA vs trained performance comparison completed!"
-                        )
-                    else:
-                        self.logger.warning(
-                            "LDA accuracy not available, skipping performance plot"
-                        )
-                except Exception as e:
-                    self.logger.error(
-                        f"Error computing LDA vs trained performance: {e}"
-                    )
-                    traceback.print_exc()
-
-            # Save results
-            if save_path is not None:
-                self.logger.info(f"Saving results to {save_path}/{filename}")
-                save_dict(results, save_path, filename)
-
-                # Generate main summary
-                summary = self.get_summary(results)
-                summary_path = os.path.join(save_path, f"{filename}_summary.txt")
-                with open(summary_path, "w") as f:
-                    f.write(summary)
-
-                # Generate individual summaries for each layer's E and I networks
-                try:
-                    if "per_layer_analysis" in results:
-                        self._save_per_layer_ei_summaries(
-                            results["per_layer_analysis"], save_path, filename
-                        )
-                    self._generate_information_plots(
-                        results, save_path, somatic_synapses
-                    )
-                except Exception as plot_err:
-                    self.logger.warning(f"Post-save visualization failed: {plot_err}")
-
-                self.logger.info("Results saved successfully!")
+            self._save_analysis_outputs(
+                results=results,
+                save_path=save_path,
+                filename=filename,
+                somatic_synapses=somatic_synapses,
+            )
 
             # Always return results for plotting
             return results
@@ -1697,6 +1414,314 @@ class InformationAnalyzer(
                 model.to(original_device)
                 if was_training:
                     model.train()
+
+    def _finalize_information_units_and_variance(self, results: dict[str, Any]) -> None:
+        results["information_units"] = getattr(self, "output_units", "nats")
+        if results["information_units"] == "bits":
+            self._convert_information_units_in_place(results)
+
+        self.logger.info("Computing variance analysis for plotting...")
+        variance_analysis = self._compute_variance_analysis(results)
+        results["variance_analysis"] = variance_analysis
+        self.logger.info(
+            f"Variance analysis computed with {len(variance_analysis.get('layer_variances', {}))} layers"
+        )
+
+    def _maybe_add_lda_vs_trained_performance(
+        self,
+        *,
+        results: dict[str, Any],
+        model: BaseModel,
+        inputs: torch.Tensor,
+        labels: torch.Tensor,
+        device: str,
+        save_path: Optional[str],
+    ) -> None:
+        if not (self.compute_lda_weights and save_path is not None):
+            return
+
+        try:
+            lda_comparison = self.compare_lda_vs_trained_performance(
+                model, inputs, labels, device
+            )
+            results["lda_vs_trained_performance"] = lda_comparison
+
+            if lda_comparison.get("lda_accuracy") is not None:
+                from dendritic_modeling.plotting.visualizations.information_plots import (
+                    plot_lda_vs_trained_performance,
+                )
+
+                plot_lda_vs_trained_performance(lda_comparison, save_path, self.logger)
+                self.logger.info("LDA vs trained performance comparison completed!")
+            else:
+                self.logger.warning(
+                    "LDA accuracy not available, skipping performance plot"
+                )
+        except Exception as e:
+            self.logger.error(f"Error computing LDA vs trained performance: {e}")
+            traceback.print_exc()
+
+    def _save_analysis_outputs(
+        self,
+        *,
+        results: dict[str, Any],
+        save_path: Optional[str],
+        filename: str,
+        somatic_synapses: bool,
+    ) -> None:
+        if save_path is None:
+            return
+
+        self.logger.info(f"Saving results to {save_path}/{filename}")
+        save_dict(results, save_path, filename)
+
+        summary = self.get_summary(results)
+        summary_path = os.path.join(save_path, f"{filename}_summary.txt")
+        with open(summary_path, "w") as f:
+            f.write(summary)
+
+        try:
+            if "per_layer_analysis" in results:
+                self._save_per_layer_ei_summaries(
+                    results["per_layer_analysis"], save_path, filename
+                )
+            self._generate_information_plots(results, save_path, somatic_synapses)
+        except Exception as plot_err:
+            self.logger.warning(f"Post-save visualization failed: {plot_err}")
+
+        self.logger.info("Results saved successfully!")
+
+    def _add_synthetic_soma_entry_if_needed(
+        self, results: dict[str, Any], model: BaseModel
+    ) -> bool:
+        # This is only needed when somatic_synapses=False and the soma layer
+        # was not captured by the forward hooks.
+        somatic_synapses = getattr(model.core_network, "somatic_synapses", True)
+        self.logger.info(f"Somatic synapses enabled: {somatic_synapses}")
+
+        soma_already_captured = self._soma_layer_already_captured(results)
+        if (
+            not somatic_synapses
+            and "layer_statistics" in results
+            and not soma_already_captured
+        ):
+            self.logger.info(
+                f"Adding synthetic soma entry to {len(results['layer_statistics'])} existing layers"
+            )
+            layer_statistics = results["layer_statistics"]
+            real_soma_layer = self._find_real_soma_layer(layer_statistics)
+            soma_stats = self._extract_soma_statistics(
+                real_soma_layer, layer_statistics
+            )
+            soma_entry = self._build_synthetic_soma_entry(soma_stats)
+            results["layer_statistics"]["synthetic_soma"] = soma_entry
+            self.logger.info(
+                "Added synthetic soma with real "
+                f"I(Vout;C)={soma_stats['soma_vout_mean']:.4f}. "
+                f"Total layers now: {len(results['layer_statistics'])}"
+            )
+        elif not somatic_synapses and "layer_statistics" in results:
+            self.logger.info("Soma layer already captured; skipping synthetic soma.")
+        elif not somatic_synapses and "layer_statistics" not in results:
+            self.logger.warning(
+                "somatic_synapses=False but no layer_statistics found in results"
+            )
+        return somatic_synapses
+
+    def _soma_layer_already_captured(self, results: dict[str, Any]) -> bool:
+        if "layer_statistics" not in results:
+            return False
+
+        for layer_name in results["layer_statistics"].keys():
+            if "branch_layers." not in layer_name:
+                continue
+            try:
+                int(layer_name.split("branch_layers.")[1].split(".")[0])
+                layer_data = results["layer_statistics"][layer_name]
+                if layer_data.get("has_synapses") is False:
+                    self.logger.info(f"Soma layer already captured: {layer_name}")
+                    return True
+            except (ValueError, IndexError):
+                continue
+        return False
+
+    @staticmethod
+    def _find_real_soma_layer(layer_statistics: dict[str, Any]) -> Optional[str]:
+        max_branch_idx = -1
+        real_soma_layer = None
+
+        for layer_name in layer_statistics.keys():
+            if "branch_layers." not in layer_name:
+                continue
+            try:
+                branch_idx = int(layer_name.split("branch_layers.")[1].split(".")[0])
+            except (ValueError, IndexError):
+                continue
+            if branch_idx > max_branch_idx:
+                max_branch_idx = branch_idx
+                real_soma_layer = layer_name
+
+        return real_soma_layer
+
+    def _extract_soma_statistics(
+        self, real_soma_layer: Optional[str], layer_statistics: dict[str, Any]
+    ) -> dict[str, float]:
+        soma_stats = {
+            "soma_vout_mean": 0.0,
+            "soma_vout_std": 0.0,
+            "soma_vb_mean": 0.0,
+            "soma_vb_std": 0.0,
+            "soma_vb_lin_mean": 0.0,
+            "soma_vb_lin_std": 0.0,
+            "soma_vb_vout_mean": 0.0,
+            "soma_vb_vout_std": 0.0,
+            "soma_vb_vout_c_mean": 0.0,
+            "soma_vb_vout_c_std": 0.0,
+            "soma_vb_lin_vout_mean": 0.0,
+            "soma_vb_lin_vout_std": 0.0,
+            "soma_vb_lin_vout_c_mean": 0.0,
+            "soma_vb_lin_vout_c_std": 0.0,
+            "soma_vout_lin_mean": 0.0,
+            "soma_vout_lin_std": 0.0,
+        }
+
+        if real_soma_layer and real_soma_layer in layer_statistics:
+            real_soma_stats = layer_statistics[real_soma_layer]
+            soma_stats.update(
+                {
+                    "soma_vout_mean": real_soma_stats.get("I(Vout;C)_mean", 0.0),
+                    "soma_vout_std": real_soma_stats.get("I(Vout;C)_std", 0.0),
+                    "soma_vb_mean": real_soma_stats.get("I(Vb;C)_mean", 0.0),
+                    "soma_vb_std": real_soma_stats.get("I(Vb;C)_std", 0.0),
+                    "soma_vb_lin_mean": real_soma_stats.get("I(Vb_lin;C)_mean", 0.0),
+                    "soma_vb_lin_std": real_soma_stats.get("I(Vb_lin;C)_std", 0.0),
+                    "soma_vb_vout_mean": real_soma_stats.get("I(Vb;Vout)_mean", 0.0),
+                    "soma_vb_vout_std": real_soma_stats.get("I(Vb;Vout)_std", 0.0),
+                    "soma_vb_vout_c_mean": real_soma_stats.get(
+                        "I(Vb;Vout|C)_mean", 0.0
+                    ),
+                    "soma_vb_vout_c_std": real_soma_stats.get("I(Vb;Vout|C)_std", 0.0),
+                    "soma_vb_lin_vout_mean": real_soma_stats.get(
+                        "I(Vb_lin;Vout_lin)_mean", 0.0
+                    ),
+                    "soma_vb_lin_vout_std": real_soma_stats.get(
+                        "I(Vb_lin;Vout_lin)_std", 0.0
+                    ),
+                    "soma_vb_lin_vout_c_mean": real_soma_stats.get(
+                        "I(Vb_lin;Vout_lin|C)_mean", 0.0
+                    ),
+                    "soma_vb_lin_vout_c_std": real_soma_stats.get(
+                        "I(Vb_lin;Vout_lin|C)_std", 0.0
+                    ),
+                    "soma_vout_lin_mean": real_soma_stats.get(
+                        "I(Vout_lin;C)_mean", 0.0
+                    ),
+                    "soma_vout_lin_std": real_soma_stats.get("I(Vout_lin;C)_std", 0.0),
+                }
+            )
+            self.logger.info(f"Found real soma layer: {real_soma_layer}")
+            self.logger.info(
+                "Using real soma "
+                f"I(Vout;C): {soma_stats['soma_vout_mean']:.4f} "
+                f"± {soma_stats['soma_vout_std']:.4f}"
+            )
+            self.logger.info(
+                "Using real soma "
+                f"I(Vb;C): {soma_stats['soma_vb_mean']:.4f} "
+                f"± {soma_stats['soma_vb_std']:.4f}"
+            )
+        else:
+            self.logger.warning(
+                "Could not find real soma layer for I(Vout;C) computation"
+            )
+
+        return soma_stats
+
+    def _build_synthetic_soma_entry(
+        self, soma_stats: dict[str, float]
+    ) -> dict[str, Any]:
+        soma_entry = {
+            "I(E;C)_mean": 0.0,
+            "I(E;C)_std": 0.0,
+            "I(I;C)_mean": 0.0,
+            "I(I;C)_std": 0.0,
+            "I(Vb;C)_mean": soma_stats["soma_vb_mean"],
+            "I(Vb;C)_std": soma_stats["soma_vb_std"],
+            "I(Vout;C)_mean": soma_stats["soma_vout_mean"],
+            "I(Vout;C)_std": soma_stats["soma_vout_std"],
+            "I(E,I;C)_mean": 0.0,
+            "I(E,I;C)_std": 0.0,
+            "I(E_lin;C)_mean": 0.0,
+            "I(E_lin;C)_std": 0.0,
+            "I(I_lin;C)_mean": 0.0,
+            "I(I_lin;C)_std": 0.0,
+            "I(Vb_lin;C)_mean": soma_stats["soma_vb_lin_mean"],
+            "I(Vb_lin;C)_std": soma_stats["soma_vb_lin_std"],
+            "I(Vout_lin;C)_mean": soma_stats["soma_vout_lin_mean"],
+            "I(Vout_lin;C)_std": soma_stats["soma_vout_lin_std"],
+            "I(E_lin,I_lin;C)_mean": 0.0,
+            "I(E_lin,I_lin;C)_std": 0.0,
+            "I(E;I)_mean": 0.0,
+            "I(E;I)_std": 0.0,
+            "I(E;Vout)_mean": 0.0,
+            "I(E;Vout)_std": 0.0,
+            "I(I;Vout)_mean": 0.0,
+            "I(I;Vout)_std": 0.0,
+            "I(E;Vb)_mean": 0.0,
+            "I(E;Vb)_std": 0.0,
+            "I(I;Vb)_mean": 0.0,
+            "I(I;Vb)_std": 0.0,
+            "I(Vb;Vout)_mean": soma_stats["soma_vb_vout_mean"],
+            "I(Vb;Vout)_std": soma_stats["soma_vb_vout_std"],
+            "I(E_lin;I_lin)_mean": 0.0,
+            "I(E_lin;I_lin)_std": 0.0,
+            "I(E_lin;Vout_lin)_mean": 0.0,
+            "I(E_lin;Vout_lin)_std": 0.0,
+            "I(I_lin;Vout_lin)_mean": 0.0,
+            "I(I_lin;Vout_lin)_std": 0.0,
+            "I(E_lin;Vb_lin)_mean": 0.0,
+            "I(E_lin;Vb_lin)_std": 0.0,
+            "I(I_lin;Vb_lin)_mean": 0.0,
+            "I(I_lin;Vb_lin)_std": 0.0,
+            "I(Vb_lin;Vout_lin)_mean": soma_stats["soma_vb_lin_vout_mean"],
+            "I(Vb_lin;Vout_lin)_std": soma_stats["soma_vb_lin_vout_std"],
+            "I(E;I|C)_mean": 0.0,
+            "I(E;I|C)_std": 0.0,
+            "I(E;Vout|C)_mean": 0.0,
+            "I(E;Vout|C)_std": 0.0,
+            "I(I;Vout|C)_mean": 0.0,
+            "I(I;Vout|C)_std": 0.0,
+            "I(E;Vb|C)_mean": 0.0,
+            "I(E;Vb|C)_std": 0.0,
+            "I(I;Vb|C)_mean": 0.0,
+            "I(I;Vb|C)_std": 0.0,
+            "I(Vb;Vout|C)_mean": soma_stats["soma_vb_vout_c_mean"],
+            "I(Vb;Vout|C)_std": soma_stats["soma_vb_vout_c_std"],
+            "I(E_lin;I_lin|C)_mean": 0.0,
+            "I(E_lin;I_lin|C)_std": 0.0,
+            "I(E_lin;Vout_lin|C)_mean": 0.0,
+            "I(E_lin;Vout_lin|C)_std": 0.0,
+            "I(I_lin;Vout_lin|C)_mean": 0.0,
+            "I(I_lin;Vout_lin|C)_std": 0.0,
+            "I(E_lin;Vb_lin|C)_mean": 0.0,
+            "I(E_lin;Vb_lin|C)_std": 0.0,
+            "I(I_lin;Vb_lin|C)_mean": 0.0,
+            "I(I_lin;Vb_lin|C)_std": 0.0,
+            "I(Vb_lin;Vout_lin|C)_mean": soma_stats["soma_vb_lin_vout_c_mean"],
+            "I(Vb_lin;Vout_lin|C)_std": soma_stats["soma_vb_lin_vout_c_std"],
+        }
+        soma_entry = {
+            k: v
+            for k, v in soma_entry.items()
+            if self._keep_metric_key_given_availability(
+                k,
+                has_exc_synapses=False,
+                has_inh_synapses=False,
+                has_branch_input=True,
+            )
+        }
+        soma_entry["has_synapses"] = False
+        return soma_entry
 
     def compute_class_mi(self, activations, labels):
         return self.estimators[self.method].mutual_information(activations, labels)

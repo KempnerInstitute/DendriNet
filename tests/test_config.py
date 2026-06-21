@@ -736,6 +736,10 @@ class TestConfigLoading(unittest.TestCase):
                     "teacher_source": "tensor_cache",
                     "train_target": "replacement_only",
                     "max_steps": 25,
+                    "num_workers": 4,
+                    "pin_memory": False,
+                    "persistent_workers": True,
+                    "prefetch_factor": 3,
                     "tensor_cache": {"train_inputs": "train_x.pt"},
                 }
             },
@@ -753,6 +757,10 @@ class TestConfigLoading(unittest.TestCase):
         self.assertEqual(training.teacher_source, "tensor_cache")
         self.assertEqual(training.train_target, "replacement_only")
         self.assertEqual(training.max_steps, 25)
+        self.assertEqual(training.num_workers, 4)
+        self.assertFalse(training.pin_memory)
+        self.assertTrue(training.persistent_workers)
+        self.assertEqual(training.prefetch_factor, 3)
         self.assertEqual(training.tensor_cache["train_inputs"], "train_x.pt")
 
     def test_load_config_maps_spike_train_analysis(self):

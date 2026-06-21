@@ -337,9 +337,9 @@ def _make_eval_loader(
             self.batch_size = batch_size
             self.num_workers = num_workers
             self.pin_memory = pin_memory
+            self.persistent_workers = persistent_workers
+            self.prefetch_factor = prefetch_factor
 
-    _ = persistent_workers
-    _ = prefetch_factor
     return make_analysis_loader(
         dataset=dataset,
         runtime=_Runtime(),

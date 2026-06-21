@@ -321,41 +321,14 @@ class BackboneSplitPlan:
         return "\n".join(lines)
 
 
-def build_split_plan(
-    backbone: str,
-    weights: str | None = None,
+def _resolve_replacement_span(
     *,
-    replace_start: str = "",
-    replace_end: str = "",
-    target_modules: list[str] | None = None,
-    omit_layers: list[str] | None = None,
-    input_shape: list[int] | None = None,
-    spatial: bool = False,
-) -> BackboneSplitPlan:
-    """Build a split plan by loading the backbone once and slicing it three ways.
-
-    Args:
-        backbone: Torchvision model name.
-        weights: Weight string, local path, or None.
-        replace_start: First layer to replace (inclusive). Optional when
-            ``target_modules`` is provided.
-        replace_end: Last layer to replace (inclusive). Optional when
-            ``target_modules`` is provided.
-        target_modules: Ordered or unordered list of module names to replace.
-            The names must resolve to one contiguous span in the flattened
-            backbone order.
-        omit_layers: Layer names to drop entirely (e.g. dropout).
-        input_shape: Model input shape ``[C, H, W]``. Defaults to ``[3, 224, 224]``.
-        spatial: If True, compute and store ``TensorSpec`` for the prefix output
-            and suffix input shapes, preserving spatial dimensions. The flattened
-            ``prefix_output_dim`` / ``suffix_input_dim`` are still computed for
-            backward compatibility and for cores that flatten internally.
-    """
-    model = _load_backbone(backbone, weights)
-    all_layers = _flatten_model_layers(model)
-    all_names = [name for name, _ in all_layers]
-    omit_set = set(omit_layers or [])
-
+    all_names: list[str],
+    backbone: str,
+    replace_start: str,
+    replace_end: str,
+    target_modules: list[str] | None,
+) -> tuple[str, str, int, int]:
     targets = [str(name) for name in (target_modules or [])]
     if targets:
         missing = [name for name in targets if name not in all_names]
@@ -405,30 +378,27 @@ def build_split_plan(
             f"replace_start={replace_start!r} comes after "
             f"replace_end={replace_end!r} in the layer order"
         )
+    return replace_start, replace_end, start_idx, end_idx
 
-    prefix_layers = all_layers[:start_idx]
-    replaced_layers = all_layers[start_idx : end_idx + 1]
-    suffix_layers = all_layers[end_idx + 1 :]
 
-    def _filter(layers):
-        return [(n, m) for n, m in layers if n not in omit_set]
+def _filter_omitted_layers(
+    layers: list[tuple[str, nn.Module]],
+    omit_layers: list[str] | None,
+) -> list[tuple[str, nn.Module]]:
+    omit_set = set(omit_layers or [])
+    return [(name, module) for name, module in layers if name not in omit_set]
 
-    prefix_filtered = _filter(prefix_layers)
-    suffix_filtered = _filter(suffix_layers)
 
-    prefix_names = [n for n, _ in prefix_filtered]
-    prefix_modules = [m for _, m in prefix_filtered]
-    replaced_names = [n for n, _ in replaced_layers]
-    suffix_names = [n for n, _ in suffix_filtered]
-    suffix_modules = [m for _, m in suffix_filtered]
-
-    # Compute prefix output shape
+def _resolve_split_input_size(input_shape: list[int] | None) -> tuple[int, ...]:
     if input_shape:
-        input_size = (1, *input_shape)
-    else:
-        input_size = _DEFAULT_INPUT_SIZE
+        return (1, *input_shape)
+    return _DEFAULT_INPUT_SIZE
 
-    # Build temporary prefix to measure its output dim
+
+def _compute_prefix_output_dim(
+    prefix_modules: list[nn.Module],
+    input_size: tuple[int, ...],
+) -> int:
     tmp_prefix_mods = list(prefix_modules)
     if _needs_flatten(tmp_prefix_mods):
         tmp_prefix_mods = _insert_flatten(tmp_prefix_mods)
@@ -437,83 +407,179 @@ def build_split_plan(
         prefix_out = tmp_prefix(torch.zeros(*input_size))
     if prefix_out.dim() > 2:
         prefix_out = prefix_out.flatten(start_dim=1)
-    prefix_output_dim = prefix_out.shape[-1]
+    return prefix_out.shape[-1]
+
+
+def _infer_suffix_input_dim(
+    suffix_modules: list[nn.Module],
+    *,
+    default: int,
+) -> int:
+    for module in suffix_modules:
+        if isinstance(module, nn.Linear):
+            return module.in_features
+    return default
+
+
+def _infer_suffix_output_dim(
+    suffix_modules: list[nn.Module],
+    *,
+    suffix_input_dim: int,
+) -> int:
+    for module in reversed(suffix_modules):
+        if isinstance(module, nn.Linear):
+            return module.out_features
+    if not suffix_modules:
+        return 0
+
+    with torch.no_grad():
+        dummy_in = torch.zeros(1, suffix_input_dim)
+        dummy_out = nn.Sequential(*suffix_modules)(dummy_in)
+    return dummy_out.shape[-1]
+
+
+def _tensor_spec_from_prefix_output(raw_out: torch.Tensor) -> TensorSpec | None:
+    if raw_out.dim() == 4:  # (B, C, H, W)
+        return TensorSpec(
+            channels=raw_out.shape[1],
+            height=raw_out.shape[2],
+            width=raw_out.shape[3],
+        )
+    if raw_out.dim() == 2:  # (B, D) — already flat
+        logger.warning(
+            "spatial=True but prefix output is 2D (shape=%s). "
+            "Spatial specs will be None — the prefix already produces "
+            "flat features. Consider splitting earlier.",
+            list(raw_out.shape),
+        )
+    else:
+        logger.warning(
+            "spatial=True but prefix output has unexpected ndim=%d "
+            "(shape=%s). Spatial specs will be None.",
+            raw_out.dim(),
+            list(raw_out.shape),
+        )
+    return None
+
+
+def _compute_spatial_specs(
+    *,
+    spatial: bool,
+    prefix_modules: list[nn.Module],
+    replaced_layers: list[tuple[str, nn.Module]],
+    input_size: tuple[int, ...],
+) -> tuple[TensorSpec | None, TensorSpec | None]:
+    if not spatial:
+        return None, None
+
+    if _needs_flatten(prefix_modules):
+        logger.warning(
+            "spatial=True but prefix contains both spatial and linear "
+            "layers — it already flattens internally. Spatial specs will "
+            "be None. Consider splitting earlier to get spatial output.",
+        )
+        return None, None
+
+    raw_prefix = nn.Sequential(*list(prefix_modules))
+    with torch.no_grad():
+        raw_out = raw_prefix(torch.zeros(*input_size))
+    prefix_output_spec = _tensor_spec_from_prefix_output(raw_out)
+    suffix_input_spec = None
+
+    if prefix_output_spec is not None:
+        replaced_mods = [module for _, module in replaced_layers]
+        has_linear = any(isinstance(module, nn.Linear) for module in replaced_mods)
+        if not has_linear:
+            raw_replaced = nn.Sequential(*list(prefix_modules), *replaced_mods)
+            with torch.no_grad():
+                replaced_out = raw_replaced(torch.zeros(*input_size))
+            if replaced_out.dim() == 4:
+                suffix_input_spec = TensorSpec(
+                    channels=replaced_out.shape[1],
+                    height=replaced_out.shape[2],
+                    width=replaced_out.shape[3],
+                )
+
+    return prefix_output_spec, suffix_input_spec
+
+
+def build_split_plan(
+    backbone: str,
+    weights: str | None = None,
+    *,
+    replace_start: str = "",
+    replace_end: str = "",
+    target_modules: list[str] | None = None,
+    omit_layers: list[str] | None = None,
+    input_shape: list[int] | None = None,
+    spatial: bool = False,
+) -> BackboneSplitPlan:
+    """Build a split plan by loading the backbone once and slicing it three ways.
+
+    Args:
+        backbone: Torchvision model name.
+        weights: Weight string, local path, or None.
+        replace_start: First layer to replace (inclusive). Optional when
+            ``target_modules`` is provided.
+        replace_end: Last layer to replace (inclusive). Optional when
+            ``target_modules`` is provided.
+        target_modules: Ordered or unordered list of module names to replace.
+            The names must resolve to one contiguous span in the flattened
+            backbone order.
+        omit_layers: Layer names to drop entirely (e.g. dropout).
+        input_shape: Model input shape ``[C, H, W]``. Defaults to ``[3, 224, 224]``.
+        spatial: If True, compute and store ``TensorSpec`` for the prefix output
+            and suffix input shapes, preserving spatial dimensions. The flattened
+            ``prefix_output_dim`` / ``suffix_input_dim`` are still computed for
+            backward compatibility and for cores that flatten internally.
+    """
+    model = _load_backbone(backbone, weights)
+    all_layers = _flatten_model_layers(model)
+    all_names = [name for name, _ in all_layers]
+    replace_start, replace_end, start_idx, end_idx = _resolve_replacement_span(
+        all_names=all_names,
+        backbone=backbone,
+        replace_start=replace_start,
+        replace_end=replace_end,
+        target_modules=target_modules,
+    )
+
+    prefix_layers = all_layers[:start_idx]
+    replaced_layers = all_layers[start_idx : end_idx + 1]
+    suffix_layers = all_layers[end_idx + 1 :]
+
+    prefix_filtered = _filter_omitted_layers(prefix_layers, omit_layers)
+    suffix_filtered = _filter_omitted_layers(suffix_layers, omit_layers)
+
+    prefix_names = [n for n, _ in prefix_filtered]
+    prefix_modules = [m for _, m in prefix_filtered]
+    replaced_names = [n for n, _ in replaced_layers]
+    suffix_names = [n for n, _ in suffix_filtered]
+    suffix_modules = [m for _, m in suffix_filtered]
+
+    # Compute prefix output shape
+    input_size = _resolve_split_input_size(input_shape)
+    prefix_output_dim = _compute_prefix_output_dim(prefix_modules, input_size)
 
     # Infer suffix input_dim from its first Linear layer
-    suffix_input_dim = prefix_output_dim  # default: assume core matches prefix
-    for m in suffix_modules:
-        if isinstance(m, nn.Linear):
-            suffix_input_dim = m.in_features
-            break
+    suffix_input_dim = _infer_suffix_input_dim(
+        suffix_modules,
+        default=prefix_output_dim,
+    )
 
     # Infer suffix output_dim from its last Linear layer
-    suffix_output_dim = 0
-    for m in reversed(suffix_modules):
-        if isinstance(m, nn.Linear):
-            suffix_output_dim = m.out_features
-            break
-    if suffix_output_dim == 0 and suffix_modules:
-        # Dummy forward to figure it out
-        with torch.no_grad():
-            dummy_in = torch.zeros(1, suffix_input_dim)
-            dummy_out = nn.Sequential(*suffix_modules)(dummy_in)
-        suffix_output_dim = dummy_out.shape[-1]
+    suffix_output_dim = _infer_suffix_output_dim(
+        suffix_modules,
+        suffix_input_dim=suffix_input_dim,
+    )
 
     # Spatial spec: compute raw (pre-flatten) prefix output shape
-    prefix_output_spec = None
-    suffix_input_spec = None
-    if spatial:
-        # If the prefix contains both spatial and linear layers, it needs a
-        # flatten transition internally and therefore can't produce spatial
-        # output. Skip the raw forward in that case.
-        if _needs_flatten(prefix_modules):
-            logger.warning(
-                "spatial=True but prefix contains both spatial and linear "
-                "layers — it already flattens internally. Spatial specs will "
-                "be None. Consider splitting earlier to get spatial output.",
-            )
-        else:
-            # Run prefix modules *without* flatten to get raw spatial shape
-            raw_prefix = nn.Sequential(*list(prefix_modules))
-            with torch.no_grad():
-                raw_out = raw_prefix(torch.zeros(*input_size))
-            if raw_out.dim() == 4:  # (B, C, H, W)
-                prefix_output_spec = TensorSpec(
-                    channels=raw_out.shape[1],
-                    height=raw_out.shape[2],
-                    width=raw_out.shape[3],
-                )
-            elif raw_out.dim() == 2:  # (B, D) — already flat
-                logger.warning(
-                    "spatial=True but prefix output is 2D (shape=%s). "
-                    "Spatial specs will be None — the prefix already produces "
-                    "flat features. Consider splitting earlier.",
-                    list(raw_out.shape),
-                )
-            else:
-                logger.warning(
-                    "spatial=True but prefix output has unexpected ndim=%d "
-                    "(shape=%s). Spatial specs will be None.",
-                    raw_out.dim(),
-                    list(raw_out.shape),
-                )
-
-            # Suffix input spec: only compute if the replaced layers are
-            # purely spatial (no Linear layers). If they contain Linears,
-            # the suffix expects flat input (already captured by suffix_input_dim).
-            if prefix_output_spec is not None:
-                replaced_mods = [m for _, m in replaced_layers]
-                has_linear = any(isinstance(m, nn.Linear) for m in replaced_mods)
-                if not has_linear:
-                    raw_replaced = nn.Sequential(*list(prefix_modules), *replaced_mods)
-                    with torch.no_grad():
-                        replaced_out = raw_replaced(torch.zeros(*input_size))
-                    if replaced_out.dim() == 4:
-                        suffix_input_spec = TensorSpec(
-                            channels=replaced_out.shape[1],
-                            height=replaced_out.shape[2],
-                            width=replaced_out.shape[3],
-                        )
+    prefix_output_spec, suffix_input_spec = _compute_spatial_specs(
+        spatial=spatial,
+        prefix_modules=prefix_modules,
+        replaced_layers=replaced_layers,
+        input_size=input_size,
+    )
 
     plan = BackboneSplitPlan(
         backbone=backbone,

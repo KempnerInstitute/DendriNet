@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from dataclasses import dataclass
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, replace
 from typing import Any
 
 
@@ -253,6 +253,24 @@ class DendriticSynapseConfig:
         )
 
     @classmethod
+    def from_population_config(cls, population_config: Any) -> DendriticSynapseConfig:
+        """Build branch-layer synapse options from a recurrent PopulationConfig.
+
+        The recurrent population config carries both synapse construction fields
+        and recurrent dynamics fields. This bridge deliberately selects only the
+        fields consumed by ``DendriticBranchLayer`` so recurrent builders do not
+        need to duplicate the long legacy keyword mapping.
+        """
+
+        return cls.from_kwargs(
+            {
+                key: getattr(population_config, key)
+                for key in POPULATION_SYNAPSE_KEYS
+                if hasattr(population_config, key)
+            }
+        )
+
+    @classmethod
     def split_kwargs(
         cls,
         kwargs: Mapping[str, Any],
@@ -355,8 +373,23 @@ class DendriticSynapseConfig:
             "print_hooks": self.print_hooks,
         }
 
+    def with_branch_factors(
+        self, branch_factors: Sequence[int] | None
+    ) -> DendriticSynapseConfig:
+        """Return a copy carrying the concrete dendritic morphology factors."""
+
+        normalized = None if branch_factors is None else tuple(branch_factors)
+        return replace(
+            self,
+            initialization=replace(
+                self.initialization,
+                branch_factors=normalized,
+            ),
+        )
+
 
 LEGACY_KEYS = frozenset(DendriticSynapseConfig().to_kwargs())
+POPULATION_SYNAPSE_KEYS = tuple(sorted(LEGACY_KEYS - {"dendritic_activation"}))
 
 
 __all__ = [

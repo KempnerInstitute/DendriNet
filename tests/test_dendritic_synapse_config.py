@@ -5,6 +5,9 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic i
     DendriNet,
     DendriticBranchLayer,
 )
+from dendritic_modeling.networks.architectures.recurrent.ei_config import (
+    PopulationConfig,
+)
 
 
 def _assert_state_dict_exact(left, right):
@@ -98,6 +101,129 @@ def test_branch_layer_typed_config_matches_legacy_kwargs_numerically():
         rtol=0.0,
         atol=0.0,
     )
+
+
+def test_dendrinet_typed_config_matches_legacy_kwargs_numerically():
+    geometry_kwargs = {
+        "n_soma": 3,
+        "branch_factors": [2],
+        "excitatory_input_dim": 7,
+        "excitatory_synapses_per_branch": 3,
+        "inhibitory_input_dim": 5,
+        "inhibitory_synapses_per_branch": 2,
+        "somatic_synapses": True,
+    }
+    legacy_synapse_kwargs = {
+        "topk_type": "standard",
+        "topk_init_method": "xavier_normal",
+        "topk_gamma": 0.7,
+        "reactivate": True,
+        "reactivation_type": "param_tanh",
+        "reactivation_init_policy": "fixed",
+        "reactivation_init_m": 1.1,
+        "reactivation_init_b": 0.2,
+        "use_shunting": True,
+        "weight_transform": "exp",
+        "dbl_init_method": "default",
+        "adaptive_initialization": False,
+    }
+
+    torch.manual_seed(321)
+    legacy_net = DendriNet(
+        **geometry_kwargs,
+        **legacy_synapse_kwargs,
+    )
+    torch.manual_seed(321)
+    typed_net = DendriNet(
+        **geometry_kwargs,
+        synapse_config=DendriticSynapseConfig.from_kwargs(legacy_synapse_kwargs),
+    )
+
+    _assert_state_dict_exact(legacy_net.state_dict(), typed_net.state_dict())
+
+    x = torch.rand(4, 7)
+    inhibitory = torch.rand(4, 5)
+
+    torch.testing.assert_close(
+        legacy_net(x, inhibitory),
+        typed_net(x, inhibitory),
+        rtol=0.0,
+        atol=0.0,
+    )
+
+
+def test_population_config_builds_equivalent_synapse_config():
+    population = PopulationConfig(
+        n_neurons=5,
+        branch_factors=[2, 1],
+        topk_init_method="kaiming_normal",
+        topk_noise_level=0.01,
+        topk_type="indexed_rewire",
+        topk_weight_norm_order=2,
+        topk_gamma=0.8,
+        topk_temperature=0.3,
+        topk_ultrafast=True,
+        topk_strategy="conductance_dynamic",
+        indexed_seed=17,
+        indexed_candidate_size=32,
+        indexed_selection="softmax",
+        indexed_output_chunk_size=128,
+        indexed_rewire_frequency=11,
+        indexed_rewire_quantile=0.2,
+        indexed_rewire_until_step=400,
+        dense_to_sparse_initial_density=0.7,
+        dense_to_sparse_initial_k=4,
+        dense_to_sparse_start_step=2,
+        dense_to_sparse_end_step=30,
+        dense_to_sparse_update_interval=3,
+        dense_to_sparse_schedule="linear",
+        dense_to_sparse_freeze_on_end=True,
+        dense_to_sparse_advance_on_forward=False,
+        dense_to_sparse_prune_metric="magnitude",
+        weight_transform="softplus",
+        use_shunting=False,
+        use_additive_normalization=True,
+        reactivate=False,
+        reactivation_type="none",
+        reactivation_init_m=1.4,
+        reactivation_init_b=0.1,
+        reactivation_init_policy="fixed",
+        reactivation_occupancy_quantile_low=0.2,
+        reactivation_occupancy_quantile_high=0.8,
+        reactivation_occupancy_target_low=0.25,
+        reactivation_occupancy_target_high=0.75,
+        reactivation_calibration_min_quantile_width=0.02,
+        reactivation_calibration_max_m=25.0,
+        reactivation_calibration_revert_on_invalid=False,
+        reactivation_sigma_aware_k=0.5,
+        reactivation_strategy="voltage_dynamic",
+        blocklinear_strategy="conductance_dynamic",
+        epsilon=1e-6,
+        dbl_init_method="default",
+        efficient_blocklinear=True,
+        print_hooks=True,
+        excitatory_target_density=0.3,
+        inhibitory_target_density=0.4,
+        use_noise=False,
+        sigma=0.02,
+        rewiring_mode="local",
+        rewire_frequency=5,
+        synapses_per_branch=6,
+        freeze_excitatory_connectivity=True,
+        freeze_inhibitory_connectivity=True,
+        init_method="xavier_uniform",
+        weight_threshold=1e-4,
+        adaptive_initialization=True,
+        adaptive_initialization_policy="legacy_scale",
+        adaptive_target_conductance=3.0,
+    )
+
+    kwargs = DendriticSynapseConfig.from_population_config(population).to_kwargs()
+
+    for key, value in kwargs.items():
+        if hasattr(population, key):
+            assert value == getattr(population, key)
+    assert kwargs["dendritic_activation"] is None
 
 
 def test_dendrinet_passes_legacy_synapse_kwargs_through_typed_config():

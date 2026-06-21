@@ -849,16 +849,12 @@ def _map_analysis_config(
         if "training" in runtime_data and isinstance(runtime_data["training"], Mapping):
             tr = dict(runtime_data["training"])
             tr.pop("splits", None)
-            tr.pop("persistent_workers", None)
-            tr.pop("prefetch_factor", None)
             runtime_data["training"] = EvaluationRuntimeConfig(**tr)
         elif "training" not in runtime_data:
             runtime_data["training"] = default_runtime.training
         if "final" in runtime_data and isinstance(runtime_data["final"], Mapping):
             fr = dict(runtime_data["final"])
             fr.pop("splits", None)
-            fr.pop("persistent_workers", None)
-            fr.pop("prefetch_factor", None)
             runtime_data["final"] = EvaluationRuntimeConfig(**fr)
         elif "final" not in runtime_data:
             runtime_data["final"] = default_runtime.final
@@ -880,14 +876,10 @@ def _map_analysis_config(
         if "training_runtime" in pa and isinstance(pa["training_runtime"], Mapping):
             tr = dict(pa["training_runtime"])
             legacy_training_splits = tr.pop("splits", None)
-            tr.pop("persistent_workers", None)
-            tr.pop("prefetch_factor", None)
             legacy_training_runtime = EvaluationRuntimeConfig(**tr)
         if "final_runtime" in pa and isinstance(pa["final_runtime"], Mapping):
             fr = dict(pa["final_runtime"])
             legacy_final_splits = fr.pop("splits", None)
-            fr.pop("persistent_workers", None)
-            fr.pop("prefetch_factor", None)
             legacy_final_runtime = EvaluationRuntimeConfig(**fr)
 
         if "runtime" not in mapped and (

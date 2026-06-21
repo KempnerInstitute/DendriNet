@@ -31,6 +31,8 @@ class EvaluationRuntimeConfig(BaseConfig):
     batch_size: int = 256
     num_workers: int = 4
     pin_memory: bool = True
+    persistent_workers: bool = False
+    prefetch_factor: Optional[int] = 2
     max_batches: Optional[int] = None
     max_samples: Optional[int] = None
     materialize_threshold_mb: int = 1024
