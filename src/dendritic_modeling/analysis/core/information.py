@@ -1506,9 +1506,7 @@ class InformationAnalyzer(
         total_analysis_time = time.time() - analysis_start_time
         self._log_analysis_summary(results, total_analysis_time)
 
-        somatic_synapses = self._add_synthetic_soma_entry_if_needed(results, model)
-        self._finalize_information_units_and_variance(results)
-        self._maybe_add_lda_vs_trained_performance(
+        somatic_synapses = self._finalize_analysis_payload(
             results=results,
             model=model,
             inputs=inputs,
@@ -1546,6 +1544,29 @@ class InformationAnalyzer(
         if "num_layers" in results:
             self.logger.info(f"   - Layers processed: {results['num_layers']}")
 
+    def _finalize_analysis_payload(
+        self,
+        *,
+        results: dict[str, Any],
+        model: BaseModel,
+        inputs: torch.Tensor,
+        labels: torch.Tensor,
+        device: str,
+        save_path: Optional[str],
+    ) -> bool:
+        """Finalize in-memory analysis results before optional persistence."""
+        somatic_synapses = self._add_synthetic_soma_entry_if_needed(results, model)
+        self._finalize_information_units_and_variance(results)
+        self._maybe_add_lda_vs_trained_performance(
+            results=results,
+            model=model,
+            inputs=inputs,
+            labels=labels,
+            device=device,
+            save_path=save_path,
+        )
+        return somatic_synapses
+
     def _finalize_information_units_and_variance(self, results: dict[str, Any]) -> None:
         results["information_units"] = getattr(self, "output_units", "nats")
         if results["information_units"] == "bits":
@@ -1577,20 +1598,31 @@ class InformationAnalyzer(
             )
             results["lda_vs_trained_performance"] = lda_comparison
 
-            if lda_comparison.get("lda_accuracy") is not None:
-                from dendritic_modeling.plotting.visualizations.information_plots import (
-                    plot_lda_vs_trained_performance,
-                )
-
-                plot_lda_vs_trained_performance(lda_comparison, save_path, self.logger)
-                self.logger.info("LDA vs trained performance comparison completed!")
-            else:
-                self.logger.warning(
-                    "LDA accuracy not available, skipping performance plot"
-                )
+            self._plot_lda_vs_trained_performance_if_available(
+                lda_comparison=lda_comparison,
+                save_path=save_path,
+            )
         except Exception as e:
             self.logger.error(f"Error computing LDA vs trained performance: {e}")
             traceback.print_exc()
+
+    def _plot_lda_vs_trained_performance_if_available(
+        self,
+        *,
+        lda_comparison: dict[str, Any],
+        save_path: str,
+    ) -> None:
+        """Plot LDA comparison results when the comparison includes an accuracy."""
+        if lda_comparison.get("lda_accuracy") is None:
+            self.logger.warning("LDA accuracy not available, skipping performance plot")
+            return
+
+        from dendritic_modeling.plotting.visualizations.information_plots import (
+            plot_lda_vs_trained_performance,
+        )
+
+        plot_lda_vs_trained_performance(lda_comparison, save_path, self.logger)
+        self.logger.info("LDA vs trained performance comparison completed!")
 
     def _save_analysis_outputs(
         self,

@@ -24,6 +24,11 @@ from dendritic_modeling.training.strategies.local_learning import (
     _supports_local_learning_train,
     _zero_optimizer_gradients,
 )
+from dendritic_modeling.training.strategies.local_learning_gradients_mixin import (
+    _accumulate_parameter_grad,
+    _reactivation_output_slope,
+    _scale_reactivation_error,
+)
 
 
 def _local_cfg(**overrides):
@@ -52,6 +57,67 @@ def _path_cfg(*, use_path_propagation=True):
             use_path_propagation=use_path_propagation,
         )
     )
+
+
+def test_accumulate_parameter_grad_initializes_with_parameter_dtype():
+    param = torch.nn.Parameter(torch.zeros(2, dtype=torch.float64))
+    grad = torch.tensor([1.25, -0.5], dtype=torch.float32)
+
+    _accumulate_parameter_grad(param, grad)
+
+    assert param.grad is not None
+    assert param.grad.dtype == torch.float64
+    torch.testing.assert_close(
+        param.grad,
+        torch.tensor([1.25, -0.5], dtype=torch.float64),
+    )
+
+
+def test_accumulate_parameter_grad_adds_to_existing_gradient():
+    param = torch.nn.Parameter(torch.zeros(2, dtype=torch.float32))
+    param.grad = torch.tensor([1.0, 2.0], dtype=torch.float32)
+
+    _accumulate_parameter_grad(param, torch.tensor([0.5, -1.0], dtype=torch.float32))
+
+    torch.testing.assert_close(param.grad, torch.tensor([1.5, 1.0]))
+
+
+def test_scale_reactivation_error_applies_scalar_modulators_in_order():
+    error_signal = torch.tensor([[1.0, -2.0], [0.5, 3.0]])
+
+    scaled = _scale_reactivation_error(
+        error_signal,
+        rho=2.0,
+        phi=0.25,
+        branch_scale=-3.0,
+    )
+
+    expected = ((error_signal * 2.0) * 0.25) * -3.0
+    torch.testing.assert_close(scaled, expected)
+
+
+def test_scale_reactivation_error_broadcasts_tensor_modulators():
+    error_signal = torch.tensor([[1.0, -2.0, 0.5], [0.5, 3.0, -1.0]])
+    rho = torch.tensor([2.0, 0.5, -1.0])
+    branch_scale = torch.tensor([1.5, -2.0, 0.25])
+
+    scaled = _scale_reactivation_error(
+        error_signal,
+        rho=rho,
+        phi=0.25,
+        branch_scale=branch_scale,
+    )
+
+    expected = ((error_signal * rho.unsqueeze(0)) * 0.25) * branch_scale.unsqueeze(0)
+    torch.testing.assert_close(scaled, expected)
+
+
+def test_reactivation_output_slope_matches_existing_formula():
+    output = torch.tensor([[0.0, 0.25, 0.5, 0.75, 1.0]])
+
+    slope = _reactivation_output_slope(output)
+
+    torch.testing.assert_close(slope, 1 - (2 * output - 1) ** 2)
 
 
 def test_resolve_epoch_update_modes_uses_base_modes_after_freeze_window():

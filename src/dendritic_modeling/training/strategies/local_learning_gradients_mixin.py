@@ -16,6 +16,41 @@ from dendritic_modeling.training.strategies.local_learning_state import (
 )
 
 
+def _accumulate_parameter_grad(param: torch.Tensor, grad: torch.Tensor) -> None:
+    """Accumulate a local-rule gradient using the parameter's dtype."""
+    grad = grad.to(param.dtype)
+    if param.grad is None:
+        param.grad = grad
+    else:
+        param.grad = param.grad + grad
+
+
+def _scale_reactivation_error(
+    error_signal: torch.Tensor,
+    *,
+    rho: Any,
+    phi: float,
+    branch_scale: Any,
+) -> torch.Tensor:
+    """Apply local-rule modulation to a reactivation error signal."""
+    scaled = error_signal
+    if isinstance(rho, torch.Tensor):
+        scaled = scaled * rho.unsqueeze(0)
+    else:
+        scaled = scaled * float(rho)
+    scaled = scaled * float(phi)
+    if isinstance(branch_scale, torch.Tensor):
+        scaled = scaled * branch_scale.unsqueeze(0)
+    else:
+        scaled = scaled * float(branch_scale)
+    return scaled
+
+
+def _reactivation_output_slope(output: torch.Tensor) -> torch.Tensor:
+    """Derivative factor for the normalized tanh-style reactivation output."""
+    return 1 - (2 * output - 1) ** 2
+
+
 class LocalLearningGradientMixin:
     """Gradient writeback helpers used by ``LocalCreditAssignment``."""
 
@@ -398,12 +433,7 @@ class LocalLearningGradientMixin:
             getattr(blk_layer, "weight_transform", "exp"),
         )
         grad_param_den = grad_g_den * den_chain
-        if blk_layer.log_weight.grad is None:
-            blk_layer.log_weight.grad = grad_param_den.to(blk_layer.log_weight.dtype)
-        else:
-            blk_layer.log_weight.grad = blk_layer.log_weight.grad + grad_param_den.to(
-                blk_layer.log_weight.dtype
-            )
+        _accumulate_parameter_grad(blk_layer.log_weight, grad_param_den)
 
     def _apply_reactivation_local_grad(
         self,
@@ -426,59 +456,38 @@ class LocalLearningGradientMixin:
         ):
             return
 
+        one_minus_y2 = _reactivation_output_slope(v_out)
         if hasattr(react_module, "log_m"):
-            y = v_out
-            one_minus_y2 = 1 - (2 * y - 1) ** 2
             if hasattr(react_module, "b"):
                 elig_m = one_minus_y2 * (v_n - react_module.b.detach())
             else:
                 elig_m = one_minus_y2 * v_n
             m_vec = react_module.log_m.detach().exp()
-            react_factor = e_n
-            if isinstance(rho, torch.Tensor):
-                react_factor = react_factor * rho.unsqueeze(0)
-            else:
-                react_factor = react_factor * float(rho)
-            react_factor = react_factor * float(phi)
-            if isinstance(branch_scale, torch.Tensor):
-                react_factor = react_factor * branch_scale.unsqueeze(0)
-            else:
-                react_factor = react_factor * float(branch_scale)
+            react_factor = _scale_reactivation_error(
+                e_n,
+                rho=rho,
+                phi=phi,
+                branch_scale=branch_scale,
+            )
             grad_m = (react_factor * elig_m).mean(dim=0)
             grad_log_m = grad_m * m_vec
-            if react_module.log_m.grad is None:
-                react_module.log_m.grad = grad_log_m.to(react_module.log_m.dtype)
-            else:
-                react_module.log_m.grad = react_module.log_m.grad + grad_log_m.to(
-                    react_module.log_m.dtype
-                )
+            _accumulate_parameter_grad(react_module.log_m, grad_log_m)
 
         if hasattr(react_module, "b"):
-            y = v_out
-            one_minus_y2 = 1 - (2 * y - 1) ** 2
             m_vec = (
                 react_module.log_m.detach().exp()
                 if hasattr(react_module, "log_m")
                 else 1.0
             )
             elig_b = -one_minus_y2 * m_vec
-            react_factor_b = e_n
-            if isinstance(rho, torch.Tensor):
-                react_factor_b = react_factor_b * rho.unsqueeze(0)
-            else:
-                react_factor_b = react_factor_b * float(rho)
-            react_factor_b = react_factor_b * float(phi)
-            if isinstance(branch_scale, torch.Tensor):
-                react_factor_b = react_factor_b * branch_scale.unsqueeze(0)
-            else:
-                react_factor_b = react_factor_b * float(branch_scale)
+            react_factor_b = _scale_reactivation_error(
+                e_n,
+                rho=rho,
+                phi=phi,
+                branch_scale=branch_scale,
+            )
             grad_b = (react_factor_b * elig_b).mean(dim=0)
-            if react_module.b.grad is None:
-                react_module.b.grad = grad_b.to(react_module.b.dtype)
-            else:
-                react_module.b.grad = react_module.b.grad + grad_b.to(
-                    react_module.b.dtype
-                )
+            _accumulate_parameter_grad(react_module.b, grad_b)
 
         aux_grad_log_m, aux_grad_b = self._compute_gate_homeostasis_aux_grads(
             react_module=react_module,
@@ -486,23 +495,13 @@ class LocalLearningGradientMixin:
             v_out=v_out,
         )
         if aux_grad_log_m is not None and hasattr(react_module, "log_m"):
-            if react_module.log_m.grad is None:
-                react_module.log_m.grad = aux_grad_log_m.to(react_module.log_m.dtype)
-            else:
-                react_module.log_m.grad = react_module.log_m.grad + aux_grad_log_m.to(
-                    react_module.log_m.dtype
-                )
+            _accumulate_parameter_grad(react_module.log_m, aux_grad_log_m)
         if (
             aux_grad_b is not None
             and hasattr(react_module, "b")
             and react_module.b is not None
         ):
-            if react_module.b.grad is None:
-                react_module.b.grad = aux_grad_b.to(react_module.b.dtype)
-            else:
-                react_module.b.grad = react_module.b.grad + aux_grad_b.to(
-                    react_module.b.dtype
-                )
+            _accumulate_parameter_grad(react_module.b, aux_grad_b)
 
 
 __all__ = ["LocalLearningGradientMixin"]

@@ -1004,6 +1004,134 @@ class TestInformationAnalyzer(unittest.TestCase):
         mock_info.assert_any_call("   - Branches processed: 5")
         mock_info.assert_any_call("   - Layers processed: 2")
 
+    def test_finalize_analysis_payload_runs_in_memory_finalizers(self):
+        """Payload finalization should preserve soma, unit, variance, and LDA delegates."""
+        results = {"n_samples": 3}
+        inputs = torch.ones(3, 2)
+        labels = torch.tensor([0, 1, 0])
+
+        with (
+            patch.object(
+                self.analyzer,
+                "_add_synthetic_soma_entry_if_needed",
+                return_value=False,
+            ) as mock_soma,
+            patch.object(
+                self.analyzer,
+                "_finalize_information_units_and_variance",
+            ) as mock_units,
+            patch.object(
+                self.analyzer,
+                "_maybe_add_lda_vs_trained_performance",
+            ) as mock_lda,
+        ):
+            somatic_synapses = self.analyzer._finalize_analysis_payload(
+                results=results,
+                model=self.model,
+                inputs=inputs,
+                labels=labels,
+                device="cpu",
+                save_path="/tmp/results",
+            )
+
+        self.assertFalse(somatic_synapses)
+        mock_soma.assert_called_once_with(results, self.model)
+        mock_units.assert_called_once_with(results)
+        mock_lda.assert_called_once_with(
+            results=results,
+            model=self.model,
+            inputs=inputs,
+            labels=labels,
+            device="cpu",
+            save_path="/tmp/results",
+        )
+
+    def test_complete_analysis_results_delegates_payload_and_save(self):
+        """Completion helper should pass finalized soma state into persistence."""
+        results = {"n_samples": 3}
+        inputs = torch.ones(3, 2)
+        labels = torch.tensor([0, 1, 0])
+
+        with (
+            patch(
+                "dendritic_modeling.analysis.core.information.time.time",
+                return_value=12.5,
+            ),
+            patch.object(self.analyzer, "_add_analysis_metadata") as mock_metadata,
+            patch.object(self.analyzer, "_log_analysis_summary") as mock_log,
+            patch.object(
+                self.analyzer,
+                "_finalize_analysis_payload",
+                return_value=False,
+            ) as mock_finalize,
+            patch.object(self.analyzer, "_save_analysis_outputs") as mock_save,
+        ):
+            completed = self.analyzer._complete_analysis_results(
+                results=results,
+                model=self.model,
+                inputs=inputs,
+                labels=labels,
+                analysis_start_time=10.0,
+                device="cpu",
+                save_path="/tmp/results",
+                filename="analysis",
+            )
+
+        self.assertIs(completed, results)
+        mock_metadata.assert_called_once_with(results)
+        mock_log.assert_called_once_with(results, 2.5)
+        mock_finalize.assert_called_once_with(
+            results=results,
+            model=self.model,
+            inputs=inputs,
+            labels=labels,
+            device="cpu",
+            save_path="/tmp/results",
+        )
+        mock_save.assert_called_once_with(
+            results=results,
+            save_path="/tmp/results",
+            filename="analysis",
+            somatic_synapses=False,
+        )
+
+    def test_lda_performance_plot_helper_warns_without_accuracy(self):
+        """LDA plot helper should preserve the missing-accuracy warning path."""
+        with patch.object(self.analyzer.logger, "warning") as mock_warning:
+            self.analyzer._plot_lda_vs_trained_performance_if_available(
+                lda_comparison={"lda_accuracy": None},
+                save_path="/tmp/results",
+            )
+
+        mock_warning.assert_called_once_with(
+            "LDA accuracy not available, skipping performance plot"
+        )
+
+    def test_lda_performance_plot_helper_calls_plot_when_accuracy_exists(self):
+        """LDA plot helper should call the plotting utility when accuracy exists."""
+        lda_comparison = {"lda_accuracy": 0.75}
+
+        with (
+            patch(
+                "dendritic_modeling.plotting.visualizations.information_plots."
+                "plot_lda_vs_trained_performance"
+            ) as mock_plot,
+            patch.object(self.analyzer.logger, "info") as mock_info,
+        ):
+            self.analyzer._plot_lda_vs_trained_performance_if_available(
+                lda_comparison=lda_comparison,
+                save_path="/tmp/results",
+            )
+
+        mock_plot.assert_called_once_with(
+            lda_comparison,
+            "/tmp/results",
+            self.analyzer.logger,
+        )
+        mock_info.assert_called_once_with(
+            "LDA vs trained performance comparison completed!"
+        )
+
     def test_analysis_summary_file_helper_writes_summary_text(self):
         """Summary file helper should write get_summary output next to results."""
         results = {"metric": 1.0}
