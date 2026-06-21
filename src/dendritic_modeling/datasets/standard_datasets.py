@@ -268,6 +268,50 @@ def _load_torchvision_train_test_pair(dataset_cls, *, root, transform, dataset_n
             return train_dataset, test_dataset
 
 
+def _materialize_mnist_style_tensor_triplet(
+    train_dataset: Dataset,
+    test_dataset: Dataset,
+    *,
+    train_valid_split: float,
+    flatten: bool,
+    split_seed: int,
+) -> tuple[TensorDataset, TensorDataset, TensorDataset]:
+    """Split and materialize MNIST-style torchvision datasets as TensorDatasets."""
+    train_size = int(len(train_dataset) * train_valid_split)
+    valid_size = len(train_dataset) - train_size
+
+    train_dataset, valid_dataset = torch.utils.data.random_split(
+        train_dataset,
+        [train_size, valid_size],
+        generator=_split_generator(split_seed),
+    )
+
+    x_train, y_train = _dataset_to_tensors(train_dataset)
+
+    if len(valid_dataset) > 0:
+        x_valid, y_valid = _dataset_to_tensors(valid_dataset)
+    else:
+        sample_img, _ = train_dataset[0]
+        x_valid = torch.empty(0, *sample_img.shape)
+        y_valid = torch.empty(0, dtype=torch.long)
+
+    x_test, y_test = _dataset_to_tensors(test_dataset)
+
+    if flatten:
+        x_train = x_train.view(x_train.shape[0], -1)
+        if len(x_valid) > 0:
+            x_valid = x_valid.view(x_valid.shape[0], -1)
+        else:
+            x_valid = torch.empty(0, x_train.shape[1])
+        x_test = x_test.view(x_test.shape[0], -1)
+
+    return (
+        torch.utils.data.TensorDataset(x_train, y_train),
+        torch.utils.data.TensorDataset(x_valid, y_valid),
+        torch.utils.data.TensorDataset(x_test, y_test),
+    )
+
+
 def load_mnist_as_datasets(
     train_valid_split=0.8,
     flatten=False,
@@ -301,41 +345,13 @@ def load_mnist_as_datasets(
         dataset_name="MNIST",
     )
 
-    train_size = int(len(train_dataset) * train_valid_split)
-    valid_size = len(train_dataset) - train_size
-
-    train_dataset, valid_dataset = torch.utils.data.random_split(
+    return _materialize_mnist_style_tensor_triplet(
         train_dataset,
-        [train_size, valid_size],
-        generator=_split_generator(split_seed),
+        test_dataset,
+        train_valid_split=train_valid_split,
+        flatten=flatten,
+        split_seed=split_seed,
     )
-
-    x_train, y_train = _dataset_to_tensors(train_dataset)
-
-    # Handle empty validation dataset when train_valid_split=1
-    if len(valid_dataset) > 0:
-        x_valid, y_valid = _dataset_to_tensors(valid_dataset)
-    else:
-        # Create empty tensors with correct shape
-        sample_img, _ = train_dataset[0]
-        x_valid = torch.empty(0, *sample_img.shape)
-        y_valid = torch.empty(0, dtype=torch.long)
-
-    x_test, y_test = _dataset_to_tensors(test_dataset)
-
-    if flatten:
-        x_train = x_train.view(x_train.shape[0], -1)
-        if len(x_valid) > 0:
-            x_valid = x_valid.view(x_valid.shape[0], -1)
-        else:
-            x_valid = torch.empty(0, x_train.shape[1])
-        x_test = x_test.view(x_test.shape[0], -1)
-
-    train_ds = torch.utils.data.TensorDataset(x_train, y_train)
-    valid_ds = torch.utils.data.TensorDataset(x_valid, y_valid)
-    test_ds = torch.utils.data.TensorDataset(x_test, y_test)
-
-    return train_ds, valid_ds, test_ds
 
 
 def load_fashion_mnist_as_datasets(
@@ -371,39 +387,13 @@ def load_fashion_mnist_as_datasets(
         dataset_name="FashionMNIST",
     )
 
-    train_size = int(len(train_dataset) * train_valid_split)
-    valid_size = len(train_dataset) - train_size
-
-    train_dataset, valid_dataset = torch.utils.data.random_split(
+    return _materialize_mnist_style_tensor_triplet(
         train_dataset,
-        [train_size, valid_size],
-        generator=_split_generator(split_seed),
+        test_dataset,
+        train_valid_split=train_valid_split,
+        flatten=flatten,
+        split_seed=split_seed,
     )
-
-    x_train, y_train = _dataset_to_tensors(train_dataset)
-
-    if len(valid_dataset) > 0:
-        x_valid, y_valid = _dataset_to_tensors(valid_dataset)
-    else:
-        sample_img, _ = train_dataset[0]
-        x_valid = torch.empty(0, *sample_img.shape)
-        y_valid = torch.empty(0, dtype=torch.long)
-
-    x_test, y_test = _dataset_to_tensors(test_dataset)
-
-    if flatten:
-        x_train = x_train.view(x_train.shape[0], -1)
-        if len(x_valid) > 0:
-            x_valid = x_valid.view(x_valid.shape[0], -1)
-        else:
-            x_valid = torch.empty(0, x_train.shape[1])
-        x_test = x_test.view(x_test.shape[0], -1)
-
-    train_ds = torch.utils.data.TensorDataset(x_train, y_train)
-    valid_ds = torch.utils.data.TensorDataset(x_valid, y_valid)
-    test_ds = torch.utils.data.TensorDataset(x_test, y_test)
-
-    return train_ds, valid_ds, test_ds
 
 
 def load_mnist_modulo10(
@@ -470,6 +460,44 @@ def load_mnist_modulo10(
     return data
 
 
+def _materialize_cifar10_tensor_triplet(
+    train_dataset: Dataset,
+    test_dataset: Dataset,
+    *,
+    train_valid_split: float,
+    flatten: bool,
+    split_seed: int,
+) -> tuple[TensorDataset, TensorDataset, TensorDataset]:
+    """Split and materialize CIFAR-10 while preserving clone-valid semantics."""
+    if train_valid_split < 1.0:
+        train_size = int(len(train_dataset) * train_valid_split)
+        valid_size = len(train_dataset) - train_size
+
+        train_dataset, valid_dataset = torch.utils.data.random_split(
+            train_dataset,
+            [train_size, valid_size],
+            generator=_split_generator(split_seed),
+        )
+
+        x_train, y_train = _dataset_to_tensors(train_dataset, flatten=flatten)
+        x_valid, y_valid = _dataset_to_tensors(valid_dataset, flatten=flatten)
+        x_test, y_test = _dataset_to_tensors(test_dataset, flatten=flatten)
+
+        return (
+            torch.utils.data.TensorDataset(x_train, y_train),
+            torch.utils.data.TensorDataset(x_valid, y_valid),
+            torch.utils.data.TensorDataset(x_test, y_test),
+        )
+
+    x_train, y_train = _dataset_to_tensors(train_dataset, flatten=flatten)
+    x_test, y_test = _dataset_to_tensors(test_dataset, flatten=flatten)
+    return (
+        torch.utils.data.TensorDataset(x_train, y_train),
+        torch.utils.data.TensorDataset(x_train.clone(), y_train.clone()),
+        torch.utils.data.TensorDataset(x_test, y_test),
+    )
+
+
 def load_cifar10_as_datasets(
     train_valid_split=1.0,
     flatten=False,
@@ -505,33 +533,45 @@ def load_cifar10_as_datasets(
         dataset_name="CIFAR10",
     )
 
-    if train_valid_split < 1.0:
-        train_size = int(len(train_dataset) * train_valid_split)
-        valid_size = len(train_dataset) - train_size
+    return _materialize_cifar10_tensor_triplet(
+        train_dataset,
+        test_dataset,
+        train_valid_split=train_valid_split,
+        flatten=flatten,
+        split_seed=split_seed,
+    )
 
-        train_dataset, valid_dataset = torch.utils.data.random_split(
-            train_dataset,
-            [train_size, valid_size],
-            generator=_split_generator(split_seed),
+
+def _build_paired_arithmetic_triplet(
+    train_ds: TensorDataset,
+    valid_ds: TensorDataset,
+    test_ds: TensorDataset,
+    *,
+    shuffle_iterations: int,
+    task_mode: str,
+    flatten: bool,
+    include_context: bool,
+    pair_seed: int,
+    context_seed: int = 0,
+) -> dict[str, Dataset]:
+    """Build paired arithmetic train/validation/test datasets with split seeds."""
+    datasets_by_split = {
+        "train": train_ds,
+        "valid": valid_ds,
+        "test": test_ds,
+    }
+    return {
+        split_name: _build_paired_arithmetic_dataset(
+            dataset,
+            shuffle_iterations=shuffle_iterations,
+            task_mode=task_mode,
+            flatten=flatten,
+            include_context=include_context,
+            pair_seed=pair_seed + split_idx,
+            context_seed=context_seed + split_idx,
         )
-
-        x_train, y_train = _dataset_to_tensors(train_dataset, flatten=flatten)
-        x_valid, y_valid = _dataset_to_tensors(valid_dataset, flatten=flatten)
-        x_test, y_test = _dataset_to_tensors(test_dataset, flatten=flatten)
-
-        train_ds = torch.utils.data.TensorDataset(x_train, y_train)
-        valid_ds = torch.utils.data.TensorDataset(x_valid, y_valid)
-        test_ds = torch.utils.data.TensorDataset(x_test, y_test)
-    else:
-        x_train, y_train = _dataset_to_tensors(train_dataset, flatten=flatten)
-        x_test, y_test = _dataset_to_tensors(test_dataset, flatten=flatten)
-        train_ds = torch.utils.data.TensorDataset(x_train, y_train)
-        # Create a separate validation dataset with the same data as train
-        # to avoid reference issues
-        valid_ds = torch.utils.data.TensorDataset(x_train.clone(), y_train.clone())
-        test_ds = torch.utils.data.TensorDataset(x_test, y_test)
-
-    return train_ds, valid_ds, test_ds
+        for split_idx, (split_name, dataset) in enumerate(datasets_by_split.items())
+    }
 
 
 def load_cifar10_modulo10(
@@ -552,32 +592,16 @@ def load_cifar10_modulo10(
         split_seed=split_seed,
     )
 
-    return {
-        "train": _build_paired_arithmetic_dataset(
-            train_ds,
-            shuffle_iterations=shuffle_iterations,
-            task_mode="sum_mod10",
-            flatten=flatten,
-            include_context=False,
-            pair_seed=pair_seed,
-        ),
-        "valid": _build_paired_arithmetic_dataset(
-            valid_ds,
-            shuffle_iterations=shuffle_iterations,
-            task_mode="sum_mod10",
-            flatten=flatten,
-            include_context=False,
-            pair_seed=pair_seed + 1,
-        ),
-        "test": _build_paired_arithmetic_dataset(
-            test_ds,
-            shuffle_iterations=shuffle_iterations,
-            task_mode="sum_mod10",
-            flatten=flatten,
-            include_context=False,
-            pair_seed=pair_seed + 2,
-        ),
-    }
+    return _build_paired_arithmetic_triplet(
+        train_ds,
+        valid_ds,
+        test_ds,
+        shuffle_iterations=shuffle_iterations,
+        task_mode="sum_mod10",
+        flatten=flatten,
+        include_context=False,
+        pair_seed=pair_seed,
+    )
 
 
 def load_double_cifar10_contextual_mod10(
@@ -599,35 +623,17 @@ def load_double_cifar10_contextual_mod10(
         split_seed=split_seed,
     )
 
-    return {
-        "train": _build_paired_arithmetic_dataset(
-            train_ds,
-            shuffle_iterations=shuffle_iterations,
-            task_mode="context_sum_diff",
-            flatten=flatten,
-            include_context=True,
-            pair_seed=pair_seed,
-            context_seed=context_seed,
-        ),
-        "valid": _build_paired_arithmetic_dataset(
-            valid_ds,
-            shuffle_iterations=shuffle_iterations,
-            task_mode="context_sum_diff",
-            flatten=flatten,
-            include_context=True,
-            pair_seed=pair_seed + 1,
-            context_seed=context_seed + 1,
-        ),
-        "test": _build_paired_arithmetic_dataset(
-            test_ds,
-            shuffle_iterations=shuffle_iterations,
-            task_mode="context_sum_diff",
-            flatten=flatten,
-            include_context=True,
-            pair_seed=pair_seed + 2,
-            context_seed=context_seed + 2,
-        ),
-    }
+    return _build_paired_arithmetic_triplet(
+        train_ds,
+        valid_ds,
+        test_ds,
+        shuffle_iterations=shuffle_iterations,
+        task_mode="context_sum_diff",
+        flatten=flatten,
+        include_context=True,
+        pair_seed=pair_seed,
+        context_seed=context_seed,
+    )
 
 
 def load_double_mnist_contextual_mod10(
@@ -649,35 +655,71 @@ def load_double_mnist_contextual_mod10(
         split_seed=split_seed,
     )
 
-    return {
-        "train": _build_paired_arithmetic_dataset(
-            train_ds,
-            shuffle_iterations=shuffle_iterations,
-            task_mode="context_sum_diff",
-            flatten=flatten,
-            include_context=True,
-            pair_seed=pair_seed,
-            context_seed=context_seed,
-        ),
-        "valid": _build_paired_arithmetic_dataset(
-            valid_ds,
-            shuffle_iterations=shuffle_iterations,
-            task_mode="context_sum_diff",
-            flatten=flatten,
-            include_context=True,
-            pair_seed=pair_seed + 1,
-            context_seed=context_seed + 1,
-        ),
-        "test": _build_paired_arithmetic_dataset(
-            test_ds,
-            shuffle_iterations=shuffle_iterations,
-            task_mode="context_sum_diff",
-            flatten=flatten,
-            include_context=True,
-            pair_seed=pair_seed + 2,
-            context_seed=context_seed + 2,
-        ),
+    return _build_paired_arithmetic_triplet(
+        train_ds,
+        valid_ds,
+        test_ds,
+        shuffle_iterations=shuffle_iterations,
+        task_mode="context_sum_diff",
+        flatten=flatten,
+        include_context=True,
+        pair_seed=pair_seed,
+        context_seed=context_seed,
+    )
+
+
+def _wrap_poisson_generator_dataset(
+    dataset: Dataset,
+    *,
+    multiplicative_gain: bool,
+    fixed_gain_factor: Optional[float],
+    max_gain_factor: Optional[float],
+    uniform_gain: bool,
+    poisson_sampling: bool,
+    stimulus_duration: float,
+    max_gain_tau_ratio: Optional[float],
+) -> PoissonGeneratorDataset:
+    """Wrap one tensor-like dataset with the Poisson generator."""
+    return PoissonGeneratorDataset(
+        *dataset[:],
+        multiplicative_gain=multiplicative_gain,
+        fixed_gain_factor=fixed_gain_factor,
+        max_gain_factor=max_gain_factor,
+        uniform_gain=uniform_gain,
+        poisson_sampling=poisson_sampling,
+        stimulus_duration=stimulus_duration,
+        max_gain_tau_ratio=max_gain_tau_ratio,
+    )
+
+
+def _wrap_poisson_generator_triplet(
+    train_ds: Dataset,
+    valid_ds: Dataset,
+    test_ds: Dataset,
+    *,
+    multiplicative_gain: bool,
+    fixed_gain_factor: Optional[float],
+    max_gain_factor: Optional[float],
+    uniform_gain: bool,
+    poisson_sampling: bool,
+    stimulus_duration: float,
+    max_gain_tau_ratio: Optional[float],
+) -> tuple[PoissonGeneratorDataset, PoissonGeneratorDataset, PoissonGeneratorDataset]:
+    """Wrap train/validation/test datasets with identical Poisson settings."""
+    kwargs = {
+        "multiplicative_gain": multiplicative_gain,
+        "fixed_gain_factor": fixed_gain_factor,
+        "max_gain_factor": max_gain_factor,
+        "uniform_gain": uniform_gain,
+        "poisson_sampling": poisson_sampling,
+        "stimulus_duration": stimulus_duration,
+        "max_gain_tau_ratio": max_gain_tau_ratio,
     }
+    return (
+        _wrap_poisson_generator_dataset(train_ds, **kwargs),
+        _wrap_poisson_generator_dataset(valid_ds, **kwargs),
+        _wrap_poisson_generator_dataset(test_ds, **kwargs),
+    )
 
 
 def load_poisson_generator_datasets(
@@ -731,8 +773,10 @@ def load_poisson_generator_datasets(
     else:
         raise ValueError(f"Unknown base dataset: {base_dataset}")
 
-    train_ds = PoissonGeneratorDataset(
-        *train_ds[:],
+    return _wrap_poisson_generator_triplet(
+        train_ds,
+        valid_ds,
+        test_ds,
         multiplicative_gain=multiplicative_gain,
         fixed_gain_factor=fixed_gain_factor,
         max_gain_factor=max_gain_factor,
@@ -741,28 +785,6 @@ def load_poisson_generator_datasets(
         stimulus_duration=stimulus_duration,
         max_gain_tau_ratio=max_gain_tau_ratio,
     )
-    valid_ds = PoissonGeneratorDataset(
-        *valid_ds[:],
-        multiplicative_gain=multiplicative_gain,
-        fixed_gain_factor=fixed_gain_factor,
-        max_gain_factor=max_gain_factor,
-        uniform_gain=uniform_gain,
-        poisson_sampling=poisson_sampling,
-        stimulus_duration=stimulus_duration,
-        max_gain_tau_ratio=max_gain_tau_ratio,
-    )
-    test_ds = PoissonGeneratorDataset(
-        *test_ds[:],
-        multiplicative_gain=multiplicative_gain,
-        fixed_gain_factor=fixed_gain_factor,
-        max_gain_factor=max_gain_factor,
-        uniform_gain=uniform_gain,
-        poisson_sampling=poisson_sampling,
-        stimulus_duration=stimulus_duration,
-        max_gain_tau_ratio=max_gain_tau_ratio,
-    )
-
-    return train_ds, valid_ds, test_ds
 
 
 _STANDARD_VISION_DATASET_LOADERS: dict[str, str | Callable[..., _DatasetTriplet]] = {
@@ -932,19 +954,44 @@ def _load_imagenet_from_options(options: _UnifiedDatasetOptions) -> _DatasetTrip
     )
 
 
+def _standard_dataset_option_kwargs(options: _UnifiedDatasetOptions) -> dict[str, Any]:
+    """Return common standard-dataset loader kwargs from unified options."""
+    return {
+        "train_valid_split": options.train_valid_split,
+        "flatten": options.flatten,
+        "normalize": options.normalize,
+        "task_data_path": options.task_data_path,
+        "split_seed": options.split_seed,
+    }
+
+
+def _paired_arithmetic_option_kwargs(
+    options: _UnifiedDatasetOptions,
+    *,
+    default_shuffle_iterations: int,
+    include_context: bool,
+) -> dict[str, Any]:
+    """Return paired arithmetic loader kwargs from unified options."""
+    p = options.parameters
+    kwargs = {
+        **_standard_dataset_option_kwargs(options),
+        "shuffle_iterations": p.get("shuffle_iterations", default_shuffle_iterations),
+        "pair_seed": p.get("pair_seed", 0),
+    }
+    if include_context:
+        kwargs["context_seed"] = p.get("context_seed", 123)
+    return kwargs
+
+
 def _load_mnist_modulo10_from_options(
     options: _UnifiedDatasetOptions,
 ) -> _DatasetTriplet:
-    task_data_path = options.task_data_path
-    p = options.parameters
     data = load_mnist_modulo10(
-        train_valid_split=options.train_valid_split,
-        flatten=options.flatten,
-        normalize=options.normalize,
-        task_data_path=task_data_path,
-        shuffle_iterations=p.get("shuffle_iterations", 2),
-        split_seed=options.split_seed,
-        pair_seed=p.get("pair_seed", 0),
+        **_paired_arithmetic_option_kwargs(
+            options,
+            default_shuffle_iterations=2,
+            include_context=False,
+        )
     )
     return _dataset_mapping_to_triplet(data, valid_fallback_to_test=True)
 
@@ -952,15 +999,12 @@ def _load_mnist_modulo10_from_options(
 def _load_cifar10_modulo10_from_options(
     options: _UnifiedDatasetOptions,
 ) -> _DatasetTriplet:
-    p = options.parameters
     data = load_cifar10_modulo10(
-        train_valid_split=options.train_valid_split,
-        flatten=options.flatten,
-        normalize=options.normalize,
-        task_data_path=options.task_data_path,
-        shuffle_iterations=p.get("shuffle_iterations", 1),
-        pair_seed=p.get("pair_seed", 0),
-        split_seed=options.split_seed,
+        **_paired_arithmetic_option_kwargs(
+            options,
+            default_shuffle_iterations=1,
+            include_context=False,
+        )
     )
     return _dataset_mapping_to_triplet(data, slice_safe=True)
 
@@ -968,16 +1012,12 @@ def _load_cifar10_modulo10_from_options(
 def _load_double_cifar10_contextual_mod10_from_options(
     options: _UnifiedDatasetOptions,
 ) -> _DatasetTriplet:
-    p = options.parameters
     data = load_double_cifar10_contextual_mod10(
-        train_valid_split=options.train_valid_split,
-        flatten=options.flatten,
-        normalize=options.normalize,
-        task_data_path=options.task_data_path,
-        shuffle_iterations=p.get("shuffle_iterations", 1),
-        pair_seed=p.get("pair_seed", 0),
-        context_seed=p.get("context_seed", 123),
-        split_seed=options.split_seed,
+        **_paired_arithmetic_option_kwargs(
+            options,
+            default_shuffle_iterations=1,
+            include_context=True,
+        )
     )
     return _dataset_mapping_to_triplet(data, slice_safe=True)
 
@@ -985,16 +1025,12 @@ def _load_double_cifar10_contextual_mod10_from_options(
 def _load_double_mnist_contextual_mod10_from_options(
     options: _UnifiedDatasetOptions,
 ) -> _DatasetTriplet:
-    p = options.parameters
     data = load_double_mnist_contextual_mod10(
-        train_valid_split=options.train_valid_split,
-        flatten=options.flatten,
-        normalize=options.normalize,
-        task_data_path=options.task_data_path,
-        shuffle_iterations=p.get("shuffle_iterations", 1),
-        pair_seed=p.get("pair_seed", 0),
-        context_seed=p.get("context_seed", 123),
-        split_seed=options.split_seed,
+        **_paired_arithmetic_option_kwargs(
+            options,
+            default_shuffle_iterations=1,
+            include_context=True,
+        )
     )
     return _dataset_mapping_to_triplet(data, slice_safe=True)
 

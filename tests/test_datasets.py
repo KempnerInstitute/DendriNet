@@ -42,6 +42,7 @@ from dendritic_modeling.datasets.sequence_datasets import (
 )
 from dendritic_modeling.datasets.standard_datasets import (
     _STANDARD_VISION_DATASET_LOADERS,
+    PoissonGeneratorDataset as StandardPoissonGeneratorDataset,
     _apply_imagenet_class_subsets,
     _apply_imagenet_local_override,
     _build_imagenet_transforms,
@@ -53,16 +54,21 @@ from dendritic_modeling.datasets.standard_datasets import (
     _load_imagenet_dataset_triplet,
     _load_standard_vision_dataset_triplet,
     _load_torchvision_train_test_pair,
+    _materialize_cifar10_tensor_triplet,
     _materialize_flattened_tensor_dataset,
+    _materialize_mnist_style_tensor_triplet,
     _maybe_apply_label_noise_to_triplet,
     _maybe_materialize_flattened_imagenet_triplet,
     _normalized_imagenet_loader_backend,
     _normalized_imagenet_preset_name,
+    _paired_arithmetic_option_kwargs,
     _resolve_imagefolder_roots,
     _resolve_imagenet_data_location,
     _split_imagenet_train_valid_or_use_test,
     _split_train_valid_pair,
+    _standard_dataset_option_kwargs,
     _subset_by_indices,
+    _wrap_poisson_generator_triplet,
 )
 
 # Import synthetic datasets from experiments folder
@@ -412,6 +418,24 @@ class TestRealDatasets(unittest.TestCase):
         self.assertGreater(len(test_ds), 0)
         # valid_ds might be empty if train_valid_split=1
 
+    def test_materialize_mnist_style_tensor_triplet_preserves_empty_valid_flatten(self):
+        train_dataset = self._TinyVisionDataset(5, (1, 4, 4))
+        test_dataset = self._TinyVisionDataset(3, (1, 4, 4))
+
+        train_ds, valid_ds, test_ds = _materialize_mnist_style_tensor_triplet(
+            train_dataset,
+            test_dataset,
+            train_valid_split=1.0,
+            flatten=True,
+            split_seed=0,
+        )
+
+        self.assertEqual(tuple(train_ds.tensors[0].shape), (5, 16))
+        self.assertEqual(tuple(valid_ds.tensors[0].shape), (0, 16))
+        self.assertEqual(tuple(test_ds.tensors[0].shape), (3, 16))
+        self.assertEqual(tuple(valid_ds.tensors[1].shape), (0,))
+        self.assertEqual(valid_ds.tensors[1].dtype, torch.long)
+
     @patch(
         "dendritic_modeling.datasets.standard_datasets._load_torchvision_train_test_pair"
     )
@@ -445,6 +469,34 @@ class TestRealDatasets(unittest.TestCase):
         # Check that we have data
         self.assertGreater(len(train_ds), 0)
         self.assertGreater(len(test_ds), 0)
+
+    def test_materialize_cifar10_tensor_triplet_clones_train_as_valid_at_full_split(
+        self,
+    ):
+        train_dataset = self._TinyVisionDataset(5, (3, 4, 4))
+        test_dataset = self._TinyVisionDataset(3, (3, 4, 4))
+
+        train_ds, valid_ds, test_ds = _materialize_cifar10_tensor_triplet(
+            train_dataset,
+            test_dataset,
+            train_valid_split=1.0,
+            flatten=True,
+            split_seed=0,
+        )
+
+        self.assertEqual(tuple(train_ds.tensors[0].shape), (5, 48))
+        self.assertEqual(tuple(valid_ds.tensors[0].shape), (5, 48))
+        self.assertEqual(tuple(test_ds.tensors[0].shape), (3, 48))
+        self.assertTrue(torch.equal(valid_ds.tensors[0], train_ds.tensors[0]))
+        self.assertTrue(torch.equal(valid_ds.tensors[1], train_ds.tensors[1]))
+        self.assertNotEqual(
+            valid_ds.tensors[0].data_ptr(),
+            train_ds.tensors[0].data_ptr(),
+        )
+        self.assertNotEqual(
+            valid_ds.tensors[1].data_ptr(),
+            train_ds.tensors[1].data_ptr(),
+        )
 
     def test_mnist_avoids_redownload_when_cache_is_good(self):
         """MNIST cache helper should use the local cache when it is already valid."""
@@ -1146,6 +1198,69 @@ class TestDatasetUtilities(unittest.TestCase):
 
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
+    def test_standard_dataset_option_kwargs_preserve_unified_loader_fields(self):
+        options = SimpleNamespace(
+            train_valid_split=0.75,
+            flatten=True,
+            normalize=False,
+            task_data_path="/tmp/data",
+            split_seed=17,
+        )
+
+        kwargs = _standard_dataset_option_kwargs(options)
+
+        self.assertEqual(
+            kwargs,
+            {
+                "train_valid_split": 0.75,
+                "flatten": True,
+                "normalize": False,
+                "task_data_path": "/tmp/data",
+                "split_seed": 17,
+            },
+        )
+
+    def test_paired_arithmetic_option_kwargs_preserve_defaults_and_overrides(self):
+        default_options = SimpleNamespace(
+            train_valid_split=0.8,
+            flatten=False,
+            normalize=True,
+            task_data_path="/tmp/data",
+            split_seed=5,
+            parameters={},
+        )
+        override_options = SimpleNamespace(
+            train_valid_split=0.8,
+            flatten=False,
+            normalize=True,
+            task_data_path="/tmp/data",
+            split_seed=5,
+            parameters={
+                "shuffle_iterations": 4,
+                "pair_seed": 9,
+                "context_seed": 99,
+            },
+        )
+
+        default_kwargs = _paired_arithmetic_option_kwargs(
+            default_options,
+            default_shuffle_iterations=2,
+            include_context=False,
+        )
+        contextual_kwargs = _paired_arithmetic_option_kwargs(
+            override_options,
+            default_shuffle_iterations=1,
+            include_context=True,
+        )
+
+        self.assertEqual(default_kwargs["shuffle_iterations"], 2)
+        self.assertEqual(default_kwargs["pair_seed"], 0)
+        self.assertNotIn("context_seed", default_kwargs)
+        self.assertEqual(contextual_kwargs["shuffle_iterations"], 4)
+        self.assertEqual(contextual_kwargs["pair_seed"], 9)
+        self.assertEqual(contextual_kwargs["context_seed"], 99)
+        self.assertEqual(contextual_kwargs["split_seed"], 5)
+
     def test_standard_vision_loader_registry_preserves_dispatch_and_noise_hook(self):
         train_ds = TensorDataset(torch.zeros(4, 2), torch.arange(4, dtype=torch.long))
         valid_ds = TensorDataset(torch.ones(2, 2), torch.ones(2, dtype=torch.long))
@@ -1476,6 +1591,42 @@ class TestGetUnifiedDatasets(unittest.TestCase):
 
 class TestSpecializedDatasets(unittest.TestCase):
     """Test specialized dataset classes with complex behavior."""
+
+    def test_wrap_poisson_generator_triplet_preserves_inputs_and_options(self):
+        base_inputs = torch.arange(12, dtype=torch.float32).reshape(3, 4)
+        base_labels = torch.arange(3)
+        train_ds = TensorDataset(base_inputs, base_labels)
+        valid_ds = TensorDataset(base_inputs + 100, base_labels + 10)
+        test_ds = TensorDataset(base_inputs + 200, base_labels + 20)
+
+        train_out, valid_out, test_out = _wrap_poisson_generator_triplet(
+            train_ds,
+            valid_ds,
+            test_ds,
+            multiplicative_gain=False,
+            fixed_gain_factor=None,
+            max_gain_factor=2.5,
+            uniform_gain=False,
+            poisson_sampling=False,
+            stimulus_duration=3.0,
+            max_gain_tau_ratio=None,
+        )
+
+        for wrapped in (train_out, valid_out, test_out):
+            self.assertIsInstance(wrapped, StandardPoissonGeneratorDataset)
+            self.assertFalse(wrapped.multiplicative_gain)
+            self.assertIsNone(wrapped.fixed_gain_factor)
+            self.assertEqual(wrapped.max_gain_factor, 2.5)
+            self.assertFalse(wrapped.uniform_gain)
+            self.assertFalse(wrapped.poisson_sampling)
+            self.assertEqual(wrapped.stimulus_duration, 3.0)
+
+        self.assertTrue(torch.equal(train_out.base_inputs, base_inputs))
+        self.assertTrue(torch.equal(valid_out.base_inputs, base_inputs + 100))
+        self.assertTrue(torch.equal(test_out.base_inputs, base_inputs + 200))
+        self.assertTrue(torch.equal(train_out.base_labels, base_labels))
+        self.assertTrue(torch.equal(valid_out.base_labels, base_labels + 10))
+        self.assertTrue(torch.equal(test_out.base_labels, base_labels + 20))
 
     def test_poisson_generator_dataset(self):
         """Test PoissonGeneratorDataset functionality."""
