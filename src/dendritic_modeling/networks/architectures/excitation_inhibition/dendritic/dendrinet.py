@@ -10,12 +10,14 @@ from copy import deepcopy
 import torch
 import torch.nn as nn
 
-from dendritic_modeling.networks.activations import resolve_dendritic_activation
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_config import (
     DendriticBranchConfig,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer import (
     DendriticBranchLayer,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_options import (
+    resolve_dendrinet_synapse_config,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.synapse_config import (
     DendriticSynapseConfig,
@@ -190,32 +192,21 @@ class DendriNet(nn.Module):
         formal_synapse_kwargs = DendriticSynapseConfig.legacy_kwargs_from_mapping(
             locals()
         )
-        formal_synapse_kwargs["branch_factors"] = self.branch_factors
-        if synapse_config is None:
-            reactivate, reactivation_type = resolve_dendritic_activation(
-                dendritic_activation,
-                reactivate,
-                reactivation_type,
-            )
-            formal_synapse_kwargs["reactivate"] = reactivate
-            formal_synapse_kwargs["reactivation_type"] = reactivation_type
-            synapse_config = DendriticSynapseConfig.from_kwargs(
-                {**kwargs, **formal_synapse_kwargs}
-            )
-        else:
-            synapse_config = DendriticSynapseConfig.from_config(synapse_config)
-            synapse_options = synapse_config.to_kwargs()
-            reactivate, reactivation_type = resolve_dendritic_activation(
-                synapse_options["dendritic_activation"],
-                synapse_options["reactivate"],
-                synapse_options["reactivation_type"],
-            )
-            synapse_options["reactivate"] = reactivate
-            synapse_options["reactivation_type"] = reactivation_type
-            synapse_config = DendriticSynapseConfig.from_kwargs(synapse_options)
-        synapse_config = synapse_config.with_branch_factors(self.branch_factors)
-        self.dendritic_activation = reactivation_type if reactivate else "none"
-        _, branch_extra_kwargs = DendriticSynapseConfig.split_kwargs(kwargs)
+        (
+            synapse_config,
+            branch_extra_kwargs,
+            self.dendritic_activation,
+            reactivate,
+            reactivation_type,
+        ) = resolve_dendrinet_synapse_config(
+            formal_synapse_kwargs=formal_synapse_kwargs,
+            extra_kwargs=kwargs,
+            synapse_config=synapse_config,
+            branch_factors=self.branch_factors,
+            dendritic_activation=dendritic_activation,
+            reactivate=reactivate,
+            reactivation_type=reactivation_type,
+        )
 
         for i in range(self.n_branch_layers):
             excitatory_connection_mask = _sample_dendrinet_structured_mask(

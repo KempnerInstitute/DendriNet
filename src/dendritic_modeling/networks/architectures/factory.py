@@ -1,6 +1,5 @@
 import logging
 from collections.abc import Callable
-from dataclasses import asdict
 from typing import Any, Optional, Union
 
 import torch.nn as nn
@@ -14,7 +13,6 @@ from dendritic_modeling.config.legacy import (
 from dendritic_modeling.config.model_aliases import (
     get_core_morphology_alias_overrides,
     get_unified_ei_alias_overrides,
-    warn_alias_conflicts,
 )
 from dendritic_modeling.networks.architectures.classical.autoencoder import (
     CNNAutoencoder,
@@ -41,6 +39,9 @@ from dendritic_modeling.networks.architectures.classical.pathway_router import (
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition import (
     ConfigurableEINetwork,
+)
+from dendritic_modeling.networks.architectures.factory_unified import (
+    build_unified_ei_layer_configs,
 )
 from dendritic_modeling.networks.architectures.recurrent.structured_einet_factory import (
     _build_recurrent_einet_from_structured_config,
@@ -164,23 +165,6 @@ def _to_plain_mapping(obj: Any) -> dict[str, Any]:
     return to_plain_dict(obj)
 
 
-def _apply_population_alias_overrides(
-    population: dict[str, Any],
-    alias_overrides: dict[str, object],
-    *,
-    core_type: str,
-    context: str,
-) -> dict[str, Any]:
-    """Apply recurrent type-alias semantics to one PopulationConfig payload."""
-    if not alias_overrides:
-        return population
-    updated = dict(population)
-    warn_alias_conflicts(core_type, updated, alias_overrides, context=context)
-    for key, value in alias_overrides.items():
-        updated[key] = value
-    return updated
-
-
 ArchitectureBuilder = Callable[
     [str, Union[dict[str, Any], DictConfig], Optional[int], Optional[int]],
     nn.Module,
@@ -223,45 +207,13 @@ def _build_unified_ei_architecture(
     unified_cfg["input_dim"] = input_dim
 
     alias_overrides = get_unified_ei_alias_overrides(type)
-    layers_cfg = []
-    for layer_idx, layer in enumerate(unified_cfg.get("layers", [])):
-        if isinstance(layer, EILayerConfig):
-            if not alias_overrides:
-                layers_cfg.append(layer)
-                continue
-            layer = asdict(layer)
-        if not isinstance(layer, dict):
-            raise ValueError(
-                "Each unified E-I layer config must be a dict or EILayerConfig"
-            )
-        layer = dict(layer)
-        exc = layer.get("excitatory")
-        inh = layer.get("inhibitory")
-        if exc is not None and not isinstance(exc, dict):
-            exc_plain = _to_plain_mapping(exc)
-            if exc_plain:
-                exc = exc_plain
-        if inh is not None and not isinstance(inh, dict):
-            inh_plain = _to_plain_mapping(inh)
-            if inh_plain:
-                inh = inh_plain
-        if isinstance(exc, dict):
-            exc = _apply_population_alias_overrides(
-                exc,
-                alias_overrides,
-                core_type=type,
-                context=f"model.core.unified_ei.layers[{layer_idx}].excitatory",
-            )
-            layer["excitatory"] = PopulationConfig(**exc)
-        if isinstance(inh, dict):
-            inh = _apply_population_alias_overrides(
-                inh,
-                alias_overrides,
-                core_type=type,
-                context=f"model.core.unified_ei.layers[{layer_idx}].inhibitory",
-            )
-            layer["inhibitory"] = PopulationConfig(**inh)
-        layers_cfg.append(EILayerConfig(**layer))
+    layers_cfg = build_unified_ei_layer_configs(
+        layers=unified_cfg.get("layers", []),
+        ei_layer_config_cls=EILayerConfig,
+        population_config_cls=PopulationConfig,
+        alias_overrides=alias_overrides,
+        core_type=type,
+    )
 
     if not layers_cfg:
         raise ValueError(
