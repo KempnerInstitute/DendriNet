@@ -1,7 +1,10 @@
 """Tests for local-rule component analysis helpers."""
 
+import json
+
 import torch
 import torch.nn as nn
+from torch.utils.data import TensorDataset
 
 from dendritic_modeling.analysis.tools.local_rule_components import (
     LocalRuleComponentAnalyzer,
@@ -61,3 +64,88 @@ def test_local_rule_component_recorders_preserve_topk_keys() -> None:
     assert rec["inh_out"].shape == (2, 2)
     assert rec["exc_mask"].shape == model.branch.branch_excitation.pre_w.shape
     assert rec["inh_mask"].shape == model.branch.branch_inhibition.pre_w.shape
+
+
+def test_local_rule_component_dataset_selection_priority() -> None:
+    analyzer = LocalRuleComponentAnalyzer(LocalRuleComponentAnalysisParams())
+    train_ds = TensorDataset(torch.ones(1, 1), torch.zeros(1))
+    valid_ds = TensorDataset(torch.ones(2, 1), torch.zeros(2))
+    test_ds = TensorDataset(torch.ones(3, 1), torch.zeros(3))
+
+    assert (
+        analyzer._select_dataset(
+            training=True,
+            test_dataset=test_ds,
+            train_ds=train_ds,
+            valid_ds=valid_ds,
+        )
+        is train_ds
+    )
+    assert (
+        analyzer._select_dataset(
+            training=False,
+            test_dataset=test_ds,
+            train_ds=train_ds,
+            valid_ds=valid_ds,
+        )
+        is test_ds
+    )
+    assert (
+        analyzer._select_dataset(
+            training=False,
+            test_dataset=None,
+            train_ds=train_ds,
+            valid_ds=valid_ds,
+        )
+        is valid_ds
+    )
+
+
+def test_local_rule_component_topk_cache_reset_clears_masks() -> None:
+    model = _FeedforwardBranchModel()
+    modules = LocalRuleComponentAnalyzer._topk_modules(model)
+    assert modules
+
+    LocalRuleComponentAnalyzer._set_topk_mask_cache(modules, enabled=True)
+    for module in modules:
+        assert module.cache_mask
+        module._last_forward_weight_mask = torch.ones_like(module.pre_w)
+
+    LocalRuleComponentAnalyzer._set_topk_mask_cache(modules, enabled=False)
+    for module in modules:
+        assert not module.cache_mask
+        assert module._last_forward_weight_mask is None
+
+
+def test_local_rule_component_save_snapshot_writes_expected_files(tmp_path) -> None:
+    analyzer = LocalRuleComponentAnalyzer(LocalRuleComponentAnalysisParams())
+    snapshot = {
+        "filename": "epoch_1",
+        "training": True,
+        "n_rows": 1,
+        "rows": [
+            {
+                "filename": "epoch_1",
+                "training": True,
+                "component": "branch_voltage",
+                "mean": 1.0,
+            }
+        ],
+    }
+
+    analyzer._save_snapshot(
+        snapshot,
+        save_path=str(tmp_path),
+        filename="epoch_1",
+        training=True,
+    )
+
+    json_path = tmp_path / "epochs" / "epoch_1.json"
+    csv_path = tmp_path / "epochs" / "epoch_1.csv"
+    trajectory_path = tmp_path / "trajectory.csv"
+    assert json_path.exists()
+    assert csv_path.exists()
+    assert trajectory_path.exists()
+    with open(json_path) as f:
+        payload = json.load(f)
+    assert payload["n_rows"] == 1

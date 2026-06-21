@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 from torch.utils.data import TensorDataset
 
@@ -181,3 +182,64 @@ def test_correlation_legacy_flat_config_is_used_when_nested_block_is_default():
     assert analyzer.sampling_strategy == "random"
     assert analyzer.stratified_categories == ["within_branch"]
     assert analyzer.max_pairs_per_category == 5
+
+
+def test_correlation_network_activity_arrays_flatten_and_concatenate_layers():
+    analyzer = CorrelationAnalyzer(CorrelationAnalysisParams())
+    analyzer.data_dict = {
+        "layer0": {
+            "excitation": torch.arange(12, dtype=torch.float32).reshape(2, 2, 3),
+            "inhibition": torch.arange(12, 24, dtype=torch.float32).reshape(2, 2, 3),
+            "output": torch.arange(24, 36, dtype=torch.float32).reshape(2, 2, 3),
+        },
+        "layer1": {
+            "excitation": torch.arange(36, 44, dtype=torch.float32).reshape(2, 4),
+            "inhibition": torch.arange(44, 52, dtype=torch.float32).reshape(2, 4),
+            "output": torch.arange(52, 60, dtype=torch.float32).reshape(2, 4),
+        },
+    }
+
+    network_E, network_I, network_Vout = analyzer._network_activity_arrays()
+
+    np.testing.assert_array_equal(
+        network_E,
+        np.hstack(
+            [
+                np.arange(12, dtype=np.float32).reshape(2, 6),
+                np.arange(36, 44, dtype=np.float32).reshape(2, 4),
+            ]
+        ),
+    )
+    np.testing.assert_array_equal(
+        network_I,
+        np.hstack(
+            [
+                np.arange(12, 24, dtype=np.float32).reshape(2, 6),
+                np.arange(44, 52, dtype=np.float32).reshape(2, 4),
+            ]
+        ),
+    )
+    np.testing.assert_array_equal(
+        network_Vout,
+        np.hstack(
+            [
+                np.arange(24, 36, dtype=np.float32).reshape(2, 6),
+                np.arange(52, 60, dtype=np.float32).reshape(2, 4),
+            ]
+        ),
+    )
+
+
+def test_correlation_branch_result_includes_tuning_and_summary_stats():
+    analyzer = CorrelationAnalyzer(CorrelationAnalysisParams())
+    labels = np.array([0, 0, 1, 1])
+    E = np.array([[0.0, 1.0], [0.2, 1.2], [1.0, 0.0], [1.2, 0.2]])
+    Inh = np.array([[1.0, 0.0], [1.1, 0.1], [0.0, 1.0], [0.1, 1.1]])
+    Vout = np.array([[0.1, 0.3], [0.2, 0.4], [0.7, 0.9], [0.8, 1.0]])
+
+    result = analyzer._compute_branch_result(E, Inh, Vout, labels)
+
+    assert "tuning" in result
+    assert "summary_stats" in result
+    assert result["tuning"]["n_classes"] == 2
+    assert "EE_total_mean" in result["summary_stats"]

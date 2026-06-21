@@ -322,67 +322,111 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
             )
             return None
 
-        loaded = False
-        if save_path is not None:
-            loaded = self._load_raw_checkpoint(save_path, filename)
-        if not loaded:
-            self.collect_raw_data(model)
-            if save_path is not None:
-                self._save_raw_checkpoint(save_path, filename)
-
+        loaded = self._prepare_raw_data(model, save_path, filename)
         if not self.raw_dict:
             self.logger.warning("No dendritic branch receptive fields were found")
             return None
 
-        results: dict[str, object] = {
-            "n_receptive_fields": len(self.raw_dict),
-            "raw_checkpoint_loaded": loaded,
-        }
-
-        if self.compute_activation_tuning:
-            if test_dataset is None:
-                self.logger.warning(
-                    "Activation tuning requested but no test_dataset was provided"
-                )
-            else:
-                results["activation_tuning"] = self._compute_activation_tuning(
-                    model=model,
-                    test_dataset=test_dataset,
-                    device=device,
-                    runtime=runtime,
-                )
+        results = self._build_results(loaded)
+        self._maybe_add_activation_tuning(
+            results=results,
+            model=model,
+            test_dataset=test_dataset,
+            device=device,
+            runtime=runtime,
+        )
 
         if save_path is not None:
-            out_path = os.path.join(save_path, "epochs") if training else save_path
-            os.makedirs(out_path, exist_ok=True)
-            save_dict(results, out_path, f"{filename}_summary.json")
-            if "activation_tuning" in results:
-                save_dict(
-                    results["activation_tuning"],
-                    out_path,
-                    f"{filename}_activation_tuning.json",
-                )
-            if not training:
-                for synapse_type in ("exc", "inh"):
-                    available = [
-                        ix
-                        for ix, item in self.raw_dict.items()
-                        if item.get(synapse_type) is not None
-                    ]
-                    if not available:
-                        self.logger.warning(
-                            "No %s receptive fields matched the requested shape",
-                            synapse_type,
-                        )
-                        continue
-                    n_branches = min(self.n_rows * self.n_cols, len(available))
-                    perm = (
-                        torch.randperm(len(available))[:n_branches].sort()[0].tolist()
-                    )
-                    ixs = [available[ix] for ix in perm]
-                    self._plot_receptive_fields(ixs, synapse_type, save_path)
+            self._save_results(results, save_path, filename, training)
 
         return results
+
+    def _prepare_raw_data(
+        self,
+        model: BaseModel,
+        save_path: Optional[str],
+        filename: str,
+    ) -> bool:
+        loaded = save_path is not None and self._load_raw_checkpoint(
+            save_path, filename
+        )
+        if loaded:
+            return True
+        self.collect_raw_data(model)
+        if save_path is not None:
+            self._save_raw_checkpoint(save_path, filename)
+        return False
+
+    def _build_results(self, raw_checkpoint_loaded: bool) -> dict[str, object]:
+        return {
+            "n_receptive_fields": len(self.raw_dict),
+            "raw_checkpoint_loaded": raw_checkpoint_loaded,
+        }
+
+    def _maybe_add_activation_tuning(
+        self,
+        results: dict[str, object],
+        model: BaseModel,
+        test_dataset: Optional[torch.utils.data.Dataset],
+        device: str,
+        runtime: Optional[EvaluationRuntimeConfig],
+    ) -> None:
+        if not self.compute_activation_tuning:
+            return
+        if test_dataset is None:
+            self.logger.warning(
+                "Activation tuning requested but no test_dataset was provided"
+            )
+            return
+        results["activation_tuning"] = self._compute_activation_tuning(
+            model=model,
+            test_dataset=test_dataset,
+            device=device,
+            runtime=runtime,
+        )
+
+    def _save_results(
+        self,
+        results: dict[str, object],
+        save_path: str,
+        filename: str,
+        training: bool,
+    ) -> None:
+        out_path = os.path.join(save_path, "epochs") if training else save_path
+        os.makedirs(out_path, exist_ok=True)
+        save_dict(results, out_path, f"{filename}_summary.json")
+        if "activation_tuning" in results:
+            save_dict(
+                results["activation_tuning"],
+                out_path,
+                f"{filename}_activation_tuning.json",
+            )
+        if not training:
+            self._plot_all_receptive_fields(save_path)
+
+    def _plot_all_receptive_fields(self, save_path: str) -> None:
+        for synapse_type in ("exc", "inh"):
+            available = self._available_receptive_field_indices(synapse_type)
+            if not available:
+                self.logger.warning(
+                    "No %s receptive fields matched the requested shape",
+                    synapse_type,
+                )
+                continue
+            ixs = self._sample_receptive_field_indices(available)
+            self._plot_receptive_fields(ixs, synapse_type, save_path)
+
+    def _available_receptive_field_indices(self, synapse_type: str) -> list[int]:
+        return [
+            ix
+            for ix, item in self.raw_dict.items()
+            if item.get(synapse_type) is not None
+        ]
+
+    def _sample_receptive_field_indices(self, available: list[int]) -> list[int]:
+        n_branches = min(self.n_rows * self.n_cols, len(available))
+        perm = torch.randperm(len(available))[:n_branches].sort()[0].tolist()
+        return [available[ix] for ix in perm]
 
     def _plot_receptive_fields(self, ixs: list[int], synapse_type: str, save_path: str):
         """Plot receptive fields."""

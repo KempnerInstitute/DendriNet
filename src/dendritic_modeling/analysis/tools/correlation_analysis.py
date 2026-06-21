@@ -873,6 +873,87 @@ class CorrelationAnalyzer(AbstractAnalyzer):
 
         return {"by_type": by_type}
 
+    @staticmethod
+    def _layer_arrays(layer_data: dict[str, torch.Tensor]) -> tuple[np.ndarray, ...]:
+        """Return E, I, and output arrays for one recorded dendritic layer."""
+        return (
+            layer_data["excitation"].cpu().numpy(),
+            layer_data["inhibition"].cpu().numpy(),
+            layer_data["output"].cpu().numpy(),
+        )
+
+    @staticmethod
+    def _flatten_features(values: np.ndarray) -> np.ndarray:
+        """Flatten all non-batch dimensions into feature columns."""
+        return values.reshape(values.shape[0], -1)
+
+    def _network_activity_arrays(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Concatenate flattened E, I, and output activity across recorded layers."""
+        all_E, all_I, all_Vout = [], [], []
+        for layer_data in self.data_dict.values():
+            E, Inh, Vout = self._layer_arrays(layer_data)
+            all_E.append(self._flatten_features(E))
+            all_I.append(self._flatten_features(Inh))
+            all_Vout.append(self._flatten_features(Vout))
+
+        return np.hstack(all_E), np.hstack(all_I), np.hstack(all_Vout)
+
+    def _compute_branch_result(
+        self, E: np.ndarray, Inh: np.ndarray, Vout: np.ndarray, labels: np.ndarray
+    ) -> dict[str, Any]:
+        """Compute branch correlations plus optional tuning and summary metrics."""
+        result = self._compute_branch_correlations(E, Inh, Vout, labels)
+        if self.compute_tuning_curves:
+            result["tuning"] = self._compute_tuning_curves(E, Inh, Vout, labels)
+        result["summary_stats"] = self._compute_summary_statistics(result)
+        return result
+
+    def _add_per_layer_results(
+        self, results: dict[str, Any], labels: np.ndarray
+    ) -> None:
+        layer_results = {}
+        layers = list(self.data_dict.items())
+        for layer_name, layer_data in tqdm(
+            layers, desc="Layer correlation", leave=False, ncols=100
+        ):
+            E, Inh, Vout = self._layer_arrays(layer_data)
+            layer_results[layer_name] = self._compute_branch_result(
+                E, Inh, Vout, labels
+            )
+
+        results["per_layer_analysis"] = layer_results
+
+    def _compute_network_result(
+        self, labels: np.ndarray
+    ) -> tuple[dict[str, Any], np.ndarray, np.ndarray, np.ndarray]:
+        network_E, network_I, network_Vout = self._network_activity_arrays()
+        self.logger.info(
+            f"Network-wide data shapes - E: {network_E.shape}, Inh: {network_I.shape}, Vout: {network_Vout.shape}"
+        )
+        network_corr = self._compute_branch_result(
+            network_E, network_I, network_Vout, labels
+        )
+        return network_corr, network_E, network_I, network_Vout
+
+    def _add_network_optional_results(
+        self,
+        results: dict[str, Any],
+        network_corr: dict[str, Any],
+        network_E: np.ndarray,
+        network_I: np.ndarray,
+        network_Vout: np.ndarray,
+        labels: np.ndarray,
+    ) -> None:
+        if self.per_neuron_analysis:
+            results["per_neuron_analysis"] = (
+                self._compute_per_neuron_correlation_summary(network_corr)
+            )
+
+        if self.per_einet_analysis:
+            results["per_einet_analysis"] = self._compute_per_ei_analysis(
+                network_E, network_I, network_Vout, labels
+            )
+
     def analyze(
         self,
         model: BaseModel,
@@ -1036,143 +1117,46 @@ class CorrelationAnalyzer(AbstractAnalyzer):
 
         # Analyze each layer
         if self.per_layer_analysis:
-            layer_results = {}
-            layers = list(self.data_dict.items())
-            for layer_name, layer_data in tqdm(
-                layers, desc="Layer correlation", leave=False, ncols=100
-            ):
-                E = layer_data["excitation"].cpu().numpy()
-                Inh = layer_data["inhibition"].cpu().numpy()
-                Vout = layer_data["output"].cpu().numpy()
-
-                layer_corr = self._compute_branch_correlations(E, Inh, Vout, labels)
-                if self.compute_tuning_curves:
-                    layer_corr["tuning"] = self._compute_tuning_curves(
-                        E, Inh, Vout, labels
-                    )
-                layer_corr["summary_stats"] = self._compute_summary_statistics(
-                    layer_corr
-                )
-
-                layer_results[layer_name] = layer_corr
-
-            results["per_layer_analysis"] = layer_results
+            self._add_per_layer_results(results, labels)
 
         # Network-wide analysis (aggregate all layers)
         self.logger.info("Computing network-wide correlations...")
-        all_E, all_I, all_Vout = [], [], []
-        for layer_data in self.data_dict.values():
-            E = layer_data["excitation"].cpu().numpy()
-            Inh = layer_data["inhibition"].cpu().numpy()
-            Vout = layer_data["output"].cpu().numpy()
-
-            # Flatten for aggregation
-            E = E.reshape(E.shape[0], -1)
-            Inh = Inh.reshape(Inh.shape[0], -1)
-            Vout = Vout.reshape(Vout.shape[0], -1)
-
-            all_E.append(E)
-            all_I.append(Inh)
-            all_Vout.append(Vout)
-
-        network_E = np.hstack(all_E)
-        network_I = np.hstack(all_I)
-        network_Vout = np.hstack(all_Vout)
-
-        self.logger.info(
-            f"Network-wide data shapes - E: {network_E.shape}, Inh: {network_I.shape}, Vout: {network_Vout.shape}"
+        network_corr, network_E, network_I, network_Vout = self._compute_network_result(
+            labels
         )
-        network_corr = self._compute_branch_correlations(
-            network_E, network_I, network_Vout, labels
-        )
-        if self.compute_tuning_curves:
-            network_corr["tuning"] = self._compute_tuning_curves(
-                network_E, network_I, network_Vout, labels
-            )
-        network_corr["summary_stats"] = self._compute_summary_statistics(network_corr)
-
         results["network_level"] = network_corr
 
-        # Per-neuron analysis (summary distributions of per-unit correlation strength)
-        if self.per_neuron_analysis:
-            results["per_neuron_analysis"] = (
-                self._compute_per_neuron_correlation_summary(network_corr)
-            )
-
-        # Per E/I network analysis
-        if self.per_einet_analysis:
-            results["per_einet_analysis"] = self._compute_per_ei_analysis(
-                network_E, network_I, network_Vout, labels
-            )
+        self._add_network_optional_results(
+            results,
+            network_corr,
+            network_E,
+            network_I,
+            network_Vout,
+            labels,
+        )
 
     def _analyze_all_branch_level(self, results: dict[str, Any], labels: np.ndarray):
         """Analyze with full network aggregation."""
         self.logger.info("Running all-branch level correlation analysis...")
 
         # This is similar to network-level in layer_branch but without per-layer
-        all_E, all_I, all_Vout = [], [], []
-        for layer_data in self.data_dict.values():
-            E = layer_data["excitation"].cpu().numpy()
-            Inh = layer_data["inhibition"].cpu().numpy()
-            Vout = layer_data["output"].cpu().numpy()
-
-            E = E.reshape(E.shape[0], -1)
-            Inh = Inh.reshape(Inh.shape[0], -1)
-            Vout = Vout.reshape(Vout.shape[0], -1)
-
-            all_E.append(E)
-            all_I.append(Inh)
-            all_Vout.append(Vout)
-
-        network_E = np.hstack(all_E)
-        network_I = np.hstack(all_I)
-        network_Vout = np.hstack(all_Vout)
-
-        network_corr = self._compute_branch_correlations(
-            network_E, network_I, network_Vout, labels
+        network_corr, network_E, network_I, network_Vout = self._compute_network_result(
+            labels
         )
-        if self.compute_tuning_curves:
-            network_corr["tuning"] = self._compute_tuning_curves(
-                network_E, network_I, network_Vout, labels
-            )
-        network_corr["summary_stats"] = self._compute_summary_statistics(network_corr)
-
         results["network_level"] = network_corr
 
         # Optional per-layer analysis (still meaningful even in all-branch mode)
         if self.per_layer_analysis:
-            layer_results = {}
-            layers = list(self.data_dict.items())
-            for layer_name, layer_data in tqdm(
-                layers, desc="Layer correlation", leave=False, ncols=100
-            ):
-                E = layer_data["excitation"].cpu().numpy()
-                Inh = layer_data["inhibition"].cpu().numpy()
-                Vout = layer_data["output"].cpu().numpy()
+            self._add_per_layer_results(results, labels)
 
-                layer_corr = self._compute_branch_correlations(E, Inh, Vout, labels)
-                if self.compute_tuning_curves:
-                    layer_corr["tuning"] = self._compute_tuning_curves(
-                        E, Inh, Vout, labels
-                    )
-                layer_corr["summary_stats"] = self._compute_summary_statistics(
-                    layer_corr
-                )
-                layer_results[layer_name] = layer_corr
-
-            results["per_layer_analysis"] = layer_results
-
-        # Per-neuron analysis (summary distributions of per-unit correlation strength)
-        if self.per_neuron_analysis:
-            results["per_neuron_analysis"] = (
-                self._compute_per_neuron_correlation_summary(network_corr)
-            )
-
-        # Per E/I network analysis
-        if self.per_einet_analysis:
-            results["per_einet_analysis"] = self._compute_per_ei_analysis(
-                network_E, network_I, network_Vout, labels
-            )
+        self._add_network_optional_results(
+            results,
+            network_corr,
+            network_E,
+            network_I,
+            network_Vout,
+            labels,
+        )
 
     def _compute_per_ei_analysis(
         self, E: np.ndarray, Inh: np.ndarray, Vout: np.ndarray, labels: np.ndarray

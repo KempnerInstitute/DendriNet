@@ -695,9 +695,12 @@ class LocalRuleComponentAnalyzer(AbstractAnalyzer):
         runtime: EvaluationRuntimeConfig | None = None,
         **kwargs: Any,
     ) -> dict[str, Any]:
-        dataset = train_ds if training else test_dataset
-        if dataset is None:
-            dataset = valid_ds or test_dataset or train_ds
+        dataset = self._select_dataset(
+            training=training,
+            test_dataset=test_dataset,
+            train_ds=train_ds,
+            valid_ds=valid_ds,
+        )
         if dataset is None:
             self.logger.debug(
                 "No dataset available; skipping LocalRuleComponentAnalyzer"
@@ -706,9 +709,8 @@ class LocalRuleComponentAnalyzer(AbstractAnalyzer):
 
         accum: dict[_ComponentKey, list[torch.Tensor]] = {}
         with analysis_device_context(model, device) as current_device:
-            topk_modules = [m for m in model.modules() if isinstance(m, TopKLinear)]
-            for module in topk_modules:
-                module.cache_mask = True
+            topk_modules = self._topk_modules(model)
+            self._set_topk_mask_cache(topk_modules, enabled=True)
             try:
                 for batch in iter_analysis_batches(
                     dataset,
@@ -716,119 +718,190 @@ class LocalRuleComponentAnalyzer(AbstractAnalyzer):
                     explicit_max_samples=getattr(self.params, "max_samples", 1024),
                     device=current_device,
                 ):
-                    if not batch:
-                        continue
-                    x = batch[0].to(current_device)
-                    y = batch[1].to(current_device) if len(batch) > 1 else None
-
-                    records, handles, decoder_cache = self._attach_recorders(model)
-                    try:
-                        if (
-                            getattr(self.params, "include_broadcast", True)
-                            and y is not None
-                        ):
-                            with torch.enable_grad():
-                                y_hat = model(x)
-                                delta0 = self._compute_soma_error(
-                                    y_hat, y, decoder_cache
-                                )
-                        else:
-                            with torch.no_grad():
-                                _ = model(x)
-                            delta0 = None
-                    finally:
-                        remove_hook_handles(handles)
-
-                    depth_labels = self._depth_labels(records)
-                    for rec in records:
-                        v_n = rec.get("v_n")
-                        if not isinstance(v_n, torch.Tensor):
-                            continue
-                        v_out = rec.get("v_out")
-                        g_tot = self._total_conductance(rec, v_n)
-                        r_tot = 1.0 / (g_tot + 1e-8)
-                        activation_derivative = self._activation_derivative(rec)
-                        e_n = self._layer_broadcast(delta0, v_n.size(1))
-                        if isinstance(e_n, torch.Tensor):
-                            e_n = e_n.to(device=v_n.device, dtype=v_n.dtype)
-
-                        self._record_common_components(
-                            accum,
-                            rec,
-                            depth_labels,
-                            v_n,
-                            v_out if isinstance(v_out, torch.Tensor) else None,
-                            g_tot,
-                            r_tot,
-                            activation_derivative,
-                            e_n,
-                        )
-                        self._record_synaptic_components(
-                            accum,
-                            rec,
-                            depth_labels,
-                            synapse_type="excitatory",
-                            x_key="x_exc",
-                            module_key="exc_module",
-                            mask_key="exc_mask",
-                            current_key="exc_out",
-                            e_rev=_safe_float(getattr(self.params, "e_rev_exc", 1.0)),
-                            sign_additive=1.0,
-                            v_n=v_n,
-                            r_tot=r_tot,
-                            activation_derivative=activation_derivative,
-                            e_n=e_n,
-                        )
-                        self._record_synaptic_components(
-                            accum,
-                            rec,
-                            depth_labels,
-                            synapse_type="inhibitory",
-                            x_key="x_inh",
-                            module_key="inh_module",
-                            mask_key="inh_mask",
-                            current_key="inh_out",
-                            e_rev=_safe_float(getattr(self.params, "e_rev_inh", 0.0)),
-                            sign_additive=-1.0,
-                            v_n=v_n,
-                            r_tot=r_tot,
-                            activation_derivative=activation_derivative,
-                            e_n=e_n,
-                        )
-                        self._record_dendritic_components(
-                            accum,
-                            rec,
-                            depth_labels,
-                            v_n,
-                            r_tot,
-                            activation_derivative,
-                            e_n,
-                        )
+                    self._process_batch(
+                        model=model,
+                        batch=batch,
+                        accum=accum,
+                        device=current_device,
+                    )
             finally:
-                for module in topk_modules:
-                    module.cache_mask = False
-                    module._last_forward_weight_mask = None
+                self._set_topk_mask_cache(topk_modules, enabled=False)
 
+        snapshot = self._build_snapshot(accum, filename=filename, training=training)
+
+        if save_path is not None:
+            self._save_snapshot(snapshot, save_path, filename, training)
+
+        return snapshot
+
+    @staticmethod
+    def _select_dataset(
+        training: bool,
+        test_dataset: torch.utils.data.Dataset | None,
+        train_ds: torch.utils.data.Dataset | None,
+        valid_ds: torch.utils.data.Dataset | None,
+    ) -> torch.utils.data.Dataset | None:
+        dataset = train_ds if training else test_dataset
+        if dataset is None:
+            dataset = valid_ds or test_dataset or train_ds
+        return dataset
+
+    @staticmethod
+    def _topk_modules(model: BaseModel) -> list[TopKLinear]:
+        return [m for m in model.modules() if isinstance(m, TopKLinear)]
+
+    @staticmethod
+    def _set_topk_mask_cache(modules: list[TopKLinear], enabled: bool) -> None:
+        for module in modules:
+            module.cache_mask = enabled
+            if not enabled:
+                module._last_forward_weight_mask = None
+
+    def _process_batch(
+        self,
+        model: BaseModel,
+        batch: tuple[Any, ...],
+        accum: dict[_ComponentKey, list[torch.Tensor]],
+        device: torch.device,
+    ) -> None:
+        if not batch:
+            return
+        x = batch[0].to(device)
+        y = batch[1].to(device) if len(batch) > 1 else None
+        records, delta0 = self._forward_with_recorders(model, x, y)
+        self._record_batch_components(accum, records, delta0)
+
+    def _forward_with_recorders(
+        self,
+        model: BaseModel,
+        x: torch.Tensor,
+        y: torch.Tensor | None,
+    ) -> tuple[list[dict[str, Any]], torch.Tensor | None]:
+        records, handles, decoder_cache = self._attach_recorders(model)
+        try:
+            if getattr(self.params, "include_broadcast", True) and y is not None:
+                with torch.enable_grad():
+                    y_hat = model(x)
+                    delta0 = self._compute_soma_error(y_hat, y, decoder_cache)
+            else:
+                with torch.no_grad():
+                    _ = model(x)
+                delta0 = None
+        finally:
+            remove_hook_handles(handles)
+        return records, delta0
+
+    def _record_batch_components(
+        self,
+        accum: dict[_ComponentKey, list[torch.Tensor]],
+        records: list[dict[str, Any]],
+        delta0: torch.Tensor | None,
+    ) -> None:
+        depth_labels = self._depth_labels(records)
+        for rec in records:
+            self._record_branch_components(accum, rec, depth_labels, delta0)
+
+    def _record_branch_components(
+        self,
+        accum: dict[_ComponentKey, list[torch.Tensor]],
+        rec: dict[str, Any],
+        depth_labels: dict[int, str],
+        delta0: torch.Tensor | None,
+    ) -> None:
+        v_n = rec.get("v_n")
+        if not isinstance(v_n, torch.Tensor):
+            return
+        v_out = rec.get("v_out")
+        g_tot = self._total_conductance(rec, v_n)
+        r_tot = 1.0 / (g_tot + 1e-8)
+        activation_derivative = self._activation_derivative(rec)
+        e_n = self._layer_broadcast(delta0, v_n.size(1))
+        if isinstance(e_n, torch.Tensor):
+            e_n = e_n.to(device=v_n.device, dtype=v_n.dtype)
+
+        self._record_common_components(
+            accum,
+            rec,
+            depth_labels,
+            v_n,
+            v_out if isinstance(v_out, torch.Tensor) else None,
+            g_tot,
+            r_tot,
+            activation_derivative,
+            e_n,
+        )
+        self._record_synaptic_components(
+            accum,
+            rec,
+            depth_labels,
+            synapse_type="excitatory",
+            x_key="x_exc",
+            module_key="exc_module",
+            mask_key="exc_mask",
+            current_key="exc_out",
+            e_rev=_safe_float(getattr(self.params, "e_rev_exc", 1.0)),
+            sign_additive=1.0,
+            v_n=v_n,
+            r_tot=r_tot,
+            activation_derivative=activation_derivative,
+            e_n=e_n,
+        )
+        self._record_synaptic_components(
+            accum,
+            rec,
+            depth_labels,
+            synapse_type="inhibitory",
+            x_key="x_inh",
+            module_key="inh_module",
+            mask_key="inh_mask",
+            current_key="inh_out",
+            e_rev=_safe_float(getattr(self.params, "e_rev_inh", 0.0)),
+            sign_additive=-1.0,
+            v_n=v_n,
+            r_tot=r_tot,
+            activation_derivative=activation_derivative,
+            e_n=e_n,
+        )
+        self._record_dendritic_components(
+            accum,
+            rec,
+            depth_labels,
+            v_n,
+            r_tot,
+            activation_derivative,
+            e_n,
+        )
+
+    def _build_snapshot(
+        self,
+        accum: dict[_ComponentKey, list[torch.Tensor]],
+        filename: str,
+        training: bool,
+    ) -> dict[str, Any]:
         rows = self._records_to_rows(accum, filename=filename, training=training)
-        snapshot = {
+        return {
             "filename": filename,
             "training": bool(training),
             "n_rows": len(rows),
             "rows": rows,
         }
 
-        if save_path is not None:
-            os.makedirs(save_path, exist_ok=True)
-            if bool(getattr(self.params, "save_json", True)):
-                json_dir = os.path.join(save_path, "epochs" if training else "final")
-                save_dict(snapshot, json_dir, f"{filename}.json")
-            if bool(getattr(self.params, "save_csv", True)):
-                csv_dir = os.path.join(save_path, "epochs" if training else "final")
-                self._write_csv(rows, os.path.join(csv_dir, f"{filename}.csv"))
-            if training and bool(getattr(self.params, "append_training_csv", True)):
-                self._append_csv(rows, os.path.join(save_path, "trajectory.csv"))
-
-        return snapshot
+    def _save_snapshot(
+        self,
+        snapshot: dict[str, Any],
+        save_path: str,
+        filename: str,
+        training: bool,
+    ) -> None:
+        os.makedirs(save_path, exist_ok=True)
+        rows = snapshot["rows"]
+        subdir = "epochs" if training else "final"
+        if bool(getattr(self.params, "save_json", True)):
+            save_dict(snapshot, os.path.join(save_path, subdir), f"{filename}.json")
+        if bool(getattr(self.params, "save_csv", True)):
+            self._write_csv(rows, os.path.join(save_path, subdir, f"{filename}.csv"))
+        if training and bool(getattr(self.params, "append_training_csv", True)):
+            self._append_csv(rows, os.path.join(save_path, "trajectory.csv"))
 
 
 __all__ = ["LocalRuleComponentAnalyzer"]
