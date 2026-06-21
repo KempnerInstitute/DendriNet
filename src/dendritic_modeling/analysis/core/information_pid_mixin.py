@@ -32,6 +32,53 @@ class InformationPidMetricsMixin(InformationFisherMetricsMixin):
                     "PID package not available. PID metrics will be skipped."
                 )
 
+    def _add_pid_metric(
+        self,
+        pid_results: dict[str, Any],
+        *,
+        source1_array: np.ndarray,
+        source1_name: str,
+        source2_array: np.ndarray,
+        source2_name: str,
+        target_array: np.ndarray,
+        target_name: str,
+    ) -> None:
+        """Compute one PID metric and append it to ``pid_results`` in place."""
+        pid_key = f"PID({source1_name},{source2_name}->{target_name})"
+        self.logger.info(f"  Computing {pid_key}...")
+        start_time = time.time()
+        try:
+            synergy, redundancy = pid_synergy_redundancy(
+                [source1_array, source2_array], target_array
+            )
+
+            unique_1 = (
+                self.estimators[self.method].mutual_information(
+                    source1_array, target_array
+                )
+                - redundancy
+            )
+            unique_2 = (
+                self.estimators[self.method].mutual_information(
+                    source2_array, target_array
+                )
+                - redundancy
+            )
+
+            pid_results[pid_key] = {
+                "synergy": synergy,
+                "redundancy": redundancy,
+                f"unique_{source1_name}": unique_1,
+                f"unique_{source2_name}": unique_2,
+            }
+            self.logger.info(
+                f"  {pid_key}: synergy={synergy:.4f}, redundancy={redundancy:.4f}, unique_{source1_name}={unique_1:.4f}, unique_{source2_name}={unique_2:.4f} (took {time.time() - start_time:.1f}s)"
+            )
+        except Exception as e:
+            self.logger.warning(
+                f"  {pid_key} computation failed: {e} (took {time.time() - start_time:.1f}s)"
+            )
+
     def _compute_pid(
         self, E: np.ndarray, I_var: np.ndarray, Vout: np.ndarray, C: np.ndarray
     ) -> dict[str, Any]:
@@ -59,59 +106,46 @@ class InformationPidMetricsMixin(InformationFisherMetricsMixin):
             Vout_pid = Vout
             C_pid = C.reshape(-1, 1)
 
-        def _pid_helper(
-            source1_array: np.ndarray,
-            source1_name: str,
-            source2_array: np.ndarray,
-            source2_name: str,
-            target_array: np.ndarray,
-            target_name: str,
-        ) -> None:
-            """Helper function to compute PID."""
-            pid_key = f"PID({source1_name},{source2_name}->{target_name})"
-            self.logger.info(f"  Computing {pid_key}...")
-            start_time = time.time()
-            try:
-                synergy, redundancy = pid_synergy_redundancy(
-                    [source1_array, source2_array], target_array
-                )
-
-                # Compute unique information
-                unique_1 = (
-                    self.estimators[self.method].mutual_information(
-                        source1_array, target_array
-                    )
-                    - redundancy
-                )
-                unique_2 = (
-                    self.estimators[self.method].mutual_information(
-                        source2_array, target_array
-                    )
-                    - redundancy
-                )
-
-                pid_results[pid_key] = {
-                    "synergy": synergy,
-                    "redundancy": redundancy,
-                    f"unique_{source1_name}": unique_1,
-                    f"unique_{source2_name}": unique_2,
-                }
-                self.logger.info(
-                    f"  {pid_key}: synergy={synergy:.4f}, redundancy={redundancy:.4f}, unique_{source1_name}={unique_1:.4f}, unique_{source2_name}={unique_2:.4f} (took {time.time() - start_time:.1f}s)"
-                )
-            except Exception as e:
-                self.logger.warning(
-                    f"  {pid_key} computation failed: {e} (took {time.time() - start_time:.1f}s)"
-                )
-
         # PID: (E, I) -> C
-        _pid_helper(E_pid, "E", I_pid, "I", C_pid, "C")
+        self._add_pid_metric(
+            pid_results,
+            source1_array=E_pid,
+            source1_name="E",
+            source2_array=I_pid,
+            source2_name="I",
+            target_array=C_pid,
+            target_name="C",
+        )
         # PID: (E, Vout) -> C
-        _pid_helper(E_pid, "E", Vout_pid, "Vout", C_pid, "C")
+        self._add_pid_metric(
+            pid_results,
+            source1_array=E_pid,
+            source1_name="E",
+            source2_array=Vout_pid,
+            source2_name="Vout",
+            target_array=C_pid,
+            target_name="C",
+        )
         # PID: (I, Vout) -> C
-        _pid_helper(I_pid, "I", Vout_pid, "Vout", C_pid, "C")
+        self._add_pid_metric(
+            pid_results,
+            source1_array=I_pid,
+            source1_name="I",
+            source2_array=Vout_pid,
+            source2_name="Vout",
+            target_array=C_pid,
+            target_name="C",
+        )
         # PID: (E, I) -> Vout
-        _pid_helper(E_pid, "E", I_pid, "I", Vout_pid, "Vout")
+        self._add_pid_metric(
+            pid_results,
+            source1_array=E_pid,
+            source1_name="E",
+            source2_array=I_pid,
+            source2_name="I",
+            target_array=Vout_pid,
+            target_name="Vout",
+        )
 
         self.logger.info("  PID computation completed.")
         return pid_results

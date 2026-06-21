@@ -78,59 +78,65 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
 
         for key, module in exc_dendrinet.named_modules():
             if isinstance(module, DendriticBranchLayer):
-                self.raw_dict[key] = {}
-                for branch_idx in range(module.n_branches):
-                    self.raw_dict[key][branch_idx] = {"depth": module.layer_idx}
-
-                if self.input_analysis:
-                    handle = module.register_forward_pre_hook(
-                        lambda module, input, layer_key=key: self.branch_input_hook(
-                            module, input, layer_key
-                        )
-                    )
-                    handles.append(handle)
-
-                if module.branch_excitation is not None:
-                    handle = module.branch_excitation.register_forward_hook(
-                        lambda module, input, output, layer_key=key: self.forward_hook(
-                            module, input, output, layer_key, "exc"
-                        )
-                    )
-                    handles.append(handle)
-
-                if module.branch_inhibition is not None:
-                    handle = module.branch_inhibition.register_forward_hook(
-                        lambda module, input, output, layer_key=key: self.forward_hook(
-                            module, input, output, layer_key, "inh"
-                        )
-                    )
-                    handles.append(handle)
-
-                if hasattr(module, "branches_to_output"):
-                    handle = module.branches_to_output.register_forward_hook(
-                        lambda module, input, output, layer_key=key: self.forward_hook(
-                            module, input, output, layer_key, "upstream"
-                        )
-                    )
-                    handles.append(handle)
-
-                handle = module.reactivation.register_forward_hook(
-                    lambda module, input, output, layer_key=key: self.forward_hook(
-                        module, input, output, layer_key, "vinf"
-                    )
-                )
-                handles.append(handle)
-
-                handle = module.reactivation.register_forward_hook(
-                    lambda module, input, output, layer_key=key: self.forward_hook(
-                        module, input, output, layer_key, "vout"
-                    )
-                )
-                handles.append(handle)
+                self._initialize_branch_records(key, module)
+                handles.extend(self._attach_layer_capture_hooks(key, module))
 
         with torch.no_grad():
             _ = model(x)
         self.remove_forward_hooks(handles)
+
+    def _initialize_branch_records(
+        self, key: str, module: DendriticBranchLayer
+    ) -> None:
+        self.raw_dict[key] = {}
+        for branch_idx in range(module.n_branches):
+            self.raw_dict[key][branch_idx] = {"depth": module.layer_idx}
+
+    def _register_activation_hook(
+        self,
+        module: torch.nn.Module,
+        key: str,
+        activation_type: str,
+    ) -> torch.utils.hooks.RemovableHandle:
+        return module.register_forward_hook(
+            lambda module, input, output, layer_key=key: self.forward_hook(
+                module, input, output, layer_key, activation_type
+            )
+        )
+
+    def _attach_layer_capture_hooks(
+        self, key: str, module: DendriticBranchLayer
+    ) -> list[torch.utils.hooks.RemovableHandle]:
+        handles = []
+
+        if self.input_analysis:
+            handle = module.register_forward_pre_hook(
+                lambda module, input, layer_key=key: self.branch_input_hook(
+                    module, input, layer_key
+                )
+            )
+            handles.append(handle)
+
+        if module.branch_excitation is not None:
+            handles.append(
+                self._register_activation_hook(module.branch_excitation, key, "exc")
+            )
+
+        if module.branch_inhibition is not None:
+            handles.append(
+                self._register_activation_hook(module.branch_inhibition, key, "inh")
+            )
+
+        if hasattr(module, "branches_to_output"):
+            handles.append(
+                self._register_activation_hook(
+                    module.branches_to_output, key, "upstream"
+                )
+            )
+
+        handles.append(self._register_activation_hook(module.reactivation, key, "vinf"))
+        handles.append(self._register_activation_hook(module.reactivation, key, "vout"))
+        return handles
 
     def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
         """Remove forward hooks from the model."""

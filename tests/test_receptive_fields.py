@@ -83,6 +83,29 @@ def test_compartment_snr_captures_direct_inhibitory_stream():
     assert torch.isfinite(torch.tensor(list(stats.values()))).all()
 
 
+def test_compartment_snr_collects_expected_branch_channels():
+    model = _direct_inhibitory_model()
+    x, _labels, _dataset = _toy_dataset()
+    analyzer = CompartmentSNRAnalyzer(CompartmentSNRAnalysisParams())
+
+    analyzer.collect_raw_data(model, x)
+
+    first_layer = analyzer.raw_dict["branch_layers.0"]
+    second_layer = analyzer.raw_dict["branch_layers.1"]
+    for branch_data in first_layer.values():
+        assert set(branch_data) == {"depth", "exc", "inh", "vinf", "vout"}
+        assert branch_data["exc"].shape == (x.shape[0],)
+        assert branch_data["inh"].shape == (x.shape[0],)
+        assert branch_data["vinf"].shape == (x.shape[0],)
+        assert branch_data["vout"].shape == (x.shape[0],)
+
+    for branch_data in second_layer.values():
+        assert set(branch_data) == {"depth", "upstream", "vinf", "vout"}
+        assert branch_data["upstream"].shape == (x.shape[0],)
+        assert branch_data["vinf"].shape == (x.shape[0],)
+        assert branch_data["vout"].shape == (x.shape[0],)
+
+
 def test_receptive_field_checkpoint_and_activation_tuning(tmp_path):
     model = _direct_inhibitory_model()
     _x, _labels, dataset = _toy_dataset()

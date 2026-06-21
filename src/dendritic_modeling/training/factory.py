@@ -287,6 +287,57 @@ def _build_shunting_feedback_alignment_trainer(
     return ShuntingFeedbackAlignmentTrainer(**trainer_config_dict, e_rev_exc=e_rev)
 
 
+def _build_recurrent_trainer(trainer_config_dict: dict[str, Any]) -> RecurrentTrainer:
+    """Build a recurrent trainer while preserving legacy kwarg precedence."""
+    # Strategy-specific recurrent config takes precedence over generic fields.
+    recurrent_cfg = trainer_config_dict.pop("recurrent_config", None)
+    if recurrent_cfg is not None and not isinstance(recurrent_cfg, dict):
+        recurrent_cfg = to_plain_dict(recurrent_cfg)
+    if isinstance(recurrent_cfg, dict):
+        # recurrent_cfg should only contain fields the user explicitly set
+        # (default-valued fields are stripped by config_utils).  Explicit
+        # strategy overrides take precedence over common settings.
+        trainer_config_dict.update(recurrent_cfg)
+
+    task = trainer_config_dict.pop("task", "classification")
+    grad_clip = trainer_config_dict.pop(
+        "grad_clip", trainer_config_dict.pop("grad_clip_value", 1.0)
+    )
+    use_amp = trainer_config_dict.pop("use_amp", False)
+    lr_schedule = trainer_config_dict.pop("lr_schedule", "none")
+    lr_warmup_epochs = trainer_config_dict.pop("lr_warmup_epochs", 0)
+    _apply_enhanced_configs(trainer_config_dict)
+    return RecurrentTrainer(
+        task=task,
+        grad_clip=grad_clip,
+        use_amp=use_amp,
+        lr_schedule=lr_schedule,
+        lr_warmup_epochs=lr_warmup_epochs,
+        **trainer_config_dict,
+    )
+
+
+def _build_multi_stage_trainer(
+    trainer_config_dict: dict[str, Any],
+    *,
+    optimizer: torch.optim.Optimizer,
+    analysis_manager: Optional[object],
+) -> MultiStageTrainer:
+    """Build a multi-stage trainer from normalized factory kwargs."""
+    raw_multi_stage_config = trainer_config_dict.pop("multi_stage_config", None)
+    multi_stage_config = _build_multi_stage_config(raw_multi_stage_config)
+
+    _apply_enhanced_configs(trainer_config_dict)
+
+    base_trainer_config = dict(trainer_config_dict)
+    return MultiStageTrainer(
+        multi_stage_config=multi_stage_config,
+        base_optimizer=optimizer,
+        base_trainer_config=base_trainer_config,
+        analysis_manager=analysis_manager,
+    )
+
+
 def get_trainer(
     strategy: str,
     optimizer: torch.optim.Optimizer,
@@ -322,43 +373,11 @@ def get_trainer(
             trainer_config_dict,
         )
     elif strategy == "recurrent":
-        # Strategy-specific recurrent config takes precedence over generic fields.
-        recurrent_cfg = trainer_config_dict.pop("recurrent_config", None)
-        if recurrent_cfg is not None and not isinstance(recurrent_cfg, dict):
-            recurrent_cfg = to_plain_dict(recurrent_cfg)
-        if isinstance(recurrent_cfg, dict):
-            # recurrent_cfg should only contain fields the user explicitly set
-            # (default-valued fields are stripped by config_utils).  Explicit
-            # strategy overrides take precedence over common settings.
-            trainer_config_dict.update(recurrent_cfg)
-
-        task = trainer_config_dict.pop("task", "classification")
-        grad_clip = trainer_config_dict.pop(
-            "grad_clip", trainer_config_dict.pop("grad_clip_value", 1.0)
-        )
-        use_amp = trainer_config_dict.pop("use_amp", False)
-        lr_schedule = trainer_config_dict.pop("lr_schedule", "none")
-        lr_warmup_epochs = trainer_config_dict.pop("lr_warmup_epochs", 0)
-        _apply_enhanced_configs(trainer_config_dict)
-        return RecurrentTrainer(
-            task=task,
-            grad_clip=grad_clip,
-            use_amp=use_amp,
-            lr_schedule=lr_schedule,
-            lr_warmup_epochs=lr_warmup_epochs,
-            **trainer_config_dict,
-        )
+        return _build_recurrent_trainer(trainer_config_dict)
     elif strategy == "multi_stage":
-        raw_multi_stage_config = trainer_config_dict.pop("multi_stage_config", None)
-        multi_stage_config = _build_multi_stage_config(raw_multi_stage_config)
-
-        _apply_enhanced_configs(trainer_config_dict)
-
-        base_trainer_config = dict(trainer_config_dict)
-        return MultiStageTrainer(
-            multi_stage_config=multi_stage_config,
-            base_optimizer=optimizer,
-            base_trainer_config=base_trainer_config,
+        return _build_multi_stage_trainer(
+            trainer_config_dict,
+            optimizer=optimizer,
             analysis_manager=analysis_manager,
         )
     else:

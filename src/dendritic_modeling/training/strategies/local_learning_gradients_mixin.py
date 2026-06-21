@@ -99,15 +99,11 @@ class LocalLearningGradientMixin(
             update_reactivation=update_reactivation,
         )
 
-        if self._stdp_enabled():
-            post_signal = rec.get("v_out")
-            if not isinstance(post_signal, torch.Tensor):
-                post_signal = v_n
-            self._apply_stdp_pathways(
-                rec=rec,
-                post_signal=post_signal,
-                error_signal=stdp_error_signal,
-            )
+        self._apply_stdp_local_gradients(
+            rec=rec,
+            v_n=v_n,
+            stdp_error_signal=stdp_error_signal,
+        )
 
         self._apply_hsic_auxiliary_gradients(
             rec=rec,
@@ -116,6 +112,26 @@ class LocalLearningGradientMixin(
             num_layers=num_layers,
             y_target=y_target,
             batch_size=batch_size,
+        )
+
+    def _apply_stdp_local_gradients(
+        self,
+        *,
+        rec: dict[str, Any],
+        v_n: torch.Tensor,
+        stdp_error_signal: torch.Tensor,
+    ) -> None:
+        """Apply configured STDP gradients for one local-learning record."""
+        if not self._stdp_enabled():
+            return
+
+        post_signal = rec.get("v_out")
+        if not isinstance(post_signal, torch.Tensor):
+            post_signal = v_n
+        self._apply_stdp_pathways(
+            rec=rec,
+            post_signal=post_signal,
+            error_signal=stdp_error_signal,
         )
 
 

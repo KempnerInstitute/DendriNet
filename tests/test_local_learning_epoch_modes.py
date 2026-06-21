@@ -252,6 +252,71 @@ def test_apply_layer_local_gradients_dispatches_topk_paths_in_order():
     ]
 
 
+def test_apply_stdp_local_gradients_uses_recorded_output_signal():
+    class _Probe(LocalLearningGradientMixin):
+        def __init__(self):
+            self.calls = []
+
+        def _stdp_enabled(self):
+            return True
+
+        def _apply_stdp_pathways(self, **kwargs):
+            self.calls.append(kwargs)
+
+    trainer = _Probe()
+    v_n = torch.ones(2, 3)
+    v_out = torch.full((2, 3), 2.0)
+    error_signal = torch.full((2, 3), -0.5)
+    rec = {"v_out": v_out}
+
+    trainer._apply_stdp_local_gradients(
+        rec=rec,
+        v_n=v_n,
+        stdp_error_signal=error_signal,
+    )
+
+    assert len(trainer.calls) == 1
+    assert trainer.calls[0]["rec"] is rec
+    assert trainer.calls[0]["post_signal"] is v_out
+    assert trainer.calls[0]["error_signal"] is error_signal
+
+
+def test_apply_stdp_local_gradients_falls_back_to_layer_voltage_and_respects_disable():
+    class _Probe(LocalLearningGradientMixin):
+        def __init__(self, enabled):
+            self.enabled = enabled
+            self.calls = []
+
+        def _stdp_enabled(self):
+            return self.enabled
+
+        def _apply_stdp_pathways(self, **kwargs):
+            self.calls.append(kwargs)
+
+    v_n = torch.ones(2, 3)
+    error_signal = torch.full((2, 3), -0.5)
+
+    enabled_trainer = _Probe(enabled=True)
+    rec = {"v_out": "not-a-tensor"}
+    enabled_trainer._apply_stdp_local_gradients(
+        rec=rec,
+        v_n=v_n,
+        stdp_error_signal=error_signal,
+    )
+
+    assert len(enabled_trainer.calls) == 1
+    assert enabled_trainer.calls[0]["post_signal"] is v_n
+
+    disabled_trainer = _Probe(enabled=False)
+    disabled_trainer._apply_stdp_local_gradients(
+        rec={},
+        v_n=v_n,
+        stdp_error_signal=error_signal,
+    )
+
+    assert disabled_trainer.calls == []
+
+
 def test_resolve_epoch_update_modes_uses_base_modes_after_freeze_window():
     cfg = _local_cfg(
         freeze_encoder_epochs=2,

@@ -2,20 +2,28 @@
 
 import numpy as np
 
+from dendritic_modeling.analysis.core import information_pid_mixin
 from dendritic_modeling.analysis.core.information_metrics_mixin import (
     InformationMetricsMixin,
     _metric_variable_for_null_baseline,
     _parse_mi_key_for_null_baseline,
+)
+from dendritic_modeling.analysis.core.information_pid_mixin import (
+    InformationPidMetricsMixin,
 )
 
 
 class _RecordingLogger:
     def __init__(self):
         self.debug_messages = []
+        self.info_messages = []
         self.warning_messages = []
 
     def debug(self, message):
         self.debug_messages.append(message)
+
+    def info(self, message):
+        self.info_messages.append(message)
 
     def warning(self, message):
         self.warning_messages.append(message)
@@ -61,6 +69,17 @@ class _MetricHarness(InformationMetricsMixin):
         self.mi_null_shuffles = 0
         self.mi_null_seed = 0
         self.mi_null_components = {"basic"}
+
+
+class _PidHarness(InformationPidMetricsMixin):
+    def __init__(self):
+        self.logger = _RecordingLogger()
+        self.estimator = _RecordingEstimator()
+        self.estimators = {"recording": self.estimator}
+        self.method = "recording"
+        self.pid_binarize = False
+        self.pid_binarize_method = "median"
+        self.pid_binarize_threshold = 0.5
 
 
 def _arrays():
@@ -270,6 +289,79 @@ def test_estimate_cmi_or_zero_preserves_failure_fallback():
         "  Failed to compute I(Vb;C|E,I): synthetic estimator failure"
     ]
     assert "I(Vb;C|E,I) = 0.0000" in harness.logger.debug_messages[-1]
+
+
+def test_add_pid_metric_preserves_key_schema_unique_terms_and_estimator_order(
+    monkeypatch,
+):
+    harness = _PidHarness()
+    arrays = _arrays()
+    pid_results = {}
+
+    def fake_pid(sources, target):
+        assert sources[0] is arrays["E"]
+        assert sources[1] is arrays["I"]
+        assert target is arrays["Vout"]
+        return 0.5, 0.25
+
+    monkeypatch.setattr(information_pid_mixin, "pid_synergy_redundancy", fake_pid)
+
+    harness._add_pid_metric(
+        pid_results,
+        source1_array=arrays["E"],
+        source1_name="E",
+        source2_array=arrays["I"],
+        source2_name="I",
+        target_array=arrays["Vout"],
+        target_name="Vout",
+    )
+
+    assert pid_results == {
+        "PID(E,I->Vout)": {
+            "synergy": 0.5,
+            "redundancy": 0.25,
+            "unique_E": 0.75,
+            "unique_I": 1.75,
+        }
+    }
+    assert [call[0] for call in harness.estimator.calls] == ["mi", "mi"]
+    np.testing.assert_array_equal(harness.estimator.calls[0][1], arrays["E"])
+    np.testing.assert_array_equal(harness.estimator.calls[0][2], arrays["Vout"])
+    np.testing.assert_array_equal(harness.estimator.calls[1][1], arrays["I"])
+    np.testing.assert_array_equal(harness.estimator.calls[1][2], arrays["Vout"])
+    assert harness.logger.info_messages[0] == "  Computing PID(E,I->Vout)..."
+    assert harness.logger.warning_messages == []
+
+
+def test_compute_pid_preserves_metric_order_and_reshaped_class_target(monkeypatch):
+    harness = _PidHarness()
+    arrays = _arrays()
+    pid_calls = []
+
+    def fake_pid(sources, target):
+        pid_calls.append((sources[0].copy(), sources[1].copy(), target.copy()))
+        return float(len(pid_calls)), 0.0
+
+    monkeypatch.setattr(information_pid_mixin, "pid_synergy_redundancy", fake_pid)
+
+    results = harness._compute_pid(
+        arrays["E"],
+        arrays["I"],
+        arrays["Vout"],
+        arrays["C"],
+    )
+
+    assert list(results) == [
+        "PID(E,I->C)",
+        "PID(E,Vout->C)",
+        "PID(I,Vout->C)",
+        "PID(E,I->Vout)",
+    ]
+    np.testing.assert_array_equal(pid_calls[0][2], arrays["C"].reshape(-1, 1))
+    np.testing.assert_array_equal(pid_calls[1][2], arrays["C"].reshape(-1, 1))
+    np.testing.assert_array_equal(pid_calls[2][2], arrays["C"].reshape(-1, 1))
+    np.testing.assert_array_equal(pid_calls[3][2], arrays["Vout"])
+    assert [call[0] for call in harness.estimator.calls] == ["mi"] * 8
 
 
 def test_compute_basic_mi_preserves_keys_order_and_joint_input():
