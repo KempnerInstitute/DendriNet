@@ -46,6 +46,7 @@ class CommonTrainerConfig(BaseConfig):
     pin_memory: Optional[bool] = None
     persistent_workers: Optional[bool] = None
     prefetch_factor: Optional[int] = None
+    in_order: Optional[bool] = None
     use_amp: bool = False
     lr_schedule: str = "none"
     lr_warmup_epochs: int = 0
@@ -340,6 +341,7 @@ class TransformerReplacementTrainingConfig(BaseConfig):
     pin_memory: Optional[bool] = None
     persistent_workers: Optional[bool] = None
     prefetch_factor: Optional[int] = None
+    in_order: Optional[bool] = None
     sequence_length: int = 8
     train_samples: int = 2048
     valid_samples: int = 512
@@ -423,6 +425,7 @@ class VisionReplacementTrainingConfig(BaseConfig):
     pin_memory: Optional[bool] = None
     persistent_workers: Optional[bool] = None
     prefetch_factor: Optional[int] = None
+    in_order: Optional[bool] = None
 
     tensor_cache: dict[str, Any] = field(
         default_factory=lambda: {

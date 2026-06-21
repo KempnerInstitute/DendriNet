@@ -557,6 +557,7 @@ class TestConfigLoading(unittest.TestCase):
                         "pin_memory": False,
                         "persistent_workers": True,
                         "prefetch_factor": 3,
+                        "in_order": False,
                     },
                 }
             },
@@ -572,6 +573,7 @@ class TestConfigLoading(unittest.TestCase):
         self.assertFalse(common.pin_memory)
         self.assertTrue(common.persistent_workers)
         self.assertEqual(common.prefetch_factor, 3)
+        self.assertFalse(common.in_order)
 
     def test_additive_alias_defaults_to_occupancy_quantile_when_policy_omitted(self):
         """Additive configs should not silently use weak analytical gates."""
@@ -944,6 +946,7 @@ class TestConfigLoading(unittest.TestCase):
                     "pin_memory": False,
                     "persistent_workers": True,
                     "prefetch_factor": 2,
+                    "in_order": False,
                     "synthetic_teacher": {"kind": "linear"},
                 }
             },
@@ -966,6 +969,7 @@ class TestConfigLoading(unittest.TestCase):
         self.assertFalse(training.pin_memory)
         self.assertTrue(training.persistent_workers)
         self.assertEqual(training.prefetch_factor, 2)
+        self.assertFalse(training.in_order)
         self.assertEqual(training.synthetic_teacher["kind"], "linear")
 
     def test_load_config_preserves_vision_replacement_training(self):
@@ -983,6 +987,7 @@ class TestConfigLoading(unittest.TestCase):
                     "pin_memory": False,
                     "persistent_workers": True,
                     "prefetch_factor": 3,
+                    "in_order": False,
                     "tensor_cache": {"train_inputs": "train_x.pt"},
                 }
             },
@@ -1004,6 +1009,7 @@ class TestConfigLoading(unittest.TestCase):
         self.assertFalse(training.pin_memory)
         self.assertTrue(training.persistent_workers)
         self.assertEqual(training.prefetch_factor, 3)
+        self.assertFalse(training.in_order)
         self.assertEqual(training.tensor_cache["train_inputs"], "train_x.pt")
 
     def test_load_config_maps_spike_train_analysis(self):

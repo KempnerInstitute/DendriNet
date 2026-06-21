@@ -596,6 +596,7 @@ def test_dataloader_config_helpers_preserve_resolved_kwargs():
         pin_memory=False,
         persistent_workers=True,
         prefetch_factor=3,
+        in_order=False,
     )
 
     tuning = resolve_dataloader_tuning_from_config(dataset, cfg, device="cpu")
@@ -604,9 +605,30 @@ def test_dataloader_config_helpers_preserve_resolved_kwargs():
     assert tuning.pin_memory is False
     assert tuning.persistent_workers is True
     assert tuning.prefetch_factor == 3
+    assert tuning.in_order is False
     assert (
         dataloader_kwargs_from_config(dataset, cfg, device="cpu") == tuning.as_kwargs()
     )
+    assert tuning.as_kwargs()["in_order"] is False
+
+
+def test_dataloader_tuning_omits_default_in_order_kwarg():
+    """Default tuning should not pass PyTorch's optional in_order kwarg."""
+    from dendritic_modeling.training.dataloader_utils import resolve_dataloader_tuning
+
+    dataset = torch.utils.data.TensorDataset(
+        torch.randn(8, 3), torch.randint(0, 2, (8,))
+    )
+
+    tuning = resolve_dataloader_tuning(
+        dataset,
+        device="cpu",
+        num_workers=0,
+        pin_memory=False,
+    )
+
+    assert tuning.in_order is None
+    assert "in_order" not in tuning.as_kwargs()
 
 
 def test_dataloader_config_helper_accepts_default_num_workers():

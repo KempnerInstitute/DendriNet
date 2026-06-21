@@ -32,6 +32,7 @@ class DataLoaderTuning:
     pin_memory: bool
     persistent_workers: bool
     prefetch_factor: int | None
+    in_order: bool | None
     available_cpus: int
     auto_num_workers: bool
 
@@ -43,6 +44,8 @@ class DataLoaderTuning:
         }
         if self.prefetch_factor is not None:
             kwargs["prefetch_factor"] = self.prefetch_factor
+        if self.in_order is not None:
+            kwargs["in_order"] = self.in_order
         return kwargs
 
     def summary(self, dataset: Dataset) -> str:
@@ -53,6 +56,7 @@ class DataLoaderTuning:
             f"pin_memory={self.pin_memory}, "
             f"persistent_workers={self.persistent_workers}, "
             f"prefetch_factor={self.prefetch_factor}, "
+            f"in_order={self.in_order}, "
             f"available_cpus={self.available_cpus}, "
             f"auto_num_workers={self.auto_num_workers}"
         )
@@ -155,6 +159,7 @@ def resolve_dataloader_tuning(
     pin_memory: bool | None = None,
     persistent_workers: bool | None = None,
     prefetch_factor: int | None = None,
+    in_order: bool | None = None,
 ) -> DataLoaderTuning:
     """Resolve DataLoader worker/pinning/prefetch settings.
 
@@ -182,12 +187,14 @@ def resolve_dataloader_tuning(
         dataset=dataset,
         num_workers=resolved_workers,
     )
+    resolved_in_order = bool(in_order) if in_order is not None else None
 
     return DataLoaderTuning(
         num_workers=resolved_workers,
         pin_memory=resolved_pin_memory,
         persistent_workers=resolved_persistent,
         prefetch_factor=resolved_prefetch,
+        in_order=resolved_in_order,
         available_cpus=available_cpus,
         auto_num_workers=auto_num_workers,
     )
@@ -211,6 +218,7 @@ def resolve_dataloader_tuning_from_config(
         pin_memory=getattr(config, "pin_memory", None),
         persistent_workers=getattr(config, "persistent_workers", None),
         prefetch_factor=getattr(config, "prefetch_factor", None),
+        in_order=getattr(config, "in_order", None),
     )
 
 

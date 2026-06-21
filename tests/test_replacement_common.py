@@ -274,6 +274,7 @@ def test_shared_replacement_loader_preserves_configured_tuning():
         pin_memory=False,
         persistent_workers=True,
         prefetch_factor=3,
+        in_order=False,
     )
 
     loader = _make_replacement_loader(
@@ -288,6 +289,7 @@ def test_shared_replacement_loader_preserves_configured_tuning():
     assert loader.pin_memory is False
     assert loader.persistent_workers is True
     assert loader.prefetch_factor == 3
+    assert loader.in_order is False
     assert loader.drop_last is False
 
 

@@ -251,6 +251,7 @@ training:
       pin_memory: null                  # bool | null: Pin batches when useful (null = auto)
       persistent_workers: null          # bool | null: Keep workers alive (requires num_workers > 0)
       prefetch_factor: null             # int | null: DataLoader prefetch factor (requires num_workers > 0)
+      in_order: null                    # bool | null: false can reduce ImageNet worker head-of-line blocking
       shuffle: true                     # bool: Shuffle training data
       grad_clip_value: 5.0              # float: Gradient clipping value
       loss_function: "log_mse"          # str: "ce" | "mse" | "log_mse" | "bce"
@@ -367,6 +368,7 @@ training:
       pin_memory: null                  # bool | null: Pin batches when useful (null = auto)
       persistent_workers: null          # bool | null: Keep workers alive (requires num_workers > 0)
       prefetch_factor: null             # int | null: DataLoader prefetch factor (requires num_workers > 0)
+      in_order: null                    # bool | null: false can reduce ImageNet worker head-of-line blocking
       shuffle: true                     # bool: Shuffle training data
       grad_clip_value: 2.0              # float: Gradient clipping value
       loss_function: "ce"               # str: "ce" | "mse" | "log_mse" | "bce"
