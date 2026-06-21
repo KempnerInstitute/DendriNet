@@ -1,6 +1,7 @@
 import logging
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import numpy as np
@@ -12,7 +13,18 @@ from dendritic_modeling.datasets import load_mnist_modulo10
 # Import functions from their actual locations
 from dendritic_modeling.training.utils.evaluation import accuracy_score
 from dendritic_modeling.utils import Shaper
-from dendritic_modeling.utils.gpu_estimation import GPUMemoryEstimator, MemoryBreakdown
+from dendritic_modeling.utils.gpu_estimation import (
+    GPUMemoryEstimator,
+    MemoryBreakdown,
+    _config_params,
+    _core_params_from_config,
+    _fallback_input_shape,
+    _flat_input_dim,
+    _resolve_batch_size,
+    _resolve_n_classes,
+    _resolve_task_config,
+    _resolve_training_dtype,
+)
 from dendritic_modeling.utils.information.estimators import (
     EstimatorConfig,
     InformationEstimatorFactory,
@@ -257,6 +269,136 @@ def test_gpu_recommendations_log_invalid_memory_values(caplog):
 
     assert "Invalid memory values" in caplog.text
     assert [rec.min_gpus_needed for rec in recommendations] == [1, 1]
+
+
+def test_gpu_estimate_config_helpers_resolve_batch_size_paths():
+    assert _resolve_batch_size(SimpleNamespace(), batch_size=128) == 128
+
+    current = SimpleNamespace(
+        training=SimpleNamespace(
+            main=SimpleNamespace(common=SimpleNamespace(batch_size=64))
+        )
+    )
+    assert _resolve_batch_size(current) == 64
+
+    current_trainer = SimpleNamespace(
+        training=SimpleNamespace(
+            main=SimpleNamespace(trainer=SimpleNamespace(batch_size=48))
+        )
+    )
+    assert _resolve_batch_size(current_trainer) == 48
+
+    legacy = SimpleNamespace(
+        train=SimpleNamespace(main=SimpleNamespace(trainer=SimpleNamespace()))
+    )
+    assert _resolve_batch_size(legacy) == 32
+
+
+def test_gpu_estimate_task_config_helper_preserves_legacy_and_synthesizes_data():
+    legacy_task = SimpleNamespace(dataset="mnist", parameters={"flatten": True})
+    legacy_config = SimpleNamespace(task=legacy_task)
+
+    task_cfg, task_params = _resolve_task_config(legacy_config)
+
+    assert task_cfg is legacy_task
+    assert task_params == {"flatten": True}
+
+    data_config = SimpleNamespace(
+        data=SimpleNamespace(
+            dataset_name="imagenet",
+            base_dir="/tmp/imagenet",
+            processing={"flatten": False},
+        ),
+        experiment=SimpleNamespace(train_valid_split=0.7),
+    )
+
+    task_cfg, task_params = _resolve_task_config(data_config)
+
+    assert task_cfg.dataset == "imagenet"
+    assert task_cfg.data_path == "/tmp/imagenet"
+    assert task_cfg.train_valid_split == 0.7
+    assert task_params == {"flatten": False}
+
+
+def test_gpu_estimate_fallback_input_shapes():
+    assert _fallback_input_shape(SimpleNamespace(dataset="mnist"), {}) == (784,)
+    assert _fallback_input_shape(SimpleNamespace(dataset="cifar10"), {}) == (3072,)
+    assert _fallback_input_shape(
+        SimpleNamespace(dataset="imagenet"), {"flatten": True}
+    ) == (150528,)
+    assert _fallback_input_shape(
+        SimpleNamespace(dataset="imagenet"), {"flatten": False}
+    ) == (3, 224, 224)
+    assert _fallback_input_shape(
+        SimpleNamespace(dataset="custom"), {"input_dim": 123}
+    ) == (123,)
+
+
+def test_gpu_estimate_model_build_helpers_preserve_parameter_paths():
+    assert _flat_input_dim((784,)) == 784
+    assert _flat_input_dim((3, 224, 224)) == 150528
+
+    assert _config_params(SimpleNamespace(parameters={"a": 1})) == {"a": 1}
+    assert _config_params(SimpleNamespace(params={"b": 2})) == {"b": 2}
+    assert _config_params(SimpleNamespace(parameters={}, params={"c": 3})) == {"c": 3}
+
+    legacy_core = SimpleNamespace(parameters={"input_dim": 5, "hidden_dim": 7})
+    assert _core_params_from_config(legacy_core) == {"input_dim": 5, "hidden_dim": 7}
+
+    structured_core = SimpleNamespace(
+        architecture=SimpleNamespace(hidden_dim=8, shared="architecture"),
+        connectivity=SimpleNamespace(num_synapses=9, shared="connectivity"),
+        morphology=SimpleNamespace(use_shunting=True),
+    )
+
+    assert _core_params_from_config(structured_core) == {
+        "hidden_dim": 8,
+        "num_synapses": 9,
+        "shared": "connectivity",
+        "use_shunting": True,
+    }
+
+
+def test_gpu_estimate_class_count_helper_matches_dataset_defaults():
+    assert (
+        _resolve_n_classes("classification", SimpleNamespace(dataset="mnist"), {}) == 10
+    )
+    assert (
+        _resolve_n_classes("classification", SimpleNamespace(dataset="imagenet"), {})
+        == 1000
+    )
+    assert (
+        _resolve_n_classes(
+            "classification", SimpleNamespace(dataset="custom"), {"n_classes": 17}
+        )
+        == 17
+    )
+    assert _resolve_n_classes("regression", SimpleNamespace(dataset="mnist"), {}) == 1
+
+
+def test_gpu_estimate_training_dtype_helper_resolves_current_and_legacy_paths():
+    assert _resolve_training_dtype(SimpleNamespace()) == "fp16"
+
+    current = SimpleNamespace(
+        training=SimpleNamespace(
+            main=SimpleNamespace(common=SimpleNamespace(dtype="bf16"))
+        )
+    )
+    assert _resolve_training_dtype(current) == "bf16"
+
+    current_trainer = SimpleNamespace(
+        training=SimpleNamespace(
+            main=SimpleNamespace(trainer=SimpleNamespace(dtype="fp32"))
+        )
+    )
+    assert _resolve_training_dtype(current_trainer) == "fp32"
+
+    legacy = SimpleNamespace(
+        train=SimpleNamespace(
+            main=SimpleNamespace(trainer=SimpleNamespace(dtype="int8"))
+        )
+    )
+    assert _resolve_training_dtype(legacy) == "int8"
 
 
 if __name__ == "__main__":

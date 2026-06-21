@@ -21,11 +21,13 @@ _SUPPORTED_WEIGHT_TRANSFORMS: tuple[WeightTransformType, ...] = (
     "softplus",
 )
 _TensorTransform = Callable[[torch.Tensor], torch.Tensor]
+DEFAULT_SAFE_EXP_MARGIN = 1.0
+INVERSE_EXP_EPS = 1e-8
 
 
 def safe_exp(
     weights: torch.Tensor,
-    margin: float = 1.0,
+    margin: float = DEFAULT_SAFE_EXP_MARGIN,
     max_exponent: float | None = None,
 ) -> torch.Tensor:
     """Exponentiate without overflowing finite floating-point tensors."""
@@ -56,7 +58,7 @@ def _identity(weights: torch.Tensor) -> torch.Tensor:
 
 
 def _inverse_exp(positive_weights: torch.Tensor) -> torch.Tensor:
-    return torch.log(positive_weights + 1e-8)
+    return torch.log(positive_weights + INVERSE_EXP_EPS)
 
 
 _WEIGHT_TRANSFORMS: dict[WeightTransformType, _TensorTransform] = {
@@ -81,6 +83,17 @@ def _unsupported_transform_error(transform_type: str) -> ValueError:
     )
 
 
+def _lookup_transform(
+    registry: dict[WeightTransformType, _TensorTransform],
+    transform_type: str,
+) -> _TensorTransform:
+    """Return a transform from a registry or raise a supported-name error."""
+    transform = registry.get(transform_type)
+    if transform is None:
+        raise _unsupported_transform_error(transform_type)
+    return transform
+
+
 def apply_weight_transform(
     weights: torch.Tensor, transform_type: WeightTransformType = "exp"
 ) -> torch.Tensor:
@@ -97,10 +110,7 @@ def apply_weight_transform(
     Raises:
         ValueError: If transform_type is not supported
     """
-    transform = _WEIGHT_TRANSFORMS.get(transform_type)
-    if transform is None:
-        raise _unsupported_transform_error(transform_type)
-    return transform(weights)
+    return _lookup_transform(_WEIGHT_TRANSFORMS, transform_type)(weights)
 
 
 def get_weight_transform_fn(transform_type: WeightTransformType) -> _TensorTransform:
@@ -113,10 +123,7 @@ def get_weight_transform_fn(transform_type: WeightTransformType) -> _TensorTrans
     Returns:
         Function that applies the transformation
     """
-    transform = _WEIGHT_TRANSFORMS.get(transform_type)
-    if transform is None:
-        raise _unsupported_transform_error(transform_type)
-    return transform
+    return _lookup_transform(_WEIGHT_TRANSFORMS, transform_type)
 
 
 def inverse_weight_transform(
@@ -134,10 +141,9 @@ def inverse_weight_transform(
     Returns:
         Raw parameters that would produce the given positive weights
     """
-    inverse_transform = _INVERSE_WEIGHT_TRANSFORMS.get(transform_type)
-    if inverse_transform is None:
-        raise _unsupported_transform_error(transform_type)
-    return inverse_transform(positive_weights)
+    return _lookup_transform(_INVERSE_WEIGHT_TRANSFORMS, transform_type)(
+        positive_weights
+    )
 
 
 __all__ = [

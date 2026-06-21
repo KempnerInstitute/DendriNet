@@ -5,6 +5,10 @@ import torch.nn.functional as F
 from dendritic_modeling.training._transformer_replacement.common import (
     _compute_distillation_loss as _compute_transformer_distillation_loss,
 )
+from dendritic_modeling.training.replacement_common import (
+    _compute_distillation_loss as _compute_shared_distillation_loss,
+    _resolve_dtype,
+)
 from dendritic_modeling.training.vision_replacement import (
     _compute_distillation_loss as _compute_vision_distillation_loss,
 )
@@ -133,3 +137,53 @@ def test_distillation_loss_error_messages_preserve_domain_context():
             target,
             loss_name="mae",
         )
+
+
+def test_shared_dtype_resolution_accepts_aliases():
+    expected = {
+        "float": torch.float32,
+        "float32": torch.float32,
+        "fp32": torch.float32,
+        "bfloat16": torch.bfloat16,
+        "bf16": torch.bfloat16,
+        "float16": torch.float16,
+        "fp16": torch.float16,
+    }
+
+    for alias, dtype in expected.items():
+        assert _resolve_dtype(alias) is dtype
+        assert _resolve_dtype(alias.upper()) is dtype
+
+
+def test_shared_dtype_resolution_rejects_unknown_alias():
+    with pytest.raises(ValueError, match="Unknown dtype 'float64'"):
+        _resolve_dtype("float64")
+
+
+def test_shared_distillation_loss_rejects_unknown_cosine_flatten_mode():
+    prediction = torch.zeros(2, 3)
+    target = torch.ones(2, 3)
+
+    with pytest.raises(ValueError, match="cosine_flatten"):
+        _compute_shared_distillation_loss(
+            prediction,
+            target,
+            loss_name="mse",
+            cosine_weight=1.0,
+            cosine_flatten="token",
+        )
+
+
+def test_shared_distillation_loss_skips_cosine_validation_when_weight_is_zero():
+    prediction = torch.zeros(2, 3)
+    target = torch.ones(2, 3)
+
+    actual = _compute_shared_distillation_loss(
+        prediction,
+        target,
+        loss_name="l2",
+        cosine_weight=0.0,
+        cosine_flatten="token",
+    )
+
+    torch.testing.assert_close(actual, F.mse_loss(prediction, target))

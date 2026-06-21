@@ -9,6 +9,18 @@ import torch.nn.functional as F
 
 from dendritic_modeling.config.conversion import to_plain_dict
 
+_DTYPE_ALIASES = {
+    "float": torch.float32,
+    "float32": torch.float32,
+    "fp32": torch.float32,
+    "bfloat16": torch.bfloat16,
+    "bf16": torch.bfloat16,
+    "float16": torch.float16,
+    "fp16": torch.float16,
+}
+_MSE_LOSS_NAMES = {"mse", "l2"}
+_SMOOTH_L1_LOSS_NAMES = {"smooth_l1", "huber"}
+
 
 def _to_plain_mapping(obj: Any) -> dict[str, Any]:
     return to_plain_dict(obj)
@@ -21,19 +33,46 @@ def _resolve_device(device: str) -> torch.device:
 
 
 def _resolve_dtype(dtype: str) -> torch.dtype:
-    aliases = {
-        "float": torch.float32,
-        "float32": torch.float32,
-        "fp32": torch.float32,
-        "bfloat16": torch.bfloat16,
-        "bf16": torch.bfloat16,
-        "float16": torch.float16,
-        "fp16": torch.float16,
-    }
     normalized = str(dtype).lower()
-    if normalized not in aliases:
-        raise ValueError(f"Unknown dtype {dtype!r}; expected one of {sorted(aliases)}")
-    return aliases[normalized]
+    if normalized not in _DTYPE_ALIASES:
+        raise ValueError(
+            f"Unknown dtype {dtype!r}; expected one of {sorted(_DTYPE_ALIASES)}"
+        )
+    return _DTYPE_ALIASES[normalized]
+
+
+def _base_distillation_loss(
+    prediction: torch.Tensor,
+    target: torch.Tensor,
+    *,
+    loss_name: str,
+    error_context: str,
+) -> torch.Tensor:
+    """Compute the base distillation loss before optional cosine regularization."""
+    normalized = str(loss_name).lower()
+    if normalized in _MSE_LOSS_NAMES:
+        return F.mse_loss(prediction, target)
+    if normalized in _SMOOTH_L1_LOSS_NAMES:
+        return F.smooth_l1_loss(prediction, target)
+    raise ValueError(f"{error_context} loss must be mse or smooth_l1")
+
+
+def _flatten_for_cosine(
+    prediction: torch.Tensor,
+    target: torch.Tensor,
+    *,
+    cosine_flatten: Literal["batch", "last_dim"],
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Flatten prediction/target tensors according to a replacement domain."""
+    if cosine_flatten == "batch":
+        return prediction.reshape(prediction.shape[0], -1), target.reshape(
+            target.shape[0], -1
+        )
+    if cosine_flatten == "last_dim":
+        return prediction.reshape(-1, prediction.shape[-1]), target.reshape(
+            -1, target.shape[-1]
+        )
+    raise ValueError("cosine_flatten must be 'batch' or 'last_dim'")
 
 
 def _compute_distillation_loss(
@@ -46,26 +85,21 @@ def _compute_distillation_loss(
     error_context: str = "replacement",
 ) -> torch.Tensor:
     """Compute the shared MSE/SmoothL1 plus optional cosine distillation loss."""
-    normalized = str(loss_name).lower()
-    if normalized in {"mse", "l2"}:
-        loss = F.mse_loss(prediction, target)
-    elif normalized in {"smooth_l1", "huber"}:
-        loss = F.smooth_l1_loss(prediction, target)
-    else:
-        raise ValueError(f"{error_context} loss must be mse or smooth_l1")
+    loss = _base_distillation_loss(
+        prediction,
+        target,
+        loss_name=loss_name,
+        error_context=error_context,
+    )
 
     if cosine_weight <= 0:
         return loss
 
-    if cosine_flatten == "batch":
-        pred_flat = prediction.reshape(prediction.shape[0], -1)
-        tgt_flat = target.reshape(target.shape[0], -1)
-    elif cosine_flatten == "last_dim":
-        pred_flat = prediction.reshape(-1, prediction.shape[-1])
-        tgt_flat = target.reshape(-1, target.shape[-1])
-    else:
-        raise ValueError("cosine_flatten must be 'batch' or 'last_dim'")
-
+    pred_flat, tgt_flat = _flatten_for_cosine(
+        prediction,
+        target,
+        cosine_flatten=cosine_flatten,
+    )
     cosine_loss = 1.0 - F.cosine_similarity(pred_flat, tgt_flat, dim=-1).mean()
     return loss + float(cosine_weight) * cosine_loss
 

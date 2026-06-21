@@ -45,6 +45,20 @@ FSDP_ACTIVATION_CHECKPOINT_FACTOR = 0.7
 FSDP_CONFIG_ACTIVATION_FACTOR = 0.8
 FSDP_CONFIG_OVERHEAD_FACTOR = 0.1
 DEFAULT_BATCH_SIZE = 32
+DEFAULT_TRAINING_DTYPE = "fp16"
+DEFAULT_CLASS_COUNT = 10
+REGRESSION_OUTPUT_DIM = 1
+DATASET_CLASS_COUNTS = {
+    "mnist": 10,
+    "cifar10": 10,
+    "imagenet": 1000,
+}
+DEFAULT_TRAIN_VALID_SPLIT = 0.8
+DEFAULT_INPUT_DIM = 784
+MNIST_FLAT_INPUT_SHAPE = (784,)
+CIFAR10_FLAT_INPUT_SHAPE = (3072,)
+IMAGENET_FLAT_INPUT_SHAPE = (150528,)
+IMAGENET_IMAGE_INPUT_SHAPE = (3, 224, 224)
 GPU_MEMORY_SAFETY_FACTOR = 0.85
 PRACTICAL_FSDP_GPU_LIMIT = 16
 
@@ -52,6 +66,115 @@ PRACTICAL_FSDP_GPU_LIMIT = 16
 def _bytes_to_gib(num_bytes: float) -> float:
     """Convert bytes to GiB using the estimator's historical convention."""
     return num_bytes / BYTES_PER_GIB
+
+
+def _resolve_batch_size(config: Any, batch_size: Optional[int] = None) -> int:
+    """Resolve the batch size from explicit, current, or legacy config paths."""
+    if batch_size is not None:
+        return batch_size
+
+    resolved_batch_size = DEFAULT_BATCH_SIZE
+
+    if hasattr(config, "training") and hasattr(config.training, "main"):
+        if hasattr(config.training.main, "common"):
+            resolved_batch_size = getattr(
+                config.training.main.common, "batch_size", resolved_batch_size
+            )
+        elif hasattr(config.training.main, "trainer"):
+            trainer_params = config.training.main.trainer.__dict__
+            resolved_batch_size = trainer_params.get("batch_size", resolved_batch_size)
+    elif hasattr(config, "train") and hasattr(config.train, "main"):
+        if hasattr(config.train.main, "trainer"):
+            trainer_params = config.train.main.trainer.__dict__
+            resolved_batch_size = trainer_params.get("batch_size", resolved_batch_size)
+
+    return resolved_batch_size
+
+
+def _resolve_task_config(config: Any) -> tuple[Any, Any]:
+    """Resolve legacy task config or synthesize one from the data config."""
+    if hasattr(config, "task"):
+        task_cfg = config.task
+        task_params = getattr(task_cfg, "parameters", {}) or {}
+        return task_cfg, task_params
+
+    task_cfg = type("TaskConfig", (), {})()
+    task_cfg.dataset = config.data.dataset_name
+    task_cfg.data_path = getattr(config.data, "base_dir", None)
+    task_cfg.parameters = getattr(config.data, "processing", {})
+    task_cfg.train_valid_split = getattr(
+        config.experiment, "train_valid_split", DEFAULT_TRAIN_VALID_SPLIT
+    )
+    return task_cfg, task_cfg.parameters or {}
+
+
+def _fallback_input_shape(task_cfg: Any, task_params: Any) -> tuple[int, ...]:
+    """Return the historical hardcoded input shape when dataset loading fails."""
+    dataset_name = getattr(task_cfg, "dataset", "cifar10")
+    if dataset_name == "mnist":
+        return MNIST_FLAT_INPUT_SHAPE
+    if dataset_name == "cifar10":
+        return CIFAR10_FLAT_INPUT_SHAPE
+    if dataset_name == "imagenet":
+        if task_params.get("flatten", False):
+            return IMAGENET_FLAT_INPUT_SHAPE
+        return IMAGENET_IMAGE_INPUT_SHAPE
+
+    input_dim = task_params.get("input_dim", DEFAULT_INPUT_DIM)
+    return (input_dim,)
+
+
+def _flat_input_dim(input_shape: tuple[int, ...]) -> int:
+    """Return the flattened input dimension used by flat architectures."""
+    return input_shape[0] if len(input_shape) == 1 else int(np.prod(input_shape))
+
+
+def _config_params(config_node: Any) -> dict[str, Any]:
+    """Return explicit legacy/current params from a config node."""
+    return dict(
+        getattr(config_node, "parameters", {}) or getattr(config_node, "params", {})
+    )
+
+
+def _core_params_from_config(core_config: Any) -> dict[str, Any]:
+    """Merge non-structured core parameter sections into one parameter dict."""
+    if hasattr(core_config, "parameters"):
+        return dict(core_config.parameters)
+
+    core_params = {}
+    for section_name in ("architecture", "connectivity", "morphology"):
+        if hasattr(core_config, section_name):
+            core_params.update(dict(getattr(core_config, section_name).__dict__))
+    return core_params
+
+
+def _resolve_n_classes(task_type: str, task_cfg: Any, task_params: Any) -> int:
+    """Resolve decoder output size from task type and dataset metadata."""
+    if task_type != "classification":
+        return REGRESSION_OUTPUT_DIM
+
+    dataset_name = getattr(task_cfg, "dataset", "cifar10")
+    return DATASET_CLASS_COUNTS.get(
+        dataset_name, task_params.get("n_classes", DEFAULT_CLASS_COUNT)
+    )
+
+
+def _resolve_trainer_params(config: Any) -> dict[str, Any]:
+    """Resolve trainer params from current or legacy config paths."""
+    if hasattr(config, "training") and hasattr(config.training, "main"):
+        if hasattr(config.training.main, "common"):
+            return config.training.main.common.__dict__
+        if hasattr(config.training.main, "trainer"):
+            return config.training.main.trainer.__dict__
+    elif hasattr(config, "train") and hasattr(config.train, "main"):
+        if hasattr(config.train.main, "trainer"):
+            return config.train.main.trainer.__dict__
+    return {}
+
+
+def _resolve_training_dtype(config: Any) -> str:
+    """Resolve training dtype used by the memory estimator."""
+    return _resolve_trainer_params(config).get("dtype", DEFAULT_TRAINING_DTYPE)
 
 
 @dataclass
@@ -660,39 +783,8 @@ def estimate_from_config(config_path: str, batch_size: Optional[int] = None):
     # Load configuration
     config = load_config(config_path)
 
-    # Get batch size - handle both old (train) and new (training) structure
-    if batch_size is None:
-        batch_size = DEFAULT_BATCH_SIZE
-
-        # Try new structure first
-        if hasattr(config, "training") and hasattr(config.training, "main"):
-            if hasattr(config.training.main, "common"):
-                batch_size = getattr(
-                    config.training.main.common, "batch_size", batch_size
-                )
-            elif hasattr(config.training.main, "trainer"):
-                trainer_params = config.training.main.trainer.__dict__
-                batch_size = trainer_params.get("batch_size", batch_size)
-        # Fall back to old structure
-        elif hasattr(config, "train") and hasattr(config.train, "main"):
-            if hasattr(config.train.main, "trainer"):
-                trainer_params = config.train.main.trainer.__dict__
-                batch_size = trainer_params.get("batch_size", batch_size)
-
-    # Get task configuration - handle both old (task) and new (data) structure
-    if hasattr(config, "task"):
-        task_cfg = config.task
-        task_params = getattr(task_cfg, "parameters", {}) or {}
-    else:
-        # Create a task config from data config for compatibility
-        task_cfg = type("TaskConfig", (), {})()
-        task_cfg.dataset = config.data.dataset_name
-        task_cfg.data_path = getattr(config.data, "base_dir", None)
-        task_cfg.parameters = getattr(config.data, "processing", {})
-        task_cfg.train_valid_split = getattr(
-            config.experiment, "train_valid_split", 0.8
-        )
-        task_params = task_cfg.parameters or {}
+    batch_size = _resolve_batch_size(config, batch_size)
+    task_cfg, task_params = _resolve_task_config(config)
 
     # Load real dataset to get accurate input shape (like train_experiments.py)
     try:
@@ -710,20 +802,7 @@ def estimate_from_config(config_path: str, batch_size: Optional[int] = None):
     except Exception as e:
         logger.warning(f"Failed to load dataset, falling back to hardcoded shapes: {e}")
 
-        # Fallback to hardcoded input dimensions if dataset loading fails
-        dataset_name = getattr(task_cfg, "dataset", "cifar10")
-        if dataset_name == "mnist":
-            input_shape = (784,)  # Flattened
-        elif dataset_name == "cifar10":
-            input_shape = (3072,)  # Flattened
-        elif dataset_name == "imagenet":
-            if task_params.get("flatten", False):
-                input_shape = (150528,)  # Flattened
-            else:
-                input_shape = (3, 224, 224)
-        else:
-            input_dim = task_params.get("input_dim", 784)
-            input_shape = (input_dim,)
+        input_shape = _fallback_input_shape(task_cfg, task_params)
 
     # Create model (similar to train scripts)
     model_config = config.model
@@ -733,17 +812,10 @@ def estimate_from_config(config_path: str, batch_size: Optional[int] = None):
         getattr(model_config, "encoder_network", None) or model_config.encoder
     )
     if encoder_config.type.lower() == "identity":
-        encoder = Identity(
-            input_shape[0] if len(input_shape) == 1 else np.prod(input_shape)
-        )
+        encoder = Identity(_flat_input_dim(input_shape))
     else:
-        encoder_params = dict(
-            getattr(encoder_config, "parameters", {})
-            or getattr(encoder_config, "params", {})
-        )
-        encoder_params["input_dim"] = (
-            input_shape[0] if len(input_shape) == 1 else np.prod(input_shape)
-        )
+        encoder_params = _config_params(encoder_config)
+        encoder_params["input_dim"] = _flat_input_dim(input_shape)
         encoder = get_architecture(encoder_config.type, encoder_params)
 
     # Create core network - handle both old (core_network) and new (core) structure
@@ -756,33 +828,13 @@ def estimate_from_config(config_path: str, batch_size: Optional[int] = None):
         )
     else:
         # Handle parameter structure - combine architecture, connectivity, etc.
-        core_params = {}
-        if hasattr(core_config, "parameters"):
-            core_params = dict(core_config.parameters)
-        else:
-            # New structure: combine different sections
-            if hasattr(core_config, "architecture"):
-                core_params.update(dict(core_config.architecture.__dict__))
-            if hasattr(core_config, "connectivity"):
-                core_params.update(dict(core_config.connectivity.__dict__))
-            if hasattr(core_config, "morphology"):
-                core_params.update(dict(core_config.morphology.__dict__))
+        core_params = _core_params_from_config(core_config)
         core_params["input_dim"] = encoder.output_dim
         core_network = get_architecture(core_config.type, core_params)
 
     # Get task type and number of classes
     task_type = model_config.task  # task is on model config, not task config
-    if task_type == "classification":
-        n_classes_map = {
-            "mnist": 10,
-            "cifar10": 10,
-            "imagenet": 1000,
-        }
-        n_classes = n_classes_map.get(
-            getattr(task_cfg, "dataset", "cifar10"), task_params.get("n_classes", 10)
-        )
-    else:
-        n_classes = 1
+    n_classes = _resolve_n_classes(task_type, task_cfg, task_params)
 
     # Create decoder - handle both old (decoder_network) and new (decoder) structure
     decoder_config = (
@@ -791,10 +843,7 @@ def estimate_from_config(config_path: str, batch_size: Optional[int] = None):
     if decoder_config.type.lower() == "identity":
         decoder = Identity(core_network.output_dim)
     else:
-        decoder_params = dict(
-            getattr(decoder_config, "parameters", {})
-            or getattr(decoder_config, "params", {})
-        )
+        decoder_params = _config_params(decoder_config)
         decoder_params["input_dim"] = core_network.output_dim
         decoder_params["output_dim"] = n_classes
         decoder = get_architecture(decoder_config.type, decoder_params)
@@ -813,17 +862,7 @@ def estimate_from_config(config_path: str, batch_size: Optional[int] = None):
             decoder_network=decoder,
         )
 
-    # Get precision from config - handle both old and new structure
-    trainer_params = {}
-    if hasattr(config, "training") and hasattr(config.training, "main"):
-        if hasattr(config.training.main, "common"):
-            trainer_params = config.training.main.common.__dict__
-        elif hasattr(config.training.main, "trainer"):
-            trainer_params = config.training.main.trainer.__dict__
-    elif hasattr(config, "train") and hasattr(config.train, "main"):
-        if hasattr(config.train.main, "trainer"):
-            trainer_params = config.train.main.trainer.__dict__
-    dtype = trainer_params.get("dtype", "fp16")
+    dtype = _resolve_training_dtype(config)
 
     # Get optimizer type - it's not directly specified in the config, default to adam
     optimizer_type = "adam"  # Default optimizer for dendritic models
