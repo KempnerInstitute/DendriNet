@@ -369,20 +369,8 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
         self, layer_statistics: dict[str, dict[str, int | float]]
     ):
         """Compute global statistics from layer statistics."""
-        global_aggregated: dict[str, int | list[float]] = {}
-        for layer_data in layer_statistics.values():
-            for field, value in layer_data.items():
-                if field not in global_aggregated.keys() and field != "depth":
-                    global_aggregated[field] = []
-                if field != "depth":
-                    global_aggregated[field].append(value)
-
-        global_statistics = {}
-        for field, values in global_aggregated.items():
-            data_tensor = torch.tensor(values)
-            global_statistics[f"{field}_mean"] = data_tensor.mean().item()
-            global_statistics[f"{field}_std"] = data_tensor.std(correction=0).item()
-        return global_statistics
+        global_aggregated = self._aggregate_stat_values(layer_statistics.values())
+        return self._summarize_aggregated_values(global_aggregated, {})
 
     def _branch_analysis(self, labels: torch.Tensor):
         """Analyze branches of the dendritic network."""
@@ -400,7 +388,7 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
                             data_tensor  # data_tensor is the depth index
                         )
                     else:
-                        branch_stats = self._compute_discriminality_univariate(
+                        branch_stats = self._compute_discriminability_univariate(
                             data_tensor, labels, prefix, branch_stats
                         )
 
@@ -421,7 +409,7 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
 
         return results
 
-    def _compute_discriminality_univariate(
+    def _compute_discriminability_univariate(
         self,
         data_tensor: torch.Tensor,
         labels: torch.Tensor,
@@ -446,25 +434,34 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
 
         return stats_dict
 
+    def _compute_discriminality_univariate(
+        self,
+        data_tensor: torch.Tensor,
+        labels: torch.Tensor,
+        prefix: str,
+        stats_dict: dict[str, float],
+    ) -> dict[str, float]:
+        """Backward-compatible alias for the corrected method name."""
+        return self._compute_discriminability_univariate(
+            data_tensor,
+            labels,
+            prefix,
+            stats_dict,
+        )
+
     def _global_branch_aggregation(
         self, branch_statistics: dict[str, dict[int, dict[str, float]]]
     ):
         """Compute global statistics from branch statistics."""
         global_aggregated: dict[str, list[float]] = {}
         for layer_data in branch_statistics.values():
-            for branch_data in layer_data.values():
-                for field, value in branch_data.items():
-                    if field not in global_aggregated.keys() and field != "depth":
-                        global_aggregated[field] = []
-                    if field != "depth":
-                        global_aggregated[field].append(value)
+            layer_aggregated = self._aggregate_stat_values(layer_data.values())
+            for field, values in layer_aggregated.items():
+                if field not in global_aggregated:
+                    global_aggregated[field] = []
+                global_aggregated[field].extend(values)
 
-        global_statistics = {}
-        for field, values in global_aggregated.items():
-            data_tensor = torch.tensor(values)
-            global_statistics[f"{field}_mean"] = data_tensor.mean().item()
-            global_statistics[f"{field}_std"] = data_tensor.std(correction=0).item()
-        return global_statistics
+        return self._summarize_aggregated_values(global_aggregated, {})
 
     def _layer_branch_aggregation(
         self, branch_statistics: dict[str, dict[int, dict[str, float]]]
@@ -472,23 +469,37 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
         """Compute layer statistics from branch statistics."""
         layer_statistics = {}
         for layer_key, layer_data in branch_statistics.items():
-            layer_aggregated: dict[str, list[float]] = {}
-
+            layer_aggregated = self._aggregate_stat_values(layer_data.values())
             for branch_data in layer_data.values():
-                for field, value in branch_data.items():
-                    if field not in layer_aggregated.keys() and field != "depth":
-                        layer_aggregated[field] = []
-                    if field != "depth":
-                        layer_aggregated[field].append(value)
-
-            layer_stats = {"depth": branch_data["depth"]}
-            for field, values in layer_aggregated.items():
-                data_tensor = torch.tensor(values)
-                layer_stats[f"{field}_mean"] = data_tensor.mean().item()
-                layer_stats[f"{field}_std"] = data_tensor.std(correction=0).item()
+                depth = branch_data["depth"]
+            layer_stats = self._summarize_aggregated_values(
+                layer_aggregated,
+                {"depth": depth},
+            )
 
             layer_statistics[layer_key] = layer_stats
         return layer_statistics
+
+    def _aggregate_stat_values(self, records) -> dict[str, list[float]]:
+        aggregated: dict[str, list[float]] = {}
+        for record in records:
+            for field, value in record.items():
+                if field not in aggregated.keys() and field != "depth":
+                    aggregated[field] = []
+                if field != "depth":
+                    aggregated[field].append(value)
+        return aggregated
+
+    def _summarize_aggregated_values(
+        self,
+        aggregated_values: dict[str, list[float]],
+        stats_dict: dict[str, float],
+    ) -> dict[str, float]:
+        for field, values in aggregated_values.items():
+            data_tensor = torch.tensor(values)
+            stats_dict[f"{field}_mean"] = data_tensor.mean().item()
+            stats_dict[f"{field}_std"] = data_tensor.std(correction=0).item()
+        return stats_dict
 
     def analyze(
         self,

@@ -51,6 +51,28 @@ logger = logging.getLogger(__name__)
 # Ablation schema constants
 # ---------------------------------------------------------------------------
 _KNOWN_TARGETS = frozenset({"all_synapses", "excitation", "inhibition", "upstream"})
+ABLATION_VIDEO_METRIC_LABELS = {
+    "accuracy": "Accuracy",
+    "auc": "AUC",
+    "categorical_loglikelihood": "Log Likelihood",
+    "mse": "MSE",
+    "cosine_similarity": "Cosine Similarity",
+    "pred_label_mi_bits": "I(C; Ĉ) [bits]",
+}
+
+
+def _has_metric_drop_nested(dictionary, metric):
+    """Return whether ``<metric>_drop`` exists anywhere in a nested payload."""
+    if isinstance(dictionary, dict):
+        key = f"{metric}_drop"
+        if key in dictionary:
+            return True
+        return any(
+            _has_metric_drop_nested(value, metric) for value in dictionary.values()
+        )
+    if isinstance(dictionary, (list, tuple)):
+        return any(_has_metric_drop_nested(item, metric) for item in dictionary)
+    return False
 
 
 def flatten_3level_ablation(nested_results: dict) -> dict:
@@ -941,39 +963,16 @@ def create_video_layer_ablation_vs_training(
     layer_results = first_epoch_data["layer"]
     # baselines = first_epoch_data.get("baseline", {})
 
-    # Determine available metrics
-    metric_mapping = {
-        "accuracy": "Accuracy",
-        "auc": "AUC",
-        "categorical_loglikelihood": "Log Likelihood",
-        "mse": "MSE",
-        "cosine_similarity": "Cosine Similarity",
-        "pred_label_mi_bits": "I(C; Ĉ) [bits]",
-    }
-
-    def has_metric_nested(dictionary, metric):
-        """Check if key exists at any level in a nested dictionary"""
-        if isinstance(dictionary, dict):
-            key = f"{metric}_drop"
-            if key in dictionary:
-                return True
-            return any(
-                has_metric_nested(value, metric) for value in dictionary.values()
-            )
-        elif isinstance(dictionary, (list, tuple)):
-            return any(has_metric_nested(item, metric) for item in dictionary)
-        return False
-
     # Validate that the requested metric exists
-    if metric not in metric_mapping:
+    if metric not in ABLATION_VIDEO_METRIC_LABELS:
         raise ValueError(
-            f"Invalid metric '{metric}'. Must be one of: {list(metric_mapping.keys())}"
+            f"Invalid metric '{metric}'. Must be one of: {list(ABLATION_VIDEO_METRIC_LABELS.keys())}"
         )
 
-    if not has_metric_nested(layer_results, metric):
+    if not _has_metric_drop_nested(layer_results, metric):
         available_metrics = []
-        for m in metric_mapping.keys():
-            if has_metric_nested(layer_results, m):
+        for m in ABLATION_VIDEO_METRIC_LABELS.keys():
+            if _has_metric_drop_nested(layer_results, m):
                 available_metrics.append(m)
         raise ValueError(
             f"Metric '{metric}' not found in ablation data. "
@@ -1077,7 +1076,7 @@ def create_video_layer_ablation_vs_training(
     ax.set_xticks(depths)
     ax.set_xticklabels(depth_labels, rotation=45)
     ax.set_xlabel("Branch Depth (Soma to Distal)")
-    ax.set_ylabel(f"{metric_mapping[metric]} Drop Decrease")
+    ax.set_ylabel(f"{ABLATION_VIDEO_METRIC_LABELS[metric]} Drop Decrease")
     # ax.legend()
     ax.grid(True, axis="y", alpha=0.3)
 
@@ -1094,7 +1093,7 @@ def create_video_layer_ablation_vs_training(
         ax.set_xticks(depths)
         ax.set_xticklabels(depth_labels, rotation=45)
         ax.set_xlabel("Branch Depth (Soma to Distal)")
-        ax.set_ylabel(f"{metric_mapping[metric]} Drop Decrease")
+        ax.set_ylabel(f"{ABLATION_VIDEO_METRIC_LABELS[metric]} Drop Decrease")
         ax.set_ylim(y_min, y_max)
         ax.set_yticks(y_ticks)
         ax.grid(True, axis="y", alpha=0.3)
@@ -1147,7 +1146,7 @@ def create_video_layer_ablation_vs_training(
 
         # Update title with epoch number and baseline
         baseline_value = baselines.get(metric, 0.0)
-        title = f"{metric_mapping[metric]} Drop Decrease vs. Branch Depth"
+        title = f"{ABLATION_VIDEO_METRIC_LABELS[metric]} Drop Decrease vs. Branch Depth"
         if selected_method is not None:
             title += f"\nMethod: {selected_method}"
         title += f"\nEpoch {epoch_number} (Baseline: {baseline_value:.3f})"

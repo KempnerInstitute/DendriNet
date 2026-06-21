@@ -304,6 +304,87 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
 
         return stats_dict
 
+    def _entropy_samples_for_prefix(
+        self,
+        data_tensor: torch.Tensor,
+        prefix: str,
+    ) -> np.ndarray | None:
+        if "inputs" in prefix:
+            return data_tensor.flatten(0, -2).mean(dim=-1).numpy()
+        if "activations" in prefix:
+            return data_tensor.flatten(0, -1).numpy()
+        return None
+
+    def _per_class_entropy(
+        self,
+        data_for_entropy: np.ndarray,
+        seed_key: str,
+    ):
+        if np.var(data_for_entropy) < 1e-10:
+            seed = zlib.adler32(seed_key.encode())
+            rng = np.random.default_rng(seed)
+            data_for_entropy = data_for_entropy + rng.normal(
+                0.0,
+                1e-8,
+                data_for_entropy.shape,
+            )
+        return differential_entropy(data_for_entropy, method="vasicek")
+
+    def _dequantize_entropy_samples(
+        self,
+        data_for_entropy: np.ndarray,
+        seed_key: str,
+    ) -> np.ndarray:
+        u = np.unique(data_for_entropy)
+        if u.size >= 2:
+            diffs = np.diff(u)
+            diffs = diffs[diffs > 0]
+            step = float(np.median(diffs)) if diffs.size > 0 else 1e-8
+        else:
+            step = 1e-8
+
+        if not np.isfinite(step) or step <= 0:
+            step = 1e-8
+
+        seed = zlib.adler32(seed_key.encode())
+        rng = np.random.default_rng(seed)
+        return data_for_entropy + ((rng.random(data_for_entropy.shape) - 0.5) * step)
+
+    def _generic_entropy(
+        self,
+        data_for_entropy: np.ndarray,
+        prefix: str,
+        layer_key: str,
+        branch_idx: int,
+    ) -> float:
+        data_for_entropy = np.asarray(data_for_entropy, dtype=float)
+        data_for_entropy = data_for_entropy[np.isfinite(data_for_entropy)]
+
+        # Degenerate / empty distributions should not produce NaNs.
+        if data_for_entropy.size < 2 or float(np.var(data_for_entropy)) < 1e-10:
+            return 0.0
+
+        if self.dequantize:
+            data_for_entropy = self._dequantize_entropy_samples(
+                data_for_entropy,
+                f"{layer_key}:{branch_idx}:{prefix}",
+            )
+
+        try:
+            ent = float(differential_entropy(data_for_entropy, method="vasicek"))
+        except Exception:
+            ent = 0.0
+
+        if not np.isfinite(ent):
+            logger.warning(
+                "Non-finite entropy for %s (layer=%s branch=%s); setting to 0.0",
+                prefix,
+                layer_key,
+                branch_idx,
+            )
+            ent = 0.0
+        return ent
+
     def _compute_branch_statistics(self):
         branch_statistics = {}
         for layer_key, layer_data in self.raw_dict.items():
@@ -331,52 +412,17 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
 
                                 if self.compute_entropy:
                                     try:
-                                        if "inputs" in prefix:
-                                            data_for_entropy = (
-                                                class_data.flatten(0, -2)
-                                                .mean(dim=-1)
-                                                .numpy()
+                                        data_for_entropy = (
+                                            self._entropy_samples_for_prefix(
+                                                class_data,
+                                                prefix,
                                             )
-                                            # Add small noise to avoid zero variance
-                                            if np.var(data_for_entropy) < 1e-10:
-                                                seed = zlib.adler32(
-                                                    f"{layer_key}:{branch_idx}:{prefix}:class_{class_idx}".encode()
-                                                )
-                                                rng = np.random.default_rng(seed)
-                                                data_for_entropy = (
-                                                    data_for_entropy
-                                                    + rng.normal(
-                                                        0.0,
-                                                        1e-8,
-                                                        data_for_entropy.shape,
-                                                    )
-                                                )
+                                        )
+                                        if data_for_entropy is not None:
                                             branch_stats[f"{class_prefix}_entropy"] = (
-                                                differential_entropy(
-                                                    data_for_entropy, method="vasicek"
-                                                )
-                                            )
-                                        elif "activations" in prefix:
-                                            data_for_entropy = class_data.flatten(
-                                                0, -1
-                                            ).numpy()
-                                            # Add small noise to avoid zero variance
-                                            if np.var(data_for_entropy) < 1e-10:
-                                                seed = zlib.adler32(
-                                                    f"{layer_key}:{branch_idx}:{prefix}:class_{class_idx}".encode()
-                                                )
-                                                rng = np.random.default_rng(seed)
-                                                data_for_entropy = (
-                                                    data_for_entropy
-                                                    + rng.normal(
-                                                        0.0,
-                                                        1e-8,
-                                                        data_for_entropy.shape,
-                                                    )
-                                                )
-                                            branch_stats[f"{class_prefix}_entropy"] = (
-                                                differential_entropy(
-                                                    data_for_entropy, method="vasicek"
+                                                self._per_class_entropy(
+                                                    data_for_entropy,
+                                                    f"{layer_key}:{branch_idx}:{prefix}:class_{class_idx}",
                                                 )
                                             )
                                     except (ValueError, RuntimeWarning):
@@ -390,72 +436,18 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
                         )
 
                     if self.compute_entropy:
-                        if "inputs" in prefix:
-                            data_for_entropy = (
-                                data_tensor.flatten(0, -2).mean(dim=-1).numpy()
-                            )
-                        elif "activations" in prefix:
-                            data_for_entropy = data_tensor.flatten(0, -1).numpy()
-                        else:
-                            data_for_entropy = None
+                        data_for_entropy = self._entropy_samples_for_prefix(
+                            data_tensor,
+                            prefix,
+                        )
 
                         if data_for_entropy is not None:
-                            data_for_entropy = np.asarray(data_for_entropy, dtype=float)
-                            data_for_entropy = data_for_entropy[
-                                np.isfinite(data_for_entropy)
-                            ]
-
-                            # Degenerate / empty distributions should not produce NaNs.
-                            if (
-                                data_for_entropy.size < 2
-                                or float(np.var(data_for_entropy)) < 1e-10
-                            ):
-                                branch_stats[f"{prefix}_entropy"] = 0.0
-                            else:
-                                if self.dequantize:
-                                    u = np.unique(data_for_entropy)
-                                    if u.size >= 2:
-                                        diffs = np.diff(u)
-                                        diffs = diffs[diffs > 0]
-                                        step = (
-                                            float(np.median(diffs))
-                                            if diffs.size > 0
-                                            else 1e-8
-                                        )
-                                    else:
-                                        step = 1e-8
-
-                                    if not np.isfinite(step) or step <= 0:
-                                        step = 1e-8
-
-                                    seed = zlib.adler32(
-                                        f"{layer_key}:{branch_idx}:{prefix}".encode()
-                                    )
-                                    rng = np.random.default_rng(seed)
-                                    data_for_entropy = data_for_entropy + (
-                                        (rng.random(data_for_entropy.shape) - 0.5)
-                                        * step
-                                    )
-
-                                try:
-                                    ent = float(
-                                        differential_entropy(
-                                            data_for_entropy, method="vasicek"
-                                        )
-                                    )
-                                except Exception:
-                                    ent = 0.0
-
-                                if not np.isfinite(ent):
-                                    logger.warning(
-                                        "Non-finite entropy for %s (layer=%s branch=%s); setting to 0.0",
-                                        prefix,
-                                        layer_key,
-                                        branch_idx,
-                                    )
-                                    ent = 0.0
-
-                                branch_stats[f"{prefix}_entropy"] = ent
+                            branch_stats[f"{prefix}_entropy"] = self._generic_entropy(
+                                data_for_entropy,
+                                prefix,
+                                layer_key,
+                                branch_idx,
+                            )
                 branch_statistics[layer_key][branch_idx] = branch_stats
 
         return branch_statistics
