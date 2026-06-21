@@ -25,6 +25,10 @@ from dendritic_modeling.config import (
     WandbConfig,
     load_config,
 )
+from dendritic_modeling.config.config import (
+    _analysis_field_mapping,
+    _map_analysis_config,
+)
 
 
 def _get_field(obj, key):
@@ -184,6 +188,29 @@ class TestConfigDataclasses(unittest.TestCase):
 
         analysis.compartment_snr_analysis.enabled = False
         self.assertFalse(analysis.any_enabled())
+
+    def test_analysis_field_mapping_tracks_registered_analyzers(self):
+        """YAML analysis aliases should be derived from analyzer registry metadata."""
+        mapping = _analysis_field_mapping()
+
+        for name, spec in get_registered_analyzers().items():
+            self.assertEqual(mapping[name], spec.config_field)
+        self.assertEqual(mapping["spike_trains"], "spike_train_analysis")
+
+    def test_map_analysis_config_preserves_registry_and_legacy_aliases(self):
+        """Config mapping should preserve registered names and legacy aliases."""
+        mapped = _map_analysis_config(
+            {
+                "information": {"enabled": False},
+                "spike_trains": {"enabled": True, "training": True},
+                "adversarial_robustness": {"enabled": True},
+            }
+        )
+
+        self.assertEqual(mapped["information_analysis"], {"enabled": False})
+        self.assertTrue(mapped["spike_train_analysis"].enabled)
+        self.assertTrue(mapped["spike_train_analysis"].training)
+        self.assertEqual(mapped["adversarial_robustness_analysis"], {"enabled": True})
 
     def test_local_rule_explicit_inhibitory_update_modes(self):
         local_cfg = LocalRuleConfig(explicit_inhibitory_update_mode="local_ca")

@@ -10,6 +10,7 @@ import torch
 from torch.utils.data import Dataset
 
 from dendritic_modeling.training.dataloader_profiles import (
+    base_dataset,
     is_torchvision_image_dataset,
     prefers_main_process_loading,
 )
@@ -44,6 +45,21 @@ class DataLoaderTuning:
         if self.prefetch_factor is not None:
             kwargs["prefetch_factor"] = self.prefetch_factor
         return kwargs
+
+    def summary(self, dataset: Dataset) -> str:
+        """Return a compact human-readable summary of resolved loader tuning."""
+        resolved_dataset = base_dataset(dataset)
+        dataset_name = (
+            f"{type(resolved_dataset).__module__}.{type(resolved_dataset).__name__}"
+        )
+        return (
+            f"dataset={dataset_name}, num_workers={self.num_workers}, "
+            f"pin_memory={self.pin_memory}, "
+            f"persistent_workers={self.persistent_workers}, "
+            f"prefetch_factor={self.prefetch_factor}, "
+            f"available_cpus={self.available_cpus}, "
+            f"auto_num_workers={self.auto_num_workers}"
+        )
 
 
 def visible_cpu_count() -> int:

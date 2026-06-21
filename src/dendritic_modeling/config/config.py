@@ -15,6 +15,7 @@ from typing import Any, Optional
 
 from omegaconf import OmegaConf
 
+from dendritic_modeling.analysis.registry import get_registered_analyzers
 from dendritic_modeling.config.analysis import (
     AnalysisConfig,
     AnalysisRuntimeConfig,
@@ -805,6 +806,20 @@ def _default_analysis_runtime_config(distributed_mode: str) -> AnalysisRuntimeCo
     return AnalysisRuntimeConfig()
 
 
+_LEGACY_ANALYSIS_ALIASES = {
+    "spike_trains": "spike_train_analysis",
+}
+
+
+def _analysis_field_mapping() -> dict[str, str]:
+    """Return YAML analysis aliases keyed by registry name."""
+    mapping = {
+        name: spec.config_field for name, spec in get_registered_analyzers().items()
+    }
+    mapping.update(_LEGACY_ANALYSIS_ALIASES)
+    return mapping
+
+
 def _map_analysis_config(
     analysis_data: dict,
     distributed_mode: str = "none",
@@ -812,33 +827,7 @@ def _map_analysis_config(
     """Map analysis config fields to expected AnalysisConfig structure."""
     mapped = {}
 
-    field_mapping = {
-        "performance": "performance_analysis",
-        "information": "information_analysis",
-        "correlation": "correlation_analysis",
-        "ablation": "ablation_analysis",
-        "synapse_turnover": "synapse_turnover_analysis",
-        "noise_perturbation": "noise_perturbation_analysis",
-        "weight": "weight_analysis",
-        "compartment_statistics": "compartment_statistics_analysis",
-        "compartment_snr": "compartment_snr_analysis",
-        "multiplicative_gain": "multiplicative_gain_analysis",
-        "receptive_field": "receptive_field_analysis",
-        "reactivation_dynamics": "reactivation_dynamics_analysis",
-        "single_layer_contribution": "single_layer_contribution",
-        "synaptic_activation": "synaptic_activation_analysis",
-        "branch_activation": "branch_activation_analysis",
-        "local_rule_components": "local_rule_component_analysis",
-        "routing": "routing_analysis",
-        "inhibitory_specialization": "inhibitory_specialization_analysis",
-        "jacobian_spectrum": "jacobian_spectrum_analysis",
-        "dendritic_timetraces": "dendritic_timetraces_analysis",
-        "spike_train": "spike_train_analysis",
-        "spike_trains": "spike_train_analysis",
-        "adversarial_robustness": "adversarial_robustness_analysis",
-    }
-
-    for new_name, old_name in field_mapping.items():
+    for new_name, old_name in _analysis_field_mapping().items():
         if new_name in analysis_data:
             mapped[old_name] = analysis_data[new_name]
         elif old_name in analysis_data:

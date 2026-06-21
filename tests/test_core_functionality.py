@@ -7,6 +7,7 @@ This module tests the core features we implemented:
 3. Basic imports and dependencies
 """
 
+import logging
 import os
 
 import pytest
@@ -425,6 +426,64 @@ def test_dataloader_auto_tuning_unwraps_dataset_adapters(monkeypatch):
     assert imagenet_tuning.num_workers == 8
     assert imagenet_tuning.pin_memory is True
     assert imagenet_tuning.prefetch_factor == 4
+
+
+def test_dataloader_tuning_summary_reports_unwrapped_dataset(monkeypatch):
+    """Loader tuning summaries should identify the storage-backed dataset type."""
+
+    from dendritic_modeling.datasets.indexing import SliceSafeDataset
+    from dendritic_modeling.training.dataloader_utils import resolve_dataloader_tuning
+
+    class ImageNet(torch.utils.data.Dataset):
+        def __len__(self):
+            return 16
+
+        def __getitem__(self, idx):
+            return torch.zeros(3, 224, 224), torch.tensor(idx % 2)
+
+    ImageNet.__module__ = "torchvision.datasets.imagenet"
+
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(
+        "dendritic_modeling.training.dataloader_utils.visible_cpu_count",
+        lambda: 8,
+    )
+
+    wrapped_imagenet = torch.utils.data.Subset(SliceSafeDataset(ImageNet()), range(8))
+    tuning = resolve_dataloader_tuning(wrapped_imagenet, device="cuda")
+
+    summary = tuning.summary(wrapped_imagenet)
+
+    assert "dataset=torchvision.datasets.imagenet.ImageNet" in summary
+    assert "num_workers=8" in summary
+    assert "pin_memory=True" in summary
+    assert "prefetch_factor=4" in summary
+
+
+def test_trainer_logs_dataloader_tuning_summary(caplog):
+    """Trainer DataLoader construction should expose resolved tuning diagnostics."""
+    from dendritic_modeling.training.strategies.standard import Trainer
+
+    dataset = torch.utils.data.TensorDataset(
+        torch.randn(8, 3), torch.randint(0, 2, (8,))
+    )
+    trainer = Trainer(
+        optimizer=torch.optim.Adam([torch.tensor(1.0, requires_grad=True)]),
+        loss_function="mse",
+        batch_size=2,
+        num_workers=0,
+        suppress_prints=False,
+    )
+
+    with caplog.at_level(
+        logging.INFO,
+        logger="dendritic_modeling.training.strategies.standard",
+    ):
+        trainer._dataloaders(dataset, dataset)
+
+    assert "DataLoader tuning:" in caplog.text
+    assert "dataset=torch.utils.data.dataset.TensorDataset" in caplog.text
+    assert "num_workers=0" in caplog.text
 
 
 def test_dataloader_explicit_workers_are_capped_by_visible_cpus(monkeypatch):

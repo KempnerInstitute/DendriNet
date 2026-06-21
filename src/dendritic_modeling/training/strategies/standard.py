@@ -218,6 +218,8 @@ class Trainer:
                 tuning.available_cpus,
                 total_cpus,
             )
+        if not self.suppress_prints:
+            logger.info("DataLoader tuning: %s", tuning.summary(train_data))
 
         # Use distributed samplers for training and validation under DDP.
         # Validation uses an explicit padding sentinel sampler so every rank

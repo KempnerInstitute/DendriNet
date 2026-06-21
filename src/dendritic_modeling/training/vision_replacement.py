@@ -15,7 +15,10 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from dendritic_modeling.config import Config
 from dendritic_modeling.scripts.script_utils.setup_utils import initialize_model
-from dendritic_modeling.training.dataloader_utils import dataloader_kwargs_from_config
+from dendritic_modeling.training.dataloader_utils import (
+    DataLoaderTuning,
+    resolve_dataloader_tuning_from_config,
+)
 from dendritic_modeling.training.optimizers import create_optimizer
 from dendritic_modeling.training.replacement_common import (
     _compute_distillation_loss as _shared_compute_distillation_loss,
@@ -158,13 +161,13 @@ def _validate_source_train_target(teacher_source: str, train_target: str) -> Non
         )
 
 
-def _vision_loader_kwargs(
+def _resolve_vision_loader_tuning(
     train_cfg: Any,
     dataset: torch.utils.data.Dataset,
     *,
     device: torch.device,
-) -> dict[str, Any]:
-    return dataloader_kwargs_from_config(dataset, train_cfg, device=device)
+) -> DataLoaderTuning:
+    return resolve_dataloader_tuning_from_config(dataset, train_cfg, device=device)
 
 
 def _make_vision_loader(
@@ -173,13 +176,17 @@ def _make_vision_loader(
     *,
     device: torch.device,
     shuffle: bool,
+    log_tuning: bool = False,
 ) -> DataLoader:
+    tuning = _resolve_vision_loader_tuning(train_cfg, dataset, device=device)
+    if log_tuning:
+        logger.info("Vision replacement DataLoader tuning: %s", tuning.summary(dataset))
     return DataLoader(
         dataset,
         batch_size=train_cfg.batch_size,
         shuffle=shuffle,
         drop_last=False,
-        **_vision_loader_kwargs(train_cfg, dataset, device=device),
+        **tuning.as_kwargs(),
     )
 
 
@@ -289,7 +296,11 @@ def run_vision_replacement_training(
         "cuda", enabled=bool(train_cfg.use_amp and device.type == "cuda")
     )
     train_loader = _make_vision_loader(
-        train_dataset, train_cfg, device=device, shuffle=True
+        train_dataset,
+        train_cfg,
+        device=device,
+        shuffle=True,
+        log_tuning=True,
     )
     loader = _infinite_loader(train_loader)
 

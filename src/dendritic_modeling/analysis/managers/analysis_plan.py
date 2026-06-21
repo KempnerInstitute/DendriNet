@@ -119,29 +119,32 @@ class _AnalysisSequenceStep:
         getattr(manager, self.method_name)(**kwargs)
 
 
-_ANALYZER_INITIALIZERS = (
-    _AnalyzerInitializer("performance"),
-    _AnalyzerInitializer("information"),
-    _AnalyzerInitializer("synapse_turnover"),
-    _AnalyzerInitializer("noise_perturbation"),
-    _AnalyzerInitializer("single_layer_contribution"),
-    _AnalyzerInitializer("ablation"),
-    _AnalyzerInitializer("weight"),
-    _AnalyzerInitializer("compartment_statistics"),
-    _AnalyzerInitializer("compartment_snr"),
-    _AnalyzerInitializer("multiplicative_gain"),
-    _AnalyzerInitializer("receptive_field"),
-    _AnalyzerInitializer("reactivation_dynamics"),
-    _AnalyzerInitializer("synaptic_activation"),
-    _AnalyzerInitializer("branch_activation"),
-    _AnalyzerInitializer("local_rule_components"),
-    _AnalyzerInitializer("correlation"),
-    _AnalyzerInitializer("routing"),
-    _AnalyzerInitializer("inhibitory_specialization"),
-    _AnalyzerInitializer("jacobian_spectrum"),
-    _AnalyzerInitializer("dendritic_timetraces"),
-    _AnalyzerInitializer("spike_train"),
-    _AnalyzerInitializer("adversarial_robustness"),
+_ANALYZER_INITIALIZER_NAMES = (
+    "performance",
+    "information",
+    "synapse_turnover",
+    "noise_perturbation",
+    "single_layer_contribution",
+    "ablation",
+    "weight",
+    "compartment_statistics",
+    "compartment_snr",
+    "multiplicative_gain",
+    "receptive_field",
+    "reactivation_dynamics",
+    "synaptic_activation",
+    "branch_activation",
+    "local_rule_components",
+    "correlation",
+    "routing",
+    "inhibitory_specialization",
+    "jacobian_spectrum",
+    "dendritic_timetraces",
+    "spike_train",
+    "adversarial_robustness",
+)
+_ANALYZER_INITIALIZERS = tuple(
+    _AnalyzerInitializer(name) for name in _ANALYZER_INITIALIZER_NAMES
 )
 
 

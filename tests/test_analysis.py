@@ -2650,6 +2650,20 @@ class TestAnalysisManager(unittest.TestCase):
 
         self.assertIsInstance(analyzer, PerformanceAnalyzer)
 
+    def test_analyzer_initializer_names_match_initializer_order(self):
+        """Initializer objects should be derived from the declared ordered names."""
+        from dendritic_modeling.analysis.managers.analysis_plan import (
+            _ANALYZER_INITIALIZER_NAMES,
+            _ANALYZER_INITIALIZERS,
+        )
+
+        self.assertEqual(
+            tuple(initializer.registry_name for initializer in _ANALYZER_INITIALIZERS),
+            _ANALYZER_INITIALIZER_NAMES,
+        )
+        for registry_name in _ANALYZER_INITIALIZER_NAMES:
+            self.assertIsNotNone(get_analyzer_spec(registry_name), registry_name)
+
     def test_should_run_config_matches_training_phase_rules(self):
         """Shared analysis gate should preserve final/training behavior."""
         cfg = self.analysis_config.performance_analysis

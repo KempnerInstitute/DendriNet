@@ -1,3 +1,5 @@
+import logging
+
 import pytest
 import torch
 import torch.nn as nn
@@ -191,6 +193,29 @@ def test_vision_replacement_loader_uses_configured_worker_options():
     assert loader.pin_memory is False
     assert loader.persistent_workers is True
     assert loader.prefetch_factor == 3
+
+
+def test_vision_replacement_loader_logs_tuning_when_requested(caplog):
+    dataset = torch.utils.data.TensorDataset(
+        torch.arange(8).float().unsqueeze(1), torch.arange(8).float().unsqueeze(1)
+    )
+    cfg = VisionReplacementTrainingConfig(batch_size=2, num_workers=0)
+
+    with caplog.at_level(
+        logging.INFO,
+        logger="dendritic_modeling.training.vision_replacement",
+    ):
+        _make_vision_loader(
+            dataset,
+            cfg,
+            device=torch.device("cpu"),
+            shuffle=False,
+            log_tuning=True,
+        )
+
+    assert "Vision replacement DataLoader tuning:" in caplog.text
+    assert "dataset=torch.utils.data.dataset.TensorDataset" in caplog.text
+    assert "num_workers=0" in caplog.text
 
 
 def test_vision_replacement_loader_rejects_invalid_persistent_workers():
