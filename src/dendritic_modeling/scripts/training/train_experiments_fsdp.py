@@ -162,6 +162,35 @@ def setup_distributed() -> tuple[int, int, int]:
     return rank, local_rank, world_size
 
 
+def _save_fsdp_run_config(config, run_save_path: str) -> None:
+    """Persist the resolved FSDP run config with legacy flag canonicalization."""
+    config_payload = asdict(config)
+    if canonicalize_model_core_flags is not None:
+        config_payload = canonicalize_model_core_flags(config_payload)
+    if canonicalize_rnn_core_flags is not None:
+        config_payload = canonicalize_rnn_core_flags(config_payload)
+    save_dict(config_payload, run_save_path, "config.json")
+
+
+def _setup_rank0_run_directory(config) -> str:
+    """Create the rank-0 output directory, logger file, and config snapshot."""
+    run_id = f"{config.outputs.run_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    run_save_path = os.path.join(config.outputs.results_dir, run_id)
+    os.makedirs(run_save_path, exist_ok=True)
+
+    logger_manager.set_log_directory(run_save_path)
+    log_file = os.path.join(run_save_path, "train.log")
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setFormatter(
+        logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    )
+    logger.addHandler(file_handler)
+    logger.info(f"Logging to {log_file}")
+
+    _save_fsdp_run_config(config, run_save_path)
+    return run_save_path
+
+
 def print_model_parameter_summary(model, sample_input=None):
     """Print detailed model parameter summary using torchinfo if available."""
     logger.info("Network architecture summary before training:")
@@ -199,6 +228,37 @@ def print_model_parameter_summary(model, sample_input=None):
         trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
         logger.info(f"Total parameters: {total_params:,}")
         logger.info(f"Trainable parameters: {trainable_params:,}")
+
+
+def _print_rank0_model_summary(model, train_ds) -> None:
+    """Generate the rank-0 model summary, falling back when sampling fails."""
+    try:
+        sample_input = train_ds[0][0]
+        print_model_parameter_summary(model, sample_input)
+    except Exception as e:
+        logger.warning(f"Could not generate model summary with sample input: {e}")
+        print_model_parameter_summary(model)
+
+
+def _build_fsdp_runtime_configs(config):
+    """Build trainer-common, FSDP, and optimizer configs from typed config."""
+    train_common = config.training.main.common
+
+    fsdp_cfg = config.distributed.fsdp
+    logger.info("Using FSDP configuration from config file")
+    fsdp_config = get_fsdp_config(
+        mixed_precision=fsdp_cfg.mixed_precision,
+        cpu_offload=fsdp_cfg.cpu_offload,
+        sharding_strategy=fsdp_cfg.sharding_strategy,
+        fsdp_config_dict=vars(fsdp_cfg) if hasattr(fsdp_cfg, "__dict__") else None,
+    )
+
+    optimizer_config = {
+        "lr": train_common.param_groups.lr,
+        "weight_decay": getattr(train_common, "weight_decay_rate", 0.0),
+        "split_params": getattr(train_common.param_groups, "split_params", False),
+    }
+    return train_common, fsdp_config, optimizer_config
 
 
 def create_large_model(config):
@@ -394,6 +454,85 @@ def _maybe_calibrate_fsdp_data_driven_reactivation(
     )
 
 
+def _setup_rank0_analysis_manager(
+    *,
+    config,
+    model,
+    encoder_network,
+    encoded_train_ds,
+    encoded_valid_ds,
+    encoded_test_ds,
+    run_save_path,
+    local_rank: int,
+):
+    """Create the rank-0 analysis manager and run pre-training calibration."""
+    logger.info("Setting up AnalysisManager...")
+
+    model.encoder_network = _get_analysis_encoder_network(encoder_network)
+    logger.info("Set model encoder to %s", type(model.encoder_network).__name__)
+
+    encoded_data = {
+        "train": encoded_train_ds,
+        "valid": encoded_valid_ds,
+        "test": encoded_test_ds,
+    }
+    analysis_manager = AnalysisManager(
+        model=model,
+        data=encoded_data,
+        analysis_config=config.analysis,
+        save_root=run_save_path,
+        device=f"cuda:{local_rank}",
+    )
+    logger.info(f"AnalysisManager created: {type(analysis_manager)}")
+    logger.info(
+        f"Performance analysis enabled: {config.analysis.performance_analysis.enabled}"
+    )
+    logger.info(
+        f"Performance analysis training: {config.analysis.performance_analysis.training}"
+    )
+
+    _maybe_calibrate_fsdp_data_driven_reactivation(
+        config=config,
+        model=model,
+        train_dataset=encoded_train_ds,
+    )
+    return analysis_manager
+
+
+def _encode_rank0_analysis_datasets(
+    *,
+    model,
+    config,
+    train_ds,
+    valid_ds,
+    test_ds,
+):
+    """Encode datasets for rank-0 analysis without running FSDP autoencoder pretraining."""
+    from dendritic_modeling.networks.architectures.classical.autoencoder import (
+        BaseAutoencoder,
+    )
+
+    encoder_network = model.encoder_network
+    if isinstance(encoder_network, BaseAutoencoder):
+        logger.warning(
+            "BaseAutoencoder pretraining is not supported inside the "
+            "FSDP script.  Pretrain the encoder separately, then load "
+            "its checkpoint.  Skipping encoder pretraining."
+        )
+        return encoder_network, train_ds, valid_ds, test_ds
+
+    logger.info("Encoding datasets for analysis...")
+    return load_train_encoder_network(
+        encoder_network=encoder_network,
+        encoder_train_config=config.training.encoder,
+        train_ds=train_ds,
+        valid_ds=valid_ds,
+        test_ds=test_ds,
+        encoder_network_config=config.model.encoder,
+        task_config=config.data,
+    )
+
+
 class _FSDPLoaderTuningDataset(Dataset):
     """Placeholder used only for backwards-compatible helper calls."""
 
@@ -518,27 +657,7 @@ def main(config_path):
 
     # Setup output directory (only on rank 0)
     if rank == 0:
-        run_id = f"{config.outputs.run_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        run_save_path = os.path.join(config.outputs.results_dir, run_id)
-        os.makedirs(run_save_path, exist_ok=True)
-
-        # Set up logging
-        logger_manager.set_log_directory(run_save_path)
-        log_file = os.path.join(run_save_path, "train.log")
-        file_handler = logging.FileHandler(log_file)
-        file_handler.setFormatter(
-            logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-        )
-        logger.addHandler(file_handler)
-        logger.info(f"Logging to {log_file}")
-
-        # Save config
-        config_payload = asdict(config)
-        if canonicalize_model_core_flags is not None:
-            config_payload = canonicalize_model_core_flags(config_payload)
-        if canonicalize_rnn_core_flags is not None:
-            config_payload = canonicalize_rnn_core_flags(config_payload)
-        save_dict(config_payload, run_save_path, "config.json")
+        run_save_path = _setup_rank0_run_directory(config)
     else:
         run_save_path = None
 
@@ -562,99 +681,37 @@ def main(config_path):
     # training with the standard single-GPU script, then point
     # the config at the saved checkpoint.
     if rank == 0:
-        from dendritic_modeling.networks.architectures.classical.autoencoder import (
-            BaseAutoencoder,
+        encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds = (
+            _encode_rank0_analysis_datasets(
+                model=model,
+                config=config,
+                train_ds=train_ds,
+                valid_ds=valid_ds,
+                test_ds=test_ds,
+            )
         )
-
-        encoder_network = model.encoder_network
-        if isinstance(encoder_network, BaseAutoencoder):
-            logger.warning(
-                "BaseAutoencoder pretraining is not supported inside the "
-                "FSDP script.  Pretrain the encoder separately, then load "
-                "its checkpoint.  Skipping encoder pretraining."
-            )
-            encoded_train_ds = train_ds
-            encoded_valid_ds = valid_ds
-            encoded_test_ds = test_ds
-        else:
-            logger.info("Encoding datasets for analysis...")
-            encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds = (
-                load_train_encoder_network(
-                    encoder_network=encoder_network,
-                    encoder_train_config=config.training.encoder,
-                    train_ds=train_ds,
-                    valid_ds=valid_ds,
-                    test_ds=test_ds,
-                    encoder_network_config=config.model.encoder,
-                    task_config=config.data,
-                )
-            )
     else:
         encoded_train_ds = encoded_valid_ds = encoded_test_ds = None
         encoder_network = Identity(1)
 
     # Generate detailed parameter summary with real sample input
     if rank == 0:  # Only on rank 0 to avoid duplicate output
-        try:
-            sample_input = train_ds[0][0]  # Get sample input from dataset
-            print_model_parameter_summary(model, sample_input)
-        except Exception as e:
-            logger.warning(f"Could not generate model summary with sample input: {e}")
-            print_model_parameter_summary(model)  # Fallback without sample input
+        _print_rank0_model_summary(model, train_ds)
 
-    # Training common config is the source of truth for epochs, loss, etc.
-    train_common = config.training.main.common
-
-    # Read FSDP tuning knobs from config.distributed.fsdp.
-    fsdp_cfg = config.distributed.fsdp
-    logger.info("Using FSDP configuration from config file")
-    fsdp_config = get_fsdp_config(
-        mixed_precision=fsdp_cfg.mixed_precision,
-        cpu_offload=fsdp_cfg.cpu_offload,
-        sharding_strategy=fsdp_cfg.sharding_strategy,
-        fsdp_config_dict=vars(fsdp_cfg) if hasattr(fsdp_cfg, "__dict__") else None,
-    )
-
-    # Create optimizer config
-    optimizer_config = {
-        "lr": train_common.param_groups.lr,
-        "weight_decay": getattr(train_common, "weight_decay_rate", 0.0),
-        "split_params": getattr(train_common.param_groups, "split_params", False),
-    }
+    train_common, fsdp_config, optimizer_config = _build_fsdp_runtime_configs(config)
 
     # Setup analysis manager (only on rank 0)
     analysis_manager = None
     if rank == 0:
-        logger.info("Setting up AnalysisManager...")
-
-        # Set the model's encoder network
-        model.encoder_network = _get_analysis_encoder_network(encoder_network)
-        logger.info("Set model encoder to %s", type(model.encoder_network).__name__)
-
-        encoded_data = {
-            "train": encoded_train_ds,
-            "valid": encoded_valid_ds,
-            "test": encoded_test_ds,
-        }
-        analysis_manager = AnalysisManager(
-            model=model,
-            data=encoded_data,
-            analysis_config=config.analysis,
-            save_root=run_save_path,
-            device=f"cuda:{local_rank}",
-        )
-        logger.info(f"AnalysisManager created: {type(analysis_manager)}")
-        logger.info(
-            f"Performance analysis enabled: {config.analysis.performance_analysis.enabled}"
-        )
-        logger.info(
-            f"Performance analysis training: {config.analysis.performance_analysis.training}"
-        )
-
-        _maybe_calibrate_fsdp_data_driven_reactivation(
+        analysis_manager = _setup_rank0_analysis_manager(
             config=config,
             model=model,
-            train_dataset=encoded_train_ds,
+            encoder_network=encoder_network,
+            encoded_train_ds=encoded_train_ds,
+            encoded_valid_ds=encoded_valid_ds,
+            encoded_test_ds=encoded_test_ds,
+            run_save_path=run_save_path,
+            local_rank=local_rank,
         )
 
     # Create FSDP trainer

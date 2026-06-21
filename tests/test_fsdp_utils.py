@@ -4,6 +4,8 @@ Tests for training FSDP utils module to improve coverage.
 
 import os
 import tempfile
+from dataclasses import dataclass
+from datetime import datetime as RealDatetime
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -12,11 +14,21 @@ import torch
 import torch.nn as nn
 from torch.utils.data import TensorDataset
 
+import dendritic_modeling.scripts.training.train_experiments_fsdp as fsdp_script
+from dendritic_modeling.networks.architectures.classical.autoencoder import (
+    BaseAutoencoder,
+)
 from dendritic_modeling.scripts.training.train_experiments_fsdp import (
+    _build_fsdp_runtime_configs,
     _dataloader_kwargs_from_common,
+    _encode_rank0_analysis_datasets,
     _maybe_calibrate_fsdp_data_driven_reactivation,
+    _print_rank0_model_summary,
     _requested_data_driven_reactivation_policies,
     _run_final_analysis_on_plain_model,
+    _save_fsdp_run_config,
+    _setup_rank0_analysis_manager,
+    _setup_rank0_run_directory,
 )
 from dendritic_modeling.training.fsdp_utils import (
     _apply_gradient_checkpointing,
@@ -177,6 +189,388 @@ def test_run_final_analysis_on_plain_model_reloads_checkpoint(monkeypatch):
     assert analysis_manager.model is plain_model
     assert analysis_manager.run_calls == [{"filename": "final", "training": False}]
     assert load_calls == [{"path": "/tmp/final_full.pt", "map_location": "cuda:2"}]
+
+
+@dataclass
+class _RunOutputsConfig:
+    run_name: str
+    results_dir: str
+
+
+@dataclass
+class _RunConfigSnapshot:
+    outputs: _RunOutputsConfig
+    marker: int = 7
+
+
+def test_save_fsdp_run_config_applies_canonicalizers(monkeypatch):
+    """FSDP config snapshots should preserve the existing canonicalizer order."""
+    config = _RunConfigSnapshot(outputs=_RunOutputsConfig("run", "/tmp/results"))
+    saved = []
+
+    def fake_model_canonicalizer(payload):
+        return {**payload, "model_canonicalized": True}
+
+    def fake_rnn_canonicalizer(payload):
+        return {**payload, "rnn_saw_model": payload["model_canonicalized"]}
+
+    monkeypatch.setattr(
+        fsdp_script, "canonicalize_model_core_flags", fake_model_canonicalizer
+    )
+    monkeypatch.setattr(
+        fsdp_script, "canonicalize_rnn_core_flags", fake_rnn_canonicalizer
+    )
+    monkeypatch.setattr(
+        fsdp_script,
+        "save_dict",
+        lambda payload, path, filename: saved.append(
+            {"payload": payload, "path": path, "filename": filename}
+        ),
+    )
+
+    _save_fsdp_run_config(config, "/tmp/run")
+
+    assert saved == [
+        {
+            "payload": {
+                "outputs": {"run_name": "run", "results_dir": "/tmp/results"},
+                "marker": 7,
+                "model_canonicalized": True,
+                "rnn_saw_model": True,
+            },
+            "path": "/tmp/run",
+            "filename": "config.json",
+        }
+    ]
+
+
+def test_setup_rank0_run_directory_creates_log_dir_and_config(monkeypatch, tmp_path):
+    """FSDP rank-0 setup should create the timestamped output and save config."""
+
+    class FixedDatetime:
+        @classmethod
+        def now(cls):
+            return RealDatetime(2025, 1, 2, 3, 4, 5)
+
+    config = _RunConfigSnapshot(outputs=_RunOutputsConfig("experiment", str(tmp_path)))
+    log_dirs = []
+    saved_configs = []
+    original_handlers = list(fsdp_script.logger.handlers)
+
+    monkeypatch.setattr(fsdp_script, "datetime", FixedDatetime)
+    monkeypatch.setattr(
+        fsdp_script.logger_manager,
+        "set_log_directory",
+        lambda path: log_dirs.append(path),
+    )
+    monkeypatch.setattr(
+        fsdp_script,
+        "_save_fsdp_run_config",
+        lambda received_config, path: saved_configs.append((received_config, path)),
+    )
+
+    try:
+        run_save_path = _setup_rank0_run_directory(config)
+    finally:
+        for handler in list(fsdp_script.logger.handlers):
+            if handler not in original_handlers:
+                fsdp_script.logger.removeHandler(handler)
+                handler.close()
+
+    expected_path = os.path.join(str(tmp_path), "experiment_20250102_030405")
+    assert run_save_path == expected_path
+    assert os.path.isdir(expected_path)
+    assert os.path.exists(os.path.join(expected_path, "train.log"))
+    assert log_dirs == [expected_path]
+    assert saved_configs == [(config, expected_path)]
+
+
+def test_encode_rank0_analysis_datasets_delegates_to_encoder_loader(monkeypatch):
+    """FSDP rank-0 encoding should preserve the encoder-loader call contract."""
+    encoder = object()
+    encoded_encoder = object()
+    train_ds = object()
+    valid_ds = object()
+    test_ds = object()
+    encoded_train_ds = object()
+    encoded_valid_ds = object()
+    encoded_test_ds = object()
+    model = SimpleNamespace(encoder_network=encoder)
+    config = SimpleNamespace(
+        training=SimpleNamespace(encoder=object()),
+        model=SimpleNamespace(encoder=object()),
+        data=object(),
+    )
+    calls = []
+
+    def fake_load_train_encoder_network(**kwargs):
+        calls.append(kwargs)
+        return encoded_encoder, encoded_train_ds, encoded_valid_ds, encoded_test_ds
+
+    monkeypatch.setattr(
+        fsdp_script,
+        "load_train_encoder_network",
+        fake_load_train_encoder_network,
+    )
+
+    result = _encode_rank0_analysis_datasets(
+        model=model,
+        config=config,
+        train_ds=train_ds,
+        valid_ds=valid_ds,
+        test_ds=test_ds,
+    )
+
+    assert result == (
+        encoded_encoder,
+        encoded_train_ds,
+        encoded_valid_ds,
+        encoded_test_ds,
+    )
+    assert calls == [
+        {
+            "encoder_network": encoder,
+            "encoder_train_config": config.training.encoder,
+            "train_ds": train_ds,
+            "valid_ds": valid_ds,
+            "test_ds": test_ds,
+            "encoder_network_config": config.model.encoder,
+            "task_config": config.data,
+        }
+    ]
+
+
+def test_encode_rank0_analysis_datasets_skips_base_autoencoder(monkeypatch):
+    """FSDP should not try to pretrain a BaseAutoencoder inside rank-0 encoding."""
+    encoder = BaseAutoencoder()
+    train_ds = object()
+    valid_ds = object()
+    test_ds = object()
+    model = SimpleNamespace(encoder_network=encoder)
+    config = SimpleNamespace()
+
+    monkeypatch.setattr(
+        fsdp_script,
+        "load_train_encoder_network",
+        lambda **kwargs: pytest.fail("BaseAutoencoder should not be encoded here"),
+    )
+
+    result = _encode_rank0_analysis_datasets(
+        model=model,
+        config=config,
+        train_ds=train_ds,
+        valid_ds=valid_ds,
+        test_ds=test_ds,
+    )
+
+    assert result == (encoder, train_ds, valid_ds, test_ds)
+
+
+def test_print_rank0_model_summary_uses_sample_input(monkeypatch):
+    """FSDP rank-0 summary should use the first dataset sample when available."""
+    model = object()
+    sample = torch.ones(2, 3)
+    calls = []
+
+    class SampleDataset:
+        def __getitem__(self, index):
+            assert index == 0
+            return sample, torch.tensor(1)
+
+    monkeypatch.setattr(
+        fsdp_script,
+        "print_model_parameter_summary",
+        lambda received_model, sample_input=None: calls.append(
+            (received_model, sample_input)
+        ),
+    )
+
+    _print_rank0_model_summary(model, SampleDataset())
+
+    assert calls == [(model, sample)]
+
+
+def test_print_rank0_model_summary_falls_back_without_sample(monkeypatch):
+    """FSDP rank-0 summary should preserve the no-sample fallback."""
+    model = object()
+    calls = []
+
+    class FailingDataset:
+        def __getitem__(self, index):
+            raise RuntimeError(f"cannot sample {index}")
+
+    monkeypatch.setattr(
+        fsdp_script,
+        "print_model_parameter_summary",
+        lambda received_model, sample_input=None: calls.append(
+            (received_model, sample_input)
+        ),
+    )
+
+    _print_rank0_model_summary(model, FailingDataset())
+
+    assert calls == [(model, None)]
+
+
+def test_build_fsdp_runtime_configs_uses_typed_config_values(monkeypatch):
+    """FSDP runtime config assembly should preserve typed config values."""
+    fsdp_config = object()
+    calls = []
+    train_common = SimpleNamespace(
+        param_groups=SimpleNamespace(lr=0.123, split_params=True),
+        weight_decay_rate=0.4,
+    )
+    fsdp_cfg = SimpleNamespace(
+        mixed_precision=True,
+        cpu_offload=False,
+        sharding_strategy="NO_SHARD",
+        extra_key="kept",
+    )
+    config = SimpleNamespace(
+        training=SimpleNamespace(main=SimpleNamespace(common=train_common)),
+        distributed=SimpleNamespace(fsdp=fsdp_cfg),
+    )
+
+    def fake_get_fsdp_config(**kwargs):
+        calls.append(kwargs)
+        return fsdp_config
+
+    monkeypatch.setattr(fsdp_script, "get_fsdp_config", fake_get_fsdp_config)
+
+    result_train_common, result_fsdp_config, optimizer_config = (
+        _build_fsdp_runtime_configs(config)
+    )
+
+    assert result_train_common is train_common
+    assert result_fsdp_config is fsdp_config
+    assert optimizer_config == {
+        "lr": 0.123,
+        "weight_decay": 0.4,
+        "split_params": True,
+    }
+    assert calls == [
+        {
+            "mixed_precision": True,
+            "cpu_offload": False,
+            "sharding_strategy": "NO_SHARD",
+            "fsdp_config_dict": vars(fsdp_cfg),
+        }
+    ]
+
+
+def test_build_fsdp_runtime_configs_preserves_defaults_and_slot_fsdp_config(
+    monkeypatch,
+):
+    """FSDP runtime config assembly should keep legacy optimizer defaults."""
+
+    class SlotFSDPConfig:
+        __slots__ = ("cpu_offload", "mixed_precision", "sharding_strategy")
+
+        def __init__(self):
+            self.mixed_precision = False
+            self.cpu_offload = True
+            self.sharding_strategy = "FULL_SHARD"
+
+    fsdp_config = object()
+    calls = []
+    train_common = SimpleNamespace(param_groups=SimpleNamespace(lr=0.01))
+    config = SimpleNamespace(
+        training=SimpleNamespace(main=SimpleNamespace(common=train_common)),
+        distributed=SimpleNamespace(fsdp=SlotFSDPConfig()),
+    )
+
+    monkeypatch.setattr(
+        fsdp_script,
+        "get_fsdp_config",
+        lambda **kwargs: calls.append(kwargs) or fsdp_config,
+    )
+
+    result_train_common, result_fsdp_config, optimizer_config = (
+        _build_fsdp_runtime_configs(config)
+    )
+
+    assert result_train_common is train_common
+    assert result_fsdp_config is fsdp_config
+    assert optimizer_config == {
+        "lr": 0.01,
+        "weight_decay": 0.0,
+        "split_params": False,
+    }
+    assert calls == [
+        {
+            "mixed_precision": False,
+            "cpu_offload": True,
+            "sharding_strategy": "FULL_SHARD",
+            "fsdp_config_dict": None,
+        }
+    ]
+
+
+def test_setup_rank0_analysis_manager_wires_manager_and_calibration(monkeypatch):
+    """FSDP rank-0 analysis setup should preserve manager and calibration wiring."""
+    analysis_encoder = object()
+    original_encoder = object()
+    encoded_train_ds = object()
+    encoded_valid_ds = object()
+    encoded_test_ds = object()
+    model = SimpleNamespace(encoder_network=original_encoder)
+    config = SimpleNamespace(
+        analysis=SimpleNamespace(
+            performance_analysis=SimpleNamespace(enabled=True, training=False)
+        )
+    )
+    manager_calls = []
+    calibration_calls = []
+
+    class AnalysisManagerStub:
+        def __init__(self, **kwargs):
+            manager_calls.append(kwargs)
+
+    monkeypatch.setattr(
+        fsdp_script,
+        "_get_analysis_encoder_network",
+        lambda encoder_network: analysis_encoder,
+    )
+    monkeypatch.setattr(fsdp_script, "AnalysisManager", AnalysisManagerStub)
+    monkeypatch.setattr(
+        fsdp_script,
+        "_maybe_calibrate_fsdp_data_driven_reactivation",
+        lambda **kwargs: calibration_calls.append(kwargs),
+    )
+
+    analysis_manager = _setup_rank0_analysis_manager(
+        config=config,
+        model=model,
+        encoder_network=original_encoder,
+        encoded_train_ds=encoded_train_ds,
+        encoded_valid_ds=encoded_valid_ds,
+        encoded_test_ds=encoded_test_ds,
+        run_save_path="/tmp/run",
+        local_rank=3,
+    )
+
+    assert isinstance(analysis_manager, AnalysisManagerStub)
+    assert model.encoder_network is analysis_encoder
+    assert manager_calls == [
+        {
+            "model": model,
+            "data": {
+                "train": encoded_train_ds,
+                "valid": encoded_valid_ds,
+                "test": encoded_test_ds,
+            },
+            "analysis_config": config.analysis,
+            "save_root": "/tmp/run",
+            "device": "cuda:3",
+        }
+    ]
+    assert calibration_calls == [
+        {
+            "config": config,
+            "model": model,
+            "train_dataset": encoded_train_ds,
+        }
+    ]
 
 
 class _PolicyLayer(nn.Module):
