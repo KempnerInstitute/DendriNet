@@ -302,6 +302,32 @@ def test_dataloader_optimization_uses_workers_for_lazy_datasets(monkeypatch):
     assert tuning.persistent_workers is True
 
 
+def test_dataloader_explicit_workers_are_capped_by_visible_cpus(monkeypatch):
+    """Explicit worker counts should stay within scheduler-visible CPUs."""
+
+    from dendritic_modeling.training.dataloader_utils import resolve_dataloader_tuning
+
+    dataset = torch.utils.data.TensorDataset(
+        torch.randn(8, 3), torch.randint(0, 2, (8,))
+    )
+    monkeypatch.setattr(
+        "dendritic_modeling.training.dataloader_utils.visible_cpu_count",
+        lambda: 2,
+    )
+
+    tuning = resolve_dataloader_tuning(
+        dataset,
+        device="cpu",
+        num_workers=8,
+        pin_memory=False,
+        persistent_workers=True,
+    )
+
+    assert tuning.num_workers == 2
+    assert tuning.auto_num_workers is False
+    assert tuning.persistent_workers is True
+
+
 def test_dataloader_config_helpers_preserve_resolved_kwargs():
     """Config-backed DataLoader helpers should preserve low-level tuning semantics."""
     from types import SimpleNamespace

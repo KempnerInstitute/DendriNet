@@ -12,6 +12,7 @@ import pickle
 import shutil
 from collections.abc import Sequence
 from contextlib import contextmanager
+from copy import copy
 from typing import Any, Optional, Union
 
 import numpy as np
@@ -23,6 +24,49 @@ from .registry import build_registered_dataset
 from .synthetic_datasets import get_synthetic_datasets
 
 _ds_logger = logging.getLogger(__name__)
+
+_SEQUENCE_DATASET_NAMES = (
+    "sequential_mnist",
+    "copy_task",
+    "adding_problem",
+    "variable_delay_dms",
+    "multi_frequency",
+    "hierarchical_temporal",
+    "context_dependent_decision",
+    "context_dependent_decision_hard",
+    "context_dependent_decision_positive",
+    "context_dependent_decision_hard_positive",
+    "switching_context_decision",
+    "switching_context_decision_positive",
+    "timescale_generalization",
+    "timescale_generalization_positive",
+    "odr_generalization",
+    "odr_generalization_positive",
+    "romo_delay_comparison",
+    "romo_delay_comparison_positive",
+    "gain_modulated_contextual_comparison",
+    "gain_modulated_contextual_comparison_positive",
+    "lorenz",
+    "lorenz_sequence",
+    "switching_lds",
+    "multi_sine_forecast",
+    "stringer_v1",
+)
+
+_THEORETICAL_SYNTHETIC_DATASET_NAMES = (
+    "correlated_gaussian",
+    "nonlinear_interaction",
+    "linear_separable",
+    "nonlinear_separable",
+    "block_correlated",
+    "balanced_information",
+    "contextual_stream_gain_shift",
+)
+
+_EXPERIMENTAL_DATASET_IMPORT_CANDIDATES = (
+    "experiments.data_generation.synthetic_datasets",
+    "data_generation.synthetic_datasets",
+)
 
 try:
     import fcntl
@@ -528,6 +572,19 @@ def _build_imagenet_transforms(
     )
 
 
+def _copy_dataset_with_transform(dataset: Dataset, transform) -> Dataset:
+    """Return a shallow dataset view with the same samples and a new transform."""
+    dataset_view = copy(dataset)
+    dataset_view.transform = transform
+
+    transforms_obj = getattr(dataset_view, "transforms", None)
+    if transforms_obj is not None and hasattr(transforms_obj, "transform"):
+        dataset_view.transforms = copy(transforms_obj)
+        dataset_view.transforms.transform = transform
+
+    return dataset_view
+
+
 def _load_imagenet_dataset_triplet(
     *,
     imagenet_dir: str,
@@ -543,15 +600,19 @@ def _load_imagenet_dataset_triplet(
             train_root,
             val_root,
         )
+        train_dataset = datasets.ImageFolder(root=train_root, transform=train_transform)
         return (
-            datasets.ImageFolder(root=train_root, transform=train_transform),
-            datasets.ImageFolder(root=train_root, transform=eval_transform),
+            train_dataset,
+            _copy_dataset_with_transform(train_dataset, eval_transform),
             datasets.ImageFolder(root=val_root, transform=eval_transform),
         )
 
+    train_dataset = datasets.ImageNet(
+        root=imagenet_dir, split="train", transform=train_transform
+    )
     return (
-        datasets.ImageNet(root=imagenet_dir, split="train", transform=train_transform),
-        datasets.ImageNet(root=imagenet_dir, split="train", transform=eval_transform),
+        train_dataset,
+        _copy_dataset_with_transform(train_dataset, eval_transform),
         datasets.ImageNet(root=imagenet_dir, split="val", transform=eval_transform),
     )
 
@@ -1581,6 +1642,80 @@ def _load_standard_vision_dataset_triplet(
     )
 
 
+def _load_sequence_dataset_triplet(
+    *,
+    dataset_name: str,
+    data_path: str | None,
+    train_valid_split: float,
+    parameters: dict[str, Any],
+) -> tuple[Dataset, Dataset, Dataset]:
+    """Load a sequence dataset through the sequence dataset factory."""
+    from dendritic_modeling.datasets.sequence_datasets import get_sequence_datasets
+
+    return get_sequence_datasets(
+        dataset_name=dataset_name,
+        data_path=data_path,
+        train_valid_split=train_valid_split,
+        **parameters,
+    )
+
+
+def _load_theoretical_synthetic_dataset_triplet(
+    *,
+    dataset_name: str,
+    parameters: dict[str, Any],
+) -> tuple[Dataset, Dataset, Dataset]:
+    """Load built-in theoretical synthetic datasets by injecting the type key."""
+    dataset_config = parameters.copy()
+    dataset_config["type"] = dataset_name
+    return get_synthetic_datasets(dataset_config)
+
+
+def _load_experimental_dataset_triplet(
+    *,
+    dataset_name: str,
+    task_cfg: Any,
+) -> tuple[Dataset, Dataset, Dataset]:
+    """Load a dataset from the optional experiments package fallback."""
+    # For synthetic/experimental datasets, delegate to experiments synthetic datasets.
+    # Keep this robust to both layouts:
+    #   <repo>/experiments/experiments/data_generation/synthetic_datasets.py
+    #   <repo>/experiments/data_generation/synthetic_datasets.py
+    repo_root = os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    )
+    experiments_root = os.path.join(repo_root, "experiments")
+
+    import sys
+
+    # Ensure both candidate roots are importable regardless launch cwd/PYTHONPATH.
+    path_candidates = [
+        experiments_root,
+        os.path.join(experiments_root, "experiments"),
+    ]
+    for candidate_path in path_candidates:
+        if os.path.isdir(candidate_path) and candidate_path not in sys.path:
+            sys.path.insert(0, candidate_path)
+
+    last_error: Exception | None = None
+    get_experimental_datasets = None
+    for module_name in _EXPERIMENTAL_DATASET_IMPORT_CANDIDATES:
+        try:
+            module = importlib.import_module(module_name)
+            get_experimental_datasets = module.get_unified_datasets
+            break
+        except Exception as e:  # pragma: no cover - fallback path
+            last_error = e
+
+    if get_experimental_datasets is None:
+        raise ValueError(
+            f"Unknown dataset name: {dataset_name}. Synthetic datasets not available: {last_error}"
+        )
+
+    train_ds, valid_ds, test_ds = get_experimental_datasets(task_cfg, task_cfg)
+    return _ensure_slice_safe_triplet(train_ds, valid_ds, test_ds)
+
+
 def get_unified_datasets(task_cfg):
     """
     Get datasets based on configuration.
@@ -1706,94 +1841,20 @@ def get_unified_datasets(task_cfg):
             split_seed=split_seed,
         )
         return _dataset_mapping_to_triplet(data, slice_safe=True)
-    elif dataset_name in [
-        "correlated_gaussian",
-        "nonlinear_interaction",
-        "linear_separable",
-        "nonlinear_separable",
-        "block_correlated",
-        "balanced_information",
-        "contextual_stream_gain_shift",
-    ]:
-        # Handle synthetic datasets for theoretical validation
-        dataset_config = p.copy()
-        dataset_config["type"] = dataset_name
-        return get_synthetic_datasets(dataset_config)
-    elif dataset_name in (
-        "sequential_mnist",
-        "copy_task",
-        "adding_problem",
-        "variable_delay_dms",
-        "multi_frequency",
-        "hierarchical_temporal",
-        "context_dependent_decision",
-        "context_dependent_decision_hard",
-        "context_dependent_decision_positive",
-        "context_dependent_decision_hard_positive",
-        "switching_context_decision",
-        "switching_context_decision_positive",
-        "timescale_generalization",
-        "timescale_generalization_positive",
-        "odr_generalization",
-        "odr_generalization_positive",
-        "romo_delay_comparison",
-        "romo_delay_comparison_positive",
-        "gain_modulated_contextual_comparison",
-        "gain_modulated_contextual_comparison_positive",
-        "lorenz",
-        "lorenz_sequence",
-        "switching_lds",
-        "multi_sine_forecast",
-        "stringer_v1",
-    ):
-        from dendritic_modeling.datasets.sequence_datasets import get_sequence_datasets
-
-        return get_sequence_datasets(
+    elif dataset_name in _THEORETICAL_SYNTHETIC_DATASET_NAMES:
+        return _load_theoretical_synthetic_dataset_triplet(
+            dataset_name=dataset_name,
+            parameters=p,
+        )
+    elif dataset_name in _SEQUENCE_DATASET_NAMES:
+        return _load_sequence_dataset_triplet(
             dataset_name=dataset_name,
             data_path=task_data_path,
             train_valid_split=train_valid_split,
-            **p,
+            parameters=p,
         )
     else:
-        # For synthetic/experimental datasets, delegate to experiments synthetic datasets.
-        # Keep this robust to both layouts:
-        #   <repo>/experiments/experiments/data_generation/synthetic_datasets.py
-        #   <repo>/experiments/data_generation/synthetic_datasets.py
-        repo_root = os.path.dirname(
-            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        return _load_experimental_dataset_triplet(
+            dataset_name=dataset_name,
+            task_cfg=task_cfg,
         )
-        experiments_root = os.path.join(repo_root, "experiments")
-
-        import sys
-
-        # Try canonical package imports first.
-        import_candidates = [
-            "experiments.data_generation.synthetic_datasets",
-            "data_generation.synthetic_datasets",
-        ]
-        # Ensure both candidate roots are importable regardless launch cwd/PYTHONPATH.
-        path_candidates = [
-            experiments_root,
-            os.path.join(experiments_root, "experiments"),
-        ]
-        for candidate_path in path_candidates:
-            if os.path.isdir(candidate_path) and candidate_path not in sys.path:
-                sys.path.insert(0, candidate_path)
-
-        last_error: Exception | None = None
-        get_experimental_datasets = None
-        for module_name in import_candidates:
-            try:
-                module = importlib.import_module(module_name)
-                get_experimental_datasets = module.get_unified_datasets
-                break
-            except Exception as e:  # pragma: no cover - fallback path
-                last_error = e
-
-        if get_experimental_datasets is None:
-            raise ValueError(
-                f"Unknown dataset name: {dataset_name}. Synthetic datasets not available: {last_error}"
-            )
-
-        train_ds, valid_ds, test_ds = get_experimental_datasets(task_cfg, task_cfg)
-        return _ensure_slice_safe_triplet(train_ds, valid_ds, test_ds)

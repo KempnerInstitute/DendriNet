@@ -11,6 +11,7 @@ This module tests all dataset functionality including:
 import os
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import ANY, Mock, patch
 
 import torch
@@ -28,8 +29,10 @@ from dendritic_modeling.datasets.standard_datasets import (
     _apply_imagenet_local_override,
     _build_imagenet_transforms,
     _class_subset_indices,
+    _copy_dataset_with_transform,
     _dataset_mapping_to_triplet,
     _is_official_imagenet_root,
+    _load_experimental_dataset_triplet,
     _load_imagenet_dataset_triplet,
     _load_torchvision_train_test_pair,
     _materialize_flattened_tensor_dataset,
@@ -319,10 +322,29 @@ class TestRealDatasets(unittest.TestCase):
     class _TinyVisionDataset(torch.utils.data.Dataset):
         """Tiny torchvision-style dataset stub used for loader smoke tests."""
 
-        def __init__(self, n_samples, sample_shape, num_classes=10):
+        def __init__(
+            self,
+            n_samples,
+            sample_shape,
+            num_classes=10,
+            *,
+            transform=None,
+            target_transform=None,
+        ):
             self.n_samples = int(n_samples)
             self.sample_shape = tuple(sample_shape)
             self.num_classes = int(num_classes)
+            self.transform = transform
+            self.target_transform = target_transform
+            self.transforms = SimpleNamespace(
+                transform=transform,
+                target_transform=target_transform,
+            )
+            self.targets = [idx % self.num_classes for idx in range(self.n_samples)]
+            self.samples = [
+                (f"sample_{idx}.jpg", self.targets[idx])
+                for idx in range(self.n_samples)
+            ]
 
         def __len__(self):
             return self.n_samples
@@ -618,6 +640,28 @@ class TestRealDatasets(unittest.TestCase):
         )
         self.assertEqual(eval_names, ["Resize", "CenterCrop", "ToTensor", "Normalize"])
 
+    def test_copy_dataset_with_transform_preserves_imagenet_metadata(self):
+        train_transform = Mock()
+        eval_transform = Mock()
+        target_transform = Mock()
+        dataset = self._TinyVisionDataset(
+            3,
+            (3, 224, 224),
+            transform=train_transform,
+            target_transform=target_transform,
+        )
+
+        copied = _copy_dataset_with_transform(dataset, eval_transform)
+
+        self.assertIsNot(copied, dataset)
+        self.assertIs(dataset.transform, train_transform)
+        self.assertIs(copied.transform, eval_transform)
+        self.assertIs(copied.target_transform, target_transform)
+        self.assertIs(copied.targets, dataset.targets)
+        self.assertIs(copied.samples, dataset.samples)
+        self.assertIs(copied.transforms.transform, eval_transform)
+        self.assertIs(copied.transforms.target_transform, target_transform)
+
     @patch("dendritic_modeling.datasets.standard_datasets.datasets.ImageNet")
     @patch("dendritic_modeling.datasets.standard_datasets.datasets.ImageFolder")
     def test_load_imagenet_dataset_triplet_uses_imagefolder_roots(
@@ -625,10 +669,17 @@ class TestRealDatasets(unittest.TestCase):
     ):
         train_transform = Mock()
         eval_transform = Mock()
-        train_mock = Mock()
-        train_eval_mock = Mock()
-        test_mock = Mock()
-        mock_imagefolder.side_effect = [train_mock, train_eval_mock, test_mock]
+        train_mock = self._TinyVisionDataset(
+            10,
+            (3, 224, 224),
+            transform=train_transform,
+        )
+        test_mock = self._TinyVisionDataset(
+            4,
+            (3, 224, 224),
+            transform=eval_transform,
+        )
+        mock_imagefolder.side_effect = [train_mock, test_mock]
 
         loaded = _load_imagenet_dataset_triplet(
             imagenet_dir="/unused",
@@ -638,14 +689,17 @@ class TestRealDatasets(unittest.TestCase):
             eval_transform=eval_transform,
         )
 
-        self.assertEqual(loaded, (train_mock, train_eval_mock, test_mock))
+        train_loaded, train_eval_loaded, test_loaded = loaded
+        self.assertIs(train_loaded, train_mock)
+        self.assertIsNot(train_eval_loaded, train_mock)
+        self.assertIs(train_eval_loaded.transform, eval_transform)
+        self.assertIs(train_eval_loaded.targets, train_mock.targets)
+        self.assertIs(test_loaded, test_mock)
         mock_imagefolder.assert_any_call(
             root="/imagenet/train", transform=train_transform
         )
-        mock_imagefolder.assert_any_call(
-            root="/imagenet/train", transform=eval_transform
-        )
         mock_imagefolder.assert_any_call(root="/imagenet/val", transform=eval_transform)
+        self.assertEqual(mock_imagefolder.call_count, 2)
         mock_imagenet.assert_not_called()
 
     @patch("dendritic_modeling.datasets.standard_datasets.datasets.ImageNet")
@@ -655,10 +709,17 @@ class TestRealDatasets(unittest.TestCase):
     ):
         train_transform = Mock()
         eval_transform = Mock()
-        train_mock = Mock()
-        train_eval_mock = Mock()
-        test_mock = Mock()
-        mock_imagenet.side_effect = [train_mock, train_eval_mock, test_mock]
+        train_mock = self._TinyVisionDataset(
+            10,
+            (3, 224, 224),
+            transform=train_transform,
+        )
+        test_mock = self._TinyVisionDataset(
+            4,
+            (3, 224, 224),
+            transform=eval_transform,
+        )
+        mock_imagenet.side_effect = [train_mock, test_mock]
 
         loaded = _load_imagenet_dataset_triplet(
             imagenet_dir="/imagenet",
@@ -668,16 +729,19 @@ class TestRealDatasets(unittest.TestCase):
             eval_transform=eval_transform,
         )
 
-        self.assertEqual(loaded, (train_mock, train_eval_mock, test_mock))
+        train_loaded, train_eval_loaded, test_loaded = loaded
+        self.assertIs(train_loaded, train_mock)
+        self.assertIsNot(train_eval_loaded, train_mock)
+        self.assertIs(train_eval_loaded.transform, eval_transform)
+        self.assertIs(train_eval_loaded.targets, train_mock.targets)
+        self.assertIs(test_loaded, test_mock)
         mock_imagenet.assert_any_call(
             root="/imagenet", split="train", transform=train_transform
         )
         mock_imagenet.assert_any_call(
-            root="/imagenet", split="train", transform=eval_transform
-        )
-        mock_imagenet.assert_any_call(
             root="/imagenet", split="val", transform=eval_transform
         )
+        self.assertEqual(mock_imagenet.call_count, 2)
         mock_imagefolder.assert_not_called()
 
     def test_materialize_flattened_tensor_dataset_flattens_and_caps_samples(self):
@@ -702,13 +766,9 @@ class TestRealDatasets(unittest.TestCase):
         os.makedirs(os.path.join(self.temp_dir, "train", "class_a"))
         os.makedirs(os.path.join(self.temp_dir, "val", "class_a"))
 
-        train_mock = Mock()
-        train_mock.__len__ = Mock(return_value=10)
-        train_eval_mock = Mock()
-        train_eval_mock.__len__ = Mock(return_value=10)
-        test_mock = Mock()
-        test_mock.__len__ = Mock(return_value=4)
-        mock_imagefolder.side_effect = [train_mock, train_eval_mock, test_mock]
+        train_mock = self._TinyVisionDataset(10, (3, 224, 224))
+        test_mock = self._TinyVisionDataset(4, (3, 224, 224))
+        mock_imagefolder.side_effect = [train_mock, test_mock]
 
         train_ds, valid_ds, test_ds = load_imagenet_as_datasets(
             train_valid_split=0.8,
@@ -723,6 +783,7 @@ class TestRealDatasets(unittest.TestCase):
         mock_imagefolder.assert_any_call(
             root=os.path.join(self.temp_dir, "val"), transform=ANY
         )
+        self.assertEqual(mock_imagefolder.call_count, 2)
         mock_imagenet.assert_not_called()
         self.assertEqual(len(train_ds), 8)
         self.assertEqual(len(valid_ds), 2)
@@ -739,13 +800,9 @@ class TestRealDatasets(unittest.TestCase):
         with open(os.path.join(self.temp_dir, "meta.bin"), "wb") as f:
             f.write(b"meta")
 
-        train_mock = Mock()
-        train_mock.__len__ = Mock(return_value=10)
-        train_eval_mock = Mock()
-        train_eval_mock.__len__ = Mock(return_value=10)
-        test_mock = Mock()
-        test_mock.__len__ = Mock(return_value=4)
-        mock_imagenet.side_effect = [train_mock, train_eval_mock, test_mock]
+        train_mock = self._TinyVisionDataset(10, (3, 224, 224))
+        test_mock = self._TinyVisionDataset(4, (3, 224, 224))
+        mock_imagenet.side_effect = [train_mock, test_mock]
 
         train_ds, valid_ds, test_ds = load_imagenet_as_datasets(
             train_valid_split=0.8,
@@ -756,6 +813,7 @@ class TestRealDatasets(unittest.TestCase):
 
         mock_imagenet.assert_any_call(root=self.temp_dir, split="train", transform=ANY)
         mock_imagenet.assert_any_call(root=self.temp_dir, split="val", transform=ANY)
+        self.assertEqual(mock_imagenet.call_count, 2)
         mock_imagefolder.assert_not_called()
         self.assertEqual(len(train_ds), 8)
         self.assertEqual(len(valid_ds), 2)
@@ -770,15 +828,11 @@ class TestRealDatasets(unittest.TestCase):
         os.makedirs(os.path.join(self.temp_dir, "train", "class_a"))
         os.makedirs(os.path.join(self.temp_dir, "val", "class_a"))
 
-        train_mock = Mock()
-        train_mock.__len__ = Mock(return_value=10)
-        train_eval_mock = Mock()
-        train_eval_mock.__len__ = Mock(return_value=10)
-        test_mock = Mock()
-        test_mock.__len__ = Mock(return_value=4)
-        mock_imagefolder.side_effect = [train_mock, train_eval_mock, test_mock]
+        train_mock = self._TinyVisionDataset(10, (3, 224, 224))
+        test_mock = self._TinyVisionDataset(4, (3, 224, 224))
+        mock_imagefolder.side_effect = [train_mock, test_mock]
 
-        load_imagenet_as_datasets(
+        train_ds, valid_ds, test_ds = load_imagenet_as_datasets(
             train_valid_split=0.8,
             flatten=False,
             normalize=False,
@@ -794,8 +848,14 @@ class TestRealDatasets(unittest.TestCase):
         self.assertIn("RandomHorizontalFlip", transforms_by_call[0])
         self.assertIn("Resize", transforms_by_call[1])
         self.assertIn("CenterCrop", transforms_by_call[1])
-        self.assertIn("Resize", transforms_by_call[2])
-        self.assertIn("CenterCrop", transforms_by_call[2])
+        self.assertEqual(mock_imagefolder.call_count, 2)
+        valid_transform_names = [
+            t.__class__.__name__ for t in valid_ds.dataset.transform.transforms
+        ]
+        self.assertIn("Resize", valid_transform_names)
+        self.assertIn("CenterCrop", valid_transform_names)
+        self.assertIs(train_ds.dataset, train_mock)
+        self.assertIs(test_ds, test_mock)
         mock_imagenet.assert_not_called()
 
     @patch(
@@ -839,9 +899,8 @@ class TestRealDatasets(unittest.TestCase):
                 return torch.zeros(3, 224, 224), self.targets[idx]
 
         train_mock = DummyDataset([0, 0, 1, 1, 2, 2])
-        train_eval_mock = DummyDataset([0, 0, 1, 1, 2, 2])
         test_mock = DummyDataset([0, 0, 1, 1, 2, 2])
-        mock_imagenet.side_effect = [train_mock, train_eval_mock, test_mock]
+        mock_imagenet.side_effect = [train_mock, test_mock]
 
         with open(os.path.join(self.temp_dir, "meta.bin"), "wb") as f:
             f.write(b"meta")
@@ -1005,6 +1064,116 @@ class TestGetUnifiedDatasets(unittest.TestCase):
         mock_load_mnist.assert_called_once()
         _, kwargs = mock_load_mnist.call_args
         self.assertEqual(kwargs["task_data_path"], self.temp_dir)
+
+    @patch("dendritic_modeling.datasets.sequence_datasets.get_sequence_datasets")
+    def test_sequence_dataset_dispatch(self, mock_get_sequence_datasets):
+        """Sequence datasets should be delegated through the sequence factory."""
+        mock_train = torch.utils.data.TensorDataset(
+            torch.randn(8, 4, 2), torch.randint(0, 2, (8,))
+        )
+        mock_valid = torch.utils.data.TensorDataset(
+            torch.randn(2, 4, 2), torch.randint(0, 2, (2,))
+        )
+        mock_test = torch.utils.data.TensorDataset(
+            torch.randn(3, 4, 2), torch.randint(0, 2, (3,))
+        )
+        mock_get_sequence_datasets.return_value = (mock_train, mock_valid, mock_test)
+
+        self.task_cfg.dataset = "copy_task"
+        self.task_cfg.data_path = self.temp_dir
+        self.task_cfg.parameters = {"seq_len": 4, "n_samples": 13}
+
+        train_ds, valid_ds, test_ds = get_unified_datasets(self.task_cfg)
+
+        self.assertIs(train_ds, mock_train)
+        self.assertIs(valid_ds, mock_valid)
+        self.assertIs(test_ds, mock_test)
+        mock_get_sequence_datasets.assert_called_once_with(
+            dataset_name="copy_task",
+            data_path=self.temp_dir,
+            train_valid_split=0.8,
+            seq_len=4,
+            n_samples=13,
+        )
+
+    @patch("dendritic_modeling.datasets.standard_datasets.get_synthetic_datasets")
+    def test_theoretical_synthetic_dataset_dispatch(self, mock_get_synthetic_datasets):
+        """Built-in synthetic datasets should inject type without mutating params."""
+        mock_train = torch.utils.data.TensorDataset(
+            torch.randn(6, 3), torch.randint(0, 2, (6,))
+        )
+        mock_valid = torch.utils.data.TensorDataset(
+            torch.randn(2, 3), torch.randint(0, 2, (2,))
+        )
+        mock_test = torch.utils.data.TensorDataset(
+            torch.randn(4, 3), torch.randint(0, 2, (4,))
+        )
+        mock_get_synthetic_datasets.return_value = (mock_train, mock_valid, mock_test)
+
+        parameters = {"n_samples": 12, "seed": 5}
+        self.task_cfg.dataset = "correlated_gaussian"
+        self.task_cfg.data_path = None
+        self.task_cfg.parameters = parameters
+
+        train_ds, valid_ds, test_ds = get_unified_datasets(self.task_cfg)
+
+        self.assertIs(train_ds, mock_train)
+        self.assertIs(valid_ds, mock_valid)
+        self.assertIs(test_ds, mock_test)
+        mock_get_synthetic_datasets.assert_called_once_with(
+            {"n_samples": 12, "seed": 5, "type": "correlated_gaussian"}
+        )
+        self.assertNotIn("type", parameters)
+
+    @patch("dendritic_modeling.datasets.standard_datasets.os.path.isdir")
+    @patch("dendritic_modeling.datasets.standard_datasets.importlib.import_module")
+    def test_experimental_dataset_fallback_dispatch(
+        self,
+        mock_import_module,
+        mock_isdir,
+    ):
+        """Experimental fallback should try both historical import layouts."""
+        mock_isdir.return_value = False
+        mock_train = torch.utils.data.TensorDataset(
+            torch.randn(5, 2), torch.randint(0, 2, (5,))
+        )
+        mock_valid = torch.utils.data.TensorDataset(
+            torch.randn(2, 2), torch.randint(0, 2, (2,))
+        )
+        mock_test = torch.utils.data.TensorDataset(
+            torch.randn(3, 2), torch.randint(0, 2, (3,))
+        )
+        mock_module = Mock()
+        mock_module.get_unified_datasets.return_value = (
+            mock_train,
+            mock_valid,
+            mock_test,
+        )
+        mock_import_module.side_effect = [
+            ImportError("missing canonical layout"),
+            mock_module,
+        ]
+        mock_import_module.reset_mock()
+
+        train_ds, valid_ds, test_ds = _load_experimental_dataset_triplet(
+            dataset_name="custom_experiment",
+            task_cfg=self.task_cfg,
+        )
+
+        self.assertIs(train_ds, mock_train)
+        self.assertIs(valid_ds, mock_valid)
+        self.assertIs(test_ds, mock_test)
+        self.assertEqual(
+            [call_args.args[0] for call_args in mock_import_module.call_args_list],
+            [
+                "experiments.data_generation.synthetic_datasets",
+                "data_generation.synthetic_datasets",
+            ],
+        )
+        mock_module.get_unified_datasets.assert_called_once_with(
+            self.task_cfg,
+            self.task_cfg,
+        )
 
     def test_invalid_dataset(self):
         """Test handling of invalid dataset names."""

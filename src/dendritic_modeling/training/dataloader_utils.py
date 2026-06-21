@@ -71,6 +71,71 @@ def auto_num_workers_for_dataset(
     return min(8, max(0, cpus - 1))
 
 
+def _resolve_num_workers(
+    dataset: Dataset,
+    num_workers: int | None,
+    *,
+    available_cpus: int,
+) -> tuple[int, bool]:
+    auto_num_workers = num_workers is None
+    if auto_num_workers:
+        return (
+            auto_num_workers_for_dataset(
+                dataset,
+                cuda_available=torch.cuda.is_available(),
+                available_cpus=available_cpus,
+            ),
+            True,
+        )
+
+    resolved_workers = max(0, int(num_workers))
+    return min(resolved_workers, available_cpus), False
+
+
+def _resolve_pin_memory(
+    *,
+    device: torch.device | str | None,
+    pin_memory: bool | None,
+    num_workers: int,
+) -> bool:
+    device_type = (
+        torch.device(device).type
+        if device is not None
+        else ("cuda" if torch.cuda.is_available() else "cpu")
+    )
+    return (
+        bool(pin_memory)
+        if pin_memory is not None
+        else device_type == "cuda" and num_workers > 0
+    )
+
+
+def _resolve_persistent_workers(
+    persistent_workers: bool | None,
+    *,
+    num_workers: int,
+) -> bool:
+    if persistent_workers is None:
+        return num_workers > 0
+
+    resolved_persistent = bool(persistent_workers)
+    if resolved_persistent and num_workers == 0:
+        raise ValueError("persistent_workers=True requires num_workers > 0")
+    return resolved_persistent
+
+
+def _resolve_prefetch_factor(
+    prefetch_factor: int | None,
+    *,
+    num_workers: int,
+) -> int | None:
+    if prefetch_factor is None:
+        return None
+    if num_workers == 0:
+        raise ValueError("prefetch_factor requires num_workers > 0")
+    return max(1, int(prefetch_factor))
+
+
 def resolve_dataloader_tuning(
     dataset: Dataset,
     *,
@@ -87,40 +152,24 @@ def resolve_dataloader_tuning(
     ImageNet ``ImageFolder``/``ImageNet`` subsets, keep multi-worker loading.
     """
     available_cpus = visible_cpu_count()
-    auto_num_workers = num_workers is None
-    if auto_num_workers:
-        resolved_workers = auto_num_workers_for_dataset(
-            dataset,
-            cuda_available=torch.cuda.is_available(),
-            available_cpus=available_cpus,
-        )
-    else:
-        resolved_workers = max(0, int(num_workers))
-        resolved_workers = min(resolved_workers, available_cpus)
-
-    device_type = (
-        torch.device(device).type
-        if device is not None
-        else ("cuda" if torch.cuda.is_available() else "cpu")
+    resolved_workers, auto_num_workers = _resolve_num_workers(
+        dataset,
+        num_workers,
+        available_cpus=available_cpus,
     )
-    resolved_pin_memory = (
-        bool(pin_memory)
-        if pin_memory is not None
-        else device_type == "cuda" and resolved_workers > 0
+    resolved_pin_memory = _resolve_pin_memory(
+        device=device,
+        pin_memory=pin_memory,
+        num_workers=resolved_workers,
     )
-
-    if persistent_workers is None:
-        resolved_persistent = resolved_workers > 0
-    else:
-        resolved_persistent = bool(persistent_workers)
-        if resolved_persistent and resolved_workers == 0:
-            raise ValueError("persistent_workers=True requires num_workers > 0")
-
-    resolved_prefetch = None
-    if prefetch_factor is not None:
-        if resolved_workers == 0:
-            raise ValueError("prefetch_factor requires num_workers > 0")
-        resolved_prefetch = max(1, int(prefetch_factor))
+    resolved_persistent = _resolve_persistent_workers(
+        persistent_workers,
+        num_workers=resolved_workers,
+    )
+    resolved_prefetch = _resolve_prefetch_factor(
+        prefetch_factor,
+        num_workers=resolved_workers,
+    )
 
     return DataLoaderTuning(
         num_workers=resolved_workers,
