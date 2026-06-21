@@ -563,6 +563,16 @@ def _record_model_size_summary(unwrapped_model, config, run_save_path: str) -> i
     return nparams
 
 
+def _save_run_config(config, run_save_path: str) -> None:
+    """Persist the resolved run config with legacy flag canonicalization."""
+    config_payload = asdict(config)
+    if canonicalize_model_core_flags is not None:
+        config_payload = canonicalize_model_core_flags(config_payload)
+    if canonicalize_rnn_core_flags is not None:
+        config_payload = canonicalize_rnn_core_flags(config_payload)
+    save_dict(config_payload, run_save_path, "config.json")
+
+
 def _load_or_train_encoder_datasets(
     *,
     encoder_network,
@@ -633,6 +643,107 @@ def _maybe_plot_multistage_training_performance(
         logger.error(f"Failed to generate performance plots: {e}")
 
 
+def _maybe_apply_pruning_step(
+    *,
+    original_pruning_config,
+    is_main: bool,
+    main_trainer_config_dict,
+    strategy: str,
+    optimizer,
+    analysis_manager,
+    model,
+    common_epochs: int,
+    encoded_train_ds,
+    encoded_valid_ds,
+    training_results: dict,
+) -> dict:
+    """Apply the separate pruning step when enabled and merge its results."""
+    if not original_pruning_config or not original_pruning_config.get("enabled", False):
+        return training_results
+
+    if is_main:
+        logger.info("Applying pruning as separate step...")
+    main_trainer_config_dict["pruning"] = original_pruning_config
+    main_trainer_config_dict["reporting"] = main_trainer_config_dict.get(
+        "reporting", {}
+    )
+
+    pruning_trainer = get_trainer(
+        strategy=strategy,
+        optimizer=optimizer,
+        trainer_config_dict=main_trainer_config_dict,
+        analysis_manager=analysis_manager,
+    )
+
+    pruning_trainer._initialize_attributes(model, common_epochs)
+
+    pruning_results = pruning_trainer._apply_pruning_and_evaluate(
+        model=model, train_data=encoded_train_ds, valid_data=encoded_valid_ds
+    )
+    training_results.update(pruning_results)
+    if is_main:
+        logger.info("Pruning completed")
+    return training_results
+
+
+def _save_final_model_and_analysis(
+    *,
+    unwrapped_model,
+    run_save_path: str,
+    any_analysis_enabled: bool,
+    strategy: str,
+    train_ds,
+    valid_ds,
+    test_ds,
+    analysis_manager,
+    training_config,
+    training_results: dict,
+) -> None:
+    """Save the final model and run non-multi-stage final analysis."""
+    torch.save(
+        unwrapped_model.state_dict(),
+        os.path.join(run_save_path, "final_model.pt"),
+    )
+
+    if any_analysis_enabled and strategy != "multi_stage":
+        run_analysis(
+            train_ds=train_ds,
+            valid_ds=valid_ds,
+            test_ds=test_ds,
+            run_save_path=run_save_path,
+            analysis_manager=analysis_manager,
+            training_config=training_config,
+            training=False,
+            training_results=training_results,
+        )
+
+
+def _broadcast_run_save_path(
+    run_save_path: str,
+    *,
+    world_size: int,
+    is_main: bool,
+    device: str | torch.device = "cuda",
+) -> str:
+    """Broadcast the rank-0 run directory to all DDP ranks."""
+    if world_size <= 1:
+        return run_save_path
+
+    if is_main:
+        path_bytes = run_save_path.encode("utf-8")
+        path_len = torch.tensor([len(path_bytes)], dtype=torch.long, device=device)
+    else:
+        path_len = torch.tensor([0], dtype=torch.long, device=device)
+    dist.broadcast(path_len, src=0)
+
+    if is_main:
+        path_tensor = torch.tensor(list(path_bytes), dtype=torch.uint8, device=device)
+    else:
+        path_tensor = torch.empty(path_len.item(), dtype=torch.uint8, device=device)
+    dist.broadcast(path_tensor, src=0)
+    return bytes(path_tensor.cpu().tolist()).decode("utf-8")
+
+
 def main(config_path: str, args=None):
     rank, local_rank, world_size = setup_distributed()
     is_main = rank == 0
@@ -689,21 +800,11 @@ def main(config_path: str, args=None):
 
     # Broadcast run_save_path from rank 0 so all ranks use the same
     # directory (timestamps may differ across ranks).
-    if world_size > 1:
-        if is_main:
-            path_bytes = run_save_path.encode("utf-8")
-            path_len = torch.tensor([len(path_bytes)], dtype=torch.long, device="cuda")
-        else:
-            path_len = torch.tensor([0], dtype=torch.long, device="cuda")
-        dist.broadcast(path_len, src=0)
-        if is_main:
-            path_tensor = torch.tensor(
-                list(path_bytes), dtype=torch.uint8, device="cuda"
-            )
-        else:
-            path_tensor = torch.empty(path_len.item(), dtype=torch.uint8, device="cuda")
-        dist.broadcast(path_tensor, src=0)
-        run_save_path = bytes(path_tensor.cpu().tolist()).decode("utf-8")
+    run_save_path = _broadcast_run_save_path(
+        run_save_path,
+        world_size=world_size,
+        is_main=is_main,
+    )
 
     # --- DDP wrapping ---
     if world_size > 1:
@@ -784,12 +885,7 @@ def main(config_path: str, args=None):
             logger.error(f"Failed to generate model summary before training: {e}")
 
     if is_main:
-        config_payload = asdict(config)
-        if canonicalize_model_core_flags is not None:
-            config_payload = canonicalize_model_core_flags(config_payload)
-        if canonicalize_rnn_core_flags is not None:
-            config_payload = canonicalize_rnn_core_flags(config_payload)
-        save_dict(config_payload, run_save_path, "config.json")
+        _save_run_config(config, run_save_path)
 
     # Under DDP, autoencoder pretraining must be serialized: rank 0
     # trains and saves the checkpoint, other ranks wait then load it.
@@ -906,49 +1002,35 @@ def main(config_path: str, args=None):
         )
 
     # Now apply pruning if enabled (separate step)
-    if original_pruning_config and original_pruning_config.get("enabled", False):
-        if is_main:
-            logger.info("Applying pruning as separate step...")
-        main_trainer_config_dict["pruning"] = original_pruning_config
-        main_trainer_config_dict["reporting"] = main_trainer_config_dict.get(
-            "reporting", {}
-        )
-
-        pruning_trainer = get_trainer(
-            strategy=strategy,
-            optimizer=optimizer,
-            trainer_config_dict=main_trainer_config_dict,
-            analysis_manager=analysis_manager,
-        )
-
-        pruning_trainer._initialize_attributes(model, common_epochs)
-
-        pruning_results = pruning_trainer._apply_pruning_and_evaluate(
-            model=model, train_data=encoded_train_ds, valid_data=encoded_valid_ds
-        )
-        training_results.update(pruning_results)
-        if is_main:
-            logger.info("Pruning completed")
+    training_results = _maybe_apply_pruning_step(
+        original_pruning_config=original_pruning_config,
+        is_main=is_main,
+        main_trainer_config_dict=main_trainer_config_dict,
+        strategy=strategy,
+        optimizer=optimizer,
+        analysis_manager=analysis_manager,
+        model=model,
+        common_epochs=common_epochs,
+        encoded_train_ds=encoded_train_ds,
+        encoded_valid_ds=encoded_valid_ds,
+        training_results=training_results,
+    )
 
     # Save final model (rank 0 only).  Encoder was already swapped
     # to Identity before training started (see above).
     if is_main:
-        torch.save(
-            unwrapped_model.state_dict(),
-            os.path.join(run_save_path, "final_model.pt"),
+        _save_final_model_and_analysis(
+            unwrapped_model=unwrapped_model,
+            run_save_path=run_save_path,
+            any_analysis_enabled=any_analysis_enabled,
+            strategy=strategy,
+            train_ds=train_ds,
+            valid_ds=valid_ds,
+            test_ds=test_ds,
+            analysis_manager=analysis_manager,
+            training_config=training_config,
+            training_results=training_results,
         )
-
-        if any_analysis_enabled and strategy != "multi_stage":
-            run_analysis(
-                train_ds=train_ds,
-                valid_ds=valid_ds,
-                test_ds=test_ds,
-                run_save_path=run_save_path,
-                analysis_manager=analysis_manager,
-                training_config=training_config,
-                training=False,
-                training_results=training_results,
-            )
 
     if (
         hasattr(wandb_config, "use_wandb")

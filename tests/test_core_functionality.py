@@ -454,6 +454,47 @@ def test_dataloader_auto_tuning_unwraps_dataset_adapters(monkeypatch):
     assert imagenet_tuning.prefetch_factor == 4
 
 
+def test_dataloader_auto_tuning_profiles_concat_dataset_leaves(monkeypatch):
+    """Composed datasets should inherit tensor or ImageNet leaf loader profiles."""
+
+    from dendritic_modeling.training.dataloader_utils import resolve_dataloader_tuning
+
+    class ImageNet(torch.utils.data.Dataset):
+        def __len__(self):
+            return 16
+
+        def __getitem__(self, idx):
+            return torch.zeros(3, 224, 224), torch.tensor(idx % 2)
+
+    ImageNet.__module__ = "torchvision.datasets.imagenet"
+
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(
+        "dendritic_modeling.training.dataloader_utils.visible_cpu_count",
+        lambda: 8,
+    )
+
+    tensor_dataset = torch.utils.data.TensorDataset(
+        torch.randn(8, 3), torch.randint(0, 2, (8,))
+    )
+    tensor_concat = torch.utils.data.ConcatDataset([tensor_dataset, tensor_dataset])
+    imagenet_concat = torch.utils.data.ConcatDataset(
+        [
+            torch.utils.data.Subset(ImageNet(), range(8)),
+            torch.utils.data.Subset(ImageNet(), range(8)),
+        ]
+    )
+
+    tensor_tuning = resolve_dataloader_tuning(tensor_concat, device="cuda")
+    imagenet_tuning = resolve_dataloader_tuning(imagenet_concat, device="cuda")
+
+    assert tensor_tuning.num_workers == 0
+    assert tensor_tuning.prefetch_factor is None
+    assert imagenet_tuning.num_workers == 8
+    assert imagenet_tuning.pin_memory is True
+    assert imagenet_tuning.prefetch_factor == 4
+
+
 def test_dataloader_tuning_summary_reports_unwrapped_dataset(monkeypatch):
     """Loader tuning summaries should identify the storage-backed dataset type."""
 

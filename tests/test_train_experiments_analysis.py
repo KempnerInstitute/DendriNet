@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from types import SimpleNamespace
 
 import pytest
@@ -33,6 +34,19 @@ class _ParamModel:
 
     def parameters(self):
         return iter(self._params)
+
+
+class _StateDictModel:
+    def __init__(self, state):
+        self.state = state
+
+    def state_dict(self):
+        return self.state
+
+
+@dataclass
+class _RunConfig:
+    value: int
 
 
 def test_resolve_final_epoch_for_performance_plot_handles_missing_sections():
@@ -230,6 +244,51 @@ def test_record_model_size_summary_logs_only_changed_suggestions(
     assert all("lr = 0.01" not in message for message in messages)
 
 
+def test_save_run_config_applies_canonicalizers_in_order(monkeypatch):
+    calls = []
+    saved_payloads = []
+
+    def fake_model_canonicalizer(payload):
+        calls.append(("model", dict(payload)))
+        payload = dict(payload)
+        payload["model"] = True
+        return payload
+
+    def fake_rnn_canonicalizer(payload):
+        calls.append(("rnn", dict(payload)))
+        payload = dict(payload)
+        payload["rnn"] = True
+        return payload
+
+    monkeypatch.setattr(
+        train_experiments,
+        "canonicalize_model_core_flags",
+        fake_model_canonicalizer,
+    )
+    monkeypatch.setattr(
+        train_experiments,
+        "canonicalize_rnn_core_flags",
+        fake_rnn_canonicalizer,
+    )
+    monkeypatch.setattr(
+        train_experiments,
+        "save_dict",
+        lambda payload, save_path, name: saved_payloads.append(
+            (payload, save_path, name)
+        ),
+    )
+
+    train_experiments._save_run_config(_RunConfig(value=3), "/tmp/run")
+
+    assert calls == [
+        ("model", {"value": 3}),
+        ("rnn", {"value": 3, "model": True}),
+    ]
+    assert saved_payloads == [
+        ({"value": 3, "model": True, "rnn": True}, "/tmp/run", "config.json")
+    ]
+
+
 def test_load_or_train_encoder_datasets_non_ddp_calls_loader_once(monkeypatch):
     encoder_network = object()
     training_config = SimpleNamespace(encoder=object())
@@ -412,6 +471,241 @@ def test_maybe_plot_multistage_training_performance_skips_disabled_paths(
         common_epochs=3,
         analysis_manager=SimpleNamespace(),
     )
+
+
+def test_maybe_apply_pruning_step_skips_disabled_config(monkeypatch):
+    training_results = {"loss": 1.0}
+    trainer_config = {"pruning": {}}
+
+    monkeypatch.setattr(
+        train_experiments,
+        "get_trainer",
+        lambda **kwargs: pytest.fail("pruning trainer should not be constructed"),
+    )
+
+    result = train_experiments._maybe_apply_pruning_step(
+        original_pruning_config={"enabled": False},
+        is_main=True,
+        main_trainer_config_dict=trainer_config,
+        strategy="standard",
+        optimizer=object(),
+        analysis_manager=object(),
+        model=object(),
+        common_epochs=3,
+        encoded_train_ds=object(),
+        encoded_valid_ds=object(),
+        training_results=training_results,
+    )
+
+    assert result is training_results
+    assert training_results == {"loss": 1.0}
+    assert trainer_config == {"pruning": {}}
+
+
+def test_maybe_apply_pruning_step_runs_and_merges_results(monkeypatch):
+    original_pruning_config = {"enabled": True, "amount": 0.2}
+    trainer_config = {"pruning": {}, "reporting": {"existing": True}}
+    training_results = {"loss": 1.0}
+    optimizer = object()
+    analysis_manager = object()
+    model = object()
+    train_ds = object()
+    valid_ds = object()
+    trainer_calls = []
+    initialize_calls = []
+    prune_calls = []
+
+    class FakePruningTrainer:
+        def _initialize_attributes(self, received_model, epochs):
+            initialize_calls.append((received_model, epochs))
+
+        def _apply_pruning_and_evaluate(self, **kwargs):
+            prune_calls.append(kwargs)
+            return {"post_pruning_loss": 0.8}
+
+    def fake_get_trainer(**kwargs):
+        trainer_calls.append(kwargs)
+        return FakePruningTrainer()
+
+    monkeypatch.setattr(train_experiments, "get_trainer", fake_get_trainer)
+
+    result = train_experiments._maybe_apply_pruning_step(
+        original_pruning_config=original_pruning_config,
+        is_main=True,
+        main_trainer_config_dict=trainer_config,
+        strategy="standard",
+        optimizer=optimizer,
+        analysis_manager=analysis_manager,
+        model=model,
+        common_epochs=7,
+        encoded_train_ds=train_ds,
+        encoded_valid_ds=valid_ds,
+        training_results=training_results,
+    )
+
+    assert result is training_results
+    assert training_results == {"loss": 1.0, "post_pruning_loss": 0.8}
+    assert trainer_config["pruning"] is original_pruning_config
+    assert trainer_config["reporting"] == {"existing": True}
+    assert trainer_calls == [
+        {
+            "strategy": "standard",
+            "optimizer": optimizer,
+            "trainer_config_dict": trainer_config,
+            "analysis_manager": analysis_manager,
+        }
+    ]
+    assert initialize_calls == [(model, 7)]
+    assert prune_calls == [
+        {"model": model, "train_data": train_ds, "valid_data": valid_ds}
+    ]
+
+
+def test_save_final_model_and_analysis_runs_final_analysis(monkeypatch, tmp_path):
+    model_state = {"weight": torch.ones(1)}
+    model = _StateDictModel(model_state)
+    train_ds = object()
+    valid_ds = object()
+    test_ds = object()
+    analysis_manager = object()
+    training_config = object()
+    training_results = {"loss": 1.0}
+    save_calls = []
+    analysis_calls = []
+
+    monkeypatch.setattr(
+        train_experiments.torch,
+        "save",
+        lambda state, path: save_calls.append((state, path)),
+    )
+    monkeypatch.setattr(
+        train_experiments,
+        "run_analysis",
+        lambda **kwargs: analysis_calls.append(kwargs),
+    )
+
+    train_experiments._save_final_model_and_analysis(
+        unwrapped_model=model,
+        run_save_path=str(tmp_path),
+        any_analysis_enabled=True,
+        strategy="standard",
+        train_ds=train_ds,
+        valid_ds=valid_ds,
+        test_ds=test_ds,
+        analysis_manager=analysis_manager,
+        training_config=training_config,
+        training_results=training_results,
+    )
+
+    assert save_calls == [(model_state, str(tmp_path / "final_model.pt"))]
+    assert analysis_calls == [
+        {
+            "train_ds": train_ds,
+            "valid_ds": valid_ds,
+            "test_ds": test_ds,
+            "run_save_path": str(tmp_path),
+            "analysis_manager": analysis_manager,
+            "training_config": training_config,
+            "training": False,
+            "training_results": training_results,
+        }
+    ]
+
+
+def test_save_final_model_and_analysis_skips_multistage_analysis(
+    monkeypatch,
+    tmp_path,
+):
+    model_state = {"weight": torch.ones(1)}
+    save_calls = []
+
+    monkeypatch.setattr(
+        train_experiments.torch,
+        "save",
+        lambda state, path: save_calls.append((state, path)),
+    )
+    monkeypatch.setattr(
+        train_experiments,
+        "run_analysis",
+        lambda **kwargs: pytest.fail("multi-stage final analysis should be skipped"),
+    )
+
+    train_experiments._save_final_model_and_analysis(
+        unwrapped_model=_StateDictModel(model_state),
+        run_save_path=str(tmp_path),
+        any_analysis_enabled=True,
+        strategy="multi_stage",
+        train_ds=object(),
+        valid_ds=object(),
+        test_ds=object(),
+        analysis_manager=object(),
+        training_config=object(),
+        training_results={},
+    )
+
+    assert save_calls == [(model_state, str(tmp_path / "final_model.pt"))]
+
+
+def test_broadcast_run_save_path_skips_single_process(monkeypatch):
+    monkeypatch.setattr(
+        train_experiments.dist,
+        "broadcast",
+        lambda *args, **kwargs: pytest.fail("single-process path should not broadcast"),
+    )
+
+    result = train_experiments._broadcast_run_save_path(
+        "/tmp/local",
+        world_size=1,
+        is_main=True,
+        device="cpu",
+    )
+
+    assert result == "/tmp/local"
+
+
+def test_broadcast_run_save_path_rank0_broadcasts_original_path(monkeypatch):
+    calls = []
+
+    def fake_broadcast(tensor, src):
+        calls.append((tensor.clone(), src))
+
+    monkeypatch.setattr(train_experiments.dist, "broadcast", fake_broadcast)
+
+    result = train_experiments._broadcast_run_save_path(
+        "/tmp/rank0",
+        world_size=2,
+        is_main=True,
+        device="cpu",
+    )
+
+    assert result == "/tmp/rank0"
+    assert [src for _, src in calls] == [0, 0]
+    assert calls[0][0].tolist() == [len(b"/tmp/rank0")]
+    assert bytes(calls[1][0].tolist()).decode("utf-8") == "/tmp/rank0"
+
+
+def test_broadcast_run_save_path_worker_adopts_rank0_path(monkeypatch):
+    shared_path = b"/tmp/rank0"
+    calls = []
+
+    def fake_broadcast(tensor, src):
+        calls.append((tensor.dtype, src))
+        if tensor.dtype == torch.long:
+            tensor.fill_(len(shared_path))
+        else:
+            tensor.copy_(torch.tensor(list(shared_path), dtype=torch.uint8))
+
+    monkeypatch.setattr(train_experiments.dist, "broadcast", fake_broadcast)
+
+    result = train_experiments._broadcast_run_save_path(
+        "/tmp/local-worker",
+        world_size=2,
+        is_main=False,
+        device="cpu",
+    )
+
+    assert result == shared_path.decode("utf-8")
+    assert calls == [(torch.long, 0), (torch.uint8, 0)]
 
 
 def test_run_analysis_attaches_pruning_results_and_plots_evolution(

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from torch.utils.data import Dataset, Subset, TensorDataset
+from torch.utils.data import ConcatDataset, Dataset, Subset, TensorDataset
 
 try:
     from torchvision.datasets.folder import DatasetFolder as TorchvisionDatasetFolder
@@ -16,9 +16,8 @@ _TORCHVISION_IMAGE_DATASET_NAMES = {
 }
 
 
-def base_dataset(dataset: Dataset) -> Dataset:
-    """Unwrap common dataset adapters to the storage-backed base dataset."""
-    seen: set[int] = set()
+def _unwrap_dataset_adapter(dataset: Dataset, seen: set[int]) -> Dataset:
+    """Unwrap single-child dataset adapters."""
     while id(dataset) not in seen:
         seen.add(id(dataset))
         if isinstance(dataset, Subset):
@@ -36,19 +35,40 @@ def base_dataset(dataset: Dataset) -> Dataset:
     return dataset
 
 
-def is_torchvision_image_dataset(dataset: Dataset) -> bool:
-    """Return True for torchvision image datasets that are usually I/O-bound."""
+def base_dataset(dataset: Dataset) -> Dataset:
+    """Unwrap common dataset adapters to the storage-backed base dataset."""
+    return _unwrap_dataset_adapter(dataset, set())
+
+
+def _leaf_datasets(dataset: Dataset) -> list[Dataset]:
+    """Return storage-backed leaves for composed datasets."""
     resolved_dataset = base_dataset(dataset)
+    if isinstance(resolved_dataset, ConcatDataset):
+        leaves = []
+        for child in resolved_dataset.datasets:
+            leaves.extend(_leaf_datasets(child))
+        return leaves
+    return [resolved_dataset]
+
+
+def _is_torchvision_image_dataset_leaf(dataset: Dataset) -> bool:
     if TorchvisionDatasetFolder is not None and isinstance(
-        resolved_dataset,
+        dataset,
         TorchvisionDatasetFolder,
     ):
         return True
 
-    dataset_cls = type(resolved_dataset)
+    dataset_cls = type(dataset)
     return (
         dataset_cls.__name__ in _TORCHVISION_IMAGE_DATASET_NAMES
         and dataset_cls.__module__.startswith("torchvision.datasets")
+    )
+
+
+def is_torchvision_image_dataset(dataset: Dataset) -> bool:
+    """Return True for torchvision image datasets that are usually I/O-bound."""
+    return any(
+        _is_torchvision_image_dataset_leaf(leaf) for leaf in _leaf_datasets(dataset)
     )
 
 
@@ -60,7 +80,8 @@ def dataset_type_name(dataset: Dataset) -> str:
 
 def prefers_main_process_loading(dataset: Dataset) -> bool:
     """Return True for in-memory tensor datasets where workers add overhead."""
-    return isinstance(base_dataset(dataset), TensorDataset)
+    leaves = _leaf_datasets(dataset)
+    return bool(leaves) and all(isinstance(leaf, TensorDataset) for leaf in leaves)
 
 
 __all__ = [
