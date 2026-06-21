@@ -18,6 +18,7 @@ from dendritic_modeling.training.strategies.local_learning_hsic import (
     compute_additive_pseudo_signals,
 )
 from dendritic_modeling.training.strategies.local_learning_state import _LayerStats
+from dendritic_modeling.utils.hooks import iter_modules_of_type
 
 logger = logging.getLogger(__name__)
 
@@ -118,11 +119,7 @@ def _decoder_linear_layers(decoder_network: nn.Module) -> list[nn.Linear]:
     """Return decoder linear layers, preserving legacy traversal failure handling."""
 
     try:
-        return [
-            module
-            for module in decoder_network.modules()
-            if isinstance(module, nn.Linear)
-        ]
+        return list(iter_modules_of_type(decoder_network, nn.Linear))
     except Exception:
         return []
 

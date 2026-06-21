@@ -17,7 +17,10 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.b
     BlockLinear,
 )
 from dendritic_modeling.training.strategies.standard import Trainer
-from dendritic_modeling.utils.hooks import ForwardHookRemovalMixin
+from dendritic_modeling.utils.hooks import (
+    ForwardHookRemovalMixin,
+    iter_modules_of_type,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -114,9 +117,7 @@ class FeedbackAlignmentTrainer(ForwardHookRemovalMixin, Trainer):
             layers.append((mod, pname, out_dim, in_dim))
 
         # Prefer DendriticBranchLayer order if present
-        branch_layers = [
-            m for m in model.modules() if isinstance(m, DendriticBranchLayer)
-        ]
+        branch_layers = list(iter_modules_of_type(model, DendriticBranchLayer))
         if branch_layers:
             for bl in branch_layers:
                 if getattr(bl, "branch_excitation", None) is not None:
@@ -129,15 +130,13 @@ class FeedbackAlignmentTrainer(ForwardHookRemovalMixin, Trainer):
         # Always include decoder nn.Linear layers (e.g. the final classifier head)
         decoder = getattr(model, "decoder_network", None)
         if decoder is not None:
-            for mod in decoder.modules():
-                if isinstance(mod, nn.Linear):
-                    _try_add(mod, "weight")
+            for mod in iter_modules_of_type(decoder, nn.Linear):
+                _try_add(mod, "weight")
 
         # Fallback: if no layers found yet, scan all nn.Linear
         if not layers:
-            for mod in model.modules():
-                if isinstance(mod, nn.Linear):
-                    _try_add(mod, "weight")
+            for mod in iter_modules_of_type(model, nn.Linear):
+                _try_add(mod, "weight")
 
         return layers
 
@@ -419,9 +418,7 @@ class ShuntingFeedbackAlignmentTrainer(FeedbackAlignmentTrainer):
         self._initialize_feedback(model)
 
         # Discover DendriticBranchLayers and build index mapping
-        branch_layers = [
-            m for m in model.modules() if isinstance(m, DendriticBranchLayer)
-        ]
+        branch_layers = list(iter_modules_of_type(model, DendriticBranchLayer))
         self._build_layer_to_bl_map(branch_layers)
 
         # Warn once if any branch layers are additive (no shunting diagnostics)

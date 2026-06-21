@@ -36,6 +36,7 @@ from dendritic_modeling.networks import (
 from dendritic_modeling.utils import save_dict
 from dendritic_modeling.utils.hooks import (
     ForwardHookRemovalMixin,
+    iter_named_modules_of_type,
     register_named_forward_hooks,
 )
 
@@ -251,12 +252,11 @@ class CorrelationAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
     ) -> list[torch.utils.hooks.RemovableHandle]:
         handles = []
         try:
-            for layer_name, module in model.named_modules():
-                if isinstance(module, DendriticBranchLayer):
-                    self.data_dict[layer_name] = {}
-                    handles.extend(
-                        self._attach_synaptic_layer_hooks(layer_name, module)
-                    )
+            for layer_name, module in iter_named_modules_of_type(
+                model, DendriticBranchLayer
+            ):
+                self.data_dict[layer_name] = {}
+                handles.extend(self._attach_synaptic_layer_hooks(layer_name, module))
             return handles
         except Exception:
             self.remove_forward_hooks(handles)

@@ -20,6 +20,7 @@ from dendritic_modeling.training.strategies.local_learning_pathways import (
 )
 from dendritic_modeling.utils.hooks import (
     ForwardHookRemovalMixin,
+    iter_modules_of_type,
     iter_named_modules_of_type,
 )
 
@@ -106,9 +107,8 @@ class LocalLearningRecorderMixin(ForwardHookRemovalMixin):
 
         # Hook decoder input for local decoder updates (capture input to the last
         # Linear specifically).
-        for module in decoder_network.modules():
-            if isinstance(module, nn.Linear):
-                handles.append(self._register_decoder_linear_hook(module))
+        for module in iter_modules_of_type(decoder_network, nn.Linear):
+            handles.append(self._register_decoder_linear_hook(module))
 
     def _register_decoder_linear_hook(
         self,

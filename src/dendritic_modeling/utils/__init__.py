@@ -18,6 +18,7 @@ from .general import Shaper, convert_to_serializable, save_dict, set_seed
 from .hooks import (
     ForwardHookRemovalMixin,
     HookHandle,
+    iter_child_modules_of_type,
     iter_modules_of_type,
     iter_named_modules_of_type,
     register_named_forward_hooks,
@@ -68,6 +69,7 @@ __all__ = [
     "generate_random_nonnegative_weights",
     "get_logger",
     "get_validation_summary",
+    "iter_child_modules_of_type",
     "iter_modules_of_type",
     "iter_named_modules_of_type",
     "normalize_sparse_layer_type",

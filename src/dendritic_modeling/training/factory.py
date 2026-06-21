@@ -35,6 +35,7 @@ from dendritic_modeling.training.strategies import (
     TwoStepTrainerWithKL,
     VoltageStabilizationTrainer,
 )
+from dendritic_modeling.utils.hooks import iter_child_modules_of_type
 
 logger = logging.getLogger(__name__)
 
@@ -412,18 +413,12 @@ def transfer_mlp_weights_to_input_net(mlp_net, input_net, head_type="excitatory"
         return
 
     # Get the shared backbone and target head of the InputNetTransform
-    shared_layers = []
-    for module in input_net.shared:
-        if isinstance(module, torch.nn.Linear):
-            shared_layers.append(module)
+    shared_layers = list(iter_child_modules_of_type(input_net.shared, torch.nn.Linear))
 
     target_head = (
         input_net.head_exc if head_type == "excitatory" else input_net.head_inh
     )
-    head_layers = []
-    for module in target_head:
-        if isinstance(module, torch.nn.Linear):
-            head_layers.append(module)
+    head_layers = list(iter_child_modules_of_type(target_head, torch.nn.Linear))
 
     # Transfer weights for the shared backbone (only once, typically from excitatory head)
     if head_type == "excitatory":
@@ -467,25 +462,23 @@ def extract_weights_from_simple_mlp(simple_mlp, input_net_transform):
     logger.info("Transferring weights from SimpleMLP to InputNetTransform")
 
     # Get network modules
-    mlp_modules = list(simple_mlp.net.network.children())
-    mlp_linear_modules = [m for m in mlp_modules if isinstance(m, torch.nn.Linear)]
+    mlp_linear_modules = list(
+        iter_child_modules_of_type(simple_mlp.net.network, torch.nn.Linear)
+    )
 
     # Get shared backbone modules of InputNetTransform
-    shared_modules = []
-    for module in input_net_transform.shared:
-        if isinstance(module, torch.nn.Linear):
-            shared_modules.append(module)
+    shared_modules = list(
+        iter_child_modules_of_type(input_net_transform.shared, torch.nn.Linear)
+    )
 
     # Get head modules
-    exc_head_modules = []
-    for module in input_net_transform.head_exc:
-        if isinstance(module, torch.nn.Linear):
-            exc_head_modules.append(module)
+    exc_head_modules = list(
+        iter_child_modules_of_type(input_net_transform.head_exc, torch.nn.Linear)
+    )
 
-    inh_head_modules = []
-    for module in input_net_transform.head_inh:
-        if isinstance(module, torch.nn.Linear):
-            inh_head_modules.append(module)
+    inh_head_modules = list(
+        iter_child_modules_of_type(input_net_transform.head_inh, torch.nn.Linear)
+    )
 
     # Transfer weights for the shared backbone (from early layers of MLP)
     for i, shared_module in enumerate(shared_modules):

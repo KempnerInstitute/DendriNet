@@ -18,6 +18,19 @@ def remove_hook_handles(handles: Iterable[HookHandle]) -> None:
         handle.remove()
 
 
+def iter_child_modules_of_type(
+    container: torch.nn.Module | Iterable[object],
+    module_type: type[ModuleT],
+) -> Iterator[ModuleT]:
+    """Yield immediate child modules matching ``module_type`` in container order."""
+    children = (
+        container.children() if isinstance(container, torch.nn.Module) else container
+    )
+    for module in children:
+        if isinstance(module, module_type):
+            yield module
+
+
 def iter_named_modules_of_type(
     model: torch.nn.Module,
     module_type: type[ModuleT],
@@ -72,6 +85,7 @@ class ForwardHookRemovalMixin:
 __all__ = [
     "ForwardHookRemovalMixin",
     "HookHandle",
+    "iter_child_modules_of_type",
     "iter_modules_of_type",
     "iter_named_modules_of_type",
     "register_named_forward_hooks",

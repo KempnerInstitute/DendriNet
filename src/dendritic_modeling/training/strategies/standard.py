@@ -38,6 +38,7 @@ from dendritic_modeling.training.regularization import (
     PruningManager,
     RegularizationManager,
 )
+from dendritic_modeling.utils.hooks import iter_modules_of_type
 
 logger = logging.getLogger(__name__)
 
@@ -291,9 +292,9 @@ class Trainer:
     ) -> list[tuple[torch.nn.Parameter, bool]]:
         """Return reactivation params with their original trainability."""
         params: list[tuple[torch.nn.Parameter, bool]] = []
-        for module in self._unwrap_model(model).modules():
-            if not isinstance(module, ParametricActivation):
-                continue
+        for module in iter_modules_of_type(
+            self._unwrap_model(model), ParametricActivation
+        ):
             for param in module.parameters(recurse=False):
                 params.append((param, bool(param.requires_grad)))
         return params

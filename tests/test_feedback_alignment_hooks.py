@@ -35,6 +35,19 @@ def test_feedback_alignment_activation_hooks_removed_after_registration_failure(
     assert _hook_count(layer_a, layer_b) == 0
 
 
+def test_feedback_alignment_collect_trainable_layers_preserves_linear_order():
+    first = nn.Linear(3, 4)
+    second = nn.Linear(4, 2)
+    model = nn.Sequential(first, nn.ReLU(), second)
+
+    layers = FeedbackAlignmentTrainer._collect_trainable_layers(model)
+
+    assert layers == [
+        (first, "weight", 4, 3),
+        (second, "weight", 2, 4),
+    ]
+
+
 def test_shunting_feedback_hooks_removed_after_voltage_registration_failure(
     monkeypatch,
 ):

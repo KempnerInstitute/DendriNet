@@ -40,15 +40,38 @@ def test_utils_reexports_hook_helpers():
     from dendritic_modeling import utils
     from dendritic_modeling.utils.hooks import (
         ForwardHookRemovalMixin,
+        iter_child_modules_of_type,
         iter_modules_of_type,
         iter_named_modules_of_type,
         register_named_forward_hooks,
     )
 
     assert utils.ForwardHookRemovalMixin is ForwardHookRemovalMixin
+    assert utils.iter_child_modules_of_type is iter_child_modules_of_type
     assert utils.iter_modules_of_type is iter_modules_of_type
     assert utils.iter_named_modules_of_type is iter_named_modules_of_type
     assert utils.register_named_forward_hooks is register_named_forward_hooks
+
+
+def test_iter_child_modules_of_type_preserves_child_only_order():
+    from dendritic_modeling.utils.hooks import iter_child_modules_of_type
+
+    nested = nn.Linear(3, 1)
+    model = nn.Sequential(nn.Linear(2, 3), nn.ReLU(), nn.Sequential(nested))
+
+    matches = list(iter_child_modules_of_type(model, nn.Linear))
+
+    assert [module.out_features for module in matches] == [3]
+    assert nested not in matches
+
+
+def test_iter_child_modules_of_type_handles_plain_iterables():
+    from dendritic_modeling.utils.hooks import iter_child_modules_of_type
+
+    linear = nn.Linear(2, 3)
+    modules = [nn.ReLU(), linear, nn.Sequential(nn.Linear(3, 1))]
+
+    assert list(iter_child_modules_of_type(modules, nn.Linear)) == [linear]
 
 
 def test_iter_modules_of_type_preserves_module_order():
