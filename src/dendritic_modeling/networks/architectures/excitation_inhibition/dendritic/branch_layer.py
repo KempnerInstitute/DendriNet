@@ -22,6 +22,9 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.b
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_config import (
     DendriticBranchConfig,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_synapses import (
+    create_branch_sparse_layer,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.gradient_scaling import (
     GradientScaler,
 )
@@ -524,192 +527,14 @@ class DendriticBranchLayer(nn.Module):
         connection_mask=None,
     ):
         """Helper function that picks which topk class to use based on strategy."""
-        # Keep invalid sweep configs runnable by capping requested synapse count to
-        # available presynaptic features for this layer.
-        if K is not None and K > in_features:
-            K = in_features
-
-        from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.factory import (
-            get_sparse_layer,
-            normalize_sparse_layer_type,
-        )
-
-        layer_type = normalize_sparse_layer_type(self.topk_type)
-
-        if layer_type == "standard":
-            return get_sparse_layer(
-                layer_type,
-                in_features,
-                out_features,
-                K,
-                param_space="log",
-                init_method=init_method,
-                noise_level=noise_level,
-                weight_transform=self.weight_transform,
-                weight_norm_order=self.topk_weight_norm_order,
-                gamma=self.topk_gamma if synapse_type == "inh" else 1.0,
-                forbidden_input_index_per_output=forbidden_input_index_per_output,
-                connection_mask=connection_mask,
-            )
-
-        # Alternative strategies only incur overhead if explicitly requested
-        elif layer_type == "stochastic":
-            # Get temperature parameter if available
-            temperature = getattr(self, "topk_temperature", 0.5)
-            # Check if ultrafast mode is enabled
-            ultrafast = getattr(self, "topk_ultrafast", False)
-
-            return get_sparse_layer(
-                layer_type,
-                in_features,
-                out_features,
-                K,
-                param_space="log",
-                init_method=init_method,
-                noise_level=noise_level,
-                temperature=temperature,
-                ultrafast=ultrafast,
-                weight_transform=self.weight_transform,
-                forbidden_input_index_per_output=forbidden_input_index_per_output,
-                connection_mask=connection_mask,
-            )
-        elif layer_type == "variance":
-            return get_sparse_layer(
-                layer_type,
-                in_features,
-                out_features,
-                K,
-                param_space="log",
-                init_method=init_method,
-                noise_level=noise_level,
-                weight_transform=self.weight_transform,
-                forbidden_input_index_per_output=forbidden_input_index_per_output,
-                connection_mask=connection_mask,
-            )
-        elif layer_type in {"dense_to_sparse", "annealed_topk"}:
-            return get_sparse_layer(
-                layer_type,
-                in_features,
-                out_features,
-                K,
-                param_space="log",
-                init_method=init_method,
-                noise_level=noise_level,
-                weight_transform=self.weight_transform,
-                weight_norm_order=self.topk_weight_norm_order,
-                gamma=self.topk_gamma if synapse_type == "inh" else 1.0,
-                forbidden_input_index_per_output=forbidden_input_index_per_output,
-                connection_mask=connection_mask,
-                initial_density=self.dense_to_sparse_initial_density,
-                initial_k=self.dense_to_sparse_initial_k,
-                start_step=self.dense_to_sparse_start_step,
-                end_step=self.dense_to_sparse_end_step,
-                update_interval=self.dense_to_sparse_update_interval,
-                schedule=self.dense_to_sparse_schedule,
-                freeze_on_end=self.dense_to_sparse_freeze_on_end,
-                advance_on_forward=self.dense_to_sparse_advance_on_forward,
-                prune_metric=self.dense_to_sparse_prune_metric,
-            )
-        elif layer_type == "deepst":
-            self.step_counter = 0
-            return get_sparse_layer(
-                layer_type,
-                in_features,
-                out_features,
-                K,
-                target_density=(
-                    self.excitatory_target_density
-                    if synapse_type == "exc"
-                    else self.inhibitory_target_density
-                ),
-                sigma=self.sigma,
-                use_noise=self.use_noise,
-                rewiring_mode=self.rewiring_mode,
-                synapses_per_branch=self.synapses_per_branch,
-                param_space="log",
-                init_method=self.init_method,
-                freeze_connectivity=(
-                    self.freeze_excitatory_connectivity
-                    if synapse_type == "exc"
-                    else self.freeze_inhibitory_connectivity
-                ),
-                weight_threshold=self.weight_threshold,
-                weight_transform=self.weight_transform,
-                forbidden_input_index_per_output=forbidden_input_index_per_output,
-                connection_mask=connection_mask,
-            )
-        elif layer_type in {"indexed", "indexed_rewire"}:
-            seed = None
-            if self.indexed_seed is not None:
-                synapse_offset = {"exc": 0, "inh": 1}.get(synapse_type, 2)
-                seed = (
-                    int(self.indexed_seed)
-                    + (1009 * int(self.layer_idx))
-                    + synapse_offset
-                )
-            extra_kwargs = {}
-            if layer_type == "indexed_rewire":
-                extra_kwargs = {
-                    "rewire_frequency": self.indexed_rewire_frequency,
-                    "rewire_quantile": self.indexed_rewire_quantile,
-                    "rewire_until_step": self.indexed_rewire_until_step,
-                }
-            return get_sparse_layer(
-                layer_type,
-                in_features,
-                out_features,
-                K,
-                param_space="log",
-                init_method=init_method,
-                weight_transform=self.weight_transform,
-                weight_norm_order=self.topk_weight_norm_order,
-                gamma=self.topk_gamma if synapse_type == "inh" else 1.0,
-                connection_mask=connection_mask,
-                forbidden_input_index_per_output=forbidden_input_index_per_output,
-                seed=seed,
-                output_chunk_size=self.indexed_output_chunk_size,
-                **extra_kwargs,
-            )
-        elif layer_type == "indexed_dynamic":
-            seed = None
-            if self.indexed_seed is not None:
-                synapse_offset = {"exc": 0, "inh": 1}.get(synapse_type, 2)
-                seed = (
-                    int(self.indexed_seed)
-                    + (1009 * int(self.layer_idx))
-                    + synapse_offset
-                )
-            return get_sparse_layer(
-                layer_type,
-                in_features,
-                out_features,
-                K,
-                candidate_size=self.indexed_candidate_size,
-                selection=self.indexed_selection,
-                param_space="log",
-                init_method=init_method,
-                noise_level=noise_level,
-                temperature=self.topk_temperature,
-                ultrafast=self.topk_ultrafast,
-                weight_transform=self.weight_transform,
-                weight_norm_order=self.topk_weight_norm_order,
-                gamma=self.topk_gamma if synapse_type == "inh" else 1.0,
-                connection_mask=connection_mask,
-                forbidden_input_index_per_output=forbidden_input_index_per_output,
-                seed=seed,
-                output_chunk_size=self.indexed_output_chunk_size,
-            )
-        return get_sparse_layer(
-            layer_type,
-            in_features,
-            out_features,
-            K,
-            param_space="log",
+        return create_branch_sparse_layer(
+            self,
+            in_features=in_features,
+            out_features=out_features,
+            K=K,
             init_method=init_method,
             noise_level=noise_level,
-            weight_transform=self.weight_transform,
-            weight_norm_order=self.topk_weight_norm_order,
-            gamma=self.topk_gamma if synapse_type == "inh" else 1.0,
+            synapse_type=synapse_type,
             forbidden_input_index_per_output=forbidden_input_index_per_output,
             connection_mask=connection_mask,
         )
