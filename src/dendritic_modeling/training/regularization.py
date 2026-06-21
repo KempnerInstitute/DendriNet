@@ -7,6 +7,7 @@ with selective application based on layer, branch, and weight type.
 """
 
 import json
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Optional
 
@@ -15,6 +16,34 @@ import torch.nn as nn
 
 from dendritic_modeling.config.training import PruningConfig, RegularizationConfig
 from dendritic_modeling.training.loss.functions import EIWeightRatioLoss
+
+_PARAM_GROUP_FALLBACK_NAMES = (
+    "topk",
+    "blocklinear",
+    "reactivation",
+    "mlp_inh_net",
+    "decoder",
+    "encoder",
+    "catch_all",
+)
+
+
+def _config_value(config: Any, key: str, default: float) -> float:
+    if isinstance(config, Mapping):
+        return config.get(key, default)
+    return getattr(config, key, default)
+
+
+def _regularization_weights(
+    group_config: Any,
+    *,
+    default_l1: float,
+    default_l2: float,
+) -> tuple[float, float]:
+    return (
+        _config_value(group_config, "l1_weight", default_l1),
+        _config_value(group_config, "l2_weight", default_l2),
+    )
 
 
 def _format_pruning_stats_section(
@@ -123,13 +152,11 @@ class RegularizationManager:
         # Check parameter group regularization
         if self.split_params and self.param_group_weights:
             for group_weights in self.param_group_weights.values():
-                if isinstance(group_weights, dict):
-                    l1_weight = group_weights.get("l1_weight", 0)
-                    l2_weight = group_weights.get("l2_weight", 0)
-                else:
-                    l1_weight = getattr(group_weights, "l1_weight", 0)
-                    l2_weight = getattr(group_weights, "l2_weight", 0)
-
+                l1_weight, l2_weight = _regularization_weights(
+                    group_weights,
+                    default_l1=0,
+                    default_l2=0,
+                )
                 if l1_weight > 0 or l2_weight > 0:
                     return True
 
@@ -233,8 +260,11 @@ class RegularizationManager:
 
             # Get regularization weights for this group
             group_reg_config = self.param_group_weights.get(group_type, {})
-            l1_weight = group_reg_config.get("l1_weight", self.l1_weight)
-            l2_weight = group_reg_config.get("l2_weight", self.l2_weight)
+            l1_weight, l2_weight = _regularization_weights(
+                group_reg_config,
+                default_l1=self.l1_weight,
+                default_l2=self.l2_weight,
+            )
 
             if l1_weight <= 0 and l2_weight <= 0:
                 continue
@@ -262,17 +292,8 @@ class RegularizationManager:
 
         # Backward-compatible fallback for externally supplied param groups
         # that predate the explicit BaseModel group names.
-        group_names = [
-            "topk",
-            "blocklinear",
-            "reactivation",
-            "mlp_inh_net",
-            "decoder",
-            "encoder",
-            "catch_all",
-        ]
-        if group_idx < len(group_names):
-            return group_names[group_idx]
+        if group_idx < len(_PARAM_GROUP_FALLBACK_NAMES):
+            return _PARAM_GROUP_FALLBACK_NAMES[group_idx]
 
         # Fallback to generic naming for additional groups
         return f"group_{group_idx}"

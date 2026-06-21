@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from torch.utils.data import ConcatDataset, Dataset, Subset, TensorDataset
 
 try:
@@ -14,6 +16,15 @@ _TORCHVISION_IMAGE_DATASET_NAMES = {
     "ImageFolder",
     "ImageNet",
 }
+
+
+@dataclass(frozen=True)
+class DatasetLoaderProfile:
+    """Storage-backed dataset properties used for DataLoader tuning."""
+
+    type_name: str
+    is_torchvision_image_dataset: bool
+    prefers_main_process_loading: bool
 
 
 def _unwrap_dataset_adapter(dataset: Dataset, seen: set[int]) -> Dataset:
@@ -67,25 +78,38 @@ def _is_torchvision_image_dataset_leaf(dataset: Dataset) -> bool:
 
 def is_torchvision_image_dataset(dataset: Dataset) -> bool:
     """Return True for torchvision image datasets that are usually I/O-bound."""
-    return any(
-        _is_torchvision_image_dataset_leaf(leaf) for leaf in _leaf_datasets(dataset)
-    )
+    return dataset_loader_profile(dataset).is_torchvision_image_dataset
 
 
 def dataset_type_name(dataset: Dataset) -> str:
     """Return the module-qualified type name of the storage-backed dataset."""
-    resolved_dataset = base_dataset(dataset)
-    return f"{type(resolved_dataset).__module__}.{type(resolved_dataset).__name__}"
+    return dataset_loader_profile(dataset).type_name
 
 
 def prefers_main_process_loading(dataset: Dataset) -> bool:
     """Return True for in-memory tensor datasets where workers add overhead."""
+    return dataset_loader_profile(dataset).prefers_main_process_loading
+
+
+def dataset_loader_profile(dataset: Dataset) -> DatasetLoaderProfile:
+    """Return the dataset properties used by DataLoader tuning."""
+    resolved_dataset = base_dataset(dataset)
     leaves = _leaf_datasets(dataset)
-    return bool(leaves) and all(isinstance(leaf, TensorDataset) for leaf in leaves)
+    type_name = f"{type(resolved_dataset).__module__}.{type(resolved_dataset).__name__}"
+    return DatasetLoaderProfile(
+        type_name=type_name,
+        is_torchvision_image_dataset=any(
+            _is_torchvision_image_dataset_leaf(leaf) for leaf in leaves
+        ),
+        prefers_main_process_loading=bool(leaves)
+        and all(isinstance(leaf, TensorDataset) for leaf in leaves),
+    )
 
 
 __all__ = [
+    "DatasetLoaderProfile",
     "base_dataset",
+    "dataset_loader_profile",
     "dataset_type_name",
     "is_torchvision_image_dataset",
     "prefers_main_process_loading",

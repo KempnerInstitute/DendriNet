@@ -11,6 +11,65 @@ from dendritic_modeling.analysis.core.information_validation_mixin import (
     InformationValidationMixin,
 )
 
+CmiMetricSpec = tuple[str, np.ndarray, np.ndarray, np.ndarray]
+
+
+def _base_ablation_aligned_cmi_specs(
+    E: np.ndarray,
+    I_var: np.ndarray,
+    Vout: np.ndarray,
+    C_col: np.ndarray,
+) -> list[CmiMetricSpec]:
+    return [
+        ("I(Vout;C|E)", Vout, C_col, E),
+        ("I(Vout;C|I)", Vout, C_col, I_var),
+    ]
+
+
+def _upstream_ablation_aligned_cmi_specs(
+    E: np.ndarray,
+    I_var: np.ndarray,
+    Vout: np.ndarray,
+    C_col: np.ndarray,
+    Vb: np.ndarray,
+) -> tuple[list[CmiMetricSpec], CmiMetricSpec, list[CmiMetricSpec]]:
+    EI = np.hstack([E, I_var])
+    IVb = np.hstack([I_var, Vb])
+    EVb = np.hstack([E, Vb])
+    before_unique = [
+        ("I(Vout;C|Vb)", Vout, C_col, Vb),
+        ("I(Vb;C|Vout)", Vb, C_col, Vout),
+        ("I(Vout;C|E,I)", Vout, C_col, EI),
+    ]
+    upstream_unique = ("I(Vb;C|E,I)", Vb, C_col, EI)
+    after_unique = [
+        ("I(E;Vout|I,Vb)", E, Vout, IVb),
+        ("I(I;Vout|E,Vb)", I_var, Vout, EVb),
+        ("I(Vb;Vout|E,I)", Vb, Vout, EI),
+        ("I(E;C|Vb)", E, C_col, Vb),
+        ("I(I;C|Vb)", I_var, C_col, Vb),
+        ("I(E,I;C|Vb)", EI, C_col, Vb),
+        ("I(E;C|I,Vb)", E, C_col, IVb),
+        ("I(I;C|E,Vb)", I_var, C_col, EVb),
+    ]
+    return before_unique, upstream_unique, after_unique
+
+
+def _outer_layer_ablation_aligned_cmi_specs(
+    E: np.ndarray,
+    I_var: np.ndarray,
+    Vout: np.ndarray,
+    C_col: np.ndarray,
+) -> list[CmiMetricSpec]:
+    EI = np.hstack([E, I_var])
+    return [
+        ("I(E;C|I)", E, C_col, I_var),
+        ("I(I;C|E)", I_var, C_col, E),
+        ("I(E;Vout|I)", E, Vout, I_var),
+        ("I(I;Vout|E)", I_var, Vout, E),
+        ("I(Vout;C|E,I)", Vout, C_col, EI),
+    ]
+
 
 class InformationMutualInformationMixin(InformationValidationMixin):
     """Computes basic, pairwise, conditional, and class MI metrics."""
@@ -218,34 +277,21 @@ class InformationMutualInformationMixin(InformationValidationMixin):
         # I(Vout;C) - I(Vout;C|E) = I(E;Vout) - I(E;Vout|C).
         self._add_cmi_metrics(
             metrics,
-            [
-                ("I(Vout;C|E)", Vout, C_col, E),
-                ("I(Vout;C|I)", Vout, C_col, I_var),
-            ],
+            _base_ablation_aligned_cmi_specs(E, I_var, Vout, C_col),
         )
 
         if Vb is not None:
-            # How much class info is present in the layer output beyond upstream input
-            # Complement: how much upstream class information is *not* reflected in the layer output
-            # (helps interpret upstream vs synapse contributions).
-            self._add_cmi_metrics(
-                metrics,
-                [
-                    ("I(Vout;C|Vb)", Vout, C_col, Vb),
-                    ("I(Vb;C|Vout)", Vb, C_col, Vout),
-                ],
+            before_unique, upstream_unique, after_unique = (
+                _upstream_ablation_aligned_cmi_specs(E, I_var, Vout, C_col, Vb)
             )
-
-            # How much class information in Vout remains after conditioning on synapse inputs
-            # (proxy for upstream contribution to class information in Vout).
-            EI = np.hstack([E, I_var])
-            self._add_cmi_metrics(metrics, [("I(Vout;C|E,I)", Vout, C_col, EI)])
+            self._add_cmi_metrics(metrics, before_unique)
 
             # Optional (can be expensive for high-dimensional synapse sets):
             # unique upstream class information beyond the full synapse set.
             if self.compute_upstream_unique_cmi:
-                metrics["I(Vb;C|E,I)"] = self._estimate_cmi_or_zero(
-                    "I(Vb;C|E,I)", Vb, C_col, EI
+                metric_key, x, y, condition = upstream_unique
+                metrics[metric_key] = self._estimate_cmi_or_zero(
+                    metric_key, x, y, condition
                 )
 
             # ------------------------------------------------------------------
@@ -255,55 +301,15 @@ class InformationMutualInformationMixin(InformationValidationMixin):
             # independent of class labels. They complement ablation results because
             # they isolate each input's contribution to Vout beyond the others.
             # ------------------------------------------------------------------
-            self._add_cmi_metrics(
-                metrics,
-                [("I(E;Vout|I,Vb)", E, Vout, np.hstack([I_var, Vb]))],
-            )
-
-            self._add_cmi_metrics(
-                metrics,
-                [("I(I;Vout|E,Vb)", I_var, Vout, np.hstack([E, Vb]))],
-            )
-
-            self._add_cmi_metrics(metrics, [("I(Vb;Vout|E,I)", Vb, Vout, EI)])
-
-            # Unique class information in E / I beyond upstream input
-            # Unique class information in (E,I) beyond upstream input (proxy for "all synapses")
-            self._add_cmi_metrics(
-                metrics,
-                [
-                    ("I(E;C|Vb)", E, C_col, Vb),
-                    ("I(I;C|Vb)", I_var, C_col, Vb),
-                    ("I(E,I;C|Vb)", EI, C_col, Vb),
-                ],
-            )
-
-            # Fine-grained: unique info in E (or I) beyond upstream + the other synapse type
-            self._add_cmi_metrics(
-                metrics,
-                [("I(E;C|I,Vb)", E, C_col, np.hstack([I_var, Vb]))],
-            )
-
-            self._add_cmi_metrics(
-                metrics,
-                [("I(I;C|E,Vb)", I_var, C_col, np.hstack([E, Vb]))],
-            )
+            self._add_cmi_metrics(metrics, after_unique)
             return
 
         # No upstream branch input (outermost layer): still compute unique info between E and I
         # Information-processing conditionals without upstream input.
         self._add_cmi_metrics(
             metrics,
-            [
-                ("I(E;C|I)", E, C_col, I_var),
-                ("I(I;C|E)", I_var, C_col, E),
-                ("I(E;Vout|I)", E, Vout, I_var),
-                ("I(I;Vout|E)", I_var, Vout, E),
-            ],
+            _outer_layer_ablation_aligned_cmi_specs(E, I_var, Vout, C_col),
         )
-
-        EI = np.hstack([E, I_var])
-        self._add_cmi_metrics(metrics, [("I(Vout;C|E,I)", Vout, C_col, EI)])
 
     def _add_vinf_conditional_metrics(
         self,

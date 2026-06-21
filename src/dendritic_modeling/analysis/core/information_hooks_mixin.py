@@ -94,6 +94,39 @@ def _restore_analysis_current_capture(
         delattr(module, "_last_analysis_currents")
 
 
+def _store_branch_hook_data(
+    data_dict: dict,
+    module: DendriticBranchLayer,
+    *,
+    excitation_per_branch: torch.Tensor,
+    inhibition_per_branch: torch.Tensor,
+    branch_current: torch.Tensor | None,
+    output: torch.Tensor,
+    has_no_synapses: bool,
+    excitatory_input: torch.Tensor | None,
+    inhibitory_input: torch.Tensor | None,
+    branch_input: torch.Tensor | None,
+    compute_lda_weights: bool,
+) -> None:
+    layer_data = data_dict[module._name]
+    layer_data["excitation"] = excitation_per_branch
+    layer_data["inhibition"] = inhibition_per_branch
+    layer_data["branch_input"] = branch_current
+    layer_data["output"] = output
+    layer_data["has_synapses"] = not has_no_synapses
+    layer_data["has_exc_synapses"] = module.branch_excitation is not None
+    layer_data["has_inh_synapses"] = (
+        module.branch_inhibition is not None and inhibitory_input is not None
+    )
+    layer_data["has_branch_input"] = branch_input is not None and module.input_branches
+
+    if compute_lda_weights:
+        layer_data["raw_excitatory_input"] = excitatory_input
+        layer_data["raw_inhibitory_input"] = inhibitory_input
+        layer_data["raw_branch_input"] = branch_input
+        layer_data["module"] = module
+
+
 class InformationHooksMixin(ForwardHookRemovalMixin):
     """Collects branch-layer currents and outputs during model evaluation."""
 
@@ -150,28 +183,19 @@ class InformationHooksMixin(ForwardHookRemovalMixin):
             cached_currents,
         )
 
-        # Store per-branch data
-        self.data_dict[module._name]["excitation"] = excitation_per_branch
-        self.data_dict[module._name]["inhibition"] = inhibition_per_branch
-        self.data_dict[module._name]["branch_input"] = branch_current
-        self.data_dict[module._name]["output"] = output
-        self.data_dict[module._name]["has_synapses"] = not has_no_synapses
-        self.data_dict[module._name]["has_exc_synapses"] = (
-            module.branch_excitation is not None
+        _store_branch_hook_data(
+            self.data_dict,
+            module,
+            excitation_per_branch=excitation_per_branch,
+            inhibition_per_branch=inhibition_per_branch,
+            branch_current=branch_current,
+            output=output,
+            has_no_synapses=has_no_synapses,
+            excitatory_input=excitatory_input,
+            inhibitory_input=inhibitory_input,
+            branch_input=branch_input,
+            compute_lda_weights=bool(getattr(self, "compute_lda_weights", False)),
         )
-        self.data_dict[module._name]["has_inh_synapses"] = (
-            module.branch_inhibition is not None and inhibitory_input is not None
-        )
-        self.data_dict[module._name]["has_branch_input"] = (
-            branch_input is not None and module.input_branches
-        )
-
-        # Store raw inputs and module for LDA computation if needed
-        if hasattr(self, "compute_lda_weights") and self.compute_lda_weights:
-            self.data_dict[module._name]["raw_excitatory_input"] = excitatory_input
-            self.data_dict[module._name]["raw_inhibitory_input"] = inhibitory_input
-            self.data_dict[module._name]["raw_branch_input"] = branch_input
-            self.data_dict[module._name]["module"] = module
 
     def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
         """Remove forward hooks from the model."""

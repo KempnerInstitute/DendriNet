@@ -9,8 +9,9 @@ import torch
 from torch.utils.data import Dataset
 
 from dendritic_modeling.training.dataloader_profiles import (
+    DatasetLoaderProfile,
+    dataset_loader_profile,
     dataset_type_name,
-    is_torchvision_image_dataset,
     prefers_main_process_loading,
 )
 from dendritic_modeling.training.dataloader_resources import (
@@ -69,7 +70,20 @@ def auto_num_workers_for_dataset(
     available_cpus: int | None = None,
 ) -> int:
     """Choose a conservative worker count for a training dataset."""
-    if prefers_main_process_loading(dataset):
+    return _auto_num_workers_for_profile(
+        dataset_loader_profile(dataset),
+        cuda_available=cuda_available,
+        available_cpus=available_cpus,
+    )
+
+
+def _auto_num_workers_for_profile(
+    dataset_profile: DatasetLoaderProfile,
+    *,
+    cuda_available: bool | None,
+    available_cpus: int | None,
+) -> int:
+    if dataset_profile.prefers_main_process_loading:
         return 0
 
     cpus = visible_cpu_count() if available_cpus is None else max(1, available_cpus)
@@ -84,7 +98,7 @@ def auto_num_workers_for_dataset(
 
 
 def _resolve_num_workers(
-    dataset: Dataset,
+    dataset_profile: DatasetLoaderProfile,
     num_workers: int | None,
     *,
     available_cpus: int,
@@ -92,8 +106,8 @@ def _resolve_num_workers(
     auto_num_workers = num_workers is None
     if auto_num_workers:
         return (
-            auto_num_workers_for_dataset(
-                dataset,
+            _auto_num_workers_for_profile(
+                dataset_profile,
                 cuda_available=torch.cuda.is_available(),
                 available_cpus=available_cpus,
             ),
@@ -143,11 +157,11 @@ def _resolve_persistent_workers(
 def _resolve_prefetch_factor(
     prefetch_factor: int | None,
     *,
-    dataset: Dataset,
+    dataset_profile: DatasetLoaderProfile,
     num_workers: int,
 ) -> int | None:
     if prefetch_factor is None:
-        if num_workers > 0 and is_torchvision_image_dataset(dataset):
+        if num_workers > 0 and dataset_profile.is_torchvision_image_dataset:
             return _IMAGE_DATASET_PREFETCH_FACTOR
         return None
     if num_workers == 0:
@@ -171,9 +185,10 @@ def resolve_dataloader_tuning(
     startup and IPC usually dominate. Lazy image/file-backed datasets, including
     ImageNet ``ImageFolder``/``ImageNet`` subsets, keep multi-worker loading.
     """
+    dataset_profile = dataset_loader_profile(dataset)
     available_cpus = visible_cpu_count()
     resolved_workers, auto_num_workers = _resolve_num_workers(
-        dataset,
+        dataset_profile,
         num_workers,
         available_cpus=available_cpus,
     )
@@ -188,7 +203,7 @@ def resolve_dataloader_tuning(
     )
     resolved_prefetch = _resolve_prefetch_factor(
         prefetch_factor,
-        dataset=dataset,
+        dataset_profile=dataset_profile,
         num_workers=resolved_workers,
     )
     resolved_in_order = bool(in_order) if in_order is not None else None

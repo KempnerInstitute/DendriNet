@@ -5,6 +5,7 @@ Tests for training regularization module to improve coverage.
 import json
 import os
 import tempfile
+from types import SimpleNamespace
 
 import pytest
 import torch
@@ -177,6 +178,40 @@ class TestRegularizationManager:
         manager = RegularizationManager(config)
 
         assert manager.has_regularization() is True
+
+    def test_param_group_regularization_accepts_attribute_config_values(self):
+        """Attribute-style group configs should match dict-style regularization."""
+        model = nn.Linear(2, 1, bias=False)
+        with torch.no_grad():
+            model.weight.copy_(torch.tensor([[1.0, -2.0]]))
+        config = RegularizationConfig(
+            l1_weight=0.0,
+            l2_weight=0.0,
+            split_params=True,
+            param_group_weights={
+                "topk": SimpleNamespace(l1_weight=0.5, l2_weight=0.25)
+            },
+        )
+        manager = RegularizationManager(config)
+        param_groups = [{"params": [model.weight], "name": "topk"}]
+
+        reg_loss = manager.compute_regularization_loss(model, param_groups=param_groups)
+
+        assert torch.isclose(reg_loss, torch.tensor(2.75))
+
+    def test_param_group_fallback_names_match_base_model_order(self):
+        """Unnamed legacy groups should use the historical optimizer group order."""
+        manager = RegularizationManager(RegularizationConfig())
+
+        assert [manager._identify_group_type({}, idx) for idx in range(7)] == [
+            "topk",
+            "blocklinear",
+            "reactivation",
+            "mlp_inh_net",
+            "decoder",
+            "encoder",
+            "catch_all",
+        ]
 
     def test_regularization_with_different_devices(self):
         """Test regularization when model is on different device."""

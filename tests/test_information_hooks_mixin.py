@@ -255,6 +255,36 @@ def test_information_hook_stores_resolved_currents_and_flags():
     assert layer_data["has_branch_input"] is True
 
 
+def test_information_hook_preserves_lda_raw_input_capture():
+    module = SimpleNamespace(
+        _name="layer0",
+        branch_excitation=_Scale(2.0),
+        branch_inhibition=_Scale(3.0),
+        input_branches=True,
+        branches_to_output=_Scale(5.0),
+    )
+    hook = InformationHooksMixin()
+    hook.compute_lda_weights = True
+    hook.data_dict = {"layer0": {}}
+
+    excitatory_input = torch.tensor([[1.0, 2.0]])
+    inhibitory_input = torch.tensor([[4.0, 5.0]])
+    branch_input = torch.tensor([[7.0, 8.0]])
+    output = torch.tensor([[9.0, 10.0]])
+
+    hook.forward_hook(
+        module,
+        (excitatory_input, inhibitory_input, branch_input),
+        output,
+    )
+
+    layer_data = hook.data_dict["layer0"]
+    assert layer_data["raw_excitatory_input"] is excitatory_input
+    assert layer_data["raw_inhibitory_input"] is inhibitory_input
+    assert layer_data["raw_branch_input"] is branch_input
+    assert layer_data["module"] is module
+
+
 def test_information_hooks_restore_state_after_failed_registration(monkeypatch):
     model = _InformationHookModel()
     hook = InformationHooksMixin()

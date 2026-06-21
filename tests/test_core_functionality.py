@@ -469,6 +469,48 @@ def test_dataloader_auto_tuning_unwraps_dataset_adapters(monkeypatch):
     assert imagenet_tuning.prefetch_factor == 4
 
 
+def test_dataloader_dataset_profile_preserves_legacy_helpers():
+    """Dataset loader profiles should match the legacy profile helper outputs."""
+
+    from dendritic_modeling.datasets.indexing import SliceSafeDataset
+    from dendritic_modeling.training.dataloader_profiles import (
+        dataset_loader_profile,
+        dataset_type_name,
+        is_torchvision_image_dataset,
+        prefers_main_process_loading,
+    )
+
+    class ImageNet(torch.utils.data.Dataset):
+        def __len__(self):
+            return 16
+
+        def __getitem__(self, idx):
+            return torch.zeros(3, 224, 224), torch.tensor(idx % 2)
+
+    ImageNet.__module__ = "torchvision.datasets.imagenet"
+
+    tensor_dataset = torch.utils.data.TensorDataset(
+        torch.randn(8, 3), torch.randint(0, 2, (8,))
+    )
+    wrapped_imagenet = torch.utils.data.Subset(SliceSafeDataset(ImageNet()), range(8))
+
+    tensor_profile = dataset_loader_profile(tensor_dataset)
+    imagenet_profile = dataset_loader_profile(wrapped_imagenet)
+
+    assert tensor_profile.type_name == dataset_type_name(tensor_dataset)
+    assert tensor_profile.prefers_main_process_loading is True
+    assert tensor_profile.is_torchvision_image_dataset is False
+    assert prefers_main_process_loading(tensor_dataset) is True
+    assert is_torchvision_image_dataset(tensor_dataset) is False
+
+    assert imagenet_profile.type_name == dataset_type_name(wrapped_imagenet)
+    assert imagenet_profile.type_name == "torchvision.datasets.imagenet.ImageNet"
+    assert imagenet_profile.prefers_main_process_loading is False
+    assert imagenet_profile.is_torchvision_image_dataset is True
+    assert prefers_main_process_loading(wrapped_imagenet) is False
+    assert is_torchvision_image_dataset(wrapped_imagenet) is True
+
+
 def test_dataloader_auto_tuning_profiles_concat_dataset_leaves(monkeypatch):
     """Composed datasets should inherit tensor or ImageNet leaf loader profiles."""
 

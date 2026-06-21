@@ -71,6 +71,59 @@ class _MetricHarness(InformationMetricsMixin):
         self.mi_null_components = {"basic"}
 
 
+class _MetricOrchestrationHarness(InformationMetricsMixin):
+    def __init__(self):
+        self.logger = _RecordingLogger()
+        self.method = "recording"
+        self.compute_basic_mi = True
+        self.compute_pairwise_mi = True
+        self.compute_conditional_mi = True
+        self.compute_gaussian_fisher = True
+        self.compute_pid = True
+        self.pid_available = True
+        self.calls = []
+
+    def _record_metric_call(
+        self,
+        name,
+        E,
+        I_var,
+        Vout,
+        C,
+        Vinf=None,
+        Vb=None,
+    ):
+        self.calls.append(
+            (
+                name,
+                E.shape,
+                I_var.shape,
+                Vout.shape,
+                C.shape,
+                None if Vinf is None else Vinf.shape,
+                None if Vb is None else Vb.shape,
+            )
+        )
+        return {"name": name}
+
+    def _compute_basic_mi(self, E, I_var, Vout, C, Vinf=None, Vb=None):
+        return self._record_metric_call("basic", E, I_var, Vout, C, Vinf, Vb)
+
+    def _compute_pairwise_mi(self, E, I_var, Vout, Vinf=None, Vb=None):
+        return self._record_metric_call(
+            "pairwise", E, I_var, Vout, np.array([]), Vinf, Vb
+        )
+
+    def _compute_conditional_mi(self, E, I_var, Vout, C, Vinf=None, Vb=None):
+        return self._record_metric_call("conditional", E, I_var, Vout, C, Vinf, Vb)
+
+    def _compute_gaussian_fisher(self, E, I_var, Vout, C, Vinf=None, Vb=None):
+        return self._record_metric_call("gaussian", E, I_var, Vout, C, Vinf, Vb)
+
+    def _compute_pid(self, E, I_var, Vout, C):
+        return self._record_metric_call("pid", E, I_var, Vout, C)
+
+
 class _PidHarness(InformationPidMetricsMixin):
     def __init__(self):
         self.logger = _RecordingLogger()
@@ -157,6 +210,52 @@ def test_metric_variable_for_null_baseline_preserves_token_availability_rules():
         )
         is None
     )
+
+
+def test_compute_metrics_preserves_category_order_logs_and_shape_normalization():
+    harness = _MetricOrchestrationHarness()
+    arrays = _arrays()
+
+    results = harness.compute_metrics(
+        arrays["E"].ravel(),
+        arrays["I"].ravel(),
+        arrays["Vout"].ravel(),
+        arrays["C"].reshape(-1, 1),
+        Vinf=arrays["Vinf"].ravel(),
+        Vb=arrays["Vb"].ravel(),
+    )
+
+    assert list(results) == [
+        "method",
+        "n_samples",
+        "basic_mi",
+        "pairwise_mi",
+        "conditional_mi",
+        "gaussian_fisher",
+        "pid",
+    ]
+    assert results["method"] == "recording"
+    assert results["n_samples"] == 3
+    assert harness.logger.info_messages == [
+        "Computing basic MI metrics...",
+        "Computing pairwise MI metrics...",
+        "Computing conditional MI metrics...",
+        "Computing Gaussian/Fisher proxy metrics...",
+        "Computing PID metrics...",
+    ]
+    assert [call[0] for call in harness.calls] == [
+        "basic",
+        "pairwise",
+        "conditional",
+        "gaussian",
+        "pid",
+    ]
+    for _, e_shape, i_shape, vout_shape, *_rest in harness.calls:
+        assert e_shape == (3, 1)
+        assert i_shape == (3, 1)
+        assert vout_shape == (3, 1)
+    assert harness.calls[0][4:] == ((3,), (3, 1), (3, 1))
+    assert harness.calls[-1][4:] == ((3,), None, None)
 
 
 def test_add_label_shuffle_null_baselines_uses_extracted_parsing_and_lookup():
@@ -515,6 +614,35 @@ def test_compute_conditional_mi_preserves_ablation_keys_with_upstream_inputs():
     for metric_key, expected_condition in expected_conditions.items():
         call = harness.estimator.calls[int(metrics[metric_key]) - 1]
         np.testing.assert_array_equal(call[3], expected_condition)
+
+
+def test_compute_conditional_mi_preserves_upstream_unique_cmi_insertion_order():
+    harness = _MetricHarness()
+    harness.compute_ablation_aligned_mi = True
+    harness.compute_upstream_unique_cmi = True
+    arrays = _arrays()
+
+    metrics = harness._compute_conditional_mi(
+        arrays["E"],
+        arrays["I"],
+        arrays["Vout"],
+        arrays["C"],
+        Vinf=arrays["Vinf"],
+        Vb=arrays["Vb"],
+    )
+
+    metric_keys = list(metrics)
+    unique_idx = metric_keys.index("I(Vb;C|E,I)")
+    assert metric_keys[unique_idx - 1] == "I(Vout;C|E,I)"
+    assert metric_keys[unique_idx + 1] == "I(E;Vout|I,Vb)"
+    assert metrics["I(Vb;C|E,I)"] == metrics["I(Vout;C|E,I)"] + 1.0
+
+    EI = np.hstack([arrays["E"], arrays["I"]])
+    unique_call = harness.estimator.calls[int(metrics["I(Vb;C|E,I)"]) - 1]
+    assert unique_call[0] == "cmi"
+    np.testing.assert_array_equal(unique_call[1], arrays["Vb"])
+    np.testing.assert_array_equal(unique_call[2], arrays["C"].reshape(-1, 1))
+    np.testing.assert_array_equal(unique_call[3], EI)
 
 
 def test_compute_conditional_mi_preserves_ablation_keys_without_upstream_inputs():
