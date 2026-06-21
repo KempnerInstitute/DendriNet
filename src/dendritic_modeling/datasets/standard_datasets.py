@@ -12,8 +12,7 @@ import pickle
 import shutil
 from collections.abc import Callable
 from contextlib import contextmanager
-from dataclasses import dataclass
-from typing import Any, Optional, Union
+from typing import Any, Optional
 
 import torch
 from torch.utils.data import Dataset, TensorDataset
@@ -53,74 +52,18 @@ from .paths import get_data_directory, split_generator as _split_generator
 from .poisson import PoissonGeneratorDataset as PoissonGeneratorDataset
 from .registry import build_registered_dataset
 from .synthetic_datasets import get_synthetic_datasets
+from .unified_options import (
+    _EXPERIMENTAL_DATASET_IMPORT_CANDIDATES,
+    _SEQUENCE_DATASET_NAMES,
+    _THEORETICAL_SYNTHETIC_DATASET_NAMES,
+    _DatasetTriplet,
+    _get_config_value as _imported_get_config_value,
+    _resolve_unified_dataset_options,
+    _UnifiedDatasetOptions,
+)
 
 _ds_logger = logging.getLogger(__name__)
-
-_SEQUENCE_DATASET_NAMES = (
-    "sequential_mnist",
-    "copy_task",
-    "adding_problem",
-    "variable_delay_dms",
-    "multi_frequency",
-    "hierarchical_temporal",
-    "context_dependent_decision",
-    "context_dependent_decision_hard",
-    "context_dependent_decision_positive",
-    "context_dependent_decision_hard_positive",
-    "switching_context_decision",
-    "switching_context_decision_positive",
-    "timescale_generalization",
-    "timescale_generalization_positive",
-    "odr_generalization",
-    "odr_generalization_positive",
-    "romo_delay_comparison",
-    "romo_delay_comparison_positive",
-    "gain_modulated_contextual_comparison",
-    "gain_modulated_contextual_comparison_positive",
-    "lorenz",
-    "lorenz_sequence",
-    "switching_lds",
-    "multi_sine_forecast",
-    "stringer_v1",
-)
-
-_THEORETICAL_SYNTHETIC_DATASET_NAMES = (
-    "correlated_gaussian",
-    "nonlinear_interaction",
-    "linear_separable",
-    "nonlinear_separable",
-    "block_correlated",
-    "balanced_information",
-    "contextual_stream_gain_shift",
-)
-
-_EXPERIMENTAL_DATASET_IMPORT_CANDIDATES = (
-    "experiments.data_generation.synthetic_datasets",
-    "data_generation.synthetic_datasets",
-)
-
-_DatasetTriplet = tuple[Dataset, Dataset, Dataset]
-
-
-@dataclass(frozen=True)
-class _UnifiedDatasetOptions:
-    dataset_name: str
-    task_data_path: str | None
-    parameters: dict[str, Any]
-    train_valid_split: float
-    flatten: bool
-    normalize: bool
-    base_dataset: str
-    poisson_sampling: bool
-    stimulus_duration: float
-    multiplicative_gain: bool
-    fixed_gain_factor: Any
-    max_gain_factor: Any
-    max_gain_tau_ratio: Any
-    uniform_gain: bool
-    split_seed: int
-    label_noise_rate: float
-    label_noise_seed: int
+_get_config_value = _imported_get_config_value
 
 
 try:
@@ -202,16 +145,6 @@ def _maybe_apply_label_noise_to_triplet(
                 seed=label_noise_seed,
             )
     return train_ds, valid_ds, test_ds
-
-
-def _get_config_value(
-    config: Union[dict, object], key: str, default: Any = None
-) -> Any:
-    """Safely get a value from a config object, handling both dict and attribute access."""
-    if isinstance(config, dict):
-        return config.get(key, default)
-    else:
-        return getattr(config, key, default)
 
 
 def _dataset_to_tensors(
@@ -939,34 +872,6 @@ def _load_experimental_dataset_triplet(
 
     train_ds, valid_ds, test_ds = get_experimental_datasets(task_cfg, task_cfg)
     return _ensure_slice_safe_triplet(train_ds, valid_ds, test_ds)
-
-
-def _resolve_unified_dataset_options(task_cfg: Any) -> _UnifiedDatasetOptions:
-    dataset_name = _get_config_value(task_cfg, "dataset")
-    task_data_path = _get_config_value(task_cfg, "data_path", None)
-    parameters = _get_config_value(task_cfg, "parameters", {})
-    if task_data_path == "":
-        task_data_path = None
-
-    return _UnifiedDatasetOptions(
-        dataset_name=dataset_name,
-        task_data_path=task_data_path,
-        parameters=parameters,
-        train_valid_split=_get_config_value(task_cfg, "train_valid_split", 1.0),
-        flatten=parameters.get("flatten", True),
-        normalize=parameters.get("normalize", False),
-        base_dataset=parameters.get("base_dataset", "mnist"),
-        poisson_sampling=parameters.get("poisson_sampling", True),
-        stimulus_duration=parameters.get("stimulus_duration", 1.0),
-        multiplicative_gain=parameters.get("multiplicative_gain", True),
-        fixed_gain_factor=parameters.get("fixed_gain_factor", None),
-        max_gain_factor=parameters.get("max_gain_factor", None),
-        max_gain_tau_ratio=parameters.get("max_gain_tau_ratio", None),
-        uniform_gain=parameters.get("uniform_gain", True),
-        split_seed=int(parameters.get("split_seed", parameters.get("seed", 0)) or 0),
-        label_noise_rate=parameters.get("label_noise_rate", 0.0),
-        label_noise_seed=parameters.get("label_noise_seed", 0),
-    )
 
 
 def _load_poisson_generator_from_options(

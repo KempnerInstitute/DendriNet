@@ -6,14 +6,7 @@ import torch.nn as nn
 from omegaconf import DictConfig
 
 from dendritic_modeling.config.conversion import to_plain_dict
-from dendritic_modeling.config.legacy import (
-    canonicalize_unified_ei_config,
-    normalize_transfer_config,
-)
-from dendritic_modeling.config.model_aliases import (
-    get_core_morphology_alias_overrides,
-    get_unified_ei_alias_overrides,
-)
+from dendritic_modeling.config.model_aliases import get_core_morphology_alias_overrides
 from dendritic_modeling.networks.architectures.classical.autoencoder import (
     CNNAutoencoder,
     CNNVariationalAutoencoder,
@@ -40,8 +33,20 @@ from dendritic_modeling.networks.architectures.classical.pathway_router import (
 from dendritic_modeling.networks.architectures.excitation_inhibition import (
     ConfigurableEINetwork,
 )
+from dendritic_modeling.networks.architectures.factory_recurrent import (
+    _BASELINE_RNN_TYPES,
+    _POPULATION_NETWORK_TYPES,
+    _build_baseline_rnn_architecture,
+    _build_population_network_architecture,
+)
+from dendritic_modeling.networks.architectures.factory_spatial import (
+    _SPATIAL_DENDRITIC_CONV_TYPES,
+    _SPATIAL_DENDRITIC_TYPES,
+    _build_spatial_dendritic_architecture,
+    _build_spatial_dendritic_conv_architecture,
+)
 from dendritic_modeling.networks.architectures.factory_unified import (
-    build_unified_ei_layer_configs,
+    _build_unified_ei_architecture,
 )
 from dendritic_modeling.networks.architectures.recurrent.structured_einet_factory import (
     _build_recurrent_einet_from_structured_config,
@@ -87,33 +92,6 @@ _UNIFIED_EI_TYPES: set[str] = {
     "rnn_flat_shunting",
     "rnn_flat_additive",
     "rnn_flat_normalized_additive",
-}
-
-# Spatial dendritic cores: flatten encoder spatial output → EINet → project.
-# Tensor-map baseline: flatten → DendriNet → project (no spatial locality).
-_SPATIAL_DENDRITIC_TYPES: set[str] = {
-    "hierarchical_dendritic_tensor_map",
-    "dendritic_tensor_map",
-    "tensor_map",
-}
-
-# Spatial dendritic conv: F.unfold → shared DendriNet on local patches → fold.
-# Preserves spatial structure (B, C_out, H_out, W_out).
-# Canonical name: hierarchical_dendritic_conv
-_SPATIAL_DENDRITIC_CONV_TYPES: set[str] = {
-    "hierarchical_dendritic_conv",
-    "spatial_dendritic_conv",
-}
-
-_BASELINE_RNN_TYPES: dict[str, str] = {
-    "gru": "gru",
-    "lstm": "lstm",
-    "vanilla_rnn": "vanilla",
-    "rnn": "vanilla",
-}
-
-_POPULATION_NETWORK_TYPES: set[str] = {
-    "population_network",
 }
 
 _BUILTIN_ARCHITECTURE_TYPES: frozenset[str] = frozenset(
@@ -169,182 +147,6 @@ ArchitectureBuilder = Callable[
     [str, Union[dict[str, Any], DictConfig], Optional[int], Optional[int]],
     nn.Module,
 ]
-
-
-def _build_unified_ei_architecture(
-    type: str,
-    parameters: Union[dict[str, Any], DictConfig],
-    input_dim: Optional[int],
-    suffix_input_dim: Optional[int],
-) -> nn.Module:
-    """Build the unified recurrent E/I architecture family."""
-    del suffix_input_dim
-    from dendritic_modeling.networks.architectures.recurrent import (
-        EILayerConfig,
-        EINetwork,
-        EINetworkConfig,
-        PopulationConfig,
-    )
-
-    if input_dim is None:
-        raise ValueError(
-            f"input_dim required when creating unified E-I architecture (type='{type}')"
-        )
-
-    raw_params = _to_plain_mapping(parameters)
-    unified_cfg = raw_params.get("unified_ei", raw_params.get("ei_unified", {}))
-    if not unified_cfg and "layers" in raw_params:
-        # Allow passing EINetworkConfig-shaped dict directly.
-        unified_cfg = raw_params
-
-    if not isinstance(unified_cfg, dict):
-        raise ValueError(
-            "Unified E-I config must be a mapping, got "
-            f"{unified_cfg.__class__.__name__}"
-        )
-
-    unified_cfg = canonicalize_unified_ei_config(unified_cfg)
-    unified_cfg["input_dim"] = input_dim
-
-    alias_overrides = get_unified_ei_alias_overrides(type)
-    layers_cfg = build_unified_ei_layer_configs(
-        layers=unified_cfg.get("layers", []),
-        ei_layer_config_cls=EILayerConfig,
-        population_config_cls=PopulationConfig,
-        alias_overrides=alias_overrides,
-        core_type=type,
-    )
-
-    if not layers_cfg:
-        raise ValueError(
-            "Unified E-I architecture requires at least one layer in unified_ei.layers"
-        )
-
-    unified_cfg["layers"] = layers_cfg
-    return EINetwork(EINetworkConfig(**unified_cfg))
-
-
-def _build_baseline_rnn_architecture(
-    type: str,
-    parameters: Union[dict[str, Any], DictConfig],
-    input_dim: Optional[int],
-    suffix_input_dim: Optional[int],
-) -> nn.Module:
-    """Build baseline GRU/LSTM/vanilla RNN cores."""
-    del suffix_input_dim
-    from dendritic_modeling.networks.architectures.recurrent import (
-        BaselineRNN,
-        BaselineRNNConfig,
-    )
-
-    if input_dim is None:
-        raise ValueError(
-            f"input_dim required when creating baseline RNN (type='{type}')"
-        )
-
-    raw_params = _to_plain_mapping(parameters)
-    baseline_cfg = raw_params.get("baseline_rnn", raw_params)
-    if not isinstance(baseline_cfg, dict):
-        baseline_cfg = {}
-    baseline_cfg = dict(baseline_cfg)
-    baseline_cfg["cell_type"] = _BASELINE_RNN_TYPES[type]
-    baseline_cfg["input_dim"] = input_dim
-    return BaselineRNN(BaselineRNNConfig(**baseline_cfg))
-
-
-def _build_population_network_architecture(
-    type: str,
-    parameters: Union[dict[str, Any], DictConfig],
-    input_dim: Optional[int],
-    suffix_input_dim: Optional[int],
-) -> nn.Module:
-    """Build canonical population-network layers."""
-    del suffix_input_dim
-    from dendritic_modeling.networks.architectures.recurrent import (
-        PopulationLayerConfig,
-        PopulationNetwork,
-        PopulationNetworkConfig,
-    )
-
-    if input_dim is None:
-        raise ValueError(
-            f"input_dim required when creating population-network architecture (type='{type}')"
-        )
-
-    raw_params = _to_plain_mapping(parameters)
-    mp_cfg = raw_params.get("population_network") or raw_params
-    if not isinstance(mp_cfg, dict):
-        mp_cfg = {}
-    mp_cfg = dict(mp_cfg)
-    if "transfer_params" in mp_cfg:
-        mp_cfg["transfer_params"] = normalize_transfer_config(mp_cfg["transfer_params"])
-    mp_cfg["input_dim"] = input_dim
-    mp_cfg["layers"] = [
-        (
-            layer
-            if isinstance(layer, PopulationLayerConfig)
-            else PopulationLayerConfig(**layer)
-        )
-        for layer in mp_cfg.get("layers", [])
-    ]
-    return PopulationNetwork(PopulationNetworkConfig(**mp_cfg))
-
-
-def _build_spatial_dendritic_architecture(
-    type: str,
-    parameters: Union[dict[str, Any], DictConfig],
-    input_dim: Optional[int],
-    suffix_input_dim: Optional[int],
-) -> nn.Module:
-    """Build flattened spatial dendritic tensor-map cores."""
-    from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.spatial_dendritic import (
-        HierarchicalDendriticTensorMap,
-    )
-
-    if input_dim is None:
-        raise ValueError(
-            f"input_dim required when creating spatial dendritic core (type='{type}')"
-        )
-
-    return HierarchicalDendriticTensorMap(
-        config=parameters,
-        input_dim=input_dim,
-        suffix_input_dim=suffix_input_dim,
-    )
-
-
-def _build_spatial_dendritic_conv_architecture(
-    type: str,
-    parameters: Union[dict[str, Any], DictConfig],
-    input_dim: Optional[int],
-    suffix_input_dim: Optional[int],
-) -> nn.Module:
-    """Build shared-patch spatial dendritic convolution cores."""
-    del suffix_input_dim
-    from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.spatial_dendritic import (
-        HierarchicalDendriticConv,
-    )
-
-    raw_params = _to_plain_mapping(parameters)
-    spatial_cfg = _to_plain_mapping(raw_params.get("spatial", {}))
-    kernel_size = spatial_cfg.get("kernel_size", 3)
-    stride = spatial_cfg.get("stride", 1)
-    padding = spatial_cfg.get("padding", 0)
-
-    if input_dim is None:
-        raise ValueError(
-            f"input_dim required when creating spatial dendritic conv (type='{type}')"
-        )
-
-    # input_dim here is the number of input channels (C_in). For spatial
-    # cores, input_dim = prefix_output_spec.channels.
-    return HierarchicalDendriticConv(
-        config=parameters,
-        in_channels=input_dim,
-        kernel_size=kernel_size,
-        stride=stride,
-        padding=padding,
-    )
 
 
 def _build_einet_architecture(

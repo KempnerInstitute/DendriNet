@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from typing import Any
 
@@ -14,14 +13,11 @@ from dendritic_modeling.training.dataloader_profiles import (
     is_torchvision_image_dataset,
     prefers_main_process_loading,
 )
-
-_LOCAL_WORLD_SIZE_ENV_VARS = (
-    "LOCAL_WORLD_SIZE",
-    "OMPI_COMM_WORLD_LOCAL_SIZE",
-    "MV2_COMM_WORLD_LOCAL_SIZE",
-    "SLURM_NTASKS_PER_NODE",
-    "SLURM_STEP_TASKS_PER_NODE",
+from dendritic_modeling.training.dataloader_resources import (
+    auto_worker_cpu_budget,
+    visible_cpu_count,
 )
+
 _IMAGE_DATASET_PREFETCH_FACTOR = 4
 
 
@@ -62,54 +58,6 @@ class DataLoaderTuning:
         )
 
 
-def visible_cpu_count() -> int:
-    """Return CPUs visible to the process, respecting scheduler affinity."""
-    available_cpus = os.cpu_count() or 1
-    if hasattr(os, "sched_getaffinity"):
-        try:
-            available_cpus = len(os.sched_getaffinity(0))
-        except OSError:
-            pass
-    return max(1, available_cpus)
-
-
-def _parse_local_process_count(raw_value: str) -> int | None:
-    """Parse local process counts from simple integers or SLURM node specs."""
-    values = []
-    for chunk in raw_value.split(","):
-        digits = []
-        for char in chunk.strip():
-            if not char.isdigit():
-                break
-            digits.append(char)
-        if not digits:
-            continue
-        value = int("".join(digits))
-        if value > 0:
-            values.append(value)
-    return max(values) if values else None
-
-
-def _local_process_count() -> int:
-    """Return the number of training processes sharing this node, if known."""
-    for env_name in _LOCAL_WORLD_SIZE_ENV_VARS:
-        raw_value = os.environ.get(env_name)
-        if raw_value is None:
-            continue
-        value = _parse_local_process_count(raw_value)
-        if value is not None:
-            return value
-    return 1
-
-
-def _auto_worker_cpu_budget(available_cpus: int) -> int:
-    """Return the CPU budget for auto worker selection on the current process."""
-    local_processes = _local_process_count()
-    if local_processes <= 1:
-        return max(1, available_cpus)
-    return max(0, available_cpus // local_processes)
-
-
 def auto_num_workers_for_dataset(
     dataset: Dataset,
     *,
@@ -121,7 +69,7 @@ def auto_num_workers_for_dataset(
         return 0
 
     cpus = visible_cpu_count() if available_cpus is None else max(1, available_cpus)
-    worker_cpu_budget = _auto_worker_cpu_budget(cpus)
+    worker_cpu_budget = auto_worker_cpu_budget(cpus)
     use_cuda = torch.cuda.is_available() if cuda_available is None else cuda_available
     if use_cuda:
         return min(16, worker_cpu_budget)

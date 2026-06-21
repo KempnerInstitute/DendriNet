@@ -7,7 +7,11 @@ from dataclasses import asdict
 from typing import Any
 
 from dendritic_modeling.config.conversion import to_plain_dict
-from dendritic_modeling.config.model_aliases import warn_alias_conflicts
+from dendritic_modeling.config.legacy import canonicalize_unified_ei_config
+from dendritic_modeling.config.model_aliases import (
+    get_unified_ei_alias_overrides,
+    warn_alias_conflicts,
+)
 
 
 def _to_plain_mapping(obj: Any) -> dict[str, Any]:
@@ -103,7 +107,62 @@ def build_unified_ei_layer_configs(
     return layers_cfg
 
 
+def _build_unified_ei_architecture(
+    type: str,
+    parameters: dict[str, Any],
+    input_dim: int | None,
+    suffix_input_dim: int | None,
+) -> Any:
+    """Build the unified recurrent E/I architecture family."""
+
+    del suffix_input_dim
+    from dendritic_modeling.networks.architectures.recurrent import (
+        EILayerConfig,
+        EINetwork,
+        EINetworkConfig,
+        PopulationConfig,
+    )
+
+    if input_dim is None:
+        raise ValueError(
+            f"input_dim required when creating unified E-I architecture (type='{type}')"
+        )
+
+    raw_params = _to_plain_mapping(parameters)
+    unified_cfg = raw_params.get("unified_ei", raw_params.get("ei_unified", {}))
+    if not unified_cfg and "layers" in raw_params:
+        # Allow passing EINetworkConfig-shaped dict directly.
+        unified_cfg = raw_params
+
+    if not isinstance(unified_cfg, dict):
+        raise ValueError(
+            "Unified E-I config must be a mapping, got "
+            f"{unified_cfg.__class__.__name__}"
+        )
+
+    unified_cfg = canonicalize_unified_ei_config(unified_cfg)
+    unified_cfg["input_dim"] = input_dim
+
+    alias_overrides = get_unified_ei_alias_overrides(type)
+    layers_cfg = build_unified_ei_layer_configs(
+        layers=unified_cfg.get("layers", []),
+        ei_layer_config_cls=EILayerConfig,
+        population_config_cls=PopulationConfig,
+        alias_overrides=alias_overrides,
+        core_type=type,
+    )
+
+    if not layers_cfg:
+        raise ValueError(
+            "Unified E-I architecture requires at least one layer in unified_ei.layers"
+        )
+
+    unified_cfg["layers"] = layers_cfg
+    return EINetwork(EINetworkConfig(**unified_cfg))
+
+
 __all__ = [
     "_apply_population_alias_overrides",
+    "_build_unified_ei_architecture",
     "build_unified_ei_layer_configs",
 ]
