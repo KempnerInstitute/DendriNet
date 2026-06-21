@@ -8,6 +8,9 @@ DendriNet and DendriNetWithOutputs, as well as vision neuron factories.
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.blocklinear import (
     BlockLinear,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_config import (
+    DendriticBranchConfig,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer import (
     DendriticBranchLayer,
 )
@@ -36,6 +39,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.v
 __all__ = [
     "BlockLinear",
     "DendriNet",
+    "DendriticBranchConfig",
     "DendriticBranchLayer",
     "DendriticSynapseConfig",
     "GradientScaler",

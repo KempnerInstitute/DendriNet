@@ -9,7 +9,10 @@ from torch.utils.data import random_split
 
 from dendritic_modeling.datasets.registry import build_registered_dataset
 from dendritic_modeling.datasets.sequence.builders import (
-    SEQUENCE_DATASET_BUILDERS as _SEQUENCE_DATASET_BUILDERS,
+    get_registered_sequence_dataset_names,
+    get_sequence_dataset_builder,
+    register_sequence_dataset_builder,
+    unregister_sequence_dataset_builder,
 )
 
 
@@ -63,9 +66,7 @@ def get_sequence_datasets(
     if registered is not None:
         return registered
 
-    builder = _SEQUENCE_DATASET_BUILDERS.get(dataset_name)
-    if builder is None:
-        raise ValueError(f"Unknown sequence dataset: {dataset_name}")
+    builder = get_sequence_dataset_builder(dataset_name)
 
     build = builder(dataset_name, data_path, kwargs)
     if build.split_datasets is not None:
@@ -84,4 +85,10 @@ def get_sequence_datasets(
     )
 
 
-__all__ = ["get_sequence_datasets"]
+__all__ = [
+    "get_registered_sequence_dataset_names",
+    "get_sequence_dataset_builder",
+    "get_sequence_datasets",
+    "register_sequence_dataset_builder",
+    "unregister_sequence_dataset_builder",
+]

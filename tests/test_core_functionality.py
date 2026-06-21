@@ -331,6 +331,35 @@ def test_dataloader_auto_workers_share_cpus_across_local_ranks(monkeypatch):
     assert tuning.persistent_workers is True
 
 
+def test_dataloader_auto_prefetches_torchvision_image_datasets(monkeypatch):
+    """ImageNet/ImageFolder-style datasets should prefetch more worker batches."""
+
+    from dendritic_modeling.training.dataloader_utils import resolve_dataloader_tuning
+
+    class ImageNet(torch.utils.data.Dataset):
+        def __len__(self):
+            return 16
+
+        def __getitem__(self, idx):
+            return torch.zeros(3, 224, 224), torch.tensor(idx % 2)
+
+    ImageNet.__module__ = "torchvision.datasets.imagenet"
+
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(
+        "dendritic_modeling.training.dataloader_utils.visible_cpu_count",
+        lambda: 8,
+    )
+
+    tuning = resolve_dataloader_tuning(ImageNet(), device="cuda")
+
+    assert tuning.num_workers == 8
+    assert tuning.pin_memory is True
+    assert tuning.persistent_workers is True
+    assert tuning.prefetch_factor == 4
+    assert tuning.as_kwargs()["prefetch_factor"] == 4
+
+
 def test_dataloader_explicit_workers_are_capped_by_visible_cpus(monkeypatch):
     """Explicit worker counts should stay within scheduler-visible CPUs."""
 

@@ -7,6 +7,7 @@ This module contains network architectures based on excitation-inhibition princi
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic import (
     BlockLinear,
     DendriNet,
+    DendriticBranchConfig,
     DendriticBranchLayer,
     DendriticSynapseConfig,
     GradientScaler,
@@ -47,6 +48,7 @@ __all__ = [
     "ConfigurableEINetwork",
     "DeepstLinear",
     "DendriNet",
+    "DendriticBranchConfig",
     "DendriticBranchLayer",
     "DendriticSynapseConfig",
     "DenseToSparseLinear",

@@ -14,6 +14,12 @@ from typing import Any, ClassVar, Optional
 import numpy as np
 import torch
 
+from dendritic_modeling.datasets.dimensions import (
+    DATASET_FLAT_INPUT_SHAPES,
+    DATASET_IMAGE_INPUT_SHAPES,
+    dataset_input_shape,
+)
+
 logger = logging.getLogger(__name__)
 
 BYTES_PER_GIB = 1024**3
@@ -55,10 +61,10 @@ DATASET_CLASS_COUNTS = {
 }
 DEFAULT_TRAIN_VALID_SPLIT = 0.8
 DEFAULT_INPUT_DIM = 784
-MNIST_FLAT_INPUT_SHAPE = (784,)
-CIFAR10_FLAT_INPUT_SHAPE = (3072,)
-IMAGENET_FLAT_INPUT_SHAPE = (150528,)
-IMAGENET_IMAGE_INPUT_SHAPE = (3, 224, 224)
+MNIST_FLAT_INPUT_SHAPE = DATASET_FLAT_INPUT_SHAPES["mnist"]
+CIFAR10_FLAT_INPUT_SHAPE = DATASET_FLAT_INPUT_SHAPES["cifar10"]
+IMAGENET_FLAT_INPUT_SHAPE = DATASET_FLAT_INPUT_SHAPES["imagenet"]
+IMAGENET_IMAGE_INPUT_SHAPE = DATASET_IMAGE_INPUT_SHAPES["imagenet"]
 GPU_MEMORY_SAFETY_FACTOR = 0.85
 PRACTICAL_FSDP_GPU_LIMIT = 16
 FSDP_CANDIDATE_CONFIGURATIONS = (
@@ -121,17 +127,14 @@ def _resolve_task_config(config: Any) -> tuple[Any, Any]:
 def _fallback_input_shape(task_cfg: Any, task_params: Any) -> tuple[int, ...]:
     """Return the historical hardcoded input shape when dataset loading fails."""
     dataset_name = getattr(task_cfg, "dataset", "cifar10")
-    if dataset_name == "mnist":
-        return MNIST_FLAT_INPUT_SHAPE
-    if dataset_name == "cifar10":
-        return CIFAR10_FLAT_INPUT_SHAPE
-    if dataset_name == "imagenet":
-        if task_params.get("flatten", False):
-            return IMAGENET_FLAT_INPUT_SHAPE
-        return IMAGENET_IMAGE_INPUT_SHAPE
+    shape = dataset_input_shape(
+        dataset_name,
+        flatten=task_params.get("flatten", False),
+    )
+    if shape is not None:
+        return shape
 
-    input_dim = task_params.get("input_dim", DEFAULT_INPUT_DIM)
-    return (input_dim,)
+    return (task_params.get("input_dim", DEFAULT_INPUT_DIM),)
 
 
 def _flat_input_dim(input_shape: tuple[int, ...]) -> int:

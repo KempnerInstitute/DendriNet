@@ -14,6 +14,12 @@ _LOCAL_WORLD_SIZE_ENV_VARS = (
     "OMPI_COMM_WORLD_LOCAL_SIZE",
     "MV2_COMM_WORLD_LOCAL_SIZE",
 )
+_IMAGE_DATASET_PREFETCH_FACTOR = 4
+_TORCHVISION_IMAGE_DATASET_NAMES = {
+    "DatasetFolder",
+    "ImageFolder",
+    "ImageNet",
+}
 
 
 @dataclass(frozen=True)
@@ -76,6 +82,15 @@ def _base_dataset(dataset: Dataset) -> Dataset:
     while isinstance(dataset, Subset):
         dataset = dataset.dataset
     return dataset
+
+
+def _is_torchvision_image_dataset(dataset: Dataset) -> bool:
+    """Return True for torchvision image datasets that are usually I/O-bound."""
+    dataset_cls = type(_base_dataset(dataset))
+    return (
+        dataset_cls.__name__ in _TORCHVISION_IMAGE_DATASET_NAMES
+        and dataset_cls.__module__.startswith("torchvision.datasets")
+    )
 
 
 def prefers_main_process_loading(dataset: Dataset) -> bool:
@@ -157,9 +172,12 @@ def _resolve_persistent_workers(
 def _resolve_prefetch_factor(
     prefetch_factor: int | None,
     *,
+    dataset: Dataset,
     num_workers: int,
 ) -> int | None:
     if prefetch_factor is None:
+        if num_workers > 0 and _is_torchvision_image_dataset(dataset):
+            return _IMAGE_DATASET_PREFETCH_FACTOR
         return None
     if num_workers == 0:
         raise ValueError("prefetch_factor requires num_workers > 0")
@@ -198,6 +216,7 @@ def resolve_dataloader_tuning(
     )
     resolved_prefetch = _resolve_prefetch_factor(
         prefetch_factor,
+        dataset=dataset,
         num_workers=resolved_workers,
     )
 

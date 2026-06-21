@@ -41,6 +41,7 @@ from torch.utils.data import DataLoader, Dataset, DistributedSampler
 from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.config import load_config
 from dendritic_modeling.datasets import get_unified_datasets
+from dendritic_modeling.datasets.dimensions import flat_dataset_input_dim
 from dendritic_modeling.models import Classifier, Regressor
 from dendritic_modeling.networks import Identity
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize import (
@@ -299,14 +300,10 @@ def _create_fsdp_trainer(
 
 def _resolve_large_model_input_dim(data_config) -> int:
     """Resolve flattened input size for manually assembled FSDP models."""
-    dataset_name = getattr(data_config, "dataset_name", None)
-    if dataset_name == "mnist":
-        return 784
-    if dataset_name == "cifar10":
-        return 3072
-    if dataset_name == "imagenet":
-        return 150528
-    return 784
+    return flat_dataset_input_dim(
+        getattr(data_config, "dataset_name", None),
+        default_input_dim=784,
+    )
 
 
 def create_large_model(config):

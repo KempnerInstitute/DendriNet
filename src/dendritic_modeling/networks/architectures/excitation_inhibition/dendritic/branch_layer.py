@@ -19,6 +19,9 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.b
     BlockLinear,
     EfficientBlockLinear,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_config import (
+    DendriticBranchConfig,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.gradient_scaling import (
     GradientScaler,
 )
@@ -69,7 +72,7 @@ class DendriticBranchLayer(nn.Module):
 
     def __init__(
         self,
-        output_dim,
+        output_dim=None,
         excitatory_input_dim=None,
         excitatory_synapses_per_branch=None,
         inhibitory_input_dim=None,
@@ -144,10 +147,48 @@ class DendriticBranchLayer(nn.Module):
         inhibitory_connection_mask=None,
         recurrent_connection_mask=None,
         rec_inhibitory_connection_mask=None,
+        branch_config=None,
         synapse_config=None,
         **kwargs,
     ):
         super().__init__()
+        if branch_config is not None:
+            branch_options = DendriticBranchConfig.from_config(
+                branch_config
+            ).to_kwargs()
+            output_dim = branch_options["output_dim"]
+            excitatory_input_dim = branch_options["excitatory_input_dim"]
+            excitatory_synapses_per_branch = branch_options[
+                "excitatory_synapses_per_branch"
+            ]
+            inhibitory_input_dim = branch_options["inhibitory_input_dim"]
+            inhibitory_synapses_per_branch = branch_options[
+                "inhibitory_synapses_per_branch"
+            ]
+            input_branch_factor = branch_options["input_branch_factor"]
+            recurrent_input_dim = branch_options["recurrent_input_dim"]
+            recurrent_synapses_per_branch = branch_options[
+                "recurrent_synapses_per_branch"
+            ]
+            recurrent_forbidden_input_index_per_output = branch_options[
+                "recurrent_forbidden_input_index_per_output"
+            ]
+            rec_inhibitory_input_dim = branch_options["rec_inhibitory_input_dim"]
+            rec_inhibitory_synapses_per_branch = branch_options[
+                "rec_inhibitory_synapses_per_branch"
+            ]
+            rec_inhibitory_forbidden_input_index_per_output = branch_options[
+                "rec_inhibitory_forbidden_input_index_per_output"
+            ]
+            layer_idx = branch_options["layer_idx"]
+            excitatory_connection_mask = branch_options["excitatory_connection_mask"]
+            inhibitory_connection_mask = branch_options["inhibitory_connection_mask"]
+            recurrent_connection_mask = branch_options["recurrent_connection_mask"]
+            rec_inhibitory_connection_mask = branch_options[
+                "rec_inhibitory_connection_mask"
+            ]
+        if output_dim is None:
+            raise ValueError("DendriticBranchLayer requires output_dim")
         formal_synapse_kwargs = {
             "topk_init_method": topk_init_method,
             "topk_noise_level": topk_noise_level,

@@ -5,9 +5,14 @@ import numpy as np
 import pytest
 import torch
 
+from dendritic_modeling.datasets.sequence.builders.common import explicit_split
 from dendritic_modeling.datasets.sequence.builders.registry import (
     SEQUENCE_DATASET_BUILDERS,
+    get_registered_sequence_dataset_names,
+    get_sequence_dataset_builder,
     merge_sequence_dataset_builders,
+    register_sequence_dataset_builder,
+    unregister_sequence_dataset_builder,
 )
 from dendritic_modeling.datasets.sequence_datasets import (
     AddingProblemDataset,
@@ -66,6 +71,51 @@ def test_sequence_builder_registry_rejects_duplicate_names():
         merge_sequence_dataset_builders({"task": builder}, {"task": builder})
 
     assert SEQUENCE_DATASET_BUILDERS["copy_task"] is not None
+
+
+def test_sequence_builder_registry_exposes_builtin_names():
+    names = get_registered_sequence_dataset_names()
+
+    assert "copy_task" in names
+    assert "multi_sine_forecast" in names
+    assert (
+        get_sequence_dataset_builder("copy_task")
+        is SEQUENCE_DATASET_BUILDERS["copy_task"]
+    )
+
+
+def test_sequence_builder_registry_adds_custom_builder():
+    def builder(dataset_name, data_path, kwargs):
+        assert dataset_name == "unit_test_sequence"
+        assert data_path == "memory://unit-test"
+        assert kwargs["marker"] == 7
+        inputs = torch.zeros(3, 2)
+        targets = torch.zeros(3, dtype=torch.long)
+        dataset = torch.utils.data.TensorDataset(inputs, targets)
+        return explicit_split(dataset, dataset, dataset)
+
+    register_sequence_dataset_builder("unit_test_sequence", builder)
+    try:
+        train_ds, valid_ds, test_ds = get_sequence_datasets(
+            "unit_test_sequence",
+            data_path="memory://unit-test",
+            marker=7,
+        )
+        assert len(train_ds) == len(valid_ds) == len(test_ds) == 3
+        assert "unit_test_sequence" in get_registered_sequence_dataset_names()
+
+        with pytest.raises(ValueError, match="already registered"):
+            register_sequence_dataset_builder("unit_test_sequence", builder)
+    finally:
+        unregister_sequence_dataset_builder("unit_test_sequence")
+
+
+def test_sequence_builder_registry_rejects_non_callable_builder():
+    with pytest.raises(TypeError, match="must be callable"):
+        register_sequence_dataset_builder(
+            "unit_test_bad",
+            object(),  # type: ignore[arg-type]
+        )
 
 
 def test_sequential_mnist_modes_and_invalid(monkeypatch):

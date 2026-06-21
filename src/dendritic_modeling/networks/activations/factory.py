@@ -37,10 +37,7 @@ def _normalize_activation_type(act_type: Any) -> str:
 
 def _resolve_activation_builder(act_type: Any) -> ActivationBuilder:
     normalized_type = _normalize_activation_type(act_type)
-    builder = _ACTIVATION_REGISTRY.get(normalized_type)
-    if builder is None:
-        raise ValueError(f"Unknown activation type: {normalized_type}")
-    return builder
+    return get_activation_builder(normalized_type)
 
 
 def _identity_builder(**_: Any) -> nn.Module:
@@ -195,6 +192,42 @@ _ACTIVATION_REGISTRY: dict[str, ActivationBuilder] = {
 }
 
 
+def register_activation_builder(
+    act_type: str,
+    builder: ActivationBuilder,
+    *,
+    allow_override: bool = False,
+) -> None:
+    """Register an activation builder by normalized activation type."""
+    normalized_type = _normalize_activation_type(act_type)
+    if not callable(builder):
+        raise TypeError(f"Activation builder for {normalized_type!r} must be callable")
+    if normalized_type in _ACTIVATION_REGISTRY and not allow_override:
+        raise ValueError(
+            f"Activation builder '{normalized_type}' is already registered"
+        )
+    _ACTIVATION_REGISTRY[normalized_type] = builder
+
+
+def unregister_activation_builder(act_type: str) -> None:
+    """Remove an activation builder if present."""
+    _ACTIVATION_REGISTRY.pop(_normalize_activation_type(act_type), None)
+
+
+def get_activation_builder(act_type: str) -> ActivationBuilder:
+    """Return a registered activation builder."""
+    normalized_type = _normalize_activation_type(act_type)
+    builder = _ACTIVATION_REGISTRY.get(normalized_type)
+    if builder is None:
+        raise ValueError(f"Unknown activation type: {normalized_type}")
+    return builder
+
+
+def get_registered_activation_types() -> list[str]:
+    """Return registered activation type names."""
+    return sorted(_ACTIVATION_REGISTRY)
+
+
 class ActivationFactory:
     """
     A factory for building different activation/ reactivation modules.
@@ -237,4 +270,10 @@ class ActivationFactory:
         )
 
 
-__all__ = ["ActivationFactory"]
+__all__ = [
+    "ActivationFactory",
+    "get_activation_builder",
+    "get_registered_activation_types",
+    "register_activation_builder",
+    "unregister_activation_builder",
+]

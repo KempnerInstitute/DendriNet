@@ -21,7 +21,11 @@ from dendritic_modeling.datasets.sequence import (
     SwitchingLDSDataset,
     TimescaleGeneralizationDataset,
     VariableDelayDMSDataset,
+    get_registered_sequence_dataset_names,
+    get_sequence_dataset_builder,
     get_sequence_datasets,
+    register_sequence_dataset_builder,
+    unregister_sequence_dataset_builder,
 )
 
 __all__ = [
@@ -41,5 +45,9 @@ __all__ = [
     "SwitchingLDSDataset",
     "TimescaleGeneralizationDataset",
     "VariableDelayDMSDataset",
+    "get_registered_sequence_dataset_names",
+    "get_sequence_dataset_builder",
     "get_sequence_datasets",
+    "register_sequence_dataset_builder",
+    "unregister_sequence_dataset_builder",
 ]

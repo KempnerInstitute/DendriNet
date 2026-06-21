@@ -6,7 +6,13 @@ from dendritic_modeling.datasets.sequence.decision_tasks import (
     SwitchingContextDecisionDataset,
     TimescaleGeneralizationDataset,
 )
-from dendritic_modeling.datasets.sequence.factory import get_sequence_datasets
+from dendritic_modeling.datasets.sequence.factory import (
+    get_registered_sequence_dataset_names,
+    get_sequence_dataset_builder,
+    get_sequence_datasets,
+    register_sequence_dataset_builder,
+    unregister_sequence_dataset_builder,
+)
 from dendritic_modeling.datasets.sequence.memory_tasks import (
     AddingProblemDataset,
     CopyTaskDataset,
@@ -43,5 +49,9 @@ __all__ = [
     "SwitchingLDSDataset",
     "TimescaleGeneralizationDataset",
     "VariableDelayDMSDataset",
+    "get_registered_sequence_dataset_names",
+    "get_sequence_dataset_builder",
     "get_sequence_datasets",
+    "register_sequence_dataset_builder",
+    "unregister_sequence_dataset_builder",
 ]

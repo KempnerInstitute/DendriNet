@@ -11,6 +11,9 @@ import torch
 import torch.nn as nn
 
 from dendritic_modeling.networks.activations import resolve_dendritic_activation
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_config import (
+    DendriticBranchConfig,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer import (
     DendriticBranchLayer,
 )
@@ -61,15 +64,17 @@ def _make_dendrinet_branch_layer(
 ):
     """Create one DendriNet branch layer with the shared synapse config."""
     return DendriticBranchLayer(
-        output_dim=output_dim,
-        excitatory_input_dim=excitatory_input_dim,
-        excitatory_synapses_per_branch=excitatory_synapses_per_branch,
-        inhibitory_input_dim=inhibitory_input_dim,
-        inhibitory_synapses_per_branch=inhibitory_synapses_per_branch,
-        excitatory_connection_mask=excitatory_connection_mask,
-        inhibitory_connection_mask=inhibitory_connection_mask,
-        input_branch_factor=input_branch_factor,
-        layer_idx=layer_idx,
+        branch_config=DendriticBranchConfig(
+            output_dim=output_dim,
+            excitatory_input_dim=excitatory_input_dim,
+            excitatory_synapses_per_branch=excitatory_synapses_per_branch,
+            inhibitory_input_dim=inhibitory_input_dim,
+            inhibitory_synapses_per_branch=inhibitory_synapses_per_branch,
+            input_branch_factor=input_branch_factor,
+            layer_idx=layer_idx,
+            excitatory_connection_mask=excitatory_connection_mask,
+            inhibitory_connection_mask=inhibitory_connection_mask,
+        ),
         synapse_config=synapse_config,
         **branch_extra_kwargs,
     )

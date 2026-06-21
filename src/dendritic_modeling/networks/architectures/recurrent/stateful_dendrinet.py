@@ -8,6 +8,9 @@ from typing import Optional
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_config import (
+    DendriticBranchConfig,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer import (
     DendriticBranchLayer,
 )
@@ -322,35 +325,41 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
                 )
 
             branch_layer = DendriticBranchLayer(
-                output_dim=out_dim,
-                excitatory_input_dim=exc_in,
-                excitatory_synapses_per_branch=exc_syn,
-                excitatory_connection_mask=_structured_mask(
-                    pop_config.ff_excitatory_pathway,
-                    exc_in,
+                branch_config=DendriticBranchConfig(
+                    output_dim=out_dim,
+                    excitatory_input_dim=exc_in,
+                    excitatory_synapses_per_branch=exc_syn,
+                    excitatory_connection_mask=_structured_mask(
+                        pop_config.ff_excitatory_pathway,
+                        exc_in,
+                    ),
+                    inhibitory_input_dim=inh_in,
+                    inhibitory_synapses_per_branch=inh_syn,
+                    inhibitory_connection_mask=_structured_mask(
+                        pop_config.ff_inhibitory_pathway,
+                        inh_in,
+                    ),
+                    input_branch_factor=input_branch_factors[level_idx],
+                    recurrent_input_dim=rec_in,
+                    recurrent_synapses_per_branch=rec_syn,
+                    recurrent_forbidden_input_index_per_output=(
+                        recurrent_self_forbidden
+                    ),
+                    recurrent_connection_mask=_structured_mask(
+                        pop_config.rec_excitatory_pathway,
+                        rec_in,
+                    ),
+                    rec_inhibitory_input_dim=rec_inh_in,
+                    rec_inhibitory_synapses_per_branch=rec_inh_syn,
+                    rec_inhibitory_forbidden_input_index_per_output=(
+                        rec_inhibitory_self_forbidden
+                    ),
+                    rec_inhibitory_connection_mask=_structured_mask(
+                        pop_config.rec_inhibitory_pathway,
+                        rec_inh_in,
+                    ),
+                    layer_idx=self.n_levels - level_idx,
                 ),
-                inhibitory_input_dim=inh_in,
-                inhibitory_synapses_per_branch=inh_syn,
-                inhibitory_connection_mask=_structured_mask(
-                    pop_config.ff_inhibitory_pathway,
-                    inh_in,
-                ),
-                input_branch_factor=input_branch_factors[level_idx],
-                recurrent_input_dim=rec_in,
-                recurrent_synapses_per_branch=rec_syn,
-                recurrent_forbidden_input_index_per_output=recurrent_self_forbidden,
-                recurrent_connection_mask=_structured_mask(
-                    pop_config.rec_excitatory_pathway,
-                    rec_in,
-                ),
-                rec_inhibitory_input_dim=rec_inh_in,
-                rec_inhibitory_synapses_per_branch=rec_inh_syn,
-                rec_inhibitory_forbidden_input_index_per_output=rec_inhibitory_self_forbidden,
-                rec_inhibitory_connection_mask=_structured_mask(
-                    pop_config.rec_inhibitory_pathway,
-                    rec_inh_in,
-                ),
-                layer_idx=self.n_levels - level_idx,
                 synapse_config=common_synapse_config,
             )
             if pop_config.topk_strategy == "conductance_dynamic":

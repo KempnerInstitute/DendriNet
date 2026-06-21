@@ -1,6 +1,7 @@
+import pytest
 import torch
 
-from dendritic_modeling.networks import DendriticSynapseConfig
+from dendritic_modeling.networks import DendriticBranchConfig, DendriticSynapseConfig
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic import (
     DendriNet,
     DendriticBranchLayer,
@@ -53,6 +54,81 @@ def test_dendritic_synapse_config_round_trips_legacy_kwargs():
         if key in extra:
             continue
         assert round_trip[key] == value
+
+
+def test_dendritic_branch_config_round_trips_legacy_kwargs():
+    connection_mask = torch.ones(4, 7, dtype=torch.bool)
+    legacy_kwargs = {
+        "output_dim": 4,
+        "excitatory_input_dim": 7,
+        "excitatory_synapses_per_branch": 3,
+        "inhibitory_input_dim": 5,
+        "inhibitory_synapses_per_branch": 2,
+        "input_branch_factor": 2,
+        "layer_idx": 1,
+        "excitatory_connection_mask": connection_mask,
+    }
+
+    config = DendriticBranchConfig.from_kwargs(legacy_kwargs)
+    round_trip = config.to_kwargs()
+
+    for key, value in legacy_kwargs.items():
+        assert round_trip[key] is value or round_trip[key] == value
+
+
+def test_dendritic_branch_config_requires_output_dim():
+    with pytest.raises(ValueError, match="output_dim"):
+        DendriticBranchConfig.from_kwargs(excitatory_input_dim=3)
+
+
+def test_branch_layer_typed_branch_config_matches_legacy_kwargs_numerically():
+    geometry_kwargs = {
+        "output_dim": 4,
+        "excitatory_input_dim": 7,
+        "excitatory_synapses_per_branch": 3,
+        "inhibitory_input_dim": 5,
+        "inhibitory_synapses_per_branch": 2,
+        "input_branch_factor": 2,
+        "layer_idx": 1,
+    }
+    synapse_kwargs = {
+        "topk_type": "standard",
+        "topk_init_method": "xavier_normal",
+        "reactivate": True,
+        "reactivation_type": "param_tanh",
+        "reactivation_init_policy": "fixed",
+        "reactivation_init_m": 1.3,
+        "reactivation_init_b": 0.25,
+        "use_shunting": True,
+        "weight_transform": "exp",
+        "dbl_init_method": "default",
+        "adaptive_initialization": False,
+        "branch_factors": [2],
+    }
+
+    torch.manual_seed(123)
+    legacy_layer = DendriticBranchLayer(
+        **geometry_kwargs,
+        **synapse_kwargs,
+    )
+    torch.manual_seed(123)
+    typed_layer = DendriticBranchLayer(
+        branch_config=DendriticBranchConfig.from_kwargs(geometry_kwargs),
+        **synapse_kwargs,
+    )
+
+    _assert_state_dict_exact(legacy_layer.state_dict(), typed_layer.state_dict())
+
+    x = torch.rand(3, 7)
+    inhibitory = torch.rand(3, 5)
+    branch_input = torch.rand(3, 8)
+
+    torch.testing.assert_close(
+        legacy_layer(x, inhibitory, branch_input),
+        typed_layer(x, inhibitory, branch_input),
+        rtol=0.0,
+        atol=0.0,
+    )
 
 
 def test_branch_layer_typed_config_matches_legacy_kwargs_numerically():
