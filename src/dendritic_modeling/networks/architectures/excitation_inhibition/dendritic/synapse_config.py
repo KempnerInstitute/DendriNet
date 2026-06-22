@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 
@@ -17,7 +17,9 @@ class TopKConfig:
     weight_norm_order: int | None = None
     gamma: float = 1.0
     temperature: float = 0.5
-    ultrafast: bool = False
+    ultrafast: bool = (
+        True  # develop parity: ultrafast stochastic-topk default (set False for rank-probabilistic)
+    )
     strategy: str = "none"
 
 
@@ -119,7 +121,7 @@ def _topk_config_from_kwargs(source: Mapping[str, Any]) -> TopKConfig:
         weight_norm_order=source.get("topk_weight_norm_order", None),
         gamma=source.get("topk_gamma", 1.0),
         temperature=source.get("topk_temperature", 0.5),
-        ultrafast=source.get("topk_ultrafast", False),
+        ultrafast=source.get("topk_ultrafast", True),
         strategy=source.get("topk_strategy", "none"),
     )
 
@@ -370,13 +372,13 @@ def _has_nested_section_config(mapping: Mapping[str, Any]) -> bool:
 class DendriticSynapseConfig:
     """Grouped branch-layer options with legacy-kwarg conversion helpers."""
 
-    topk: TopKConfig = TopKConfig()
-    dense_to_sparse: DenseToSparseConfig = DenseToSparseConfig()
-    indexed: IndexedSynapseConfig = IndexedSynapseConfig()
-    reactivation: ReactivationConfig = ReactivationConfig()
-    morphology: MorphologyConfig = MorphologyConfig()
-    initialization: AdaptiveInitConfig = AdaptiveInitConfig()
-    deepst: DeepSTConfig = DeepSTConfig()
+    topk: TopKConfig = field(default_factory=TopKConfig)
+    dense_to_sparse: DenseToSparseConfig = field(default_factory=DenseToSparseConfig)
+    indexed: IndexedSynapseConfig = field(default_factory=IndexedSynapseConfig)
+    reactivation: ReactivationConfig = field(default_factory=ReactivationConfig)
+    morphology: MorphologyConfig = field(default_factory=MorphologyConfig)
+    initialization: AdaptiveInitConfig = field(default_factory=AdaptiveInitConfig)
+    deepst: DeepSTConfig = field(default_factory=DeepSTConfig)
     print_hooks: bool = False
 
     @classmethod

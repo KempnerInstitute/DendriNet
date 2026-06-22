@@ -179,9 +179,21 @@ def test_noise_perturbation_analyzer_rejects_invalid_clamp_pair():
         NoisePerturbationAnalyzer._normalize_clamp_range([1, 0])
 
 
-@pytest.mark.parametrize("value", [1.0, "01", b"01", {0.0, 1.0}, [0]])
+@pytest.mark.parametrize(
+    "value",
+    [1.0, "01", b"01", {0.0, 1.0}, {0: 0, 1: 1}, [0]],
+)
 def test_noise_perturbation_analyzer_rejects_non_pair_clamp_range(value):
     with pytest.raises(ValueError, match=r"\[min, max\] pair"):
+        NoisePerturbationAnalyzer._normalize_clamp_range(value)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [[float("nan"), 1.0], [0.0, float("inf")], [float("-inf"), 1.0]],
+)
+def test_noise_perturbation_analyzer_rejects_nonfinite_clamp_range(value):
+    with pytest.raises(ValueError, match="finite"):
         NoisePerturbationAnalyzer._normalize_clamp_range(value)
 
 

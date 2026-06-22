@@ -70,7 +70,7 @@ def create_branch_sparse_layer(
             init_method=init_method,
             noise_level=noise_level,
             temperature=getattr(owner, "topk_temperature", 0.5),
-            ultrafast=getattr(owner, "topk_ultrafast", False),
+            ultrafast=getattr(owner, "topk_ultrafast", True),
             weight_transform=owner.weight_transform,
             forbidden_input_index_per_output=forbidden_input_index_per_output,
             connection_mask=connection_mask,

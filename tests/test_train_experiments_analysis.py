@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from types import SimpleNamespace
 
@@ -9,6 +10,11 @@ import pytest
 import torch
 
 from dendritic_modeling.scripts.training import train_experiments
+
+
+def _enable_package_caplog(monkeypatch) -> None:
+    """Let caplog see package logs while preserving normal logger configuration."""
+    monkeypatch.setattr(logging.getLogger("dendritic_modeling"), "propagate", True)
 
 
 class _FakeAnalysisManager:
@@ -347,6 +353,7 @@ def test_record_model_size_summary_logs_only_changed_suggestions(
     tmp_path,
     caplog,
 ):
+    _enable_package_caplog(monkeypatch)
     model = _ParamModel(torch.zeros(5))
     config = SimpleNamespace(training=SimpleNamespace(lr=0.01))
     saved_payloads = []
@@ -688,6 +695,7 @@ def test_log_model_summary_before_training_handles_recurrent_model(
     monkeypatch,
     caplog,
 ):
+    _enable_package_caplog(monkeypatch)
     model = _SummaryModel(is_recurrent=True)
     config = SimpleNamespace(
         training=SimpleNamespace(main=SimpleNamespace(strategy="standard"))
@@ -1665,6 +1673,8 @@ def test_dump_init_gate_stats_diagnostic_calls_writer(monkeypatch):
 
 
 def test_dump_init_gate_stats_diagnostic_logs_failure(monkeypatch, caplog):
+    _enable_package_caplog(monkeypatch)
+
     def failing_dump(*args):
         raise RuntimeError("diagnostic failed")
 

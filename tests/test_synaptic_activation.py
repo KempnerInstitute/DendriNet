@@ -54,8 +54,17 @@ def test_synaptic_activation_hooks_collect_topk_outputs():
     assert len(analyzer.data_dict["layer"]["inh"]) == 1
 
     with torch.no_grad():
-        expected_exc = model.layer.branch_excitation(x_exc).detach().cpu()
-        expected_inh = model.layer.branch_inhibition(x_inh).detach().cpu()
+        # per-synapse contribution (input_i * pruned_weight_ij), shape (batch, in_features, n_branches)
+        expected_exc = (
+            (x_exc[..., None] * model.layer.branch_excitation.pruned_weight().t())
+            .detach()
+            .cpu()
+        )
+        expected_inh = (
+            (x_inh[..., None] * model.layer.branch_inhibition.pruned_weight().t())
+            .detach()
+            .cpu()
+        )
     torch.testing.assert_close(analyzer.data_dict["layer"]["exc"][0], expected_exc)
     torch.testing.assert_close(analyzer.data_dict["layer"]["inh"][0], expected_inh)
 

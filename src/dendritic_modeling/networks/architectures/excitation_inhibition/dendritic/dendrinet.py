@@ -296,7 +296,7 @@ class DendriNet(nn.Module):
         topk_gamma=1.0,
         weight_transform="exp",  # Weight transformation for positive weights
         topk_temperature=0.5,  # Stochastic TopK temperature.
-        topk_ultrafast=False,  # Fast stochastic TopK path.
+        topk_ultrafast=True,  # develop parity: ultrafast stochastic-topk default (set False for rank-probabilistic)
         topk_strategy="none",
         use_shunting=True,
         reactivation_type="param_tanh",

@@ -240,6 +240,9 @@ outputs_sweep_smoke/
 tmp/
 generated/
 jobs/
+.scratch*/
+.verify_*
+_tmp_reviewer_*.py
 .claude/*.lock
 /analysis/
 !src/dendritic_modeling/analysis/

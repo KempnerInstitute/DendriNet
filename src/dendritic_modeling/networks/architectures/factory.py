@@ -211,7 +211,7 @@ def _build_point_mlp_architecture(
     """Build the point-neuron MLP baseline from structured E/I config."""
     del type, suffix_input_dim
     raw_params = _to_plain_mapping(parameters)
-    if "population_network" in raw_params:
+    if raw_params.get("population_network"):
         reference = _build_population_network_architecture(
             "population_network", raw_params, input_dim, None
         )
@@ -318,7 +318,7 @@ def _build_total_param_mlp(
 ) -> nn.Module:
     del type, suffix_input_dim
     raw_params = _to_plain_mapping(parameters)
-    if "population_network" in raw_params:
+    if raw_params.get("population_network"):
         reference = _build_population_network_architecture(
             "population_network", raw_params, input_dim, None
         )
@@ -338,7 +338,7 @@ def _build_active_param_mlp(
 ) -> nn.Module:
     del type, suffix_input_dim
     raw_params = _to_plain_mapping(parameters)
-    if "population_network" in raw_params:
+    if raw_params.get("population_network"):
         reference = _build_population_network_architecture(
             "population_network", raw_params, input_dim, None
         )

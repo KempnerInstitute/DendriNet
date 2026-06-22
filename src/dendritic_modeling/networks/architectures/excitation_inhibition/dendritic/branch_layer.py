@@ -107,7 +107,7 @@ class DendriticBranchLayer(nn.Module):
         topk_weight_norm_order=None,
         topk_gamma=1.0,
         topk_temperature=0.5,  # Stochastic TopK temperature.
-        topk_ultrafast=False,  # Fast stochastic TopK path.
+        topk_ultrafast=True,  # develop parity: ultrafast stochastic-topk default (set False for rank-probabilistic)
         topk_strategy="none",
         dense_to_sparse_initial_density=1.0,
         dense_to_sparse_initial_k=None,

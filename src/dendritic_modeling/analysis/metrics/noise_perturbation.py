@@ -5,6 +5,8 @@ This module contains classes for evaluating model robustness under various noise
 including uniform and Gaussian noise perturbations.
 """
 
+import math
+from collections.abc import Mapping
 from typing import Callable, Optional
 
 import torch
@@ -77,6 +79,7 @@ class NoisePerturbationAnalyzer(AbstractAnalyzer):
             return None
         if (
             isinstance(value, (str, bytes))
+            or isinstance(value, Mapping)
             or not hasattr(value, "__len__")
             or not hasattr(value, "__getitem__")
         ):
@@ -89,7 +92,17 @@ class NoisePerturbationAnalyzer(AbstractAnalyzer):
                 "noise_perturbation.params.clamp_range must be null or a "
                 "[min, max] pair."
             )
-        lo, hi = float(value[0]), float(value[1])
+        try:
+            lo, hi = float(value[0]), float(value[1])
+        except (TypeError, ValueError, KeyError, IndexError):
+            raise ValueError(
+                "noise_perturbation.params.clamp_range must be null or a "
+                "[min, max] pair."
+            ) from None
+        if not (math.isfinite(lo) and math.isfinite(hi)):
+            raise ValueError(
+                "noise_perturbation.params.clamp_range values must be finite."
+            )
         if lo > hi:
             raise ValueError(
                 "noise_perturbation.params.clamp_range must satisfy min <= max."

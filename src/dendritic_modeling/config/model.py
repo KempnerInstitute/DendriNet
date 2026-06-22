@@ -98,7 +98,9 @@ class SparsityConfig(BaseConfig):
     weight_norm_order: Optional[int] = None
     gamma: float = 1.0
     temperature: float = 0.0
-    ultrafast: bool = False
+    ultrafast: bool = (
+        True  # develop parity: ultrafast stochastic-topk default (set False for rank-probabilistic)
+    )
     gradient_scaling: str = "none"
 
     deepst: dict = field(

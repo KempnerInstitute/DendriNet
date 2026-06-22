@@ -69,7 +69,9 @@ def test_sparsity_config_defaults():
     assert cfg.noise_level == 0.0
     assert cfg.type == "standard"
     assert cfg.temperature == 0.0
-    assert cfg.ultrafast is False
+    assert (
+        cfg.ultrafast is True
+    )  # develop parity: ultrafast stochastic-topk is the default
     assert isinstance(cfg.deepst, dict)
     assert isinstance(cfg.indexed, dict)
     assert "excitatory_target_density" in cfg.deepst
