@@ -90,7 +90,7 @@ class AdaptiveInitConfig:
 
     dbl_init_method: str = "analytical_expectation"
     adaptive_initialization: bool = True
-    adaptive_initialization_policy: str = "legacy_scale"
+    adaptive_initialization_policy: str = "preserve_shunting_center"
     adaptive_target_conductance: float = 5.0
     branch_factors: tuple[int, ...] | None = None
 
@@ -205,7 +205,7 @@ def _initialization_config_from_kwargs(source: Mapping[str, Any]) -> AdaptiveIni
         dbl_init_method=source.get("dbl_init_method", "analytical_expectation"),
         adaptive_initialization=source.get("adaptive_initialization", True),
         adaptive_initialization_policy=source.get(
-            "adaptive_initialization_policy", "legacy_scale"
+            "adaptive_initialization_policy", "preserve_shunting_center"
         ),
         adaptive_target_conductance=source.get("adaptive_target_conductance", 5.0),
         branch_factors=branch_factors,

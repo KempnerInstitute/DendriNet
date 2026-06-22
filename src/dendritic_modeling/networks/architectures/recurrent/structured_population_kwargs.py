@@ -86,7 +86,7 @@ def _structured_population_adaptive_init_kwargs(
     """Translate adaptive-initialization implementation settings."""
     return {
         "adaptive_initialization": bool(
-            implementation.get("adaptive_initialization", False)
+            implementation.get("adaptive_initialization", True)
         ),
         "adaptive_initialization_policy": str(
             implementation.get(

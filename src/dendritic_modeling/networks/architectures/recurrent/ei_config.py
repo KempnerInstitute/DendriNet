@@ -93,7 +93,7 @@ class PopulationConfig(BaseConfig):
     freeze_inhibitory_connectivity: bool = False
     init_method: str = "xavier_normal"
     weight_threshold: float = 1e-6
-    adaptive_initialization: bool = False
+    adaptive_initialization: bool = True
     adaptive_initialization_policy: str = "preserve_shunting_center"
     adaptive_target_conductance: float = 5.0
 

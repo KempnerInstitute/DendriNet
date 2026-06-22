@@ -323,7 +323,7 @@ class DendriNet(nn.Module):
         init_method=None,
         weight_threshold=1e-6,
         adaptive_initialization=True,
-        adaptive_initialization_policy="legacy_scale",
+        adaptive_initialization_policy="preserve_shunting_center",
         adaptive_target_conductance=5.0,
         structured_connectivity=None,
         structured_layer_idx: int = 0,

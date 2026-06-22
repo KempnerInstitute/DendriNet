@@ -300,7 +300,8 @@ def test_population_feedforward_example_uses_modern_sparse_defaults() -> None:
         and getattr(module, "branch_excitation", None) is not None
         and "populations.e.branch_layers.0" in name
     )
-    assert first_branch.adaptive_initialization is False
+    assert first_branch.adaptive_initialization is True
+    assert first_branch.adaptive_initialization_policy == "preserve_shunting_center"
     assert first_branch.efficient_blocklinear is True
     assert isinstance(first_branch.branch_excitation, IndexedRewireLinear)
     candidate_weights = first_branch.branch_excitation.sparse_weight()

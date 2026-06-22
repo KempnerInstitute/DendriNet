@@ -237,7 +237,7 @@ def test_structured_population_deepst_kwargs_preserve_all_rewiring_fields():
 
 def test_structured_population_adaptive_init_kwargs_preserve_defaults_and_overrides():
     assert _structured_population_adaptive_init_kwargs({}) == {
-        "adaptive_initialization": False,
+        "adaptive_initialization": True,
         "adaptive_initialization_policy": "preserve_shunting_center",
         "adaptive_target_conductance": 5.0,
     }

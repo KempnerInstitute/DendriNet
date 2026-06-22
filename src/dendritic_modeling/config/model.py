@@ -188,14 +188,10 @@ class BlockLinearConfig(BaseConfig):
 class ImplementationConfig(BaseConfig):
     """Implementation optimization settings."""
 
-    # Default False (develop-compatible, opt-in). When True, the adaptive
-    # network-scale factor log((K_exc+K_inh)*sqrt(branches)/5) is subtracted from
-    # excitatory pre-weights, which collapses leaf-layer shunting conductances
-    # (~25x smaller weights, gate center ~0.19 vs ~0.49) and degrades shunting
-    # learning. Configs that omit this field must keep the develop-scale init.
-    adaptive_initialization: bool = False
-    # Explicit adaptive opt-ins should preserve the shunting operating point by
-    # default. "legacy_scale" is kept for reproducing the old raw-weight shrink.
+    # Enabled by default for shunting models, but use the center-preserving
+    # policy so conductance scaling does not move the initial shunting gate
+    # operating point. "legacy_scale" is kept only for reproducing older sweeps.
+    adaptive_initialization: bool = True
     adaptive_initialization_policy: str = "preserve_shunting_center"
     adaptive_target_conductance: float = 5.0
     print_hooks: bool = False

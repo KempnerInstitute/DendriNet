@@ -155,7 +155,7 @@ class DendriticBranchLayer(nn.Module):
         init_method=None,
         weight_threshold=1e-6,
         adaptive_initialization=True,
-        adaptive_initialization_policy="legacy_scale",
+        adaptive_initialization_policy="preserve_shunting_center",
         adaptive_target_conductance=5.0,
         branch_factors=None,  # Branch count per dendritic level.
         epsilon=1e-8,  # Numerical stability constant.

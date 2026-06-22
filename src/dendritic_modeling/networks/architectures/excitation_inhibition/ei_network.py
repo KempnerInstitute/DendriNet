@@ -302,7 +302,7 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         freeze_inhibitory_connectivity=False,
         init_method="xavier_normal",
         weight_threshold=1e-6,
-        adaptive_initialization=False,
+        adaptive_initialization=True,
         adaptive_initialization_policy="preserve_shunting_center",
         adaptive_target_conductance=5.0,
         compile_forward: bool = False,

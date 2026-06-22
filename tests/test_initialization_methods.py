@@ -378,6 +378,7 @@ class TestEmpiricalCalibration:
                 reactivation_init_policy="analytical",
                 reactivation_sigma_aware_k=0.25,
                 dbl_init_method="analytical_expectation",
+                adaptive_initialization=False,
                 weight_transform="softplus",
             )
 
