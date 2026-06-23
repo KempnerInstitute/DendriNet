@@ -10,7 +10,8 @@ selected automatically based on dataset size.
 
 import logging
 import os
-from typing import Callable, Optional
+from collections.abc import Callable
+from typing import Optional
 
 # Disable Dynamo to fix fake tensor device issues during analysis
 os.environ["TORCHDYNAMO_DISABLE"] = "1"

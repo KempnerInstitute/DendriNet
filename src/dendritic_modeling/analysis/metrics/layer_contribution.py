@@ -7,8 +7,9 @@ model performance by testing each layer in isolation and measuring its individua
 
 import logging
 import os
+from collections.abc import Callable
 from copy import deepcopy
-from typing import Callable, Optional
+from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np

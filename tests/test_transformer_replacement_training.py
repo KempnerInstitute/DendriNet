@@ -17,9 +17,7 @@ from dendritic_modeling.training import (
 from dendritic_modeling.training._transformer_replacement.common import (
     _make_tensor_loader,
 )
-from dendritic_modeling.training._transformer_replacement.loops import (
-    _infinite_loader,
-)
+from dendritic_modeling.training._transformer_replacement.loops import _infinite_loader
 from dendritic_modeling.training.transformer_replacement import (
     _load_replacement_record_checkpoints,
     _make_replacement,

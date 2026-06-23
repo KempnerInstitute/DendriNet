@@ -6,8 +6,8 @@ including uniform and Gaussian noise perturbations.
 """
 
 import math
-from collections.abc import Mapping
-from typing import Callable, Optional
+from collections.abc import Callable, Mapping
+from typing import Optional
 
 import torch
 from torch.utils.data import TensorDataset

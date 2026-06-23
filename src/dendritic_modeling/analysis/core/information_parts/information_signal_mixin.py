@@ -14,10 +14,7 @@ from dendritic_modeling.analysis.core.information_parts.information_signal_proje
 from dendritic_modeling.analysis.core.information_parts.information_signal_summary_mixin import (
     InformationSignalSummaryMixin,
 )
-from dendritic_modeling.utils.lda import (
-    apply_nonnegative_lda,
-    fit_nonnegative_lda,
-)
+from dendritic_modeling.utils.lda import apply_nonnegative_lda, fit_nonnegative_lda
 
 
 class InformationSignalAggregationMixin(

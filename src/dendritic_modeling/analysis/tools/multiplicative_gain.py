@@ -1,7 +1,8 @@
 import logging
 import os
+from collections.abc import Callable
 from math import log
-from typing import Callable, Optional
+from typing import Optional
 
 import matplotlib.animation as animation
 import matplotlib.pyplot as plt

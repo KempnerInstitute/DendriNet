@@ -62,7 +62,7 @@ ignore = [
     "N815",   # Variable in class scope should not be mixedCase (domain: E/I/V traces)
     "I001",   # Import block is un-sorted or un-formatted (handled by isort)
     "UP007",  # Keep Optional[...] annotations for consistency
-    "UP038",  # Keep tuple-style isinstance checks for current compatibility
+    "UP045",  # Keep Optional[...] annotations for consistency with current codebase
 ]
 
 # Allow fix for all enabled rules (when `--fix`) is provided

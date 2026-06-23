@@ -76,10 +76,10 @@ test = [
 ]
 
 lint = [
-    "ruff>=0.1.0",
+    "ruff==0.15.1",
     "mypy>=1.0,<1.4",
-    "black>=24.3.0",
-    "isort>=5.12,<5.13",
+    "black==24.10.0",
+    "isort==5.13.2",
     "pre-commit>=3.0.0",
 ]
 
@@ -209,7 +209,7 @@ ignore = [
     "B010",  # do not call setattr with a constant attribute value
     "B905",  # zip(strict=...) migration deferred for current style
     "UP007",  # keep Optional[...] annotations for consistency
-    "UP038",  # keep tuple-style isinstance checks for current compatibility
+    "UP045",  # keep Optional[...] annotations for consistency with current codebase
 ]
 
 [tool.ruff.format]

@@ -8,9 +8,9 @@ disabling or ablating different network components to understand their contribut
 import json
 import logging
 import os
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from copy import deepcopy
-from typing import Callable, Optional
+from typing import Optional
 
 import matplotlib.animation as animation
 import matplotlib.pyplot as plt
