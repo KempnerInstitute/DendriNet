@@ -811,6 +811,7 @@ class CompartmentSNRAnalysisParams(BaseConfig):
     """
 
     input_analysis: bool = True  # Analyze input-level statistics
+    input_capture_mode: str = "branch"  # "branch" or "network"
     global_analysis: bool = True  # Analyze global statistics
     layer_analysis: bool = True  # Analyze layer statistics
     branch_analysis: bool = True  # Analyze branch statistics
@@ -1006,11 +1007,10 @@ class SingleLayerContributionAnalysisConfig(BaseConfig):
 class ReceptiveFieldAnalysisParams(BaseConfig):
     """Parameters for receptive field visualization.
 
-    - n_rows / n_cols: grid size for plotting receptive fields.
-    - rf_shape: optional shared (H, W) shape for both E and I receptive fields.
-    - exc_rf_shape / inh_rf_shape: optional per-stream (H, W) receptive field shapes.
-    - compute_activation_tuning: also summarize class tuning from branch activations
-      when a dataset is supplied by the analysis manager.
+    - rf_shape: optional (H, W) receptive field shape if known.
+    - exc_rf_shape / inh_rf_shape: optional synapse-specific receptive-field
+      shapes; fall back to rf_shape when omitted.
+    - compute_activation_tuning: also summarize class tuning of branch signals.
     """
 
     n_rows: int = 2

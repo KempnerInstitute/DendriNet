@@ -1,7 +1,6 @@
 from dendritic_modeling.analysis.core.ablation import (
     ABLATION_VIDEO_METRIC_LABELS,
     _has_metric_drop_nested,
-    flatten_3level_ablation,
 )
 
 
@@ -30,13 +29,3 @@ def test_ablation_video_metric_labels_preserve_supported_order():
         "cosine_similarity",
         "pred_label_mi_bits",
     ]
-
-
-def test_flatten_3level_ablation_preserves_legacy_two_level_payloads():
-    payload = {
-        "lesion": {
-            "layer0": {"depth": 0, "accuracy_drop": 0.1},
-        }
-    }
-
-    assert flatten_3level_ablation(payload) == payload

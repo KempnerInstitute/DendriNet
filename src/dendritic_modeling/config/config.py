@@ -159,6 +159,7 @@ class DatasetParamsConfig(BaseConfig):
             "max_gain_factor": None,
             "max_gain_tau_ratio": None,
             "uniform_gain": True,
+            "gain_sampling": "log_uniform",
             "poisson_sampling": True,
             "stimulus_duration": 1.0,
         }

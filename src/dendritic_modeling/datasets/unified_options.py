@@ -69,6 +69,7 @@ class _UnifiedDatasetOptions:
     max_gain_factor: Any
     max_gain_tau_ratio: Any
     uniform_gain: bool
+    gain_sampling: str
     split_seed: int
     label_noise_rate: float
     label_noise_seed: int
@@ -103,6 +104,7 @@ def _resolve_unified_dataset_options(task_cfg: Any) -> _UnifiedDatasetOptions:
         max_gain_factor=parameters.get("max_gain_factor", None),
         max_gain_tau_ratio=parameters.get("max_gain_tau_ratio", None),
         uniform_gain=parameters.get("uniform_gain", True),
+        gain_sampling=parameters.get("gain_sampling", "log_uniform"),
         split_seed=int(parameters.get("split_seed", parameters.get("seed", 0)) or 0),
         label_noise_rate=parameters.get("label_noise_rate", 0.0),
         label_noise_seed=parameters.get("label_noise_seed", 0),

@@ -99,32 +99,6 @@ def _has_metric_drop_nested(dictionary, metric):
     return False
 
 
-def flatten_3level_ablation(nested_results: dict) -> dict:
-    """Convert 3-level ablation results to 2-level for legacy consumers.
-
-    Input:  ``{"lesion": {"excitation": {module: metrics, ...}, ...}, ...}``
-    Output: ``{"lesion_excitation": {module: metrics, ...}, ...}``
-
-    If the dict is already 2-level (values contain module-level dicts with a
-    ``"depth"`` key), it is returned unchanged.
-
-    .. note:: New code should use the canonical 3-level schema directly.
-              This helper exists only for backward compatibility with old
-              plotting code.
-    """
-    flat: dict = {}
-    for method, targets in nested_results.items():
-        if not isinstance(targets, dict):
-            flat[method] = targets
-            continue
-        if set(targets.keys()) & _KNOWN_TARGETS:
-            for target, modules in targets.items():
-                flat[f"{method}_{target}"] = modules
-        else:
-            flat[method] = targets
-    return flat
-
-
 class AblationAnalyzer(AbstractAnalyzer):
     """Analyzer for performing ablation studies on model components."""
 
@@ -305,30 +279,15 @@ class AblationAnalyzer(AbstractAnalyzer):
         eval_kwargs: Optional[dict] = None,
         device: Optional[str] = None,
     ):
-        """Ablate a single layer and evaluate its impact.
-
-        Args:
-            ablation_type: The ablation target, e.g. ``"excitation"``,
-                ``"inhibition"``, ``"all_synapses"``, ``"upstream"``.
-                Legacy composite keys like ``"lesion_excitation"`` are also
-                accepted and the method prefix is stripped automatically.
-            ablation_method: ``"lesion"`` | ``"shuffle"`` | ``"mean_clamp"``.
-            results_dict: Dict to write into at ``results_dict[ablation_type][module_name]``.
-        """
+        """Ablate a single layer and evaluate its impact."""
         results_dict[ablation_type][module_name] = {}
         results_dict[ablation_type][module_name]["depth"] = module.layer_idx
-        results_dict[ablation_type][module_name]["ablation_method"] = ablation_method
         if eval_kwargs is None:
             eval_kwargs = {}
         if device is None:
             device = str(get_model_device(model))
 
-        # Allow ablation_type keys to be namespaced, e.g. "lesion_excitation".
-        target_type = ablation_type
-        prefix = f"{ablation_method}_"
-        if isinstance(ablation_type, str) and ablation_type.startswith(prefix):
-            target_type = ablation_type[len(prefix) :]
-        target_type_norm = self._normalize_ablation_target(target_type)
+        target_type_norm = self._normalize_ablation_target(ablation_type)
 
         # Check if this is a soma layer without somatic synapses (using config)
         somatic_synapses_enabled = getattr(model.core_network, "somatic_synapses", True)
@@ -460,14 +419,7 @@ class AblationAnalyzer(AbstractAnalyzer):
             device = str(get_model_device(model))
         results_dict[ablation_type][module_name] = {}
         results_dict[ablation_type][module_name]["depth"] = module.layer_idx
-        results_dict[ablation_type][module_name]["ablation_method"] = ablation_method
-
-        # Allow ablation_type keys to be namespaced, e.g. "lesion_excitation".
-        target_type = ablation_type
-        prefix = f"{ablation_method}_"
-        if isinstance(ablation_type, str) and ablation_type.startswith(prefix):
-            target_type = ablation_type[len(prefix) :]
-        target_type_norm = self._normalize_ablation_target(target_type)
+        target_type_norm = self._normalize_ablation_target(ablation_type)
 
         if module.branch_excitation is not None:
             n_branches = module.branch_excitation.pre_w.shape[0]
@@ -590,11 +542,12 @@ class AblationAnalyzer(AbstractAnalyzer):
 
             # Plot compartment ablation results if available
             if results.get("compartment"):
-                plot_ablation_results(
-                    results["compartment"],
-                    save_path=save_path,
-                    filename=f"{filename}_compartment",
-                )
+                for method, method_results in results["compartment"].items():
+                    plot_ablation_results(
+                        method_results,
+                        save_path=os.path.join(save_path, method),
+                        filename=f"{filename}_compartment",
+                    )
         except ImportError as e:
             logger.warning("Ablation plotting functions not found: %s", e)
         except Exception as e:
@@ -817,17 +770,8 @@ class AblationAnalyzer(AbstractAnalyzer):
             save_dict(results, save_path, f"{filename}.json")
 
             if not training:
-                plot_results = dict(results)
-                if "layer" in plot_results:
-                    plot_results["layer"] = flatten_3level_ablation(
-                        plot_results["layer"]
-                    )
-                if "compartment" in plot_results:
-                    plot_results["compartment"] = flatten_3level_ablation(
-                        plot_results["compartment"]
-                    )
                 self._plot_ablation_results(
-                    plot_results, save_path, filename, somatic_synapses_enabled
+                    results, save_path, filename, somatic_synapses_enabled
                 )
         else:
             return results
@@ -860,14 +804,12 @@ def create_video_layer_ablation_vs_training(
     if not epoch_files:
         raise ValueError(f"No epoch JSON files found in {epochs_dir}")
 
-    # Load all epoch data (flatten 3-level schema to 2-level for plotting)
+    # Load all epoch data in the canonical method -> target -> module schema.
     epoch_data_list = []
     for epoch_number, filename in epoch_files:
         file_path = os.path.join(epochs_dir, filename)
         with open(file_path) as f:
             data = json.load(f)
-            if "layer" in data:
-                data["layer"] = flatten_3level_ablation(data["layer"])
             epoch_data_list.append((epoch_number, data))
 
     if not epoch_data_list:
@@ -901,15 +843,11 @@ def create_video_layer_ablation_vs_training(
             f"Available metrics: {available_metrics}"
         )
 
-    # Determine ablation types (supports method-prefixed keys like "lesion_excitation")
     base_targets = ["excitation", "inhibition", "all_synapses", "upstream"]
 
-    available_methods = set()
-    for k in layer_results.keys():
-        k_norm = str(k).replace(" ", "_")
-        for base in base_targets:
-            if k_norm.endswith(f"_{base}"):
-                available_methods.add(k_norm[: -(len(base) + 1)])
+    available_methods = {
+        key for key, value in layer_results.items() if isinstance(value, dict)
+    }
 
     selected_method = method
     if selected_method is None:
@@ -917,23 +855,13 @@ def create_video_layer_ablation_vs_training(
     if selected_method is None and available_methods:
         selected_method = sorted(available_methods)[0]
 
-    synapse_ablation_types = []
-    if selected_method is not None:
-        for base in base_targets:
-            key = f"{selected_method}_{base}"
-            if key in layer_results:
-                synapse_ablation_types.append(key)
-    else:
-        # Legacy (non-prefixed) keys
-        for legacy_key in (
-            "excitation",
-            "inhibition",
-            "all synapses",
-            "all_synapses",
-            "upstream",
-        ):
-            if legacy_key in layer_results:
-                synapse_ablation_types.append(legacy_key)
+    if selected_method is None:
+        raise ValueError("No ablation methods found in data")
+
+    method_results = layer_results.get(selected_method, {})
+    synapse_ablation_types = [
+        target for target in base_targets if target in method_results
+    ]
 
     if not synapse_ablation_types:
         raise ValueError("No ablation types found in data")
@@ -944,7 +872,7 @@ def create_video_layer_ablation_vs_training(
 
     # Determine depth range from first epoch (assume consistent across epochs)
     first_layer_results = epoch_data_list[0][1]["layer"]
-    first_type_dict = first_layer_results[synapse_ablation_types[0]]
+    first_type_dict = first_layer_results[selected_method][synapse_ablation_types[0]]
     depths = sorted({layer_dict["depth"] for layer_dict in first_type_dict.values()})
 
     # Create depth labels
@@ -959,7 +887,7 @@ def create_video_layer_ablation_vs_training(
     # Calculate global min and max values across all epochs for consistent y-axis
     all_values = []
     for _epoch_number, epoch_data in epoch_data_list:
-        layer_results = epoch_data["layer"]
+        layer_results = epoch_data["layer"].get(selected_method, {})
         for ablation_type in synapse_ablation_types:
             type_dict = layer_results.get(ablation_type, {})
             for layer_dict in type_dict.values():
@@ -1022,7 +950,7 @@ def create_video_layer_ablation_vs_training(
 
         # Get data for this frame
         epoch_number, epoch_data = epoch_data_list[frame]
-        layer_results = epoch_data["layer"]
+        layer_results = epoch_data["layer"].get(selected_method, {})
         baselines = epoch_data.get("baseline", {})
 
         # Prepare data for plotting (matching plot_layer_ablation logic exactly)
@@ -1069,8 +997,7 @@ def create_video_layer_ablation_vs_training(
         # Update title with epoch number and baseline
         baseline_value = baselines.get(metric, 0.0)
         title = f"{ABLATION_VIDEO_METRIC_LABELS[metric]} Drop Decrease vs. Branch Depth"
-        if selected_method is not None:
-            title += f"\nMethod: {selected_method}"
+        title += f"\nMethod: {selected_method}"
         title += f"\nEpoch {epoch_number} (Baseline: {baseline_value:.3f})"
         ax.set_title(title)
         ax.legend()
@@ -1088,7 +1015,7 @@ def create_video_layer_ablation_vs_training(
     )
 
     # Save video
-    method_tag = selected_method if selected_method is not None else "legacy"
+    method_tag = selected_method
     video_filename = f"layer_ablation_{method_tag}_{metric}_evolution"
     logger.info(
         "Creating %s-frame video at %.2f fps (20 seconds total)", num_epochs, fps

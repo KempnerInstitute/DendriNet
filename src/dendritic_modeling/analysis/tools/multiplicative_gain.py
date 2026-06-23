@@ -339,10 +339,11 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
         ood_upper_dict: dict[str, float],
     ) -> None:
         if metric_funcs:
-            data_dict["raw_scores"] = {
-                metric_key: list(data_dict[metric_key])
+            raw_scores = {
+                metric_key: list(data_dict.pop(metric_key))
                 for metric_key, _ in metric_funcs
             }
+            data_dict["raw_scores"] = raw_scores
             data_dict["ID"] = id_dict
             data_dict["OOD_lower"] = ood_lower_dict
             data_dict["OOD_upper"] = ood_upper_dict
@@ -425,7 +426,7 @@ def plot_performance_vs_gain_final(
         save_path: Optional path to save the figure
     """
     gain_factors = data_dict["gain_factors"]
-    metric_values = data_dict[metric]
+    metric_values = data_dict.get("raw_scores", data_dict)[metric]
 
     plt.figure(figsize=(10, 6))
     plt.plot(gain_factors, metric_values, marker="o", linewidth=2, markersize=4)
@@ -464,7 +465,7 @@ def plot_performance_vs_gain_training(
         save_path: Path to save the video
     """
     gain_factors = epochs_data["gain_factors"]
-    metric_values_list = epochs_data[metric]
+    metric_values_list = epochs_data.get("raw_scores", epochs_data)[metric]
 
     # Calculate global y-axis limits across all epochs
     all_metric_values = [

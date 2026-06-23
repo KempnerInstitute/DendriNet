@@ -31,6 +31,7 @@ from dendritic_modeling.config import CompartmentSNRAnalysisParams
 from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.models import BaseModel, Classifier
 from dendritic_modeling.networks import (
+    DendriNet,
     DendriticBranchLayer,
     ExcitationInhibitionNetwork,
     ParametricActivation,
@@ -94,6 +95,21 @@ class CompartmentSNRAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         self.input_analysis = getattr(params, "input_analysis", True)
         self.layer_analysis = getattr(params, "layer_analysis", True)
         self.branch_analysis = getattr(params, "branch_analysis", True)
+        self.input_capture_mode = (
+            str(getattr(params, "input_capture_mode", "branch"))
+            .strip()
+            .lower()
+            .replace("-", "_")
+        )
+        if self.input_capture_mode in {"branch_inputs", "branch_input"}:
+            self.input_capture_mode = "branch"
+        elif self.input_capture_mode in {"network_inputs", "network_input"}:
+            self.input_capture_mode = "network"
+        if self.input_capture_mode not in {"branch", "network"}:
+            raise ValueError(
+                "input_capture_mode must be 'branch' or 'network', "
+                f"got {self.input_capture_mode!r}"
+            )
 
         self.global_aggregation = getattr(params, "global_aggregation", True)
         self.layer_aggregation = getattr(params, "layer_aggregation", True)
@@ -105,14 +121,21 @@ class CompartmentSNRAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         """Collect raw data from the model."""
         self.raw_dict = {}
 
-        exc_dendrinet = model.core_network.layers[-1].excitatory_cells
+        core_network: ExcitationInhibitionNetwork = model.core_network
+        exc_dendrinet = core_network.layers[-1].excitatory_cells
 
         def _attach_hooks():
-            return register_named_forward_hook_groups(
-                exc_dendrinet,
-                DendriticBranchLayer,
-                self._collect_layer_raw_data,
+            handles = []
+            if self.input_analysis and self.input_capture_mode == "network":
+                handles.extend(self._attach_network_input_hooks(core_network))
+            handles.extend(
+                register_named_forward_hook_groups(
+                    exc_dendrinet,
+                    DendriticBranchLayer,
+                    self._collect_layer_raw_data,
+                )
             )
+            return handles
 
         def _run_model():
             with torch.no_grad():
@@ -123,6 +146,28 @@ class CompartmentSNRAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
             remove=self.remove_forward_hooks,
             body=_run_model,
         )
+
+    def _attach_network_input_hooks(
+        self,
+        core_network: ExcitationInhibitionNetwork,
+    ) -> list[torch.utils.hooks.RemovableHandle]:
+        handles = [
+            core_network.register_forward_hook(
+                lambda module, input, output: self.network_input_hook(
+                    module, input, output
+                )
+            )
+        ]
+        inhibitory_cells = core_network.layers[-1].inhibitory_cells
+        if isinstance(inhibitory_cells, DendriNet):
+            handles.append(
+                inhibitory_cells.register_forward_hook(
+                    lambda module, input, output: self.network_input_hook(
+                        module, input, output
+                    )
+                )
+            )
+        return handles
 
     def _collect_layer_raw_data(
         self,
@@ -155,7 +200,7 @@ class CompartmentSNRAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         self, key: str, module: DendriticBranchLayer
     ) -> list[torch.utils.hooks.RemovableHandle]:
         def _hook_specs():
-            if self.input_analysis:
+            if self.input_analysis and self.input_capture_mode == "branch":
                 yield ("input", module, "")
             if module.branch_excitation is not None:
                 yield ("activation", module.branch_excitation, "exc")
@@ -192,6 +237,19 @@ class CompartmentSNRAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
             return
         setattr(self, name, tensor.detach().cpu())
 
+    def network_input_hook(
+        self,
+        module: Union[ExcitationInhibitionNetwork, DendriNet],
+        input: tuple[torch.Tensor, ...],
+        output: torch.Tensor,
+    ) -> None:
+        """Capture network-level inputs as a separate optional SNR mode."""
+        if isinstance(module, ExcitationInhibitionNetwork):
+            if input:
+                self._capture_input_once("network_excitatory_inputs", input[0])
+        elif isinstance(module, DendriNet):
+            self._capture_input_once("network_inhibitory_outputs", output)
+
     def branch_input_hook(
         self,
         module: DendriticBranchLayer,
@@ -222,7 +280,7 @@ class CompartmentSNRAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         key: str,
         activation_type: str,
     ):
-        if self.input_analysis:
+        if self.input_analysis and self.input_capture_mode == "branch":
             if activation_type == "exc" and not hasattr(self, "excitatory_inputs"):
                 self._capture_input_once("excitatory_inputs", input[0])
             elif activation_type == "inh" and not hasattr(self, "inhibitory_inputs"):
@@ -265,6 +323,24 @@ class CompartmentSNRAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
                 stats_dict=results,
             )
             delattr(self, "upstream_inputs")
+
+        if hasattr(self, "network_excitatory_inputs"):
+            results = self._compute_discriminability_multivariate(
+                data_tensor=self.network_excitatory_inputs,
+                labels=labels,
+                prefix="network_exc_inputs",
+                stats_dict=results,
+            )
+            delattr(self, "network_excitatory_inputs")
+
+        if hasattr(self, "network_inhibitory_outputs"):
+            results = self._compute_discriminability_multivariate(
+                data_tensor=self.network_inhibitory_outputs,
+                labels=labels,
+                prefix="network_inh_outputs",
+                stats_dict=results,
+            )
+            delattr(self, "network_inhibitory_outputs")
 
         return results
 

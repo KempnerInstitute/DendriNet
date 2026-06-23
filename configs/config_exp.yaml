@@ -66,7 +66,8 @@ data:
       fixed_gain_factor: null           # float | null: Fixed gain (null = random)
       max_gain_factor: null             # float | null: Upper bound for gain
       max_gain_tau_ratio: null          # float | null: Tau-based gain ratio
-      uniform_gain: true                # bool: Uniform gain distribution
+      uniform_gain: true                # bool: One gain shared across each sample
+      gain_sampling: "log_uniform"      # str: "log_uniform" or "linear_uniform"
       poisson_sampling: true            # bool: Poisson spike sampling
       stimulus_duration: 1.0            # float: Stimulus duration (seconds)
     multixor:
@@ -877,6 +878,7 @@ analysis:
     training: false                     # bool: Run during training
     params:
       input_analysis: true              # bool: Input-level statistics
+      input_capture_mode: "branch"      # str: "branch" inputs or "network" input/output summary
       global_analysis: true             # bool: Global statistics
       layer_analysis: true              # bool: Layer statistics
       branch_analysis: true             # bool: Branch statistics

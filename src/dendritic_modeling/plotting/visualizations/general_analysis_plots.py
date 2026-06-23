@@ -230,43 +230,30 @@ def plot_layer_ablation(
         if has_metric_nested(layer_results, metric):
             metrics.append(metric)
 
-    # Support both legacy keys ("excitation") and method-prefixed keys
-    # ("lesion_excitation", "shuffle_all_synapses", "mean_clamp_upstream", ...).
     base_targets = ["excitation", "inhibition", "all_synapses", "upstream"]
-    method_to_keys: dict[str, dict[str, str]] = {}
-    legacy_method = "legacy"
+    method_to_targets = {
+        method: targets
+        for method, targets in layer_results.items()
+        if isinstance(targets, dict)
+    }
 
-    for k in layer_results.keys():
-        k_norm = str(k).replace(" ", "_")
-        if k_norm in set(base_targets):
-            method_to_keys.setdefault(legacy_method, {})[k_norm] = k
-            continue
-
-        for base in base_targets:
-            suffix = f"_{base}"
-            if k_norm.endswith(suffix):
-                method = k_norm[: -len(suffix)]
-                if method:
-                    method_to_keys.setdefault(method, {})[base] = k
-                break
-
-    if not method_to_keys:
+    if not method_to_targets:
         logger.warning("No recognizable ablation keys found for plotting")
         return fig_list if save_path is None else None
 
     def _method_sort_key(m: str) -> tuple[int, str]:
         return (0 if m == "lesion" else 1, m)
 
-    for method in sorted(method_to_keys.keys(), key=_method_sort_key):
-        base_to_key = method_to_keys[method]
-        bases_present = [b for b in base_targets if b in base_to_key]
+    for method in sorted(method_to_targets.keys(), key=_method_sort_key):
+        target_results = method_to_targets[method]
+        bases_present = [b for b in base_targets if b in target_results]
         if not bases_present:
             continue
 
         # Use consistent depth order across ablation types for this method.
         depths_set = set()
         for base in bases_present:
-            type_dict: dict = layer_results.get(base_to_key[base], {})
+            type_dict: dict = target_results.get(base, {})
             for layer_dict in type_dict.values():
                 if "depth" in layer_dict:
                     depths_set.add(layer_dict["depth"])
@@ -289,8 +276,7 @@ def plot_layer_ablation(
             fig, ax = plt.subplots(figsize=(10, 8))
 
             for i, base in enumerate(bases_present):
-                ablation_key = base_to_key[base]
-                type_dict: dict = layer_results.get(ablation_key, {})
+                type_dict: dict = target_results.get(base, {})
 
                 # depth -> list[values] (handle duplicates safely)
                 depth_to_vals: dict[int, list[float]] = {}
@@ -323,12 +309,7 @@ def plot_layer_ablation(
             ax.grid(True, axis="y", alpha=0.3)
 
             if save_path is not None:
-                method_suffix = ""
-                if len(method_to_keys) > 1 and method != legacy_method:
-                    method_suffix = f"_{method}"
-                plot_path = os.path.join(
-                    save_path, f"{filename}{method_suffix}_{metric}.png"
-                )
+                plot_path = os.path.join(save_path, f"{filename}_{method}_{metric}.png")
                 fig.savefig(plot_path, dpi=300, bbox_inches="tight")
                 plt.close()
             else:
@@ -467,7 +448,7 @@ def plot_per_layer_ablation(layer_results: dict[str, dict[str, dict]], **kwargs)
 
                 # Save individual plot
                 if save_path:
-                    clean_metric = metric_type.replace(" ", "_").replace("_drop", "")
+                    clean_metric = metric_type.replace(" ", "_").replace(" drop", "")
                     save_plot(fig, save_path, f"{filename_prefix}_{clean_metric}")
 
         logger.info(f"Generated {len(plots)} ablation plots")

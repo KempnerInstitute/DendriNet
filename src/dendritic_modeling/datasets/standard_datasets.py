@@ -692,6 +692,7 @@ def _wrap_poisson_generator_dataset(
     fixed_gain_factor: Optional[float],
     max_gain_factor: Optional[float],
     uniform_gain: bool,
+    gain_sampling: str,
     poisson_sampling: bool,
     stimulus_duration: float,
     max_gain_tau_ratio: Optional[float],
@@ -703,6 +704,7 @@ def _wrap_poisson_generator_dataset(
         fixed_gain_factor=fixed_gain_factor,
         max_gain_factor=max_gain_factor,
         uniform_gain=uniform_gain,
+        gain_sampling=gain_sampling,
         poisson_sampling=poisson_sampling,
         stimulus_duration=stimulus_duration,
         max_gain_tau_ratio=max_gain_tau_ratio,
@@ -718,6 +720,7 @@ def _wrap_poisson_generator_triplet(
     fixed_gain_factor: Optional[float],
     max_gain_factor: Optional[float],
     uniform_gain: bool,
+    gain_sampling: str,
     poisson_sampling: bool,
     stimulus_duration: float,
     max_gain_tau_ratio: Optional[float],
@@ -728,6 +731,7 @@ def _wrap_poisson_generator_triplet(
         "fixed_gain_factor": fixed_gain_factor,
         "max_gain_factor": max_gain_factor,
         "uniform_gain": uniform_gain,
+        "gain_sampling": gain_sampling,
         "poisson_sampling": poisson_sampling,
         "stimulus_duration": stimulus_duration,
         "max_gain_tau_ratio": max_gain_tau_ratio,
@@ -745,6 +749,7 @@ def load_poisson_generator_datasets(
     fixed_gain_factor: Optional[float] = None,
     max_gain_factor: Optional[float] = None,
     uniform_gain: bool = True,
+    gain_sampling: str = "log_uniform",
     poisson_sampling: bool = True,
     stimulus_duration: float = 1.0,
     max_gain_tau_ratio: Optional[float] = None,
@@ -762,7 +767,8 @@ def load_poisson_generator_datasets(
         fixed_gain_factor (float): The fixed gain factor for the Poisson distribution
         max_gain_factor (float): The maximum gain factor for the Poisson distribution
         max_gain_tau_ratio (float): The maximum gain tau ratio for the Poisson distribution
-        uniform_gain (bool): Whether to use uniform gain for the Poisson distribution
+        uniform_gain (bool): Whether one gain is shared across each sample
+        gain_sampling (str): "log_uniform" (default) or "linear_uniform"
         train_valid_split (float): The proportion of samples to use for training vs validation
         flatten (bool): Whether to flatten the samples
         task_data_path (str, optional): Path from task.data_path config
@@ -798,6 +804,7 @@ def load_poisson_generator_datasets(
         fixed_gain_factor=fixed_gain_factor,
         max_gain_factor=max_gain_factor,
         uniform_gain=uniform_gain,
+        gain_sampling=gain_sampling,
         poisson_sampling=poisson_sampling,
         stimulus_duration=stimulus_duration,
         max_gain_tau_ratio=max_gain_tau_ratio,
@@ -961,6 +968,7 @@ def _load_poisson_generator_from_options(
         fixed_gain_factor=options.fixed_gain_factor,
         max_gain_factor=options.max_gain_factor,
         uniform_gain=options.uniform_gain,
+        gain_sampling=options.gain_sampling,
         poisson_sampling=options.poisson_sampling,
         stimulus_duration=options.stimulus_duration,
         max_gain_tau_ratio=options.max_gain_tau_ratio,
