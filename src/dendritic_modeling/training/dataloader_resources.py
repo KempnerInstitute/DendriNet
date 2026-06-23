@@ -20,6 +20,7 @@ def visible_cpu_count() -> int:
         try:
             available_cpus = len(os.sched_getaffinity(0))
         except OSError:
+            # Affinity queries can fail in restricted runtimes; keep os.cpu_count().
             pass
     return max(1, available_cpus)
 
