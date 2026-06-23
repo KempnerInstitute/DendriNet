@@ -24,6 +24,11 @@ configs/branch_comparison/
 configs/examples/*_multi_population_ei.yaml
 configs/examples/recurrent_synapse_types_ampa_nmda_gaba.yaml
 configs/examples/recurrent_soma_feedback.yaml
+.fusion_scratch/
+.scratch/
+.verify*
+.fc_verify.py
+.v1_verify_panel.py
 src/data/*
 cifar-10-*
 wandb/*
@@ -166,6 +171,7 @@ celerybeat.pid
 
 # Environments
 .env
+.*env
 .venv
 env/
 venv/
@@ -194,6 +200,9 @@ dmypy.json
 # Pyre type checker
 .pyre/
 .claude/
+.fc_verify.py
+.fusion_scratch/
+.v1_verify_panel.py
 # pytype static type analyzer
 .pytype/
 
@@ -235,6 +244,11 @@ figures/
 outputs_smoke/
 outputs_sweep_smoke/
 tmp/
+generated/
+jobs/
+.scratch*/
+.verify_*
+_tmp_reviewer_*.py
 .claude/*.lock
 /analysis/
 !src/dendritic_modeling/analysis/

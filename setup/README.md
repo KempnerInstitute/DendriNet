@@ -1,6 +1,7 @@
 # Setup Directory
 
-Contains conda environment specification.
+Contains the conda environment specification. The package supports Python
+3.10+; the default environment pins Python 3.11 and a CUDA 12.1 PyTorch stack.
 
 ## Usage
 

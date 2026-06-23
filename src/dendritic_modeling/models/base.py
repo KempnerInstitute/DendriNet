@@ -19,6 +19,15 @@ from dendritic_modeling.networks import (
     ParametricActivation,
     TopKLinear,
 )
+from dendritic_modeling.utils.hooks import iter_modules_matching
+
+
+def _is_split_param_group_module(module: nn.Module) -> bool:
+    """Return whether a core module participates in split optimizer groups."""
+    return isinstance(
+        module,
+        (TopKLinear, BlockLinear, ParametricActivation, ExcitationInhibitionLayer),
+    )
 
 
 class BaseModel(nn.Module):
@@ -95,7 +104,10 @@ class BaseModel(nn.Module):
             mlp_inh_net_params = []
             decoder_params = []
 
-            for module in self.core_network.modules():
+            for module in iter_modules_matching(
+                self.core_network,
+                _is_split_param_group_module,
+            ):
                 if isinstance(module, TopKLinear):
                     topk_params.append(module.parameters())
                 elif isinstance(module, BlockLinear):

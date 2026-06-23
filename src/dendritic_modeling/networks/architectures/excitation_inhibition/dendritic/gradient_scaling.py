@@ -111,13 +111,11 @@ def scale_activation_grad_hook(module, grad_input, grad_output):
         and module._amp_enabled
     ):
         if print_hooks:
-            print(
-                "Skipping reactivation hook due to AMP compatibility mode", flush=True
-            )
+            logger.info("Skipping reactivation hook due to AMP compatibility mode")
         return grad_output
 
     if print_hooks:
-        print("\nscaling reactivation grad\n", flush=True)
+        logger.info("Scaling reactivation gradient")
 
     # Simply return grad_output to preserve dtypes
     # The actual reactivation gradient scaling should be implemented
@@ -145,10 +143,7 @@ def scale_layer_input_gradients_elementwise(module, grad_input, grad_output):
         and module._amp_enabled
     ):
         if print_hooks:
-            print(
-                "Skipping input gradient scaling due to AMP compatibility mode",
-                flush=True,
-            )
+            logger.info("Skipping input gradient scaling due to AMP compatibility mode")
         return grad_input
 
     if print_hooks:
@@ -160,9 +155,11 @@ def scale_layer_input_gradients_elementwise(module, grad_input, grad_output):
 
                 mean_abs_before = grad_float32.abs().mean().item()
                 mean_abs_after = scaled_grad_float32.abs().mean().item()
-                print(
-                    f"Gradient {i} - Mean Abs Before: {mean_abs_before:.6f}, Mean Abs After: {mean_abs_after:.6f}",
-                    flush=True,
+                logger.info(
+                    "Gradient %s - Mean Abs Before: %.6f, Mean Abs After: %.6f",
+                    i,
+                    mean_abs_before,
+                    mean_abs_after,
                 )
 
     # Apply scaling while preserving original dtypes
@@ -193,9 +190,8 @@ def scale_layer_param_gradients_elementwise(
     # Check for AMP compatibility mode
     if disable_hooks_with_amp and amp_enabled:
         if print_hooks:
-            print(
-                "Skipping parameter gradient scaling due to AMP compatibility mode",
-                flush=True,
+            logger.info(
+                "Skipping parameter gradient scaling due to AMP compatibility mode"
             )
         return grad
 
@@ -209,9 +205,10 @@ def scale_layer_param_gradients_elementwise(
 
         mean_abs_before = grad_float32.abs().mean().item()
         mean_abs_after = scaled_grad_float32.abs().mean().item()
-        print(
-            f"Parameter Gradient - Mean Abs Before: {mean_abs_before:.6f}, Mean Abs After: {mean_abs_after:.6f}",
-            flush=True,
+        logger.info(
+            "Parameter Gradient - Mean Abs Before: %.6f, Mean Abs After: %.6f",
+            mean_abs_before,
+            mean_abs_after,
         )
 
     # Direct scaling to preserve dtype
@@ -232,9 +229,13 @@ def scale_layer_gradients_scalar(module, grad_input, grad_output, scale_factor):
             if g is not None:
                 mean_abs_before = g.abs().mean().item()
                 mean_abs_after = (g * scale_factor).abs().mean().item()
-                print(
-                    f"Scalar Scaling Gradient {i} - Mean Abs Before: {mean_abs_before:.6f}, Mean Abs After: {mean_abs_after:.6f} (scale={scale_factor:.4f})",
-                    flush=True,
+                logger.info(
+                    "Scalar Scaling Gradient %s - Mean Abs Before: %.6f, "
+                    "Mean Abs After: %.6f (scale=%.4f)",
+                    i,
+                    mean_abs_before,
+                    mean_abs_after,
+                    scale_factor,
                 )
 
     return tuple(g * scale_factor if (g is not None) else None for g in grad_input)
@@ -329,16 +330,15 @@ class GradientScaler:
         If 'none', no special scaling.
         """
         if self.print_hooks:
-            print(
-                "registering block linear dynamic, strategy:",
+            logger.info(
+                "Registering block linear dynamic, strategy: %s",
                 self.blocklinear_strategy,
-                flush=True,
             )
 
         def input_hook_fn(module, grad_input, grad_output):
             # Apply the appropriate scaling strategy
             if self.print_hooks:
-                print("\n\nblocklinear input hook call", flush=True)
+                logger.info("BlockLinear input hook call")
             if self.blocklinear_strategy == "conductance_dynamic":
                 if getattr(module, "_use_forward_dynamic_grad_scaling", False):
                     return grad_input
@@ -365,7 +365,7 @@ class GradientScaler:
 
         def param_hook_fn(grad):
             if self.print_hooks:
-                print("\n\nblocklinear param hook call", flush=True)
+                logger.info("BlockLinear parameter hook call")
             if self.blocklinear_strategy == "conductance_dynamic":
                 if getattr(
                     block_linear_layer, "_use_forward_dynamic_grad_scaling", False
@@ -404,7 +404,7 @@ class GradientScaler:
             block_linear_layer.register_full_backward_hook(input_hook_fn)
             block_linear_layer.log_weight.register_hook(param_hook_fn)
             if self.print_hooks:
-                print("registered block linear dynamic", flush=True)
+                logger.info("Registered block linear dynamic")
 
     def register_topk_dynamic(self, topk_layer):
         """
@@ -415,12 +415,12 @@ class GradientScaler:
         If 'none', no special scaling.
         """
         if self.print_hooks:
-            print("registering topk dynamic, strategy:", self.topk_strategy, flush=True)
+            logger.info("Registering TopK dynamic, strategy: %s", self.topk_strategy)
 
         def input_hook_fn(module, grad_input, grad_output):
             # Apply the appropriate scaling strategy
             if self.print_hooks:
-                print("\n\ntopk input hook call", flush=True)
+                logger.info("TopK input hook call")
             if self.topk_strategy == "conductance_dynamic":
                 if getattr(module, "_use_forward_dynamic_grad_scaling", False):
                     return grad_input
@@ -447,7 +447,7 @@ class GradientScaler:
 
         def param_hook_fn(grad):
             if self.print_hooks:
-                print("\n\ntopk param hook call", flush=True)
+                logger.info("TopK parameter hook call")
             if self.topk_strategy == "conductance_dynamic":
                 if getattr(topk_layer, "_use_forward_dynamic_grad_scaling", False):
                     return grad

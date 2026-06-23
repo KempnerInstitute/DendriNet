@@ -13,7 +13,11 @@ rules stay aligned unless recurrence genuinely requires something extra
 - `ei_layer.py`: one recurrent-capable E-I layer
 - `ei_network.py`: stacked unified E-I network
 - `ei_state.py`: recurrent state containers
-- `stateful_dendrinet.py`: dendritic state and trace logic
+- `stateful_dendrinet.py`: dendritic population assembly and per-step update
+- `dendritic_geometry.py`: morphology level sizes and synapse-budget helpers
+- `synapse_types.py`: receptor-type configuration and typed trace helpers
+- `spiking_soma.py`: LIF soma dynamics and surrogate-gradient spikes
+- `dendritic_spikes.py`: local branch spike / plateau dynamics
 - `baseline_rnn.py`: GRU, LSTM, and vanilla-RNN wrappers with the same
   interface shape as the unified E-I core
 

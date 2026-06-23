@@ -20,6 +20,10 @@ from dendritic_modeling.training.transformer_replacement import (
     benchmark_saved_transformer_replacement,
     run_transformer_replacement_training,
 )
+from dendritic_modeling.training.vision_replacement import (
+    VisionReplacementTrainingResult,
+    run_vision_replacement_training,
+)
 
 __all__ = [
     "CustomWeightDecayOptimizer",
@@ -27,11 +31,13 @@ __all__ = [
     "Trainer",
     "TransformerReplacementBenchmarkResult",
     "TransformerReplacementTrainingResult",
+    "VisionReplacementTrainingResult",
     "benchmark_saved_transformer_replacement",
     "extract_weights_from_simple_mlp",
     "get_available_trainer_strategies",
     "get_trainer",
     "register_trainer_strategy",
     "run_transformer_replacement_training",
+    "run_vision_replacement_training",
     "transfer_mlp_weights_to_input_net",
 ]

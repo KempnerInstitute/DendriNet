@@ -143,7 +143,7 @@
   <text class="code" x="826" y="660">ff_excitatory_synapses: K_E</text>
   <text class="code" x="826" y="682">ff_inhibitory_synapses: K_I</text>
   <text class="code" x="826" y="704">probability: eligible pairs</text>
-  <text class="code" x="826" y="726">topk_type: standard | dense_to_sparse</text>
+  <text class="code" x="826" y="726">topk_type: indexed_rewire | indexed_dynamic</text>
   <text class="small" x="826" y="754">Masks decide which pairs can connect;</text>
   <text class="small" x="826" y="774">TopK decides how many are active per branch.</text>
 

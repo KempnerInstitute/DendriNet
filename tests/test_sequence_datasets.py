@@ -5,6 +5,23 @@ import numpy as np
 import pytest
 import torch
 
+from dendritic_modeling.datasets.sequence.builders.common import (
+    build_deferred_train_test_split,
+    build_explicit_or_deferred_split,
+    explicit_split,
+)
+from dendritic_modeling.datasets.sequence.builders.registry import (
+    SEQUENCE_DATASET_BUILDERS,
+    get_registered_sequence_dataset_names,
+    get_sequence_dataset_builder,
+    has_sequence_dataset_builder,
+    merge_sequence_dataset_builders,
+    register_sequence_dataset_builder,
+    unregister_sequence_dataset_builder,
+)
+from dendritic_modeling.datasets.sequence.factory import (
+    _registered_sequence_dataset_task_config,
+)
 from dendritic_modeling.datasets.sequence_datasets import (
     AddingProblemDataset,
     ContextDependentDecisionDataset,
@@ -32,11 +49,19 @@ def _seed_rngs():
     np.random.seed(0)
 
 
-def _write_tiny_stringer(tmp_path, *, n_neurons=4, n_trials=20):
+def _write_tiny_stringer(
+    tmp_path,
+    *,
+    n_neurons=4,
+    n_trials=20,
+    grating_file=StringerV1Dataset._GRATING_FILE,
+    offset=0.0,
+):
     responses = np.stack(
         [
             np.linspace(0.0, 1.0 + neuron, n_trials)
             + (10.0 * (np.arange(n_trials) >= n_trials // 2))
+            + offset
             for neuron in range(n_neurons)
         ],
         axis=0,
@@ -45,13 +70,147 @@ def _write_tiny_stringer(tmp_path, *, n_neurons=4, n_trials=20):
         np.float32
     )
     np.save(
-        tmp_path / StringerV1Dataset._GRATING_FILE,
+        tmp_path / grating_file,
         {"sresp": responses, "istim": orientations},
         allow_pickle=True,
     )
     all_running = np.empty(1, dtype=object)
     all_running[0] = np.linspace(0.0, 1.0, n_trials).astype(np.float32)
     np.save(tmp_path / StringerV1Dataset._RUNNING_FILE, all_running, allow_pickle=True)
+
+
+def test_sequence_builder_registry_rejects_duplicate_names():
+    def builder(_dataset_name, _data_path, _kwargs):
+        raise AssertionError("builder should not be called")
+
+    with pytest.raises(ValueError, match="duplicate"):
+        merge_sequence_dataset_builders({"task": builder}, {"task": builder})
+
+    assert SEQUENCE_DATASET_BUILDERS["copy_task"] is not None
+
+
+def test_sequence_builder_registry_exposes_builtin_names():
+    names = get_registered_sequence_dataset_names()
+
+    assert "copy_task" in names
+    assert "multi_sine_forecast" in names
+    assert (
+        get_sequence_dataset_builder("copy_task")
+        is SEQUENCE_DATASET_BUILDERS["copy_task"]
+    )
+    assert has_sequence_dataset_builder("copy_task")
+    assert not has_sequence_dataset_builder("not_a_sequence_dataset")
+
+
+def test_sequence_builder_registry_adds_custom_builder():
+    def builder(dataset_name, data_path, kwargs):
+        assert dataset_name == "unit_test_sequence"
+        assert data_path == "memory://unit-test"
+        assert kwargs["marker"] == 7
+        inputs = torch.zeros(3, 2)
+        targets = torch.zeros(3, dtype=torch.long)
+        dataset = torch.utils.data.TensorDataset(inputs, targets)
+        return explicit_split(dataset, dataset, dataset)
+
+    register_sequence_dataset_builder("unit_test_sequence", builder)
+    try:
+        train_ds, valid_ds, test_ds = get_sequence_datasets(
+            "unit_test_sequence",
+            data_path="memory://unit-test",
+            marker=7,
+        )
+        assert len(train_ds) == len(valid_ds) == len(test_ds) == 3
+        assert "unit_test_sequence" in get_registered_sequence_dataset_names()
+
+        with pytest.raises(ValueError, match="already registered"):
+            register_sequence_dataset_builder("unit_test_sequence", builder)
+    finally:
+        unregister_sequence_dataset_builder("unit_test_sequence")
+
+
+def test_registered_sequence_dataset_task_config_copies_parameters():
+    kwargs = {"seed": 3, "length": 5}
+
+    task_config = _registered_sequence_dataset_task_config(
+        dataset_name="unit_sequence",
+        data_path="memory://unit",
+        train_valid_split=0.7,
+        kwargs=kwargs,
+    )
+    kwargs["seed"] = 99
+
+    assert task_config == {
+        "dataset": "unit_sequence",
+        "data_path": "memory://unit",
+        "train_valid_split": 0.7,
+        "parameters": {"seed": 3, "length": 5},
+    }
+
+
+def test_sequence_builder_explicit_split_merges_common_and_split_kwargs():
+    created = []
+
+    class RecordingDataset:
+        def __init__(self, *, n_samples, **params):
+            self.n_samples = n_samples
+            self.params = params
+            created.append(self)
+
+    common_defaults = {"noise_std": 0.1, "seed": 1}
+    build = build_explicit_or_deferred_split(
+        dataset_cls=RecordingDataset,
+        kwargs={
+            "train": {"n_samples": 5, "seed": 10},
+            "valid": {"noise_std": 0.3},
+            "test": {"n_samples": 7},
+        },
+        common_defaults=common_defaults,
+        n_train=20,
+        min_test_size=3,
+    )
+
+    assert build.split_datasets == tuple(created)
+    assert [dataset.n_samples for dataset in created] == [5, 4, 7]
+    assert [dataset.params for dataset in created] == [
+        {"noise_std": 0.1, "seed": 10},
+        {"noise_std": 0.3, "seed": 1},
+        {"noise_std": 0.1, "seed": 1},
+    ]
+    assert common_defaults == {"noise_std": 0.1, "seed": 1}
+
+
+def test_sequence_builder_deferred_split_uses_derived_test_size():
+    created = []
+
+    class RecordingDataset:
+        def __init__(self, *, n_samples, **params):
+            self.n_samples = n_samples
+            self.params = params
+            created.append(self)
+
+    common_defaults = {"seq_len": 8, "seed": 4}
+    build = build_deferred_train_test_split(
+        dataset_cls=RecordingDataset,
+        n_train=30,
+        common_defaults=common_defaults,
+        min_test_size=5,
+    )
+
+    assert build.train_full is created[0]
+    assert build.test_ds is created[1]
+    assert [dataset.n_samples for dataset in created] == [30, 6]
+    assert [dataset.params for dataset in created] == [
+        {"seq_len": 8, "seed": 4},
+        {"seq_len": 8, "seed": 4},
+    ]
+
+
+def test_sequence_builder_registry_rejects_non_callable_builder():
+    with pytest.raises(TypeError, match="must be callable"):
+        register_sequence_dataset_builder(
+            "unit_test_bad",
+            object(),  # type: ignore[arg-type]
+        )
 
 
 def test_sequential_mnist_modes_and_invalid(monkeypatch):
@@ -383,6 +542,122 @@ def test_frequency_forecast_and_dynamical_sequence_datasets(tmp_path):
         StringerV1Dataset(data_dir=str(tmp_path), poisson_rate_scale=0.0)
     with pytest.raises(FileNotFoundError, match="Stringer V1 data not found"):
         StringerV1Dataset(data_dir=str(tmp_path))
+    with pytest.raises(ValueError, match="grating_file must be a filename"):
+        StringerV1Dataset(
+            data_dir=str(tmp_path),
+            grating_file="../outside.npy",
+        )
+
+
+def test_stringer_v1_selects_requested_grating_file(tmp_path):
+    _write_tiny_stringer(tmp_path, grating_file=StringerV1Dataset._GRATING_FILE)
+    _write_tiny_stringer(tmp_path, grating_file="alternate_session.npy", offset=5.0)
+
+    default_ds = StringerV1Dataset(
+        data_dir=str(tmp_path),
+        n_neurons=4,
+        n_classes=4,
+        split="all",
+        normalize=False,
+        session_idx=0,
+    )
+    alternate_ds = StringerV1Dataset(
+        data_dir=str(tmp_path),
+        n_neurons=4,
+        n_classes=4,
+        split="all",
+        normalize=False,
+        session_idx=0,
+        grating_file="alternate_session.npy",
+    )
+
+    assert default_ds.grating_file == StringerV1Dataset._GRATING_FILE
+    assert alternate_ds.grating_file == "alternate_session.npy"
+    assert torch.allclose(alternate_ds.responses, default_ds.responses + 5.0)
+
+
+def test_stringer_v1_running_residualization_removes_classwise_running_gain(tmp_path):
+    n_trials = 48
+    n_neurons = 4
+    running = np.linspace(-1.0, 1.0, n_trials).astype(np.float32)
+    labels = np.arange(n_trials) % 4
+    orientations = (labels * (2 * np.pi / 4)).astype(np.float32)
+    responses = np.stack(
+        [3.0 + labels + (neuron + 1) * running for neuron in range(n_neurons)],
+        axis=0,
+    ).astype(np.float32)
+    responses -= responses.min() - 0.25
+    np.save(
+        tmp_path / StringerV1Dataset._GRATING_FILE,
+        {"sresp": responses, "istim": orientations},
+        allow_pickle=True,
+    )
+    all_running = np.empty(1, dtype=object)
+    all_running[0] = running
+    np.save(tmp_path / StringerV1Dataset._RUNNING_FILE, all_running, allow_pickle=True)
+
+    raw_ds = StringerV1Dataset(
+        data_dir=str(tmp_path),
+        n_neurons=n_neurons,
+        n_classes=4,
+        split="all",
+        normalize=False,
+        session_idx=0,
+    )
+    resid_ds = StringerV1Dataset(
+        data_dir=str(tmp_path),
+        n_neurons=n_neurons,
+        n_classes=4,
+        split="all",
+        normalize=False,
+        session_idx=0,
+        running_residualize=True,
+    )
+
+    assert resid_ds.running_residualized is True
+    assert torch.all(resid_ds.responses >= 0.0)
+    raw_np = raw_ds.responses.numpy()
+    resid_np = resid_ds.responses.numpy()
+    for class_idx in range(4):
+        mask = labels == class_idx
+        r = running[mask] - running[mask].mean()
+        raw_slope = float(np.dot(r, raw_np[mask, 0]) / np.dot(r, r))
+        resid_slope = float(np.dot(r, resid_np[mask, 0]) / np.dot(r, r))
+        assert abs(resid_slope) < 1e-5
+        assert abs(raw_slope) > 0.1
+
+
+def test_stringer_v1_session_id_resolves_file_and_running_index(tmp_path):
+    session_file = "gratings_drifting_GT1_2019_04_12_1.npy"
+    _write_tiny_stringer(tmp_path, grating_file=session_file)
+    np.save(
+        tmp_path / "database.npy",
+        np.array(
+            [
+                {
+                    "expt": "gratings_drifting",
+                    "mouse_name": "GT1",
+                    "date": "2019_04_12",
+                    "block": "1",
+                }
+            ],
+            dtype=object,
+        ),
+        allow_pickle=True,
+    )
+
+    train_ds, _, test_ds = get_sequence_datasets(
+        "stringer_v1",
+        data_path=str(tmp_path),
+        n_neurons=4,
+        n_classes=4,
+        normalize=False,
+        session_id="GT1_2019_04_12",
+        train_valid_split=0.8,
+    )
+
+    assert train_ds.dataset.grating_file == session_file
+    assert test_ds.grating_file == session_file
 
 
 def test_stringer_v1_uses_train_split_normalization_stats(tmp_path):

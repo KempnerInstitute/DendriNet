@@ -6,6 +6,7 @@ strongest synaptic weights for each output neuron, simulating selective
 synaptic connectivity in dendritic computation.
 """
 
+from collections.abc import Callable, Iterator
 from math import log
 from typing import Optional
 
@@ -20,6 +21,7 @@ from dendritic_modeling.networks.utils.weight_transforms import (
     apply_weight_transform,
     inverse_softplus,
 )
+from dendritic_modeling.utils.hooks import iter_modules_matching
 
 TOPK_INIT_METHODS = {
     "xavier_normal": nn.init.xavier_normal_,
@@ -31,6 +33,20 @@ TOPK_INIT_METHODS = {
     "uniform": nn.init.uniform_,
     "eye": nn.init.eye_,
 }
+
+
+def _iter_recurrent_weight_cache_setters(
+    module: nn.Module,
+) -> Iterator[Callable[[bool], None]]:
+    """Yield recurrent-cache setter callables in module traversal order."""
+    for sub in iter_modules_matching(
+        module,
+        lambda candidate: callable(
+            getattr(candidate, "set_recurrent_weight_cache", None)
+        ),
+    ):
+        setter = getattr(sub, "set_recurrent_weight_cache", None)
+        yield setter
 
 
 def apply_recurrent_weight_cache(module: nn.Module, enabled: bool) -> None:
@@ -45,10 +61,8 @@ def apply_recurrent_weight_cache(module: nn.Module, enabled: bool) -> None:
     dynamic grad scaling) ignore the request internally, so this is always safe
     to call on a whole network.
     """
-    for sub in module.modules():
-        setter = getattr(sub, "set_recurrent_weight_cache", None)
-        if callable(setter):
-            setter(enabled)
+    for setter in _iter_recurrent_weight_cache_setters(module):
+        setter(enabled)
 
 
 class TopKLinear(nn.Module):

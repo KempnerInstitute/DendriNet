@@ -12,6 +12,8 @@ from typing import Any, Optional
 import matplotlib.pyplot as plt
 import numpy as np
 
+from dendritic_modeling.utils.epoch_files import epoch_file_paths_by_number
+
 from .base import TimeSeriesPlotter
 
 
@@ -156,19 +158,9 @@ class PerformancePlotter(TimeSeriesPlotter):
         """Plot performance metrics evolution over epochs from saved files."""
         plots = {}
 
-        # Collect all performance files
-        perf_files = []
-        if os.path.exists(performance_dir):
-            for f in os.listdir(performance_dir):
-                if f.startswith("epoch"):
-                    # Handle both "epoch1" and "epoch1.json" formats
-                    epoch_str = f.replace("epoch", "")
-                    if epoch_str.endswith(".json"):
-                        epoch_str = epoch_str[:-5]  # Remove .json extension
-
-                    if epoch_str.isdigit():
-                        epoch = int(epoch_str)
-                        perf_files.append((epoch, os.path.join(performance_dir, f)))
+        perf_files = list(
+            epoch_file_paths_by_number(performance_dir, require_json=False)
+        )
 
         if not perf_files:
             fig, ax = self._create_error_plot(

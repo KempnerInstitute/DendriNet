@@ -34,11 +34,42 @@ from dendritic_modeling.networks import (
     ExcitationInhibitionNetwork,
 )
 from dendritic_modeling.utils import save_dict
+from dendritic_modeling.utils.hooks import (
+    ForwardHookRemovalMixin,
+    register_hook_groups,
+    register_named_forward_hook_groups,
+    register_named_forward_hooks,
+    run_with_forward_hooks,
+)
 
 logger = logging.getLogger(__name__)
 
+_CORRELATION_COMPUTE_DEFAULTS = {
+    "computation_level": "layer_branch",
+    "max_samples": 5000,
+    "batch_process": True,
+    "per_layer_analysis": True,
+    "per_einet_analysis": True,
+    "per_neuron_analysis": False,
+}
+_CORRELATION_SAMPLING_DEFAULTS = {
+    "n_synapse_pairs": 10000,
+    "sampling_strategy": "stratified",
+    "stratified_categories": ["within_branch", "within_layer", "across_layer"],
+    "max_pairs_per_category": 1000,
+}
 
-class CorrelationAnalyzer(AbstractAnalyzer):
+
+def _prefer_nested_config_value(nested_cfg, flat_cfg, name: str, default):
+    """Use legacy flat values when the nested config still has its default."""
+    nested_value = getattr(nested_cfg, name, default)
+    flat_value = getattr(flat_cfg, name, default)
+    if flat_value != default and nested_value == default:
+        return flat_value
+    return nested_value
+
+
+class CorrelationAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
     """Hierarchical correlation analyzer for dendritic networks."""
 
     def __init__(self, params: CorrelationAnalysisParams):
@@ -61,10 +92,11 @@ class CorrelationAnalyzer(AbstractAnalyzer):
         sampling_cfg = getattr(params, "sampling", None)
 
         # Core parameters
-        self.computation_level = getattr(
+        self.computation_level = _prefer_nested_config_value(
             compute_cfg,
+            params,
             "computation_level",
-            getattr(params, "computation_level", "layer_branch"),
+            _CORRELATION_COMPUTE_DEFAULTS["computation_level"],
         )
 
         # ------------------------------------------------------------------
@@ -93,24 +125,27 @@ class CorrelationAnalyzer(AbstractAnalyzer):
         )
 
         self.per_layer_analysis = bool(
-            getattr(
+            _prefer_nested_config_value(
                 compute_cfg,
+                params,
                 "per_layer_analysis",
-                getattr(params, "per_layer_analysis", True),
+                _CORRELATION_COMPUTE_DEFAULTS["per_layer_analysis"],
             )
         )
         self.per_einet_analysis = bool(
-            getattr(
+            _prefer_nested_config_value(
                 compute_cfg,
+                params,
                 "per_einet_analysis",
-                getattr(params, "per_einet_analysis", True),
+                _CORRELATION_COMPUTE_DEFAULTS["per_einet_analysis"],
             )
         )
         self.per_neuron_analysis = bool(
-            getattr(
+            _prefer_nested_config_value(
                 compute_cfg,
+                params,
                 "per_neuron_analysis",
-                getattr(params, "per_neuron_analysis", False),
+                _CORRELATION_COMPUTE_DEFAULTS["per_neuron_analysis"],
             )
         )
 
@@ -160,31 +195,43 @@ class CorrelationAnalyzer(AbstractAnalyzer):
             )
 
         # Sampling parameters (for synaptic level) (with defaults)
-        self.n_synapse_pairs = getattr(
-            sampling_cfg, "n_synapse_pairs", getattr(params, "n_synapse_pairs", 1000)
-        )
-        self.sampling_strategy = getattr(
+        self.n_synapse_pairs = _prefer_nested_config_value(
             sampling_cfg,
+            params,
+            "n_synapse_pairs",
+            _CORRELATION_SAMPLING_DEFAULTS["n_synapse_pairs"],
+        )
+        self.sampling_strategy = _prefer_nested_config_value(
+            sampling_cfg,
+            params,
             "sampling_strategy",
-            getattr(params, "sampling_strategy", "random"),
+            _CORRELATION_SAMPLING_DEFAULTS["sampling_strategy"],
         )
-        self.stratified_categories = getattr(
+        self.stratified_categories = _prefer_nested_config_value(
             sampling_cfg,
+            params,
             "stratified_categories",
-            getattr(params, "stratified_categories", None),
+            _CORRELATION_SAMPLING_DEFAULTS["stratified_categories"],
         )
-        self.max_pairs_per_category = getattr(
+        self.max_pairs_per_category = _prefer_nested_config_value(
             sampling_cfg,
+            params,
             "max_pairs_per_category",
-            getattr(params, "max_pairs_per_category", None),
+            _CORRELATION_SAMPLING_DEFAULTS["max_pairs_per_category"],
         )
 
         # Performance (with defaults)
-        self.max_samples = getattr(
-            compute_cfg, "max_samples", getattr(params, "max_samples", 5000)
+        self.max_samples = _prefer_nested_config_value(
+            compute_cfg,
+            params,
+            "max_samples",
+            _CORRELATION_COMPUTE_DEFAULTS["max_samples"],
         )
-        self.batch_process = getattr(
-            compute_cfg, "batch_process", getattr(params, "batch_process", True)
+        self.batch_process = _prefer_nested_config_value(
+            compute_cfg,
+            params,
+            "batch_process",
+            _CORRELATION_COMPUTE_DEFAULTS["batch_process"],
         )
 
         self.logger.info(
@@ -194,108 +241,125 @@ class CorrelationAnalyzer(AbstractAnalyzer):
     def attach_forward_hooks(self, model: BaseModel) -> list:
         """Attach forward hooks to collect activations."""
         self.data_dict = {}
-        handles = []
-
         if self.computation_level == "synaptic":
-            # For synaptic level, we need to hook into TopKLinear modules
-            for name, module in model.named_modules():
-                if isinstance(module, DendriticBranchLayer):
-                    layer_name = name
-                    self.data_dict[layer_name] = {}
-
-                    # Hook excitatory TopKLinear
-                    if module.branch_excitation is not None:
-
-                        def create_synapse_hook(layer_name, synapse_type):
-                            # Capture the module to avoid loop variable binding issues
-                            def hook(module, input, output):
-                                x = input[0] if isinstance(input, tuple) else input
-                                with torch.no_grad():
-                                    # Get active synapses
-                                    weights = module.weight()  # noqa: B023
-                                    active_indices = torch.topk(
-                                        module.pre_w,  # noqa: B023
-                                        module.K,  # noqa: B023
-                                        dim=-1,
-                                        largest=True,
-                                        sorted=False,
-                                    )[1]
-
-                                    # Extract synaptic activations
-                                    batch_size = x.shape[0]
-                                    n_branches = active_indices.shape[0]
-                                    x_expanded = x.unsqueeze(1).expand(
-                                        -1, n_branches, -1
-                                    )
-                                    indices_expanded = active_indices.unsqueeze(
-                                        0
-                                    ).expand(batch_size, -1, -1)
-                                    synaptic_inputs = torch.gather(
-                                        x_expanded, 2, indices_expanded
-                                    )
-
-                                    weights_active = torch.gather(
-                                        weights, 1, active_indices
-                                    )
-                                    weights_expanded = weights_active.unsqueeze(
-                                        0
-                                    ).expand(batch_size, -1, -1)
-                                    synaptic_activations = (
-                                        synaptic_inputs * weights_expanded
-                                    )
-
-                                    # Store
-                                    self.data_dict[layer_name][
-                                        f"{synapse_type}_synaptic"
-                                    ] = synaptic_activations
-                                    self.data_dict[layer_name][
-                                        f"{synapse_type}_indices"
-                                    ] = active_indices
-                                    self.data_dict[layer_name][
-                                        f"{synapse_type}_weights"
-                                    ] = weights_active
-                                    self.data_dict[layer_name][
-                                        f"{synapse_type}_branch_output"
-                                    ] = output
-
-                            return hook
-
-                        handle = module.branch_excitation.register_forward_hook(
-                            create_synapse_hook(layer_name, "E")
-                        )
-                        handles.append(handle)
-
-                    # Hook inhibitory TopKLinear
-                    if module.branch_inhibition is not None:
-                        handle = module.branch_inhibition.register_forward_hook(
-                            create_synapse_hook(layer_name, "I")
-                        )
-                        handles.append(handle)
-
-                    # Hook layer output
-                    def output_hook(layer_name):
-                        def hook(module, input, output):
-                            self.data_dict[layer_name]["output"] = output
-
-                        return hook
-
-                    handle = module.register_forward_hook(output_hook(layer_name))
-                    handles.append(handle)
+            handles = self._attach_synaptic_hooks(model)
         else:
-            # For branch/layer level, use standard hooks
-            for name, module in model.named_modules():
-                if isinstance(module, DendriticBranchLayer):
-                    if (
-                        module.branch_excitation is not None
-                        and module.branch_inhibition is not None
-                    ):
-                        self.data_dict[name] = {}
-                        module._name = name
-                        handle = module.register_forward_hook(self.forward_hook)
-                        handles.append(handle)
+            handles = self._attach_branch_level_hooks(model)
 
         self.logger.info(f"Attached hooks to {len(handles)} modules")
         return handles
+
+    def _attach_synaptic_hooks(
+        self, model: BaseModel
+    ) -> list[torch.utils.hooks.RemovableHandle]:
+        return register_named_forward_hook_groups(
+            model,
+            DendriticBranchLayer,
+            self._attach_synaptic_layer_hooks,
+            prepare=self._prepare_synaptic_layer_hook,
+        )
+
+    def _prepare_synaptic_layer_hook(
+        self,
+        layer_name: str,
+        _module: DendriticBranchLayer,
+    ) -> None:
+        self.data_dict[layer_name] = {}
+
+    def _attach_synaptic_layer_hooks(
+        self, layer_name: str, module: DendriticBranchLayer
+    ) -> list[torch.utils.hooks.RemovableHandle]:
+        def _hook_specs():
+            if module.branch_excitation is not None:
+                yield (
+                    module.branch_excitation,
+                    self._make_synapse_hook(layer_name, "E"),
+                )
+
+            if module.branch_inhibition is not None:
+                yield (
+                    module.branch_inhibition,
+                    self._make_synapse_hook(layer_name, "I"),
+                )
+
+            yield module, self._make_output_hook(layer_name)
+
+        def _register_hook(spec):
+            hook_module, hook = spec
+            return [hook_module.register_forward_hook(hook)]
+
+        return register_hook_groups(_hook_specs(), _register_hook)
+
+    def _make_synapse_hook(self, layer_name: str, synapse_type: str):
+        def hook(module, input, output):
+            x = input[0] if isinstance(input, tuple) else input
+            with torch.no_grad():
+                weights = module.weight()
+                active_indices = torch.topk(
+                    module.pre_w,
+                    module.K,
+                    dim=-1,
+                    largest=True,
+                    sorted=False,
+                )[1]
+
+                batch_size = x.shape[0]
+                n_branches = active_indices.shape[0]
+                x_expanded = x.unsqueeze(1).expand(-1, n_branches, -1)
+                indices_expanded = active_indices.unsqueeze(0).expand(
+                    batch_size, -1, -1
+                )
+                synaptic_inputs = torch.gather(x_expanded, 2, indices_expanded)
+
+                weights_active = torch.gather(weights, 1, active_indices)
+                weights_expanded = weights_active.unsqueeze(0).expand(
+                    batch_size, -1, -1
+                )
+                synaptic_activations = synaptic_inputs * weights_expanded
+
+                self.data_dict[layer_name][
+                    f"{synapse_type}_synaptic"
+                ] = synaptic_activations
+                self.data_dict[layer_name][f"{synapse_type}_indices"] = active_indices
+                self.data_dict[layer_name][f"{synapse_type}_weights"] = weights_active
+                self.data_dict[layer_name][f"{synapse_type}_branch_output"] = output
+
+        return hook
+
+    def _make_output_hook(self, layer_name: str):
+        def hook(module, input, output):
+            self.data_dict[layer_name]["output"] = output
+
+        return hook
+
+    def _attach_branch_level_hooks(
+        self, model: BaseModel
+    ) -> list[torch.utils.hooks.RemovableHandle]:
+        return register_named_forward_hooks(
+            model,
+            DendriticBranchLayer,
+            self.forward_hook,
+            predicate=self._should_attach_branch_level_hook,
+            prepare=self._prepare_branch_level_hook,
+        )
+
+    @staticmethod
+    def _should_attach_branch_level_hook(
+        _layer_name: str,
+        module: DendriticBranchLayer,
+    ) -> bool:
+        return (
+            module.branch_excitation is not None
+            and module.branch_inhibition is not None
+        )
+
+    def _prepare_branch_level_hook(
+        self,
+        layer_name: str,
+        module: DendriticBranchLayer,
+    ) -> None:
+        self.data_dict[layer_name] = {}
+        module._name = layer_name
 
     def forward_hook(
         self, module: DendriticBranchLayer, input: tuple, output: torch.Tensor
@@ -313,11 +377,6 @@ class CorrelationAnalyzer(AbstractAnalyzer):
         self.data_dict[module._name]["output"] = output
         self.data_dict[module._name]["excitatory_input"] = excitatory_input
         self.data_dict[module._name]["inhibitory_input"] = inhibitory_input
-
-    def remove_forward_hooks(self, handles: list):
-        """Remove forward hooks."""
-        for handle in handles:
-            handle.remove()
 
     def _compute_correlation_matrix(
         self, X: np.ndarray, Y: Optional[np.ndarray] = None
@@ -841,6 +900,87 @@ class CorrelationAnalyzer(AbstractAnalyzer):
 
         return {"by_type": by_type}
 
+    @staticmethod
+    def _layer_arrays(layer_data: dict[str, torch.Tensor]) -> tuple[np.ndarray, ...]:
+        """Return E, I, and output arrays for one recorded dendritic layer."""
+        return (
+            layer_data["excitation"].cpu().numpy(),
+            layer_data["inhibition"].cpu().numpy(),
+            layer_data["output"].cpu().numpy(),
+        )
+
+    @staticmethod
+    def _flatten_features(values: np.ndarray) -> np.ndarray:
+        """Flatten all non-batch dimensions into feature columns."""
+        return values.reshape(values.shape[0], -1)
+
+    def _network_activity_arrays(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Concatenate flattened E, I, and output activity across recorded layers."""
+        all_E, all_I, all_Vout = [], [], []
+        for layer_data in self.data_dict.values():
+            E, Inh, Vout = self._layer_arrays(layer_data)
+            all_E.append(self._flatten_features(E))
+            all_I.append(self._flatten_features(Inh))
+            all_Vout.append(self._flatten_features(Vout))
+
+        return np.hstack(all_E), np.hstack(all_I), np.hstack(all_Vout)
+
+    def _compute_branch_result(
+        self, E: np.ndarray, Inh: np.ndarray, Vout: np.ndarray, labels: np.ndarray
+    ) -> dict[str, Any]:
+        """Compute branch correlations plus optional tuning and summary metrics."""
+        result = self._compute_branch_correlations(E, Inh, Vout, labels)
+        if self.compute_tuning_curves:
+            result["tuning"] = self._compute_tuning_curves(E, Inh, Vout, labels)
+        result["summary_stats"] = self._compute_summary_statistics(result)
+        return result
+
+    def _add_per_layer_results(
+        self, results: dict[str, Any], labels: np.ndarray
+    ) -> None:
+        layer_results = {}
+        layers = list(self.data_dict.items())
+        for layer_name, layer_data in tqdm(
+            layers, desc="Layer correlation", leave=False, ncols=100
+        ):
+            E, Inh, Vout = self._layer_arrays(layer_data)
+            layer_results[layer_name] = self._compute_branch_result(
+                E, Inh, Vout, labels
+            )
+
+        results["per_layer_analysis"] = layer_results
+
+    def _compute_network_result(
+        self, labels: np.ndarray
+    ) -> tuple[dict[str, Any], np.ndarray, np.ndarray, np.ndarray]:
+        network_E, network_I, network_Vout = self._network_activity_arrays()
+        self.logger.info(
+            f"Network-wide data shapes - E: {network_E.shape}, Inh: {network_I.shape}, Vout: {network_Vout.shape}"
+        )
+        network_corr = self._compute_branch_result(
+            network_E, network_I, network_Vout, labels
+        )
+        return network_corr, network_E, network_I, network_Vout
+
+    def _add_network_optional_results(
+        self,
+        results: dict[str, Any],
+        network_corr: dict[str, Any],
+        network_E: np.ndarray,
+        network_I: np.ndarray,
+        network_Vout: np.ndarray,
+        labels: np.ndarray,
+    ) -> None:
+        if self.per_neuron_analysis:
+            results["per_neuron_analysis"] = (
+                self._compute_per_neuron_correlation_summary(network_corr)
+            )
+
+        if self.per_einet_analysis:
+            results["per_einet_analysis"] = self._compute_per_ei_analysis(
+                network_E, network_I, network_Vout, labels
+            )
+
     def analyze(
         self,
         model: BaseModel,
@@ -876,12 +1016,15 @@ class CorrelationAnalyzer(AbstractAnalyzer):
                 inputs = items[0].to(analysis_device)
                 labels_np = items[1].numpy()
 
-                handles = self.attach_forward_hooks(model)
-                try:
+                def _forward_pass() -> None:
                     with torch.no_grad():
                         _ = model(inputs)
-                finally:
-                    self.remove_forward_hooks(handles)
+
+                run_with_forward_hooks(
+                    attach=lambda: self.attach_forward_hooks(model),
+                    remove=self.remove_forward_hooks,
+                    body=_forward_pass,
+                )
 
             # Initialize results
             results = {
@@ -1004,143 +1147,46 @@ class CorrelationAnalyzer(AbstractAnalyzer):
 
         # Analyze each layer
         if self.per_layer_analysis:
-            layer_results = {}
-            layers = list(self.data_dict.items())
-            for layer_name, layer_data in tqdm(
-                layers, desc="Layer correlation", leave=False, ncols=100
-            ):
-                E = layer_data["excitation"].cpu().numpy()
-                Inh = layer_data["inhibition"].cpu().numpy()
-                Vout = layer_data["output"].cpu().numpy()
-
-                layer_corr = self._compute_branch_correlations(E, Inh, Vout, labels)
-                if self.compute_tuning_curves:
-                    layer_corr["tuning"] = self._compute_tuning_curves(
-                        E, Inh, Vout, labels
-                    )
-                layer_corr["summary_stats"] = self._compute_summary_statistics(
-                    layer_corr
-                )
-
-                layer_results[layer_name] = layer_corr
-
-            results["per_layer_analysis"] = layer_results
+            self._add_per_layer_results(results, labels)
 
         # Network-wide analysis (aggregate all layers)
         self.logger.info("Computing network-wide correlations...")
-        all_E, all_I, all_Vout = [], [], []
-        for layer_data in self.data_dict.values():
-            E = layer_data["excitation"].cpu().numpy()
-            Inh = layer_data["inhibition"].cpu().numpy()
-            Vout = layer_data["output"].cpu().numpy()
-
-            # Flatten for aggregation
-            E = E.reshape(E.shape[0], -1)
-            Inh = Inh.reshape(Inh.shape[0], -1)
-            Vout = Vout.reshape(Vout.shape[0], -1)
-
-            all_E.append(E)
-            all_I.append(Inh)
-            all_Vout.append(Vout)
-
-        network_E = np.hstack(all_E)
-        network_I = np.hstack(all_I)
-        network_Vout = np.hstack(all_Vout)
-
-        self.logger.info(
-            f"Network-wide data shapes - E: {network_E.shape}, Inh: {network_I.shape}, Vout: {network_Vout.shape}"
+        network_corr, network_E, network_I, network_Vout = self._compute_network_result(
+            labels
         )
-        network_corr = self._compute_branch_correlations(
-            network_E, network_I, network_Vout, labels
-        )
-        if self.compute_tuning_curves:
-            network_corr["tuning"] = self._compute_tuning_curves(
-                network_E, network_I, network_Vout, labels
-            )
-        network_corr["summary_stats"] = self._compute_summary_statistics(network_corr)
-
         results["network_level"] = network_corr
 
-        # Per-neuron analysis (summary distributions of per-unit correlation strength)
-        if self.per_neuron_analysis:
-            results["per_neuron_analysis"] = (
-                self._compute_per_neuron_correlation_summary(network_corr)
-            )
-
-        # Per E/I network analysis
-        if self.per_einet_analysis:
-            results["per_einet_analysis"] = self._compute_per_ei_analysis(
-                network_E, network_I, network_Vout, labels
-            )
+        self._add_network_optional_results(
+            results,
+            network_corr,
+            network_E,
+            network_I,
+            network_Vout,
+            labels,
+        )
 
     def _analyze_all_branch_level(self, results: dict[str, Any], labels: np.ndarray):
         """Analyze with full network aggregation."""
         self.logger.info("Running all-branch level correlation analysis...")
 
         # This is similar to network-level in layer_branch but without per-layer
-        all_E, all_I, all_Vout = [], [], []
-        for layer_data in self.data_dict.values():
-            E = layer_data["excitation"].cpu().numpy()
-            Inh = layer_data["inhibition"].cpu().numpy()
-            Vout = layer_data["output"].cpu().numpy()
-
-            E = E.reshape(E.shape[0], -1)
-            Inh = Inh.reshape(Inh.shape[0], -1)
-            Vout = Vout.reshape(Vout.shape[0], -1)
-
-            all_E.append(E)
-            all_I.append(Inh)
-            all_Vout.append(Vout)
-
-        network_E = np.hstack(all_E)
-        network_I = np.hstack(all_I)
-        network_Vout = np.hstack(all_Vout)
-
-        network_corr = self._compute_branch_correlations(
-            network_E, network_I, network_Vout, labels
+        network_corr, network_E, network_I, network_Vout = self._compute_network_result(
+            labels
         )
-        if self.compute_tuning_curves:
-            network_corr["tuning"] = self._compute_tuning_curves(
-                network_E, network_I, network_Vout, labels
-            )
-        network_corr["summary_stats"] = self._compute_summary_statistics(network_corr)
-
         results["network_level"] = network_corr
 
         # Optional per-layer analysis (still meaningful even in all-branch mode)
         if self.per_layer_analysis:
-            layer_results = {}
-            layers = list(self.data_dict.items())
-            for layer_name, layer_data in tqdm(
-                layers, desc="Layer correlation", leave=False, ncols=100
-            ):
-                E = layer_data["excitation"].cpu().numpy()
-                Inh = layer_data["inhibition"].cpu().numpy()
-                Vout = layer_data["output"].cpu().numpy()
+            self._add_per_layer_results(results, labels)
 
-                layer_corr = self._compute_branch_correlations(E, Inh, Vout, labels)
-                if self.compute_tuning_curves:
-                    layer_corr["tuning"] = self._compute_tuning_curves(
-                        E, Inh, Vout, labels
-                    )
-                layer_corr["summary_stats"] = self._compute_summary_statistics(
-                    layer_corr
-                )
-                layer_results[layer_name] = layer_corr
-
-            results["per_layer_analysis"] = layer_results
-
-        # Per-neuron analysis (summary distributions of per-unit correlation strength)
-        if self.per_neuron_analysis:
-            results["per_neuron_analysis"] = (
-                self._compute_per_neuron_correlation_summary(network_corr)
-            )
-
-        # Per E/I network analysis
-        if self.per_einet_analysis:
-            results["per_einet_analysis"] = self._compute_per_ei_analysis(
-                network_E, network_I, network_Vout, labels
-            )
+        self._add_network_optional_results(
+            results,
+            network_corr,
+            network_E,
+            network_I,
+            network_Vout,
+            labels,
+        )
 
     def _compute_per_ei_analysis(
         self, E: np.ndarray, Inh: np.ndarray, Vout: np.ndarray, labels: np.ndarray

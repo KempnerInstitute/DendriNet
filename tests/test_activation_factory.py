@@ -6,7 +6,13 @@ import pytest
 import torch
 import torch.nn as nn
 
-from dendritic_modeling.networks.activations.factory import ActivationFactory
+from dendritic_modeling.networks.activations.factory import (
+    ActivationFactory,
+    get_activation_builder,
+    get_registered_activation_types,
+    register_activation_builder,
+    unregister_activation_builder,
+)
 from dendritic_modeling.networks.activations.parametric import (
     ParametricLinearSigmoid,
     ParametricLinearTanh,
@@ -104,6 +110,11 @@ def test_create_unknown_raises():
         ActivationFactory.create("leaky_relu")
 
 
+def test_create_unknown_error_uses_normalized_name():
+    with pytest.raises(ValueError, match="Unknown activation type: leaky_relu"):
+        ActivationFactory.create("LEAKY_RELU")
+
+
 def test_create_none_value_raises_clear_error():
     with pytest.raises(ValueError, match="got None"):
         ActivationFactory.create(None)
@@ -113,6 +124,36 @@ def test_create_case_insensitive():
     for name in ("ReLU", "RELU", "relu", "Relu"):
         act = ActivationFactory.create(name)
         assert isinstance(act, nn.ReLU)
+
+
+def test_activation_registry_exposes_builtin_names():
+    names = get_registered_activation_types()
+
+    assert "param_tanh" in names
+    assert "relu" in names
+    assert get_activation_builder("ReLU") is get_activation_builder("relu")
+
+
+def test_activation_registry_adds_custom_builder():
+    def build_elu(**_kwargs):
+        return nn.ELU(alpha=0.25)
+
+    register_activation_builder("unit_test_elu", build_elu)
+    try:
+        act = ActivationFactory.create("UNIT_TEST_ELU")
+        assert isinstance(act, nn.ELU)
+        assert act.alpha == 0.25
+        assert "unit_test_elu" in get_registered_activation_types()
+
+        with pytest.raises(ValueError, match="already registered"):
+            register_activation_builder("unit_test_elu", build_elu)
+    finally:
+        unregister_activation_builder("unit_test_elu")
+
+
+def test_activation_registry_rejects_non_callable_builder():
+    with pytest.raises(TypeError, match="must be callable"):
+        register_activation_builder("unit_test_bad", object())  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------

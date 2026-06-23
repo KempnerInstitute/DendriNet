@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import torch
 
-from dendritic_modeling.config.conversion import to_plain_dict
+from dendritic_modeling.config.conversion import to_plain_dict as _to_plain_mapping
 from dendritic_modeling.utils.stable_hash import stable_seed_offset
 
 
@@ -209,10 +209,6 @@ def normalize_pathway_name(pathway: str) -> str:
     """Normalize public pathway aliases to canonical E/I pathway names."""
     normalized = str(pathway).lower()
     return _PATHWAY_ALIASES.get(normalized, normalized)
-
-
-def _to_plain_mapping(config) -> dict:
-    return to_plain_dict(config)
 
 
 def _resolve_indexed(value, index: int | None):

@@ -55,9 +55,31 @@ def is_data_driven_reactivation_policy(policy: str | None) -> bool:
     return reactivation_policy_to_calibration_mode(policy) is not None
 
 
+def collect_model_data_driven_reactivation_policies(model) -> tuple[set[str], bool]:
+    """Return data-driven module policies and whether any module policy exists."""
+
+    requested_policies: set[str] = set()
+    saw_layer_policy = False
+    modules = getattr(model, "modules", None)
+    if not callable(modules):
+        return requested_policies, saw_layer_policy
+
+    for module in modules():
+        layer_policy = getattr(module, "reactivation_init_policy", None)
+        if layer_policy is None:
+            continue
+        saw_layer_policy = True
+        layer_policy = normalize_reactivation_init_policy(layer_policy)
+        if is_data_driven_reactivation_policy(layer_policy):
+            requested_policies.add(layer_policy)
+
+    return requested_policies, saw_layer_policy
+
+
 __all__ = [
     "DEFAULT_ADDITIVE_REACTIVATION_INIT_POLICY",
     "REACTIVATION_INIT_POLICY_ALIASES",
+    "collect_model_data_driven_reactivation_policies",
     "is_data_driven_reactivation_policy",
     "normalize_reactivation_init_policy",
     "reactivation_policy_to_calibration_mode",

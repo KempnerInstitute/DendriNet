@@ -7,6 +7,7 @@ with selective application based on layer, branch, and weight type.
 """
 
 import json
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Optional
 
@@ -15,6 +16,105 @@ import torch.nn as nn
 
 from dendritic_modeling.config.training import PruningConfig, RegularizationConfig
 from dendritic_modeling.training.loss.functions import EIWeightRatioLoss
+
+_PARAM_GROUP_FALLBACK_NAMES = (
+    "topk",
+    "blocklinear",
+    "reactivation",
+    "mlp_inh_net",
+    "decoder",
+    "encoder",
+    "catch_all",
+)
+
+
+def _config_value(config: Any, key: str, default: float) -> float:
+    if isinstance(config, Mapping):
+        return config.get(key, default)
+    return getattr(config, key, default)
+
+
+def _regularization_weights(
+    group_config: Any,
+    *,
+    default_l1: float,
+    default_l2: float,
+) -> tuple[float, float]:
+    return (
+        _config_value(group_config, "l1_weight", default_l1),
+        _config_value(group_config, "l2_weight", default_l2),
+    )
+
+
+def _format_pruning_stats_section(
+    title: str,
+    rows: dict[str, dict[str, Any]],
+    key_width: int,
+    separator_width: int,
+) -> list[str]:
+    if not rows:
+        return []
+
+    lines = [
+        f"\n{title:<{key_width}} {'Before':<10} {'After':<10} {'Pruned':<10} {'Ratio':<10}",
+        "-" * separator_width,
+    ]
+    for name, row_stats in rows.items():
+        ratio = (
+            row_stats["pruned"] / row_stats["total_before"]
+            if row_stats["total_before"] > 0
+            else 0
+        )
+        lines.append(
+            f"{name:<{key_width}} {row_stats['total_before']:<10,} "
+            f"{row_stats['remaining']:<10,} {row_stats['pruned']:<10,} "
+            f"{ratio:<10.4f}"
+        )
+    return lines
+
+
+def _format_pruning_report(stats: dict[str, Any]) -> list[str]:
+    lines = [
+        "\n" + "=" * 50,
+        "WEIGHT PRUNING REPORT",
+        "=" * 50,
+        f"Total parameters before pruning: {stats['total_params_before']:,}",
+        f"Total parameters after pruning:  {stats['total_params_after']:,}",
+        f"Pruned parameters:               {stats['pruned_params']:,}",
+        f"Pruning ratio:                   {stats['pruning_ratio']:.4f}",
+    ]
+
+    lines.extend(
+        _format_pruning_stats_section(
+            "Layer",
+            stats["layer_stats"],
+            key_width=15,
+            separator_width=60,
+        )
+    )
+    lines.extend(
+        _format_pruning_stats_section(
+            "Branch",
+            stats["branch_stats"],
+            key_width=20,
+            separator_width=65,
+        )
+    )
+    lines.extend(
+        _format_pruning_stats_section(
+            "Weight Type",
+            stats["weight_type_stats"],
+            key_width=15,
+            separator_width=60,
+        )
+    )
+    lines.append("=" * 50)
+    return lines
+
+
+def _format_pruning_report_text(stats: dict[str, Any]) -> str:
+    """Return the full pruning report as display-ready text."""
+    return "\n".join(_format_pruning_report(stats))
 
 
 class RegularizationManager:
@@ -52,13 +152,11 @@ class RegularizationManager:
         # Check parameter group regularization
         if self.split_params and self.param_group_weights:
             for group_weights in self.param_group_weights.values():
-                if isinstance(group_weights, dict):
-                    l1_weight = group_weights.get("l1_weight", 0)
-                    l2_weight = group_weights.get("l2_weight", 0)
-                else:
-                    l1_weight = getattr(group_weights, "l1_weight", 0)
-                    l2_weight = getattr(group_weights, "l2_weight", 0)
-
+                l1_weight, l2_weight = _regularization_weights(
+                    group_weights,
+                    default_l1=0,
+                    default_l2=0,
+                )
                 if l1_weight > 0 or l2_weight > 0:
                     return True
 
@@ -162,8 +260,11 @@ class RegularizationManager:
 
             # Get regularization weights for this group
             group_reg_config = self.param_group_weights.get(group_type, {})
-            l1_weight = group_reg_config.get("l1_weight", self.l1_weight)
-            l2_weight = group_reg_config.get("l2_weight", self.l2_weight)
+            l1_weight, l2_weight = _regularization_weights(
+                group_reg_config,
+                default_l1=self.l1_weight,
+                default_l2=self.l2_weight,
+            )
 
             if l1_weight <= 0 and l2_weight <= 0:
                 continue
@@ -191,17 +292,8 @@ class RegularizationManager:
 
         # Backward-compatible fallback for externally supplied param groups
         # that predate the explicit BaseModel group names.
-        group_names = [
-            "topk",
-            "blocklinear",
-            "reactivation",
-            "mlp_inh_net",
-            "decoder",
-            "encoder",
-            "catch_all",
-        ]
-        if group_idx < len(group_names):
-            return group_names[group_idx]
+        if group_idx < len(_PARAM_GROUP_FALLBACK_NAMES):
+            return _PARAM_GROUP_FALLBACK_NAMES[group_idx]
 
         # Fallback to generic naming for additional groups
         return f"group_{group_idx}"
@@ -423,69 +515,7 @@ class PruningManager:
             print("No pruning statistics available.")
             return
 
-        stats = self.pruning_stats
-
-        print("\n" + "=" * 50)
-        print("WEIGHT PRUNING REPORT")
-        print("=" * 50)
-
-        print(f"Total parameters before pruning: {stats['total_params_before']:,}")
-        print(f"Total parameters after pruning:  {stats['total_params_after']:,}")
-        print(f"Pruned parameters:               {stats['pruned_params']:,}")
-        print(f"Pruning ratio:                   {stats['pruning_ratio']:.4f}")
-
-        # Layer-wise report
-        if stats["layer_stats"]:
-            print(
-                f"\n{'Layer':<15} {'Before':<10} {'After':<10} {'Pruned':<10} {'Ratio':<10}"
-            )
-            print("-" * 60)
-            for layer, layer_stats in stats["layer_stats"].items():
-                ratio = (
-                    layer_stats["pruned"] / layer_stats["total_before"]
-                    if layer_stats["total_before"] > 0
-                    else 0
-                )
-                print(
-                    f"{layer:<15} {layer_stats['total_before']:<10,} {layer_stats['remaining']:<10,} "
-                    f"{layer_stats['pruned']:<10,} {ratio:<10.4f}"
-                )
-
-        # Branch-wise report
-        if stats["branch_stats"]:
-            print(
-                f"\n{'Branch':<20} {'Before':<10} {'After':<10} {'Pruned':<10} {'Ratio':<10}"
-            )
-            print("-" * 65)
-            for branch, branch_stats in stats["branch_stats"].items():
-                ratio = (
-                    branch_stats["pruned"] / branch_stats["total_before"]
-                    if branch_stats["total_before"] > 0
-                    else 0
-                )
-                print(
-                    f"{branch:<20} {branch_stats['total_before']:<10,} {branch_stats['remaining']:<10,} "
-                    f"{branch_stats['pruned']:<10,} {ratio:<10.4f}"
-                )
-
-        # Weight type report
-        if stats["weight_type_stats"]:
-            print(
-                f"\n{'Weight Type':<15} {'Before':<10} {'After':<10} {'Pruned':<10} {'Ratio':<10}"
-            )
-            print("-" * 60)
-            for weight_type, type_stats in stats["weight_type_stats"].items():
-                ratio = (
-                    type_stats["pruned"] / type_stats["total_before"]
-                    if type_stats["total_before"] > 0
-                    else 0
-                )
-                print(
-                    f"{weight_type:<15} {type_stats['total_before']:<10,} {type_stats['remaining']:<10,} "
-                    f"{type_stats['pruned']:<10,} {ratio:<10.4f}"
-                )
-
-        print("=" * 50)
+        print(_format_pruning_report_text(self.pruning_stats))
 
     def save_pruning_stats(self, save_path: str) -> None:
         """Save pruning statistics to file."""

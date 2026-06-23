@@ -5,11 +5,14 @@ This module contains classes for evaluating model robustness under various noise
 including uniform and Gaussian noise perturbations.
 """
 
-from typing import Callable, Optional
+import math
+from collections.abc import Callable, Mapping
+from typing import Optional
 
 import torch
 from torch.utils.data import TensorDataset
 
+from dendritic_modeling.analysis.core.base import AbstractAnalyzer
 from dendritic_modeling.analysis.utils.runtime import (
     analysis_device_context,
     evaluation_kwargs_from_runtime,
@@ -18,6 +21,7 @@ from dendritic_modeling.analysis.utils.runtime import (
 from dendritic_modeling.config import NoisePerturbationAnalysisParams
 from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.datasets.augmentation.noise import (
+    ClampRange,
     add_gaussian_noise,
     add_uniform_noise,
 )
@@ -32,7 +36,7 @@ from dendritic_modeling.training.utils.evaluation import (
 from dendritic_modeling.utils import save_dict
 
 
-class NoisePerturbationAnalyzer:
+class NoisePerturbationAnalyzer(AbstractAnalyzer):
     """
     Analyzer for evaluating model robustness under noise perturbations.
 
@@ -53,6 +57,7 @@ class NoisePerturbationAnalyzer:
             accuracy: Whether to compute accuracy on noisy data
             categorical_loglikelihood: Whether to compute categorical log-likelihood on noisy data
         """
+        super().__init__("NoisePerturbationAnalyzer")
         self.uniform_noise = getattr(params, "uniform_noise", False)
         self.uniform_magnitudes = getattr(params, "uniform_magnitudes", [0.1, 0.2])
         self.gaussian_noise = getattr(params, "gaussian_noise", False)
@@ -64,6 +69,45 @@ class NoisePerturbationAnalyzer:
         self.mse = getattr(params, "mse", False)
         self.cosine_similarity = getattr(params, "cosine_similarity", False)
         self.seed = int(getattr(params, "seed", 0) or 0)
+        self.clamp_range = self._normalize_clamp_range(
+            getattr(params, "clamp_range", (0.0, 1.0))
+        )
+
+    @staticmethod
+    def _normalize_clamp_range(value) -> ClampRange:
+        if value is None:
+            return None
+        if (
+            isinstance(value, (str, bytes))
+            or isinstance(value, Mapping)
+            or not hasattr(value, "__len__")
+            or not hasattr(value, "__getitem__")
+        ):
+            raise ValueError(
+                "noise_perturbation.params.clamp_range must be null or a "
+                "[min, max] pair."
+            )
+        if len(value) != 2:
+            raise ValueError(
+                "noise_perturbation.params.clamp_range must be null or a "
+                "[min, max] pair."
+            )
+        try:
+            lo, hi = float(value[0]), float(value[1])
+        except (TypeError, ValueError, KeyError, IndexError):
+            raise ValueError(
+                "noise_perturbation.params.clamp_range must be null or a "
+                "[min, max] pair."
+            ) from None
+        if not (math.isfinite(lo) and math.isfinite(hi)):
+            raise ValueError(
+                "noise_perturbation.params.clamp_range values must be finite."
+            )
+        if lo > hi:
+            raise ValueError(
+                "noise_perturbation.params.clamp_range must satisfy min <= max."
+            )
+        return (lo, hi)
 
     def analyze(
         self,
@@ -128,6 +172,7 @@ class NoisePerturbationAnalyzer:
                         spread=mag,
                         n_samples=self.n_samples,
                         generator=generator,
+                        clamp_range=self.clamp_range,
                     )
                     noisy_test_ds = TensorDataset(noisy_x, y)
                     if self.accuracy:
@@ -180,6 +225,7 @@ class NoisePerturbationAnalyzer:
                         std=sdev,
                         n_samples=self.n_samples,
                         generator=generator,
+                        clamp_range=self.clamp_range,
                     )
                     noisy_test_ds = TensorDataset(noisy_x, y)
                     if self.accuracy:

@@ -1,8 +1,7 @@
 # ============================================================================
-# Canonical Population Network on MNIST
+# Population Network on MNIST
 # ============================================================================
-# The recommended population/layer/connection schema. This is the explicit
-# form of a classical feedforward E/I dendritic layer:
+# Population/layer/connection schema for a feedforward E/I dendritic layer:
 # input -> inhibitory, input -> excitatory, inhibitory -> excitatory.
 #
 # Run:
@@ -45,6 +44,14 @@ model:
             reactivation_init_policy: "occupancy_quantile"
             dbl_init_method: "analytical_expectation"
             weight_transform: "softplus"
+            topk_type: "indexed_rewire"
+            topk_init_method: "xavier_normal"
+            indexed_seed: 42
+            indexed_rewire_frequency: 100
+            indexed_rewire_quantile: 0.05
+            indexed_rewire_until_step: null
+            indexed_output_chunk_size: 2048
+            efficient_blocklinear: true
           populations:
             - name: "i"
               polarity: "inhibitory"

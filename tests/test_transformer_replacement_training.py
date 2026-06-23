@@ -1,3 +1,6 @@
+from types import SimpleNamespace
+
+import pytest
 import torch
 
 from dendritic_modeling.config import Config
@@ -11,9 +14,14 @@ from dendritic_modeling.training import (
     benchmark_saved_transformer_replacement,
     run_transformer_replacement_training,
 )
+from dendritic_modeling.training._transformer_replacement.common import (
+    _make_tensor_loader,
+)
+from dendritic_modeling.training._transformer_replacement.loops import _infinite_loader
 from dendritic_modeling.training.transformer_replacement import (
     _load_replacement_record_checkpoints,
     _make_replacement,
+    _select_joint_trainable_parameters,
 )
 
 
@@ -33,12 +41,12 @@ def _small_distillation_config(tmp_path):
     cfg.model.core.connectivity.ee_synapses_per_branch_per_layer = [3]
     cfg.model.core.morphology.use_shunting = False
     cfg.model.core.morphology.weight_transform = "softplus"
-    cfg.model.core.sparsity.type = "indexed_dynamic"
-    cfg.model.core.sparsity.temperature = 0.25
+    cfg.model.core.sparsity.type = "indexed_rewire"
     cfg.model.core.sparsity.indexed = {
-        "candidate_size": 6,
-        "selection": "standard",
         "seed": 19,
+        "rewire_frequency": 100,
+        "rewire_quantile": 0.05,
+        "rewire_until_step": None,
         "output_chunk_size": 128,
     }
     cfg.model.core.reactivation.enabled = True
@@ -90,6 +98,55 @@ def test_synthetic_transformer_replacement_distillation_reduces_loss(tmp_path):
     benchmark = benchmark_saved_transformer_replacement(cfg)
     assert benchmark.trained["mse"] < benchmark.initial["mse"]
     assert (tmp_path / "benchmark_metrics.json").exists()
+
+
+def test_transformer_replacement_infinite_loader_restarts_without_cycle_cache():
+    dataset = torch.utils.data.TensorDataset(
+        torch.arange(3).unsqueeze(1), torch.arange(3).unsqueeze(1)
+    )
+    loader = torch.utils.data.DataLoader(dataset, batch_size=2, shuffle=False)
+
+    iterator = _infinite_loader(loader)
+    batches = [next(iterator)[0].squeeze(1).tolist() for _ in range(4)]
+
+    assert batches == [[0, 1], [2], [0, 1], [2]]
+
+
+def test_transformer_replacement_tensor_loader_preserves_tail_batch():
+    dataset = torch.utils.data.TensorDataset(
+        torch.arange(3).unsqueeze(1), torch.arange(3).unsqueeze(1)
+    )
+
+    loader = _make_tensor_loader(dataset, batch_size=2, shuffle=False)
+    batches = [batch[0].squeeze(1).tolist() for batch in loader]
+
+    assert batches == [[0, 1], [2]]
+
+
+def test_transformer_replacement_tensor_loader_honors_explicit_tuning():
+    dataset = torch.utils.data.TensorDataset(
+        torch.arange(3).unsqueeze(1), torch.arange(3).unsqueeze(1)
+    )
+    train_cfg = SimpleNamespace(
+        num_workers=2,
+        pin_memory=True,
+        persistent_workers=False,
+        prefetch_factor=3,
+    )
+
+    loader = _make_tensor_loader(
+        dataset,
+        batch_size=2,
+        shuffle=False,
+        train_cfg=train_cfg,
+        device="cuda",
+    )
+
+    assert loader.num_workers == 2
+    assert loader.pin_memory is True
+    assert loader.persistent_workers is False
+    assert loader.prefetch_factor == 3
+    assert loader.drop_last is False
 
 
 def test_layerwise_replacement_factory_honors_ei_stack_kind(tmp_path):
@@ -192,3 +249,59 @@ def test_ei_stack_checkpoint_loader_maps_single_layer_slots(tmp_path):
         shared_stack.output_projections[1].weight,
         torch.full_like(shared_stack.output_projections[1].weight, 2.0),
     )
+
+
+def test_joint_trainable_parameter_selection_supports_full_model():
+    original = torch.nn.Linear(4, 4)
+    replacement = torch.nn.Linear(4, 4)
+    model = torch.nn.Sequential(original, replacement)
+    records = [
+        ReplacementRecord(
+            layer_index=0,
+            mlp_attr="mlp",
+            original_mlp=original,
+            replacement=replacement,
+        )
+    ]
+
+    replacement_params = _select_joint_trainable_parameters(
+        model,
+        records,
+        "replacement_only",
+    )
+    assert {id(param) for param in replacement_params} == {
+        id(param) for param in replacement.parameters()
+    }
+    assert all(not param.requires_grad for param in original.parameters())
+    assert all(param.requires_grad for param in replacement.parameters())
+
+    full_model_params = _select_joint_trainable_parameters(
+        model,
+        records,
+        "full_model",
+    )
+    assert {id(param) for param in full_model_params} == {
+        id(param) for param in model.parameters()
+    }
+    assert all(param.requires_grad for param in model.parameters())
+
+
+def test_joint_trainable_parameter_selection_restores_after_empty_replacement():
+    original = torch.nn.Linear(4, 4)
+    replacement = torch.nn.Identity()
+    model = torch.nn.Sequential(original, replacement)
+    original.bias.requires_grad_(False)
+    original_states = [param.requires_grad for param in model.parameters()]
+    records = [
+        ReplacementRecord(
+            layer_index=0,
+            mlp_attr="mlp",
+            original_mlp=original,
+            replacement=replacement,
+        )
+    ]
+
+    with pytest.raises(ValueError, match="No replacement parameters"):
+        _select_joint_trainable_parameters(model, records, "replacement_only")
+
+    assert [param.requires_grad for param in model.parameters()] == original_states

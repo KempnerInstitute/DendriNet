@@ -15,6 +15,21 @@ from .config_validation import (
 
 # Core utilities
 from .general import Shaper, convert_to_serializable, save_dict, set_seed
+from .hooks import (
+    ForwardHookRemovalMixin,
+    HookHandle,
+    iter_child_modules_of_type,
+    iter_modules_matching,
+    iter_modules_of_type,
+    iter_named_modules_matching,
+    iter_named_modules_of_type,
+    register_forward_hook_groups,
+    register_hook_groups,
+    register_named_forward_hook_groups,
+    register_named_forward_hooks,
+    remove_hook_handles,
+    run_with_forward_hooks,
+)
 from .lda import (
     apply_nonnegative_lda,
     apply_random_weights,
@@ -37,6 +52,7 @@ from .sparse_ops import (
     estimate_memory_usage,
     get_available_sparse_types,
     get_sparse_layer,
+    normalize_sparse_layer_type,
     parallel_topk_selection,
 )
 from .training_stability_validator import (
@@ -46,6 +62,8 @@ from .training_stability_validator import (
 )
 
 __all__ = [
+    "ForwardHookRemovalMixin",
+    "HookHandle",
     "ModelArchitectureValidator",
     "Shaper",
     "apply_automatic_safeguards",
@@ -57,7 +75,19 @@ __all__ = [
     "generate_random_nonnegative_weights",
     "get_logger",
     "get_validation_summary",
+    "iter_child_modules_of_type",
+    "iter_modules_matching",
+    "iter_modules_of_type",
+    "iter_named_modules_matching",
+    "iter_named_modules_of_type",
+    "normalize_sparse_layer_type",
+    "register_forward_hook_groups",
+    "register_hook_groups",
+    "register_named_forward_hook_groups",
+    "register_named_forward_hooks",
+    "remove_hook_handles",
     "roc_auc_score",
+    "run_with_forward_hooks",
     "save_dict",
     "select_topk_features_by_lda",
     "set_seed",

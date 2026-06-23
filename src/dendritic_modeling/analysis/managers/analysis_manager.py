@@ -7,54 +7,36 @@ all the different analysis tools in the dendritic modeling package.
 
 import logging
 import os
+from collections.abc import Callable
 from typing import Optional
 
 import torch
 
-from dendritic_modeling.analysis.core.ablation import AblationAnalyzer
-from dendritic_modeling.analysis.core.branch_activation import BranchActivationAnalyzer
-from dendritic_modeling.analysis.core.information import InformationAnalyzer
-from dendritic_modeling.analysis.metrics.adversarial_robustness import (
-    AdversarialRobustnessAnalyzer,
+from dendritic_modeling.analysis.managers.analysis_plan import (
+    _ANALYZER_INITIALIZERS,
+    _DENDRITIC_TIMETRACES_ANALYSIS,
+    _INHIBITORY_SPECIALIZATION_ANALYSIS,
+    _JACOBIAN_SPECTRUM_ANALYSIS,
+    _MODEL_ONLY_ANALYSES,
+    _ORDERED_ANALYSIS_SEQUENCE,
+    _POST_REACTIVATION_TEST_DATASET_ANALYSES,
+    _PRE_WEIGHT_TEST_DATASET_ANALYSES,
+    _ModelOnlyAnalysisRunner,
+    _registered_analyzer_spec,
+    _TestDatasetAnalysisRunner,
 )
-from dendritic_modeling.analysis.metrics.layer_contribution import (
-    SingleLayerContributionAnalyzer,
-)
-from dendritic_modeling.analysis.metrics.noise_perturbation import (
-    NoisePerturbationAnalyzer,
-)
-from dendritic_modeling.analysis.metrics.performance import PerformanceAnalyzer
-from dendritic_modeling.analysis.tools.compartment_snr import CompartmentSNRAnalyzer
-from dendritic_modeling.analysis.tools.compartment_statistics import (
-    CompartmentStatisticsAnalyzer,
-)
-from dendritic_modeling.analysis.tools.correlation_analysis import CorrelationAnalyzer
-from dendritic_modeling.analysis.tools.dendritic_timetraces import (
-    DendriticTimetracesAnalyzer,
-)
-from dendritic_modeling.analysis.tools.inhibitory_specialization import (
-    InhibitorySpecializationAnalyzer,
-)
-from dendritic_modeling.analysis.tools.jacobian_spectrum import JacobianSpectrumAnalyzer
-from dendritic_modeling.analysis.tools.local_rule_components import (
-    LocalRuleComponentAnalyzer,
-)
-from dendritic_modeling.analysis.tools.multiplicative_gain import (
-    MultiplicativeGainAnalyzer,
-)
-from dendritic_modeling.analysis.tools.reactivation_dynamics import (
-    ReactivationDynamicsAnalyzer,
-)
-from dendritic_modeling.analysis.tools.receptive_fields import ReceptiveFieldAnalyzer
-from dendritic_modeling.analysis.tools.routing_analysis import RoutingAnalyzer
-from dendritic_modeling.analysis.tools.spike_trains import SpikeTrainAnalyzer
-from dendritic_modeling.analysis.tools.synaptic_activation import (
-    SynapticActivationAnalyzer,
-)
-from dendritic_modeling.analysis.tools.synaptic_turnover import SynapticTurnoverAnalyzer
-from dendritic_modeling.analysis.tools.weight import WeightAnalyzer
 from dendritic_modeling.config import AnalysisConfig
 from dendritic_modeling.models import BaseModel, Regressor
+
+__all__ = [
+    "_DENDRITIC_TIMETRACES_ANALYSIS",
+    "_INHIBITORY_SPECIALIZATION_ANALYSIS",
+    "_JACOBIAN_SPECTRUM_ANALYSIS",
+    "_MODEL_ONLY_ANALYSES",
+    "_POST_REACTIVATION_TEST_DATASET_ANALYSES",
+    "_PRE_WEIGHT_TEST_DATASET_ANALYSES",
+    "AnalysisManager",
+]
 
 
 class AnalysisManager:
@@ -84,149 +66,21 @@ class AnalysisManager:
         self.logger = logging.getLogger(__name__)
 
         self._sanitize_performance_metrics_for_task()
+        self._initialize_configured_analyzers()
 
-        # Initialize Performance Analysis
-        if self.config.performance_analysis.enabled:
-            self.performance_analyzer = PerformanceAnalyzer(
-                self.config.performance_analysis.params
+    def _initialize_configured_analyzers(self) -> None:
+        """Instantiate enabled analyzers from registry-backed metadata."""
+        for initializer in _ANALYZER_INITIALIZERS:
+            cfg = getattr(self.config, initializer.config_field, None)
+            if cfg is None or not getattr(cfg, "enabled", False):
+                continue
+            params = getattr(cfg, "params", None)
+            setattr(
+                self,
+                initializer.attribute_name,
+                initializer.build(model=self.model, params=params),
             )
-
-        # Initialize Integrated Information Analysis
-        if self.config.information_analysis.enabled:
-            self.information_analyzer = InformationAnalyzer(
-                self.config.information_analysis.params
-            )
-
-        # Initialize Synaptic Turnover Analysis
-        if self.config.synapse_turnover_analysis.enabled:
-            self.syn_turnover_analyzer = SynapticTurnoverAnalyzer(
-                model=model, params=self.config.synapse_turnover_analysis.params
-            )
-
-        # Initialize Noise Perturbation Analysis
-        if self.config.noise_perturbation_analysis.enabled:
-            self.noise_perturbation_analyzer = NoisePerturbationAnalyzer(
-                self.config.noise_perturbation_analysis.params
-            )
-
-        # Initialize Single Layer Contribution Analysis (formerly layer_ablation)
-        if self.config.single_layer_contribution.enabled:
-            self.single_layer_analyzer = SingleLayerContributionAnalyzer(
-                self.config.single_layer_contribution.params
-            )
-
-        # Initialize Ablation Analysis
-        if self.config.ablation_analysis.enabled:
-            self.ablation_analyzer = AblationAnalyzer(
-                self.config.ablation_analysis.params
-            )
-
-        # Initialize Weight Analysis
-        if self.config.weight_analysis.enabled:
-            self.weight_analyzer = WeightAnalyzer(self.config.weight_analysis.params)
-
-        # Initialize Compartment Statistics Analysis
-        if self.config.compartment_statistics_analysis.enabled:
-            self.compartment_statistics_analyzer = CompartmentStatisticsAnalyzer(
-                self.config.compartment_statistics_analysis.params
-            )
-
-        # Initialize Compartment SNR Analysis
-        if self.config.compartment_snr_analysis.enabled:
-            self.compartment_snr_analyzer = CompartmentSNRAnalyzer(
-                self.config.compartment_snr_analysis.params
-            )
-
-        if self.config.multiplicative_gain_analysis.enabled:
-            self.multiplicative_gain_analyzer = MultiplicativeGainAnalyzer(
-                self.config.multiplicative_gain_analysis.params
-            )
-
-        # Initialize Receptive Field Analysis
-        if self.config.receptive_field_analysis.enabled:
-            self.receptive_field_analyzer = ReceptiveFieldAnalyzer(
-                self.config.receptive_field_analysis.params
-            )
-
-        # Initialize Reactivation Dynamics Analysis
-        if (
-            getattr(self.config, "reactivation_dynamics_analysis", None)
-            and self.config.reactivation_dynamics_analysis.enabled
-        ):
-            self.reactivation_dynamics_analyzer = ReactivationDynamicsAnalyzer(
-                self.config.reactivation_dynamics_analysis.params
-            )
-
-        # Initialize Synaptic Activation Analysis
-        if self.config.synaptic_activation_analysis.enabled:
-            self.synaptic_activation_analyzer = SynapticActivationAnalyzer(
-                self.config.synaptic_activation_analysis.params
-            )
-
-        # Initialize Branch Activation Analysis
-        if self.config.branch_activation_analysis.enabled:
-            self.branch_activation_analyzer = BranchActivationAnalyzer(
-                self.config.branch_activation_analysis.params
-            )
-
-        # Initialize Local Rule Component Analysis
-        lrc_cfg = getattr(self.config, "local_rule_component_analysis", None)
-        if lrc_cfg is not None and lrc_cfg.enabled:
-            self.local_rule_component_analyzer = LocalRuleComponentAnalyzer(
-                lrc_cfg.params
-            )
-
-        # Initialize Correlation Analysis
-        if (
-            hasattr(self.config, "correlation_analysis")
-            and self.config.correlation_analysis.enabled
-        ):
-            self.correlation_analysis_enabled = True
-            self.correlation_analyzer = CorrelationAnalyzer(
-                params=self.config.correlation_analysis.params
-            )
-        else:
-            self.correlation_analysis_enabled = False
-
-        # Initialize Routing Analysis (recurrent models only)
-        if (
-            hasattr(self.config, "routing_analysis")
-            and self.config.routing_analysis.enabled
-        ):
-            self.routing_analyzer = RoutingAnalyzer()
-
-        # Initialize Inhibitory Specialization Analysis (recurrent E-I models only)
-        inh_spec_cfg = getattr(self.config, "inhibitory_specialization_analysis", None)
-        if inh_spec_cfg is not None and inh_spec_cfg.enabled:
-            self.inhibitory_specialization_analyzer = InhibitorySpecializationAnalyzer(
-                inh_spec_cfg.params
-            )
-
-        # Initialize Jacobian Spectrum Analysis (recurrent dendritic models only)
-        jac_cfg = getattr(self.config, "jacobian_spectrum_analysis", None)
-        if jac_cfg is not None and jac_cfg.enabled:
-            self.jacobian_spectrum_analyzer = JacobianSpectrumAnalyzer(jac_cfg.params)
-
-        # Initialize Dendritic Timetraces Analysis (recurrent dendritic models only)
-        ddt_cfg = getattr(self.config, "dendritic_timetraces_analysis", None)
-        if ddt_cfg is not None and ddt_cfg.enabled:
-            self.dendritic_timetraces_analyzer = DendriticTimetracesAnalyzer(
-                ddt_cfg.params
-            )
-
-        # Initialize Spike Train Analysis (spiking recurrent models only)
-        spike_cfg = getattr(self.config, "spike_train_analysis", None)
-        if spike_cfg is not None and spike_cfg.enabled:
-            self.spike_train_analyzer = SpikeTrainAnalyzer(spike_cfg.params)
-
-        # Initialize Adversarial Robustness Analysis
-        if (
-            hasattr(self.config, "adversarial_robustness_analysis")
-            and self.config.adversarial_robustness_analysis.enabled
-        ):
-            self.adversarial_robustness_analyzer = AdversarialRobustnessAnalyzer(
-                self.config.adversarial_robustness_analysis.params
-            )
+        self.correlation_analysis_enabled = hasattr(self, "correlation_analyzer")
 
     def _sanitize_performance_metrics_for_task(self) -> None:
         """Disable incompatible default metrics for regression models."""
@@ -255,9 +109,505 @@ class AnalysisManager:
                     changed,
                 )
 
+    @staticmethod
+    def _should_run_config(cfg: object | None, training: bool) -> bool:
+        """Return whether an analysis config is enabled for this phase."""
+        if cfg is None or not getattr(cfg, "enabled", False):
+            return False
+        return (getattr(cfg, "training", False) and training) or not training
+
+    def _save_path(self, *parts: str, create: bool = False) -> str:
+        """Build an analysis output path and optionally create it."""
+        path = os.path.join(self.save_root, *parts)
+        if create:
+            os.makedirs(path, exist_ok=True)
+        return path
+
+    def _analysis_config(self, registry_name: str) -> object | None:
+        """Return the config object for a registered analyzer."""
+        spec = _registered_analyzer_spec(registry_name)
+        return getattr(self.config, spec.config_field, None)
+
+    def _analysis_analyzer(self, registry_name: str) -> object:
+        """Return the analyzer instance for a registered analyzer."""
+        spec = _registered_analyzer_spec(registry_name)
+        return getattr(self, spec.attribute_name)
+
+    def _call_analysis_analyzer(self, registry_name: str, **kwargs) -> None:
+        """Invoke a registered analyzer with precomputed keyword arguments."""
+        self._analysis_analyzer(registry_name).analyze(**kwargs)
+
+    def _has_analysis_analyzer(self, registry_name: str) -> bool:
+        """Return whether the registered analyzer has been initialized."""
+        spec = _registered_analyzer_spec(registry_name)
+        return hasattr(self, spec.attribute_name)
+
+    def _analysis_save_path(
+        self, registry_name: str, *parts: str, create: bool = False
+    ) -> str:
+        """Build an output path from registry-declared analyzer metadata."""
+        spec = _registered_analyzer_spec(registry_name)
+        return self._save_path(spec.save_subdir, *parts, create=create)
+
+    def _run_logged_action(
+        self,
+        *,
+        start_message: str,
+        complete_message: str,
+        action: Callable[[], None],
+    ) -> None:
+        """Log a start/success pair around an analysis action."""
+        self.logger.info(start_message)
+        action()
+        self.logger.info(complete_message)
+
+    def _should_run_registered_analysis(
+        self,
+        registry_name: str,
+        *,
+        training: bool,
+        require_analyzer: bool = False,
+    ) -> bool:
+        """Return whether a registered analyzer should run in this phase."""
+        if not self._should_run_config(self._analysis_config(registry_name), training):
+            return False
+        if require_analyzer and not self._has_analysis_analyzer(registry_name):
+            return False
+        return True
+
+    def _run_test_dataset_analysis(
+        self,
+        *,
+        registry_name: str,
+        filename: str,
+        training: bool,
+        runtime: object | None,
+        pass_training: bool = False,
+        require_analyzer: bool = False,
+    ) -> None:
+        """Run an analyzer with the common test-dataset call signature."""
+        if not self._should_run_registered_analysis(
+            registry_name,
+            training=training,
+            require_analyzer=require_analyzer,
+        ):
+            return
+
+        kwargs = {
+            "model": self.model,
+            "test_dataset": self.data["test"],
+            "device": self.device,
+            "save_path": self._analysis_save_path(registry_name),
+            "filename": filename,
+            "runtime": runtime,
+        }
+        if pass_training:
+            kwargs["training"] = training
+
+        self._call_analysis_analyzer(registry_name, **kwargs)
+
+    def _run_test_dataset_analysis_runner(
+        self,
+        runner: _TestDatasetAnalysisRunner,
+        *,
+        filename: str,
+        training: bool,
+        runtime: object | None,
+    ) -> None:
+        """Run a table-declared test-dataset analyzer."""
+        runner.run(
+            self,
+            filename=filename,
+            training=training,
+            runtime=runtime,
+        )
+
+    def _run_test_dataset_analysis_runners(
+        self,
+        runners: tuple[_TestDatasetAnalysisRunner, ...],
+        *,
+        filename: str,
+        training: bool,
+        runtime: object | None,
+    ) -> None:
+        """Run a table of test-dataset analyzers in declaration order."""
+        for runner in runners:
+            self._run_test_dataset_analysis_runner(
+                runner,
+                filename=filename,
+                training=training,
+                runtime=runtime,
+            )
+
+    def _run_logged_test_dataset_analysis(
+        self,
+        *,
+        registry_name: str,
+        filename: str,
+        training: bool,
+        runtime: object | None,
+        start_message: str,
+        complete_message: str,
+        require_analyzer: bool = False,
+    ) -> None:
+        """Run a common test-dataset analyzer with start/complete logging."""
+        if not self._should_run_registered_analysis(
+            registry_name,
+            training=training,
+            require_analyzer=require_analyzer,
+        ):
+            return
+
+        self._run_logged_action(
+            start_message=start_message,
+            complete_message=complete_message,
+            action=lambda: self._run_test_dataset_analysis(
+                registry_name=registry_name,
+                filename=filename,
+                training=training,
+                runtime=runtime,
+                require_analyzer=require_analyzer,
+            ),
+        )
+
+    def _run_logged_data_analysis(
+        self,
+        *,
+        registry_name: str,
+        filename: str,
+        training: bool,
+        start_message: str,
+        complete_message: str,
+        runtime: object | None = None,
+        pass_runtime: bool = False,
+        require_analyzer: bool = True,
+    ) -> None:
+        """Run a logged analyzer with the common data= test-set signature."""
+        if not self._should_run_registered_analysis(
+            registry_name,
+            training=training,
+            require_analyzer=require_analyzer,
+        ):
+            return
+
+        kwargs = {
+            "model": self.model,
+            "data": self.data["test"],
+            "device": self.device,
+            "save_path": self._analysis_save_path(registry_name),
+            "filename": filename,
+        }
+        if pass_runtime:
+            kwargs["runtime"] = runtime
+
+        self._run_logged_action(
+            start_message=start_message,
+            complete_message=complete_message,
+            action=lambda: self._call_analysis_analyzer(registry_name, **kwargs),
+        )
+
     def set_pruning_results(self, pruning_results: dict):
         """Set pruning results for inclusion in performance plots."""
         self.pruning_results = pruning_results
+
+    def _analysis_runtime(self, training: bool) -> object | None:
+        """Return the runtime profile for the current analysis phase."""
+        return (
+            getattr(self.config.runtime, "training", None)
+            if training
+            else getattr(self.config.runtime, "final", None)
+        )
+
+    def _run_performance_analysis(
+        self, *, filename: str, training: bool, runtime: object | None
+    ) -> None:
+        """Run performance analysis with split-specific options."""
+        perf_cfg = self._analysis_config("performance")
+        if not self._should_run_config(perf_cfg, training):
+            return
+
+        self._call_analysis_analyzer(
+            "performance",
+            model=self.model,
+            train_ds=self.data["train"],
+            valid_ds=self.data["valid"],
+            test_ds=self.data["test"],
+            device=self.device,
+            save_path=self._performance_save_path(training=training),
+            filename=filename,
+            training=training,
+            runtime=runtime,
+            splits=self._performance_splits(perf_cfg, training=training),
+        )
+
+    def _performance_save_path(self, *, training: bool) -> str:
+        """Return the performance output directory for the current phase."""
+        if training:
+            return self._analysis_save_path("performance", "epochs", create=True)
+        return self._analysis_save_path("performance")
+
+    @staticmethod
+    def _performance_splits(perf_cfg: object, *, training: bool) -> object | None:
+        """Return configured dataset splits for the current performance phase."""
+        if training:
+            return getattr(perf_cfg, "training_splits", None)
+        return getattr(perf_cfg, "final_splits", None)
+
+    def _run_information_analysis(
+        self, *, filename: str, training: bool, runtime: object | None
+    ) -> None:
+        """Run information analysis."""
+        self._run_logged_test_dataset_analysis(
+            registry_name="information",
+            filename=filename,
+            training=training,
+            runtime=runtime,
+            start_message="Starting information analysis...",
+            complete_message="Information analysis completed successfully",
+        )
+
+    def _run_synaptic_turnover_analysis(self, *, filename: str, training: bool) -> None:
+        """Run synaptic turnover analysis."""
+        self._run_training_flag_model_analysis(
+            registry_name="synapse_turnover",
+            filename=filename,
+            training=training,
+        )
+
+    def _run_weight_analysis(self, *, filename: str, training: bool) -> None:
+        """Run weight analysis."""
+        self._run_training_flag_model_analysis(
+            registry_name="weight",
+            filename=filename,
+            training=training,
+        )
+
+    def _run_training_flag_model_analysis(
+        self,
+        *,
+        registry_name: str,
+        filename: str,
+        training: bool,
+    ) -> None:
+        """Run an analyzer with the model/save-path/filename/training signature."""
+        if not self._should_run_registered_analysis(
+            registry_name,
+            training=training,
+        ):
+            return
+
+        self._call_analysis_analyzer(
+            registry_name,
+            model=self.model,
+            save_path=self._analysis_save_path(registry_name),
+            filename=filename,
+            training=training,
+        )
+
+    def _run_reactivation_dynamics_analysis(
+        self, *, filename: str, training: bool, runtime: object | None
+    ) -> None:
+        """Run reactivation dynamics analysis."""
+        self._run_split_dataset_analysis(
+            registry_name="reactivation_dynamics",
+            filename=filename,
+            training=training,
+            runtime=runtime,
+        )
+
+    def _run_local_rule_component_analysis(
+        self, *, filename: str, training: bool, runtime: object | None
+    ) -> None:
+        """Run local-rule component analysis."""
+        self._run_split_dataset_analysis(
+            registry_name="local_rule_components",
+            filename=filename,
+            training=training,
+            runtime=runtime,
+            test_dataset_kwarg="test_dataset",
+            require_analyzer=True,
+        )
+
+    def _run_split_dataset_analysis(
+        self,
+        *,
+        registry_name: str,
+        filename: str,
+        training: bool,
+        runtime: object | None,
+        test_dataset_kwarg: str = "test_ds",
+        require_analyzer: bool = False,
+    ) -> None:
+        """Run an analyzer with train/valid/test split datasets."""
+        if not self._should_run_registered_analysis(
+            registry_name,
+            training=training,
+            require_analyzer=require_analyzer,
+        ):
+            return
+
+        kwargs = {
+            "model": self.model,
+            "train_ds": self.data.get("train"),
+            "valid_ds": self.data.get("valid"),
+            test_dataset_kwarg: self.data.get("test"),
+            "device": self.device,
+            "save_path": self._analysis_save_path(registry_name),
+            "filename": filename,
+            "training": training,
+            "runtime": runtime,
+        }
+        self._call_analysis_analyzer(registry_name, **kwargs)
+
+    def _run_correlation_analysis(
+        self, *, filename: str, training: bool, runtime: object | None
+    ) -> None:
+        """Run correlation analysis."""
+        self._run_logged_test_dataset_analysis(
+            registry_name="correlation",
+            filename=filename,
+            training=training,
+            runtime=runtime,
+            start_message="Starting correlation analysis...",
+            complete_message="Correlation analysis completed successfully",
+            require_analyzer=True,
+        )
+
+    def _run_routing_analysis(self, *, filename: str, training: bool) -> None:
+        """Run recurrent routing analysis."""
+        self._run_logged_data_analysis(
+            registry_name="routing",
+            filename=filename,
+            training=training,
+            start_message="Starting routing analysis...",
+            complete_message="Routing analysis completed successfully",
+        )
+
+    def _run_model_only_analysis(
+        self,
+        *,
+        registry_name: str,
+        filename: str,
+        training: bool,
+        start_message: str,
+        complete_message: str,
+    ) -> None:
+        """Run an analyzer with the common model/device/save-path signature."""
+        if not self._should_run_registered_analysis(
+            registry_name,
+            training=training,
+            require_analyzer=True,
+        ):
+            return
+
+        self._run_logged_action(
+            start_message=start_message,
+            complete_message=complete_message,
+            action=lambda: self._call_analysis_analyzer(
+                registry_name,
+                model=self.model,
+                device=self.device,
+                save_path=self._analysis_save_path(registry_name),
+                filename=filename,
+            ),
+        )
+
+    def _run_model_only_analysis_runner(
+        self,
+        runner: _ModelOnlyAnalysisRunner,
+        *,
+        filename: str,
+        training: bool,
+    ) -> None:
+        """Run a table-declared model-only analyzer."""
+        runner.run(
+            self,
+            filename=filename,
+            training=training,
+        )
+
+    def _run_model_only_analysis_runners(
+        self,
+        runners: tuple[_ModelOnlyAnalysisRunner, ...],
+        *,
+        filename: str,
+        training: bool,
+    ) -> None:
+        """Run a table of model-only analyzers in declaration order."""
+        for runner in runners:
+            self._run_model_only_analysis_runner(
+                runner,
+                filename=filename,
+                training=training,
+            )
+
+    def _run_inhibitory_specialization_analysis(
+        self, *, filename: str, training: bool
+    ) -> None:
+        """Run inhibitory specialization analysis."""
+        self._run_model_only_analysis_runner(
+            _INHIBITORY_SPECIALIZATION_ANALYSIS,
+            filename=filename,
+            training=training,
+        )
+
+    def _run_jacobian_spectrum_analysis(self, *, filename: str, training: bool) -> None:
+        """Run jacobian spectrum analysis."""
+        self._run_model_only_analysis_runner(
+            _JACOBIAN_SPECTRUM_ANALYSIS,
+            filename=filename,
+            training=training,
+        )
+
+    def _run_dendritic_timetraces_analysis(
+        self, *, filename: str, training: bool
+    ) -> None:
+        """Run dendritic timetraces analysis."""
+        self._run_model_only_analysis_runner(
+            _DENDRITIC_TIMETRACES_ANALYSIS,
+            filename=filename,
+            training=training,
+        )
+
+    def _run_spike_train_analysis(
+        self, *, filename: str, training: bool, runtime: object | None
+    ) -> None:
+        """Run spike-train analysis."""
+        self._run_logged_data_analysis(
+            registry_name="spike_train",
+            filename=filename,
+            training=training,
+            start_message="Starting spike train analysis...",
+            complete_message="Spike train analysis completed successfully",
+            runtime=runtime,
+            pass_runtime=True,
+        )
+
+    def _run_adversarial_robustness_analysis(
+        self, *, filename: str, training: bool, runtime: object | None
+    ) -> None:
+        """Run adversarial robustness analysis."""
+        self._run_logged_test_dataset_analysis(
+            registry_name="adversarial_robustness",
+            filename=filename,
+            training=training,
+            runtime=runtime,
+            start_message="Starting adversarial robustness analysis...",
+            complete_message="Adversarial robustness analysis completed successfully",
+            require_analyzer=True,
+        )
+
+    def _run_ordered_analysis_sequence(
+        self, *, filename: str, training: bool, runtime: object | None
+    ) -> None:
+        """Run analyzer wrappers in the historically defined order."""
+        for step in _ORDERED_ANALYSIS_SEQUENCE:
+            step.run(
+                self,
+                filename=filename,
+                training=training,
+                runtime=runtime,
+            )
 
     def run_analysis(self, filename: str = "final", training: bool = False):
         """
@@ -267,393 +617,9 @@ class AnalysisManager:
             filename: Base filename for saving analysis results
             training: Whether this is being called during training (affects which analyses run)
         """
-        runtime = (
-            getattr(self.config.runtime, "training", None)
-            if training
-            else getattr(self.config.runtime, "final", None)
+        runtime = self._analysis_runtime(training)
+        self._run_ordered_analysis_sequence(
+            filename=filename,
+            training=training,
+            runtime=runtime,
         )
-
-        # Performance Analysis
-        if self.config.performance_analysis.enabled and (
-            (self.config.performance_analysis.training and training) or not training
-        ):
-            # Determine save path based on whether this is training or final analysis
-            if training:
-                # Save epoch results in a subfolder
-                save_path = os.path.join(self.save_root, "performance", "epochs")
-                os.makedirs(save_path, exist_ok=True)
-            else:
-                # Save final results in main performance folder
-                save_path = os.path.join(self.save_root, "performance")
-
-            perf_cfg = self.config.performance_analysis
-            splits = (
-                getattr(perf_cfg, "training_splits", None)
-                if training
-                else getattr(perf_cfg, "final_splits", None)
-            )
-
-            self.performance_analyzer.analyze(
-                model=self.model,
-                train_ds=self.data["train"],
-                valid_ds=self.data["valid"],
-                test_ds=self.data["test"],
-                device=self.device,
-                save_path=save_path,
-                filename=filename,
-                training=training,
-                runtime=runtime,
-                splits=splits,
-            )
-
-        # Information Analysis
-        if self.config.information_analysis.enabled and (
-            (self.config.information_analysis.training and training) or not training
-        ):
-            self.logger.info("Starting information analysis...")
-            self.information_analyzer.analyze(
-                model=self.model,
-                test_dataset=self.data["test"],
-                device=self.device,
-                save_path=os.path.join(self.save_root, "information_analysis"),
-                filename=filename,
-                runtime=runtime,
-            )
-            self.logger.info("Information analysis completed successfully")
-
-        # Synaptic Turnover Analysis
-        if self.config.synapse_turnover_analysis.enabled and (
-            (self.config.synapse_turnover_analysis.training and training)
-            or not training
-        ):
-            self.syn_turnover_analyzer.analyze(
-                model=self.model,
-                training=training,
-                save_path=os.path.join(self.save_root, "synapse_turnover_analysis"),
-                filename=filename,
-            )
-
-        # Noise Perturbation Analysis
-        if self.config.noise_perturbation_analysis.enabled and (
-            (self.config.noise_perturbation_analysis.training and training)
-            or not training
-        ):
-            self.noise_perturbation_analyzer.analyze(
-                model=self.model,
-                test_dataset=self.data["test"],
-                device=self.device,
-                save_path=os.path.join(self.save_root, "noise_perturbation_analysis"),
-                filename=filename,
-                runtime=runtime,
-            )
-
-        # Single Layer Contribution Analysis
-        if self.config.single_layer_contribution.enabled and (
-            (self.config.single_layer_contribution.training and training)
-            or not training
-        ):
-            self.single_layer_analyzer.analyze(
-                model=self.model,
-                test_dataset=self.data["test"],
-                device=self.device,
-                save_path=os.path.join(self.save_root, "single_layer_contribution"),
-                filename=filename,
-                runtime=runtime,
-            )
-
-        # Ablation Analysis
-        if self.config.ablation_analysis.enabled and (
-            (self.config.ablation_analysis.training and training) or not training
-        ):
-            self.ablation_analyzer.analyze(
-                model=self.model,
-                test_dataset=self.data["test"],
-                device=self.device,
-                save_path=os.path.join(self.save_root, "ablation_analysis"),
-                filename=filename,
-                training=training,
-                runtime=runtime,
-            )
-
-        # Weight Analysis
-        if self.config.weight_analysis.enabled and (
-            (self.config.weight_analysis.training and training) or not training
-        ):
-            self.weight_analyzer.analyze(
-                model=self.model,
-                save_path=os.path.join(self.save_root, "weight_analysis"),
-                filename=filename,
-                training=training,
-            )
-
-        # Reactivation Dynamics Analysis
-        rd_cfg = getattr(self.config, "reactivation_dynamics_analysis", None)
-        if (
-            rd_cfg is not None
-            and rd_cfg.enabled
-            and ((rd_cfg.training and training) or not training)
-        ):
-            self.reactivation_dynamics_analyzer.analyze(
-                model=self.model,
-                train_ds=self.data.get("train"),
-                valid_ds=self.data.get("valid"),
-                test_ds=self.data.get("test"),
-                device=self.device,
-                save_path=os.path.join(self.save_root, "reactivation_dynamics"),
-                filename=filename,
-                training=training,
-                runtime=runtime,
-            )
-
-        # Compartment Statistics Analysis
-        if self.config.compartment_statistics_analysis.enabled and (
-            (self.config.compartment_statistics_analysis.training and training)
-            or not training
-        ):
-            self.compartment_statistics_analyzer.analyze(
-                model=self.model,
-                test_dataset=self.data["test"],
-                device=self.device,
-                save_path=os.path.join(
-                    self.save_root, "compartment_statistics_analysis"
-                ),
-                filename=filename,
-                training=training,
-                runtime=runtime,
-            )
-
-        # Compartment SNR Analysis
-        if self.config.compartment_snr_analysis.enabled and (
-            (self.config.compartment_snr_analysis.training and training) or not training
-        ):
-            self.compartment_snr_analyzer.analyze(
-                model=self.model,
-                test_dataset=self.data["test"],
-                device=self.device,
-                save_path=os.path.join(self.save_root, "compartment_snr_analysis"),
-                filename=filename,
-                training=training,
-                runtime=runtime,
-            )
-
-        # Multiplicative Gain Analysis
-        if self.config.multiplicative_gain_analysis.enabled and (
-            (self.config.multiplicative_gain_analysis.training and training)
-            or not training
-        ):
-            self.multiplicative_gain_analyzer.analyze(
-                model=self.model,
-                test_dataset=self.data["test"],
-                device=self.device,
-                save_path=os.path.join(self.save_root, "multiplicative_gain_analysis"),
-                filename=filename,
-                training=training,
-                runtime=runtime,
-            )
-
-        # Receptive Field Analysis
-        if self.config.receptive_field_analysis.enabled and (
-            (self.config.receptive_field_analysis.training and training) or not training
-        ):
-            self.receptive_field_analyzer.analyze(
-                model=self.model,
-                test_dataset=self.data["test"],
-                device=self.device,
-                save_path=os.path.join(self.save_root, "receptive_field_analysis"),
-                filename=filename,
-                training=training,
-                runtime=runtime,
-            )
-
-        # Synaptic Activation Analysis
-        if self.config.synaptic_activation_analysis.enabled and (
-            (self.config.synaptic_activation_analysis.training and training)
-            or not training
-        ):
-            self.synaptic_activation_analyzer.analyze(
-                model=self.model,
-                test_dataset=self.data["test"],
-                device=self.device,
-                save_path=os.path.join(self.save_root, "synaptic_activation_analysis"),
-                filename=filename,
-                runtime=runtime,
-            )
-
-        # Branch Activation Analysis
-        if self.config.branch_activation_analysis.enabled and (
-            (self.config.branch_activation_analysis.training and training)
-            or not training
-        ):
-            self.branch_activation_analyzer.analyze(
-                model=self.model,
-                test_dataset=self.data["test"],
-                device=self.device,
-                save_path=os.path.join(self.save_root, "branch_activation_analysis"),
-                filename=filename,
-                runtime=runtime,
-            )
-
-        # Local Rule Component Analysis
-        lrc_cfg = getattr(self.config, "local_rule_component_analysis", None)
-        if (
-            lrc_cfg is not None
-            and lrc_cfg.enabled
-            and hasattr(self, "local_rule_component_analyzer")
-            and ((getattr(lrc_cfg, "training", False) and training) or not training)
-        ):
-            self.local_rule_component_analyzer.analyze(
-                model=self.model,
-                train_ds=self.data.get("train"),
-                valid_ds=self.data.get("valid"),
-                test_dataset=self.data.get("test"),
-                device=self.device,
-                save_path=os.path.join(self.save_root, "local_rule_components"),
-                filename=filename,
-                training=training,
-                runtime=runtime,
-            )
-
-        # Correlation Analysis
-        if self.correlation_analysis_enabled and (
-            (
-                hasattr(self.config.correlation_analysis, "training")
-                and self.config.correlation_analysis.training
-                and training
-            )
-            or not training
-        ):
-            self.logger.info("Starting correlation analysis...")
-            self.correlation_analyzer.analyze(
-                model=self.model,
-                test_dataset=self.data["test"],
-                device=self.device,
-                save_path=os.path.join(self.save_root, "correlation_analysis"),
-                filename=filename,
-                runtime=runtime,
-            )
-            self.logger.info("Correlation analysis completed successfully")
-
-        # Routing Analysis (recurrent models)
-        if (
-            hasattr(self.config, "routing_analysis")
-            and self.config.routing_analysis.enabled
-            and hasattr(self, "routing_analyzer")
-            and (
-                (
-                    hasattr(self.config.routing_analysis, "training")
-                    and self.config.routing_analysis.training
-                    and training
-                )
-                or not training
-            )
-        ):
-            self.logger.info("Starting routing analysis...")
-            self.routing_analyzer.analyze(
-                model=self.model,
-                data=self.data["test"],
-                device=self.device,
-                save_path=os.path.join(self.save_root, "routing_analysis"),
-                filename=filename,
-            )
-            self.logger.info("Routing analysis completed successfully")
-
-        # Inhibitory Specialization Analysis (recurrent E-I models)
-        inh_spec_cfg = getattr(self.config, "inhibitory_specialization_analysis", None)
-        if (
-            inh_spec_cfg is not None
-            and inh_spec_cfg.enabled
-            and hasattr(self, "inhibitory_specialization_analyzer")
-            and (
-                (getattr(inh_spec_cfg, "training", False) and training) or not training
-            )
-        ):
-            self.logger.info("Starting inhibitory specialization analysis...")
-            self.inhibitory_specialization_analyzer.analyze(
-                model=self.model,
-                device=self.device,
-                save_path=os.path.join(self.save_root, "inhibitory_specialization"),
-                filename=filename,
-            )
-            self.logger.info(
-                "Inhibitory specialization analysis completed successfully"
-            )
-
-        # Jacobian Spectrum Analysis (recurrent dendritic models)
-        jac_cfg = getattr(self.config, "jacobian_spectrum_analysis", None)
-        if (
-            jac_cfg is not None
-            and jac_cfg.enabled
-            and hasattr(self, "jacobian_spectrum_analyzer")
-            and ((getattr(jac_cfg, "training", False) and training) or not training)
-        ):
-            self.logger.info("Starting jacobian spectrum analysis...")
-            self.jacobian_spectrum_analyzer.analyze(
-                model=self.model,
-                device=self.device,
-                save_path=os.path.join(self.save_root, "jacobian_spectrum"),
-                filename=filename,
-            )
-            self.logger.info("Jacobian spectrum analysis completed successfully")
-
-        # Dendritic Timetraces Analysis (recurrent dendritic models)
-        ddt_cfg = getattr(self.config, "dendritic_timetraces_analysis", None)
-        if (
-            ddt_cfg is not None
-            and ddt_cfg.enabled
-            and hasattr(self, "dendritic_timetraces_analyzer")
-            and ((getattr(ddt_cfg, "training", False) and training) or not training)
-        ):
-            self.logger.info("Starting dendritic timetraces analysis...")
-            self.dendritic_timetraces_analyzer.analyze(
-                model=self.model,
-                device=self.device,
-                save_path=os.path.join(self.save_root, "dendritic_timetraces"),
-                filename=filename,
-            )
-            self.logger.info("Dendritic timetraces analysis completed successfully")
-
-        # Spike Train Analysis (spiking recurrent models)
-        spike_cfg = getattr(self.config, "spike_train_analysis", None)
-        if (
-            spike_cfg is not None
-            and spike_cfg.enabled
-            and hasattr(self, "spike_train_analyzer")
-            and ((getattr(spike_cfg, "training", False) and training) or not training)
-        ):
-            self.logger.info("Starting spike train analysis...")
-            self.spike_train_analyzer.analyze(
-                model=self.model,
-                data=self.data["test"],
-                device=self.device,
-                save_path=os.path.join(self.save_root, "spike_train_analysis"),
-                filename=filename,
-                runtime=runtime,
-            )
-            self.logger.info("Spike train analysis completed successfully")
-
-        # Adversarial Robustness Analysis
-        if (
-            hasattr(self.config, "adversarial_robustness_analysis")
-            and self.config.adversarial_robustness_analysis.enabled
-            and hasattr(self, "adversarial_robustness_analyzer")
-            and (
-                (
-                    hasattr(self.config.adversarial_robustness_analysis, "training")
-                    and self.config.adversarial_robustness_analysis.training
-                    and training
-                )
-                or not training
-            )
-        ):
-            self.logger.info("Starting adversarial robustness analysis...")
-            self.adversarial_robustness_analyzer.analyze(
-                model=self.model,
-                test_dataset=self.data["test"],
-                device=self.device,
-                save_path=os.path.join(
-                    self.save_root, "adversarial_robustness_analysis"
-                ),
-                filename=filename,
-                runtime=runtime,
-            )
-            self.logger.info("Adversarial robustness analysis completed successfully")

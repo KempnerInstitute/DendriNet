@@ -81,6 +81,8 @@ class TestJacobianSpectrumAnalyzer(unittest.TestCase):
         results = analyzer.analyze(model)
         entry = results["layers"]["layer_0"]["levels"][0]
 
+        self.assertEqual(results["top_k"], 3)
+        self.assertEqual(set(results["layers"].keys()), {"layer_0"})
         self.assertEqual(entry["level"], 0)
         self.assertAlmostEqual(entry["tau"], 5.0, places=4)
         self.assertAlmostEqual(entry["sigma_rec"][0], 3.0, places=4)

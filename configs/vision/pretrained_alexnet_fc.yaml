@@ -33,20 +33,23 @@ data:
   dataset_params:
     imagenet:
       transform_preset: "pretrained"
-      allow_fake_data: false
+      loader_backend: "auto"                  # "auto" | "torchvision" | "imagefolder"; imagefolder is fastest for train/val class trees
       allow_flatten_materialize: false
 
 model:
   task: "classification"
 
-  pretrained_replacement:
+  vision_replacement:
     enabled: true
     backbone: "alexnet"                 # "alexnet" | "vgg16" | etc.
     weights: "IMAGENET1K_V1"            # str | null (null = random init)
     input_shape: [3, 224, 224]
-    replace:
-      start: "classifier.1"            # first replaced layer (inclusive)
-      end: "classifier.5"              # last replaced layer (inclusive)
+    target_modules:
+      - "classifier.1"
+      - "classifier.2"
+      - "classifier.3"
+      - "classifier.4"
+      - "classifier.5"
     omit_layers: []
     trainability:
       encoder:
@@ -70,12 +73,21 @@ model:
       use_shunting: true
       weight_transform: "softplus"
     sparsity:
-      type: "standard"
+      type: "indexed_rewire"
       init_method: "xavier_normal"
+      indexed:
+        seed: 42
+        rewire_frequency: 100
+        rewire_quantile: 0.05
+        rewire_until_step: null
+        output_chunk_size: 2048
     reactivation:
       enabled: true
       type: "param_tanh"
       init_policy: "occupancy_quantile"
+    blocklinear:
+      gradient_scaling: "none"
+      efficient: true
 
 training:
   encoder:
@@ -87,6 +99,11 @@ training:
     common:
       epochs: 100
       batch_size: 128
+      num_workers: 8
+      pin_memory: true
+      persistent_workers: true
+      prefetch_factor: 4
+      profile_dataloader: true
       shuffle: true
       grad_clip_value: 5.0
       loss_function: "cat_nll"
@@ -113,6 +130,10 @@ analysis:
       mode: "stream"                    # ImageNet-scale analysis: prefer stream; use materialize only for smaller debugging subsets
       batch_size: 128
       num_workers: 4
+      pin_memory: true
+      persistent_workers: true
+      prefetch_factor: 4
+      in_order: false
   performance:
     enabled: true
     params:

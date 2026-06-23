@@ -5,12 +5,17 @@ import torch
 from torch.utils.data import TensorDataset
 
 from dendritic_modeling.datasets.synthetic_datasets import (
+    create_asymmetric_noise_dataset,
     create_balanced_information_dataset,
     create_block_correlated_dataset,
+    create_contextual_stream_gain_shift_dataset,
     create_correlated_gaussian_dataset,
+    create_heterogeneous_information_dataset,
     create_linear_separable_dataset,
     create_nonlinear_interaction_dataset,
     create_nonlinear_separable_dataset,
+    create_nonlinear_transformation_dataset,
+    create_population_code_dataset,
     get_synthetic_datasets,
 )
 
@@ -214,6 +219,132 @@ def test_get_synthetic_datasets_dispatch():
     }
     train, _valid, _test = get_synthetic_datasets(config)
     assert isinstance(train, TensorDataset)
+
+
+@pytest.mark.parametrize(
+    ("dataset_type", "factory", "kwargs"),
+    [
+        (
+            "correlated_gaussian",
+            create_correlated_gaussian_dataset,
+            {"n_samples": 12, "input_dim": 8, "ne": 4, "ni": 4, "seed": 11},
+        ),
+        (
+            "nonlinear_interaction",
+            create_nonlinear_interaction_dataset,
+            {"n_samples": 24, "input_dim": 4, "seed": 12},
+        ),
+        (
+            "linear_separable",
+            create_linear_separable_dataset,
+            {"n_samples": 12, "input_dim": 8, "ne": 4, "ni": 4, "seed": 13},
+        ),
+        (
+            "nonlinear_separable",
+            create_nonlinear_separable_dataset,
+            {
+                "n_samples": 24,
+                "input_dim": 8,
+                "ne": 4,
+                "ni": 4,
+                "nonlinearity_type": "quadratic",
+                "seed": 14,
+            },
+        ),
+        (
+            "block_correlated",
+            create_block_correlated_dataset,
+            {
+                "n_samples": 12,
+                "input_dim": 8,
+                "ne": 4,
+                "ni": 4,
+                "n_blocks": 2,
+                "block_rho_ee": [0.0, 0.1],
+                "block_rho_ii": [0.0, 0.1],
+                "block_rho_ei": [0.0, 0.1],
+                "seed": 15,
+            },
+        ),
+        (
+            "balanced_information",
+            create_balanced_information_dataset,
+            {
+                "n_samples": 12,
+                "input_dim": 8,
+                "ne": 4,
+                "ni": 4,
+                "info_per_dim": "gradient",
+                "seed": 16,
+            },
+        ),
+        (
+            "heterogeneous_information",
+            create_heterogeneous_information_dataset,
+            {
+                "n_samples": 8,
+                "input_dim": 8,
+                "n_classes": 3,
+                "ne": 4,
+                "ni": 4,
+                "n_high_info_dims": 2,
+                "seed": 17,
+            },
+        ),
+        (
+            "nonlinear_transformation",
+            create_nonlinear_transformation_dataset,
+            {
+                "n_samples": 12,
+                "n_classes": 2,
+                "ne": 2,
+                "ni": 2,
+                "noise_std": 0.05,
+                "seed": 18,
+            },
+        ),
+        (
+            "asymmetric_noise",
+            create_asymmetric_noise_dataset,
+            {
+                "n_samples": 8,
+                "input_dim": 8,
+                "n_classes": 3,
+                "ne": 4,
+                "ni": 4,
+                "seed": 19,
+            },
+        ),
+        (
+            "population_code",
+            create_population_code_dataset,
+            {
+                "n_samples": 12,
+                "pop_dim": 16,
+                "ne": 4,
+                "ni": 4,
+                "n_classes": 2,
+                "seed": 20,
+            },
+        ),
+        (
+            "contextual_stream_gain_shift",
+            create_contextual_stream_gain_shift_dataset,
+            {"n_samples": 12, "stream_dim": 4, "n_classes": 2, "seed": 21},
+        ),
+    ],
+)
+def test_get_synthetic_datasets_matches_direct_constructor(
+    dataset_type, factory, kwargs
+):
+    config = {"type": dataset_type, **kwargs}
+
+    actual = get_synthetic_datasets(config)
+    expected = factory(**kwargs)
+
+    for actual_split, expected_split in zip(actual, expected):
+        torch.testing.assert_close(actual_split.tensors[0], expected_split.tensors[0])
+        torch.testing.assert_close(actual_split.tensors[1], expected_split.tensors[1])
 
 
 def test_get_synthetic_datasets_unknown_raises():

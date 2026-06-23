@@ -8,6 +8,8 @@ compatibility issues during analysis, particularly with efficient_blocklinear.
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.utils.hooks import iter_modules_of_type
+
 
 def ensure_2d_tensor(x: torch.Tensor) -> torch.Tensor:
     """
@@ -59,22 +61,20 @@ def wrap_model_for_analysis(model: nn.Module) -> nn.Module:
                 EfficientBlockLinear,
             )
 
-            def add_shape_correction_hook(module):
-                if isinstance(module, EfficientBlockLinear):
-                    # Store original forward method
-                    original_forward = module.forward
+            for module in iter_modules_of_type(
+                self.wrapped_model, EfficientBlockLinear
+            ):
+                original_forward = module.forward
 
-                    def corrected_forward(x):
-                        # Ensure input is properly shaped
-                        if x.dim() > 2:
-                            B = x.shape[0]
-                            x = x.reshape(B, -1)
-                        return original_forward(x)
+                def corrected_forward(x, original_forward=original_forward):
+                    # Ensure input is properly shaped
+                    if x.dim() > 2:
+                        B = x.shape[0]
+                        x = x.reshape(B, -1)
+                    return original_forward(x)
 
-                    # Replace forward method
-                    module.forward = corrected_forward
-
-            self.wrapped_model.apply(add_shape_correction_hook)
+                # Replace forward method
+                module.forward = corrected_forward
 
         def forward(self, x):
             return self.wrapped_model(x)
@@ -109,9 +109,7 @@ def fix_tensor_shapes_for_blocklinear(
     )
 
     # Check if model uses EfficientBlockLinear
-    uses_efficient = any(
-        isinstance(module, EfficientBlockLinear) for module in model.modules()
-    )
+    uses_efficient = any(iter_modules_of_type(model, EfficientBlockLinear))
 
     if not uses_efficient:
         return tensors

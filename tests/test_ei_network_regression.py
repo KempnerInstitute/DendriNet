@@ -5,11 +5,29 @@ stable across code changes. They use frozen seeds so any change in initializatio
 or forward-pass logic is immediately detected.
 """
 
+from unittest.mock import patch
+
 import pytest
 import torch
 
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic import (
+    DendriNetConfig,
+    DendriticSynapseConfig,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.ei_layer import (
+    _build_dendrinet_cells,
+    _build_excitatory_cells,
+    _build_inhibitory_cells,
+    _resolve_excitatory_inhibitory_input_dim,
+    _structured_connectivity_enabled,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.ei_network import (
     ConfigurableEINetwork,
+    _extend_synapse_schedule,
+    _prepare_ei_layer_size_sequences,
+    _prepare_ei_synapse_schedules,
+    _resolve_ei_layer_build_spec,
+    _validate_direct_inhibitory_stream_contract,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform import (
     TransferLayer,
@@ -581,6 +599,193 @@ class TestSynapseModeMLPNetwork:
 
 
 class TestEILayerValidation:
+    def test_structured_connectivity_enabled_accepts_mapping_and_config_objects(self):
+        class StructuredConfig:
+            enabled = True
+
+        assert _structured_connectivity_enabled({"enabled": True})
+        assert _structured_connectivity_enabled(StructuredConfig())
+        assert not _structured_connectivity_enabled({"enabled": False})
+        assert not _structured_connectivity_enabled(None)
+
+    def test_excitatory_inhibitory_input_dim_gates_on_ie_synapses(self):
+        dim, concat = _resolve_excitatory_inhibitory_input_dim(
+            n_inhibitory_cells=5,
+            build_inhibitory_cells=True,
+            inhibitory_input_dim=3,
+            ie_synapses_per_branch=2,
+        )
+        assert dim == 5
+        assert concat is True
+
+        dim, concat = _resolve_excitatory_inhibitory_input_dim(
+            n_inhibitory_cells=5,
+            build_inhibitory_cells=True,
+            inhibitory_input_dim=3,
+            ie_synapses_per_branch=0,
+        )
+        assert dim is None
+        assert concat is False
+
+        dim, concat = _resolve_excitatory_inhibitory_input_dim(
+            n_inhibitory_cells=None,
+            build_inhibitory_cells=False,
+            inhibitory_input_dim=3,
+            ie_synapses_per_branch=1,
+        )
+        assert dim == 3
+        assert concat is True
+
+    def test_dendrinet_cell_builder_groups_config_and_preserves_extra_kwargs(self):
+        synapse_config = DendriticSynapseConfig.from_kwargs(
+            {"topk_type": "indexed_rewire", "weight_transform": "softplus"}
+        )
+        marker = object()
+
+        with patch(
+            "dendritic_modeling.networks.architectures.excitation_inhibition."
+            "ei_layer.DendriNet"
+        ) as build_dendrinet:
+            build_dendrinet.return_value = "cells"
+            result = _build_dendrinet_cells(
+                n_soma=7,
+                branch_factors=[2, 3],
+                excitatory_input_dim=11,
+                excitatory_synapses_per_branch=5,
+                inhibitory_input_dim=4,
+                inhibitory_synapses_per_branch=2,
+                somatic_synapses=False,
+                synapse_config=synapse_config,
+                dendrinet_extra_kwargs={"unit_marker": marker},
+                structured_connectivity={"enabled": True},
+                structured_layer_idx=3,
+                structured_excitatory_pathway="ei",
+                structured_inhibitory_pathway="ii",
+            )
+
+        assert result == "cells"
+        build_dendrinet.assert_called_once()
+        call_kwargs = build_dendrinet.call_args.kwargs
+        config = call_kwargs["config"]
+        assert isinstance(config, DendriNetConfig)
+        assert config.n_soma == 7
+        assert config.branch_factors == (2, 3)
+        assert config.excitatory_input_dim == 11
+        assert config.excitatory_synapses_per_branch == 5
+        assert config.inhibitory_input_dim == 4
+        assert config.inhibitory_synapses_per_branch == 2
+        assert config.somatic_synapses is False
+        assert config.structured_connectivity == {"enabled": True}
+        assert config.structured_layer_idx == 3
+        assert config.structured_excitatory_pathway == "ei"
+        assert config.structured_inhibitory_pathway == "ii"
+        assert config.synapse_config == synapse_config
+        assert call_kwargs["unit_marker"] is marker
+
+    def test_ei_mode_builders_preserve_structured_pathway_metadata(self):
+        synapse_config = DendriticSynapseConfig()
+        with patch(
+            "dendritic_modeling.networks.architectures.excitation_inhibition."
+            "ei_layer._build_dendrinet_cells"
+        ) as build_cells:
+            build_cells.side_effect = ["inh", "exc"]
+            inhibitory = _build_inhibitory_cells(
+                n_inhibitory_cells=5,
+                inhibitory_branch_factors=[2],
+                excitatory_input_dim=13,
+                ei_synapses_per_branch=3,
+                build_inhibitory_cells=True,
+                inhibitory_network_type="dendritic",
+                inhibitory_input_dim=4,
+                ii_synapses_per_branch=2,
+                somatic_synapses=True,
+                synapse_mode="ei",
+                common_synapse_config=synapse_config,
+                structured_connectivity={"enabled": True},
+                structured_layer_idx=9,
+                dendrinet_extra_kwargs={"extra": "value"},
+                mlp_inhibitory_network_params={},
+            )
+            excitatory = _build_excitatory_cells(
+                n_excitatory_cells=7,
+                excitatory_branch_factors=[3],
+                excitatory_input_dim=13,
+                ee_synapses_per_branch=4,
+                excitatory_inhibitory_input_dim=5,
+                ie_synapses_per_branch=1,
+                somatic_synapses=True,
+                synapse_mode="ei",
+                common_synapse_config=synapse_config,
+                structured_connectivity={"enabled": True},
+                structured_layer_idx=9,
+                dendrinet_extra_kwargs={"extra": "value"},
+            )
+
+        assert inhibitory == "inh"
+        assert excitatory == "exc"
+        inhibitory_kwargs = build_cells.call_args_list[0].kwargs
+        excitatory_kwargs = build_cells.call_args_list[1].kwargs
+        assert inhibitory_kwargs["structured_excitatory_pathway"] == "ei"
+        assert inhibitory_kwargs["structured_inhibitory_pathway"] == "ii"
+        assert inhibitory_kwargs["inhibitory_input_dim"] == 4
+        assert inhibitory_kwargs["inhibitory_synapses_per_branch"] == 2
+        assert excitatory_kwargs["structured_excitatory_pathway"] == "ee"
+        assert excitatory_kwargs["structured_inhibitory_pathway"] == "ie"
+        assert excitatory_kwargs["inhibitory_input_dim"] == 5
+        assert excitatory_kwargs["inhibitory_synapses_per_branch"] == 1
+
+    def test_mlp_synapse_mode_builders_preserve_merged_input_geometry(self):
+        synapse_config = DendriticSynapseConfig()
+        with patch(
+            "dendritic_modeling.networks.architectures.excitation_inhibition."
+            "ei_layer._build_dendrinet_cells"
+        ) as build_cells:
+            build_cells.side_effect = ["inh", "exc"]
+            inhibitory = _build_inhibitory_cells(
+                n_inhibitory_cells=5,
+                inhibitory_branch_factors=[2],
+                excitatory_input_dim=13,
+                ei_synapses_per_branch=3,
+                build_inhibitory_cells=True,
+                inhibitory_network_type="dendritic",
+                inhibitory_input_dim=4,
+                ii_synapses_per_branch=2,
+                somatic_synapses=True,
+                synapse_mode="mlp",
+                common_synapse_config=synapse_config,
+                structured_connectivity=None,
+                structured_layer_idx=0,
+                dendrinet_extra_kwargs={},
+                mlp_inhibitory_network_params={},
+            )
+            excitatory = _build_excitatory_cells(
+                n_excitatory_cells=7,
+                excitatory_branch_factors=[3],
+                excitatory_input_dim=13,
+                ee_synapses_per_branch=4,
+                excitatory_inhibitory_input_dim=5,
+                ie_synapses_per_branch=1,
+                somatic_synapses=True,
+                synapse_mode="mlp",
+                common_synapse_config=synapse_config,
+                structured_connectivity=None,
+                structured_layer_idx=0,
+                dendrinet_extra_kwargs={},
+            )
+
+        assert inhibitory == "inh"
+        assert excitatory == "exc"
+        inhibitory_kwargs = build_cells.call_args_list[0].kwargs
+        excitatory_kwargs = build_cells.call_args_list[1].kwargs
+        assert inhibitory_kwargs["excitatory_input_dim"] == 17
+        assert inhibitory_kwargs["excitatory_synapses_per_branch"] == 5
+        assert inhibitory_kwargs["inhibitory_input_dim"] is None
+        assert inhibitory_kwargs["inhibitory_synapses_per_branch"] is None
+        assert excitatory_kwargs["excitatory_input_dim"] == 18
+        assert excitatory_kwargs["excitatory_synapses_per_branch"] == 5
+        assert excitatory_kwargs["inhibitory_input_dim"] is None
+        assert excitatory_kwargs["inhibitory_synapses_per_branch"] is None
+
     def test_invalid_synapse_mode_raises(self):
         from dendritic_modeling.networks.architectures.excitation_inhibition.ei_layer import (
             ExcitationInhibitionLayer,
@@ -598,6 +803,226 @@ class TestEILayerValidation:
                 build_inhibitory_cells=False,
                 synapse_mode="invalid",
             )
+
+
+# ---------------------------------------------------------------------------
+# EI Network schedule helpers
+# ---------------------------------------------------------------------------
+
+
+class TestEINetworkScheduleHelpers:
+    def test_extend_synapse_schedule_repeats_last_value(self):
+        assert _extend_synapse_schedule(
+            [2],
+            num_layers=3,
+            required=True,
+            empty_error="missing",
+        ) == [2, 2, 2]
+
+    def test_extend_synapse_schedule_fills_optional_empty_with_zero(self):
+        assert _extend_synapse_schedule(
+            [],
+            num_layers=3,
+            required=False,
+            empty_error="missing",
+        ) == [0, 0, 0]
+
+    def test_extend_synapse_schedule_preserves_required_empty_error(self):
+        with pytest.raises(ValueError, match="ee_synapses_per_branch_per_layer"):
+            _extend_synapse_schedule(
+                [],
+                num_layers=1,
+                required=True,
+                empty_error="ee_synapses_per_branch_per_layer cannot be empty",
+            )
+
+
+class TestEINetworkSynapseScheduleHelpers:
+    def test_prepare_synapse_schedules_extends_all_streams(self):
+        schedules = _prepare_ei_synapse_schedules(
+            ee_synapses_per_branch_per_layer=[5],
+            ei_synapses_per_branch_per_layer=[3],
+            ie_synapses_per_branch_per_layer=[2],
+            ii_synapses_per_branch_per_layer=[1],
+            num_layers=3,
+            input_mode=0,
+            has_inhibitory_neurons=True,
+        )
+
+        assert schedules == ([5, 5, 5], [3, 3, 3], [2, 2, 2], [1, 1, 1])
+
+    def test_prepare_synapse_schedules_defaults_optional_absent_i_streams(self):
+        schedules = _prepare_ei_synapse_schedules(
+            ee_synapses_per_branch_per_layer=[5],
+            ei_synapses_per_branch_per_layer=[],
+            ie_synapses_per_branch_per_layer=[],
+            ii_synapses_per_branch_per_layer=[],
+            num_layers=2,
+            input_mode=0,
+            has_inhibitory_neurons=False,
+        )
+
+        assert schedules == ([5, 5], [0, 0], [0, 0], [0, 0])
+
+    def test_prepare_synapse_schedules_requires_ie_for_input_mode1(self):
+        with pytest.raises(ValueError, match="ie_synapses_per_branch_per_layer"):
+            _prepare_ei_synapse_schedules(
+                ee_synapses_per_branch_per_layer=[5],
+                ei_synapses_per_branch_per_layer=[],
+                ie_synapses_per_branch_per_layer=[],
+                ii_synapses_per_branch_per_layer=[],
+                num_layers=1,
+                input_mode=1,
+                has_inhibitory_neurons=False,
+            )
+
+    def test_prepare_synapse_schedules_requires_i_schedules_with_i_neurons(self):
+        with pytest.raises(ValueError, match="ei_synapses_per_branch_per_layer"):
+            _prepare_ei_synapse_schedules(
+                ee_synapses_per_branch_per_layer=[5],
+                ei_synapses_per_branch_per_layer=[],
+                ie_synapses_per_branch_per_layer=[2],
+                ii_synapses_per_branch_per_layer=[1],
+                num_layers=1,
+                input_mode=0,
+                has_inhibitory_neurons=True,
+            )
+
+
+class TestEINetworkLayerSizeHelpers:
+    def test_prepare_layer_size_sequences_adds_input_sentinel(self):
+        exc, inh = _prepare_ei_layer_size_sequences(
+            input_dim=20,
+            excitatory_layer_sizes=[10, 5],
+            inhibitory_layer_sizes=[8, 4],
+            input_mode=0,
+            input_mode1_builds_i=False,
+        )
+
+        assert exc == [20, 10, 5]
+        assert inh == [None, 8, 4]
+
+    def test_prepare_layer_size_sequences_preserves_direct_stream_default(self):
+        exc, inh = _prepare_ei_layer_size_sequences(
+            input_dim=20,
+            excitatory_layer_sizes=[10, 5],
+            inhibitory_layer_sizes=[8, 4],
+            input_mode=1,
+            input_mode1_builds_i=False,
+        )
+
+        assert exc == [20, 10, 5]
+        assert inh == [None, None, None]
+
+    def test_prepare_layer_size_sequences_preserves_input_mode1_opt_in(self):
+        exc, inh = _prepare_ei_layer_size_sequences(
+            input_dim=20,
+            excitatory_layer_sizes=[10, 5],
+            inhibitory_layer_sizes=[8, 4],
+            input_mode=1,
+            input_mode1_builds_i=True,
+        )
+
+        assert exc == [20, 10, 5]
+        assert inh == [None, 8, 4]
+
+
+class TestEINetworkLayerBuildSpec:
+    def test_layer_build_spec_uses_transfer_dims_for_first_layer(self):
+        spec = _resolve_ei_layer_build_spec(
+            layer_idx=0,
+            excitatory_layer_sizes=[20, 10, 5],
+            inhibitory_layer_sizes=[None, 8, 4],
+            excitatory_input_dim=12,
+            inhibitory_input_dim=6,
+            ei_synapses_per_branch=2,
+            ii_synapses_per_branch=1,
+        )
+
+        assert spec == {
+            "n_excitatory_cells": 10,
+            "n_inhibitory_cells": 8,
+            "excitatory_input_dim": 12,
+            "inhibitory_input_dim": 6,
+            "build_inhibitory_cells": True,
+        }
+
+    def test_layer_build_spec_uses_previous_layer_dims_after_first_layer(self):
+        spec = _resolve_ei_layer_build_spec(
+            layer_idx=1,
+            excitatory_layer_sizes=[20, 10, 5],
+            inhibitory_layer_sizes=[None, 8, 4],
+            excitatory_input_dim=12,
+            inhibitory_input_dim=6,
+            ei_synapses_per_branch=2,
+            ii_synapses_per_branch=1,
+        )
+
+        assert spec == {
+            "n_excitatory_cells": 5,
+            "n_inhibitory_cells": 4,
+            "excitatory_input_dim": 10,
+            "inhibitory_input_dim": 8,
+            "build_inhibitory_cells": True,
+        }
+
+    def test_layer_build_spec_skips_inhibitory_population_without_drive(self):
+        spec = _resolve_ei_layer_build_spec(
+            layer_idx=0,
+            excitatory_layer_sizes=[20, 10],
+            inhibitory_layer_sizes=[None, 8],
+            excitatory_input_dim=12,
+            inhibitory_input_dim=6,
+            ei_synapses_per_branch=0,
+            ii_synapses_per_branch=0,
+        )
+
+        assert spec["n_inhibitory_cells"] == 8
+        assert spec["build_inhibitory_cells"] is False
+
+
+class TestEINetworkDirectStreamValidation:
+    def test_direct_stream_requires_explicit_opt_in_when_required(self):
+        with pytest.raises(ValueError, match="directly instead of building inhibitory"):
+            _validate_direct_inhibitory_stream_contract(
+                input_mode=1,
+                has_inhibitory_neurons=False,
+                ie_synapses_per_branch_per_layer=[1],
+                allow_direct_inhibitory_stream=False,
+                require_direct_stream_opt_in=True,
+            )
+
+    def test_direct_stream_allows_explicit_opt_in(self):
+        _validate_direct_inhibitory_stream_contract(
+            input_mode=1,
+            has_inhibitory_neurons=False,
+            ie_synapses_per_branch_per_layer=[1],
+            allow_direct_inhibitory_stream=True,
+            require_direct_stream_opt_in=True,
+        )
+
+    def test_direct_stream_validation_ignores_non_direct_cases(self):
+        _validate_direct_inhibitory_stream_contract(
+            input_mode=0,
+            has_inhibitory_neurons=False,
+            ie_synapses_per_branch_per_layer=[1],
+            allow_direct_inhibitory_stream=False,
+            require_direct_stream_opt_in=True,
+        )
+        _validate_direct_inhibitory_stream_contract(
+            input_mode=1,
+            has_inhibitory_neurons=True,
+            ie_synapses_per_branch_per_layer=[1],
+            allow_direct_inhibitory_stream=False,
+            require_direct_stream_opt_in=True,
+        )
+        _validate_direct_inhibitory_stream_contract(
+            input_mode=1,
+            has_inhibitory_neurons=False,
+            ie_synapses_per_branch_per_layer=[0],
+            allow_direct_inhibitory_stream=False,
+            require_direct_stream_opt_in=True,
+        )
 
 
 # ---------------------------------------------------------------------------

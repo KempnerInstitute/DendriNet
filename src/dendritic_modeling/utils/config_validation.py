@@ -24,6 +24,36 @@ from .training_stability_validator import validate_training_stability
 logger = logging.getLogger(__name__)
 
 
+def _run_architecture_validation(config: dict) -> bool:
+    """Run required model-architecture validation and log the existing outcome."""
+    logger.info("Validating model architecture...")
+    arch_valid = validate_model_architecture(config)
+
+    if not arch_valid:
+        logger.error("Model architecture validation failed - cannot continue")
+        return False
+
+    logger.info("Model architecture validation passed")
+    return True
+
+
+def _run_training_validation(config: dict, *, strict: bool) -> bool:
+    """Run training-stability validation and apply strict/non-strict policy."""
+    logger.info("Validating training stability...")
+    training_valid = validate_training_stability(config)
+
+    if training_valid:
+        logger.info("Training stability validation passed")
+        return True
+
+    if strict:
+        logger.error("Training stability validation failed in strict mode")
+        return False
+
+    logger.warning("Training stability validation failed - proceeding with warnings")
+    return True
+
+
 def validate_full_config(config: dict, strict: bool = True) -> bool:
     """
     Perform complete configuration validation including both architecture and training stability.
@@ -38,29 +68,12 @@ def validate_full_config(config: dict, strict: bool = True) -> bool:
     logger.info("Starting full configuration validation")
 
     # 1. Model Architecture Validation (required)
-    logger.info("Validating model architecture...")
-    arch_valid = validate_model_architecture(config)
-
-    if not arch_valid:
-        logger.error("Model architecture validation failed - cannot continue")
+    if not _run_architecture_validation(config):
         return False
 
-    logger.info("Model architecture validation passed")
-
     # 2. Training Stability Validation (warnings only unless strict=True)
-    logger.info("Validating training stability...")
-    training_valid = validate_training_stability(config)
-
-    if training_valid:
-        logger.info("Training stability validation passed")
-    else:
-        if strict:
-            logger.error("Training stability validation failed in strict mode")
-            return False
-        else:
-            logger.warning(
-                "Training stability validation failed - proceeding with warnings"
-            )
+    if not _run_training_validation(config, strict=strict):
+        return False
 
     logger.info("Full configuration validation completed successfully")
     return True

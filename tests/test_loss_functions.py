@@ -21,6 +21,9 @@ from dendritic_modeling.training.loss.functions import (
     BCELoss,
     CategoricalNLLLoss,
     CrossEntropyLoss,
+    EIWeightRatioLoss,
+    ExcitationInhibitionBalanceLoss,
+    HomeostaticControlLoss,
     LogAdjustedNegativeCosineSimilarityLoss,
     LogMSELoss,
     LossFunction,
@@ -28,8 +31,75 @@ from dendritic_modeling.training.loss.functions import (
     NegativeCosineSimilarityLoss,
     VaeElboLoss,
     VoltageStabilizationLoss,
+    _loss_reduction_fn,
+    _reduce_tensor_loss,
     get_loss_function,
 )
+
+_PAIR_METRICS = (
+    "mse",
+    "log_mse",
+    "mae",
+    "log_mae",
+    "squared_mean_error",
+    "log_squared_mean_error",
+    "abs_mean_error",
+    "log_abs_mean_error",
+)
+
+
+def _expected_voltage_metric(
+    loss_metric: str,
+    reduction: str,
+    x: torch.Tensor,
+    y: torch.Tensor,
+    eps: float,
+) -> torch.Tensor:
+    reduction_fn = _loss_reduction_fn(reduction)
+    if loss_metric == "mse":
+        return reduction_fn((x - y) ** 2)
+    if loss_metric == "log_mse":
+        return torch.log(reduction_fn((x - y) ** 2) + eps)
+    if loss_metric == "mae":
+        return reduction_fn(torch.abs(x - y))
+    if loss_metric == "log_mae":
+        return torch.log(reduction_fn(torch.abs(x - y)) + eps)
+    if loss_metric == "squared_mean_error":
+        return reduction_fn(x - y) ** 2
+    if loss_metric == "log_squared_mean_error":
+        return torch.log(reduction_fn(x - y) ** 2 + eps)
+    if loss_metric == "abs_mean_error":
+        return torch.abs(reduction_fn(x - y))
+    if loss_metric == "log_abs_mean_error":
+        return torch.log(torch.abs(reduction_fn(x - y)) + eps)
+    raise AssertionError(f"unexpected metric {loss_metric}")
+
+
+def _expected_ei_metric(
+    loss_metric: str,
+    reduction: str,
+    x: torch.Tensor,
+    y: torch.Tensor,
+    eps: float,
+) -> torch.Tensor:
+    reduction_fn = _loss_reduction_fn(reduction)
+    if loss_metric == "mse":
+        return reduction_fn((x - y) ** 2)
+    if loss_metric == "log_mse":
+        return torch.log(reduction_fn((x - y) ** 2) + eps)
+    if loss_metric == "mae":
+        return reduction_fn(torch.abs(x - y))
+    if loss_metric == "log_mae":
+        return torch.log(reduction_fn(torch.abs(x - y)) + eps)
+    if loss_metric == "squared_mean_error":
+        return (reduction_fn(x) - reduction_fn(y)) ** 2
+    if loss_metric == "log_squared_mean_error":
+        return torch.log((reduction_fn(x) - reduction_fn(y)) ** 2 + eps)
+    if loss_metric == "abs_mean_error":
+        return torch.abs(reduction_fn(x) - reduction_fn(y))
+    if loss_metric == "log_abs_mean_error":
+        return torch.log(torch.abs(reduction_fn(x) - reduction_fn(y)) + eps)
+    raise AssertionError(f"unexpected metric {loss_metric}")
 
 
 class TestLossFunction:
@@ -55,6 +125,23 @@ class TestLossFunction:
 
         with pytest.raises(NotImplementedError):
             loss_fn(model, x, y)
+
+
+def test_reduce_tensor_loss_preserves_reduction_convention():
+    loss = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
+
+    torch.testing.assert_close(_reduce_tensor_loss(loss, "mean"), loss.mean())
+    torch.testing.assert_close(_reduce_tensor_loss(loss, "sum"), loss.sum())
+    assert _reduce_tensor_loss(loss, "none") is loss
+    assert _reduce_tensor_loss(loss, "custom") is loss
+
+
+def test_loss_reduction_fn_preserves_callable_convention():
+    loss = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
+
+    torch.testing.assert_close(_loss_reduction_fn("mean")(loss), loss.mean())
+    torch.testing.assert_close(_loss_reduction_fn("sum")(loss), loss.sum())
+    assert _loss_reduction_fn("none")(loss) is loss
 
 
 class TestMSELoss:
@@ -265,6 +352,19 @@ class TestCategoricalNLLLoss:
         # This should work without error
         assert log_probs.shape == (4, 5)
 
+    def test_reductions_match_manual_nll(self, log_softmax_model):
+        x = torch.randn(4, 10)
+        y = torch.randint(0, 5, (4,))
+        logits = log_softmax_model(x)
+        expected = -1 * torch.distributions.Categorical(logits=logits).log_prob(y)
+
+        for reduction in ("mean", "sum", "none"):
+            actual = CategoricalNLLLoss(reduction=reduction)(log_softmax_model, x, y)
+            torch.testing.assert_close(
+                actual,
+                _reduce_tensor_loss(expected, reduction),
+            )
+
 
 class TestVaeElboLoss:
     """Test the VaeElboLoss class."""
@@ -330,6 +430,18 @@ class TestVaeElboLoss:
         assert isinstance(loss, torch.Tensor)
         assert loss.dim() == 0
 
+    def test_reductions_preserve_elbo_shape(self, vae_model):
+        x = torch.randn(2, 20)
+        y = torch.randn(2, 20)
+
+        none_loss = VaeElboLoss(reduction="none")(vae_model, x, y)
+        mean_loss = VaeElboLoss(reduction="mean")(vae_model, x, y)
+        sum_loss = VaeElboLoss(reduction="sum")(vae_model, x, y)
+
+        assert none_loss.shape == (2,)
+        assert mean_loss.dim() == 0
+        assert sum_loss.dim() == 0
+
 
 class TestNegativeCosineSimilarityLoss:
     """Test the NegativeCosineSimilarityLoss class."""
@@ -380,6 +492,20 @@ class TestNegativeCosineSimilarityLoss:
 
         # Cosine similarity of identical vectors is 1, so negative is -1
         assert torch.allclose(loss, torch.tensor(-1.0), atol=1e-6)
+
+    def test_reductions_match_manual_negative_cosine(self, simple_model):
+        x = torch.randn(4, 10)
+        y = torch.randn(4, 5)
+        expected = -1 * nn.CosineSimilarity(dim=-1)(simple_model(x), y)
+
+        for reduction in ("mean", "sum", "none"):
+            actual = NegativeCosineSimilarityLoss(reduction=reduction)(
+                simple_model, x, y
+            )
+            torch.testing.assert_close(
+                actual,
+                _reduce_tensor_loss(expected, reduction),
+            )
 
 
 class TestLogAdjustedNegativeCosineSimilarityLoss:
@@ -560,6 +686,140 @@ class TestVoltageStabilizationLoss:
         low_val = loss_low_target._gate_occupancy_loss(x)
 
         assert high_val < low_val
+
+    def test_metric_reduction_modes_preserve_mean_sum_and_passthrough(self):
+        x = torch.zeros(2, 2)
+        y = torch.ones(2, 2)
+
+        mean_loss = VoltageStabilizationLoss(loss_metric="mse", reduction="mean")
+        sum_loss = VoltageStabilizationLoss(loss_metric="mse", reduction="sum")
+        none_loss = VoltageStabilizationLoss(loss_metric="mse", reduction="none")
+
+        torch.testing.assert_close(mean_loss.metric_fn(x, y), ((x - y) ** 2).mean())
+        torch.testing.assert_close(sum_loss.metric_fn(x, y), ((x - y) ** 2).sum())
+        torch.testing.assert_close(none_loss.metric_fn(x, y), (x - y) ** 2)
+
+    @pytest.mark.parametrize("loss_metric", _PAIR_METRICS)
+    @pytest.mark.parametrize("reduction", ["mean", "sum", "none"])
+    def test_voltage_pair_metrics_preserve_formulas(self, loss_metric, reduction):
+        x = torch.tensor([[0.2, -0.4, 1.0], [0.5, 0.1, -0.3]])
+        y = torch.tensor([[0.1, -0.2, 0.7], [0.4, -0.1, -0.5]])
+        loss_fn = VoltageStabilizationLoss(
+            loss_metric=loss_metric,
+            reduction=reduction,
+        )
+
+        expected = _expected_voltage_metric(
+            loss_metric,
+            reduction,
+            x,
+            y,
+            loss_fn.eps,
+        )
+
+        torch.testing.assert_close(
+            loss_fn.metric_fn(x, y),
+            expected,
+            rtol=0.0,
+            atol=0.0,
+        )
+
+    @pytest.mark.parametrize("loss_metric", _PAIR_METRICS)
+    @pytest.mark.parametrize("reduction", ["mean", "sum", "none"])
+    def test_ei_pair_metrics_preserve_formulas(self, loss_metric, reduction):
+        x = torch.tensor([[0.2, -0.4, 1.0], [0.5, 0.1, -0.3]])
+        y = torch.tensor([[0.1, -0.2, 0.7], [0.4, -0.1, -0.5]])
+        loss_fn = ExcitationInhibitionBalanceLoss(
+            loss_metric=loss_metric,
+            reduction=reduction,
+        )
+
+        expected = _expected_ei_metric(
+            loss_metric,
+            reduction,
+            x,
+            y,
+            loss_fn.eps,
+        )
+
+        torch.testing.assert_close(
+            loss_fn.metric_fn(x, y),
+            expected,
+            rtol=0.0,
+            atol=0.0,
+        )
+
+    def test_voltage_hooks_removed_after_failed_registration(self, monkeypatch):
+        model = self.TinyDendriticModel()
+        loss_fn = VoltageStabilizationLoss()
+
+        def _failing_register(*args, **kwargs):
+            raise RuntimeError("voltage hook registration failed")
+
+        monkeypatch.setattr(
+            model.identity.reactivation,
+            "register_forward_hook",
+            _failing_register,
+        )
+
+        with pytest.raises(RuntimeError, match="voltage hook registration failed"):
+            loss_fn.attach_forward_hooks(model)
+
+        assert sum(len(module._forward_hooks) for module in model.modules()) == 0
+
+    def test_ei_balance_hooks_removed_after_failed_registration(self, monkeypatch):
+        model = nn.Module()
+        model.branch = DendriticBranchLayer(
+            output_dim=2,
+            excitatory_input_dim=3,
+            excitatory_synapses_per_branch=1,
+            inhibitory_input_dim=3,
+            inhibitory_synapses_per_branch=1,
+            reactivate=False,
+        )
+        loss_fn = ExcitationInhibitionBalanceLoss()
+
+        def _failing_register(*args, **kwargs):
+            raise RuntimeError("ei hook registration failed")
+
+        monkeypatch.setattr(
+            model.branch.branch_inhibition,
+            "register_forward_hook",
+            _failing_register,
+        )
+
+        with pytest.raises(RuntimeError, match="ei hook registration failed"):
+            loss_fn.attach_forward_hooks(model)
+
+        assert sum(len(module._forward_hooks) for module in model.modules()) == 0
+
+    def test_homeostatic_hooks_removed_after_second_loss_registration_fails(
+        self, monkeypatch
+    ):
+        model = self.TinyDendriticModel()
+        loss_fn = HomeostaticControlLoss()
+
+        def _failing_attach(_model):
+            raise RuntimeError("homeostatic hook registration failed")
+
+        monkeypatch.setattr(loss_fn.ei_balance, "attach_forward_hooks", _failing_attach)
+
+        with pytest.raises(RuntimeError, match="homeostatic hook registration failed"):
+            loss_fn.attach_forward_hooks(model)
+
+        assert sum(len(module._forward_hooks) for module in model.modules()) == 0
+
+
+def test_ei_weight_ratio_reduction_fn_preserves_modes():
+    values = torch.tensor([1.0, 2.0, 3.0])
+
+    mean_loss = EIWeightRatioLoss(reduction="mean")
+    sum_loss = EIWeightRatioLoss(reduction="sum")
+    none_loss = EIWeightRatioLoss(reduction="none")
+
+    torch.testing.assert_close(mean_loss.reduction_fn(values), values.mean())
+    torch.testing.assert_close(sum_loss.reduction_fn(values), values.sum())
+    assert none_loss.reduction_fn(values) is values
 
 
 class TestGetLossFunction:

@@ -1,0 +1,94 @@
+# Real Hugging Face benchmark: replace layer-0 MLP in Pythia-70M.
+#
+# This is the first proper language-model benchmark for the transformer
+# replacement path. It trains a dendritic FFN to imitate the original layer-0
+# MLP on WikiText hidden states, then benchmarks causal-LM loss/perplexity after
+# swapping the trained dendritic replacement into the model.
+
+experiment:
+  seed: 404
+model:
+  task: language_modeling
+  transformer_replacement:
+    enabled: true
+    model_name: EleutherAI/pythia-70m-deduped
+    layers:
+    - 0
+    target_module: mlp
+    layers_attr: gpt_neox.layers
+    input_transform: signed_split
+    preserve_device_dtype: true
+    model_kwargs: {}
+    replacement_kwargs:
+      output_init_std: 0.02
+  core:
+    type: dendritic_ffn
+    population_network:
+      layers:
+      - name: transformer_mlp
+        readout_population: ffn
+        population_defaults:
+          ff_excitatory_synapses: 16
+          ff_inhibitory_synapses: 0
+          rec_excitatory_synapses: 0
+          rec_inhibitory_synapses: 0
+          somatic_synapses: true
+          use_shunting: false
+          use_additive_normalization: false
+          reactivate: true
+          reactivation_type: param_tanh
+          reactivation_init_policy: occupancy_quantile
+          weight_transform: softplus
+          topk_type: indexed_rewire
+          topk_init_method: xavier_normal
+          topk_noise_level: 0.0
+          indexed_seed: 404
+          indexed_rewire_frequency: 100
+          indexed_rewire_quantile: 0.05
+          indexed_rewire_until_step: null
+          indexed_output_chunk_size: 2048
+          efficient_blocklinear: true
+        populations:
+        - name: ffn
+          polarity: excitatory
+          n_neurons: 256
+          branch_factors:
+          - 2
+          - 2
+        connections:
+        - source: input
+          target: ffn
+      input_transform: signed_split
+training:
+  main:
+    optimizer:
+      name: adamw
+      lr: 0.001
+      weight_decay: 0.0001
+  transformer_replacement:
+    enabled: true
+    mode: layerwise_distillation
+    teacher_source: hf_text
+    train_target: replacement_only
+    layers:
+    - 0
+    device: auto
+    dtype: float32
+    sequence_length: 64
+    train_samples: 4096
+    valid_samples: 64
+    batch_size: 2
+    max_steps: 600
+    eval_every: 100
+    log_every: 25
+    loss: mse
+    save_dir: results/transformer_replacement_benchmarks/pythia70m_wikitext_layer0
+    save_replacements: true
+    text:
+      dataset_name: wikitext
+      dataset_config: wikitext-2-raw-v1
+      split: train
+      text_field: text
+      max_documents: 600
+      tokenizer_name: EleutherAI/pythia-70m-deduped
+      max_tokens: 100000

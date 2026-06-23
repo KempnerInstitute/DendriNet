@@ -38,7 +38,10 @@ import logging
 
 from omegaconf import OmegaConf
 
-from dendritic_modeling.scripts.tools.generate_slurm_job import SlurmJobGenerator
+from dendritic_modeling.scripts.tools.generate_slurm_job import (
+    SlurmJobGenerator,
+    _job_input_shape,
+)
 from dendritic_modeling.utils.gpu_estimation import estimate_from_config
 
 logger = logging.getLogger(__name__)
@@ -100,13 +103,7 @@ class FSDPJobManager:
 
             # Get input shape for dataset
             dataset = self.config.task.dataset
-            input_shapes = {
-                "mnist": (784,),
-                "cifar10": (3072,),
-                "cifar100": (3072,),
-                "imagenet": (150528,),
-            }
-            input_shape = input_shapes.get(dataset, (784,))
+            input_shape = _job_input_shape(dataset)
 
             # Get optimal GPU configuration
             optimal_config = estimator.print_estimation_report(

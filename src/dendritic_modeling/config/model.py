@@ -98,7 +98,9 @@ class SparsityConfig(BaseConfig):
     weight_norm_order: Optional[int] = None
     gamma: float = 1.0
     temperature: float = 0.0
-    ultrafast: bool = False
+    ultrafast: bool = (
+        True  # develop parity: ultrafast stochastic-topk default (set False for rank-probabilistic)
+    )
     gradient_scaling: str = "none"
 
     deepst: dict = field(
@@ -186,14 +188,10 @@ class BlockLinearConfig(BaseConfig):
 class ImplementationConfig(BaseConfig):
     """Implementation optimization settings."""
 
-    # Default False (develop-compatible, opt-in). When True, the adaptive
-    # network-scale factor log((K_exc+K_inh)*sqrt(branches)/5) is subtracted from
-    # excitatory pre-weights, which collapses leaf-layer shunting conductances
-    # (~25x smaller weights, gate center ~0.19 vs ~0.49) and degrades shunting
-    # learning. Configs that omit this field must keep the develop-scale init.
-    adaptive_initialization: bool = False
-    # Explicit adaptive opt-ins should preserve the shunting operating point by
-    # default. "legacy_scale" is kept for reproducing the old raw-weight shrink.
+    # Enabled by default for shunting models, but use the center-preserving
+    # policy so conductance scaling does not move the initial shunting gate
+    # operating point. "legacy_scale" is kept only for reproducing older sweeps.
+    adaptive_initialization: bool = True
     adaptive_initialization_policy: str = "preserve_shunting_center"
     adaptive_target_conductance: float = 5.0
     print_hooks: bool = False
@@ -341,20 +339,20 @@ class TrainabilityConfig(BaseConfig):
 
 @dataclass
 class PretrainedReplacementConfig(BaseConfig):
-    """Single-source config for replacing layers in a pretrained backbone.
+    """Config for replacing vision-backbone modules with a dendritic core.
 
     When ``enabled=true``, ``model.encoder`` and ``model.decoder`` are
     ignored — the encoder and decoder are built from the backbone split.
+    ``vision_replacement`` is the preferred config name; the older
+    ``pretrained_replacement`` field remains supported as an alias.
 
     Example::
 
-        pretrained_replacement:
+        vision_replacement:
           backbone: "alexnet"
           weights: "IMAGENET1K_V1"
           input_shape: [3, 224, 224]
-          replace:
-            start: "classifier.4"
-            end: "classifier.5"
+          target_modules: ["classifier.4", "classifier.5"]
           omit_layers: ["classifier.0", "classifier.3"]
           trainability:
             encoder:
@@ -371,6 +369,7 @@ class PretrainedReplacementConfig(BaseConfig):
     weights: Optional[str] = "IMAGENET1K_V1"
     input_shape: list[int] = field(default_factory=lambda: [3, 224, 224])
     replace: ReplacementRegionConfig = field(default_factory=ReplacementRegionConfig)
+    target_modules: list[str] = field(default_factory=list)
     omit_layers: list[str] = field(default_factory=list)
     trainability: TrainabilityConfig = field(default_factory=TrainabilityConfig)
 
@@ -405,7 +404,11 @@ class ModelConfig(BaseConfig):
     core: CoreConfig = field(default_factory=CoreConfig)
     decoder: DecoderConfig = field(default_factory=DecoderConfig)
 
-    # New unified pretrained replacement config
+    # Vision backbone replacement. ``pretrained_replacement`` is kept as a
+    # compatibility alias for older configs.
+    vision_replacement: PretrainedReplacementConfig = field(
+        default_factory=PretrainedReplacementConfig
+    )
     pretrained_replacement: PretrainedReplacementConfig = field(
         default_factory=PretrainedReplacementConfig
     )

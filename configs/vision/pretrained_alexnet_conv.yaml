@@ -39,20 +39,18 @@ data:
   dataset_params:
     imagenet:
       transform_preset: "pretrained"
-      allow_fake_data: false
+      loader_backend: "auto"                  # "auto" | "torchvision" | "imagefolder"; imagefolder is fastest for train/val class trees
       allow_flatten_materialize: false
 
 model:
   task: "classification"
 
-  pretrained_replacement:
+  vision_replacement:
     enabled: true
     backbone: "alexnet"
     weights: "IMAGENET1K_V1"
     input_shape: [3, 224, 224]
-    replace:
-      start: "features.6"              # Conv2d(192, 384, 3, padding=1)
-      end: "features.8"                # Conv2d(384, 256, 3, padding=1)
+    target_modules: ["features.6", "features.7", "features.8"]  # conv-ReLU-conv span
     trainability:
       encoder:
         mode: "frozen"
@@ -84,8 +82,14 @@ model:
       weight_transform: "softplus"
       dbl_init_method: "analytical_expectation"
     sparsity:
-      type: "standard"
+      type: "indexed_rewire"
       init_method: "xavier_normal"
+      indexed:
+        seed: 42
+        rewire_frequency: 100
+        rewire_quantile: 0.05
+        rewire_until_step: null
+        output_chunk_size: 2048
       deepst:
         excitatory_target_density: 0.1
         inhibitory_target_density: 0.1
@@ -97,7 +101,7 @@ model:
       init_b: 0.5
     blocklinear:
       gradient_scaling: "none"
-      efficient: false
+      efficient: true
 
 training:
   encoder:
@@ -109,6 +113,11 @@ training:
     common:
       epochs: 500
       batch_size: 128
+      num_workers: 8
+      pin_memory: true
+      persistent_workers: true
+      prefetch_factor: 4
+      profile_dataloader: true
       shuffle: true
       grad_clip_value: 5.0
       loss_function: "cat_nll"
@@ -135,6 +144,10 @@ analysis:
       mode: "stream"                    # large ImageNet split; stream instead of materializing to device memory
       batch_size: 128
       num_workers: 4
+      pin_memory: true
+      persistent_workers: true
+      prefetch_factor: 4
+      in_order: false
   performance:
     enabled: true
     params:

@@ -1,9 +1,9 @@
 # ============================================================================
 # Population Network with AMPA / NMDA / GABA-A / GABA-B Synapse Types
 # ============================================================================
-# Receptor-style conductance mixtures written with the canonical
-# population_network schema. Same-step input edges drive each population;
-# delayed edges define recurrent microcircuit feedback.
+# Receptor-style conductance mixtures in the population-network schema.
+# Same-step input edges drive each population; delayed edges define recurrent
+# microcircuit feedback.
 #
 # Run:
 #   PYTHONPATH=src:$PYTHONPATH python \
@@ -61,6 +61,14 @@ model:
             dbl_init_method: "analytical_expectation"
             weight_transform: "softplus"
             use_shunting: true
+            topk_type: "indexed_rewire"
+            topk_init_method: "xavier_normal"
+            indexed_seed: 43
+            indexed_rewire_frequency: 100
+            indexed_rewire_quantile: 0.05
+            indexed_rewire_until_step: null
+            indexed_output_chunk_size: 2048
+            efficient_blocklinear: true
             synapse_types:
               enabled: true
               excitatory:

@@ -3,9 +3,11 @@ from pathlib import Path
 import pytest
 import torch
 import torch.nn as nn
+import yaml
 
 from dendritic_modeling.config import load_config
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic import (
+    DendriNet,
     DendriticBranchLayer,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse import (
@@ -26,10 +28,13 @@ from dendritic_modeling.networks.architectures.transformer import (
     estimate_deepseek_dense_ffn_params,
     estimate_dendritic_ffn_params,
     replace_transformer_mlp_layers,
+    replace_transformer_mlp_layers_with_ei_stack,
 )
+from dendritic_modeling.networks.architectures.transformer.utils import _infer_mlp_dims
+from dendritic_modeling.training.transformer_replacement import _MLPIOCapture
 
 TRANSFORMER_BENCHMARK_CONFIGS = sorted(
-    Path("jobs/transformer_replacement_benchmarks/configs").rglob("*.yaml")
+    Path("configs/transformer_replacement_benchmarks").rglob("*.yaml")
 )
 
 
@@ -55,16 +60,122 @@ class TinyDecoderLayer(nn.Module):
         return x + self.mlp(x)
 
 
+class TinyNestedDecoderLayer(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.block = nn.Module()
+        self.block.inner = TinyGatedMLP()
+
+    def forward(self, x):
+        return x + self.block.inner(x)
+
+
 class TinyHFLikeModel(nn.Module):
-    def __init__(self, n_layers: int = 3):
+    def __init__(
+        self, n_layers: int = 3, layer_cls: type[nn.Module] = TinyDecoderLayer
+    ):
         super().__init__()
         self.model = nn.Module()
-        self.model.layers = nn.ModuleList([TinyDecoderLayer() for _ in range(n_layers)])
+        self.model.layers = nn.ModuleList([layer_cls() for _ in range(n_layers)])
 
     def forward(self, x):
         for layer in self.model.layers:
             x = layer(x)
         return x
+
+
+def _count_forward_hooks(model: nn.Module) -> int:
+    return sum(
+        len(module._forward_hooks) + len(module._forward_pre_hooks)
+        for module in model.modules()
+    )
+
+
+def test_transformer_refactor_preserves_public_imports():
+    from dendritic_modeling.networks.architectures.transformer import (
+        config_translation,
+        dendritic_ffn,
+        modules,
+        patching,
+    )
+
+    assert dendritic_ffn.DendriticFFNReplacement is modules.DendriticFFNReplacement
+    assert (
+        dendritic_ffn.LayerwiseEIStackReplacement is modules.LayerwiseEIStackReplacement
+    )
+    assert dendritic_ffn.apply_transformer_replacement_config is (
+        patching.apply_transformer_replacement_config
+    )
+    assert dendritic_ffn.build_dendritic_ffn_kwargs_from_core_config is (
+        config_translation.build_dendritic_ffn_kwargs_from_core_config
+    )
+
+
+def test_infer_mlp_dims_fallback_preserves_recursive_linear_order():
+    mlp = nn.Sequential(
+        nn.Sequential(nn.Linear(8, 16, bias=False)),
+        nn.GELU(),
+        nn.Sequential(nn.Linear(16, 8, bias=False)),
+    )
+
+    assert _infer_mlp_dims(mlp) == (8, 16)
+
+
+def test_mlp_io_capture_removes_hooks_after_partial_init_failure():
+    model = TinyHFLikeModel(n_layers=2)
+    del model.model.layers[1].mlp
+
+    assert _count_forward_hooks(model) == 0
+    with pytest.raises(AttributeError):
+        _MLPIOCapture(
+            model,
+            layer_indices=[0, 1],
+            layers_attr="model.layers",
+            mlp_attr="mlp",
+        )
+
+    assert _count_forward_hooks(model) == 0
+
+
+def test_mlp_io_capture_removes_pre_hook_when_forward_hook_registration_fails(
+    monkeypatch,
+):
+    model = TinyHFLikeModel(n_layers=1)
+    mlp = model.model.layers[0].mlp
+
+    def _raise_forward_hook_failure(*args, **kwargs):
+        raise RuntimeError("forward hook registration failed")
+
+    monkeypatch.setattr(mlp, "register_forward_hook", _raise_forward_hook_failure)
+
+    assert _count_forward_hooks(model) == 0
+    with pytest.raises(RuntimeError, match="forward hook registration failed"):
+        _MLPIOCapture(
+            model,
+            layer_indices=[0],
+            layers_attr="model.layers",
+            mlp_attr="mlp",
+        )
+
+    assert _count_forward_hooks(model) == 0
+
+
+def test_mlp_io_capture_close_removes_hooks_and_clears_handles():
+    model = TinyHFLikeModel(n_layers=1)
+    capture = _MLPIOCapture(
+        model,
+        layer_indices=[0],
+        layers_attr="model.layers",
+        mlp_attr="mlp",
+    )
+
+    assert _count_forward_hooks(model) == 2
+    assert len(capture.handles) == 2
+
+    capture.close()
+
+    assert _count_forward_hooks(model) == 0
+    assert capture.handles == []
 
 
 @pytest.mark.parametrize(
@@ -73,11 +184,37 @@ class TinyHFLikeModel(nn.Module):
     ids=[p.name for p in TRANSFORMER_BENCHMARK_CONFIGS],
 )
 def test_transformer_benchmark_job_config_loads(config_path):
-    """Benchmark job configs live with the job package, but remain normal configs."""
+    """Benchmark configs are source configs, independent of local job scripts."""
     load_config.cache_clear()
     cfg = load_config(str(config_path))
 
     assert cfg.model.transformer_replacement.enabled
+
+
+@pytest.mark.parametrize(
+    "config_path",
+    TRANSFORMER_BENCHMARK_CONFIGS,
+    ids=[p.name for p in TRANSFORMER_BENCHMARK_CONFIGS],
+)
+def test_transformer_benchmark_configs_use_population_network_schema(config_path):
+    raw = yaml.safe_load(config_path.read_text())
+    core = raw["model"]["core"]
+
+    assert "population_network" in core
+    for old_key in (
+        "architecture",
+        "connectivity",
+        "transfer",
+        "morphology",
+        "sparsity",
+        "reactivation",
+    ):
+        assert old_key not in core
+
+    layer = core["population_network"]["layers"][0]
+    assert layer["readout_population"]
+    assert layer["population_defaults"]["ff_excitatory_synapses"] > 0
+    assert layer["populations"]
 
 
 @pytest.mark.parametrize(
@@ -183,6 +320,44 @@ def test_dendritic_ffn_replacement_preserves_transformer_mlp_shape():
     assert replacement.output_projection.weight.grad is not None
 
 
+def test_dendritic_ffn_core_matches_legacy_dendrinet_construction():
+    kwargs = {
+        "hidden_size": 8,
+        "dendritic_units": 4,
+        "branch_factors": [2],
+        "synapses_per_branch": 2,
+        "input_transform": "signed_split",
+        "topk_type": "standard",
+        "use_shunting": False,
+        "weight_transform": "softplus",
+        "somatic_synapses": True,
+        "efficient_blocklinear": True,
+    }
+
+    torch.manual_seed(123)
+    replacement = DendriticFFNReplacement(**kwargs)
+    torch.manual_seed(123)
+    legacy_core = DendriNet(
+        n_soma=kwargs["dendritic_units"],
+        branch_factors=kwargs["branch_factors"],
+        excitatory_input_dim=16,
+        excitatory_synapses_per_branch=kwargs["synapses_per_branch"],
+        inhibitory_input_dim=None,
+        inhibitory_synapses_per_branch=None,
+        somatic_synapses=kwargs["somatic_synapses"],
+        synapse_config=replacement.core.synapse_config,
+    )
+
+    assert replacement.core.branch_configs == legacy_core.branch_configs
+    assert replacement.core.synapse_config == legacy_core.synapse_config
+    assert replacement.core.state_dict().keys() == legacy_core.state_dict().keys()
+    for key, value in replacement.core.state_dict().items():
+        torch.testing.assert_close(value, legacy_core.state_dict()[key], rtol=0, atol=0)
+
+    x = torch.rand(3, 16)
+    torch.testing.assert_close(replacement.core(x), legacy_core(x), rtol=0, atol=0)
+
+
 def test_indexed_sparse_linear_rejects_duplicate_indices():
     with pytest.raises(ValueError, match="unique"):
         IndexedSparseLinear(
@@ -262,6 +437,28 @@ def test_replace_transformer_mlp_layers_patches_hf_like_model():
     assert y.shape == x.shape
 
 
+def test_replace_transformer_layers_accepts_nested_target_module_path():
+    model = TinyHFLikeModel(n_layers=2, layer_cls=TinyNestedDecoderLayer)
+    records = replace_transformer_mlp_layers(
+        model,
+        [1],
+        mlp_attr="block.inner",
+        replacement_kwargs={
+            "dendritic_units": 4,
+            "branch_factors": [2],
+            "synapses_per_branch": 2,
+            "input_transform": "signed_split",
+        },
+    )
+
+    assert len(records) == 1
+    assert records[0].mlp_attr == "block.inner"
+    assert isinstance(model.model.layers[0].block.inner, TinyGatedMLP)
+    assert isinstance(model.model.layers[1].block.inner, DendriticFFNReplacement)
+    x = torch.randn(2, 5, 8)
+    assert model(x).shape == x.shape
+
+
 def test_replace_transformer_mlp_layers_rejects_bad_index():
     model = TinyHFLikeModel(n_layers=1)
     with pytest.raises(IndexError):
@@ -272,6 +469,42 @@ def test_replace_transformer_mlp_layers_rejects_bad_index():
                 "dendritic_units": 4,
                 "branch_factors": [2],
                 "synapses_per_branch": 2,
+            },
+        )
+
+
+def test_transformer_replacement_rejects_non_module_target_consistently():
+    model = TinyHFLikeModel(n_layers=2)
+    model.model.layers[0].not_module = object()
+    model.model.layers[1].not_module = object()
+
+    with pytest.raises(TypeError, match=r"not an nn\.Module"):
+        replace_transformer_mlp_layers(
+            model,
+            [0],
+            mlp_attr="not_module",
+            replacement_kwargs={
+                "dendritic_units": 4,
+                "branch_factors": [2],
+                "synapses_per_branch": 2,
+            },
+        )
+
+    with pytest.raises(TypeError, match=r"not an nn\.Module"):
+        replace_transformer_mlp_layers_with_ei_stack(
+            model,
+            [0, 1],
+            mlp_attr="not_module",
+            replacement_kwargs={
+                "excitatory_cells": 4,
+                "inhibitory_cells": 2,
+                "excitatory_branch_factors": [1],
+                "inhibitory_branch_factors": [1],
+                "ee_synapses_per_branch": 2,
+                "ei_synapses_per_branch": 1,
+                "ie_synapses_per_branch": 1,
+                "ii_synapses_per_branch": 1,
+                "use_shunting": False,
             },
         )
 
@@ -333,15 +566,16 @@ def test_transformer_replacement_config_maps_shared_core_like_alexnet():
             "use_shunting": True,
             "weight_transform": "softplus",
         },
+        "blocklinear": {
+            "efficient": True,
+        },
         "sparsity": {
-            "type": "indexed_dynamic",
-            "temperature": 0.25,
+            "type": "indexed_rewire",
             "indexed": {
-                "candidate_size": 4,
-                "selection": "stochastic",
                 "seed": 5,
                 "rewire_frequency": 10,
                 "rewire_quantile": 0.1,
+                "rewire_until_step": 200,
             },
         },
         "reactivation": {
@@ -361,11 +595,11 @@ def test_transformer_replacement_config_maps_shared_core_like_alexnet():
         transformer_replacement=transformer_replacement,
     )
     assert kwargs["dendritic_units"] == 4
-    assert kwargs["topk_type"] == "indexed_dynamic"
-    assert kwargs["indexed_candidate_size"] == 4
-    assert kwargs["indexed_selection"] == "stochastic"
+    assert kwargs["topk_type"] == "indexed_rewire"
     assert kwargs["indexed_rewire_frequency"] == 10
     assert kwargs["indexed_rewire_quantile"] == 0.1
+    assert kwargs["indexed_rewire_until_step"] == 200
+    assert kwargs["efficient_blocklinear"] is True
 
     model = TinyHFLikeModel(n_layers=2)
     records = apply_transformer_replacement_config(
@@ -376,8 +610,81 @@ def test_transformer_replacement_config_maps_shared_core_like_alexnet():
     assert len(records) == 1
     replacement = model.model.layers[1].mlp
     assert isinstance(replacement, DendriticFFNReplacement)
-    assert replacement.topk_type == "indexed_dynamic"
-    assert replacement.indexed_candidate_size == 4
+    assert replacement.topk_type == "indexed_rewire"
+    assert replacement.indexed_rewire_frequency == 10
+    assert replacement.efficient_blocklinear is True
+
+
+def test_transformer_replacement_maps_population_network_core():
+    core_config = {
+        "type": "dendritic_ffn",
+        "population_network": {
+            "input_transform": "signed_split",
+            "layers": [
+                {
+                    "name": "transformer_mlp",
+                    "readout_population": "ffn",
+                    "population_defaults": {
+                        "ff_excitatory_synapses": 2,
+                        "somatic_synapses": True,
+                        "use_shunting": False,
+                        "reactivate": True,
+                        "reactivation_type": "param_tanh",
+                        "reactivation_init_policy": "occupancy_quantile",
+                        "weight_transform": "softplus",
+                        "topk_type": "indexed_rewire",
+                        "indexed_seed": 5,
+                        "indexed_rewire_frequency": 10,
+                        "indexed_rewire_quantile": 0.1,
+                        "indexed_rewire_until_step": 200,
+                        "efficient_blocklinear": True,
+                    },
+                    "populations": [
+                        {
+                            "name": "ffn",
+                            "polarity": "excitatory",
+                            "n_neurons": 4,
+                            "branch_factors": [2],
+                        }
+                    ],
+                    "connections": [{"source": "input", "target": "ffn"}],
+                }
+            ],
+        },
+    }
+    transformer_replacement = {
+        "enabled": True,
+        "layers": [1],
+        "target_module": "mlp",
+    }
+
+    kwargs = build_dendritic_ffn_kwargs_from_core_config(
+        core_config,
+        transformer_replacement=transformer_replacement,
+    )
+    assert kwargs["dendritic_units"] == 4
+    assert kwargs["branch_factors"] == [2]
+    assert kwargs["synapses_per_branch"] == 2
+    assert kwargs["topk_type"] == "indexed_rewire"
+    assert kwargs["indexed_rewire_frequency"] == 10
+    assert kwargs["indexed_rewire_quantile"] == 0.1
+    assert kwargs["indexed_rewire_until_step"] == 200
+    assert kwargs["reactivation_init_policy"] == "occupancy_quantile"
+    assert kwargs["use_shunting"] is False
+    assert kwargs["efficient_blocklinear"] is True
+
+    model = TinyHFLikeModel(n_layers=2)
+    records = apply_transformer_replacement_config(
+        model,
+        transformer_replacement,
+        core_config,
+    )
+    assert len(records) == 1
+    replacement = model.model.layers[1].mlp
+    assert isinstance(replacement, DendriticFFNReplacement)
+    assert replacement.dendritic_units == 4
+    assert replacement.indexed_rewire_frequency == 10
+    assert replacement.efficient_blocklinear is True
 
 
 def test_transformer_replacement_core_alias_overrides_morphology_shunting():
@@ -431,6 +738,104 @@ def test_transformer_ei_stack_core_alias_overrides_morphology_shunting():
     assert kwargs["use_shunting"] is True
 
 
+def test_transformer_structured_sparsity_translation_is_shared_across_replacements():
+    core_config = {
+        "architecture": {
+            "excitatory_layer_sizes": [5],
+            "inhibitory_layer_sizes": [2],
+            "excitatory_branch_factors": [1],
+            "inhibitory_branch_factors": [1],
+        },
+        "connectivity": {
+            "ee_synapses_per_branch_per_layer": [2],
+            "ei_synapses_per_branch_per_layer": [2],
+            "ie_synapses_per_branch_per_layer": [1],
+            "ii_synapses_per_branch_per_layer": [1],
+        },
+        "sparsity": {
+            "type": "indexed_rewire",
+            "init_method": "xavier_uniform",
+            "noise_level": 0.03,
+            "temperature": 0.4,
+            "ultrafast": True,
+            "weight_norm_order": 2,
+            "gamma": 0.9,
+            "dense_to_sparse": {
+                "initial_density": 0.8,
+                "initial_k": 3,
+                "start_step": 4,
+                "end_step": 40,
+                "update_interval": 5,
+                "schedule": "linear",
+                "freeze_on_end": True,
+                "advance_on_forward": False,
+                "prune_metric": "magnitude",
+            },
+            "indexed": {
+                "seed": 13,
+                "candidate_size": 7,
+                "selection": "stochastic",
+                "output_chunk_size": 128,
+                "rewire_frequency": 6,
+                "rewire_quantile": 0.2,
+                "rewire_until_step": 60,
+            },
+        },
+    }
+    transformer_replacement = {
+        "input_transform": "signed_split",
+        "replacement_kwargs": {
+            "kind": "ei_stack",
+            "type": "selector_only",
+            "output_scale": 0.75,
+        },
+    }
+
+    ffn_kwargs = build_dendritic_ffn_kwargs_from_core_config(
+        core_config,
+        transformer_replacement=transformer_replacement,
+    )
+    stack_kwargs = build_ei_stack_kwargs_from_core_config(
+        core_config,
+        transformer_replacement=transformer_replacement,
+        num_layers=2,
+    )
+
+    shared_keys = [
+        "topk_type",
+        "topk_init_method",
+        "topk_noise_level",
+        "topk_temperature",
+        "topk_weight_norm_order",
+        "topk_gamma",
+        "dense_to_sparse_initial_density",
+        "dense_to_sparse_initial_k",
+        "dense_to_sparse_start_step",
+        "dense_to_sparse_end_step",
+        "dense_to_sparse_update_interval",
+        "dense_to_sparse_schedule",
+        "dense_to_sparse_freeze_on_end",
+        "dense_to_sparse_advance_on_forward",
+        "dense_to_sparse_prune_metric",
+        "indexed_seed",
+        "indexed_candidate_size",
+        "indexed_selection",
+        "indexed_output_chunk_size",
+        "indexed_rewire_frequency",
+        "indexed_rewire_quantile",
+        "indexed_rewire_until_step",
+    ]
+    for key in shared_keys:
+        assert ffn_kwargs[key] == stack_kwargs[key]
+
+    assert ffn_kwargs["topk_ultrafast"] is True
+    assert "topk_ultrafast" not in stack_kwargs
+    assert ffn_kwargs["output_scale"] == 0.75
+    assert stack_kwargs["output_scale"] == 0.75
+    assert "kind" not in stack_kwargs
+    assert "type" not in stack_kwargs
+
+
 def test_transformer_replacement_can_patch_shared_ei_stack():
     core_config = {
         "architecture": {
@@ -447,6 +852,7 @@ def test_transformer_replacement_can_patch_shared_ei_stack():
         },
         "transfer": {"input_transform": "signed_split"},
         "morphology": {"use_shunting": False, "weight_transform": "softplus"},
+        "blocklinear": {"efficient": True},
         "sparsity": {"type": "standard", "init_method": "xavier_normal"},
         "reactivation": {"enabled": True, "type": "param_tanh"},
     }
@@ -471,9 +877,88 @@ def test_transformer_replacement_can_patch_shared_ei_stack():
     assert len(records) == 3
     assert all(isinstance(layer.mlp, EIStackMLPSlot) for layer in model.model.layers)
     assert model.model.layers[0].mlp.stack is model.model.layers[1].mlp.stack
+    assert model.model.layers[0].mlp.stack.efficient_blocklinear is True
     x = torch.randn(2, 4, 8)
     y = model(x)
     assert y.shape == x.shape
     estimate = model.model.layers[0].mlp.parameter_estimate()
     assert estimate["stored_total"] > 0
     assert estimate["active_total"] > 0
+
+
+def test_transformer_ei_stack_maps_population_network_core():
+    core_config = {
+        "type": "population_network",
+        "population_network": {
+            "input_transform": "signed_split",
+            "layers": [
+                {
+                    "name": "transformer_mlp",
+                    "readout_population": "e",
+                    "population_defaults": {
+                        "ff_excitatory_synapses": 2,
+                        "ff_inhibitory_synapses": 1,
+                        "somatic_synapses": True,
+                        "use_shunting": True,
+                        "reactivate": True,
+                        "reactivation_type": "param_tanh",
+                        "reactivation_init_policy": "occupancy_quantile",
+                        "weight_transform": "softplus",
+                        "topk_type": "standard",
+                        "blocklinear": {"efficient": True},
+                    },
+                    "populations": [
+                        {
+                            "name": "i",
+                            "polarity": "inhibitory",
+                            "n_neurons": 2,
+                            "branch_factors": [1],
+                            "population": {
+                                "ff_excitatory_synapses": 3,
+                                "ff_inhibitory_synapses": 1,
+                            },
+                        },
+                        {
+                            "name": "e",
+                            "polarity": "excitatory",
+                            "n_neurons": 5,
+                            "branch_factors": [1],
+                        },
+                    ],
+                    "connections": [
+                        {"source": "input", "target": "i"},
+                        {"source": "input", "target": "e"},
+                        {"source": "i", "target": "e"},
+                    ],
+                }
+            ],
+        },
+    }
+    transformer_replacement = {
+        "enabled": True,
+        "layers": [0, 1],
+        "target_module": "mlp",
+        "replacement_kwargs": {"kind": "ei_stack"},
+    }
+
+    kwargs = build_ei_stack_kwargs_from_core_config(
+        core_config,
+        transformer_replacement=transformer_replacement,
+        num_layers=2,
+    )
+    assert kwargs["excitatory_cells"] == 5
+    assert kwargs["inhibitory_cells"] == 2
+    assert kwargs["ee_synapses_per_branch"] == 2
+    assert kwargs["ei_synapses_per_branch"] == 3
+    assert kwargs["ie_synapses_per_branch"] == 1
+    assert kwargs["ii_synapses_per_branch"] == 1
+    assert kwargs["efficient_blocklinear"] is True
+
+    model = TinyHFLikeModel(n_layers=2)
+    records = apply_transformer_replacement_config(
+        model,
+        transformer_replacement,
+        core_config,
+    )
+    assert len(records) == 2
+    assert isinstance(model.model.layers[0].mlp, EIStackMLPSlot)

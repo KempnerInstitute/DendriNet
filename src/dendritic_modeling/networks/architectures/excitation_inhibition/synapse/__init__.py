@@ -12,6 +12,13 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.dee
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.dense_to_sparse import (
     DenseToSparseLinear,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.factory import (
+    SPARSE_LAYER_REGISTRY,
+    get_available_sparse_types,
+    get_sparse_layer,
+    normalize_sparse_layer_type,
+    register_sparse_layer,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed import (
     IndexedDynamicTopKLinear,
     IndexedRewireLinear,
@@ -39,6 +46,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.var
 )
 
 __all__ = [
+    "SPARSE_LAYER_REGISTRY",
     "TOPK_INIT_METHODS",
     "DeepstLinear",
     "DenseToSparseLinear",
@@ -50,7 +58,11 @@ __all__ = [
     "VarianceTopKLinear",
     "apply_recurrent_weight_cache",
     "distance_kernel_probabilities",
+    "get_available_sparse_types",
+    "get_sparse_layer",
     "normalize_pathway_name",
+    "normalize_sparse_layer_type",
+    "register_sparse_layer",
     "sample_configured_mask",
     "sample_distance_kernel_mask",
     "sample_fixed_indegree_mask",

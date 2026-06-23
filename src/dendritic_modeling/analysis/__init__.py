@@ -78,6 +78,10 @@ _LAZY_IMPORTS = {
         "dendritic_modeling.analysis.registry",
         "get_registered_analyzers",
     ),
+    "load_analyzer_class": (
+        "dendritic_modeling.analysis.registry",
+        "load_analyzer_class",
+    ),
     "register_analyzer": (
         "dendritic_modeling.analysis.registry",
         "register_analyzer",

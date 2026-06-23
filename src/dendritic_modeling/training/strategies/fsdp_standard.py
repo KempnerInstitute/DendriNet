@@ -8,6 +8,7 @@ for scaling to very large models across multiple GPUs and nodes.
 import logging
 import os
 import time
+from collections.abc import Iterable, Iterator
 from typing import Any, Optional
 
 import torch
@@ -30,8 +31,100 @@ from dendritic_modeling.training.fsdp_utils import (
     wrap_model_with_fsdp,
 )
 from dendritic_modeling.training.strategies.standard import Trainer
+from dendritic_modeling.utils.hooks import iter_modules_matching
 
 logger = logging.getLogger(__name__)
+
+
+def _optimizer_config_value(
+    optimizer_config: Optional[dict], key: str, default: float
+) -> Any:
+    return (optimizer_config or {}).get(key, default)
+
+
+def _collect_unique_parameters(
+    parameters: Iterable[torch.nn.Parameter],
+    used_param_ids: set[int],
+) -> list[torch.nn.Parameter]:
+    unique_params = []
+    for param in parameters:
+        param_id = id(param)
+        if param_id not in used_param_ids:
+            unique_params.append(param)
+            used_param_ids.add(param_id)
+    return unique_params
+
+
+def _iter_modules_by_class_name(
+    model: torch.nn.Module,
+    class_name: str,
+) -> Iterator[torch.nn.Module]:
+    """Yield modules whose concrete class name matches ``class_name``."""
+    yield from iter_modules_matching(
+        model,
+        lambda module: module.__class__.__name__ == class_name,
+    )
+
+
+def _collect_module_parameters_by_class_name(
+    model: torch.nn.Module,
+    class_name: str,
+    used_param_ids: set[int],
+) -> list[torch.nn.Parameter]:
+    params = []
+    for module in _iter_modules_by_class_name(model, class_name):
+        params.extend(_collect_unique_parameters(module.parameters(), used_param_ids))
+    return params
+
+
+def _reactivation_parameter_candidates(
+    module: torch.nn.Module,
+) -> tuple[torch.nn.Parameter, ...]:
+    if hasattr(module, "m") and hasattr(module, "b"):
+        return module.m, module.b
+    if hasattr(module, "log_m") and hasattr(module, "b"):
+        return module.log_m, module.b
+    return ()
+
+
+def _has_reactivation_parameter_candidates(module: torch.nn.Module) -> bool:
+    """Return whether a module exposes trainable reactivation parameters."""
+    return (hasattr(module, "m") or hasattr(module, "log_m")) and hasattr(module, "b")
+
+
+def _collect_reactivation_parameters(
+    model: torch.nn.Module,
+    used_param_ids: set[int],
+) -> list[torch.nn.Parameter]:
+    params = []
+    for candidates in _iter_reactivation_parameter_candidates(model):
+        params.extend(_collect_unique_parameters(candidates, used_param_ids))
+    return params
+
+
+def _iter_reactivation_parameter_candidates(
+    model: torch.nn.Module,
+) -> Iterator[tuple[torch.nn.Parameter, ...]]:
+    """Yield non-empty reactivation parameter candidate tuples in module order."""
+    for module in iter_modules_matching(model, _has_reactivation_parameter_candidates):
+        yield _reactivation_parameter_candidates(module)
+
+
+def _append_fsdp_param_group(
+    param_groups: list[dict[str, Any]],
+    params: list[torch.nn.Parameter],
+    *,
+    optimizer_config: Optional[dict],
+    lr_key: str,
+    default_lr: float,
+) -> None:
+    if params:
+        param_groups.append(
+            {
+                "params": params,
+                "lr": _optimizer_config_value(optimizer_config, lr_key, default_lr),
+            }
+        )
 
 
 class FSDPTrainer(Trainer):
@@ -167,85 +260,80 @@ class FSDPTrainer(Trainer):
         """Create optimizer with FSDP-aware parameter groups."""
         # Get all parameters first
         all_params = list(model.parameters())
+        optimizer_config = self.optimizer_config or {}
 
         # If not using split params, use all parameters with single LR
-        if not (self.optimizer_config or {}).get("split_params", False):
+        if not optimizer_config.get("split_params", False):
             return torch.optim.Adam(
                 all_params,
-                lr=(self.optimizer_config or {}).get("lr", 0.001),
-                weight_decay=(self.optimizer_config or {}).get("weight_decay", 0.0),
+                lr=_optimizer_config_value(optimizer_config, "lr", 0.001),
+                weight_decay=_optimizer_config_value(
+                    optimizer_config, "weight_decay", 0.0
+                ),
             )
 
         # Otherwise, create parameter groups
         param_groups = []
         used_params = set()
 
-        # TopK parameters
-        topk_params = []
-        for module in model.modules():
-            if module.__class__.__name__ == "TopKLinear":
-                for param in module.parameters():
-                    topk_params.append(param)
-                    used_params.add(id(param))
-        if topk_params:
-            param_groups.append(
-                {
-                    "params": topk_params,
-                    "lr": (self.optimizer_config or {}).get("topk_lr", 0.001),
-                }
-            )
+        topk_params = _collect_module_parameters_by_class_name(
+            model, "TopKLinear", used_params
+        )
+        _append_fsdp_param_group(
+            param_groups,
+            topk_params,
+            optimizer_config=optimizer_config,
+            lr_key="topk_lr",
+            default_lr=0.001,
+        )
 
-        # BlockLinear parameters
-        blocklinear_params = []
-        for module in model.modules():
-            if module.__class__.__name__ == "BlockLinear":
-                blocklinear_params.extend(module.parameters())
-        if blocklinear_params:
-            param_groups.append(
-                {
-                    "params": blocklinear_params,
-                    "lr": (self.optimizer_config or {}).get("blocklinear_lr", 0.001),
-                }
-            )
+        blocklinear_params = _collect_module_parameters_by_class_name(
+            model, "BlockLinear", used_params
+        )
+        _append_fsdp_param_group(
+            param_groups,
+            blocklinear_params,
+            optimizer_config=optimizer_config,
+            lr_key="blocklinear_lr",
+            default_lr=0.001,
+        )
 
-        # Reactivation parameters
-        reactivation_params = []
-        for module in model.modules():
-            if hasattr(module, "m") and hasattr(module, "b"):  # ParametricTanh
-                reactivation_params.extend([module.m, module.b])
-        if reactivation_params:
-            param_groups.append(
-                {
-                    "params": reactivation_params,
-                    "lr": (self.optimizer_config or {}).get("reactivation_lr", 0.001),
-                }
-            )
+        reactivation_params = _collect_reactivation_parameters(model, used_params)
+        _append_fsdp_param_group(
+            param_groups,
+            reactivation_params,
+            optimizer_config=optimizer_config,
+            lr_key="reactivation_lr",
+            default_lr=0.001,
+        )
 
-        # Decoder parameters
-        decoder_params = []
         if hasattr(model, "decoder_network"):
-            decoder_params = list(model.decoder_network.parameters())
-        if decoder_params:
-            param_groups.append(
-                {
-                    "params": decoder_params,
-                    "lr": (self.optimizer_config or {}).get("decoder_lr", 0.001),
-                }
+            decoder_params = _collect_unique_parameters(
+                model.decoder_network.parameters(), used_params
             )
+        else:
+            decoder_params = []
+        _append_fsdp_param_group(
+            param_groups,
+            decoder_params,
+            optimizer_config=optimizer_config,
+            lr_key="decoder_lr",
+            default_lr=0.001,
+        )
 
         # All other parameters
         other_params = [p for p in all_params if id(p) not in used_params]
-        if other_params:
-            param_groups.append(
-                {
-                    "params": other_params,
-                    "lr": (self.optimizer_config or {}).get("lr", 0.001),
-                }
-            )
+        _append_fsdp_param_group(
+            param_groups,
+            other_params,
+            optimizer_config=optimizer_config,
+            lr_key="lr",
+            default_lr=0.001,
+        )
 
         return torch.optim.Adam(
             param_groups,
-            weight_decay=(self.optimizer_config or {}).get("weight_decay", 0.0),
+            weight_decay=_optimizer_config_value(optimizer_config, "weight_decay", 0.0),
         )
 
     def train(

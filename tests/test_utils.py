@@ -1,8 +1,11 @@
+import logging
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import numpy as np
+import pytest
 import torch
 import torch.nn as nn
 
@@ -11,11 +14,386 @@ from dendritic_modeling.datasets import load_mnist_modulo10
 # Import functions from their actual locations
 from dendritic_modeling.training.utils.evaluation import accuracy_score
 from dendritic_modeling.utils import Shaper
-from dendritic_modeling.utils.gpu_estimation import GPUMemoryEstimator
+from dendritic_modeling.utils.gpu_estimation import (
+    CIFAR10_FLAT_INPUT_SHAPE,
+    IMAGENET_FLAT_INPUT_SHAPE,
+    IMAGENET_IMAGE_INPUT_SHAPE,
+    MNIST_FLAT_INPUT_SHAPE,
+    GPUMemoryEstimator,
+    MemoryBreakdown,
+    _config_params,
+    _core_params_from_config,
+    _fallback_input_shape,
+    _flat_input_dim,
+    _resolve_batch_size,
+    _resolve_n_classes,
+    _resolve_task_config,
+    _resolve_training_dtype,
+)
 from dendritic_modeling.utils.information.estimators import (
     EstimatorConfig,
     InformationEstimatorFactory,
 )
+
+
+def test_utils_reexports_hook_helpers():
+    from dendritic_modeling import utils
+    from dendritic_modeling.utils.hooks import (
+        ForwardHookRemovalMixin,
+        iter_child_modules_of_type,
+        iter_modules_matching,
+        iter_modules_of_type,
+        iter_named_modules_matching,
+        iter_named_modules_of_type,
+        register_forward_hook_groups,
+        register_hook_groups,
+        register_named_forward_hook_groups,
+        register_named_forward_hooks,
+        run_with_forward_hooks,
+    )
+
+    assert utils.ForwardHookRemovalMixin is ForwardHookRemovalMixin
+    assert utils.iter_child_modules_of_type is iter_child_modules_of_type
+    assert utils.iter_modules_matching is iter_modules_matching
+    assert utils.iter_modules_of_type is iter_modules_of_type
+    assert utils.iter_named_modules_matching is iter_named_modules_matching
+    assert utils.iter_named_modules_of_type is iter_named_modules_of_type
+    assert utils.register_forward_hook_groups is register_forward_hook_groups
+    assert utils.register_hook_groups is register_hook_groups
+    assert (
+        utils.register_named_forward_hook_groups is register_named_forward_hook_groups
+    )
+    assert utils.register_named_forward_hooks is register_named_forward_hooks
+    assert utils.run_with_forward_hooks is run_with_forward_hooks
+
+
+def test_run_with_forward_hooks_returns_body_result_and_removes_handles():
+    from dendritic_modeling.utils.hooks import run_with_forward_hooks
+
+    handles = ["h0", "h1"]
+    removed = []
+
+    result = run_with_forward_hooks(
+        attach=lambda: handles,
+        remove=lambda active_handles: removed.append(list(active_handles)),
+        body=lambda: "result",
+    )
+
+    assert result == "result"
+    assert removed == [["h0", "h1"]]
+
+
+def test_run_with_forward_hooks_removes_handles_after_body_failure():
+    from dendritic_modeling.utils.hooks import run_with_forward_hooks
+
+    handles = ["h0"]
+    removed = []
+
+    def failing_body():
+        raise RuntimeError("body failed")
+
+    with pytest.raises(RuntimeError, match="body failed"):
+        run_with_forward_hooks(
+            attach=lambda: handles,
+            remove=lambda active_handles: removed.append(list(active_handles)),
+            body=failing_body,
+        )
+
+    assert removed == [["h0"]]
+
+
+def test_iter_child_modules_of_type_preserves_child_only_order():
+    from dendritic_modeling.utils.hooks import iter_child_modules_of_type
+
+    nested = nn.Linear(3, 1)
+    model = nn.Sequential(nn.Linear(2, 3), nn.ReLU(), nn.Sequential(nested))
+
+    matches = list(iter_child_modules_of_type(model, nn.Linear))
+
+    assert [module.out_features for module in matches] == [3]
+    assert nested not in matches
+
+
+def test_iter_child_modules_of_type_handles_plain_iterables():
+    from dendritic_modeling.utils.hooks import iter_child_modules_of_type
+
+    linear = nn.Linear(2, 3)
+    modules = [nn.ReLU(), linear, nn.Sequential(nn.Linear(3, 1))]
+
+    assert list(iter_child_modules_of_type(modules, nn.Linear)) == [linear]
+
+
+def test_iter_modules_of_type_preserves_module_order():
+    from dendritic_modeling.utils.hooks import iter_modules_of_type
+
+    model = nn.Module()
+    model.first = nn.Linear(2, 3)
+    model.block = nn.Sequential(nn.ReLU(), nn.Linear(3, 1))
+
+    matches = list(iter_modules_of_type(model, nn.Linear))
+
+    assert [module.out_features for module in matches] == [3, 1]
+    assert matches == [model.first, model.block[1]]
+
+
+def test_iter_named_modules_of_type_preserves_model_order():
+    from dendritic_modeling.utils.hooks import iter_named_modules_of_type
+
+    model = nn.Module()
+    model.first = nn.Linear(2, 3)
+    model.block = nn.Sequential(nn.ReLU(), nn.Linear(3, 1))
+
+    matches = list(iter_named_modules_of_type(model, nn.Linear))
+
+    assert [name for name, _module in matches] == ["first", "block.1"]
+    assert [module.out_features for _name, module in matches] == [3, 1]
+
+
+def test_iter_modules_matching_preserves_order_and_predicate():
+    from dendritic_modeling.utils.hooks import iter_modules_matching
+
+    model = nn.Module()
+    model.first = nn.Linear(2, 3)
+    model.activation = nn.ReLU()
+    model.block = nn.Sequential(nn.ReLU(), nn.Linear(3, 1))
+
+    matches = list(
+        iter_modules_matching(model, lambda module: isinstance(module, nn.ReLU))
+    )
+
+    assert matches == [model.activation, model.block[0]]
+
+
+def test_iter_named_modules_matching_preserves_order_and_predicate():
+    from dendritic_modeling.utils.hooks import iter_named_modules_matching
+
+    model = nn.Module()
+    model.first = nn.Linear(2, 3)
+    model.activation = nn.ReLU()
+    model.block = nn.Sequential(nn.ReLU(), nn.Linear(3, 1))
+
+    matches = list(
+        iter_named_modules_matching(
+            model,
+            lambda name, module: name.endswith("activation")
+            or isinstance(module, nn.ReLU),
+        )
+    )
+
+    assert [name for name, _module in matches] == ["activation", "block.0"]
+
+
+def test_register_named_forward_hooks_preserves_order_and_predicate():
+    from dendritic_modeling.utils.hooks import (
+        register_named_forward_hooks,
+        remove_hook_handles,
+    )
+
+    model = nn.Sequential(nn.Linear(2, 3), nn.ReLU(), nn.Linear(3, 1))
+    prepared = []
+    captured = []
+
+    def prepare(name, module):
+        prepared.append((name, module.out_features))
+
+    def hook(module, _inputs, output):
+        captured.append((module.out_features, tuple(output.shape)))
+
+    handles = register_named_forward_hooks(
+        model,
+        nn.Linear,
+        hook,
+        predicate=lambda name, _module: name == "0",
+        prepare=prepare,
+    )
+
+    try:
+        assert len(handles) == 1
+        assert prepared == [("0", 3)]
+        model(torch.ones(2, 2))
+        assert captured == [(3, (2, 3))]
+    finally:
+        remove_hook_handles(handles)
+
+    assert sum(len(module._forward_hooks) for module in model.modules()) == 0
+
+
+def test_register_named_forward_hooks_removes_partial_registration_on_failure(
+    monkeypatch,
+):
+    from dendritic_modeling.utils.hooks import register_named_forward_hooks
+
+    model = nn.Sequential(nn.Linear(2, 3), nn.Linear(3, 1))
+    original_register = nn.Linear.register_forward_hook
+    call_count = 0
+
+    def register_once_then_fail(module, *args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return original_register(module, *args, **kwargs)
+        raise RuntimeError("hook registration failed")
+
+    monkeypatch.setattr(nn.Linear, "register_forward_hook", register_once_then_fail)
+
+    with pytest.raises(RuntimeError, match="hook registration failed"):
+        register_named_forward_hooks(model, nn.Linear, lambda *_args: None)
+
+    assert call_count == 2
+    assert sum(len(module._forward_hooks) for module in model.modules()) == 0
+
+
+def test_register_forward_hook_groups_preserves_order_and_predicate():
+    from dendritic_modeling.utils.hooks import (
+        register_forward_hook_groups,
+        remove_hook_handles,
+    )
+
+    model = nn.Sequential(nn.Linear(2, 3), nn.ReLU(), nn.Linear(3, 1))
+    prepared = []
+    captured = []
+
+    def prepare(module):
+        prepared.append(module.out_features)
+
+    def register_group(module):
+        return [
+            module.register_forward_hook(
+                lambda _module, _inputs, output: captured.append(
+                    ("first", tuple(output.shape))
+                )
+            ),
+            module.register_forward_hook(
+                lambda _module, _inputs, output: captured.append(
+                    ("second", tuple(output.shape))
+                )
+            ),
+        ]
+
+    handles = register_forward_hook_groups(
+        model,
+        nn.Linear,
+        register_group,
+        predicate=lambda module: module.out_features == 3,
+        prepare=prepare,
+    )
+
+    try:
+        assert len(handles) == 2
+        assert prepared == [3]
+        model(torch.ones(2, 2))
+        assert captured == [
+            ("first", (2, 3)),
+            ("second", (2, 3)),
+        ]
+    finally:
+        remove_hook_handles(handles)
+
+    assert sum(len(module._forward_hooks) for module in model.modules()) == 0
+
+
+def test_register_forward_hook_groups_removes_prior_groups_on_failure():
+    from dendritic_modeling.utils.hooks import register_forward_hook_groups
+
+    model = nn.Sequential(nn.Linear(2, 3), nn.Linear(3, 1))
+
+    def register_group(module):
+        if module.out_features == 1:
+            raise RuntimeError("hook group registration failed")
+        return [module.register_forward_hook(lambda *_args: None)]
+
+    with pytest.raises(RuntimeError, match="hook group registration failed"):
+        register_forward_hook_groups(model, nn.Linear, register_group)
+
+    assert sum(len(module._forward_hooks) for module in model.modules()) == 0
+
+
+def test_register_hook_groups_removes_prior_groups_on_failure():
+    from dendritic_modeling.utils.hooks import register_hook_groups
+
+    removed = []
+
+    class Handle:
+        def __init__(self, name):
+            self.name = name
+
+        def remove(self):
+            removed.append(self.name)
+
+    def register_group(name):
+        if name == "second":
+            raise RuntimeError("generic hook group failed")
+        return [Handle(name)]
+
+    with pytest.raises(RuntimeError, match="generic hook group failed"):
+        register_hook_groups(["first", "second"], register_group)
+
+    assert removed == ["first"]
+
+
+def test_register_named_forward_hook_groups_preserves_order_and_predicate():
+    from dendritic_modeling.utils.hooks import (
+        register_named_forward_hook_groups,
+        remove_hook_handles,
+    )
+
+    model = nn.Sequential(nn.Linear(2, 3), nn.ReLU(), nn.Linear(3, 1))
+    prepared = []
+    captured = []
+
+    def prepare(name, module):
+        prepared.append((name, module.out_features))
+
+    def register_group(name, module):
+        return [
+            module.register_forward_hook(
+                lambda _module, _inputs, output, name=name: captured.append(
+                    (name, "first", tuple(output.shape))
+                )
+            ),
+            module.register_forward_hook(
+                lambda _module, _inputs, output, name=name: captured.append(
+                    (name, "second", tuple(output.shape))
+                )
+            ),
+        ]
+
+    handles = register_named_forward_hook_groups(
+        model,
+        nn.Linear,
+        register_group,
+        predicate=lambda name, _module: name == "0",
+        prepare=prepare,
+    )
+
+    try:
+        assert len(handles) == 2
+        assert prepared == [("0", 3)]
+        model(torch.ones(2, 2))
+        assert captured == [
+            ("0", "first", (2, 3)),
+            ("0", "second", (2, 3)),
+        ]
+    finally:
+        remove_hook_handles(handles)
+
+    assert sum(len(module._forward_hooks) for module in model.modules()) == 0
+
+
+def test_register_named_forward_hook_groups_removes_prior_groups_on_failure():
+    from dendritic_modeling.utils.hooks import register_named_forward_hook_groups
+
+    model = nn.Sequential(nn.Linear(2, 3), nn.Linear(3, 1))
+
+    def register_group(name, module):
+        if name == "1":
+            raise RuntimeError("hook group registration failed")
+        return [module.register_forward_hook(lambda *_args: None)]
+
+    with pytest.raises(RuntimeError, match="hook group registration failed"):
+        register_named_forward_hook_groups(model, nn.Linear, register_group)
+
+    assert sum(len(module._forward_hooks) for module in model.modules()) == 0
 
 
 class TestShaper(unittest.TestCase):
@@ -222,6 +600,177 @@ def test_conditional_mi():
 def test_gpu_estimator():
     estimator = GPUMemoryEstimator(dtype="fp16", optimizer="adam")
     assert estimator.bytes_per_param == 2
+
+
+def test_gpu_estimator_uses_default_dtype_and_optimizer_assumptions():
+    estimator = GPUMemoryEstimator(dtype="unknown", optimizer="unknown")
+
+    assert estimator.bytes_per_param == 2
+    assert estimator.optimizer_state_multiplier == 2.0
+
+    explicit = GPUMemoryEstimator(dtype="fp32", optimizer="sgd")
+
+    assert explicit.bytes_per_param == 4
+    assert explicit.optimizer_state_multiplier == 1.0
+
+
+def test_gpu_recommendations_log_invalid_memory_values(caplog):
+    estimator = GPUMemoryEstimator()
+    breakdown = MemoryBreakdown(
+        parameters=0.0,
+        gradients=0.0,
+        optimizer_states=0.0,
+        activations=0.0,
+        fsdp_overhead=0.0,
+        total=1.0,
+    )
+
+    with caplog.at_level(
+        logging.WARNING, logger="dendritic_modeling.utils.gpu_estimation"
+    ):
+        recommendations = estimator.get_gpu_recommendations(
+            breakdown, safety_factor=0.0
+        )
+
+    assert "Invalid memory values" in caplog.text
+    assert [rec.min_gpus_needed for rec in recommendations] == [1, 1]
+
+
+def test_gpu_estimate_config_helpers_resolve_batch_size_paths():
+    assert _resolve_batch_size(SimpleNamespace(), batch_size=128) == 128
+
+    current = SimpleNamespace(
+        training=SimpleNamespace(
+            main=SimpleNamespace(common=SimpleNamespace(batch_size=64))
+        )
+    )
+    assert _resolve_batch_size(current) == 64
+
+    current_trainer = SimpleNamespace(
+        training=SimpleNamespace(
+            main=SimpleNamespace(trainer=SimpleNamespace(batch_size=48))
+        )
+    )
+    assert _resolve_batch_size(current_trainer) == 48
+
+    legacy = SimpleNamespace(
+        train=SimpleNamespace(main=SimpleNamespace(trainer=SimpleNamespace()))
+    )
+    assert _resolve_batch_size(legacy) == 32
+
+
+def test_gpu_estimate_task_config_helper_preserves_legacy_and_synthesizes_data():
+    legacy_task = SimpleNamespace(dataset="mnist", parameters={"flatten": True})
+    legacy_config = SimpleNamespace(task=legacy_task)
+
+    task_cfg, task_params = _resolve_task_config(legacy_config)
+
+    assert task_cfg is legacy_task
+    assert task_params == {"flatten": True}
+
+    data_config = SimpleNamespace(
+        data=SimpleNamespace(
+            dataset_name="imagenet",
+            base_dir="/tmp/imagenet",
+            processing={"flatten": False},
+        ),
+        experiment=SimpleNamespace(train_valid_split=0.7),
+    )
+
+    task_cfg, task_params = _resolve_task_config(data_config)
+
+    assert task_cfg.dataset == "imagenet"
+    assert task_cfg.data_path == "/tmp/imagenet"
+    assert task_cfg.train_valid_split == 0.7
+    assert task_params == {"flatten": False}
+
+
+def test_gpu_estimate_fallback_input_shapes():
+    assert _fallback_input_shape(SimpleNamespace(dataset="mnist"), {}) == (784,)
+    assert _fallback_input_shape(SimpleNamespace(dataset="cifar10"), {}) == (3072,)
+    assert _fallback_input_shape(
+        SimpleNamespace(dataset="imagenet"), {"flatten": True}
+    ) == (150528,)
+    assert _fallback_input_shape(
+        SimpleNamespace(dataset="imagenet"), {"flatten": False}
+    ) == (3, 224, 224)
+    assert _fallback_input_shape(
+        SimpleNamespace(dataset="custom"), {"input_dim": 123}
+    ) == (123,)
+
+
+def test_gpu_estimate_public_input_shape_constants_preserve_values():
+    assert MNIST_FLAT_INPUT_SHAPE == (784,)
+    assert CIFAR10_FLAT_INPUT_SHAPE == (3072,)
+    assert IMAGENET_FLAT_INPUT_SHAPE == (150528,)
+    assert IMAGENET_IMAGE_INPUT_SHAPE == (3, 224, 224)
+
+
+def test_gpu_estimate_model_build_helpers_preserve_parameter_paths():
+    assert _flat_input_dim((784,)) == 784
+    assert _flat_input_dim((3, 224, 224)) == 150528
+
+    assert _config_params(SimpleNamespace(parameters={"a": 1})) == {"a": 1}
+    assert _config_params(SimpleNamespace(params={"b": 2})) == {"b": 2}
+    assert _config_params(SimpleNamespace(parameters={}, params={"c": 3})) == {"c": 3}
+
+    legacy_core = SimpleNamespace(parameters={"input_dim": 5, "hidden_dim": 7})
+    assert _core_params_from_config(legacy_core) == {"input_dim": 5, "hidden_dim": 7}
+
+    structured_core = SimpleNamespace(
+        architecture=SimpleNamespace(hidden_dim=8, shared="architecture"),
+        connectivity=SimpleNamespace(num_synapses=9, shared="connectivity"),
+        morphology=SimpleNamespace(use_shunting=True),
+    )
+
+    assert _core_params_from_config(structured_core) == {
+        "hidden_dim": 8,
+        "num_synapses": 9,
+        "shared": "connectivity",
+        "use_shunting": True,
+    }
+
+
+def test_gpu_estimate_class_count_helper_matches_dataset_defaults():
+    assert (
+        _resolve_n_classes("classification", SimpleNamespace(dataset="mnist"), {}) == 10
+    )
+    assert (
+        _resolve_n_classes("classification", SimpleNamespace(dataset="imagenet"), {})
+        == 1000
+    )
+    assert (
+        _resolve_n_classes(
+            "classification", SimpleNamespace(dataset="custom"), {"n_classes": 17}
+        )
+        == 17
+    )
+    assert _resolve_n_classes("regression", SimpleNamespace(dataset="mnist"), {}) == 1
+
+
+def test_gpu_estimate_training_dtype_helper_resolves_current_and_legacy_paths():
+    assert _resolve_training_dtype(SimpleNamespace()) == "fp16"
+
+    current = SimpleNamespace(
+        training=SimpleNamespace(
+            main=SimpleNamespace(common=SimpleNamespace(dtype="bf16"))
+        )
+    )
+    assert _resolve_training_dtype(current) == "bf16"
+
+    current_trainer = SimpleNamespace(
+        training=SimpleNamespace(
+            main=SimpleNamespace(trainer=SimpleNamespace(dtype="fp32"))
+        )
+    )
+    assert _resolve_training_dtype(current_trainer) == "fp32"
+
+    legacy = SimpleNamespace(
+        train=SimpleNamespace(
+            main=SimpleNamespace(trainer=SimpleNamespace(dtype="int8"))
+        )
+    )
+    assert _resolve_training_dtype(legacy) == "int8"
 
 
 if __name__ == "__main__":

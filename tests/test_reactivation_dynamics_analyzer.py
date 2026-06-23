@@ -49,8 +49,20 @@ def _make_dataset(n: int = 64, dim: int = 16, n_classes: int = 4) -> TensorDatas
     return TensorDataset(x, y)
 
 
+def test_analyzer_lists_parametric_tanh_layers_in_module_order():
+    model = _StackedReactivationModel()
+    analyzer = ReactivationDynamicsAnalyzer(
+        ReactivationDynamicsAnalysisParams(max_samples=8)
+    )
+
+    layers = analyzer._list_parametric_tanh_layers(model)
+
+    assert layers == [("r1", model.r1), ("r2", model.r2)]
+
+
 def test_analyzer_snapshots_all_reactivation_layers():
     model = _StackedReactivationModel()
+    model.train()
     analyzer = ReactivationDynamicsAnalyzer(
         ReactivationDynamicsAnalysisParams(max_samples=32)
     )
@@ -68,6 +80,9 @@ def test_analyzer_snapshots_all_reactivation_layers():
             training=True,
         )
 
+        assert model.training
+        assert snapshot["filename"] == "epoch0"
+        assert snapshot["training"] is True
         assert snapshot["n_layers"] == 2, "should find both ParametricTanh layers"
         assert set(snapshot["layers"].keys()) == {"r1", "r2"}
 
@@ -166,6 +181,27 @@ def test_analyzer_no_op_without_parametric_tanh():
         training=True,
     )
     assert snap == {}
+
+
+def test_analyzer_removes_hooks_after_failed_hook_registration(monkeypatch):
+    model = _StackedReactivationModel()
+    analyzer = ReactivationDynamicsAnalyzer(
+        ReactivationDynamicsAnalysisParams(max_samples=8)
+    )
+    captured: dict[str, torch.Tensor] = {}
+    layers = [("r1", model.r1), ("r2", model.r2)]
+    original_register = model.r2.register_forward_pre_hook
+
+    def _failing_register(*args, **kwargs):
+        raise RuntimeError("reactivation hook registration failed")
+
+    monkeypatch.setattr(model.r2, "register_forward_pre_hook", _failing_register)
+
+    with pytest.raises(RuntimeError, match="reactivation hook registration failed"):
+        analyzer._attach_capture_hooks(layers, captured)
+
+    monkeypatch.setattr(model.r2, "register_forward_pre_hook", original_register)
+    assert sum(len(module._forward_pre_hooks) for module in model.modules()) == 0
 
 
 def test_analyzer_tracks_drift_after_parameter_modification():

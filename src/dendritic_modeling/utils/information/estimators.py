@@ -99,6 +99,13 @@ class BaseInformationEstimator(ABC):
         joint_source = np.hstack([self._ensure_2d(s) for s in sources])
         return self.mutual_information(joint_source, target)
 
+    def _chain_rule_cmi(self, x: np.ndarray, y: np.ndarray, z: np.ndarray) -> float:
+        """Compute CMI with the chain rule using this estimator's MI backend."""
+        yz = np.hstack([y, z])
+        mi_xyz = self.mutual_information(x, yz)
+        mi_xz = self.mutual_information(x, z)
+        return max(0.0, mi_xyz - mi_xz)
+
     def mutual_information_null(
         self,
         x: np.ndarray,
@@ -703,11 +710,7 @@ class SklearnEstimator(BaseInformationEstimator):
         self._validate_inputs(x, y, z)
 
         # I(X;Y|Z) = I(X;Y,Z) - I(X;Z)
-        yz = np.hstack([y, z])
-        mi_xyz = self.mutual_information(x, yz)
-        mi_xz = self.mutual_information(x, z)
-
-        return max(0.0, mi_xyz - mi_xz)
+        return self._chain_rule_cmi(x, y, z)
 
     def _is_discrete(self, x: np.ndarray) -> bool:
         """Check if variable appears to be discrete."""
@@ -812,11 +815,7 @@ class CopulaEstimator(BaseInformationEstimator):
         z = self._ensure_2d(z)
         self._validate_inputs(x, y, z)
 
-        yz = np.hstack([y, z])
-        mi_xyz = self.mutual_information(x, yz)
-        mi_xz = self.mutual_information(x, z)
-
-        return max(0.0, mi_xyz - mi_xz)
+        return self._chain_rule_cmi(x, y, z)
 
     def _simple_copula_mi(self, x: np.ndarray, y: np.ndarray) -> float:
         """Enhanced copula-based MI estimation with discrete variable handling."""

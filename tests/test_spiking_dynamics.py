@@ -9,6 +9,10 @@ from dendritic_modeling.networks.architectures.recurrent import (
     StatefulDendriNet,
     SurrogateSpike,
 )
+from dendritic_modeling.networks.architectures.recurrent.stateful_dendrinet import (
+    _build_stateful_spiking_soma,
+    _resolve_stateful_dendritic_spike_setup,
+)
 
 
 def test_surrogate_spike_has_finite_gradient():
@@ -62,6 +66,24 @@ def _spiking_population_config(readout="spikes"):
         spike_readout=readout,
         spike_readout_tau=3.0,
     )
+
+
+def test_build_stateful_spiking_soma_preserves_config_fields():
+    cfg = _spiking_population_config(readout="rate")
+
+    soma = _build_stateful_spiking_soma(cfg, dynamics_mode="spike", dt=0.5)
+    disabled = _build_stateful_spiking_soma(cfg, dynamics_mode="conductance", dt=0.5)
+
+    assert isinstance(soma, LIFSoma)
+    assert soma.threshold == cfg.spike_threshold
+    assert soma.reset == cfg.spike_reset
+    assert soma.tau == cfg.spike_tau
+    assert soma.dt == 0.5
+    assert soma.refractory_steps == cfg.spike_refractory_steps
+    assert soma.surrogate_beta == cfg.spike_surrogate_beta
+    assert soma.output_mode == "rate"
+    assert soma.readout_tau == cfg.spike_readout_tau
+    assert disabled is None
 
 
 def test_stateful_dendrinet_spike_mode_outputs_binary_spikes_and_gradients():
@@ -130,6 +152,43 @@ def _dendritic_spike_population_config(**overrides):
     }
     params.update(overrides)
     return PopulationConfig(**params)
+
+
+def test_resolve_stateful_dendritic_spike_setup_preserves_config_fields():
+    cfg = _dendritic_spike_population_config(
+        dendritic_spike_levels="proximal",
+        dendritic_spike_mode="threshold",
+        dendritic_spike_threshold=0.25,
+        dendritic_spike_plateau_amplitude=1.5,
+        dendritic_spike_plateau_tau=4.0,
+        dendritic_spike_refractory_steps=2,
+        dendritic_spike_surrogate_beta=7.0,
+        dendritic_spike_propagation="replace",
+    )
+    disabled_cfg = _dendritic_spike_population_config(dendritic_spikes_enabled=False)
+
+    setup = _resolve_stateful_dendritic_spike_setup(cfg, n_levels=3, dt=0.25)
+    disabled_setup = _resolve_stateful_dendritic_spike_setup(
+        disabled_cfg,
+        n_levels=3,
+        dt=0.25,
+    )
+
+    assert setup.enabled is True
+    assert setup.mode == "threshold"
+    assert setup.threshold == 0.25
+    assert setup.plateau_amplitude == 1.5
+    assert setup.plateau_tau == 4.0
+    assert setup.refractory_steps == 2
+    assert setup.surrogate_beta == 7.0
+    assert setup.propagation == "replace"
+    assert setup.level_indices == {1}
+    assert setup.dynamics.enabled is True
+    assert setup.dynamics.level_indices == {1}
+    assert setup.dynamics.dt == 0.25
+    assert disabled_setup.enabled is False
+    assert disabled_setup.level_indices == set()
+    assert disabled_setup.dynamics.enabled is False
 
 
 def test_stateful_dendrinet_dendritic_plateau_changes_branch_output():

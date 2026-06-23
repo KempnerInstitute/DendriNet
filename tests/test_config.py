@@ -7,22 +7,39 @@ from unittest.mock import patch
 
 import torch
 import yaml
+from omegaconf import OmegaConf
 
+from dendritic_modeling.analysis.registry import get_registered_analyzers
 from dendritic_modeling.config import (
     AnalysisConfig,
     ArchitectureConfig,
+    CommonTrainerConfig,
     Config,
     ConnectivityConfig,
     CoreConfig,
     DataConfig,
+    DatasetParamsConfig,
+    FSDPConfig,
+    LocalRuleComponentAnalysisConfig,
+    LocalRuleComponentAnalysisParams,
     LocalRuleConfig,
     ModelConfig,
+    OptimizerConfig,
     OutputsConfig,
+    SpikeTrainAnalysisConfig,
+    SpikeTrainAnalysisParams,
     StructuredConnectivityConfig,
     TrainingConfig,
     TransferFunctionConfig,
     WandbConfig,
     load_config,
+)
+from dendritic_modeling.config.config import (
+    _analysis_field_mapping,
+    _build_data_config,
+    _build_filtered_config,
+    _map_analysis_config,
+    _map_training_config,
 )
 
 
@@ -159,6 +176,100 @@ class TestConfigDataclasses(unittest.TestCase):
         self.assertIsInstance(config.training, TrainingConfig)
         self.assertEqual(config.data.dataset_name, "mnist")
 
+    def test_analysis_config_any_enabled_matches_final_analysis_gate(self):
+        analysis = AnalysisConfig()
+        self.assertTrue(analysis.any_enabled())
+
+        final_gate_fields = tuple(
+            spec.config_field for spec in get_registered_analyzers().values()
+        )
+        for field_name in final_gate_fields:
+            getattr(analysis, field_name).enabled = False
+        self.assertFalse(analysis.any_enabled())
+
+        analysis.information_analysis.enabled = True
+        self.assertTrue(analysis.any_enabled())
+
+        analysis.information_analysis.enabled = False
+        analysis.spike_train_analysis.enabled = True
+        self.assertTrue(analysis.any_enabled())
+
+        analysis.spike_train_analysis.enabled = False
+        analysis.compartment_snr_analysis.enabled = True
+        self.assertTrue(analysis.any_enabled())
+
+        analysis.compartment_snr_analysis.enabled = False
+        self.assertFalse(analysis.any_enabled())
+
+    def test_analysis_field_mapping_tracks_registered_analyzers(self):
+        """YAML analysis aliases should be derived from analyzer registry metadata."""
+        mapping = _analysis_field_mapping()
+
+        for name, spec in get_registered_analyzers().items():
+            self.assertEqual(mapping[name], spec.config_field)
+        self.assertEqual(mapping["spike_trains"], "spike_train_analysis")
+
+    def test_map_analysis_config_preserves_registry_and_legacy_aliases(self):
+        """Config mapping should preserve registered names and legacy aliases."""
+        mapped = _map_analysis_config(
+            {
+                "information": {"enabled": False},
+                "spike_trains": {"enabled": True, "training": True},
+                "adversarial_robustness": {"enabled": True},
+            }
+        )
+
+        self.assertEqual(mapped["information_analysis"], {"enabled": False})
+        self.assertTrue(mapped["spike_train_analysis"].enabled)
+        self.assertTrue(mapped["spike_train_analysis"].training)
+        self.assertEqual(mapped["adversarial_robustness_analysis"], {"enabled": True})
+
+    def test_map_analysis_config_builds_local_rule_component_params(self):
+        mapped = _map_analysis_config(
+            {
+                "local_rule_components": {
+                    "enabled": True,
+                    "training": True,
+                    "params": {
+                        "max_samples": 33,
+                        "broadcast_mode": "per_soma",
+                        "error_mode": "ce",
+                    },
+                }
+            }
+        )
+
+        config = mapped["local_rule_component_analysis"]
+        self.assertIsInstance(config, LocalRuleComponentAnalysisConfig)
+        self.assertIsInstance(config.params, LocalRuleComponentAnalysisParams)
+        self.assertTrue(config.enabled)
+        self.assertTrue(config.training)
+        self.assertEqual(config.params.max_samples, 33)
+        self.assertEqual(config.params.broadcast_mode, "per_soma")
+        self.assertEqual(config.params.error_mode, "ce")
+
+    def test_map_analysis_config_builds_spike_train_params(self):
+        mapped = _map_analysis_config(
+            {
+                "spike_trains": {
+                    "enabled": True,
+                    "params": {
+                        "max_samples": 17,
+                        "include_raster": False,
+                        "dt": 0.25,
+                    },
+                }
+            }
+        )
+
+        config = mapped["spike_train_analysis"]
+        self.assertIsInstance(config, SpikeTrainAnalysisConfig)
+        self.assertIsInstance(config.params, SpikeTrainAnalysisParams)
+        self.assertTrue(config.enabled)
+        self.assertEqual(config.params.max_samples, 17)
+        self.assertFalse(config.params.include_raster)
+        self.assertEqual(config.params.dt, 0.25)
+
     def test_local_rule_explicit_inhibitory_update_modes(self):
         local_cfg = LocalRuleConfig(explicit_inhibitory_update_mode="local_ca")
         self.assertEqual(local_cfg.explicit_inhibitory_update_mode, "local_ca")
@@ -185,6 +296,158 @@ class TestConfigDataclasses(unittest.TestCase):
     def test_local_rule_rejects_invalid_explicit_inhibitory_update_mode(self):
         with self.assertRaises(ValueError):
             LocalRuleConfig(explicit_inhibitory_update_mode="graph_local")
+
+    def test_build_filtered_config_drops_unknown_mapping_keys(self):
+        config = _build_filtered_config(
+            FSDPConfig,
+            {
+                "mixed_precision": False,
+                "limit_all_gathers": False,
+                "unknown_field": "ignored",
+            },
+        )
+
+        self.assertFalse(config.mixed_precision)
+        self.assertFalse(config.limit_all_gathers)
+        self.assertEqual(config.sharding_strategy, "FULL_SHARD")
+        self.assertFalse(hasattr(config, "unknown_field"))
+
+    def test_build_filtered_config_accepts_omegaconf_payload(self):
+        payload = OmegaConf.create(
+            {
+                "epochs": 7,
+                "batch_size": 32,
+                "not_a_trainer_field": "ignored",
+            }
+        )
+
+        config = _build_filtered_config(CommonTrainerConfig, payload)
+
+        self.assertEqual(config.epochs, 7)
+        self.assertEqual(config.batch_size, 32)
+        self.assertFalse(hasattr(config, "not_a_trainer_field"))
+
+    def test_build_filtered_config_defaults_for_non_mapping_payload(self):
+        config = _build_filtered_config(WandbConfig, object())
+
+        self.assertFalse(config.use_wandb)
+        self.assertEqual(config.project, "dendritic-sweeps")
+
+    def test_build_data_config_defaults_dataset_params_to_typed_config(self):
+        config = _build_data_config({"dataset_name": "mnist"})
+
+        self.assertEqual(config.dataset_name, "mnist")
+        self.assertEqual(config.base_dir, "")
+        self.assertTrue(config.processing.flatten)
+        self.assertIsInstance(config.dataset_params, DatasetParamsConfig)
+
+    def test_build_data_config_preserves_custom_dataset_param_sections(self):
+        config = _build_data_config(
+            {
+                "dataset_name": "custom_stream",
+                "base_dir": "/tmp/data",
+                "processing": {"flatten": False, "normalize": True},
+                "dataset_params": {
+                    "custom_stream": {"window": 5, "stride": 2},
+                    "imagenet": {"loader_backend": "imagefolder"},
+                },
+            }
+        )
+
+        self.assertEqual(config.dataset_name, "custom_stream")
+        self.assertEqual(config.base_dir, "/tmp/data")
+        self.assertFalse(config.processing.flatten)
+        self.assertTrue(config.processing.normalize)
+        self.assertEqual(config.dataset_params["custom_stream"]["window"], 5)
+        self.assertEqual(
+            config.dataset_params["imagenet"]["loader_backend"], "imagefolder"
+        )
+
+    def test_build_data_config_resolves_omegaconf_dataset_params(self):
+        payload = OmegaConf.create(
+            {
+                "dataset_name": "imagenet",
+                "dataset_params": {
+                    "imagenet": {
+                        "loader_backend": "torchvision",
+                        "train_samples_per_class": 2,
+                    }
+                },
+            }
+        )
+
+        config = _build_data_config(payload)
+
+        self.assertIsInstance(config.dataset_params, dict)
+        self.assertEqual(
+            config.dataset_params["imagenet"]["loader_backend"],
+            "torchvision",
+        )
+        self.assertEqual(
+            config.dataset_params["imagenet"]["train_samples_per_class"], 2
+        )
+
+    def test_map_training_config_hoists_legacy_learning_strategy_config(self):
+        training = {
+            "main": {
+                "strategy": "local_ca",
+                "common": {
+                    "epochs": 2,
+                    "learning_strategy_config": {
+                        "rule_variant": "4f",
+                        "error_mode": "mse",
+                    },
+                },
+            }
+        }
+
+        with self.assertLogs(
+            "dendritic_modeling.config.config", level="WARNING"
+        ) as logs:
+            mapped = _map_training_config(training)
+
+        main = mapped["main"]
+        self.assertIn("hoisting to training.main", "\n".join(logs.output))
+        self.assertNotIn("learning_strategy_config", main["common"])
+        self.assertIsInstance(main["learning_strategy_config"], LocalRuleConfig)
+        self.assertEqual(main["learning_strategy_config"].rule_variant, "4f")
+        self.assertEqual(main["learning_strategy_config"].error_mode, "mse")
+
+    def test_map_training_config_prefers_explicit_main_learning_strategy_config(self):
+        training = {
+            "main": {
+                "learning_strategy_config": {"rule_variant": "5f"},
+                "common": {
+                    "learning_strategy_config": {"rule_variant": "stdp"},
+                },
+            }
+        }
+
+        mapped = _map_training_config(training)
+
+        main = mapped["main"]
+        self.assertNotIn("learning_strategy_config", main["common"])
+        self.assertIsInstance(main["learning_strategy_config"], LocalRuleConfig)
+        self.assertEqual(main["learning_strategy_config"].rule_variant, "5f")
+
+    def test_map_training_config_builds_main_optimizer_config(self):
+        mapped = _map_training_config(
+            {
+                "main": {
+                    "optimizer": {
+                        "name": "adamw",
+                        "lr": 0.002,
+                        "weight_decay": 0.01,
+                    }
+                }
+            }
+        )
+
+        optimizer = mapped["main"]["optimizer"]
+        self.assertIsInstance(optimizer, OptimizerConfig)
+        self.assertEqual(optimizer.name, "adamw")
+        self.assertEqual(optimizer.lr, 0.002)
+        self.assertEqual(optimizer.weight_decay, 0.01)
 
 
 class TestConfigLoading(unittest.TestCase):
@@ -294,6 +557,8 @@ class TestConfigLoading(unittest.TestCase):
                         "pin_memory": False,
                         "persistent_workers": True,
                         "prefetch_factor": 3,
+                        "in_order": False,
+                        "profile_dataloader": True,
                     },
                 }
             },
@@ -309,6 +574,8 @@ class TestConfigLoading(unittest.TestCase):
         self.assertFalse(common.pin_memory)
         self.assertTrue(common.persistent_workers)
         self.assertEqual(common.prefetch_factor, 3)
+        self.assertFalse(common.in_order)
+        self.assertTrue(common.profile_dataloader)
 
     def test_additive_alias_defaults_to_occupancy_quantile_when_policy_omitted(self):
         """Additive configs should not silently use weak analytical gates."""
@@ -677,6 +944,11 @@ class TestConfigLoading(unittest.TestCase):
                     "hidden_size": 8,
                     "intermediate_size": 32,
                     "max_steps": 25,
+                    "num_workers": 3,
+                    "pin_memory": False,
+                    "persistent_workers": True,
+                    "prefetch_factor": 2,
+                    "in_order": False,
                     "synthetic_teacher": {"kind": "linear"},
                 }
             },
@@ -695,7 +967,52 @@ class TestConfigLoading(unittest.TestCase):
         self.assertEqual(training.train_target, "replacement_only")
         self.assertEqual(training.layers, [0])
         self.assertEqual(training.hidden_size, 8)
+        self.assertEqual(training.num_workers, 3)
+        self.assertFalse(training.pin_memory)
+        self.assertTrue(training.persistent_workers)
+        self.assertEqual(training.prefetch_factor, 2)
+        self.assertFalse(training.in_order)
         self.assertEqual(training.synthetic_teacher["kind"], "linear")
+
+    def test_load_config_preserves_vision_replacement_training(self):
+        load_config.cache_clear()
+        vision_training_config = {
+            **self.sample_config,
+            "training": {
+                "vision_replacement": {
+                    "enabled": True,
+                    "mode": "blockwise_distillation",
+                    "teacher_source": "tensor_cache",
+                    "train_target": "replacement_only",
+                    "max_steps": 25,
+                    "num_workers": 4,
+                    "pin_memory": False,
+                    "persistent_workers": True,
+                    "prefetch_factor": 3,
+                    "in_order": False,
+                    "tensor_cache": {"train_inputs": "train_x.pt"},
+                }
+            },
+        }
+        vision_training_file = os.path.join(
+            self.temp_dir, "vision_replacement_training_config.yaml"
+        )
+        with open(vision_training_file, "w") as f:
+            yaml.safe_dump(vision_training_config, f)
+
+        config = load_config(vision_training_file)
+
+        training = config.training.vision_replacement
+        self.assertTrue(training.enabled)
+        self.assertEqual(training.teacher_source, "tensor_cache")
+        self.assertEqual(training.train_target, "replacement_only")
+        self.assertEqual(training.max_steps, 25)
+        self.assertEqual(training.num_workers, 4)
+        self.assertFalse(training.pin_memory)
+        self.assertTrue(training.persistent_workers)
+        self.assertEqual(training.prefetch_factor, 3)
+        self.assertFalse(training.in_order)
+        self.assertEqual(training.tensor_cache["train_inputs"], "train_x.pt")
 
     def test_load_config_maps_spike_train_analysis(self):
         load_config.cache_clear()

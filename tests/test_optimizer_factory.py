@@ -211,6 +211,45 @@ class TestCreateParameterGroups:
         total_model_params = len(list(model.parameters()))
         assert total_params_in_groups == total_model_params
 
+    def test_parameter_groups_preserve_name_precedence_and_order(self):
+        """Test split groups keep the original substring precedence and order."""
+        model = nn.Module()
+        model.topk_blocklinear = nn.Linear(5, 4)
+        model.blocklinear_reactivation = nn.Linear(4, 3)
+        model.reactivation_decoder = nn.Linear(3, 2)
+        model.decoder_layer = nn.Linear(2, 1)
+        model.other_layer = nn.Linear(1, 1)
+
+        config = OptimizerConfig(name="adam", lr=0.1)
+        param_groups_config = {
+            "split_params": True,
+            "topk_lr": 0.01,
+            "blocklinear_lr": 0.005,
+            "reactivation_lr": 0.002,
+            "decoder_lr": 0.0005,
+        }
+
+        param_groups = create_parameter_groups(model, config, param_groups_config)
+
+        assert [group["lr"] for group in param_groups] == [
+            0.1,
+            0.01,
+            0.005,
+            0.002,
+            0.0005,
+        ]
+
+        lr_by_param_id = {
+            id(param): group["lr"]
+            for group in param_groups
+            for param in group["params"]
+        }
+        assert lr_by_param_id[id(model.topk_blocklinear.weight)] == 0.01
+        assert lr_by_param_id[id(model.blocklinear_reactivation.weight)] == 0.005
+        assert lr_by_param_id[id(model.reactivation_decoder.weight)] == 0.002
+        assert lr_by_param_id[id(model.decoder_layer.weight)] == 0.0005
+        assert lr_by_param_id[id(model.other_layer.weight)] == 0.1
+
 
 class TestValidateOptimizerConfig:
     """Test validate_optimizer_config function."""

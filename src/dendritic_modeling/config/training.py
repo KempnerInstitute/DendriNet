@@ -46,11 +46,13 @@ class CommonTrainerConfig(BaseConfig):
     pin_memory: Optional[bool] = None
     persistent_workers: Optional[bool] = None
     prefetch_factor: Optional[int] = None
+    in_order: Optional[bool] = None
     use_amp: bool = False
     lr_schedule: str = "none"
     lr_warmup_epochs: int = 0
     enable_nan_checking: bool = False
     enable_adaptive_clipping: bool = False
+    profile_dataloader: bool = False
     weight_decay_rate: float = 0.01
     weight_boosting: bool = False
     # Periodic reactivation recalibration during training.
@@ -306,8 +308,17 @@ class TransformerReplacementTrainingConfig(BaseConfig):
     - ``"synthetic_mlp"``: train against a small generated teacher MLP.  This is
       the fast smoke-test path and does not require Hugging Face dependencies.
     - ``"hidden_cache"``: train from saved hidden-state/target tensors.
-    - ``"hf_text"``: run a Hugging Face causal LM on raw text and distill the
-      selected MLP modules from captured hidden activations.
+    - ``"hf_text"``: run a Hugging Face causal LM on raw text or a Hugging Face
+      dataset and distill the selected target modules from captured hidden
+      activations.
+
+    Supported ``mode`` values:
+
+    - ``"layerwise_distillation"``: train replacement modules against captured
+      target-module outputs.  ``train_target`` must be ``"replacement_only"``.
+    - ``"joint_lm_distillation"``: patch a causal LM and train through the
+      language-modeling objective.  ``train_target`` may be
+      ``"replacement_only"`` or ``"full_model"``.
     """
 
     enabled: bool = False
@@ -325,6 +336,13 @@ class TransformerReplacementTrainingConfig(BaseConfig):
     eval_every: int = 50
     log_every: int = 25
     batch_size: int = 32
+    # DataLoader controls for layerwise tensor-cache distillation. None keeps
+    # the current auto behavior: in-memory tensor caches stay single-process.
+    num_workers: Optional[int] = None
+    pin_memory: Optional[bool] = None
+    persistent_workers: Optional[bool] = None
+    prefetch_factor: Optional[int] = None
+    in_order: Optional[bool] = None
     sequence_length: int = 8
     train_samples: int = 2048
     valid_samples: int = 512
@@ -374,6 +392,56 @@ class TransformerReplacementTrainingConfig(BaseConfig):
     max_grad_norm: float | None = None
     save_dir: str = "results/transformer_replacement_distillation"
     save_replacements: bool = True
+    use_amp: bool = False
+
+
+@dataclass
+class VisionReplacementTrainingConfig(BaseConfig):
+    """Training options for vision-backbone replacement distillation.
+
+    Standard supervised training of a vision replacement uses
+    ``training.main`` after ``model.vision_replacement.enabled=true`` builds the
+    encoder/core/decoder model.  This block covers block-output distillation,
+    where cached inputs to the replaced span and cached outputs from the
+    original span are used to train the replacement core directly.  Image-level
+    cache mode can also train the replacement plus decoder or the full student.
+    """
+
+    enabled: bool = False
+    mode: str = "blockwise_distillation"
+    teacher_source: str = "tensor_cache"
+    train_target: str = "replacement_only"
+    device: str = "auto"
+    dtype: str = "float32"
+    seed: int | None = None
+
+    max_steps: int = 200
+    eval_every: int = 50
+    log_every: int = 25
+    batch_size: int = 32
+    # DataLoader controls for tensor/image-cache distillation. None uses
+    # conservative auto-selection: in-memory tensor caches stay single-process,
+    # while non-tensor datasets can use workers.
+    num_workers: Optional[int] = None
+    pin_memory: Optional[bool] = None
+    persistent_workers: Optional[bool] = None
+    prefetch_factor: Optional[int] = None
+    in_order: Optional[bool] = None
+
+    tensor_cache: dict[str, Any] = field(
+        default_factory=lambda: {
+            "train_inputs": "",
+            "train_targets": "",
+            "valid_inputs": "",
+            "valid_targets": "",
+        }
+    )
+
+    loss: str = "mse"
+    cosine_weight: float = 0.0
+    max_grad_norm: float | None = None
+    save_dir: str = "results/vision_replacement_distillation"
+    save_replacement: bool = True
     use_amp: bool = False
 
 
@@ -766,4 +834,7 @@ class TrainingConfig(BaseConfig):
     main: MainTrainingConfig = field(default_factory=MainTrainingConfig)
     transformer_replacement: TransformerReplacementTrainingConfig = field(
         default_factory=TransformerReplacementTrainingConfig
+    )
+    vision_replacement: VisionReplacementTrainingConfig = field(
+        default_factory=VisionReplacementTrainingConfig
     )

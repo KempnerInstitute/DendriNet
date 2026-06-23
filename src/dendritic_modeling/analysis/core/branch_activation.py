@@ -9,10 +9,8 @@ from typing import Optional
 
 import torch
 
-from dendritic_modeling.analysis.utils.runtime import (
-    analysis_device_context,
-    iter_analysis_batches,
-)
+from dendritic_modeling.analysis.core.base import AbstractAnalyzer
+from dendritic_modeling.analysis.utils.runtime import run_model_over_analysis_batches
 from dendritic_modeling.config import BranchActivationAnalysisParams
 from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.models import BaseModel
@@ -21,9 +19,13 @@ from dendritic_modeling.networks import (
     ExcitationInhibitionNetwork,
 )
 from dendritic_modeling.utils import save_dict
+from dendritic_modeling.utils.hooks import (
+    ForwardHookRemovalMixin,
+    register_named_forward_hooks,
+)
 
 
-class BranchActivationAnalyzer:
+class BranchActivationAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
     """
     Analyzer for tracking both synaptic and branch activation patterns during model inference.
 
@@ -46,6 +48,7 @@ class BranchActivationAnalyzer:
             downsample: Whether to downsample input data for efficiency
             samples: Number of samples to use if downsampling
         """
+        super().__init__("BranchActivationAnalyzer")
         self.synapse_activations = getattr(params, "synapse_activations", False)
         self.branch_activations = getattr(params, "branch_activations", False)
         self.network_summary = getattr(params, "network_summary", False)
@@ -66,20 +69,28 @@ class BranchActivationAnalyzer:
         Returns:
             List of hook handles for later removal
         """
-        handles = []
-        for _name, module in model.named_modules():
-            if isinstance(module, DendriticBranchLayer):
-                if _name not in self.data_dict.keys():
-                    self.data_dict[_name] = {}
-                    module._name = _name
-                    handle = module.register_forward_hook(self.forward_hook)
-                    handles.append(handle)
-        return handles
+        return register_named_forward_hooks(
+            model,
+            DendriticBranchLayer,
+            self.forward_hook,
+            predicate=self._should_hook_branch_layer,
+            prepare=self._prepare_branch_layer_hook,
+        )
 
-    def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
-        """Remove forward hooks."""
-        for handle in handles:
-            handle.remove()
+    def _should_hook_branch_layer(
+        self,
+        layer_name: str,
+        _module: DendriticBranchLayer,
+    ) -> bool:
+        return layer_name not in self.data_dict
+
+    def _prepare_branch_layer_hook(
+        self,
+        layer_name: str,
+        module: DendriticBranchLayer,
+    ) -> None:
+        self.data_dict[layer_name] = {}
+        module._name = layer_name
 
     def forward_hook(
         self,
@@ -144,20 +155,15 @@ class BranchActivationAnalyzer:
         self.data_dict = {}
 
         sample_cap = self.samples if self.downsample else None
-        handles = []
-        with analysis_device_context(model, device) as analysis_device:
-            handles = self.attach_forward_hooks(model)
-            try:
-                with torch.no_grad():
-                    for batch in iter_analysis_batches(
-                        test_dataset,
-                        runtime,
-                        sample_cap,
-                        device=analysis_device,
-                    ):
-                        _ = model(batch[0].to(analysis_device))
-            finally:
-                self.remove_forward_hooks(handles)
+        run_model_over_analysis_batches(
+            model=model,
+            dataset=test_dataset,
+            device=device,
+            runtime=runtime,
+            explicit_max_samples=sample_cap,
+            attach_hooks=lambda: self.attach_forward_hooks(model),
+            remove_hooks=self.remove_forward_hooks,
+        )
 
         for module_dict in self.data_dict.values():
             for key, value in list(module_dict.items()):

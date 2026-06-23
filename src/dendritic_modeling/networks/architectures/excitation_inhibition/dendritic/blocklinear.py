@@ -5,6 +5,7 @@ This module implements a custom linear layer that aggregates information
 from converging branches in a previous branch layer.
 """
 
+import logging
 from math import floor, log
 
 import torch
@@ -16,6 +17,8 @@ from dendritic_modeling.networks.utils.weight_transforms import (
     inverse_softplus,
     inverse_weight_transform,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class BlockLinear(nn.Module):
@@ -294,27 +297,16 @@ class EfficientBlockLinear(BlockLinear):
 
         # Validate input dimension
         if x.shape[1] != expected_dim:
-            # Check if this might be a transposed or mishaped tensor
-            if x.shape[1] % self.block_size == 0:
-                # Could be wrong number of output features
-                implied_out = x.shape[1] // self.block_size
-                print(
-                    f"Warning: EfficientBlockLinear expecting {expected_dim} features (out={self.out_features}, block={self.block_size}), "
-                    f"but got {x.shape[1]} features. This implies out_features should be {implied_out}."
-                )
-
-            # Return zeros to allow analysis to continue
-            print(
-                f"Warning: EfficientBlockLinear input shape mismatch: original shape {original_shape}, "
-                f"reshaped to {x.shape}, expected [B, {expected_dim}]. Returning zeros."
+            details = (
+                f"EfficientBlockLinear expected {expected_dim} features "
+                f"(out_features={self.out_features}, block_size={self.block_size}), "
+                f"but got original shape {tuple(original_shape)} reshaped to {tuple(x.shape)}."
             )
-
-            # If original was higher-dim, return zeros with appropriate shape
-            if len(original_shape) > 2:
-                out_shape = [*original_shape[:-1], self.out_features]
-                return torch.zeros(out_shape, device=x.device, dtype=x.dtype)
-            else:
-                return torch.zeros(B, self.out_features, device=x.device, dtype=x.dtype)
+            # Check if this might be a transposed or misshaped tensor.
+            if x.shape[1] % self.block_size == 0:
+                implied_out = x.shape[1] // self.block_size
+                details += f" The provided width implies out_features={implied_out}."
+            raise ValueError(details)
 
         x_reshaped = x.view(B, self.out_features, self.block_size)
         weights = (

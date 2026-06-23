@@ -79,6 +79,10 @@ class TestDendriticTimetracesAnalyzer(unittest.TestCase):
         results = DendriticTimetracesAnalyzer(params).analyze(model)
         entry = results["layers"]["layer_0"]
 
+        self.assertEqual(results["stim1_window"], [2, 10])
+        self.assertEqual(results["stim2_window"], [20, 30])
+        self.assertEqual(results["response_window"], [30, 40])
+        self.assertEqual(entry["population"], "excitatory")
         self.assertEqual(entry["n_levels"], 3)
         self.assertEqual(entry["n_timesteps"], 40)
         self.assertEqual(len(entry["V"]), 3)

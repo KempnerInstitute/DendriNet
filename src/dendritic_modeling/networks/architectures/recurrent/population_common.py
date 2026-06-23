@@ -36,8 +36,11 @@ class PopulationDefinitionConfig(BaseConfig):
             )
         if self.n_neurons <= 0:
             raise ValueError(f"n_neurons must be > 0, got {self.n_neurons}")
-        if not self.branch_factors:
-            raise ValueError("branch_factors must be non-empty")
+        for branch_factor in self.branch_factors:
+            if int(branch_factor) <= 0:
+                raise ValueError(
+                    f"branch_factors entries must be positive, got {branch_factor}"
+                )
 
 
 def as_population_definition_config(

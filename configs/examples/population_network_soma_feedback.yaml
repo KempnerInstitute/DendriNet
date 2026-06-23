@@ -61,6 +61,14 @@ model:
             dbl_init_method: "analytical_expectation"
             weight_transform: "softplus"
             use_shunting: true
+            topk_type: "indexed_rewire"
+            topk_init_method: "xavier_normal"
+            indexed_seed: 46
+            indexed_rewire_frequency: 100
+            indexed_rewire_quantile: 0.05
+            indexed_rewire_until_step: null
+            indexed_output_chunk_size: 2048
+            efficient_blocklinear: true
             soma_feedback_enabled: true
             soma_feedback_mode: "additive"
             soma_feedback_source: "output"

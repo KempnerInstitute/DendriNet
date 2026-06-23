@@ -1,5 +1,5 @@
 # ============================================================================
-# AlexNet K=1: Replace fc7 with a dendritic EI layer (canonical single-GPU config)
+# AlexNet K=1: Replace fc7 with a dendritic EI layer (single-GPU config)
 # ============================================================================
 #
 # This config replaces ONE fully-connected layer (fc7) inside a pretrained
@@ -69,7 +69,7 @@ data:
   dataset_params:
     imagenet:
       transform_preset: "pretrained"
-      allow_fake_data: false
+      loader_backend: "auto"                         # "auto" | "torchvision" | "imagefolder"; imagefolder is fastest for train/val class trees
       allow_flatten_materialize: false
 
 model:
@@ -78,16 +78,14 @@ model:
   # --- Pretrained replacement config ---
   # When enabled, this replaces model.encoder / model.decoder entirely.
   # The backbone is loaded once and split at the layer boundaries below.
-  pretrained_replacement:
+  vision_replacement:
     enabled: true
     backbone: "alexnet"                            # torchvision model name
     weights: "IMAGENET1K_V1"                       # pretrained weights (null = random)
     input_shape: [3, 224, 224]                     # expected input tensor shape
 
-    # Which layers to replace with the EINet core (inclusive range).
-    replace:
-      start: "classifier.4"                        # fc7 Linear(4096 → 4096)
-      end: "classifier.5"                          # fc7 ReLU
+    # Which backbone modules to replace with the EINet core.
+    target_modules: ["classifier.4", "classifier.5"]  # fc7 Linear + ReLU
 
     # Layers to drop entirely (e.g. Dropout — not useful during training
     # with EI networks that have their own regularization).
@@ -139,11 +137,16 @@ model:
     sparsity:
       init_method: "xavier_normal"
       noise_level: 0.0
-      type: "standard"
+      type: "indexed_rewire"
       weight_norm_order: null
       gamma: 1.0
-      temperature: 0.0
       gradient_scaling: "none"
+      indexed:
+        seed: 42
+        rewire_frequency: 100
+        rewire_quantile: 0.05
+        rewire_until_step: null
+        output_chunk_size: 2048
       deepst:
         excitatory_target_density: 0.1
         inhibitory_target_density: 0.1
@@ -167,7 +170,7 @@ model:
 
     blocklinear:
       gradient_scaling: "none"
-      efficient: false
+      efficient: true
 
     implementation:
       adaptive_initialization: false
@@ -198,6 +201,11 @@ training:
     common:
       epochs: 50
       batch_size: 256                               # larger batch for throughput (fits in 80GB with AMP)
+      num_workers: 8                                # per-process ImageNet workers
+      pin_memory: true
+      persistent_workers: true
+      prefetch_factor: 4
+      profile_dataloader: true
       shuffle: true
       grad_clip_value: 5.0
       loss_function: "cat_nll"
@@ -264,11 +272,19 @@ analysis:
       mode: "stream"                               # ImageNet training analysis: stream batches instead of materializing the split
       batch_size: 256
       num_workers: 4
+      pin_memory: true
+      persistent_workers: true
+      prefetch_factor: 4
+      in_order: false
       max_batches: 20                              # cap to ~5K samples per eval
     final:
       mode: "stream"                               # safest default for full validation/test runs on ImageNet
       batch_size: 256
       num_workers: 4
+      pin_memory: true
+      persistent_workers: true
+      prefetch_factor: 4
+      in_order: false
   performance:
     enabled: true
     training: false                                # disabled for throughput; keep final validation/test only

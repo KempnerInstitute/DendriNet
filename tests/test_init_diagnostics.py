@@ -33,6 +33,19 @@ def test_collect_reactivation_stats_reports_vector_shapes():
     assert stats["reactivation"]["b"]["n_unique"] == 1
 
 
+def test_collect_reactivation_stats_preserves_nested_module_order():
+    class NestedModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.first = _DummyModel(output_dim=2, init_m=1.25, init_b=0.4)
+            self.unrelated = nn.Identity()
+            self.second = _DummyModel(output_dim=3, init_m=1.5, init_b=0.5)
+
+    stats = collect_reactivation_stats(NestedModel())
+
+    assert list(stats) == ["first.reactivation", "second.reactivation"]
+
+
 def test_dump_init_gate_stats_flags_clipped_saturated_pattern(tmp_path):
     model = _DummyModel(output_dim=8, init_m=50.0, init_b=0.97)
 

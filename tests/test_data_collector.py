@@ -120,33 +120,6 @@ class TestDataCollector(unittest.TestCase):
             data,
         )
 
-    def test_load_ablation_legacy_schema_converts_to_canonical(self):
-        """Legacy 2-level payloads should still flatten correctly."""
-        collector = DataCollector(self.results_dir)
-        config_dir = self.results_dir / "results" / "config_0"
-
-        ablation_dir = config_dir / "ablation_analysis"
-        ablation_dir.mkdir(exist_ok=True)
-        with open(ablation_dir / "final.json", "w") as f:
-            json.dump(
-                {
-                    "layer": {
-                        "mean_clamp_upstream": {
-                            "core.layers.1": {
-                                "depth": 1,
-                                "pred_label_mi_bits_drop": 0.2,
-                            }
-                        }
-                    }
-                },
-                f,
-            )
-
-        data = collector._load_ablation(config_dir)
-        self.assertIn(
-            "ablation_mean_clamp_upstream_pred_label_mi_bits_drop_depth1", data
-        )
-
     def test_load_gain_enriched_schema_exports_raw_and_generalization_scores(self):
         """New multiplicative-gain payloads should expose raw, ID, and OOD scores."""
         collector = DataCollector(self.results_dir)

@@ -3,6 +3,7 @@ import torch.nn as nn
 from dendritic_modeling.config.regularization import RegularizationConfig
 from dendritic_modeling.config.training import ParamGroupsConfig
 from dendritic_modeling.models.base import BaseModel
+from dendritic_modeling.networks import BlockLinear, ParametricTanh, TopKLinear
 from dendritic_modeling.scripts.script_utils.config_utils import (
     normalize_param_groups_config,
     prepare_trainer_config,
@@ -46,6 +47,40 @@ def test_base_model_split_param_groups_are_named():
     assert "decoder" in names
     assert "catch_all" in names
     assert all("name" in group for group in groups)
+
+
+def test_base_model_split_param_groups_preserve_core_module_order():
+    model = _DummyModel()
+    model.core_network = nn.Sequential(
+        TopKLinear(4, 3, K=2),
+        BlockLinear(4, 2),
+        ParametricTanh(2),
+    )
+    model.decoder_network = nn.Linear(2, 1)
+    config = ParamGroupsConfig(
+        lr=0.05,
+        topk_lr=0.01,
+        blocklinear_lr=0.02,
+        reactivation_lr=0.03,
+        decoder_lr=0.04,
+        split_params=True,
+    )
+
+    groups = model.get_param_groups(config)
+
+    assert [(group["name"], group["lr"]) for group in groups] == [
+        ("topk", 0.01),
+        ("blocklinear", 0.02),
+        ("reactivation", 0.03),
+        ("decoder", 0.04),
+    ]
+    param_group_by_id = {
+        id(param): group["name"] for group in groups for param in group["params"]
+    }
+    assert param_group_by_id[id(model.core_network[0].pre_w)] == "topk"
+    assert param_group_by_id[id(model.core_network[1].log_weight)] == "blocklinear"
+    assert param_group_by_id[id(model.core_network[2].log_m)] == "reactivation"
+    assert param_group_by_id[id(model.decoder_network.weight)] == "decoder"
 
 
 def test_regularization_uses_explicit_param_group_name():

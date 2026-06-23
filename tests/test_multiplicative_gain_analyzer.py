@@ -212,10 +212,12 @@ def test_analyze_collects_metrics_and_respects_model_type(tmp_path, monkeypatch)
     result = analyzer.analyze(
         model=model, test_dataset=dataset, save_path=str(tmp_path)
     )
-    assert result["accuracy"] == [0.7, 0.7, 0.7]
-    assert result["auc"] == [0.8, 0.8, 0.8]
-    assert result["categorical_loglikelihood"] == [-1.2, -1.2, -1.2]
-    assert result["raw_scores"]["accuracy"] == result["accuracy"]
+    assert result["raw_scores"]["accuracy"] == [0.7, 0.7, 0.7]
+    assert result["raw_scores"]["auc"] == [0.8, 0.8, 0.8]
+    assert result["raw_scores"]["categorical_loglikelihood"] == [-1.2, -1.2, -1.2]
+    assert "accuracy" not in result
+    assert "auc" not in result
+    assert "categorical_loglikelihood" not in result
     assert result["ID"]["accuracy"] == 0.7
     assert result["OOD_lower"]["accuracy"] == pytest.approx(0.7)
     assert result["OOD_upper"]["accuracy"] == pytest.approx(0.7)
