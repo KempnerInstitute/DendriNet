@@ -6,7 +6,7 @@ Train an E-I network on MNIST
 
 .. code-block:: bash
 
-   python src/dendritic_modeling/scripts/training/train_experiments.py configs/config_exp.yaml
+   python -m dendritic_modeling.scripts.training.train_experiments configs/config_exp.yaml
 
 This runs a single experiment using the default configuration. Results are
 saved to the run output directory configured under ``outputs``.
@@ -16,28 +16,25 @@ Override parameters from the command line
 
 .. code-block:: bash
 
-   python src/dendritic_modeling/scripts/training/train_experiments.py \
+   python -m dendritic_modeling.scripts.training.train_experiments \
      configs/config_exp.yaml --seed 42 --output_dir results/my_run --run_name mnist_seed42
 
 Distributed training (DDP / FSDP)
 ----------------------------------
 
-Set ``distributed.mode`` in your YAML config and use the unified launcher:
+Use the package entry points directly; wrap them in a site-local SLURM script
+when running on a cluster:
 
 .. code-block:: bash
 
-   # Auto-selects entrypoint based on distributed.mode in YAML
-   sbatch scripts/train.sh configs/my_config.yaml
+   # DDP
+   torchrun --nproc_per_node=4 \
+     -m dendritic_modeling.scripts.training.train_experiments \
+     configs/my_config.yaml
 
-   # Multi-node (override nodes at submit time)
-   sbatch --nodes=2 scripts/train.sh configs/my_config.yaml
-
-   # Or use dedicated launchers directly
-   sbatch scripts/train_ddp.sh configs/my_config.yaml     # DDP
-   sbatch scripts/train_fsdp.sh configs/my_config.yaml    # FSDP
-
-   # Local (non-SLURM) single-node DDP/FSDP
-   bash scripts/train.sh configs/my_config.yaml
+   # FSDP
+   python -m dendritic_modeling.scripts.training.train_experiments_fsdp \
+     configs/my_config.yaml
 
 See :doc:`configuration_guide` for details on the ``distributed:`` config block.
 
@@ -47,11 +44,11 @@ Run a parameter sweep
 .. code-block:: bash
 
    # Generate configs and submit jobs
-   python src/dendritic_modeling/scripts/sweeps/sweep_manager.py \
+   python -m dendritic_modeling.scripts.sweeps.sweep_manager \
      --config configs/sweep_config.yaml
 
    # Analyze results
-   python src/dendritic_modeling/scripts/sweeps/result_analyzer.py \
+   python -m dendritic_modeling.scripts.sweeps.result_analyzer \
      /path/to/sweep/results
 
 Example model runs

@@ -4,25 +4,19 @@ Distributed Training Guide
 Quick Start
 -----------
 
-Set ``distributed.mode`` in your YAML config and use the unified launcher:
+Use the package entry points directly; wrap them in a site-local SLURM script
+when running on a cluster:
 
 .. code-block:: bash
 
    # DDP (data-parallel, model fits on one GPU)
-   sbatch scripts/train.sh configs/my_config.yaml
+   torchrun --nproc_per_node=4 \
+     -m dendritic_modeling.scripts.training.train_experiments \
+     configs/my_config.yaml
 
    # FSDP (model too large for one GPU)
-   sbatch scripts/train.sh configs/my_config.yaml
-
-   # Multi-node (2 nodes)
-   sbatch --nodes=2 scripts/train.sh configs/my_config.yaml
-
-Or use the dedicated launchers directly:
-
-.. code-block:: bash
-
-   sbatch scripts/train_ddp.sh configs/my_config.yaml
-   sbatch scripts/train_fsdp.sh configs/my_config.yaml
+   python -m dendritic_modeling.scripts.training.train_experiments_fsdp \
+     configs/my_config.yaml
 
 When to Use What
 ----------------

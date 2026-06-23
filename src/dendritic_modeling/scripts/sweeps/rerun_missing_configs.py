@@ -403,7 +403,7 @@ def generate_rerun_script(
         [
             f"#SBATCH --nodes={slurm_config.get('nodes', 1)}",
             f"#SBATCH --ntasks-per-node={slurm_config.get('ntasks_per_node', 1)}",
-            f"#SBATCH --gpus-per-node={slurm_config.get('gpus_per_node', 1)}",
+            f"#SBATCH --gres=gpu:{slurm_config.get('gpus_per_node', 1)}",
             f"#SBATCH --cpus-per-task={slurm_config.get('cpus_per_task', 10)}",
             f"#SBATCH --time={formatted_time}",
         ]

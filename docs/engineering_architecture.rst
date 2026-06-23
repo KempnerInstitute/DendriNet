@@ -139,78 +139,76 @@ Key Runtime Objects
 When you are tracing a bug or extending the code, these are the most useful
 landmarks to keep in mind:
 
-- ``src/dendritic_modeling/scripts/training/train_experiments.py``
-  : experiment entry point for standard training
-- ``src/dendritic_modeling/scripts/script_utils/setup_utils.py``
-  : environment setup and model initialization
-- ``src/dendritic_modeling/config/model_aliases.py``
-  : config alias canonicalization and type-implied model defaults
-- ``src/dendritic_modeling/scripts/script_utils/config_utils.py``
-  : script compatibility wrappers and config-to-runtime flattening helpers
-- ``src/dendritic_modeling/networks/architectures/factory.py``
-  : model factory and architecture dispatch
-- ``src/dendritic_modeling/networks/architectures/registry.py``
-  : extension registry for project-local architecture builders
-- ``src/dendritic_modeling/networks/architectures/excitation_inhibition``
-  : feedforward E/I implementation
-- ``src/dendritic_modeling/networks/architectures/excitation_inhibition/synapse``
-  : sparse synapse implementations and sparse-layer factory. ``factory.py``
-    owns sparse layer registration and lookup. ``indexed.py`` is the public
-    facade for fixed indexed, adaptive rewiring, and candidate-pool indexed
-    TopK layers; implementation files are split by behavior.
-- ``src/dendritic_modeling/networks/architectures/recurrent``
-  : recurrent unified-EI and population-network implementation
-- ``src/dendritic_modeling/networks/architectures/replacement``
-  : shared replacement-cell components: input adapters, dendritic core/output
-    adapter contracts, and layerwise replacement-stack helpers
-- ``src/dendritic_modeling/networks/architectures/transformer``
-  : transformer FFN replacement modules, config translation, parameter
-    estimates, and Hugging Face patching utilities. Transformer code owns
-    placement inside decoder blocks; the reusable replacement-cell contract
-    lives in ``architectures/replacement``. Population-network translation
-    helpers live in ``config_translation_population.py`` while
-    ``config_translation.py`` remains the stable public builder surface.
-- ``src/dendritic_modeling/networks/architectures/classical/pretrained.py``
-  : vision-backbone splitter for ``model.vision_replacement``; resolves
-    contiguous ``target_modules`` into encoder/core/decoder tensor contracts,
-    including spatial CNN spans when the core is convolutional
-- ``src/dendritic_modeling/training/vision_replacement.py``
-  : block-output distillation loop for vision replacement cores or patched
-    full vision models using cached tensors
-- ``src/dendritic_modeling/training/_transformer_replacement``
-  : transformer replacement training internals split by common result types,
-    data sources, checkpoint loading, evaluation, joint LM losses, and training
-    loops.  ``training/transformer_replacement.py`` remains the public import
-    facade.
-- ``src/dendritic_modeling/training/strategies/local_learning.py``
-  : public local-learning strategy. Signal construction, recorders, broadcast
-    helpers, STDP rules, and modulators live in focused
-    ``local_learning_*`` mixins.
-- ``src/dendritic_modeling/training/optimizers/factory.py``
-  : registry-backed optimizer construction
-- ``src/dendritic_modeling/training/loss/functions.py``
-  : registry-backed loss-function construction
-- ``src/dendritic_modeling/datasets/registry.py``
-  : extension registry for project-local dataset loaders
-- ``src/dendritic_modeling/datasets/sequence``
-  : sequence dataset package split by task family. ``sequence_datasets.py``
-    remains a compatibility facade.
-- ``src/dendritic_modeling/analysis/registry.py``
-  : analyzer metadata registry for discovery and future manager refactors
-- ``src/dendritic_modeling/analysis/managers/analysis_manager.py``
-  : lifecycle coordinator for analyzers
+- ``src/dendritic_modeling/scripts/training/train_experiments.py``:
+  experiment entry point for standard training
+- ``src/dendritic_modeling/scripts/script_utils/setup_utils.py``:
+  environment setup and model initialization
+- ``src/dendritic_modeling/config/model_aliases.py``:
+  config alias canonicalization and type-implied model defaults
+- ``src/dendritic_modeling/scripts/script_utils/config_utils.py``:
+  script compatibility wrappers and config-to-runtime flattening helpers
+- ``src/dendritic_modeling/networks/architectures/factory.py``:
+  model factory and architecture dispatch
+- ``src/dendritic_modeling/networks/architectures/registry.py``:
+  extension registry for project-local architecture builders
+- ``src/dendritic_modeling/networks/architectures/excitation_inhibition``:
+  feedforward E/I implementation
+- ``src/dendritic_modeling/networks/architectures/excitation_inhibition/synapse``:
+  sparse synapse implementations and sparse-layer factory. ``factory.py`` owns
+  sparse layer registration and lookup. ``indexed.py`` is the public facade for
+  fixed indexed, adaptive rewiring, and candidate-pool indexed TopK layers;
+  implementation files are split by behavior.
+- ``src/dendritic_modeling/networks/architectures/recurrent``:
+  recurrent unified-EI and population-network implementation
+- ``src/dendritic_modeling/networks/architectures/replacement``:
+  shared replacement-cell components: input adapters, dendritic core/output
+  adapter contracts, and layerwise replacement-stack helpers
+- ``src/dendritic_modeling/networks/architectures/transformer``:
+  transformer FFN replacement modules, config translation, parameter estimates,
+  and Hugging Face patching utilities. Transformer code owns placement inside
+  decoder blocks; the reusable replacement-cell contract lives in
+  ``architectures/replacement``. Population-network translation helpers live in
+  ``config_translation_population.py`` while ``config_translation.py`` remains
+  the stable public builder surface.
+- ``src/dendritic_modeling/networks/architectures/classical/pretrained.py``:
+  vision-backbone splitter for ``model.vision_replacement``; resolves contiguous
+  ``target_modules`` into encoder/core/decoder tensor contracts, including
+  spatial CNN spans when the core is convolutional
+- ``src/dendritic_modeling/training/vision_replacement.py``:
+  block-output distillation loop for vision replacement cores or patched full
+  vision models using cached tensors
+- ``src/dendritic_modeling/training/_transformer_replacement``:
+  transformer replacement training internals split by common result types, data
+  sources, checkpoint loading, evaluation, joint LM losses, and training loops.
+  ``training/transformer_replacement.py`` remains the public import facade.
+- ``src/dendritic_modeling/training/strategies/local_learning.py``:
+  public local-learning strategy. Signal construction, recorders, broadcast
+  helpers, STDP rules, and modulators live in focused ``local_learning_*``
+  mixins.
+- ``src/dendritic_modeling/training/optimizers/factory.py``:
+  registry-backed optimizer construction
+- ``src/dendritic_modeling/training/loss/functions.py``:
+  registry-backed loss-function construction
+- ``src/dendritic_modeling/datasets/registry.py``:
+  extension registry for project-local dataset loaders
+- ``src/dendritic_modeling/datasets/sequence``:
+  sequence dataset package split by task family. ``sequence_datasets.py``
+  remains a compatibility facade.
+- ``src/dendritic_modeling/analysis/registry.py``:
+  analyzer metadata registry for discovery and future manager refactors
+- ``src/dendritic_modeling/analysis/managers/analysis_manager.py``:
+  lifecycle coordinator for analyzers
 - ``src/dendritic_modeling/analysis/core/information_parts/information_helpers.py`` and
-  ``information_parts/information_results.py``
-  : pure information-analysis utilities for estimator math, unit conversion,
-    metric filtering, result aggregation, and layer-level summaries.
-    ``information_metrics_mixin.py``, ``information_hooks_mixin.py``, and
-    ``information_signal_mixin.py`` separate metric computation, hook
-    collection, and LDA/E-I signal summaries. ``information.py`` keeps the
-    public ``InformationAnalyzer`` entry point.
-- ``src/dendritic_modeling/networks/architectures/excitation_inhibition/dendritic/initialize.py``
-  : compatibility facade for dendritic branch initialization. Expectation
-    math, reactivation calibration, scaling, and named initialization methods
-    live in the adjacent ``initialize_*`` modules.
+  ``information_parts/information_results.py``: pure information-analysis
+  utilities for estimator math, unit conversion, metric filtering, result
+  aggregation, and layer-level summaries. ``information_metrics_mixin.py``,
+  ``information_hooks_mixin.py``, and ``information_signal_mixin.py`` separate
+  metric computation, hook collection, and LDA/E-I signal summaries.
+  ``information.py`` keeps the public ``InformationAnalyzer`` entry point.
+- ``src/dendritic_modeling/networks/architectures/excitation_inhibition/dendritic/initialize.py``:
+  compatibility facade for dendritic branch initialization. Expectation math,
+  reactivation calibration, scaling, and named initialization methods live in
+  the adjacent ``initialize_*`` modules.
 
 Artifacts and Outputs
 ---------------------

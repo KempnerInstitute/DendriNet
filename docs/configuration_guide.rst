@@ -1332,28 +1332,22 @@ the resources.
 FSDP-specific knobs (sharding strategy, mixed precision, CPU offload, etc.)
 live under ``distributed.fsdp``.
 
-Launch scripts
-~~~~~~~~~~~~~~
+Launch Commands
+~~~~~~~~~~~~~~~
 
-The unified launcher reads ``distributed.mode`` from the YAML:
-
-.. code-block:: bash
-
-   # Auto-selects entrypoint based on distributed.mode
-   sbatch scripts/train.sh configs/my_config.yaml
-
-   # Multi-node (override nodes at submit time)
-   sbatch --nodes=2 scripts/train.sh configs/my_config.yaml
-
-   # Override GPUs per node
-   sbatch scripts/train.sh configs/my_config.yaml 2
-
-Dedicated launchers are also available:
+Use the package entry points directly; wrap them in a site-local SLURM script
+when running on a cluster:
 
 .. code-block:: bash
 
-   sbatch scripts/train_ddp.sh configs/my_config.yaml      # DDP
-   sbatch scripts/train_fsdp.sh configs/my_config.yaml     # FSDP
+   # DDP
+   torchrun --nproc_per_node=4 \
+     -m dendritic_modeling.scripts.training.train_experiments \
+     configs/my_config.yaml
+
+   # FSDP
+   python -m dendritic_modeling.scripts.training.train_experiments_fsdp \
+     configs/my_config.yaml
 
 See :doc:`fsdp_troubleshooting` for FSDP-specific troubleshooting.
 

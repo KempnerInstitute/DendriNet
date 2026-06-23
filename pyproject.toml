@@ -180,7 +180,7 @@ exclude_lines = [
 # Ruff configuration
 [tool.ruff]
 line-length = 88
-target-version = "py38"
+target-version = "py310"
 exclude = [
     "external/**/*",
     "external/",
@@ -207,6 +207,9 @@ ignore = [
     "B008",  # do not perform function calls in argument defaults
     "B009",  # do not call getattr with a constant attribute value
     "B010",  # do not call setattr with a constant attribute value
+    "B905",  # zip(strict=...) migration deferred for current style
+    "UP007",  # keep Optional[...] annotations for consistency
+    "UP038",  # keep tuple-style isinstance checks for current compatibility
 ]
 
 [tool.ruff.format]
@@ -218,7 +221,7 @@ line-ending = "auto"
 # Black configuration (keeping for compatibility)
 [tool.black]
 line-length = 88
-target-version = ['py38']
+target-version = ['py310']
 include = '\.pyi?$'
 exclude = '''
 /(

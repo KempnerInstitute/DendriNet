@@ -1,20 +1,10 @@
 # Installation
 
-## Automated Setup
+Requires Python 3.10+. The default conda environment uses Python 3.11 and
+CUDA 12.1 for GPU installs; adjust or remove `pytorch-cuda` in
+`setup/environment.yml` for CPU-only or site-specific CUDA builds.
 
-```bash
-bash install.sh
-```
-
-Useful variants:
-
-```bash
-bash install.sh --quick
-bash install.sh --fix-only
-bash install.sh --verify
-```
-
-## Manual Setup
+## Conda Setup
 
 Create the default environment and install the package in editable mode:
 
@@ -27,9 +17,9 @@ pip install -e .
 Optional extras:
 
 ```bash
-pip install -e .[dev]
-pip install -e .[train]
-pip install -e .[all]
+pip install -e ".[dev]"
+pip install -e ".[train]"
+pip install -e ".[all]"
 ```
 
 ## Optional Dependency

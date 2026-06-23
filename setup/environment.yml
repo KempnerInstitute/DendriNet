@@ -4,7 +4,7 @@ channels:
   - pytorch
   - nvidia
 dependencies:
-  # Core Python (3.11 for better compatibility)
+  # Core Python. The package supports Python 3.10+; this env defaults to 3.11.
   - python=3.11
 
   # PyTorch ecosystem

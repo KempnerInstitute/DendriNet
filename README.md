@@ -18,46 +18,47 @@ synapses, spiking soma dynamics, and soma-to-dendrite feedback.
 ## Installation
 
 ```bash
-bash install.sh
+conda env create -f setup/environment.yml
+conda activate dendritic_env
+pip install -e .
 ```
 
-Manual setup is documented in [INSTALL.md](INSTALL.md).
+Full setup options are documented in [INSTALL.md](INSTALL.md).
 
 ## Common Commands
 
 Train a standard experiment:
 
 ```bash
-python src/dendritic_modeling/scripts/training/train_experiments.py \
+python -m dendritic_modeling.scripts.training.train_experiments \
     configs/config_exp.yaml
 ```
 
-Distributed training (DDP or FSDP) — set `distributed.mode` in your YAML
-config and use the unified launcher:
+Distributed training uses the package entry points directly; wrap these in a
+site-local SLURM script when running on a cluster:
 
 ```bash
-# Auto-selects entrypoint based on distributed.mode in YAML
-sbatch scripts/train.sh configs/my_config.yaml
+# DDP
+torchrun --nproc_per_node=4 \
+    -m dendritic_modeling.scripts.training.train_experiments \
+    configs/my_config.yaml
 
-# Multi-node
-sbatch --nodes=2 scripts/train.sh configs/my_config.yaml
-
-# Or use dedicated launchers directly
-sbatch scripts/train_ddp.sh configs/my_config.yaml
-sbatch scripts/train_fsdp.sh configs/my_config.yaml
+# FSDP
+python -m dendritic_modeling.scripts.training.train_experiments_fsdp \
+    configs/my_config.yaml
 ```
 
 Run a sweep from an example config:
 
 ```bash
-python src/dendritic_modeling/scripts/sweeps/sweep_manager.py \
+python -m dendritic_modeling.scripts.sweeps.sweep_manager \
     --config configs/sweep_config.yaml --generate-only
 ```
 
 Analyze an existing sweep:
 
 ```bash
-python src/dendritic_modeling/scripts/sweeps/result_analyzer.py \
+python -m dendritic_modeling.scripts.sweeps.result_analyzer \
     /path/to/sweep/results
 ```
 

@@ -209,7 +209,7 @@ class Trainer:
     ) -> tuple[DataLoader, DataLoader]:
         tuning = resolve_dataloader_tuning_from_config(
             train_data,
-            device=getattr(self, "device", None),
+            device=getattr(self, "device", "cpu"),
             config=self,
         )
         if not self.suppress_prints and tuning.auto_num_workers:

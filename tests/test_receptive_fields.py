@@ -370,3 +370,60 @@ def test_receptive_field_checkpoint_and_activation_tuning(tmp_path):
     assert loaded_results is not None
     assert loaded_results["raw_checkpoint_loaded"]
     assert loaded_results["n_receptive_fields"] == results["n_receptive_fields"]
+
+
+def test_receptive_field_rf_tuning_outputs(tmp_path):
+    model = _direct_inhibitory_model()
+    _x, _labels, dataset = _toy_dataset()
+    analyzer = ReceptiveFieldAnalyzer(
+        ReceptiveFieldAnalysisParams(
+            rf_shape=(1, 3),
+            compute_rf_tuning=True,
+            plot_rf_tuning=False,
+        )
+    )
+
+    results = analyzer.analyze(
+        model=model,
+        test_dataset=dataset,
+        device="cpu",
+        save_path=str(tmp_path),
+        filename="rf",
+    )
+
+    assert results is not None
+    assert "rf_tuning" in results
+    rf_tuning = results["rf_tuning"]
+    assert set(rf_tuning["agg_tuning"]) == {"exc", "inh"}
+    assert rf_tuning["n_exc_receptive_fields"] > 0
+    assert (tmp_path / "rf_rf_tuning.json").exists()
+    assert (tmp_path / "rf.json").exists()
+
+
+def test_receptive_field_rf_tuning_removes_hooks_after_failed_collection(
+    monkeypatch,
+):
+    model = _direct_inhibitory_model()
+    x, labels, _dataset = _toy_dataset()
+    analyzer = ReceptiveFieldAnalyzer(
+        ReceptiveFieldAnalysisParams(compute_rf_tuning=True)
+    )
+    layer = analyzer._get_rf_tuning_layer(model)
+    assert layer is not None
+
+    original_register = analyzer._rf_tuning_forward_hook
+    call_count = 0
+
+    def _fail_on_second_hook(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count > 1:
+            raise RuntimeError("rf tuning hook failed")
+        return original_register(*args, **kwargs)
+
+    monkeypatch.setattr(analyzer, "_rf_tuning_forward_hook", _fail_on_second_hook)
+
+    with pytest.raises(RuntimeError, match="rf tuning hook failed"):
+        analyzer._collect_rf_tuning_activation_data(model, layer, x, labels)
+
+    assert _count_registered_forward_hooks(model) == 0

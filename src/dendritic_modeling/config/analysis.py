@@ -1011,6 +1011,8 @@ class ReceptiveFieldAnalysisParams(BaseConfig):
     - exc_rf_shape / inh_rf_shape: optional synapse-specific receptive-field
       shapes; fall back to rf_shape when omitted.
     - compute_activation_tuning: also summarize class tuning of branch signals.
+    - compute_rf_tuning: run the richer iss369 aggregate RF tuning,
+      discriminability, entropy, and compartment activation analysis.
     """
 
     n_rows: int = 2
@@ -1020,6 +1022,10 @@ class ReceptiveFieldAnalysisParams(BaseConfig):
     inh_rf_shape: Optional[tuple[int, int]] = None
     fig_save_format: str = "png"
     compute_activation_tuning: bool = False
+    compute_rf_tuning: bool = False
+    plot_rf_tuning: bool = True
+    rf_tuning_layer_index: int = 0
+    n_class_examples: int = 5
     save_raw_data: bool = True
     load_raw_data: bool = False
     raw_filename: Optional[str] = None

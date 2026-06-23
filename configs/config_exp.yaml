@@ -915,6 +915,10 @@ analysis:
       inh_rf_shape: null                # list[int] | null: Inhibitory RF shape [H, W]
       fig_save_format: png              # str: Figure extension, e.g. png or pdf
       compute_activation_tuning: false  # bool: Class-tuning summaries from branch activations
+      compute_rf_tuning: false          # bool: Rich aggregate RF tuning/discriminability analysis
+      plot_rf_tuning: true              # bool: Save rich RF tuning plots on final analysis
+      rf_tuning_layer_index: 0          # int: E/I layer index used for rich RF tuning
+      n_class_examples: 5               # int: Examples per class in RF input-example plots
       save_raw_data: true               # bool: Save raw RF tensor checkpoint
       load_raw_data: false              # bool: Reuse raw RF checkpoint if present
       raw_filename: null                # str | null: Override raw RF checkpoint filename
