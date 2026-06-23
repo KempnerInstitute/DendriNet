@@ -24,7 +24,7 @@ class LoggerManager:
     def _initialize_logger(self):
         self.logger = logging.getLogger(LOGGER_NAME)
         self.logger.setLevel(logging.DEBUG)
-        self.logger.propagate = False
+        self.logger.propagate = True
 
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setLevel(logging.INFO)

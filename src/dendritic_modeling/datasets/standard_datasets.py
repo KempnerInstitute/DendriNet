@@ -720,10 +720,10 @@ def _wrap_poisson_generator_triplet(
     fixed_gain_factor: Optional[float],
     max_gain_factor: Optional[float],
     uniform_gain: bool,
-    gain_sampling: str,
     poisson_sampling: bool,
     stimulus_duration: float,
     max_gain_tau_ratio: Optional[float],
+    gain_sampling: str = "log_uniform",
 ) -> tuple[PoissonGeneratorDataset, PoissonGeneratorDataset, PoissonGeneratorDataset]:
     """Wrap train/validation/test datasets with identical Poisson settings."""
     kwargs = {
