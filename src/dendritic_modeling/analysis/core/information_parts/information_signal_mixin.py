@@ -128,7 +128,6 @@ class InformationSignalAggregationMixin(
         E_lin = np.zeros((n_samples, n_branches))
         I_lin = np.zeros((n_samples, n_branches))
         Vb_lin = np.zeros((n_samples, n_branches))
-        Vout_lin = np.zeros((n_samples, n_branches))
 
         # Check if we have enough classes for LDA
         if len(np.unique(C)) <= 1:
