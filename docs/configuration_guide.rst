@@ -358,9 +358,12 @@ Available modules: ``performance``, ``information``, ``correlation``,
 ``compartment_statistics``, ``compartment_snr``, ``multiplicative_gain``,
 ``receptive_field``, ``adversarial_robustness``, ``routing``,
 ``reactivation_dynamics``, ``inhibitory_specialization``,
-``jacobian_spectrum``, ``dendritic_timetraces``.
+``jacobian_spectrum``, ``dendritic_timetraces``, ``local_rule_components``,
+``spike_train``.
 
-See :doc:`analysis` for per-module parameter details.
+See :doc:`analysis` for per-module parameter details. For a copy/paste YAML
+reference with every preferred analysis key, default value, and option hint,
+use ``configs/templates/analysis_full_template.yaml``.
 
 Compatibility:
 

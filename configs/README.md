@@ -13,6 +13,8 @@ reference configs and reusable examples.
   `population_network` schema.
 - `sweep_config.yaml`: sweep template using
   population-network dot paths.
+- `templates/analysis_full_template.yaml`: copy/paste reference for the full
+  preferred `analysis:` block, including SNR/RF options and inline comments.
 - `examples/`: small, documented examples for common model families and features.
 - `vision/`: AlexNet / vision-backbone replacement examples.
 
