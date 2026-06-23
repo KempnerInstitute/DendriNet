@@ -16,6 +16,9 @@ Dataset iteration is controlled centrally via ``analysis.runtime``:
          batch_size: 256
          num_workers: 4
          pin_memory: true
+         persistent_workers: true
+         prefetch_factor: 4
+         in_order: null
          max_batches: null
          max_samples: null
          materialize_threshold_mb: 1024
@@ -24,6 +27,9 @@ Dataset iteration is controlled centrally via ``analysis.runtime``:
          batch_size: 256
          num_workers: 4
          pin_memory: true
+         persistent_workers: true
+         prefetch_factor: 4
+         in_order: null
          max_batches: null
          max_samples: null
          materialize_threshold_mb: 1024
@@ -34,18 +40,21 @@ ImageNet, ``mode: "stream"`` avoids materializing the full dataset on the
 device. For expensive analyses that still accumulate tensors on CPU
 (``information``, ``correlation``, some compartment analyses), use
 ``max_samples`` to bound total analysis memory explicitly.
+For ImageNet-scale streamed evaluation, ``in_order: false`` can reduce
+DataLoader head-of-line blocking; leave it ``null`` to keep PyTorch's default
+ordering behavior.
 Analyzers may temporarily move the model to the requested analysis device,
 but they restore the original device and train/eval mode before returning, so
 post-training analysis does not leave the model in a different execution state.
 When ``mode: "materialize"`` is selected and the dataset supports slicing,
-hook-based analyses also use a single full batch again, matching the old
-single-pass behavior on small single-GPU runs.
+hook-based analyses use a single full batch, matching single-pass behavior on
+small single-GPU runs.
 The default ``"auto"`` mode is preferred for most experiments: it preserves
-the old materialized behavior on small datasets while switching to streaming
+materialized behavior on small datasets while switching to streaming
 automatically when the estimated dataset footprint becomes large.
-If a config omits ``analysis.runtime`` entirely, non-distributed runs default
-to ``"materialize"`` for backward compatibility, while DDP/FSDP runs keep the
-generic ``"auto"`` default.
+If a config omits ``analysis.runtime`` entirely, non-distributed runs use
+``"materialize"`` by default, while DDP/FSDP runs keep the shared ``"auto"``
+default.
 
 .. contents:: On this page
    :local:
@@ -308,7 +317,18 @@ Each module follows the same ``enabled``/``training``/``params`` pattern.
    Per-compartment (E, I, branch, soma) activation statistics.
 
 ``compartment_snr``
-   Signal-to-noise ratio per compartment.
+   Discriminability-style compartment SNR. This is not a simple signal/noise
+   power ratio: branch-level scalar signals report ``d'^2`` as between-class
+   variance divided by total variance, while multivariate input/layer signals
+   report ``d_max``, ``d_total``, ``n_sig_dirs``, and ``ratio_sig_dirs`` from
+   between-class versus total covariance. The input view is controlled by
+   ``params.input_capture_mode``:
+
+   - ``"branch"`` (default): measure the actual tensors entering dendritic
+     branch layers. This is the preferred view for E/I dendritic analyses and
+     preserves the refactor/develop semantics.
+   - ``"network"``: measure model-level excitatory input and inhibitory-network
+     output diagnostics, which preserves the alternate iss369-style view.
 
 ``multiplicative_gain``
    Measures gain modulation by inhibitory inputs.
@@ -317,15 +337,28 @@ Each module follows the same ``enabled``/``training``/``params`` pattern.
    Records which branches are active per input class.
 
 ``receptive_field``
-   Computes dendritic receptive-field weight maps for all branch layers. Use
+   Computes dendritic receptive-field weight maps for all branch layers. The
+   default mode is the compact refactor/develop-style raw RF collector: it
+   gathers E/I branch weight maps, plots sampled receptive fields, and writes a
+   raw tensor checkpoint (``<filename>_raw_receptive_fields.pt`` by default) so
+   plots can be regenerated without re-reading model weights. Use
    ``params.rf_shape`` when excitatory and inhibitory receptive fields share one
    image shape, or ``params.exc_rf_shape`` / ``params.inh_rf_shape`` when the two
-   streams have different shapes. The analyzer saves a raw tensor checkpoint
-   (``<filename>_raw_receptive_fields.pt`` by default) so plots can be regenerated
-   without re-reading model weights; set ``params.load_raw_data: true`` to reuse
-   it. Set ``params.compute_activation_tuning: true`` to also summarize
-   class-preferred branch excitation, inhibition, E/I ratio, and output activation
-   from the provided test split.
+   streams have different shapes.
+
+   Two optional extensions are available:
+
+   - ``params.compute_activation_tuning: true`` adds class-preferred branch
+     excitation, inhibition, E/I ratio, and output activation summaries from the
+     provided test split.
+   - ``params.compute_rf_tuning: true`` enables the richer iss369-style RF
+     analysis: aggregate RF tuning, confusion/entropy summaries,
+     discriminability/d-prime heatmaps, preferred/unpreferred compartment
+     summaries, and E-vs-I RF/tuning plots. ``params.plot_rf_tuning`` controls
+     whether those rich plots are written during final analysis.
+
+   A fully commented analysis block, including every preferred RF and SNR key,
+   lives at ``configs/templates/analysis_full_template.yaml``.
 
 ``adversarial_robustness``
    FGSM attack evaluation at configurable epsilon values.
@@ -390,9 +423,9 @@ Each module follows the same ``enabled``/``training``/``params`` pattern.
 ``dendritic_timetraces``
    Synthetic time-trace simulator that uses the trained per-level ``tau`` and
    reactivation parameters to illustrate how a learned dendritic cascade
-   responds to a configurable input protocol. Legacy recurrent E/I layers keep
-   their historical ``layer_N`` keys; named population networks report keys such
-   as ``population_network/microcircuit.pyr``.
+   responds to a configurable input protocol. Structured recurrent E/I layers
+   report ``layer_N`` keys; named population networks report keys such as
+   ``population_network/microcircuit.pyr``.
 
    .. code-block:: yaml
 
@@ -426,18 +459,18 @@ Each module follows the same ``enabled``/``training``/``params`` pattern.
 Compatibility Notes
 -------------------
 
-Recurrent analysis helpers now share a small duck-typed introspection layer in
-``dendritic_modeling.analysis.utils.recurrent_introspection``. This preserves
-legacy E/I analysis outputs while allowing new analyzers and scripts to discover
-named populations, synapse-type support, and spiking soma state without knowing
-the concrete core class.
+Recurrent analysis helpers share a duck-typed introspection layer in
+``dendritic_modeling.analysis.utils.recurrent_introspection``. This keeps E/I
+analysis outputs stable while letting analyzers and scripts discover named
+populations, synapse-type support, and spiking soma state without knowing the
+concrete core class.
 The same compatibility pass lets hook-based synaptic activation and compartment
 statistics run on named recurrent population graphs when their underlying
 ``TopKLinear`` branch modules are present.
 
-Older configs that still use ``performance_analysis`` or the legacy
-``training_runtime`` / ``final_runtime`` performance blocks are still accepted
-and are migrated automatically at load time. New configs should prefer:
+Configs using ``performance_analysis`` or the
+``training_runtime`` / ``final_runtime`` performance blocks are accepted and
+migrated automatically at load time. Prefer:
 
 - ``analysis.runtime.training``
 - ``analysis.runtime.final``
@@ -446,8 +479,8 @@ and are migrated automatically at load time. New configs should prefer:
 
 If ``analysis.runtime`` is omitted entirely:
 
-- ``distributed.mode: none`` defaults to ``materialize`` for backward-compatible
-  single-process analysis.
+- ``distributed.mode: none`` defaults to ``materialize`` for single-process
+  analysis.
 - ``distributed.mode: ddp`` and ``distributed.mode: fsdp`` keep the shared
   ``auto`` default.
 - CPU analysis automatically disables ``pin_memory`` even if the runtime block

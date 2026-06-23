@@ -78,7 +78,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Complete Configuration Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Population-Network Reference Config</a></li>
 <li class="toctree-l1"><a class="reference internal" href="available_components.html">Available Components</a></li>
 <li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
 </ul>
@@ -120,6 +120,9 @@ during training vs only post-training) flags, plus module-specific <code class="
 <span class="w">      </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">256</span>
 <span class="w">      </span><span class="nt">num_workers</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
 <span class="w">      </span><span class="nt">pin_memory</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">persistent_workers</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">prefetch_factor</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<span class="w">      </span><span class="nt">in_order</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span>
 <span class="w">      </span><span class="nt">max_batches</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span>
 <span class="w">      </span><span class="nt">max_samples</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span>
 <span class="w">      </span><span class="nt">materialize_threshold_mb</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1024</span>
@@ -128,6 +131,9 @@ during training vs only post-training) flags, plus module-specific <code class="
 <span class="w">      </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">256</span>
 <span class="w">      </span><span class="nt">num_workers</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
 <span class="w">      </span><span class="nt">pin_memory</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">persistent_workers</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">prefetch_factor</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<span class="w">      </span><span class="nt">in_order</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span>
 <span class="w">      </span><span class="nt">max_batches</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span>
 <span class="w">      </span><span class="nt">max_samples</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span>
 <span class="w">      </span><span class="nt">materialize_threshold_mb</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1024</span>
@@ -139,18 +145,21 @@ ImageNet, <code class="docutils literal notranslate"><span class="pre">mode:</sp
 device. For expensive analyses that still accumulate tensors on CPU
 (<code class="docutils literal notranslate"><span class="pre">information</span></code>, <code class="docutils literal notranslate"><span class="pre">correlation</span></code>, some compartment analyses), use
 <code class="docutils literal notranslate"><span class="pre">max_samples</span></code> to bound total analysis memory explicitly.
+For ImageNet-scale streamed evaluation, <code class="docutils literal notranslate"><span class="pre">in_order:</span> <span class="pre">false</span></code> can reduce
+DataLoader head-of-line blocking; leave it <code class="docutils literal notranslate"><span class="pre">null</span></code> to keep PyTorch’s default
+ordering behavior.
 Analyzers may temporarily move the model to the requested analysis device,
 but they restore the original device and train/eval mode before returning, so
 post-training analysis does not leave the model in a different execution state.
 When <code class="docutils literal notranslate"><span class="pre">mode:</span> <span class="pre">&quot;materialize&quot;</span></code> is selected and the dataset supports slicing,
-hook-based analyses also use a single full batch again, matching the old
-single-pass behavior on small single-GPU runs.
+hook-based analyses use a single full batch, matching single-pass behavior on
+small single-GPU runs.
 The default <code class="docutils literal notranslate"><span class="pre">&quot;auto&quot;</span></code> mode is preferred for most experiments: it preserves
-the old materialized behavior on small datasets while switching to streaming
+materialized behavior on small datasets while switching to streaming
 automatically when the estimated dataset footprint becomes large.
-If a config omits <code class="docutils literal notranslate"><span class="pre">analysis.runtime</span></code> entirely, non-distributed runs default
-to <code class="docutils literal notranslate"><span class="pre">&quot;materialize&quot;</span></code> for backward compatibility, while DDP/FSDP runs keep the
-generic <code class="docutils literal notranslate"><span class="pre">&quot;auto&quot;</span></code> default.</p>
+If a config omits <code class="docutils literal notranslate"><span class="pre">analysis.runtime</span></code> entirely, non-distributed runs use
+<code class="docutils literal notranslate"><span class="pre">&quot;materialize&quot;</span></code> by default, while DDP/FSDP runs keep the shared <code class="docutils literal notranslate"><span class="pre">&quot;auto&quot;</span></code>
+default.</p>
 <nav class="contents local" id="on-this-page">
 <p class="topic-title">On this page</p>
 <ul class="simple">
@@ -394,21 +403,45 @@ configurable granularity.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">compartment_statistics</span></code></dt><dd><p>Per-compartment (E, I, branch, soma) activation statistics.</p>
 </dd>
-<dt><code class="docutils literal notranslate"><span class="pre">compartment_snr</span></code></dt><dd><p>Signal-to-noise ratio per compartment.</p>
+<dt><code class="docutils literal notranslate"><span class="pre">compartment_snr</span></code></dt><dd><p>Discriminability-style compartment SNR. This is not a simple signal/noise
+power ratio: branch-level scalar signals report <code class="docutils literal notranslate"><span class="pre">d'^2</span></code> as between-class
+variance divided by total variance, while multivariate input/layer signals
+report <code class="docutils literal notranslate"><span class="pre">d_max</span></code>, <code class="docutils literal notranslate"><span class="pre">d_total</span></code>, <code class="docutils literal notranslate"><span class="pre">n_sig_dirs</span></code>, and <code class="docutils literal notranslate"><span class="pre">ratio_sig_dirs</span></code> from
+between-class versus total covariance. The input view is controlled by
+<code class="docutils literal notranslate"><span class="pre">params.input_capture_mode</span></code>:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;branch&quot;</span></code> (default): measure the actual tensors entering dendritic
+branch layers. This is the preferred view for E/I dendritic analyses and
+preserves the refactor/develop semantics.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&quot;network&quot;</span></code>: measure model-level excitatory input and inhibitory-network
+output diagnostics, which preserves the alternate iss369-style view.</p></li>
+</ul>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">multiplicative_gain</span></code></dt><dd><p>Measures gain modulation by inhibitory inputs.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">routing</span></code></dt><dd><p>Records which branches are active per input class.</p>
 </dd>
-<dt><code class="docutils literal notranslate"><span class="pre">receptive_field</span></code></dt><dd><p>Computes dendritic receptive-field weight maps for all branch layers. Use
+<dt><code class="docutils literal notranslate"><span class="pre">receptive_field</span></code></dt><dd><p>Computes dendritic receptive-field weight maps for all branch layers. The
+default mode is the compact refactor/develop-style raw RF collector: it
+gathers E/I branch weight maps, plots sampled receptive fields, and writes a
+raw tensor checkpoint (<code class="docutils literal notranslate"><span class="pre">&lt;filename&gt;_raw_receptive_fields.pt</span></code> by default) so
+plots can be regenerated without re-reading model weights. Use
 <code class="docutils literal notranslate"><span class="pre">params.rf_shape</span></code> when excitatory and inhibitory receptive fields share one
 image shape, or <code class="docutils literal notranslate"><span class="pre">params.exc_rf_shape</span></code> / <code class="docutils literal notranslate"><span class="pre">params.inh_rf_shape</span></code> when the two
-streams have different shapes. The analyzer saves a raw tensor checkpoint
-(<code class="docutils literal notranslate"><span class="pre">&lt;filename&gt;_raw_receptive_fields.pt</span></code> by default) so plots can be regenerated
-without re-reading model weights; set <code class="docutils literal notranslate"><span class="pre">params.load_raw_data:</span> <span class="pre">true</span></code> to reuse
-it. Set <code class="docutils literal notranslate"><span class="pre">params.compute_activation_tuning:</span> <span class="pre">true</span></code> to also summarize
-class-preferred branch excitation, inhibition, E/I ratio, and output activation
-from the provided test split.</p>
+streams have different shapes.</p>
+<p>Two optional extensions are available:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">params.compute_activation_tuning:</span> <span class="pre">true</span></code> adds class-preferred branch
+excitation, inhibition, E/I ratio, and output activation summaries from the
+provided test split.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">params.compute_rf_tuning:</span> <span class="pre">true</span></code> enables the richer iss369-style RF
+analysis: aggregate RF tuning, confusion/entropy summaries,
+discriminability/d-prime heatmaps, preferred/unpreferred compartment
+summaries, and E-vs-I RF/tuning plots. <code class="docutils literal notranslate"><span class="pre">params.plot_rf_tuning</span></code> controls
+whether those rich plots are written during final analysis.</p></li>
+</ul>
+<p>A fully commented analysis block, including every preferred RF and SNR key,
+lives at <code class="docutils literal notranslate"><span class="pre">configs/templates/analysis_full_template.yaml</span></code>.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">adversarial_robustness</span></code></dt><dd><p>FGSM attack evaluation at configurable epsilon values.</p>
 </dd>
@@ -464,9 +497,9 @@ and recurrent inhibition at each dendritic level, together with per-level
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">dendritic_timetraces</span></code></dt><dd><p>Synthetic time-trace simulator that uses the trained per-level <code class="docutils literal notranslate"><span class="pre">tau</span></code> and
 reactivation parameters to illustrate how a learned dendritic cascade
-responds to a configurable input protocol. Legacy recurrent E/I layers keep
-their historical <code class="docutils literal notranslate"><span class="pre">layer_N</span></code> keys; named population networks report keys such
-as <code class="docutils literal notranslate"><span class="pre">population_network/microcircuit.pyr</span></code>.</p>
+responds to a configurable input protocol. Structured recurrent E/I layers
+report <code class="docutils literal notranslate"><span class="pre">layer_N</span></code> keys; named population networks report keys such as
+<code class="docutils literal notranslate"><span class="pre">population_network/microcircuit.pyr</span></code>.</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">dendritic_timetraces_analysis</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
@@ -498,17 +531,17 @@ factors, and ISI mean/CV.</p>
 </section>
 <section id="compatibility-notes">
 <h2><a class="toc-backref" href="#id13" role="doc-backlink">Compatibility Notes</a><a class="headerlink" href="#compatibility-notes" title="Link to this heading"></a></h2>
-<p>Recurrent analysis helpers now share a small duck-typed introspection layer in
-<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.analysis.utils.recurrent_introspection</span></code>. This preserves
-legacy E/I analysis outputs while allowing new analyzers and scripts to discover
-named populations, synapse-type support, and spiking soma state without knowing
-the concrete core class.
+<p>Recurrent analysis helpers share a duck-typed introspection layer in
+<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.analysis.utils.recurrent_introspection</span></code>. This keeps E/I
+analysis outputs stable while letting analyzers and scripts discover named
+populations, synapse-type support, and spiking soma state without knowing the
+concrete core class.
 The same compatibility pass lets hook-based synaptic activation and compartment
 statistics run on named recurrent population graphs when their underlying
 <code class="docutils literal notranslate"><span class="pre">TopKLinear</span></code> branch modules are present.</p>
-<p>Older configs that still use <code class="docutils literal notranslate"><span class="pre">performance_analysis</span></code> or the legacy
-<code class="docutils literal notranslate"><span class="pre">training_runtime</span></code> / <code class="docutils literal notranslate"><span class="pre">final_runtime</span></code> performance blocks are still accepted
-and are migrated automatically at load time. New configs should prefer:</p>
+<p>Configs using <code class="docutils literal notranslate"><span class="pre">performance_analysis</span></code> or the
+<code class="docutils literal notranslate"><span class="pre">training_runtime</span></code> / <code class="docutils literal notranslate"><span class="pre">final_runtime</span></code> performance blocks are accepted and
+migrated automatically at load time. Prefer:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">analysis.runtime.training</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">analysis.runtime.final</span></code></p></li>
@@ -517,8 +550,8 @@ and are migrated automatically at load time. New configs should prefer:</p>
 </ul>
 <p>If <code class="docutils literal notranslate"><span class="pre">analysis.runtime</span></code> is omitted entirely:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">distributed.mode:</span> <span class="pre">none</span></code> defaults to <code class="docutils literal notranslate"><span class="pre">materialize</span></code> for backward-compatible
-single-process analysis.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">distributed.mode:</span> <span class="pre">none</span></code> defaults to <code class="docutils literal notranslate"><span class="pre">materialize</span></code> for single-process
+analysis.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">distributed.mode:</span> <span class="pre">ddp</span></code> and <code class="docutils literal notranslate"><span class="pre">distributed.mode:</span> <span class="pre">fsdp</span></code> keep the shared
 <code class="docutils literal notranslate"><span class="pre">auto</span></code> default.</p></li>
 <li><p>CPU analysis automatically disables <code class="docutils literal notranslate"><span class="pre">pin_memory</span></code> even if the runtime block

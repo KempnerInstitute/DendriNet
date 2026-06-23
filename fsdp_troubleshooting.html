@@ -19,7 +19,7 @@
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Complete Configuration Reference" href="config_reference.html" />
+    <link rel="next" title="Population-Network Reference Config" href="config_reference.html" />
     <link rel="prev" title="Parameter Sweeps" href="sweeps.html" /> 
 </head>
 
@@ -75,7 +75,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Complete Configuration Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Population-Network Reference Config</a></li>
 <li class="toctree-l1"><a class="reference internal" href="available_components.html">Available Components</a></li>
 <li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
 </ul>
@@ -108,20 +108,16 @@
 <h1>Distributed Training Guide<a class="headerlink" href="#distributed-training-guide" title="Link to this heading"></a></h1>
 <section id="quick-start">
 <h2>Quick Start<a class="headerlink" href="#quick-start" title="Link to this heading"></a></h2>
-<p>Set <code class="docutils literal notranslate"><span class="pre">distributed.mode</span></code> in your YAML config and use the unified launcher:</p>
+<p>Use the package entry points directly; wrap them in a site-local SLURM script
+when running on a cluster:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># DDP (data-parallel, model fits on one GPU)</span>
-sbatch<span class="w"> </span>scripts/train.sh<span class="w"> </span>configs/my_config.yaml
+torchrun<span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">4</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-m<span class="w"> </span>dendritic_modeling.scripts.training.train_experiments<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/my_config.yaml
 
 <span class="c1"># FSDP (model too large for one GPU)</span>
-sbatch<span class="w"> </span>scripts/train.sh<span class="w"> </span>configs/my_config.yaml
-
-<span class="c1"># Multi-node (2 nodes)</span>
-sbatch<span class="w"> </span>--nodes<span class="o">=</span><span class="m">2</span><span class="w"> </span>scripts/train.sh<span class="w"> </span>configs/my_config.yaml
-</pre></div>
-</div>
-<p>Or use the dedicated launchers directly:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sbatch<span class="w"> </span>scripts/train_ddp.sh<span class="w"> </span>configs/my_config.yaml
-sbatch<span class="w"> </span>scripts/train_fsdp.sh<span class="w"> </span>configs/my_config.yaml
+python<span class="w"> </span>-m<span class="w"> </span>dendritic_modeling.scripts.training.train_experiments_fsdp<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/my_config.yaml
 </pre></div>
 </div>
 </section>
@@ -135,7 +131,7 @@ sbatch<span class="w"> </span>scripts/train_fsdp.sh<span class="w"> </span>confi
 </thead>
 <tbody>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">none</span></code></p></td>
-<td><p>Model fits on one GPU; development and debugging</p></td>
+<td><p>Model fits on one GPU; single-process debugging</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ddp</span></code></p></td>
 <td><p>Model fits on one GPU; want data-parallel speedup across GPUs</p></td>
@@ -224,7 +220,7 @@ nvidia-smi
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="sweeps.html" class="btn btn-neutral float-left" title="Parameter Sweeps" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="config_reference.html" class="btn btn-neutral float-right" title="Complete Configuration Reference" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="config_reference.html" class="btn btn-neutral float-right" title="Population-Network Reference Config" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

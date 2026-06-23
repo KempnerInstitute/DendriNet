@@ -47,13 +47,12 @@
 <li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quick Start</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Runnable Config Examples</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="#recommended-ladder">Recommended Ladder</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#example-map">Example Map</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#feedforward-population-network">Feedforward Population Network</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#cifar-10-and-developmental-sparsity">CIFAR-10 and Developmental Sparsity</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#heterogeneous-and-multilayer-networks">Heterogeneous and Multilayer Networks</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#legacy-input-mode-equivalents">Legacy Input-Mode Equivalents</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#recurrent-taus-spiking-and-feedback">Recurrent, Taus, Spiking, and Feedback</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#local-learning-and-multi-stage-training">Local Learning and Multi-stage Training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#local-learning">Local Learning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#transformer-replacement">Transformer Replacement</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#vision-backbone-replacement">Vision Backbone Replacement</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#other-public-config-areas">Other Public Config Areas</a></li>
@@ -73,7 +72,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Complete Configuration Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Population-Network Reference Config</a></li>
 <li class="toctree-l1"><a class="reference internal" href="available_components.html">Available Components</a></li>
 <li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
 </ul>
@@ -104,19 +103,25 @@
              
   <section id="runnable-config-examples">
 <h1>Runnable Config Examples<a class="headerlink" href="#runnable-config-examples" title="Link to this heading"></a></h1>
-<p><code class="docutils literal notranslate"><span class="pre">configs/examples/</span></code> is the curated public example set. New structured
-network examples use one convention:</p>
+<p><code class="docutils literal notranslate"><span class="pre">configs/examples/</span></code> contains runnable examples for the main model families
+and feature combinations. Structured population examples use one convention:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">model.core.type:</span> <span class="pre">population_network</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">model.core.population_network.layers[].populations</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">model.core.population_network.layers[].connections</span></code></p></li>
 </ul>
-<p>Older E/I aliases remain supported by the code for reproducibility, but they
-are not duplicated in the public examples. Specialized ImageNet/AlexNet
-configs live under <code class="docutils literal notranslate"><span class="pre">configs/vision/</span></code>; transformer benchmark configs live
-with their Slurm jobs under <code class="docutils literal notranslate"><span class="pre">jobs/transformer_replacement_benchmarks/</span></code>.</p>
-<section id="recommended-ladder">
-<h2>Recommended Ladder<a class="headerlink" href="#recommended-ladder" title="Link to this heading"></a></h2>
+<p>General population-network examples use <code class="docutils literal notranslate"><span class="pre">topk_type:</span> <span class="pre">indexed_rewire</span></code> and
+<code class="docutils literal notranslate"><span class="pre">efficient_blocklinear:</span> <span class="pre">true</span></code> so the public examples exercise the
+memory-efficient sparse path with same-dendrite turnover.  The
+dense-to-sparse example remains a named variant for developmental pruning.
+Transformer and vision replacement examples use the same sparse-synapse and
+branch-aggregation defaults through their population-network core definitions.</p>
+<p>E/I alias configs are supported by the loader and factory, but the examples
+focus on the population-network schema. ImageNet/AlexNet configs live under
+<code class="docutils literal notranslate"><span class="pre">configs/vision/</span></code>; transformer benchmark configs live under
+<code class="docutils literal notranslate"><span class="pre">configs/transformer_replacement_benchmarks/</span></code>.</p>
+<section id="example-map">
+<h2>Example Map<a class="headerlink" href="#example-map" title="Link to this heading"></a></h2>
 <table class="docutils align-default">
 <colgroup>
 <col style="width: 22.0%" />
@@ -139,23 +144,6 @@ with their Slurm jobs under <code class="docutils literal notranslate"><span cla
 same-step <code class="docutils literal notranslate"><span class="pre">i</span> <span class="pre">-&gt;</span> <span class="pre">e</span></code> inhibition.</p></td>
 </tr>
 <tr class="row-odd"><td><ol class="arabic simple" start="2">
-<li><p>Independent transfer streams</p></li>
-</ol>
-</td>
-<td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_independent_transfer.yaml</span></code></p></td>
-<td><p>Legacy-style split input streams addressed as <code class="docutils literal notranslate"><span class="pre">input_e</span></code> and
-<code class="docutils literal notranslate"><span class="pre">input_i</span></code> while still using named populations.</p></td>
-</tr>
-<tr class="row-even"><td><ol class="arabic simple" start="3">
-<li><p>Legacy input-mode equivalence</p></li>
-</ol>
-</td>
-<td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_input_mode0_one_layer.yaml</span></code> and
-<code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_input_mode1_one_layer.yaml</span></code></p></td>
-<td><p>Original <code class="docutils literal notranslate"><span class="pre">input_mode=0</span></code> inhibitory-cell construction versus
-<code class="docutils literal notranslate"><span class="pre">input_mode=1</span></code> direct inhibitory streams in the new schema.</p></td>
-</tr>
-<tr class="row-odd"><td><ol class="arabic simple" start="4">
 <li><p>CIFAR-10 training recipe</p></li>
 </ol>
 </td>
@@ -163,14 +151,14 @@ same-step <code class="docutils literal notranslate"><span class="pre">i</span> 
 <td><p>128E/32I, <code class="docutils literal notranslate"><span class="pre">[3,</span> <span class="pre">3,</span> <span class="pre">3]</span></code> morphology, <code class="docutils literal notranslate"><span class="pre">40E/10I</span></code> synapses,
 <code class="docutils literal notranslate"><span class="pre">occupancy_quantile</span></code> gates, weight decay, and weight boosting.</p></td>
 </tr>
-<tr class="row-even"><td><ol class="arabic simple" start="5">
+<tr class="row-even"><td><ol class="arabic simple" start="3">
 <li><p>Dense-to-sparse pruning</p></li>
 </ol>
 </td>
 <td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_dense_to_sparse_cifar10.yaml</span></code></p></td>
 <td><p>Starts from dense allowed synapses and anneals to the TopK budget.</p></td>
 </tr>
-<tr class="row-odd"><td><ol class="arabic simple" start="6">
+<tr class="row-odd"><td><ol class="arabic simple" start="4">
 <li><p>Indexed rewiring</p></li>
 </ol>
 </td>
@@ -178,7 +166,7 @@ same-step <code class="docutils literal notranslate"><span class="pre">i</span> 
 <td><p>Memory-efficient sparse storage plus adaptive-quantile replacement of
 weak same-dendrite synapses.</p></td>
 </tr>
-<tr class="row-even"><td><ol class="arabic simple" start="7">
+<tr class="row-even"><td><ol class="arabic simple" start="5">
 <li><p>Normalized additive control</p></li>
 </ol>
 </td>
@@ -186,7 +174,14 @@ weak same-dendrite synapses.</p></td>
 <td><p>Explicit normalized-additive model; raw additive uses
 <code class="docutils literal notranslate"><span class="pre">use_additive_normalization:</span> <span class="pre">false</span></code>.</p></td>
 </tr>
-<tr class="row-odd"><td><ol class="arabic simple" start="8">
+<tr class="row-odd"><td><ol class="arabic simple" start="6">
+<li><p>Local credit assignment</p></li>
+</ol>
+</td>
+<td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_local_learning_mnist.yaml</span></code></p></td>
+<td><p>Local dendritic credit-assignment rules with a population-network core.</p></td>
+</tr>
+<tr class="row-even"><td><ol class="arabic simple" start="7">
 <li><p>Heterogeneous cell types</p></li>
 </ol>
 </td>
@@ -194,7 +189,7 @@ weak same-dendrite synapses.</p></td>
 <td><p>Multiple E and I populations in one layer with per-population
 morphology and parameter overrides.</p></td>
 </tr>
-<tr class="row-even"><td><ol class="arabic simple" start="9">
+<tr class="row-odd"><td><ol class="arabic simple" start="8">
 <li><p>Two-layer routing</p></li>
 </ol>
 </td>
@@ -202,13 +197,21 @@ morphology and parameter overrides.</p></td>
 <td><p>Cross-layer sources such as <code class="docutils literal notranslate"><span class="pre">layer0.e0</span></code> plus local same-step
 inhibition in each layer.</p></td>
 </tr>
-<tr class="row-odd"><td><ol class="arabic simple" start="10">
+<tr class="row-even"><td><ol class="arabic simple" start="9">
 <li><p>Recurrent microcircuit</p></li>
 </ol>
 </td>
 <td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_recurrent_pyr_pv_sst.yaml</span></code></p></td>
 <td><p>Pyr/PV/SST populations, probabilistic edges, and delayed recurrent
 timing.</p></td>
+</tr>
+<tr class="row-odd"><td><ol class="arabic simple" start="10">
+<li><p>Dendritic taus and delayed edges</p></li>
+</ol>
+</td>
+<td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_taus_and_delays.yaml</span></code></p></td>
+<td><p>Layer <code class="docutils literal notranslate"><span class="pre">dt</span></code>, dendritic time constants, receptor time constants, and
+delayed population edges in one compact recurrent example.</p></td>
 </tr>
 <tr class="row-even"><td><ol class="arabic simple" start="11">
 <li><p>Synapse types</p></li>
@@ -257,8 +260,7 @@ feedback.</p></td>
 </section>
 <section id="cifar-10-and-developmental-sparsity">
 <h2>CIFAR-10 and Developmental Sparsity<a class="headerlink" href="#cifar-10-and-developmental-sparsity" title="Link to this heading"></a></h2>
-<p>Use <code class="docutils literal notranslate"><span class="pre">population_network_cifar10.yaml</span></code> for the maintained CIFAR-10 E/I
-training recipe:</p>
+<p>Use <code class="docutils literal notranslate"><span class="pre">population_network_cifar10.yaml</span></code> for CIFAR-10 E/I training:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>configs/examples/population_network_cifar10.yaml
@@ -291,39 +293,9 @@ types in one layer. Each population can override morphology, shunting/additive
 mode, synapse budgets, receptor mixtures, spiking settings, and feedback
 settings through its nested <code class="docutils literal notranslate"><span class="pre">population:</span></code> block.</p>
 <p><code class="docutils literal notranslate"><span class="pre">population_network_two_layer.yaml</span></code> shows how later layers consume earlier
-population outputs by qualified names such as <code class="docutils literal notranslate"><span class="pre">layer0.e0</span></code> and <code class="docutils literal notranslate"><span class="pre">layer0.i0</span></code>.</p>
-</section>
-<section id="legacy-input-mode-equivalents">
-<h2>Legacy Input-Mode Equivalents<a class="headerlink" href="#legacy-input-mode-equivalents" title="Link to this heading"></a></h2>
-<p>These examples show the original E/I feedforward conventions written in the
-new population-network notation:</p>
-<table class="docutils align-default">
-<colgroup>
-<col style="width: 45.0%" />
-<col style="width: 55.0%" />
-</colgroup>
-<thead>
-<tr class="row-odd"><th class="head"><p>Config</p></th>
-<th class="head"><p>Meaning</p></th>
-</tr>
-</thead>
-<tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">population_network_input_mode0_one_layer.yaml</span></code></p></td>
-<td><p>One-layer <code class="docutils literal notranslate"><span class="pre">input_mode=0</span></code>: explicit inhibitory cells
-<code class="docutils literal notranslate"><span class="pre">input_e</span> <span class="pre">-&gt;</span> <span class="pre">i0</span> <span class="pre">-&gt;</span> <span class="pre">e0</span></code>.</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">population_network_input_mode1_one_layer.yaml</span></code></p></td>
-<td><p>One-layer <code class="docutils literal notranslate"><span class="pre">input_mode=1</span></code>: no explicit I cells; <code class="docutils literal notranslate"><span class="pre">input_i</span></code> drives the
-E population’s inhibitory dendritic pathway.</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">population_network_input_mode0_two_layer.yaml</span></code></p></td>
-<td><p>Two-layer version with an inhibitory population in each layer.</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">population_network_input_mode1_two_layer.yaml</span></code></p></td>
-<td><p>Two-layer version with direct inhibitory pathways into each E layer.</p></td>
-</tr>
-</tbody>
-</table>
+population outputs by qualified names such as <code class="docutils literal notranslate"><span class="pre">layer0.e0</span></code> and <code class="docutils literal notranslate"><span class="pre">layer0.i0</span></code>.
+Transfer-stream variants can be expressed directly with <code class="docutils literal notranslate"><span class="pre">connections</span></code> and
+external sources such as <code class="docutils literal notranslate"><span class="pre">input_e</span></code> and <code class="docutils literal notranslate"><span class="pre">input_i</span></code>.</p>
 </section>
 <section id="recurrent-taus-spiking-and-feedback">
 <h2>Recurrent, Taus, Spiking, and Feedback<a class="headerlink" href="#recurrent-taus-spiking-and-feedback" title="Link to this heading"></a></h2>
@@ -342,17 +314,11 @@ E population’s inhibitory dendritic pathway.</p></td>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">population_network_recurrent_pyr_pv_sst.yaml</span></code></p></td>
 <td><p>Single recurrent Pyr/PV/SST microcircuit with delayed edges.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">population_network_multilayer_recurrent.yaml</span></code></p></td>
-<td><p>Multiple recurrent population layers with cross-layer routing.</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">population_network_taus_and_delays.yaml</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">population_network_taus_and_delays.yaml</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">layers[].dt</span></code>, dendritic <code class="docutils literal notranslate"><span class="pre">tau_*</span></code> controls, and delayed edges.</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">population_network_spiking.yaml</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">population_network_spiking.yaml</span></code></p></td>
 <td><p>LIF soma dynamics and spike-trace readout.</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">population_network_spiking_multilayer_recurrent.yaml</span></code></p></td>
-<td><p>Spiking dynamics in a stacked recurrent population network.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">population_network_soma_feedback.yaml</span></code></p></td>
 <td><p>Previous-timestep soma-to-dendrite feedback.</p></td>
@@ -360,37 +326,34 @@ E population’s inhibitory dendritic pathway.</p></td>
 </tbody>
 </table>
 </section>
-<section id="local-learning-and-multi-stage-training">
-<h2>Local Learning and Multi-stage Training<a class="headerlink" href="#local-learning-and-multi-stage-training" title="Link to this heading"></a></h2>
+<section id="local-learning">
+<h2>Local Learning<a class="headerlink" href="#local-learning" title="Link to this heading"></a></h2>
 <p>Training strategies use the same population-network model schema:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>configs/examples/population_network_local_learning_mnist.yaml
-
-<span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>configs/examples/population_network_multistage_cifar10.yaml
 </pre></div>
 </div>
 </section>
 <section id="transformer-replacement">
 <h2>Transformer Replacement<a class="headerlink" href="#transformer-replacement" title="Link to this heading"></a></h2>
-<p>The small synthetic transformer replacement smoke test remains in
-<code class="docutils literal notranslate"><span class="pre">configs/examples</span></code> because it is fast and self-contained:</p>
+<p>The synthetic transformer replacement example trains a token-wise
+<code class="docutils literal notranslate"><span class="pre">DendriticFFNReplacement</span></code> against a small teacher MLP:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>dendritic_modeling.scripts.training.train_transformer_replacement<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>configs/examples/transformer_replacement_synthetic_distillation.yaml
 </pre></div>
 </div>
-<p>Large Hugging Face replacement configs are operational benchmark configs and
-live under <code class="docutils literal notranslate"><span class="pre">jobs/transformer_replacement_benchmarks/configs/</span></code>.</p>
+<p>Full Hugging Face replacement benchmark configs live under
+<code class="docutils literal notranslate"><span class="pre">configs/transformer_replacement_benchmarks/</span></code>.</p>
 </section>
 <section id="vision-backbone-replacement">
 <h2>Vision Backbone Replacement<a class="headerlink" href="#vision-backbone-replacement" title="Link to this heading"></a></h2>
-<p>Vision replacement configs live under <code class="docutils literal notranslate"><span class="pre">configs/vision/</span></code> because they are
-larger operational examples rather than small public smoke tests. They use
-<code class="docutils literal notranslate"><span class="pre">model.pretrained_replacement</span></code> to split a torchvision backbone into a frozen
-or trainable prefix, a dendritic replacement core, and a suffix.</p>
+<p>Vision replacement configs live under <code class="docutils literal notranslate"><span class="pre">configs/vision/</span></code>. They use
+<code class="docutils literal notranslate"><span class="pre">model.vision_replacement</span></code> to split a torchvision backbone into a frozen
+or trainable prefix, a dendritic replacement core, and a suffix. The active
+examples use indexed-dynamic sparse synapses and efficient branch aggregation
+for their dendritic replacement cores.</p>
 <table class="docutils align-default">
 <colgroup>
 <col style="width: 42.0%" />
@@ -412,7 +375,7 @@ or trainable prefix, a dendritic replacement core, and a suffix.</p>
 <td><p>Same K=1 replacement configured for DDP.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">configs/vision/pretrained_alexnet_fc.yaml</span></code></p></td>
-<td><p>Fully connected pretrained replacement with
+<td><p>Fully connected vision replacement with
 <code class="docutils literal notranslate"><span class="pre">hierarchical_dendritic_tensor_map</span></code>.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">configs/vision/pretrained_alexnet_conv.yaml</span></code></p></td>

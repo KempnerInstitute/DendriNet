@@ -22,15 +22,13 @@ Standard Datasets
    CIFAR-10. 32x32 color, 10 classes.
 
 ``imagenet``
-   ImageNet classification. By default, preprocessing uses the historical
-   ``legacy_resize`` preset for backward-compatible configs. Pretrained
+   ImageNet classification. By default, preprocessing uses the
+   ``legacy_resize`` resize preset. Pretrained
    backbone runs should set ``transform_preset: "pretrained"`` for
    RandomResizedCrop/flip training transforms and Resize/CenterCrop eval
-   transforms. Missing ImageNet roots raise an error unless
-   ``allow_fake_data: true`` is set explicitly for smoke tests. Flattening is
-   rejected unless ``allow_flatten_materialize: true`` is set because full
-   ImageNet tensors can materialize tens of GB. Parameters:
-   ``transform_preset``, ``allow_fake_data``,
+   transforms. Missing ImageNet roots raise an error. Flattening is rejected
+   unless ``allow_flatten_materialize: true`` is set because full ImageNet
+   tensors can materialize tens of GB. Parameters: ``transform_preset``,
    ``allow_flatten_materialize``, ``train_samples_per_class``,
    ``val_samples_per_class``.
 
@@ -110,7 +108,11 @@ Sequence Datasets
 -----------------
 
 For use with recurrent architectures (``ei_unified``, ``gru``, ``lstm``,
-``vanilla_rnn``).
+``vanilla_rnn``). Implementations live under
+``dendritic_modeling.datasets.sequence`` and are grouped by task family:
+``memory_tasks.py``, ``neuro_tasks.py``, ``signal_tasks.py``, and
+``decision_tasks.py``. ``sequence_datasets.py`` remains the public
+compatibility import path.
 
 ``sequential_mnist``
    MNIST presented as a sequence. Mode: ``"pixel"`` (seq_len=784, dim=1) or
@@ -257,14 +259,41 @@ backbone such as AlexNet:
      dataset_params:
        imagenet:
          transform_preset: "pretrained"
-         allow_fake_data: false
+         loader_backend: "auto"
          allow_flatten_materialize: false
 
-For loader smoke tests without the real dataset, opt in explicitly:
+``loader_backend: "auto"`` preserves the default behavior: official
+torchvision ImageNet roots are loaded through ``torchvision.datasets.ImageNet``,
+while plain ``train/<class>`` and ``val/<class>`` trees use
+``ImageFolder``.  On clusters where ImageNet is already staged as class
+directories on local storage, set ``loader_backend: "imagefolder"`` to avoid
+the torchvision ImageNet metadata path.  Missing ImageNet roots fail loudly;
+there is no synthetic-data fallback.
+
+For long AlexNet or other pretrained-backbone runs, the most reliable way to
+avoid dataloader stalls is to keep ImageNet on node-local storage and point the
+loader at that copy with ``IMAGENET_LOCAL_DIR``.  If the local copy has
+``train/<class>`` and ``val/<class>`` directories, set
+``loader_backend: "imagefolder"``.  Keep ``processing.flatten: false`` for
+backbone runs; flattening ImageNet is a debugging-only path that must be
+enabled explicitly with ``allow_flatten_materialize: true``.
+
+Training dataloader knobs live under the active trainer config.  ``null`` keeps
+the shared auto-tuning path, which uses multi-worker, pinned, persistent
+prefetching for ImageNet/ImageFolder datasets and single-process loading for
+tensor-backed datasets.  For fixed cluster jobs, set these values explicitly per
+process/rank:
 
 .. code-block:: yaml
 
-   data:
-     dataset_params:
-       imagenet:
-         allow_fake_data: true
+   training:
+     main:
+       common:
+         num_workers: 8
+         pin_memory: true
+         persistent_workers: true
+         prefetch_factor: 4
+         in_order: false
+
+For vision distillation runs, the same fields are available under
+``training.vision_replacement``.

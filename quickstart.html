@@ -71,7 +71,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Complete Configuration Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Population-Network Reference Config</a></li>
 <li class="toctree-l1"><a class="reference internal" href="available_components.html">Available Components</a></li>
 <li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
 </ul>
@@ -104,7 +104,7 @@
 <h1>Quick Start<a class="headerlink" href="#quick-start" title="Link to this heading"></a></h1>
 <section id="train-an-e-i-network-on-mnist">
 <h2>Train an E-I network on MNIST<a class="headerlink" href="#train-an-e-i-network-on-mnist" title="Link to this heading"></a></h2>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span>configs/config_exp.yaml
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>dendritic_modeling.scripts.training.train_experiments<span class="w"> </span>configs/config_exp.yaml
 </pre></div>
 </div>
 <p>This runs a single experiment using the default configuration. Results are
@@ -112,26 +112,23 @@ saved to the run output directory configured under <code class="docutils literal
 </section>
 <section id="override-parameters-from-the-command-line">
 <h2>Override parameters from the command line<a class="headerlink" href="#override-parameters-from-the-command-line" title="Link to this heading"></a></h2>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>dendritic_modeling.scripts.training.train_experiments<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>configs/config_exp.yaml<span class="w"> </span>--seed<span class="w"> </span><span class="m">42</span><span class="w"> </span>--output_dir<span class="w"> </span>results/my_run<span class="w"> </span>--run_name<span class="w"> </span>mnist_seed42
 </pre></div>
 </div>
 </section>
 <section id="distributed-training-ddp-fsdp">
 <h2>Distributed training (DDP / FSDP)<a class="headerlink" href="#distributed-training-ddp-fsdp" title="Link to this heading"></a></h2>
-<p>Set <code class="docutils literal notranslate"><span class="pre">distributed.mode</span></code> in your YAML config and use the unified launcher:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Auto-selects entrypoint based on distributed.mode in YAML</span>
-sbatch<span class="w"> </span>scripts/train.sh<span class="w"> </span>configs/my_config.yaml
+<p>Use the package entry points directly; wrap them in a site-local SLURM script
+when running on a cluster:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># DDP</span>
+torchrun<span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">4</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-m<span class="w"> </span>dendritic_modeling.scripts.training.train_experiments<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/my_config.yaml
 
-<span class="c1"># Multi-node (override nodes at submit time)</span>
-sbatch<span class="w"> </span>--nodes<span class="o">=</span><span class="m">2</span><span class="w"> </span>scripts/train.sh<span class="w"> </span>configs/my_config.yaml
-
-<span class="c1"># Or use dedicated launchers directly</span>
-sbatch<span class="w"> </span>scripts/train_ddp.sh<span class="w"> </span>configs/my_config.yaml<span class="w">     </span><span class="c1"># DDP</span>
-sbatch<span class="w"> </span>scripts/train_fsdp.sh<span class="w"> </span>configs/my_config.yaml<span class="w">    </span><span class="c1"># FSDP</span>
-
-<span class="c1"># Local (non-SLURM) single-node DDP/FSDP</span>
-bash<span class="w"> </span>scripts/train.sh<span class="w"> </span>configs/my_config.yaml
+<span class="c1"># FSDP</span>
+python<span class="w"> </span>-m<span class="w"> </span>dendritic_modeling.scripts.training.train_experiments_fsdp<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/my_config.yaml
 </pre></div>
 </div>
 <p>See <a class="reference internal" href="configuration_guide.html"><span class="doc">Configuration Guide</span></a> for details on the <code class="docutils literal notranslate"><span class="pre">distributed:</span></code> config block.</p>
@@ -139,11 +136,11 @@ bash<span class="w"> </span>scripts/train.sh<span class="w"> </span>configs/my_c
 <section id="run-a-parameter-sweep">
 <h2>Run a parameter sweep<a class="headerlink" href="#run-a-parameter-sweep" title="Link to this heading"></a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Generate configs and submit jobs</span>
-python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/sweep_manager.py<span class="w"> </span><span class="se">\</span>
+python<span class="w"> </span>-m<span class="w"> </span>dendritic_modeling.scripts.sweeps.sweep_manager<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>--config<span class="w"> </span>configs/sweep_config.yaml
 
 <span class="c1"># Analyze results</span>
-python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/result_analyzer.py<span class="w"> </span><span class="se">\</span>
+python<span class="w"> </span>-m<span class="w"> </span>dendritic_modeling.scripts.sweeps.result_analyzer<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>/path/to/sweep/results
 </pre></div>
 </div>

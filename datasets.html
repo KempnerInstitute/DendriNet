@@ -69,7 +69,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Complete Configuration Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Population-Network Reference Config</a></li>
 <li class="toctree-l1"><a class="reference internal" href="available_components.html">Available Components</a></li>
 <li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
 </ul>
@@ -123,15 +123,13 @@ under <code class="docutils literal notranslate"><span class="pre">data.dataset_
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">cifar10</span></code></dt><dd><p>CIFAR-10. 32x32 color, 10 classes.</p>
 </dd>
-<dt><code class="docutils literal notranslate"><span class="pre">imagenet</span></code></dt><dd><p>ImageNet classification. By default, preprocessing uses the historical
-<code class="docutils literal notranslate"><span class="pre">legacy_resize</span></code> preset for backward-compatible configs. Pretrained
+<dt><code class="docutils literal notranslate"><span class="pre">imagenet</span></code></dt><dd><p>ImageNet classification. By default, preprocessing uses the
+<code class="docutils literal notranslate"><span class="pre">legacy_resize</span></code> resize preset. Pretrained
 backbone runs should set <code class="docutils literal notranslate"><span class="pre">transform_preset:</span> <span class="pre">&quot;pretrained&quot;</span></code> for
 RandomResizedCrop/flip training transforms and Resize/CenterCrop eval
-transforms. Missing ImageNet roots raise an error unless
-<code class="docutils literal notranslate"><span class="pre">allow_fake_data:</span> <span class="pre">true</span></code> is set explicitly for smoke tests. Flattening is
-rejected unless <code class="docutils literal notranslate"><span class="pre">allow_flatten_materialize:</span> <span class="pre">true</span></code> is set because full
-ImageNet tensors can materialize tens of GB. Parameters:
-<code class="docutils literal notranslate"><span class="pre">transform_preset</span></code>, <code class="docutils literal notranslate"><span class="pre">allow_fake_data</span></code>,
+transforms. Missing ImageNet roots raise an error. Flattening is rejected
+unless <code class="docutils literal notranslate"><span class="pre">allow_flatten_materialize:</span> <span class="pre">true</span></code> is set because full ImageNet
+tensors can materialize tens of GB. Parameters: <code class="docutils literal notranslate"><span class="pre">transform_preset</span></code>,
 <code class="docutils literal notranslate"><span class="pre">allow_flatten_materialize</span></code>, <code class="docutils literal notranslate"><span class="pre">train_samples_per_class</span></code>,
 <code class="docutils literal notranslate"><span class="pre">val_samples_per_class</span></code>.</p>
 </dd>
@@ -199,7 +197,11 @@ benchmarks.</p>
 <section id="sequence-datasets">
 <h2><a class="toc-backref" href="#id3" role="doc-backlink">Sequence Datasets</a><a class="headerlink" href="#sequence-datasets" title="Link to this heading"></a></h2>
 <p>For use with recurrent architectures (<code class="docutils literal notranslate"><span class="pre">ei_unified</span></code>, <code class="docutils literal notranslate"><span class="pre">gru</span></code>, <code class="docutils literal notranslate"><span class="pre">lstm</span></code>,
-<code class="docutils literal notranslate"><span class="pre">vanilla_rnn</span></code>).</p>
+<code class="docutils literal notranslate"><span class="pre">vanilla_rnn</span></code>). Implementations live under
+<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.datasets.sequence</span></code> and are grouped by task family:
+<code class="docutils literal notranslate"><span class="pre">memory_tasks.py</span></code>, <code class="docutils literal notranslate"><span class="pre">neuro_tasks.py</span></code>, <code class="docutils literal notranslate"><span class="pre">signal_tasks.py</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">decision_tasks.py</span></code>. <code class="docutils literal notranslate"><span class="pre">sequence_datasets.py</span></code> remains the public
+compatibility import path.</p>
 <dl class="simple">
 <dt><code class="docutils literal notranslate"><span class="pre">sequential_mnist</span></code></dt><dd><p>MNIST presented as a sequence. Mode: <code class="docutils literal notranslate"><span class="pre">&quot;pixel&quot;</span></code> (seq_len=784, dim=1) or
 <code class="docutils literal notranslate"><span class="pre">&quot;row&quot;</span></code> (seq_len=28, dim=28).</p>
@@ -316,17 +318,41 @@ backbone such as AlexNet:</p>
 <span class="w">  </span><span class="nt">dataset_params</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">imagenet</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">transform_preset</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;pretrained&quot;</span>
-<span class="w">      </span><span class="nt">allow_fake_data</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">      </span><span class="nt">loader_backend</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;auto&quot;</span>
 <span class="w">      </span><span class="nt">allow_flatten_materialize</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
 </pre></div>
 </div>
-<p>For loader smoke tests without the real dataset, opt in explicitly:</p>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">data</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">dataset_params</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">imagenet</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">allow_fake_data</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<p><code class="docutils literal notranslate"><span class="pre">loader_backend:</span> <span class="pre">&quot;auto&quot;</span></code> preserves the default behavior: official
+torchvision ImageNet roots are loaded through <code class="docutils literal notranslate"><span class="pre">torchvision.datasets.ImageNet</span></code>,
+while plain <code class="docutils literal notranslate"><span class="pre">train/&lt;class&gt;</span></code> and <code class="docutils literal notranslate"><span class="pre">val/&lt;class&gt;</span></code> trees use
+<code class="docutils literal notranslate"><span class="pre">ImageFolder</span></code>.  On clusters where ImageNet is already staged as class
+directories on local storage, set <code class="docutils literal notranslate"><span class="pre">loader_backend:</span> <span class="pre">&quot;imagefolder&quot;</span></code> to avoid
+the torchvision ImageNet metadata path.  Missing ImageNet roots fail loudly;
+there is no synthetic-data fallback.</p>
+<p>For long AlexNet or other pretrained-backbone runs, the most reliable way to
+avoid dataloader stalls is to keep ImageNet on node-local storage and point the
+loader at that copy with <code class="docutils literal notranslate"><span class="pre">IMAGENET_LOCAL_DIR</span></code>.  If the local copy has
+<code class="docutils literal notranslate"><span class="pre">train/&lt;class&gt;</span></code> and <code class="docutils literal notranslate"><span class="pre">val/&lt;class&gt;</span></code> directories, set
+<code class="docutils literal notranslate"><span class="pre">loader_backend:</span> <span class="pre">&quot;imagefolder&quot;</span></code>.  Keep <code class="docutils literal notranslate"><span class="pre">processing.flatten:</span> <span class="pre">false</span></code> for
+backbone runs; flattening ImageNet is a debugging-only path that must be
+enabled explicitly with <code class="docutils literal notranslate"><span class="pre">allow_flatten_materialize:</span> <span class="pre">true</span></code>.</p>
+<p>Training dataloader knobs live under the active trainer config.  <code class="docutils literal notranslate"><span class="pre">null</span></code> keeps
+the shared auto-tuning path, which uses multi-worker, pinned, persistent
+prefetching for ImageNet/ImageFolder datasets and single-process loading for
+tensor-backed datasets.  For fixed cluster jobs, set these values explicitly per
+process/rank:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">training</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">main</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">common</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">num_workers</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span>
+<span class="w">      </span><span class="nt">pin_memory</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">persistent_workers</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">prefetch_factor</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<span class="w">      </span><span class="nt">in_order</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
 </pre></div>
 </div>
+<p>For vision distillation runs, the same fields are available under
+<code class="docutils literal notranslate"><span class="pre">training.vision_replacement</span></code>.</p>
 </section>
 </section>
 

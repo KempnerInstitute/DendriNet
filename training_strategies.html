@@ -62,7 +62,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#stdp-rule">STDP Rule</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#error-broadcast">Error Broadcast</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#hsic-auxiliary-loss">HSIC Auxiliary Loss</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#compatibility-with-new-components">Compatibility with New Components</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#component-compatibility">Component Compatibility</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#morphology-aware-extensions">Morphology-Aware Extensions</a></li>
 </ul>
 </li>
@@ -84,7 +84,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Complete Configuration Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Population-Network Reference Config</a></li>
 <li class="toctree-l1"><a class="reference internal" href="available_components.html">Available Components</a></li>
 <li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
 </ul>
@@ -131,7 +131,7 @@ the core network and decoder. The main trainer strategy is set via
 <li><p><a class="reference internal" href="#stdp-rule" id="id8">STDP Rule</a></p></li>
 <li><p><a class="reference internal" href="#error-broadcast" id="id9">Error Broadcast</a></p></li>
 <li><p><a class="reference internal" href="#hsic-auxiliary-loss" id="id10">HSIC Auxiliary Loss</a></p></li>
-<li><p><a class="reference internal" href="#compatibility-with-new-components" id="id11">Compatibility with New Components</a></p></li>
+<li><p><a class="reference internal" href="#component-compatibility" id="id11">Component Compatibility</a></p></li>
 <li><p><a class="reference internal" href="#morphology-aware-extensions" id="id12">Morphology-Aware Extensions</a></p></li>
 </ul>
 </li>
@@ -219,17 +219,24 @@ global backward pass.</span><a class="headerlink" href="#id1" title="Link to thi
 <p>Transformer MLP/FFN replacement is trained with the dedicated
 <code class="docutils literal notranslate"><span class="pre">training.transformer_replacement</span></code> block rather than the image-classification
 <code class="docutils literal notranslate"><span class="pre">training.main.strategy</span></code> loop.  The target model and layers are defined in
-<code class="docutils literal notranslate"><span class="pre">model.transformer_replacement</span></code>; the dendritic FFN architecture is defined in
+<code class="docutils literal notranslate"><span class="pre">model.transformer_replacement</span></code>; the dendritic architecture is defined in
 <code class="docutils literal notranslate"><span class="pre">model.core</span></code>; and this block defines how teacher data are produced.</p>
-<p>The implemented mode is <code class="docutils literal notranslate"><span class="pre">layerwise_distillation</span></code>:</p>
+<p>The most controlled mode is <code class="docutils literal notranslate"><span class="pre">layerwise_distillation</span></code>:</p>
 <div class="math notranslate nohighlight">
 \[h_{\ell} \mapsto \mathrm{MLP}_{\ell}(h_{\ell})
 \quad\text{is approximated by}\quad
 h_{\ell} \mapsto D_{\theta,\ell}(h_{\ell}).\]</div>
-<p>Only the dendritic replacement is trained by default
+<p>Only the dendritic replacement is trained in this mode
 (<code class="docutils literal notranslate"><span class="pre">train_target:</span> <span class="pre">replacement_only</span></code>).  This keeps the experiment interpretable:
 each loss value measures how well the dendritic module matches the original
-MLP block before any full-model language-model fine-tuning.</p>
+target module before any full-model language-model fine-tuning.</p>
+<p><code class="docutils literal notranslate"><span class="pre">joint_lm_distillation</span></code> patches the selected modules inside a loaded causal
+LM and trains through the language-modeling loss on token windows from
+<code class="docutils literal notranslate"><span class="pre">teacher_source:</span> <span class="pre">hf_text</span></code>.  With <code class="docutils literal notranslate"><span class="pre">train_target:</span> <span class="pre">replacement_only</span></code> the
+backbone remains frozen and only the dendritic modules update.  With
+<code class="docutils literal notranslate"><span class="pre">train_target:</span> <span class="pre">full_model</span></code> the entire patched student is trainable, which is
+the fine-tuning path after a replacement has already passed the layerwise
+smoke test.</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">training</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">main</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">optimizer</span><span class="p">:</span>
@@ -253,6 +260,18 @@ MLP block before any full-model language-model fine-tuning.</p>
 <span class="w">    </span><span class="nt">text</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">text_path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/path/to/text_corpus.txt</span>
 <span class="w">      </span><span class="nt">tokenizer_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">deepseek-ai/DeepSeek-V3</span>
+</pre></div>
+</div>
+<p>For joint training, switch the mode and choose the trainable scope:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">training</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">transformer_replacement</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">joint_lm_distillation</span>
+<span class="w">    </span><span class="nt">teacher_source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">hf_text</span>
+<span class="w">    </span><span class="nt">train_target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">full_model</span><span class="w">         </span><span class="c1"># or replacement_only</span>
+<span class="w">    </span><span class="nt">lm_loss_weight</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
+<span class="w">    </span><span class="nt">kl_loss_weight</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0</span>
+<span class="w">    </span><span class="nt">hidden_loss_weight</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0</span>
 </pre></div>
 </div>
 <p>Run it with:</p>
@@ -416,9 +435,9 @@ representations. Enabled via <code class="docutils literal notranslate"><span cl
 </pre></div>
 </div>
 </section>
-<section id="compatibility-with-new-components">
-<h3><a class="toc-backref" href="#id11" role="doc-backlink">Compatibility with New Components</a><a class="headerlink" href="#compatibility-with-new-components" title="Link to this heading"></a></h3>
-<p>The local learning recorder now captures all TopK pathways on a
+<section id="component-compatibility">
+<h3><a class="toc-backref" href="#id11" role="doc-backlink">Component Compatibility</a><a class="headerlink" href="#component-compatibility" title="Link to this heading"></a></h3>
+<p>The local learning recorder captures all TopK pathways on a
 <code class="docutils literal notranslate"><span class="pre">DendriticBranchLayer</span></code>:</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>external E input  -&gt; branch_excitation      -&gt; exc
 external I input  -&gt; branch_inhibition      -&gt; inh
@@ -453,7 +472,7 @@ allow non-active TopK weights to move, but forbidden masked connections
 stay frozen.</p></td>
 </tr>
 <tr class="row-odd"><td><p>Recurrent pathways</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">3f</span></code>/<code class="docutils literal notranslate"><span class="pre">4f</span></code>/<code class="docutils literal notranslate"><span class="pre">5f</span></code> and STDP now update <code class="docutils literal notranslate"><span class="pre">rec_exc</span></code> and <code class="docutils literal notranslate"><span class="pre">rec_inh</span></code>
+<td><p><code class="docutils literal notranslate"><span class="pre">3f</span></code>/<code class="docutils literal notranslate"><span class="pre">4f</span></code>/<code class="docutils literal notranslate"><span class="pre">5f</span></code> and STDP update <code class="docutils literal notranslate"><span class="pre">rec_exc</span></code> and <code class="docutils literal notranslate"><span class="pre">rec_inh</span></code>
 pathways when those modules are present and enabled by config.</p></td>
 </tr>
 <tr class="row-even"><td><p>Spiking soma</p></td>

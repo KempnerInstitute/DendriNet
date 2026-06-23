@@ -60,7 +60,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Complete Configuration Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Population-Network Reference Config</a></li>
 <li class="toctree-l1"><a class="reference internal" href="available_components.html">Available Components</a></li>
 <li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
 </ul>
@@ -119,20 +119,20 @@ files.</p>
 </colgroup>
 <thead>
 <tr class="row-odd"><th class="head"><p>Goal</p></th>
-<th class="head"><p>Recommended page</p></th>
+<th class="head"><p>Page</p></th>
 <th class="head"><p>First config to open</p></th>
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p>Run a canonical E/I MNIST model</p></td>
+<tr class="row-even"><td><p>Run an E/I MNIST model</p></td>
 <td><p><a class="reference internal" href="quickstart.html"><span class="doc">Quick Start</span></a></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_feedforward.yaml</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p>Write new feedforward or recurrent population models</p></td>
+<tr class="row-odd"><td><p>Configure feedforward or recurrent population models</p></td>
 <td><p><a class="reference internal" href="network_architectures.html"><span class="doc">Network Architectures</span></a></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_feedforward.yaml</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p>Learn the curated config examples</p></td>
+<tr class="row-even"><td><p>Browse config examples</p></td>
 <td><p><a class="reference internal" href="examples.html"><span class="doc">Runnable Config Examples</span></a></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_feedforward.yaml</span></code></p></td>
 </tr>
@@ -150,11 +150,10 @@ files.</p>
 </tr>
 </tbody>
 </table>
-<p>For new architecture work, prefer <code class="docutils literal notranslate"><span class="pre">model.core.type:</span> <span class="pre">population_network</span></code>. It
-is the single notation for feedforward stacks, recurrent microcircuits, named
-E/I populations, per-population morphologies, typed synapses, spiking soma, and
-soma-to-dendrite feedback. Older E/I aliases remain supported so published and
-in-progress runs can still be reproduced.</p>
+<p><code class="docutils literal notranslate"><span class="pre">model.core.type:</span> <span class="pre">population_network</span></code> is the main notation for feedforward
+stacks, recurrent microcircuits, named E/I populations, per-population
+morphologies, typed synapses, spiking soma, and soma-to-dendrite feedback. E/I
+alias configs are supported for saved experiments and comparison runs.</p>
 <div class="toctree-wrapper compound">
 <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul>
@@ -171,13 +170,12 @@ in-progress runs can still be reproduced.</p>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="examples.html">Runnable Config Examples</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="examples.html#recommended-ladder">Recommended Ladder</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#example-map">Example Map</a></li>
 <li class="toctree-l2"><a class="reference internal" href="examples.html#feedforward-population-network">Feedforward Population Network</a></li>
 <li class="toctree-l2"><a class="reference internal" href="examples.html#cifar-10-and-developmental-sparsity">CIFAR-10 and Developmental Sparsity</a></li>
 <li class="toctree-l2"><a class="reference internal" href="examples.html#heterogeneous-and-multilayer-networks">Heterogeneous and Multilayer Networks</a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples.html#legacy-input-mode-equivalents">Legacy Input-Mode Equivalents</a></li>
 <li class="toctree-l2"><a class="reference internal" href="examples.html#recurrent-taus-spiking-and-feedback">Recurrent, Taus, Spiking, and Feedback</a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples.html#local-learning-and-multi-stage-training">Local Learning and Multi-stage Training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#local-learning">Local Learning</a></li>
 <li class="toctree-l2"><a class="reference internal" href="examples.html#transformer-replacement">Transformer Replacement</a></li>
 <li class="toctree-l2"><a class="reference internal" href="examples.html#vision-backbone-replacement">Vision Backbone Replacement</a></li>
 <li class="toctree-l2"><a class="reference internal" href="examples.html#other-public-config-areas">Other Public Config Areas</a></li>
@@ -197,6 +195,7 @@ in-progress runs can still be reproduced.</p>
 <li class="toctree-l2"><a class="reference internal" href="network_architectures.html#dendriticbranchlayer">DendriticBranchLayer</a></li>
 <li class="toctree-l2"><a class="reference internal" href="network_architectures.html#topklinear">TopKLinear</a></li>
 <li class="toctree-l2"><a class="reference internal" href="network_architectures.html#blocklinear">BlockLinear</a></li>
+<li class="toctree-l2"><a class="reference internal" href="network_architectures.html#shared-replacement-cells">Shared Replacement Cells</a></li>
 <li class="toctree-l2"><a class="reference internal" href="network_architectures.html#vision-backbone-replacement">Vision Backbone Replacement</a></li>
 <li class="toctree-l2"><a class="reference internal" href="network_architectures.html#transformer-ffn-replacement">Transformer FFN Replacement</a></li>
 <li class="toctree-l2"><a class="reference internal" href="network_architectures.html#activation-functions">Activation Functions</a></li>
@@ -247,6 +246,7 @@ in-progress runs can still be reproduced.</p>
 <li class="toctree-l2"><a class="reference internal" href="engineering_architecture.html#repository-layout">Repository Layout</a></li>
 <li class="toctree-l2"><a class="reference internal" href="engineering_architecture.html#build-path-from-yaml-to-model">Build Path: From YAML to Model</a></li>
 <li class="toctree-l2"><a class="reference internal" href="engineering_architecture.html#feedforward-and-recurrent-e-i-consistency">Feedforward and Recurrent E/I Consistency</a></li>
+<li class="toctree-l2"><a class="reference internal" href="engineering_architecture.html#recurrent-dynamics-boundaries">Recurrent Dynamics Boundaries</a></li>
 <li class="toctree-l2"><a class="reference internal" href="engineering_architecture.html#key-runtime-objects">Key Runtime Objects</a></li>
 <li class="toctree-l2"><a class="reference internal" href="engineering_architecture.html#artifacts-and-outputs">Artifacts and Outputs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="engineering_architecture.html#how-to-extend-safely">How To Extend Safely</a></li>
@@ -257,12 +257,12 @@ in-progress runs can still be reproduced.</p>
 <li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#quick-start">Quick Start</a></li>
 <li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#top-level-structure">Top-Level Structure</a></li>
 <li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#core-network-types">Core Network Types</a></li>
-<li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#canonical-config-choices">Canonical Config Choices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#population-network-config-choices">Population-Network Config Choices</a></li>
 <li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#training-strategies">Training Strategies</a></li>
 <li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#loss-functions">Loss Functions</a></li>
 <li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#datasets">Datasets</a></li>
 <li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#analysis-modules">Analysis Modules</a></li>
-<li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#pretrained-backbone-replacement">Pretrained Backbone Replacement</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#vision-backbone-replacement">Vision Backbone Replacement</a></li>
 <li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#transformer-mlp-ffn-replacement">Transformer MLP / FFN Replacement</a></li>
 <li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#recurrent-networks">Recurrent Networks</a></li>
 <li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#named-cell-types">Named Cell Types</a></li>
@@ -273,7 +273,7 @@ in-progress runs can still be reproduced.</p>
 <li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#structured-connectivity">Structured Connectivity</a></li>
 <li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#multi-stage-training">Multi-Stage Training</a></li>
 <li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#distributed-training">Distributed Training</a></li>
-<li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#full-parameter-reference">Full Parameter Reference</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#reference-config">Reference Config</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter Sweeps</a><ul>
@@ -297,7 +297,7 @@ in-progress runs can still be reproduced.</p>
 <div class="toctree-wrapper compound">
 <p class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Complete Configuration Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Population-Network Reference Config</a></li>
 <li class="toctree-l1"><a class="reference internal" href="available_components.html">Available Components</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="available_components.html#extension-registries">Extension Registries</a></li>
 <li class="toctree-l2"><a class="reference internal" href="available_components.html#core-network-types">Core Network Types</a></li>

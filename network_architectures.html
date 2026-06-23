@@ -76,6 +76,7 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#blocklinear">BlockLinear</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#shared-replacement-cells">Shared Replacement Cells</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#vision-backbone-replacement">Vision Backbone Replacement</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#transformer-ffn-replacement">Transformer FFN Replacement</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#activation-functions">Activation Functions</a><ul>
@@ -138,7 +139,7 @@
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Complete Configuration Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Population-Network Reference Config</a></li>
 <li class="toctree-l1"><a class="reference internal" href="available_components.html">Available Components</a></li>
 <li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
 </ul>
@@ -203,48 +204,49 @@ documents all core network types and their configuration.</p>
 </ul>
 </li>
 <li><p><a class="reference internal" href="#blocklinear" id="id25">BlockLinear</a></p></li>
-<li><p><a class="reference internal" href="#vision-backbone-replacement" id="id26">Vision Backbone Replacement</a></p></li>
-<li><p><a class="reference internal" href="#transformer-ffn-replacement" id="id27">Transformer FFN Replacement</a></p></li>
-<li><p><a class="reference internal" href="#activation-functions" id="id28">Activation Functions</a></p>
+<li><p><a class="reference internal" href="#shared-replacement-cells" id="id26">Shared Replacement Cells</a></p></li>
+<li><p><a class="reference internal" href="#vision-backbone-replacement" id="id27">Vision Backbone Replacement</a></p></li>
+<li><p><a class="reference internal" href="#transformer-ffn-replacement" id="id28">Transformer FFN Replacement</a></p></li>
+<li><p><a class="reference internal" href="#activation-functions" id="id29">Activation Functions</a></p>
 <ul>
-<li><p><a class="reference internal" href="#reactivation-gate-initialization" id="id29">Reactivation Gate Initialization</a></p></li>
+<li><p><a class="reference internal" href="#reactivation-gate-initialization" id="id30">Reactivation Gate Initialization</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#recurrent-e-i-network" id="id30">Recurrent E-I Network</a></p>
+<li><p><a class="reference internal" href="#recurrent-e-i-network" id="id31">Recurrent E-I Network</a></p>
 <ul>
-<li><p><a class="reference internal" href="#making-an-e-i-core-recurrent" id="id31">Making an E-I core recurrent</a></p></li>
+<li><p><a class="reference internal" href="#making-an-e-i-core-recurrent" id="id32">Making an E-I core recurrent</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#population-network-named-populations" id="id32">Population Network / Named Populations</a></p>
+<li><p><a class="reference internal" href="#population-network-named-populations" id="id33">Population Network / Named Populations</a></p>
 <ul>
-<li><p><a class="reference internal" href="#temporal-constants-and-delays" id="id33">Temporal Constants and Delays</a></p></li>
-<li><p><a class="reference internal" href="#component-summary" id="id34">Component summary</a></p></li>
-<li><p><a class="reference internal" href="#config-to-code-map" id="id35">Config-to-code map</a></p></li>
+<li><p><a class="reference internal" href="#temporal-constants-and-delays" id="id34">Temporal Constants and Delays</a></p></li>
+<li><p><a class="reference internal" href="#component-summary" id="id35">Component summary</a></p></li>
+<li><p><a class="reference internal" href="#config-to-code-map" id="id36">Config-to-code map</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#synapse-types-receptor-kinetics" id="id36">Synapse Types / Receptor Kinetics</a></p></li>
-<li><p><a class="reference internal" href="#spiking-soma-dynamics" id="id37">Spiking Soma Dynamics</a></p>
+<li><p><a class="reference internal" href="#synapse-types-receptor-kinetics" id="id37">Synapse Types / Receptor Kinetics</a></p></li>
+<li><p><a class="reference internal" href="#spiking-soma-dynamics" id="id38">Spiking Soma Dynamics</a></p>
 <ul>
-<li><p><a class="reference internal" href="#dendritic-spike-plateau-dynamics" id="id38">Dendritic spike / plateau dynamics</a></p></li>
-<li><p><a class="reference internal" href="#soma-to-dendrite-feedback" id="id39">Soma-to-Dendrite Feedback</a></p></li>
-<li><p><a class="reference internal" href="#recurrent-connectivity-parameters" id="id40">Recurrent connectivity parameters</a></p></li>
-<li><p><a class="reference internal" href="#structured-connectivity-masks" id="id41">Structured connectivity masks</a></p></li>
-<li><p><a class="reference internal" href="#temporal-parameters-recurrent-ei" id="id42">Temporal parameters (<code class="docutils literal notranslate"><span class="pre">recurrent_ei</span></code>)</a></p></li>
-<li><p><a class="reference internal" href="#other-parameters" id="id43">Other parameters</a></p></li>
-<li><p><a class="reference internal" href="#using-ei-unified-directly" id="id44">Using <code class="docutils literal notranslate"><span class="pre">ei_unified</span></code> directly</a></p></li>
+<li><p><a class="reference internal" href="#dendritic-spike-plateau-dynamics" id="id39">Dendritic spike / plateau dynamics</a></p></li>
+<li><p><a class="reference internal" href="#soma-to-dendrite-feedback" id="id40">Soma-to-Dendrite Feedback</a></p></li>
+<li><p><a class="reference internal" href="#recurrent-connectivity-parameters" id="id41">Recurrent connectivity parameters</a></p></li>
+<li><p><a class="reference internal" href="#structured-connectivity-masks" id="id42">Structured connectivity masks</a></p></li>
+<li><p><a class="reference internal" href="#temporal-parameters-recurrent-ei" id="id43">Temporal parameters (<code class="docutils literal notranslate"><span class="pre">recurrent_ei</span></code>)</a></p></li>
+<li><p><a class="reference internal" href="#other-parameters" id="id44">Other parameters</a></p></li>
+<li><p><a class="reference internal" href="#using-ei-unified-directly" id="id45">Using <code class="docutils literal notranslate"><span class="pre">ei_unified</span></code> directly</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#baseline-rnn-cores" id="id45">Baseline RNN Cores</a></p></li>
-<li><p><a class="reference internal" href="#mlp-baseline" id="id46">MLP Baseline</a></p></li>
-<li><p><a class="reference internal" href="#configuration-reference" id="id47">Configuration Reference</a></p>
+<li><p><a class="reference internal" href="#baseline-rnn-cores" id="id46">Baseline RNN Cores</a></p></li>
+<li><p><a class="reference internal" href="#mlp-baseline" id="id47">MLP Baseline</a></p></li>
+<li><p><a class="reference internal" href="#configuration-reference" id="id48">Configuration Reference</a></p>
 <ul>
-<li><p><a class="reference internal" href="#architectureconfig" id="id48">ArchitectureConfig</a></p></li>
-<li><p><a class="reference internal" href="#connectivityconfig" id="id49">ConnectivityConfig</a></p></li>
-<li><p><a class="reference internal" href="#morphologyconfig" id="id50">MorphologyConfig</a></p></li>
-<li><p><a class="reference internal" href="#sparsityconfig" id="id51">SparsityConfig</a></p></li>
-<li><p><a class="reference internal" href="#reactivationconfig" id="id52">ReactivationConfig</a></p></li>
-<li><p><a class="reference internal" href="#transferfunctionconfig" id="id53">TransferFunctionConfig</a></p></li>
-<li><p><a class="reference internal" href="#implementationconfig" id="id54">ImplementationConfig</a></p></li>
+<li><p><a class="reference internal" href="#architectureconfig" id="id49">ArchitectureConfig</a></p></li>
+<li><p><a class="reference internal" href="#connectivityconfig" id="id50">ConnectivityConfig</a></p></li>
+<li><p><a class="reference internal" href="#morphologyconfig" id="id51">MorphologyConfig</a></p></li>
+<li><p><a class="reference internal" href="#sparsityconfig" id="id52">SparsityConfig</a></p></li>
+<li><p><a class="reference internal" href="#reactivationconfig" id="id53">ReactivationConfig</a></p></li>
+<li><p><a class="reference internal" href="#transferfunctionconfig" id="id54">TransferFunctionConfig</a></p></li>
+<li><p><a class="reference internal" href="#implementationconfig" id="id55">ImplementationConfig</a></p></li>
 </ul>
 </li>
 </ul>
@@ -449,10 +451,10 @@ the target population’s E/I synapse-count fields determine how many active
 synapses per branch are selected inside the allowed mask. Pathway polarity is
 inferred from the source population or named input stream.</p>
 <p>External sources are named. <code class="docutils literal notranslate"><span class="pre">source:</span> <span class="pre">input</span></code> is the compatibility stream and
-keeps the old behavior. When <code class="docutils literal notranslate"><span class="pre">population_network.use_transfer:</span> <span class="pre">true</span></code> is set,
+matches the default input stream. When <code class="docutils literal notranslate"><span class="pre">population_network.use_transfer:</span> <span class="pre">true</span></code> is set,
 <code class="docutils literal notranslate"><span class="pre">source:</span> <span class="pre">input_e</span></code> receives the excitatory stream returned by
 <code class="docutils literal notranslate"><span class="pre">TransferLayer</span></code> and <code class="docutils literal notranslate"><span class="pre">source:</span> <span class="pre">input_i</span></code> receives the inhibitory stream. This
-allows an old independent-pathway transfer split to be represented explicitly:</p>
+represents independent-pathway transfer splits explicitly:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">core</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">population_network</span>
@@ -539,11 +541,7 @@ instantaneous algebraic loop.</p>
 <code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_cifar10.yaml</span></code>,
 <code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_dense_to_sparse_cifar10.yaml</span></code>,
 <code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_normalized_additive_mnist.yaml</span></code>, and
-<code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_two_layer.yaml</span></code>. These examples use the
-same named-population schema instead of maintaining parallel legacy
-<code class="docutils literal notranslate"><span class="pre">einet</span></code> YAMLs. When transfer-stream behavior is needed, use
-<code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_independent_transfer.yaml</span></code> and address
-the split streams explicitly as <code class="docutils literal notranslate"><span class="pre">input_e</span></code> and <code class="docutils literal notranslate"><span class="pre">input_i</span></code>.</p>
+<code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_two_layer.yaml</span></code>.</p>
 <p>When <code class="docutils literal notranslate"><span class="pre">input_projection_dims</span></code> is used together with <code class="docutils literal notranslate"><span class="pre">use_transfer:</span> <span class="pre">true</span></code>,
 the projection is applied to the compatibility/excitatory stream
 (<code class="docutils literal notranslate"><span class="pre">input</span></code>/<code class="docutils literal notranslate"><span class="pre">input_e</span></code>). The inhibitory transfer stream (<code class="docutils literal notranslate"><span class="pre">input_i</span></code>) keeps the
@@ -553,6 +551,7 @@ existing convention.</p>
 <code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_feedforward.yaml</span></code>,
 <code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_heterogeneous_feedforward.yaml</span></code>,
 <code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_recurrent_pyr_pv_sst.yaml</span></code>,
+<code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_taus_and_delays.yaml</span></code>,
 <code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_synapse_types_ampa_nmda_gaba.yaml</span></code>,
 <code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_spiking.yaml</span></code>, and
 <code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_soma_feedback.yaml</span></code>.</p>
@@ -584,30 +583,25 @@ h_E^(l) = excitatory_cells(h_E^(l-1), h_I^(l))
 <h3><a class="toc-backref" href="#id15" role="doc-backlink">TransferLayer</a><a class="headerlink" href="#transferlayer" title="Link to this heading"></a></h3>
 <p>Controls how input is routed to the E and I pathways.</p>
 <dl class="simple">
-<dt><code class="docutils literal notranslate"><span class="pre">input_mode</span></code></dt><dd><p>Selects the inhibitory-input convention used by the legacy feedforward E/I
+<dt><code class="docutils literal notranslate"><span class="pre">input_mode</span></code></dt><dd><p>Selects the inhibitory-input convention used by the feedforward E/I
 builder. <code class="docutils literal notranslate"><span class="pre">input_mode:</span> <span class="pre">0</span></code> builds explicit inhibitory cells whenever
 <code class="docutils literal notranslate"><span class="pre">architecture.inhibitory_layer_sizes</span></code> contains positive sizes.
-<code class="docutils literal notranslate"><span class="pre">input_mode:</span> <span class="pre">1</span></code> preserves the older direct-inhibition path: the
+<code class="docutils literal notranslate"><span class="pre">input_mode:</span> <span class="pre">1</span></code> uses the direct-inhibition path: the
 <code class="docutils literal notranslate"><span class="pre">TransferLayer</span></code> inhibitory stream is fed directly into E dendrites and
 explicit I cells are not built by default, even if stale inhibitory sizes
 remain in the config.</p>
 </dd>
-<dt><code class="docutils literal notranslate"><span class="pre">input_mode1_build_inhibitory_population</span></code></dt><dd><p>Optional feedforward opt-in for newer experiments that intentionally want
-<code class="docutils literal notranslate"><span class="pre">input_mode:</span> <span class="pre">1</span></code> plus explicit inhibitory cells. The legacy-compatible
-default is <code class="docutils literal notranslate"><span class="pre">false</span></code>.</p>
+<dt><code class="docutils literal notranslate"><span class="pre">input_mode1_build_inhibitory_population</span></code></dt><dd><p>Optional feedforward opt-in for configs that use
+<code class="docutils literal notranslate"><span class="pre">input_mode:</span> <span class="pre">1</span></code> plus explicit inhibitory cells. The default is <code class="docutils literal notranslate"><span class="pre">false</span></code>.</p>
 </dd>
 </dl>
-<p>The same conventions can be written explicitly in <code class="docutils literal notranslate"><span class="pre">population_network</span></code>:
-<code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_input_mode0_one_layer.yaml</span></code> and
-<code class="docutils literal notranslate"><span class="pre">population_network_input_mode0_two_layer.yaml</span></code> use named inhibitory
-populations, while <code class="docutils literal notranslate"><span class="pre">population_network_input_mode1_one_layer.yaml</span></code> and
-<code class="docutils literal notranslate"><span class="pre">population_network_input_mode1_two_layer.yaml</span></code> use direct
-<code class="docutils literal notranslate"><span class="pre">ff_inhibitory</span></code> pathways into E populations.</p>
+<p>The same conventions can be written explicitly in <code class="docutils literal notranslate"><span class="pre">population_network</span></code> by
+declaring named populations and <code class="docutils literal notranslate"><span class="pre">connections</span></code>.</p>
 <dl>
 <dt><code class="docutils literal notranslate"><span class="pre">require_explicit_direct_inhibitory_stream</span></code></dt><dd><p>Optional safety flag. When <code class="docutils literal notranslate"><span class="pre">true</span></code>, direct input-mode-1 inhibition requires
 <code class="docutils literal notranslate"><span class="pre">allow_direct_inhibitory_stream:</span> <span class="pre">true</span></code>. The deprecated
-<code class="docutils literal notranslate"><span class="pre">allow_direct_inhibitory_input</span></code> spelling is still normalized by the legacy
-config adapter, but new configs should not use it. The default is <code class="docutils literal notranslate"><span class="pre">false</span></code>
+<code class="docutils literal notranslate"><span class="pre">allow_direct_inhibitory_input</span></code> spelling is still normalized by the
+config adapter. The default is <code class="docutils literal notranslate"><span class="pre">false</span></code>
 for compatibility with existing configs.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">independent_pathways</span></code></dt><dd><p>Controls raw input routing independently of inhibitory-population
@@ -656,7 +650,13 @@ range, e.g. <code class="docutils literal notranslate"><span class="pre">output_
 <span class="w">      </span><span class="nt">dbl_init_method</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;analytical_expectation&quot;</span>
 <span class="w">    </span><span class="nt">sparsity</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">init_method</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;xavier_normal&quot;</span>
-<span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;standard&quot;</span>
+<span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;indexed_rewire&quot;</span>
+<span class="w">      </span><span class="nt">indexed</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">42</span>
+<span class="w">        </span><span class="nt">rewire_frequency</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
+<span class="w">        </span><span class="nt">rewire_quantile</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.05</span>
+<span class="w">        </span><span class="nt">rewire_until_step</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span>
+<span class="w">        </span><span class="nt">output_chunk_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2048</span>
 <span class="w">      </span><span class="nt">gamma</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
 <span class="w">    </span><span class="nt">reactivation</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
@@ -682,6 +682,10 @@ giving 6 distal branches per soma neuron.</p>
 </ul>
 <p>If <code class="docutils literal notranslate"><span class="pre">somatic_synapses</span></code> is <code class="docutils literal notranslate"><span class="pre">True</span></code>, the soma level also receives direct
 synaptic input in addition to branch aggregation.</p>
+<p>Programmatic construction can use either the historical keyword arguments or
+<code class="docutils literal notranslate"><span class="pre">DendriNetConfig</span></code>.  The config object groups tree geometry, optional structured
+connectivity metadata, and the shared <code class="docutils literal notranslate"><span class="pre">DendriticSynapseConfig</span></code> used by all
+branch layers; both entry points normalize through the same branch-layer builder.</p>
 <p>Two implementation details are easy to miss:</p>
 <ul class="simple">
 <li><p>each branch layer receives the same external <code class="docutils literal notranslate"><span class="pre">x_E</span></code> and optional <code class="docutils literal notranslate"><span class="pre">x_I</span></code>;
@@ -848,13 +852,15 @@ synapses, where <code class="docutils literal notranslate"><span class="pre">C</
 Each forward pass selects <code class="docutils literal notranslate"><span class="pre">K</span></code> active candidates, so inactive candidates
 can later become active without storing the full dense matrix.  Set
 <code class="docutils literal notranslate"><span class="pre">sparsity.indexed.selection:</span> <span class="pre">stochastic</span></code> to use rank-probabilistic
-selection inside the candidate pool.</p>
+selection inside the candidate pool. If <code class="docutils literal notranslate"><span class="pre">candidate_size</span></code> is omitted and a
+hard connection mask is present, the automatic candidate pool is capped to
+the largest size supported by every masked output row.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">indexed_rewire</span></code></dt><dd><p>Adaptive-quantile indexed rewiring. It stores only
 <code class="docutils literal notranslate"><span class="pre">out_features</span> <span class="pre">x</span> <span class="pre">K</span></code> sparse weights plus integer input indices, like
 <code class="docutils literal notranslate"><span class="pre">indexed</span></code>, but periodically replaces the weakest fraction of same-row
 synapses with newly sampled allowed inputs. This is the memory-efficient
-version of “weak synapses disappear and new random synapses appear on the
+version of “weak synapses disappear and fresh random synapses appear on the
 same dendrite.” It is different from <code class="docutils literal notranslate"><span class="pre">indexed_dynamic</span></code>: the candidate
 pool itself changes over training rather than remaining fixed.</p>
 </dd>
@@ -912,15 +918,44 @@ output neuron receives exactly <code class="docutils literal notranslate"><span 
 where <code class="docutils literal notranslate"><span class="pre">block_size</span> <span class="pre">=</span> <span class="pre">in_features</span> <span class="pre">/</span> <span class="pre">out_features</span></code>.</p>
 <p><code class="docutils literal notranslate"><span class="pre">EfficientBlockLinear</span></code> is a memory-efficient variant that uses reshape
 operations instead of a sparse matrix. Same API and behavior.</p>
-<p>Config path: <code class="docutils literal notranslate"><span class="pre">model.core.blocklinear</span></code>.</p>
+<p>Config paths: <code class="docutils literal notranslate"><span class="pre">model.core.blocklinear.efficient</span></code> for structured EINet-style
+cores, and <code class="docutils literal notranslate"><span class="pre">efficient_blocklinear</span></code> under
+<code class="docutils literal notranslate"><span class="pre">population_network.layers[].population_defaults</span></code> or an individual
+population override for population-network cores and transformer/vision
+replacement cores that use the population-network schema.</p>
+</section>
+<section id="shared-replacement-cells">
+<h2><a class="toc-backref" href="#id26" role="doc-backlink">Shared Replacement Cells</a><a class="headerlink" href="#shared-replacement-cells" title="Link to this heading"></a></h2>
+<p>Replacement experiments use a common cell contract:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>input adapter -&gt; dendritic core -&gt; output adapter
+</pre></div>
+</div>
+<p>The shared implementation lives in
+<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.networks.architectures.replacement</span></code>.  Input adapters such
+as <code class="docutils literal notranslate"><span class="pre">signed_split</span></code> and <code class="docutils literal notranslate"><span class="pre">relu</span></code> map source-network activity into the
+non-negative domain expected by positive-conductance dendritic cores.  The core
+then runs a DendriNet, E/I population stack, or spatial dendritic module.  The
+output adapter maps the dendritic activity back to the tensor contract expected
+by the source model.</p>
+<p>Placement remains domain-specific:</p>
+<ul class="simple">
+<li><p>vision replacement uses <code class="docutils literal notranslate"><span class="pre">classical.pretrained</span></code> to split a torchvision
+backbone into prefix / replacement core / suffix segments</p></li>
+<li><p>transformer replacement uses <code class="docutils literal notranslate"><span class="pre">transformer.patching</span></code> to patch a target
+module inside each decoder block while preserving residual, cache, and
+Hugging Face model contracts</p></li>
+</ul>
+<p>This separation keeps the biological/dendritic computation reusable without
+forcing every source model into the same surgery mechanism.</p>
 </section>
 <section id="vision-backbone-replacement">
-<h2><a class="toc-backref" href="#id26" role="doc-backlink">Vision Backbone Replacement</a><a class="headerlink" href="#vision-backbone-replacement" title="Link to this heading"></a></h2>
-<p>Vision replacement uses <code class="docutils literal notranslate"><span class="pre">model.pretrained_replacement</span></code> to split a torchvision
+<h2><a class="toc-backref" href="#id27" role="doc-backlink">Vision Backbone Replacement</a><a class="headerlink" href="#vision-backbone-replacement" title="Link to this heading"></a></h2>
+<p>Vision replacement uses <code class="docutils literal notranslate"><span class="pre">model.vision_replacement</span></code> to split a torchvision
 backbone into three parts: a pretrained prefix, a dendritic replacement core,
 and a pretrained or trainable suffix. This is the image-model analogue of the
 transformer replacement path, but the target modules are named layers in a
-sequential vision backbone such as AlexNet or VGG.</p>
+sequential vision backbone such as AlexNet or VGG.
+Older <code class="docutils literal notranslate"><span class="pre">model.pretrained_replacement</span></code> configs remain supported as aliases.</p>
 <p>Two dendritic core styles are supported:</p>
 <dl class="simple">
 <dt><code class="docutils literal notranslate"><span class="pre">hierarchical_dendritic_tensor_map</span></code></dt><dd><p>Flattens the prefix feature tensor, applies a hierarchical dendritic core,
@@ -965,14 +1000,12 @@ synapse type. Example configs live in <code class="docutils literal notranslate"
 </table>
 <p>Minimal skeleton:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">pretrained_replacement</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">vision_replacement</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 <span class="w">    </span><span class="nt">backbone</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">alexnet</span>
 <span class="w">    </span><span class="nt">weights</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">IMAGENET1K_V1</span>
 <span class="w">    </span><span class="nt">input_shape</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">3</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">224</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">224</span><span class="p p-Indicator">]</span>
-<span class="w">    </span><span class="nt">replace</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">start</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">classifier.4</span>
-<span class="w">      </span><span class="nt">end</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">classifier.5</span>
+<span class="w">    </span><span class="nt">target_modules</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">classifier.4</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">classifier.5</span><span class="p p-Indicator">]</span>
 <span class="w">    </span><span class="nt">omit_layers</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">classifier.0</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">classifier.3</span><span class="p p-Indicator">]</span>
 <span class="w">    </span><span class="nt">trainability</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">encoder</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="nv">frozen</span><span class="p p-Indicator">}</span>
@@ -991,16 +1024,36 @@ synapse type. Example configs live in <code class="docutils literal notranslate"
 <span class="w">      </span><span class="nt">init_policy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">occupancy_quantile</span>
 </pre></div>
 </div>
+<p><code class="docutils literal notranslate"><span class="pre">target_modules</span></code> must resolve to one contiguous span in the flattened
+backbone order.  This is what lets the runtime construct a single
+encoder-core-decoder tensor contract.  Fully supervised training uses the
+standard trainer; block-output distillation from cached tensors uses
+<code class="docutils literal notranslate"><span class="pre">training.vision_replacement</span></code>. Distillation can train only the replacement
+core, the replacement plus decoder, or the full student model; saved artifacts
+include the parameters required by the selected train target.</p>
 </section>
 <section id="transformer-ffn-replacement">
-<h2><a class="toc-backref" href="#id27" role="doc-backlink">Transformer FFN Replacement</a><a class="headerlink" href="#transformer-ffn-replacement" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id28" role="doc-backlink">Transformer FFN Replacement</a><a class="headerlink" href="#transformer-ffn-replacement" title="Link to this heading"></a></h2>
 <p>The AlexNet/VGG replacement path and the transformer replacement path share the
 same conceptual split: choose a backbone, choose the layers/modules to replace,
 and describe the dendritic replacement with <code class="docutils literal notranslate"><span class="pre">model.core</span></code>.  The difference is
 mechanical: AlexNet/VGG are sequential torchvision modules, while transformer
-MLPs sit inside decoder blocks.  For transformers the target is described by
+targets sit inside decoder blocks.  For transformers the target is described by
 <code class="docutils literal notranslate"><span class="pre">model.transformer_replacement</span></code> and the dendritic FFN is described by the
-usual <code class="docutils literal notranslate"><span class="pre">model.core</span></code> fields.</p>
+shared <code class="docutils literal notranslate"><span class="pre">model.core.population_network</span></code> schema.  <code class="docutils literal notranslate"><span class="pre">target_module</span></code> may be a
+simple name such as <code class="docutils literal notranslate"><span class="pre">mlp</span></code> or a dotted path relative to each decoder layer,
+such as <code class="docutils literal notranslate"><span class="pre">self_attn.o_proj</span></code>.  Generic replacement currently expects a
+tensor-in/tensor-out module with the same final hidden dimension; modules with
+tuple outputs or multi-input attention APIs need a small adapter before they can
+be replaced safely.</p>
+<p>The implementation is split across <code class="docutils literal notranslate"><span class="pre">transformer.modules</span></code> for replacement
+modules, <code class="docutils literal notranslate"><span class="pre">transformer.config_translation</span></code> for config-to-constructor mapping,
+and <code class="docutils literal notranslate"><span class="pre">transformer.patching</span></code> for Hugging Face module replacement.  Public
+imports remain available from
+<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.networks.architectures.transformer</span></code>.
+The token-wise transformer modules use the shared replacement-cell components
+internally while preserving the historical <code class="docutils literal notranslate"><span class="pre">core</span></code> and <code class="docutils literal notranslate"><span class="pre">output_projection</span></code>
+state-dict keys.</p>
 <p>The replacement module preserves the transformer MLP contract</p>
 <div class="math notranslate nohighlight">
 \[X \in \mathbb{R}^{B \times T \times d}
@@ -1043,21 +1096,34 @@ projection.</p>
 
 <span class="w">  </span><span class="nt">core</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_ffn</span>
-<span class="w">    </span><span class="nt">architecture</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">excitatory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">512</span><span class="p p-Indicator">]</span>
-<span class="w">      </span><span class="nt">excitatory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">3</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">3</span><span class="p p-Indicator">]</span>
-<span class="w">    </span><span class="nt">connectivity</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">ee_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">40</span><span class="p p-Indicator">]</span>
-<span class="w">    </span><span class="nt">morphology</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">use_shunting</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-<span class="w">      </span><span class="nt">weight_transform</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">softplus</span>
-<span class="w">    </span><span class="nt">sparsity</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">indexed_dynamic</span><span class="w">      </span><span class="c1"># or indexed_rewire for adaptive turnover</span>
-<span class="w">      </span><span class="nt">temperature</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span>
-<span class="w">      </span><span class="nt">indexed</span><span class="p">:</span>
-<span class="w">        </span><span class="nt">candidate_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">256</span>
-<span class="w">        </span><span class="nt">selection</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">stochastic</span>
-<span class="w">        </span><span class="nt">seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">42</span>
+<span class="w">    </span><span class="nt">population_network</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">input_transform</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">signed_split</span>
+<span class="w">      </span><span class="nt">layers</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">transformer_mlp</span>
+<span class="w">          </span><span class="nt">readout_population</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ffn</span>
+<span class="w">          </span><span class="nt">population_defaults</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">ff_excitatory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">40</span>
+<span class="w">            </span><span class="nt">ff_inhibitory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+<span class="w">            </span><span class="nt">somatic_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">            </span><span class="nt">use_shunting</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">            </span><span class="nt">reactivate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">            </span><span class="nt">reactivation_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">param_tanh</span>
+<span class="w">            </span><span class="nt">weight_transform</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">softplus</span>
+<span class="w">            </span><span class="nt">topk_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">indexed_rewire</span>
+<span class="w">            </span><span class="nt">indexed_seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">42</span>
+<span class="w">            </span><span class="nt">indexed_rewire_frequency</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
+<span class="w">            </span><span class="nt">indexed_rewire_quantile</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.05</span>
+<span class="w">            </span><span class="nt">indexed_rewire_until_step</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span>
+<span class="w">            </span><span class="nt">indexed_output_chunk_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2048</span>
+<span class="w">            </span><span class="nt">efficient_blocklinear</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">          </span><span class="nt">populations</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ffn</span>
+<span class="w">              </span><span class="nt">polarity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">excitatory</span>
+<span class="w">              </span><span class="nt">n_neurons</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">512</span>
+<span class="w">              </span><span class="nt">branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">3</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">3</span><span class="p p-Indicator">]</span>
+<span class="w">          </span><span class="nt">connections</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">input</span>
+<span class="w">              </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ffn</span>
 </pre></div>
 </div>
 <p>The YAML can be applied to a loaded Hugging Face model with:</p>
@@ -1087,9 +1153,11 @@ non-negative.  <code class="docutils literal notranslate"><span class="pre">inpu
 both polarities.  The final <code class="docutils literal notranslate"><span class="pre">W_out</span></code> is signed, because the transformer block
 must return a signed residual update.</p>
 <p>This replacement path should be trained first by block-output distillation:
-freeze the original transformer, collect inputs and original MLP outputs for
-the target layers, and train the dendritic replacement to match those outputs
-before evaluating full language-model perplexity.</p>
+freeze the original transformer, collect inputs and original target-module
+outputs for the selected layers, and train the dendritic replacement to match
+those outputs before evaluating full language-model perplexity.  After that
+smoke test, <code class="docutils literal notranslate"><span class="pre">joint_lm_distillation</span></code> can train the patched causal LM directly
+with either <code class="docutils literal notranslate"><span class="pre">train_target:</span> <span class="pre">replacement_only</span></code> or <code class="docutils literal notranslate"><span class="pre">train_target:</span> <span class="pre">full_model</span></code>.</p>
 <p>The dedicated trainer is selected by <code class="docutils literal notranslate"><span class="pre">training.transformer_replacement</span></code> and
 currently supports three teacher-data sources:</p>
 <dl class="simple">
@@ -1101,9 +1169,9 @@ token-wise MLP map.</p>
 most memory-efficient route when a large teacher such as DeepSeek-V3 is run
 once to build an activation cache.</p>
 </dd>
-<dt><code class="docutils literal notranslate"><span class="pre">hf_text</span></code></dt><dd><p>Loads a Hugging Face causal LM, registers hooks on the selected MLP modules,
-samples token windows from a text file, and trains the dendritic replacement
-from the captured <code class="docutils literal notranslate"><span class="pre">(hidden_state,</span> <span class="pre">teacher_mlp_output)</span></code> pairs.</p>
+<dt><code class="docutils literal notranslate"><span class="pre">hf_text</span></code></dt><dd><p>Loads a Hugging Face causal LM, registers hooks on the selected target
+modules, samples token windows from a text file or Hugging Face dataset, and
+trains the dendritic replacement from the captured input/output pairs.</p>
 </dd>
 </dl>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span><span class="se">\</span>
@@ -1116,7 +1184,7 @@ back into a patched model with the same <code class="docutils literal notranslat
 <code class="docutils literal notranslate"><span class="pre">model.core</span></code> settings.</p>
 </section>
 <section id="activation-functions">
-<h2><a class="toc-backref" href="#id28" role="doc-backlink">Activation Functions</a><a class="headerlink" href="#activation-functions" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id29" role="doc-backlink">Activation Functions</a><a class="headerlink" href="#activation-functions" title="Link to this heading"></a></h2>
 <p>Post-voltage nonlinearities applied at each branch layer. Set via
 <code class="docutils literal notranslate"><span class="pre">model.core.reactivation.type</span></code>.</p>
 <dl class="simple">
@@ -1140,7 +1208,7 @@ back into a patched model with the same <code class="docutils literal notranslat
 </pre></div>
 </div>
 <section id="reactivation-gate-initialization">
-<h3><a class="toc-backref" href="#id29" role="doc-backlink">Reactivation Gate Initialization</a><a class="headerlink" href="#reactivation-gate-initialization" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id30" role="doc-backlink">Reactivation Gate Initialization</a><a class="headerlink" href="#reactivation-gate-initialization" title="Link to this heading"></a></h3>
 <p>The reactivation gate <code class="docutils literal notranslate"><span class="pre">(tanh(m</span> <span class="pre">*</span> <span class="pre">(V</span> <span class="pre">-</span> <span class="pre">b))</span> <span class="pre">+</span> <span class="pre">1)</span> <span class="pre">/</span> <span class="pre">2</span></code> has two learnable
 parameters: the slope <code class="docutils literal notranslate"><span class="pre">m</span></code> and the midpoint <code class="docutils literal notranslate"><span class="pre">b</span></code>. How these are initialized
 determines the gate’s operating point at the start of training.</p>
@@ -1169,7 +1237,7 @@ voltage distributions.</p>
 trying to use the entire gate range uniformly; it is trying to place the
 bulk of the observed voltage mass into the gate’s sensitive region while
 keeping the tails as margin.</p>
-<p>Quantile-based calibration now includes safeguards for ill-conditioned
+<p>Quantile-based calibration includes safeguards for ill-conditioned
 upper-layer fits. If the observed quantile span is too small or the fitted
 slope would have to exceed the configured <code class="docutils literal notranslate"><span class="pre">calibration_max_m</span></code>, the layer
 falls back to its pre-calibration gate state instead of forcing a saturated
@@ -1183,8 +1251,8 @@ voltages across layers.</p>
 slope drift under control. For data-driven init policies, check the
 automatically written <code class="docutils literal notranslate"><span class="pre">init_gate_stats.json</span></code> artifact in the run
 directory before treating a run as healthy.</p>
-<p><code class="docutils literal notranslate"><span class="pre">quantile</span></code> is accepted as a legacy alias and is normalized to
-<code class="docutils literal notranslate"><span class="pre">occupancy_quantile</span></code>. New configs should use <code class="docutils literal notranslate"><span class="pre">occupancy_quantile</span></code>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">quantile</span></code> is accepted as an alias and is normalized to
+<code class="docutils literal notranslate"><span class="pre">occupancy_quantile</span></code>. Prefer <code class="docutils literal notranslate"><span class="pre">occupancy_quantile</span></code> in YAML configs.</p>
 <p>For local learning, use <code class="docutils literal notranslate"><span class="pre">q_low=0.05,</span> <span class="pre">q_high=0.95</span></code> mapping to gate outputs
 <code class="docutils literal notranslate"><span class="pre">r_low=0.2,</span> <span class="pre">r_high=0.8</span></code>. This gives the gate a wider active region and
 room to self-organize under noisier local credit signals.</p>
@@ -1238,8 +1306,8 @@ module and flags suspicious patterns such as:</p>
 <li><p>repeated identical values across a full layer combined with saturation</p></li>
 <li><p>gate centers pushed to the voltage-range edge</p></li>
 </ul>
-<p>This diagnostic is especially useful when using <code class="docutils literal notranslate"><span class="pre">occupancy_quantile</span></code> on new
-datasets or new recurrent settings.</p>
+<p>This diagnostic is especially useful when using <code class="docutils literal notranslate"><span class="pre">occupancy_quantile</span></code> on
+unfamiliar datasets or recurrent settings.</p>
 <p><strong>Standard backprop</strong> (both morphologies):</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">core</span><span class="p">:</span>
@@ -1332,7 +1400,7 @@ option for studying simplified gate learning.</p>
 </section>
 </section>
 <section id="recurrent-e-i-network">
-<h2><a class="toc-backref" href="#id30" role="doc-backlink">Recurrent E-I Network</a><a class="headerlink" href="#recurrent-e-i-network" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id31" role="doc-backlink">Recurrent E-I Network</a><a class="headerlink" href="#recurrent-e-i-network" title="Link to this heading"></a></h2>
 <p>Any E-I architecture (<code class="docutils literal notranslate"><span class="pre">dendritic_shunting</span></code>, <code class="docutils literal notranslate"><span class="pre">dendritic_additive</span></code>,
 <code class="docutils literal notranslate"><span class="pre">einet</span></code>) becomes recurrent when <code class="docutils literal notranslate"><span class="pre">connectivity.rec_*</span></code> synapse counts are
 nonzero.  Recurrence is controlled <strong>solely</strong> by these synapse counts;
@@ -1344,7 +1412,7 @@ The factory translates this to an <code class="docutils literal notranslate"><sp
 <p>Alternatively, use <code class="docutils literal notranslate"><span class="pre">core.type:</span> <span class="pre">ei_unified</span></code> with the <code class="docutils literal notranslate"><span class="pre">unified_ei</span></code> config
 for full per-layer, per-population control.</p>
 <section id="making-an-e-i-core-recurrent">
-<h3><a class="toc-backref" href="#id31" role="doc-backlink">Making an E-I core recurrent</a><a class="headerlink" href="#making-an-e-i-core-recurrent" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id32" role="doc-backlink">Making an E-I core recurrent</a><a class="headerlink" href="#making-an-e-i-core-recurrent" title="Link to this heading"></a></h3>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">core</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_shunting</span><span class="w">          </span><span class="c1"># same type as feedforward</span>
@@ -1376,22 +1444,21 @@ for full per-layer, per-population control.</p>
 <span class="w">    </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">recurrent</span>
 </pre></div>
 </div>
-<p>For recurrent <code class="docutils literal notranslate"><span class="pre">einet</span></code>-style configs, <code class="docutils literal notranslate"><span class="pre">use_transfer</span></code> defaults to <code class="docutils literal notranslate"><span class="pre">true</span></code>
-for legacy parity, so a TransferLayer is built for both <code class="docutils literal notranslate"><span class="pre">input_mode=1</span></code> and
-<code class="docutils literal notranslate"><span class="pre">input_mode=0</span></code>.
+<p>For recurrent <code class="docutils literal notranslate"><span class="pre">einet</span></code>-style configs, <code class="docutils literal notranslate"><span class="pre">use_transfer</span></code> defaults to <code class="docutils literal notranslate"><span class="pre">true</span></code>,
+so a TransferLayer is built for both <code class="docutils literal notranslate"><span class="pre">input_mode=1</span></code> and <code class="docutils literal notranslate"><span class="pre">input_mode=0</span></code>.
 Set <code class="docutils literal notranslate"><span class="pre">recurrent_ei.use_transfer:</span> <span class="pre">false</span></code> to disable it explicitly.</p>
 </section>
 </section>
 <section id="population-network-named-populations">
-<h2><a class="toc-backref" href="#id32" role="doc-backlink">Population Network / Named Populations</a><a class="headerlink" href="#population-network-named-populations" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id33" role="doc-backlink">Population Network / Named Populations</a><a class="headerlink" href="#population-network-named-populations" title="Link to this heading"></a></h2>
 <figure class="align-default" id="id5">
 <a class="reference internal image-reference" href="_images/extended-recurrent-components.svg"><img alt="Extended recurrent dendritic components showing named populations, connectivity masks, synapse types, dendrites, optional spiking soma, decoder, and analysis readouts." src="_images/extended-recurrent-components.svg" style="width: 100%;" />
 </a>
 <figcaption>
-<p><span class="caption-text">The new recurrent extensions are opt-in layers around the existing
-dendritic computation path. Named populations feed source-target masks,
-typed synapse traces feed dendritic integration, and the soma can remain
-rate-valued or emit LIF spikes with a decoder-compatible readout.</span><a class="headerlink" href="#id5" title="Link to this image"></a></p>
+<p><span class="caption-text">Recurrent population features are opt-in layers around the dendritic
+computation path. Named populations feed source-target masks, typed synapse
+traces feed dendritic integration, and the soma can remain rate-valued or
+emit LIF spikes with a decoder-compatible readout.</span><a class="headerlink" href="#id5" title="Link to this image"></a></p>
 </figcaption>
 </figure>
 <p>Terminology and computation boundaries:</p>
@@ -1437,7 +1504,7 @@ kinetic traces, voltage gates, reversal potentials, nonlinearities, and
 short-term plasticity.</p></td>
 </tr>
 <tr class="row-odd"><td><p>Soma dynamics</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">LIFSoma</span></code> or legacy rate output</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">LIFSoma</span></code> or rate output</p></td>
 <td><p>The final population output rule after dendritic integration.</p></td>
 </tr>
 </tbody>
@@ -1596,7 +1663,7 @@ PyTorch’s global RNG during model construction.</p>
 </dd>
 </dl>
 <section id="temporal-constants-and-delays">
-<h3><a class="toc-backref" href="#id33" role="doc-backlink">Temporal Constants and Delays</a><a class="headerlink" href="#temporal-constants-and-delays" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id34" role="doc-backlink">Temporal Constants and Delays</a><a class="headerlink" href="#temporal-constants-and-delays" title="Link to this heading"></a></h3>
 <p>Population-network timing is split into three independent pieces:</p>
 <dl class="simple">
 <dt><code class="docutils literal notranslate"><span class="pre">layers[].dt</span></code></dt><dd><p>The recurrent integration step for every population in that layer. Decays
@@ -1629,7 +1696,7 @@ integration.</p>
 configuration that uses all of these fields together.</p>
 </section>
 <section id="component-summary">
-<h3><a class="toc-backref" href="#id34" role="doc-backlink">Component summary</a><a class="headerlink" href="#component-summary" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id35" role="doc-backlink">Component summary</a><a class="headerlink" href="#component-summary" title="Link to this heading"></a></h3>
 <table class="docutils align-default">
 <colgroup>
 <col style="width: 24.0%" />
@@ -1671,7 +1738,7 @@ trace, or membrane readout.</p></td>
 <tr class="row-odd"><td><p>Analysis compatibility</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">analysis.routing</span></code>, <code class="docutils literal notranslate"><span class="pre">analysis.dendritic_timetraces</span></code>,
 <code class="docutils literal notranslate"><span class="pre">analysis.inhibitory_specialization</span></code>, <code class="docutils literal notranslate"><span class="pre">analysis.spike_train</span></code></p></td>
-<td><p>Legacy E/I keys remain valid; named-population cores expose additional
+<td><p>Structured E/I keys remain valid; named-population cores expose additional
 population keys.</p></td>
 </tr>
 <tr class="row-even"><td><p>Recurrent protocol</p></td>
@@ -1681,13 +1748,13 @@ population keys.</p></td>
 </tr>
 </tbody>
 </table>
-<p>This backend is intentionally separate from legacy <code class="docutils literal notranslate"><span class="pre">EILayer</span></code> so existing E/I
-configs and analysis assumptions remain untouched. The implementation keeps
-inputs grouped by polarity for compatibility, while <code class="docutils literal notranslate"><span class="pre">connections</span></code> adds
-pair-specific hard masks inside those grouped streams.</p>
+<p>This backend is separate from <code class="docutils literal notranslate"><span class="pre">EILayer</span></code> so structured E/I configs and
+analysis assumptions remain stable. The implementation keeps inputs grouped by
+polarity, while <code class="docutils literal notranslate"><span class="pre">connections</span></code> adds pair-specific hard masks inside those
+grouped streams.</p>
 </section>
 <section id="config-to-code-map">
-<h3><a class="toc-backref" href="#id35" role="doc-backlink">Config-to-code map</a><a class="headerlink" href="#config-to-code-map" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id36" role="doc-backlink">Config-to-code map</a><a class="headerlink" href="#config-to-code-map" title="Link to this heading"></a></h3>
 <table class="docutils align-default">
 <colgroup>
 <col style="width: 26.0%" />
@@ -1702,16 +1769,20 @@ pair-specific hard masks inside those grouped streams.</p>
 </thead>
 <tbody>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">population_network.layers[].populations</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">recurrent.population_network.PopulationNetwork</span></code></p></td>
-<td><p>Builds one <code class="docutils literal notranslate"><span class="pre">StatefulDendriNet</span></code> per named population.</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">recurrent.population_network.PopulationNetwork</span></code> plus
+<code class="docutils literal notranslate"><span class="pre">recurrent.population_layer.PopulationLayer</span></code></p></td>
+<td><p>Builds ordered population-network layers and one <code class="docutils literal notranslate"><span class="pre">StatefulDendriNet</span></code>
+per named population.</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">population_network.layers[].connections</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">PopulationLayer</span></code> connection routing and masks</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">PopulationLayer</span></code> connection routing, <code class="docutils literal notranslate"><span class="pre">population_sources.py</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">population_configs.py</span></code></p></td>
 <td><p>Adds deterministic source-target masks inside grouped E/I streams.</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">population_defaults.synapse_types</span></code> or
 <code class="docutils literal notranslate"><span class="pre">model.core.synapse_types</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">recurrent.synapse_types.TypedSynapseBank</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">recurrent.synapse_types.TypedSynapseBank</span></code> and
+<code class="docutils literal notranslate"><span class="pre">recurrent.stateful_typed_dynamics.StatefulTypedDynamicsMixin</span></code></p></td>
 <td><p>Splits raw E/I currents into typed conductance traces before dendritic
 voltage integration.</p></td>
 </tr>
@@ -1720,13 +1791,29 @@ voltage integration.</p></td>
 <td><p>Restricts which presynaptic indices TopK, indexed TopK, stochastic
 TopK, variance TopK, and DeepST can select or rewire.</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dynamics_mode:</span> <span class="pre">spike</span></code> / <code class="docutils literal notranslate"><span class="pre">model.core.dynamics.mode</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">sparsity.type:</span> <span class="pre">indexed_rewire</span></code> / <code class="docutils literal notranslate"><span class="pre">indexed</span></code> /
+<code class="docutils literal notranslate"><span class="pre">indexed_dynamic</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">synapse.factory</span></code> sparse-layer lookup and <code class="docutils literal notranslate"><span class="pre">synapse.indexed</span></code> public
+facade, backed by <code class="docutils literal notranslate"><span class="pre">indexed_sparse</span></code>, <code class="docutils literal notranslate"><span class="pre">indexed_rewire</span></code>,
+<code class="docutils literal notranslate"><span class="pre">indexed_dynamic</span></code>, and <code class="docutils literal notranslate"><span class="pre">indexed_common</span></code></p></td>
+<td><p>Keeps the historical import path while separating fixed-index,
+adaptive-rewire, and candidate-pool behavior.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dynamics_mode:</span> <span class="pre">spike</span></code> / <code class="docutils literal notranslate"><span class="pre">model.core.dynamics.mode</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">recurrent.spiking_soma.LIFSoma</span></code></p></td>
 <td><p>Replaces rate-valued soma output with spikes, spike traces, or membrane
 readout without changing the trainer-facing sequence API.</p></td>
 </tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dendritic_spikes_enabled</span></code> /
+<code class="docutils literal notranslate"><span class="pre">model.core.dynamics.dendritic_spikes</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">recurrent.dendritic_spikes.DendriticSpikeDynamics</span></code></p></td>
+<td><p>Applies optional local branch threshold or plateau events before the
+final soma readout.</p></td>
+</tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">model.transformer_replacement.replacement_kwargs.kind</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">transformer.dendritic_ffn</span></code> and
+<td><p><code class="docutils literal notranslate"><span class="pre">transformer.modules</span></code>, <code class="docutils literal notranslate"><span class="pre">transformer.config_translation</span></code>,
+<code class="docutils literal notranslate"><span class="pre">transformer.config_translation_population</span></code>,
+<code class="docutils literal notranslate"><span class="pre">transformer.patching</span></code>, and
 <code class="docutils literal notranslate"><span class="pre">training.transformer_replacement</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">dendritic_ffn</span></code> builds per-layer token-wise dendritic FFNs;
 <code class="docutils literal notranslate"><span class="pre">ei_stack</span></code> builds <code class="docutils literal notranslate"><span class="pre">LayerwiseEIStackReplacement</span></code> slots. Joint and
@@ -1737,7 +1824,7 @@ layerwise distillation use the same kind dispatch.</p></td>
 </section>
 </section>
 <section id="synapse-types-receptor-kinetics">
-<h2><a class="toc-backref" href="#id36" role="doc-backlink">Synapse Types / Receptor Kinetics</a><a class="headerlink" href="#synapse-types-receptor-kinetics" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id37" role="doc-backlink">Synapse Types / Receptor Kinetics</a><a class="headerlink" href="#synapse-types-receptor-kinetics" title="Link to this heading"></a></h2>
 <figure class="align-default" id="id7">
 <a class="reference internal image-reference" href="_images/synapse-types.svg"><img alt="Receptor-kinetics comparison of AMPA, NMDA, GABA-A and GABA-B synapse types (tau, reversal potential, voltage-gating) and how they combine into branch conductance" src="_images/synapse-types.svg" style="width: 100%;" />
 </a>
@@ -1750,7 +1837,7 @@ the shunting/additive voltage uses the summed E vs I conductances.</span><a clas
 </figcaption>
 </figure>
 <p>The recurrent dendritic backend supports optional named synapse types inside a
-population. This extends the old E/I distinction without removing it: E and I
+population. This extends the base E/I distinction: E and I
 still define the sign/polarity and source streams, while named synapse types
 define the conductance mixture, time constants, and reversal potentials within
 each polarity.</p>
@@ -1781,7 +1868,7 @@ whether it enters the E or I conductance path.</p></td>
 <tr class="row-even"><td><p>Synapse type</p></td>
 <td><p>A named component within a polarity: fraction, rise/decay kinetics,
 reversal potential, optional voltage gate, nonlinearity, and STP.</p></td>
-<td><p>A new population, recurrent source, or readout target.</p></td>
+<td><p>A separate population, recurrent source, or readout target.</p></td>
 </tr>
 <tr class="row-odd"><td><p>Structured mask</p></td>
 <td><p>Which presynaptic indices are allowed to form sparse synapses.</p></td>
@@ -1847,19 +1934,19 @@ typed trace.</p>
 <p>For <code class="docutils literal notranslate"><span class="pre">population_network</span></code> models, the same block can live in a layer’s
 <code class="docutils literal notranslate"><span class="pre">population_defaults</span></code> or inside an individual population’s <code class="docutils literal notranslate"><span class="pre">population</span></code>
 block, allowing different named populations to use different receptor mixtures.</p>
-<p>When <code class="docutils literal notranslate"><span class="pre">enabled</span></code> is false, the code uses the legacy trace path. When enabled,
+<p>When <code class="docutils literal notranslate"><span class="pre">enabled</span></code> is false, the code uses the single-trace path. When enabled,
 both <code class="docutils literal notranslate"><span class="pre">excitatory</span></code> and <code class="docutils literal notranslate"><span class="pre">inhibitory</span></code> lists must be configured explicitly, and
 each raw E/I current is split by <code class="docutils literal notranslate"><span class="pre">fraction</span></code> into per-type traces. A synapse
 type with <code class="docutils literal notranslate"><span class="pre">tau:</span> <span class="pre">null</span></code> inherits the population’s existing per-level tau, which
 makes the single-type AMPA/GABA-A configuration numerically equivalent to the
-legacy recurrent dynamics. In shunting mode, <code class="docutils literal notranslate"><span class="pre">reversal_potential</span></code> sets the
+standard recurrent dynamics. In shunting mode, <code class="docutils literal notranslate"><span class="pre">reversal_potential</span></code> sets the
 conductance numerator directly. This supports both biologically named receptor
 types and more abstract continuous conductance classes parameterized by their
 effective reversal potential. In additive mode, typed synapses are restricted to
-the normalized legacy convention: excitatory reversal <code class="docutils literal notranslate"><span class="pre">1.0</span></code> and inhibitory
+the normalized additive convention: excitatory reversal <code class="docutils literal notranslate"><span class="pre">1.0</span></code> and inhibitory
 reversal <code class="docutils literal notranslate"><span class="pre">0.0</span></code>. Use shunting mode for continuous or biophysical reversal
 potentials.</p>
-<p>The kinetics block now supports both compact and biophysical-style forms:
+<p>The kinetics block supports both compact and biophysical-style forms:
 <code class="docutils literal notranslate"><span class="pre">tau</span></code> gives a single filtered trace, while <code class="docutils literal notranslate"><span class="pre">tau_rise</span></code>/<code class="docutils literal notranslate"><span class="pre">tau_decay</span></code> create
 a double-exponential conductance. NMDA-like voltage dependence is enabled with
 <code class="docutils literal notranslate"><span class="pre">magnesium_block:</span> <span class="pre">true</span></code> or <code class="docutils literal notranslate"><span class="pre">voltage_gate:</span> <span class="pre">nmda_magnesium</span></code>. The default
@@ -1875,7 +1962,7 @@ updated as a fixed dynamical state. Set <code class="docutils literal notranslat
 an experiment should backpropagate through the STP state history.</p>
 </section>
 <section id="spiking-soma-dynamics">
-<h2><a class="toc-backref" href="#id37" role="doc-backlink">Spiking Soma Dynamics</a><a class="headerlink" href="#spiking-soma-dynamics" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id38" role="doc-backlink">Spiking Soma Dynamics</a><a class="headerlink" href="#spiking-soma-dynamics" title="Link to this heading"></a></h2>
 <figure class="align-default" id="id8">
 <a class="reference internal image-reference" href="_images/spiking-modes.svg"><img alt="Comparison of rate soma, somatic LIF spikes, and dendritic plateau spikes — their signals, loci, and parameters" src="_images/spiking-modes.svg" style="width: 100%;" />
 </a>
@@ -1927,11 +2014,11 @@ the same fields can be supplied under <code class="docutils literal notranslate"
 </div>
 <p><code class="docutils literal notranslate"><span class="pre">spike_readout:</span> <span class="pre">spikes</span></code> returns binary spikes with a fast-sigmoid surrogate
 gradient. <code class="docutils literal notranslate"><span class="pre">spike_readout:</span> <span class="pre">rate</span></code> returns a leaky spike trace that can be passed
-to the existing decoder and trainer without a new loss function.
+to the existing decoder and trainer without a separate loss function.
 <code class="docutils literal notranslate"><span class="pre">spike_readout:</span> <span class="pre">membrane</span></code> returns the LIF membrane before thresholding for
 diagnostic rate-vs-spike ablations.</p>
 <section id="dendritic-spike-plateau-dynamics">
-<h3><a class="toc-backref" href="#id38" role="doc-backlink">Dendritic spike / plateau dynamics</a><a class="headerlink" href="#dendritic-spike-plateau-dynamics" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id39" role="doc-backlink">Dendritic spike / plateau dynamics</a><a class="headerlink" href="#dendritic-spike-plateau-dynamics" title="Link to this heading"></a></h3>
 <p>Dendritic spikes are implemented as optional local branch events, separate from
 the LIF soma.  They are applied after a dendritic level computes its voltage and
 before that voltage is sent to the parent branch level.  In other words, soma
@@ -1985,7 +2072,7 @@ silent-unit/trial fractions, spike-count Fano factors, and ISI statistics. It
 is analysis-only and does not change training or recurrent state updates.</p>
 </section>
 <section id="soma-to-dendrite-feedback">
-<h3><a class="toc-backref" href="#id39" role="doc-backlink">Soma-to-Dendrite Feedback</a><a class="headerlink" href="#soma-to-dendrite-feedback" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id40" role="doc-backlink">Soma-to-Dendrite Feedback</a><a class="headerlink" href="#soma-to-dendrite-feedback" title="Link to this heading"></a></h3>
 <figure class="align-default" id="id9">
 <a class="reference internal image-reference" href="_images/soma-dendrite-feedback.svg"><img alt="Soma-to-dendrite feedback loop — the soma output at the previous timestep projects back onto selected dendritic levels via additive, shunting, or gated modes" src="_images/soma-dendrite-feedback.svg" style="width: 100%;" />
 </a>
@@ -2022,10 +2109,9 @@ modulate dendrites on the next recurrent step.</p>
 <span class="w">            </span><span class="nt">soma_feedback_init_std</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.01</span>
 </pre></div>
 </div>
-<p>For recurrent EINet-style configs translated through the factory, prefer the
-canonical <code class="docutils literal notranslate"><span class="pre">model.core.soma_feedback</span></code> block. The older
-<code class="docutils literal notranslate"><span class="pre">model.core.recurrent_ei.soma_feedback</span></code> location is still accepted for
-backward compatibility:</p>
+<p>For recurrent EINet-style configs translated through the factory, use
+<code class="docutils literal notranslate"><span class="pre">model.core.soma_feedback</span></code>. The
+<code class="docutils literal notranslate"><span class="pre">model.core.recurrent_ei.soma_feedback</span></code> location is also accepted:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">core</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_shunting</span>
@@ -2046,7 +2132,7 @@ turning the component on can be made initially no-op and learnable; set a small
 nonzero init standard deviation for an immediate feedback perturbation.</p>
 </section>
 <section id="recurrent-connectivity-parameters">
-<h3><a class="toc-backref" href="#id40" role="doc-backlink">Recurrent connectivity parameters</a><a class="headerlink" href="#recurrent-connectivity-parameters" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id41" role="doc-backlink">Recurrent connectivity parameters</a><a class="headerlink" href="#recurrent-connectivity-parameters" title="Link to this heading"></a></h3>
 <p>These go in the <code class="docutils literal notranslate"><span class="pre">connectivity:</span></code> section alongside the feedforward synapse
 counts, as per-layer lists (repeat-last semantics):</p>
 <dl class="simple">
@@ -2062,7 +2148,7 @@ counts, as per-layer lists (repeat-last semantics):</p>
 <p>A layer is recurrent if any of its rec synapse counts are &gt; 0.</p>
 </section>
 <section id="structured-connectivity-masks">
-<h3><a class="toc-backref" href="#id41" role="doc-backlink">Structured connectivity masks</a><a class="headerlink" href="#structured-connectivity-masks" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id42" role="doc-backlink">Structured connectivity masks</a><a class="headerlink" href="#structured-connectivity-masks" title="Link to this heading"></a></h3>
 <p><code class="docutils literal notranslate"><span class="pre">connectivity.structured</span></code> optionally adds hard topology constraints on top of
 the usual synapse-count fields. The synapse counts remain the per-branch TopK
 budget. The structured mask defines the set of allowed presynaptic cells; TopK
@@ -2118,7 +2204,7 @@ active synapses than K.</p>
 over network layers. With DeepST, rewiring stays inside the allowed mask.</p>
 </section>
 <section id="temporal-parameters-recurrent-ei">
-<h3><a class="toc-backref" href="#id42" role="doc-backlink">Temporal parameters (<code class="docutils literal notranslate"><span class="pre">recurrent_ei</span></code>)</a><a class="headerlink" href="#temporal-parameters-recurrent-ei" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id43" role="doc-backlink">Temporal parameters (<code class="docutils literal notranslate"><span class="pre">recurrent_ei</span></code>)</a><a class="headerlink" href="#temporal-parameters-recurrent-ei" title="Link to this heading"></a></h3>
 <dl class="simple">
 <dt><code class="docutils literal notranslate"><span class="pre">output_mode</span></code></dt><dd><p><code class="docutils literal notranslate"><span class="pre">&quot;last&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;mean&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;all&quot;</span></code> (default: <code class="docutils literal notranslate"><span class="pre">&quot;last&quot;</span></code>).</p>
 </dd>
@@ -2136,7 +2222,7 @@ Scalar or per-layer list. Distal levels get longer time constants:
 </dl>
 </section>
 <section id="other-parameters">
-<h3><a class="toc-backref" href="#id43" role="doc-backlink">Other parameters</a><a class="headerlink" href="#other-parameters" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id44" role="doc-backlink">Other parameters</a><a class="headerlink" href="#other-parameters" title="Link to this heading"></a></h3>
 <dl class="simple">
 <dt><code class="docutils literal notranslate"><span class="pre">transfer.inhibitory_mode</span></code></dt><dd><p>Controls which layers receive the transfer layer’s inhibitory stream
 when <code class="docutils literal notranslate"><span class="pre">input_mode=1</span></code>.  <code class="docutils literal notranslate"><span class="pre">&quot;none&quot;</span></code> - no layer receives it.
@@ -2151,14 +2237,16 @@ inhibitory input.</p>
 </dl>
 </section>
 <section id="using-ei-unified-directly">
-<h3><a class="toc-backref" href="#id44" role="doc-backlink">Using <code class="docutils literal notranslate"><span class="pre">ei_unified</span></code> directly</a><a class="headerlink" href="#using-ei-unified-directly" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id45" role="doc-backlink">Using <code class="docutils literal notranslate"><span class="pre">ei_unified</span></code> directly</a><a class="headerlink" href="#using-ei-unified-directly" title="Link to this heading"></a></h3>
 <p>For full per-layer, per-population control, use <code class="docutils literal notranslate"><span class="pre">core.type:</span> <span class="pre">ei_unified</span></code>
 with the <code class="docutils literal notranslate"><span class="pre">unified_ei</span></code> config. Each layer is an <code class="docutils literal notranslate"><span class="pre">EILayerConfig</span></code> containing
 <code class="docutils literal notranslate"><span class="pre">excitatory</span></code> and <code class="docutils literal notranslate"><span class="pre">inhibitory</span></code> <code class="docutils literal notranslate"><span class="pre">PopulationConfig</span></code> objects.</p>
 <p>The recurrent unified-EI path reuses the same <code class="docutils literal notranslate"><span class="pre">DendriticBranchLayer</span></code> and
-<code class="docutils literal notranslate"><span class="pre">initialize.py</span></code> logic as the feedforward EI stack. The main difference is
-that recurrent populations wrap those branch layers with per-level temporal
-traces and optional recurrent synapse banks.</p>
+dendritic initialization modules as the feedforward EI stack. <code class="docutils literal notranslate"><span class="pre">initialize.py</span></code>
+is the compatibility facade; expectation math, reactivation calibration,
+scaling, and named initialization methods live in adjacent <code class="docutils literal notranslate"><span class="pre">initialize_*</span></code>
+modules. Recurrent populations then wrap those branch layers with per-level
+temporal traces and optional recurrent synapse banks.</p>
 <section id="populationconfig-fields">
 <h4>PopulationConfig fields<a class="headerlink" href="#populationconfig-fields" title="Link to this heading"></a></h4>
 <dl class="simple">
@@ -2279,7 +2367,7 @@ feedforward E, feedforward I, recurrent E, recurrent I, and branch aggregation.<
 </section>
 </section>
 <section id="baseline-rnn-cores">
-<h2><a class="toc-backref" href="#id45" role="doc-backlink">Baseline RNN Cores</a><a class="headerlink" href="#baseline-rnn-cores" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id46" role="doc-backlink">Baseline RNN Cores</a><a class="headerlink" href="#baseline-rnn-cores" title="Link to this heading"></a></h2>
 <p>Standard recurrent architectures for comparison: <code class="docutils literal notranslate"><span class="pre">gru</span></code>, <code class="docutils literal notranslate"><span class="pre">lstm</span></code>,
 <code class="docutils literal notranslate"><span class="pre">vanilla_rnn</span></code>.</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
@@ -2295,7 +2383,7 @@ feedforward E, feedforward I, recurrent E, recurrent I, and branch aggregation.<
 </div>
 </section>
 <section id="mlp-baseline">
-<h2><a class="toc-backref" href="#id46" role="doc-backlink">MLP Baseline</a><a class="headerlink" href="#mlp-baseline" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id47" role="doc-backlink">MLP Baseline</a><a class="headerlink" href="#mlp-baseline" title="Link to this heading"></a></h2>
 <p>Standard multi-layer perceptron. Variants include <code class="docutils literal notranslate"><span class="pre">PointMatchedParamMLP</span></code>,
 <code class="docutils literal notranslate"><span class="pre">MatchedTotalParamMLP</span></code>, <code class="docutils literal notranslate"><span class="pre">MatchedActiveParamMLP</span></code>, and
 <code class="docutils literal notranslate"><span class="pre">SparseStructuredMLP</span></code> for controlled parameter-count comparisons.</p>
@@ -2309,9 +2397,9 @@ feedforward E, feedforward I, recurrent E, recurrent I, and branch aggregation.<
 </div>
 </section>
 <section id="configuration-reference">
-<h2><a class="toc-backref" href="#id47" role="doc-backlink">Configuration Reference</a><a class="headerlink" href="#configuration-reference" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id48" role="doc-backlink">Configuration Reference</a><a class="headerlink" href="#configuration-reference" title="Link to this heading"></a></h2>
 <section id="architectureconfig">
-<h3><a class="toc-backref" href="#id48" role="doc-backlink">ArchitectureConfig</a><a class="headerlink" href="#architectureconfig" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id49" role="doc-backlink">ArchitectureConfig</a><a class="headerlink" href="#architectureconfig" title="Link to this heading"></a></h3>
 <table class="docutils align-default">
 <colgroup>
 <col style="width: 35.0%" />
@@ -2361,7 +2449,7 @@ feedforward E, feedforward I, recurrent E, recurrent I, and branch aggregation.<
 </table>
 </section>
 <section id="connectivityconfig">
-<h3><a class="toc-backref" href="#id49" role="doc-backlink">ConnectivityConfig</a><a class="headerlink" href="#connectivityconfig" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id50" role="doc-backlink">ConnectivityConfig</a><a class="headerlink" href="#connectivityconfig" title="Link to this heading"></a></h3>
 <table class="docutils align-default">
 <colgroup>
 <col style="width: 40.0%" />
@@ -2426,7 +2514,7 @@ feedforward E, feedforward I, recurrent E, recurrent I, and branch aggregation.<
 </table>
 </section>
 <section id="morphologyconfig">
-<h3><a class="toc-backref" href="#id50" role="doc-backlink">MorphologyConfig</a><a class="headerlink" href="#morphologyconfig" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id51" role="doc-backlink">MorphologyConfig</a><a class="headerlink" href="#morphologyconfig" title="Link to this heading"></a></h3>
 <table class="docutils align-default">
 <colgroup>
 <col style="width: 35.0%" />
@@ -2471,7 +2559,7 @@ feedforward E, feedforward I, recurrent E, recurrent I, and branch aggregation.<
 </table>
 </section>
 <section id="sparsityconfig">
-<h3><a class="toc-backref" href="#id51" role="doc-backlink">SparsityConfig</a><a class="headerlink" href="#sparsityconfig" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id52" role="doc-backlink">SparsityConfig</a><a class="headerlink" href="#sparsityconfig" title="Link to this heading"></a></h3>
 <table class="docutils align-default">
 <colgroup>
 <col style="width: 30.0%" />
@@ -2522,7 +2610,7 @@ indexed_dynamic, indexed_rewire</p></td>
 </table>
 </section>
 <section id="reactivationconfig">
-<h3><a class="toc-backref" href="#id52" role="doc-backlink">ReactivationConfig</a><a class="headerlink" href="#reactivationconfig" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id53" role="doc-backlink">ReactivationConfig</a><a class="headerlink" href="#reactivationconfig" title="Link to this heading"></a></h3>
 <table class="docutils align-default">
 <colgroup>
 <col style="width: 30.0%" />
@@ -2562,7 +2650,7 @@ indexed_dynamic, indexed_rewire</p></td>
 </table>
 </section>
 <section id="transferfunctionconfig">
-<h3><a class="toc-backref" href="#id53" role="doc-backlink">TransferFunctionConfig</a><a class="headerlink" href="#transferfunctionconfig" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id54" role="doc-backlink">TransferFunctionConfig</a><a class="headerlink" href="#transferfunctionconfig" title="Link to this heading"></a></h3>
 <table class="docutils align-default">
 <colgroup>
 <col style="width: 30.0%" />
@@ -2612,7 +2700,7 @@ indexed_dynamic, indexed_rewire</p></td>
 </table>
 </section>
 <section id="implementationconfig">
-<h3><a class="toc-backref" href="#id54" role="doc-backlink">ImplementationConfig</a><a class="headerlink" href="#implementationconfig" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id55" role="doc-backlink">ImplementationConfig</a><a class="headerlink" href="#implementationconfig" title="Link to this heading"></a></h3>
 <table class="docutils align-default">
 <colgroup>
 <col style="width: 35.0%" />

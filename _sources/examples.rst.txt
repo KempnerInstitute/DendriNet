@@ -1,20 +1,27 @@
 Runnable Config Examples
 ========================
 
-``configs/examples/`` is the curated public example set. New structured
-network examples use one convention:
+``configs/examples/`` contains runnable examples for the main model families
+and feature combinations. Structured population examples use one convention:
 
 * ``model.core.type: population_network``
 * ``model.core.population_network.layers[].populations``
 * ``model.core.population_network.layers[].connections``
 
-Older E/I aliases remain supported by the code for reproducibility, but they
-are not duplicated in the public examples. Specialized ImageNet/AlexNet
-configs live under ``configs/vision/``; transformer benchmark configs live
-with their Slurm jobs under ``jobs/transformer_replacement_benchmarks/``.
+General population-network examples use ``topk_type: indexed_rewire`` and
+``efficient_blocklinear: true`` so the public examples exercise the
+memory-efficient sparse path with same-dendrite turnover.  The
+dense-to-sparse example remains a named variant for developmental pruning.
+Transformer and vision replacement examples use the same sparse-synapse and
+branch-aggregation defaults through their population-network core definitions.
 
-Recommended Ladder
-------------------
+E/I alias configs are supported by the loader and factory, but the examples
+focus on the population-network schema. ImageNet/AlexNet configs live under
+``configs/vision/``; transformer benchmark configs live under
+``configs/transformer_replacement_benchmarks/``.
+
+Example Map
+-----------
 
 .. list-table::
    :header-rows: 1
@@ -27,42 +34,40 @@ Recommended Ladder
      - ``configs/examples/population_network_feedforward.yaml``
      - One explicit layer with ``input -> i``, ``input -> e``, and
        same-step ``i -> e`` inhibition.
-   * - 2. Independent transfer streams
-     - ``configs/examples/population_network_independent_transfer.yaml``
-     - Legacy-style split input streams addressed as ``input_e`` and
-       ``input_i`` while still using named populations.
-   * - 3. Legacy input-mode equivalence
-     - ``configs/examples/population_network_input_mode0_one_layer.yaml`` and
-       ``configs/examples/population_network_input_mode1_one_layer.yaml``
-     - Original ``input_mode=0`` inhibitory-cell construction versus
-       ``input_mode=1`` direct inhibitory streams in the new schema.
-   * - 4. CIFAR-10 training recipe
+   * - 2. CIFAR-10 training recipe
      - ``configs/examples/population_network_cifar10.yaml``
      - 128E/32I, ``[3, 3, 3]`` morphology, ``40E/10I`` synapses,
        ``occupancy_quantile`` gates, weight decay, and weight boosting.
-   * - 5. Dense-to-sparse pruning
+   * - 3. Dense-to-sparse pruning
      - ``configs/examples/population_network_dense_to_sparse_cifar10.yaml``
      - Starts from dense allowed synapses and anneals to the TopK budget.
-   * - 6. Indexed rewiring
+   * - 4. Indexed rewiring
      - ``configs/examples/population_network_indexed_rewire_mnist.yaml``
      - Memory-efficient sparse storage plus adaptive-quantile replacement of
        weak same-dendrite synapses.
-   * - 7. Normalized additive control
+   * - 5. Normalized additive control
      - ``configs/examples/population_network_normalized_additive_mnist.yaml``
      - Explicit normalized-additive model; raw additive uses
        ``use_additive_normalization: false``.
-   * - 8. Heterogeneous cell types
+   * - 6. Local credit assignment
+     - ``configs/examples/population_network_local_learning_mnist.yaml``
+     - Local dendritic credit-assignment rules with a population-network core.
+   * - 7. Heterogeneous cell types
      - ``configs/examples/population_network_heterogeneous_feedforward.yaml``
      - Multiple E and I populations in one layer with per-population
        morphology and parameter overrides.
-   * - 9. Two-layer routing
+   * - 8. Two-layer routing
      - ``configs/examples/population_network_two_layer.yaml``
      - Cross-layer sources such as ``layer0.e0`` plus local same-step
        inhibition in each layer.
-   * - 10. Recurrent microcircuit
+   * - 9. Recurrent microcircuit
      - ``configs/examples/population_network_recurrent_pyr_pv_sst.yaml``
      - Pyr/PV/SST populations, probabilistic edges, and delayed recurrent
        timing.
+   * - 10. Dendritic taus and delayed edges
+     - ``configs/examples/population_network_taus_and_delays.yaml``
+     - Layer ``dt``, dendritic time constants, receptor time constants, and
+       delayed population edges in one compact recurrent example.
    * - 11. Synapse types
      - ``configs/examples/population_network_synapse_types_ampa_nmda_gaba.yaml``
      - AMPA/NMDA/GABA mixtures, receptor time constants, NMDA Mg block, and
@@ -104,8 +109,7 @@ The layer is a directed graph of named populations:
 CIFAR-10 and Developmental Sparsity
 -----------------------------------
 
-Use ``population_network_cifar10.yaml`` for the maintained CIFAR-10 E/I
-training recipe:
+Use ``population_network_cifar10.yaml`` for CIFAR-10 E/I training:
 
 .. code-block:: bash
 
@@ -146,29 +150,8 @@ settings through its nested ``population:`` block.
 
 ``population_network_two_layer.yaml`` shows how later layers consume earlier
 population outputs by qualified names such as ``layer0.e0`` and ``layer0.i0``.
-
-Legacy Input-Mode Equivalents
------------------------------
-
-These examples show the original E/I feedforward conventions written in the
-new population-network notation:
-
-.. list-table::
-   :header-rows: 1
-   :widths: 45 55
-
-   * - Config
-     - Meaning
-   * - ``population_network_input_mode0_one_layer.yaml``
-     - One-layer ``input_mode=0``: explicit inhibitory cells
-       ``input_e -> i0 -> e0``.
-   * - ``population_network_input_mode1_one_layer.yaml``
-     - One-layer ``input_mode=1``: no explicit I cells; ``input_i`` drives the
-       E population's inhibitory dendritic pathway.
-   * - ``population_network_input_mode0_two_layer.yaml``
-     - Two-layer version with an inhibitory population in each layer.
-   * - ``population_network_input_mode1_two_layer.yaml``
-     - Two-layer version with direct inhibitory pathways into each E layer.
+Transfer-stream variants can be expressed directly with ``connections`` and
+external sources such as ``input_e`` and ``input_i``.
 
 Recurrent, Taus, Spiking, and Feedback
 --------------------------------------
@@ -183,19 +166,15 @@ Use these examples for temporal models:
      - Feature
    * - ``population_network_recurrent_pyr_pv_sst.yaml``
      - Single recurrent Pyr/PV/SST microcircuit with delayed edges.
-   * - ``population_network_multilayer_recurrent.yaml``
-     - Multiple recurrent population layers with cross-layer routing.
    * - ``population_network_taus_and_delays.yaml``
      - ``layers[].dt``, dendritic ``tau_*`` controls, and delayed edges.
    * - ``population_network_spiking.yaml``
      - LIF soma dynamics and spike-trace readout.
-   * - ``population_network_spiking_multilayer_recurrent.yaml``
-     - Spiking dynamics in a stacked recurrent population network.
    * - ``population_network_soma_feedback.yaml``
      - Previous-timestep soma-to-dendrite feedback.
 
-Local Learning and Multi-stage Training
----------------------------------------
+Local Learning
+--------------
 
 Training strategies use the same population-network model schema:
 
@@ -205,15 +184,11 @@ Training strategies use the same population-network model schema:
      src/dendritic_modeling/scripts/training/train_experiments.py \
      configs/examples/population_network_local_learning_mnist.yaml
 
-   PYTHONPATH=src:$PYTHONPATH python \
-     src/dendritic_modeling/scripts/training/train_experiments.py \
-     configs/examples/population_network_multistage_cifar10.yaml
-
 Transformer Replacement
 -----------------------
 
-The small synthetic transformer replacement smoke test remains in
-``configs/examples`` because it is fast and self-contained:
+The synthetic transformer replacement example trains a token-wise
+``DendriticFFNReplacement`` against a small teacher MLP:
 
 .. code-block:: bash
 
@@ -221,16 +196,17 @@ The small synthetic transformer replacement smoke test remains in
      dendritic_modeling.scripts.training.train_transformer_replacement \
      configs/examples/transformer_replacement_synthetic_distillation.yaml
 
-Large Hugging Face replacement configs are operational benchmark configs and
-live under ``jobs/transformer_replacement_benchmarks/configs/``.
+Full Hugging Face replacement benchmark configs live under
+``configs/transformer_replacement_benchmarks/``.
 
 Vision Backbone Replacement
 ---------------------------
 
-Vision replacement configs live under ``configs/vision/`` because they are
-larger operational examples rather than small public smoke tests. They use
-``model.pretrained_replacement`` to split a torchvision backbone into a frozen
-or trainable prefix, a dendritic replacement core, and a suffix.
+Vision replacement configs live under ``configs/vision/``. They use
+``model.vision_replacement`` to split a torchvision backbone into a frozen
+or trainable prefix, a dendritic replacement core, and a suffix. The active
+examples use indexed-dynamic sparse synapses and efficient branch aggregation
+for their dendritic replacement cores.
 
 .. list-table::
    :header-rows: 1
@@ -245,7 +221,7 @@ or trainable prefix, a dendritic replacement core, and a suffix.
    * - ``configs/vision/alexnet_k1_einet_ddp.yaml``
      - Same K=1 replacement configured for DDP.
    * - ``configs/vision/pretrained_alexnet_fc.yaml``
-     - Fully connected pretrained replacement with
+     - Fully connected vision replacement with
        ``hierarchical_dendritic_tensor_map``.
    * - ``configs/vision/pretrained_alexnet_conv.yaml``
      - Feature-map replacement with ``hierarchical_dendritic_conv``.

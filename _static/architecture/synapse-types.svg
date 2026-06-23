@@ -130,7 +130,7 @@
   <text class="code" x="552" y="608">pv/sst -> target I stream</text>
   <text class="body" x="552" y="640">Synapse type says how the selected stream is filtered:</text>
   <text class="code" x="552" y="664">AMPA, NMDA, GABA_A, GABA_B, custom</text>
-  <text class="small" x="552" y="688">Do not create a new population just to change receptor kinetics.</text>
+  <text class="small" x="552" y="688">Do not create a separate population just to change receptor kinetics.</text>
 
   <rect class="sum" x="1016" y="496" width="418" height="206"/>
   <text class="name" x="1042" y="530">Training and gradients</text>
