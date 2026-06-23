@@ -47,7 +47,6 @@ class InformationRandomSignalMixin:
         E_sh = np.zeros((n_samples, n_branches))
         I_sh = np.zeros((n_samples, n_branches))
         Vb_sh = np.zeros((n_samples, n_branches))
-        Vout_sh = np.zeros((n_samples, n_branches))
 
         # Create RNG with reproducible seed
         rng = np.random.default_rng(int(self.random_weights_seed) + int(shuffle_idx))
