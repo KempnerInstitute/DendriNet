@@ -1,3 +1,4 @@
+import numpy as np
 import pytest
 import torch
 from torch.utils.data import TensorDataset
@@ -416,6 +417,25 @@ def test_receptive_field_checkpoint_and_activation_tuning(tmp_path):
     assert loaded_results["n_receptive_fields"] == results["n_receptive_fields"]
 
 
+def test_receptive_field_runs_on_non_ei_branch_core(tmp_path):
+    model = _branch_only_model()
+    analyzer = ReceptiveFieldAnalyzer(
+        ReceptiveFieldAnalysisParams(n_rows=1, n_cols=2, rf_shape=(1, 6))
+    )
+
+    results = analyzer.analyze(
+        model=model,
+        save_path=str(tmp_path),
+        filename="rf",
+    )
+
+    assert results is not None
+    assert results["n_receptive_fields"] > 0
+    assert (tmp_path / "rf_raw_receptive_fields.pt").exists()
+    assert (tmp_path / "exc_receptive_fields.png").exists()
+    assert (tmp_path / "inh_receptive_fields.png").exists()
+
+
 def test_receptive_field_rf_tuning_outputs(tmp_path):
     model = _direct_inhibitory_model()
     _x, _labels, dataset = _toy_dataset()
@@ -444,6 +464,41 @@ def test_receptive_field_rf_tuning_outputs(tmp_path):
     assert (tmp_path / "rf.json").exists()
 
 
+def test_receptive_field_component_rfs_outputs(tmp_path):
+    model = _direct_inhibitory_model()
+    _x, _labels, dataset = _toy_dataset()
+    analyzer = ReceptiveFieldAnalyzer(
+        ReceptiveFieldAnalysisParams(
+            rf_shape=(1, 3),
+            compute_component_rfs=True,
+        )
+    )
+
+    results = analyzer.analyze(
+        model=model,
+        test_dataset=dataset,
+        device="cpu",
+        save_path=str(tmp_path),
+        filename="rf",
+    )
+
+    assert results is not None
+    assert "component_receptive_fields" in results
+    summary = results["component_receptive_fields"]
+    assert summary["n_soma"] == 4
+    assert summary["map_shape"] == [1, 3]
+    assert (tmp_path / "rf_component_receptive_fields.json").exists()
+    assert (tmp_path / "rf_component_receptive_fields.npz").exists()
+    assert (tmp_path / "rf_component_receptive_fields.png").exists()
+
+    data = np.load(tmp_path / "rf_component_receptive_fields.npz")
+    assert data["e_mean"].shape == (4, 1, 3)
+    assert data["e_comp"].shape == (4, 1, 3)
+    assert data["i_mean"].shape == (4, 1, 3)
+    assert data["i_comp"].shape == (4, 1, 3)
+    assert data["preferred"].shape == (4,)
+
+
 def test_manager_runs_snr_and_rf_from_loaded_analysis_aliases(tmp_path):
     config_path = tmp_path / "config.yaml"
     config_path.write_text(
@@ -468,6 +523,7 @@ analysis:
     training: false
     params:
       rf_shape: [1, 3]
+      compute_component_rfs: true
       compute_rf_tuning: true
       plot_rf_tuning: false
 """.lstrip()
@@ -489,6 +545,9 @@ analysis:
     assert (save_root / "compartment_snr_analysis" / "final.json").exists()
     rf_root = save_root / "receptive_field_analysis"
     assert (rf_root / "final_summary.json").exists()
+    assert (rf_root / "final_component_receptive_fields.json").exists()
+    assert (rf_root / "final_component_receptive_fields.npz").exists()
+    assert (rf_root / "final_component_receptive_fields.png").exists()
     assert (rf_root / "final_rf_tuning.json").exists()
     assert (rf_root / "final.json").exists()
 

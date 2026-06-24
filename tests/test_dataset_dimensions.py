@@ -35,6 +35,7 @@ def test_dataset_class_counts_preserve_gpu_estimator_defaults():
     assert DATASET_CLASS_COUNTS == {
         "mnist": 10,
         "cifar10": 10,
+        "cifar100": 100,
         "imagenet": 1000,
     }
 

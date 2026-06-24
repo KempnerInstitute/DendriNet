@@ -249,6 +249,8 @@ class TestConfigDataclasses(unittest.TestCase):
                     "enabled": True,
                     "params": {
                         "rf_shape": [1, 3],
+                        "compute_component_rfs": True,
+                        "plot_component_rfs": False,
                         "compute_rf_tuning": True,
                         "plot_rf_tuning": False,
                     },
@@ -268,6 +270,8 @@ class TestConfigDataclasses(unittest.TestCase):
         self.assertIsInstance(rf_config.params, ReceptiveFieldAnalysisParams)
         self.assertTrue(rf_config.enabled)
         self.assertEqual(rf_config.params.rf_shape, [1, 3])
+        self.assertTrue(rf_config.params.compute_component_rfs)
+        self.assertFalse(rf_config.params.plot_component_rfs)
         self.assertTrue(rf_config.params.compute_rf_tuning)
         self.assertFalse(rf_config.params.plot_rf_tuning)
 

@@ -18,7 +18,6 @@ from torch.distributions import Categorical
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
 from dendritic_modeling.analysis.tools.epoch_aggregation import load_epoch_aggregation
-from dendritic_modeling.analysis.utils.einet_core import has_einet_core
 from dendritic_modeling.analysis.utils.runtime import (
     analysis_device_context,
     materialize_dataset,
@@ -72,6 +71,10 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         self.compute_activation_tuning = bool(
             getattr(params, "compute_activation_tuning", False)
         )
+        self.compute_component_rfs = bool(
+            getattr(params, "compute_component_rfs", False)
+        )
+        self.plot_component_rfs = bool(getattr(params, "plot_component_rfs", True))
         self.compute_rf_tuning = bool(getattr(params, "compute_rf_tuning", False))
         self.plot_rf_tuning = bool(getattr(params, "plot_rf_tuning", True))
         self.rf_tuning_layer_index = int(getattr(params, "rf_tuning_layer_index", 0))
@@ -925,6 +928,525 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         return mean_vector_dict
 
     @staticmethod
+    def _smooth_map(arr: np.ndarray, n_iter: int = 1) -> np.ndarray:
+        """Small separable smoothing used for compact RF summary plots."""
+        kernel = np.asarray([1.0, 2.0, 1.0], dtype=float) / 4.0
+        out = np.asarray(arr, dtype=float)
+        for _ in range(max(0, int(n_iter))):
+            out = np.apply_along_axis(
+                lambda row: np.convolve(
+                    np.pad(row, 1, mode="edge"),
+                    kernel,
+                    mode="valid",
+                ),
+                1,
+                out,
+            )
+            out = np.apply_along_axis(
+                lambda col: np.convolve(
+                    np.pad(col, 1, mode="edge"),
+                    kernel,
+                    mode="valid",
+                ),
+                0,
+                out,
+            )
+        return out
+
+    @staticmethod
+    def _normalize_map(arr: np.ndarray) -> np.ndarray:
+        arr = np.asarray(arr, dtype=float)
+        finite = np.isfinite(arr)
+        if not finite.any():
+            return np.zeros_like(arr)
+        lo = float(np.nanpercentile(arr[finite], 1))
+        hi = float(np.nanpercentile(arr[finite], 99))
+        if hi <= lo:
+            lo = float(np.nanmin(arr[finite]))
+            hi = float(np.nanmax(arr[finite]))
+        if hi <= lo:
+            return np.zeros_like(arr)
+        return np.clip((arr - lo) / (hi - lo), 0, 1)
+
+    @staticmethod
+    def _weighted_image_mean(
+        images: np.ndarray,
+        weights: np.ndarray,
+    ) -> np.ndarray:
+        weights = np.asarray(weights, dtype=float)
+        weights = np.clip(weights, 0, None)
+        if weights.sum() <= 1e-12:
+            return images.mean(axis=0)
+        return (images * weights[:, None]).sum(axis=0) / weights.sum()
+
+    def _as_component_map(
+        self,
+        value: Optional[np.ndarray],
+        shape: tuple[int, int],
+    ) -> np.ndarray:
+        if value is None:
+            return np.zeros(shape, dtype=float)
+        arr = np.asarray(value, dtype=float)
+        if arr.shape == shape:
+            return arr
+        if arr.size == prod(shape):
+            return arr.reshape(shape)
+        return np.zeros(shape, dtype=float)
+
+    def _component_branch_hook(
+        self,
+        module: DendriticBranchLayer,
+        inputs: tuple[torch.Tensor, ...],
+        output: torch.Tensor,
+        records: dict[int, dict[str, torch.Tensor]],
+        branch_layer_idx: int,
+    ) -> None:
+        excitatory_input = inputs[0]
+        inhibitory_input = inputs[1] if len(inputs) > 1 else None
+
+        excitation = torch.zeros_like(output)
+        inhibition = torch.zeros_like(output)
+        if module.branch_excitation is not None:
+            excitation = module.branch_excitation(excitatory_input)
+        if module.branch_inhibition is not None and inhibitory_input is not None:
+            inhibition = module.branch_inhibition(inhibitory_input)
+
+        records[branch_layer_idx] = {
+            "x": excitatory_input.detach(),
+            "E": excitation.detach(),
+            "I": inhibition.detach(),
+            "out": output.detach(),
+        }
+
+    def _collect_component_branch_records(
+        self,
+        model: BaseModel,
+        dendrinet: DendriNet,
+        x: torch.Tensor,
+    ) -> list[dict[str, torch.Tensor]]:
+        records: dict[int, dict[str, torch.Tensor]] = {}
+
+        hook_specs = list(enumerate(dendrinet.branch_layers))
+
+        def _register_hook(
+            spec: tuple[int, DendriticBranchLayer],
+        ) -> list[torch.utils.hooks.RemovableHandle]:
+            branch_layer_idx, branch_layer = spec
+            handle = branch_layer.register_forward_hook(
+                lambda module, inputs, output, branch_layer_idx=branch_layer_idx: (
+                    self._component_branch_hook(
+                        module,
+                        inputs,
+                        output,
+                        records=records,
+                        branch_layer_idx=branch_layer_idx,
+                    )
+                )
+            )
+            return [handle]
+
+        def _attach_hooks():
+            return register_hook_groups(hook_specs, _register_hook)
+
+        def _run_model():
+            with torch.no_grad():
+                _ = model(x)
+
+        run_with_forward_hooks(
+            attach=_attach_hooks,
+            remove=self.remove_forward_hooks,
+            body=_run_model,
+        )
+        return [records[idx] for idx in sorted(records)]
+
+    def _conditioned_soma_from_records(
+        self,
+        dendrinet: DendriNet,
+        records: list[dict[str, torch.Tensor]],
+        *,
+        vary: str,
+    ) -> torch.Tensor:
+        output = None
+        for branch_layer, record in zip(dendrinet.branch_layers, records):
+            excitation = record["E"]
+            inhibition = record["I"]
+
+            if vary == "exc":
+                excitation_used = excitation
+                inhibition_used = inhibition.mean(dim=0, keepdim=True).expand_as(
+                    inhibition
+                )
+            elif vary == "inh":
+                excitation_used = excitation.mean(dim=0, keepdim=True).expand_as(
+                    excitation
+                )
+                inhibition_used = inhibition
+            elif vary == "mean":
+                excitation_used = excitation.mean(dim=0, keepdim=True).expand_as(
+                    excitation
+                )
+                inhibition_used = inhibition.mean(dim=0, keepdim=True).expand_as(
+                    inhibition
+                )
+            else:
+                raise ValueError(f"Unknown component RF conditioning mode: {vary}")
+
+            if branch_layer.input_branches and output is not None:
+                branch_drive = branch_layer.branches_to_output(output)
+                branch_conductance = branch_layer.branches_to_output.sum_conductances()
+                branch_conductance = branch_conductance.to(
+                    device=excitation.device,
+                    dtype=excitation.dtype,
+                )
+            else:
+                branch_drive = torch.zeros_like(excitation)
+                branch_conductance = torch.zeros(
+                    (excitation.shape[-1],),
+                    device=excitation.device,
+                    dtype=excitation.dtype,
+                )
+
+            if branch_layer.use_shunting:
+                voltage = (excitation_used + branch_drive) / (
+                    1.0
+                    + excitation_used
+                    + inhibition_used
+                    + branch_conductance
+                    + branch_layer.epsilon
+                )
+            else:
+                voltage = excitation_used + branch_drive - inhibition_used
+                if branch_layer.use_additive_normalization:
+                    voltage = (voltage - voltage.mean(dim=-1, keepdim=True)) / (
+                        voltage.std(dim=-1, keepdim=True, unbiased=False)
+                        + branch_layer.epsilon
+                    )
+            output = branch_layer.reactivation(voltage)
+
+        if output is None:
+            raise ValueError("No branch records were collected for component RFs")
+        return output
+
+    @staticmethod
+    def _preferred_classes(
+        soma_values: torch.Tensor,
+        labels: torch.Tensor,
+    ) -> np.ndarray:
+        soma_values = soma_values.detach().cpu()
+        labels = labels.detach().cpu()
+        classes = torch.unique(labels)
+        class_means = []
+        for class_label in classes:
+            class_mask = labels == class_label
+            class_means.append(soma_values[class_mask].mean(dim=0))
+        means = torch.stack(class_means, dim=0)
+        preferred_ix = means.argmax(dim=0)
+        return classes[preferred_ix].numpy().astype(int)
+
+    def _component_rf_image_source(
+        self,
+        x: torch.Tensor,
+        records: list[dict[str, torch.Tensor]],
+    ) -> Optional[np.ndarray]:
+        if self.exc_rf_shape is None:
+            return None
+        n_features = prod(self.exc_rf_shape)
+        if x.shape[-1] == n_features:
+            return x.detach().cpu().reshape(x.shape[0], n_features).numpy()
+        if records and records[0]["x"].shape[-1] == n_features:
+            source = records[0]["x"].detach().cpu()
+            return source.reshape(source.shape[0], n_features).numpy()
+        return None
+
+    def _structural_component_maps(
+        self,
+        layer: ExcitationInhibitionLayer,
+        n_soma: int,
+        shape: tuple[int, int],
+    ) -> tuple[np.ndarray, np.ndarray]:
+        exc_rfs_dict, inh_rfs_dict = self.collect_receptive_fields(layer)
+        exc_agg_rfs_dict = self._aggregate_rfs_by_soma(exc_rfs_dict)
+
+        agg_prod_rfs_dict = None
+        if inh_rfs_dict is not None:
+            inh_agg_rfs_dict = self._aggregate_rfs_by_soma(inh_rfs_dict)
+            agg_prod_rfs_dict = self._project_inhibitory_component_rfs_by_soma(
+                exc_rfs_dict=exc_rfs_dict,
+                inh_agg_rfs_dict=inh_agg_rfs_dict,
+                shape=shape,
+            )
+
+        exc_maps = []
+        inh_maps = []
+        for soma_idx in range(n_soma):
+            soma_key = f"soma {soma_idx}"
+            soma_rfs = exc_agg_rfs_dict.get(soma_key, {})
+            exc_maps.append(
+                self._smooth_map(
+                    self._as_component_map(soma_rfs.get("exc_rf"), shape),
+                    n_iter=2,
+                )
+            )
+
+            projected_inh = None
+            if agg_prod_rfs_dict is not None:
+                projected_inh = agg_prod_rfs_dict.get(soma_key, {}).get("inh_rf")
+            if projected_inh is None:
+                projected_inh = soma_rfs.get("inh_rf")
+            inh_maps.append(
+                self._smooth_map(
+                    self._as_component_map(projected_inh, shape),
+                    n_iter=2,
+                )
+            )
+
+        return np.stack(exc_maps, axis=0), np.stack(inh_maps, axis=0)
+
+    def _project_inhibitory_component_rfs_by_soma(
+        self,
+        *,
+        exc_rfs_dict: dict[str, dict[str, np.ndarray]],
+        inh_agg_rfs_dict: dict[str, dict[str, np.ndarray]],
+        shape: tuple[int, int],
+    ) -> dict[str, dict[str, np.ndarray]]:
+        projected: dict[str, dict[str, np.ndarray]] = {}
+        counts: dict[str, int] = {}
+
+        for location_key, branch_rfs in exc_rfs_dict.items():
+            inhibitory_weights = branch_rfs.get("inh_rf")
+            if inhibitory_weights is None:
+                continue
+
+            branch_map = np.zeros(shape, dtype=float)
+            any_projected = False
+            for inh_idx, weight in enumerate(
+                np.asarray(inhibitory_weights).reshape(-1)
+            ):
+                if abs(float(weight)) <= self.epsilon:
+                    continue
+                inh_rf = inh_agg_rfs_dict.get(f"soma {inh_idx}", {}).get("exc_rf")
+                if inh_rf is None:
+                    continue
+                branch_map = branch_map + float(weight) * self._as_component_map(
+                    inh_rf,
+                    shape,
+                )
+                any_projected = True
+
+            if not any_projected:
+                continue
+
+            soma_idx = _location_key_to_tuple(location_key)[0]
+            soma_key = f"soma {soma_idx}"
+            counts[soma_key] = counts.get(soma_key, 0) + 1
+            soma_data = projected.setdefault(
+                soma_key,
+                {"inh_rf": np.zeros(shape, dtype=float)},
+            )
+            soma_data["inh_rf"] = soma_data["inh_rf"] + branch_map
+
+        for soma_key, soma_data in projected.items():
+            soma_data["inh_rf"] = soma_data["inh_rf"] / max(counts.get(soma_key, 1), 1)
+
+        return projected
+
+    def _compute_component_receptive_fields(
+        self,
+        model: BaseModel,
+        x: torch.Tensor,
+        labels: torch.Tensor,
+        save_path: Optional[str],
+        filename: str,
+        training: bool,
+    ) -> Optional[dict[str, object]]:
+        if self.exc_rf_shape is None:
+            self.logger.warning("Component RFs require rf_shape or exc_rf_shape")
+            return None
+
+        layer = self._get_rf_tuning_layer(model)
+        if layer is None or not isinstance(layer.excitatory_cells, DendriNet):
+            self.logger.warning(
+                "Component RFs require a selectable E/I layer with excitatory "
+                "DendriNet cells"
+            )
+            return None
+
+        records = self._collect_component_branch_records(
+            model,
+            layer.excitatory_cells,
+            x,
+        )
+        if not records:
+            self.logger.warning("Component RF hooks did not capture branch records")
+            return None
+
+        images = self._component_rf_image_source(x, records)
+        if images is None:
+            self.logger.warning(
+                "Component RF inputs do not match requested RF shape %s",
+                self.exc_rf_shape,
+            )
+            return None
+
+        observed_soma = records[-1]["out"]
+        preferred = self._preferred_classes(observed_soma, labels)
+        e_conditioned = self._conditioned_soma_from_records(
+            layer.excitatory_cells,
+            records,
+            vary="exc",
+        )
+        i_conditioned = self._conditioned_soma_from_records(
+            layer.excitatory_cells,
+            records,
+            vary="inh",
+        )
+        mean_conditioned = self._conditioned_soma_from_records(
+            layer.excitatory_cells,
+            records,
+            vary="mean",
+        )
+
+        labels_np = labels.detach().cpu().numpy()
+        n_soma = int(observed_soma.shape[-1])
+        e_component_maps = []
+        i_component_maps = []
+        for soma_idx in range(n_soma):
+            preferred_mask = labels_np == preferred[soma_idx]
+            if not preferred_mask.any():
+                preferred_mask = np.ones_like(labels_np, dtype=bool)
+
+            e_component = e_conditioned[:, soma_idx] - mean_conditioned[:, soma_idx]
+            i_component = mean_conditioned[:, soma_idx] - i_conditioned[:, soma_idx]
+            e_map = self._weighted_image_mean(
+                images[preferred_mask],
+                e_component.detach().cpu().numpy()[preferred_mask],
+            ).reshape(self.exc_rf_shape)
+            i_map = self._weighted_image_mean(
+                1.0 - images[preferred_mask],
+                i_component.detach().cpu().numpy()[preferred_mask],
+            ).reshape(self.exc_rf_shape)
+            e_component_maps.append(self._smooth_map(e_map, n_iter=1))
+            i_component_maps.append(self._smooth_map(i_map, n_iter=1))
+
+        e_mean, i_mean = self._structural_component_maps(
+            layer,
+            n_soma=n_soma,
+            shape=self.exc_rf_shape,
+        )
+        maps = {
+            "e_mean": e_mean,
+            "e_comp": np.stack(e_component_maps, axis=0),
+            "i_mean": i_mean,
+            "i_comp": np.stack(i_component_maps, axis=0),
+            "preferred": preferred,
+        }
+
+        out_path = None
+        if save_path is not None:
+            out_path = os.path.join(save_path, "epochs") if training else save_path
+            self._save_component_receptive_fields(
+                maps=maps,
+                save_path=out_path,
+                filename=filename,
+                plot=bool(self.plot_component_rfs and not training),
+            )
+
+        summary: dict[str, object] = {
+            "n_soma": n_soma,
+            "preferred_classes": preferred.tolist(),
+            "map_shape": list(self.exc_rf_shape),
+            "maps": ["e_mean", "e_comp", "i_mean", "i_comp"],
+        }
+        if out_path is not None:
+            summary["data_file"] = f"{filename}_component_receptive_fields.npz"
+            if self.plot_component_rfs and not training:
+                summary["figure_file"] = (
+                    f"{filename}_component_receptive_fields." f"{self.fig_save_format}"
+                )
+        return summary
+
+    def _save_component_receptive_fields(
+        self,
+        *,
+        maps: dict[str, np.ndarray],
+        save_path: str,
+        filename: str,
+        plot: bool,
+    ) -> None:
+        os.makedirs(save_path, exist_ok=True)
+        np.savez_compressed(
+            os.path.join(save_path, f"{filename}_component_receptive_fields.npz"),
+            **maps,
+        )
+        if plot:
+            self._plot_component_receptive_fields(maps, save_path, filename)
+
+    def _plot_component_receptive_fields(
+        self,
+        maps: dict[str, np.ndarray],
+        save_path: str,
+        filename: str,
+    ) -> None:
+        rows = [
+            ("E mean", maps["e_mean"], "tab:orange"),
+            ("E comp.", maps["e_comp"], "tab:orange"),
+            ("I mean", maps["i_mean"], "tab:green"),
+            ("I comp.", maps["i_comp"], "tab:green"),
+        ]
+        preferred = np.asarray(maps["preferred"], dtype=int)
+        n_soma = int(preferred.shape[0])
+        fig_width = max(5.5, 0.7 * n_soma)
+        fig, axes = plt.subplots(
+            4,
+            n_soma,
+            figsize=(fig_width, 3.0),
+            squeeze=False,
+            constrained_layout=True,
+        )
+
+        for row_idx, (label, row_maps, color) in enumerate(rows):
+            for soma_idx in range(n_soma):
+                ax = axes[row_idx, soma_idx]
+                ax.imshow(
+                    self._normalize_map(row_maps[soma_idx]),
+                    cmap="magma",
+                    vmin=0,
+                    vmax=1,
+                    interpolation="bilinear",
+                )
+                ax.set_xticks([])
+                ax.set_yticks([])
+                for spine in ax.spines.values():
+                    spine.set_visible(False)
+                if row_idx == 0:
+                    ax.set_title(
+                        f"a{soma_idx}\nclass {preferred[soma_idx]}",
+                        fontsize=7,
+                        pad=2,
+                    )
+                if soma_idx == 0:
+                    ax.set_ylabel(
+                        label,
+                        color=color,
+                        fontsize=8,
+                        fontweight="bold",
+                        rotation=0,
+                        ha="right",
+                        va="center",
+                        labelpad=28,
+                    )
+
+        fig.savefig(
+            os.path.join(
+                save_path,
+                f"{filename}_component_receptive_fields.{self.fig_save_format}",
+            ),
+            dpi=300,
+            bbox_inches="tight",
+        )
+        plt.close(fig)
+
+    @staticmethod
     def _branch_data_to_preferred(
         data_dict: dict[str, dict[str, dict[str, list[float]]]],
     ) -> dict[str, dict[str, dict[str, list[float]]]]:
@@ -1299,10 +1821,11 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         training: bool = False,
         runtime: Optional[EvaluationRuntimeConfig] = None,
     ) -> Optional[dict[str, object]]:
-        """Analyze receptive fields in a dendritic E/I model."""
-        if not has_einet_core(model):
+        """Analyze receptive fields for models with dendritic branch layers."""
+        core = getattr(model, "core_network", model)
+        if not any(iter_named_modules_of_type(core, DendriticBranchLayer)):
             self.logger.error(
-                "Model must expose an ExcitationInhibitionNetwork "
+                "Model must expose DendriticBranchLayer modules "
                 "for receptive field analysis"
             )
             return None
@@ -1319,6 +1842,16 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
             test_dataset=test_dataset,
             device=device,
             runtime=runtime,
+        )
+        self._maybe_add_component_rfs(
+            results=results,
+            model=model,
+            test_dataset=test_dataset,
+            device=device,
+            runtime=runtime,
+            save_path=save_path,
+            filename=filename,
+            training=training,
         )
         self._maybe_add_rf_tuning(
             results=results,
@@ -1378,6 +1911,45 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
             device=device,
             runtime=runtime,
         )
+
+    def _maybe_add_component_rfs(
+        self,
+        results: dict[str, object],
+        model: BaseModel,
+        test_dataset: Optional[torch.utils.data.Dataset],
+        device: str,
+        runtime: Optional[EvaluationRuntimeConfig],
+        save_path: Optional[str],
+        filename: str,
+        training: bool,
+    ) -> None:
+        if not self.compute_component_rfs:
+            return
+        if test_dataset is None:
+            self.logger.warning(
+                "Component RFs requested but no test_dataset was provided"
+            )
+            return
+
+        with analysis_device_context(model, device) as analysis_device:
+            items = materialize_dataset(
+                test_dataset,
+                runtime,
+                device=analysis_device,
+            )
+            x: torch.Tensor = items[0].to(analysis_device)
+            labels: torch.Tensor = items[1].to(analysis_device)
+            component_rfs = self._compute_component_receptive_fields(
+                model=model,
+                x=x,
+                labels=labels,
+                save_path=save_path,
+                filename=filename,
+                training=training,
+            )
+
+        if component_rfs is not None:
+            results["component_receptive_fields"] = component_rfs
 
     def _maybe_add_rf_tuning(
         self,
@@ -1440,6 +2012,12 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
             # Preserve the training artifact consumed by RF-vs-training plots.
             if "agg_tuning" in rf_tuning:
                 save_dict(rf_tuning["agg_tuning"], out_path, f"{filename}.json")
+        if "component_receptive_fields" in results:
+            save_dict(
+                results["component_receptive_fields"],
+                out_path,
+                f"{filename}_component_receptive_fields.json",
+            )
         if not training:
             self._plot_all_receptive_fields(save_path)
 

@@ -627,10 +627,15 @@ class CompartmentSNRAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         Perform compartment SNR analysis with optional hierarchical summaries.
 
         Args:
-            model: The model to analyze (must have ExcitationInhibitionNetwork)
-            save_path: Path to save results (optional)
-            filename: Filename for saved results
+            model: Classifier whose core contains DendriticBranchLayer modules.
+                The optional network input-capture mode is only available for
+                explicit ExcitationInhibitionNetwork cores.
+            test_dataset: Dataset used to collect activations and labels.
+            device: Device for analysis execution.
+            save_path: Path to save results (optional).
+            filename: Filename for saved results.
             training: If True, only save data (no plots). If False, generate plots.
+            runtime: Optional evaluation/runtime controls for dataset materialization.
 
         Returns:
             Dictionary containing compartment SNR analysis results.

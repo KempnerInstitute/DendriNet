@@ -7,6 +7,7 @@ from math import prod
 DATASET_CLASS_COUNTS: dict[str, int] = {
     "mnist": 10,
     "cifar10": 10,
+    "cifar100": 100,
     "imagenet": 1000,
 }
 DATASET_FLAT_INPUT_SHAPES: dict[str, tuple[int, ...]] = {

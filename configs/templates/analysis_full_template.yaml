@@ -305,6 +305,8 @@ analysis:
       inh_rf_shape: null              # list[int] | null: I-stream [H, W] shape; overrides rf_shape for I.
       fig_save_format: "png"          # str: Figure extension, e.g. "png" | "pdf" | "svg".
       compute_activation_tuning: false # bool: Add class tuning summaries for E, I, E/I ratio, and Vout branch activations.
+      compute_component_rfs: false    # bool: Add compact soma-level E/I mean and conditioned component RF maps.
+      plot_component_rfs: true        # bool: Save compact component RF figures when compute_component_rfs is true and training is false.
       compute_rf_tuning: false        # bool: Add aggregate RF tuning, entropy, discriminability, and E-vs-I plots.
       plot_rf_tuning: true            # bool: Save rich RF tuning figures when compute_rf_tuning is true and training is false.
       rf_tuning_layer_index: 0        # int: E/I layer index used for rich RF tuning.

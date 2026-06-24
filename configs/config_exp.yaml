@@ -908,8 +908,9 @@ analysis:
 
   # ---------- Receptive field ----------
   # Default mode collects raw dendritic RF maps. Set compute_activation_tuning for
-  # class-tuned E/I/Vout summaries. Set compute_rf_tuning for aggregate RF tuning,
-  # entropy, discriminability, and E-vs-I RF plots.
+  # class-tuned E/I/Vout summaries, compute_component_rfs for compact soma-level
+  # E/I mean and conditioned component RF maps, and compute_rf_tuning for
+  # aggregate RF tuning, entropy, discriminability, and E-vs-I RF plots.
   receptive_field:
     enabled: false                      # bool: Enable receptive field visualization
     training: false                     # bool: Run during training
@@ -921,6 +922,8 @@ analysis:
       inh_rf_shape: null                # list[int] | null: Inhibitory RF shape [H, W]
       fig_save_format: png              # str: Figure extension, e.g. png or pdf
       compute_activation_tuning: false  # bool: Class-tuning summaries from branch E/I ratio and Vout activations
+      compute_component_rfs: false      # bool: Compact soma-level E/I mean and conditioned component RF maps
+      plot_component_rfs: true          # bool: Save compact component RF figure on final analysis
       compute_rf_tuning: false          # bool: Rich aggregate RF tuning, entropy, and discriminability analysis
       plot_rf_tuning: true              # bool: Save rich RF tuning plots on final analysis when compute_rf_tuning is true
       rf_tuning_layer_index: 0          # int: E/I layer index used for rich RF tuning
