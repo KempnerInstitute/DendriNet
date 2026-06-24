@@ -213,7 +213,7 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         branch_data: dict[str, object],
         prefix: str = "exc",
     ) -> dict[str, object]:
-        """Compute iss369-style similarity metrics for one masked receptive field."""
+        """Compute class similarity metrics for one masked receptive field."""
         syn = weights[weight_mask]
         class_dict: dict[str, dict[str, float]] = {}
 
@@ -1190,6 +1190,28 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
             mean_vector_type="exc",
             flatten_axes=True,
         )
+        _plot_receptive_fields(
+            save_path=agg_syn_act_rfs_path,
+            fig_format=self.fig_save_format,
+            title="agg_exc_cell_inh_syn_pref_act_rfs",
+            rfs_dict=exc_agg_rfs_dict,
+            synapse_type="inh",
+            mean_vector_dict=mean_vector_dict,
+            total_mean_vector=False,
+            mean_vector_type="inh",
+            flatten_axes=True,
+        )
+        _plot_receptive_fields(
+            save_path=agg_syn_act_rfs_path,
+            fig_format=self.fig_save_format,
+            title="agg_exc_cell_inh_syn_total_act_rfs",
+            rfs_dict=exc_agg_rfs_dict,
+            synapse_type="inh",
+            mean_vector_dict=mean_vector_dict,
+            total_mean_vector=True,
+            mean_vector_type="inh",
+            flatten_axes=True,
+        )
 
         if inh_rfs_dict is not None and inh_agg_rfs_dict is not None:
             _plot_receptive_fields(
@@ -1415,7 +1437,7 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
                 out_path,
                 f"{filename}_rf_tuning.json",
             )
-            # Preserve the iss369 training artifact consumed by RF-vs-training plots.
+            # Preserve the training artifact consumed by RF-vs-training plots.
             if "agg_tuning" in rf_tuning:
                 save_dict(rf_tuning["agg_tuning"], out_path, f"{filename}.json")
         if not training:

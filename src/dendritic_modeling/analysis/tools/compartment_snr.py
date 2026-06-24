@@ -40,6 +40,7 @@ from dendritic_modeling.networks import (
 from dendritic_modeling.utils import save_dict
 from dendritic_modeling.utils.hooks import (
     ForwardHookRemovalMixin,
+    iter_named_modules_of_type,
     register_hook_groups,
     register_named_forward_hook_groups,
     run_with_forward_hooks,
@@ -121,16 +122,23 @@ class CompartmentSNRAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         """Collect raw data from the model."""
         self.raw_dict = {}
 
-        core_network: ExcitationInhibitionNetwork = model.core_network
-        exc_dendrinet = core_network.layers[-1].excitatory_cells
+        core_network = getattr(model, "core_network", model)
+        direct_ei_core = isinstance(core_network, ExcitationInhibitionNetwork)
+        branch_root = (
+            core_network.layers[-1].excitatory_cells if direct_ei_core else core_network
+        )
 
         def _attach_hooks():
             handles = []
-            if self.input_analysis and self.input_capture_mode == "network":
+            if (
+                self.input_analysis
+                and self.input_capture_mode == "network"
+                and direct_ei_core
+            ):
                 handles.extend(self._attach_network_input_hooks(core_network))
             handles.extend(
                 register_named_forward_hook_groups(
-                    exc_dendrinet,
+                    branch_root,
                     DendriticBranchLayer,
                     self._collect_layer_raw_data,
                 )
@@ -627,14 +635,15 @@ class CompartmentSNRAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         Returns:
             Dictionary containing compartment SNR analysis results.
         """
-        try:
-            assert isinstance(model.core_network, ExcitationInhibitionNetwork)
-        except AssertionError:
+        core_network = getattr(model, "core_network", model)
+        if not any(iter_named_modules_of_type(core_network, DendriticBranchLayer)):
+            self.logger.warning(
+                "Skipping SNR analysis: model has no DendriticBranchLayer modules"
+            )
             return None
 
-        try:
-            assert isinstance(model, Classifier)
-        except AssertionError:
+        if not isinstance(model, Classifier):
+            self.logger.warning("Skipping SNR analysis: model is not a Classifier")
             return None
 
         start_time = time.time()

@@ -1011,7 +1011,7 @@ class ReceptiveFieldAnalysisParams(BaseConfig):
     - exc_rf_shape / inh_rf_shape: optional synapse-specific receptive-field
       shapes; fall back to rf_shape when omitted.
     - compute_activation_tuning: also summarize class tuning of branch signals.
-    - compute_rf_tuning: run the richer iss369 aggregate RF tuning,
+    - compute_rf_tuning: run the aggregate RF tuning,
       discriminability, entropy, and compartment activation analysis.
     """
 

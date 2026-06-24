@@ -11,21 +11,27 @@ from omegaconf import OmegaConf
 
 from dendritic_modeling.analysis.registry import get_registered_analyzers
 from dendritic_modeling.config import (
+    AdversarialRobustnessAnalysisConfig,
     AnalysisConfig,
     ArchitectureConfig,
     CommonTrainerConfig,
+    CompartmentSNRAnalysisConfig,
+    CompartmentSNRAnalysisParams,
     Config,
     ConnectivityConfig,
     CoreConfig,
     DataConfig,
     DatasetParamsConfig,
     FSDPConfig,
+    InformationAnalysisConfig,
     LocalRuleComponentAnalysisConfig,
     LocalRuleComponentAnalysisParams,
     LocalRuleConfig,
     ModelConfig,
     OptimizerConfig,
     OutputsConfig,
+    ReceptiveFieldAnalysisConfig,
+    ReceptiveFieldAnalysisParams,
     SpikeTrainAnalysisConfig,
     SpikeTrainAnalysisParams,
     StructuredConnectivityConfig,
@@ -219,10 +225,51 @@ class TestConfigDataclasses(unittest.TestCase):
             }
         )
 
-        self.assertEqual(mapped["information_analysis"], {"enabled": False})
+        self.assertIsInstance(mapped["information_analysis"], InformationAnalysisConfig)
+        self.assertFalse(mapped["information_analysis"].enabled)
         self.assertTrue(mapped["spike_train_analysis"].enabled)
         self.assertTrue(mapped["spike_train_analysis"].training)
-        self.assertEqual(mapped["adversarial_robustness_analysis"], {"enabled": True})
+        self.assertIsInstance(
+            mapped["adversarial_robustness_analysis"],
+            AdversarialRobustnessAnalysisConfig,
+        )
+        self.assertTrue(mapped["adversarial_robustness_analysis"].enabled)
+
+    def test_map_analysis_config_builds_registered_snr_and_rf_params(self):
+        mapped = _map_analysis_config(
+            {
+                "compartment_snr": {
+                    "enabled": True,
+                    "params": {
+                        "input_capture_mode": "network",
+                        "branch_aggregation": False,
+                    },
+                },
+                "receptive_field": {
+                    "enabled": True,
+                    "params": {
+                        "rf_shape": [1, 3],
+                        "compute_rf_tuning": True,
+                        "plot_rf_tuning": False,
+                    },
+                },
+            }
+        )
+
+        snr_config = mapped["compartment_snr_analysis"]
+        self.assertIsInstance(snr_config, CompartmentSNRAnalysisConfig)
+        self.assertIsInstance(snr_config.params, CompartmentSNRAnalysisParams)
+        self.assertTrue(snr_config.enabled)
+        self.assertEqual(snr_config.params.input_capture_mode, "network")
+        self.assertFalse(snr_config.params.branch_aggregation)
+
+        rf_config = mapped["receptive_field_analysis"]
+        self.assertIsInstance(rf_config, ReceptiveFieldAnalysisConfig)
+        self.assertIsInstance(rf_config.params, ReceptiveFieldAnalysisParams)
+        self.assertTrue(rf_config.enabled)
+        self.assertEqual(rf_config.params.rf_shape, [1, 3])
+        self.assertTrue(rf_config.params.compute_rf_tuning)
+        self.assertFalse(rf_config.params.plot_rf_tuning)
 
     def test_map_analysis_config_builds_local_rule_component_params(self):
         mapped = _map_analysis_config(

@@ -81,7 +81,7 @@ class MorphologyConfig(BaseConfig):
     # Only used when an EINet-style config is translated into the recurrent
     # unified E-I path. Feedforward models ignore this flag.
     allow_self_recurrence: bool = True
-    # Keep the structured-config default aligned with develop-era BP configs.
+    # Keep the structured-config default aligned with legacy BP configs.
     # Experiments that need a stricter positive-conductance regime can still
     # request "exp" explicitly.
     weight_transform: str = "softplus"
@@ -99,7 +99,7 @@ class SparsityConfig(BaseConfig):
     gamma: float = 1.0
     temperature: float = 0.0
     ultrafast: bool = (
-        True  # develop parity: ultrafast stochastic-topk default (set False for rank-probabilistic)
+        True  # ultrafast stochastic-topk default (set False for rank-probabilistic)
     )
     gradient_scaling: str = "none"
 

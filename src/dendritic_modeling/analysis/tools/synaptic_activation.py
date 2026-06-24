@@ -127,7 +127,7 @@ class SynapticActivationAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         """
         key = module._analysis_layer_name
         synapse_type = module._analysis_synapse_type
-        # develop parity: record the per-synapse contribution (input_i * pruned_weight_ij)
+        # Record the per-synapse contribution (input_i * pruned_weight_ij)
         # with shape (..., in_features, n_branches) so per-synapse resolution is preserved.
         # `output` is the summed branch current (== BranchActivationAnalyzer's signal), which
         # collapsed per-synapse detail and made this analyzer redundant with branch_activation.

@@ -325,10 +325,12 @@ Each module follows the same ``enabled``/``training``/``params`` pattern.
    ``params.input_capture_mode``:
 
    - ``"branch"`` (default): measure the actual tensors entering dendritic
-     branch layers. This is the preferred view for E/I dendritic analyses and
-     preserves the refactor/develop semantics.
-   - ``"network"``: measure model-level excitatory input and inhibitory-network
-     output diagnostics, which preserves the alternate iss369-style view.
+     branch layers. This is the preferred view for E/I and population-network
+     dendritic analyses.
+   - ``"network"``: for explicit ``ExcitationInhibitionNetwork`` cores, measure
+     model-level excitatory input and inhibitory-output diagnostics. Other
+     dendritic cores still report branch/layer SNR, but do not add this
+     input-output diagnostic.
 
 ``multiplicative_gain``
    Measures gain modulation by inhibitory inputs.
@@ -338,10 +340,10 @@ Each module follows the same ``enabled``/``training``/``params`` pattern.
 
 ``receptive_field``
    Computes dendritic receptive-field weight maps for all branch layers. The
-   default mode is the compact refactor/develop-style raw RF collector: it
-   gathers E/I branch weight maps, plots sampled receptive fields, and writes a
-   raw tensor checkpoint (``<filename>_raw_receptive_fields.pt`` by default) so
-   plots can be regenerated without re-reading model weights. Use
+   default mode gathers E/I branch weight maps, plots sampled receptive fields,
+   and writes a raw tensor checkpoint
+   (``<filename>_raw_receptive_fields.pt`` by default) so plots can be
+   regenerated without re-reading model weights. Use
    ``params.rf_shape`` when excitatory and inhibitory receptive fields share one
    image shape, or ``params.exc_rf_shape`` / ``params.inh_rf_shape`` when the two
    streams have different shapes.
@@ -351,11 +353,11 @@ Each module follows the same ``enabled``/``training``/``params`` pattern.
    - ``params.compute_activation_tuning: true`` adds class-preferred branch
      excitation, inhibition, E/I ratio, and output activation summaries from the
      provided test split.
-   - ``params.compute_rf_tuning: true`` enables the richer iss369-style RF
-     analysis: aggregate RF tuning, confusion/entropy summaries,
-     discriminability/d-prime heatmaps, preferred/unpreferred compartment
-     summaries, and E-vs-I RF/tuning plots. ``params.plot_rf_tuning`` controls
-     whether those rich plots are written during final analysis.
+   - ``params.compute_rf_tuning: true`` enables aggregate RF tuning,
+     confusion/entropy summaries, discriminability/d-prime heatmaps,
+     preferred/unpreferred compartment summaries, and E-vs-I RF/tuning plots.
+     ``params.plot_rf_tuning`` controls whether those plots are written during
+     final analysis.
 
    A fully commented analysis block, including every preferred RF and SNR key,
    lives at ``configs/templates/analysis_full_template.yaml``.

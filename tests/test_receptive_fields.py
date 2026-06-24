@@ -2,6 +2,7 @@ import pytest
 import torch
 from torch.utils.data import TensorDataset
 
+from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.analysis.core.branch_activation import BranchActivationAnalyzer
 from dendritic_modeling.analysis.tools.compartment_snr import CompartmentSNRAnalyzer
 from dendritic_modeling.analysis.tools.compartment_statistics import (
@@ -11,6 +12,7 @@ from dendritic_modeling.analysis.tools.receptive_fields import ReceptiveFieldAna
 from dendritic_modeling.analysis.tools.synaptic_activation import (
     SynapticActivationAnalyzer,
 )
+from dendritic_modeling.config import load_config
 from dendritic_modeling.config.analysis import (
     BranchActivationAnalysisParams,
     CompartmentSNRAnalysisParams,
@@ -67,6 +69,29 @@ def _direct_inhibitory_model() -> Classifier:
     }
     core = get_architecture("dendritic_shunting", config, input_dim=6)
     return Classifier(Identity(6), core, Identity(4))
+
+
+class _BranchOnlyCore(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.branch = DendriticBranchLayer(
+            output_dim=4,
+            excitatory_input_dim=6,
+            excitatory_synapses_per_branch=2,
+            inhibitory_input_dim=6,
+            inhibitory_synapses_per_branch=2,
+            use_shunting=True,
+            reactivate=True,
+            layer_idx=0,
+        )
+        self.output_dim = 4
+
+    def forward(self, x):
+        return self.branch(x, x)
+
+
+def _branch_only_model() -> Classifier:
+    return Classifier(Identity(6), _BranchOnlyCore(), Identity(4))
 
 
 def _toy_dataset():
@@ -129,6 +154,25 @@ def test_compartment_snr_collects_expected_branch_channels():
         assert branch_data["upstream"].shape == (x.shape[0],)
         assert branch_data["vinf"].shape == (x.shape[0],)
         assert branch_data["vout"].shape == (x.shape[0],)
+
+
+def test_compartment_snr_runs_on_non_ei_branch_core(tmp_path):
+    model = _branch_only_model()
+    _x, _labels, dataset = _toy_dataset()
+    analyzer = CompartmentSNRAnalyzer(CompartmentSNRAnalysisParams())
+
+    results = analyzer.analyze(
+        model=model,
+        test_dataset=dataset,
+        device="cpu",
+        save_path=str(tmp_path),
+        filename="snr",
+    )
+
+    assert results is not None
+    assert "layer_analysis" in results
+    assert "branch_analysis" in results
+    assert (tmp_path / "snr.json").exists()
 
 
 def test_compartment_snr_removes_hooks_after_failed_collection():
@@ -398,6 +442,55 @@ def test_receptive_field_rf_tuning_outputs(tmp_path):
     assert rf_tuning["n_exc_receptive_fields"] > 0
     assert (tmp_path / "rf_rf_tuning.json").exists()
     assert (tmp_path / "rf.json").exists()
+
+
+def test_manager_runs_snr_and_rf_from_loaded_analysis_aliases(tmp_path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        """
+analysis:
+  performance:
+    enabled: false
+  information:
+    enabled: false
+  compartment_snr:
+    enabled: true
+    training: false
+    params:
+      input_analysis: true
+      input_capture_mode: branch
+      layer_analysis: true
+      branch_analysis: true
+      layer_aggregation: true
+      branch_aggregation: true
+  receptive_field:
+    enabled: true
+    training: false
+    params:
+      rf_shape: [1, 3]
+      compute_rf_tuning: true
+      plot_rf_tuning: false
+""".lstrip()
+    )
+    config = load_config(str(config_path))
+    model = _direct_inhibitory_model()
+    _x, _labels, dataset = _toy_dataset()
+    save_root = tmp_path / "analysis"
+    manager = AnalysisManager(
+        model=model,
+        data={"train": dataset, "valid": dataset, "test": dataset},
+        analysis_config=config.analysis,
+        save_root=str(save_root),
+        device="cpu",
+    )
+
+    manager.run_analysis(filename="final", training=False)
+
+    assert (save_root / "compartment_snr_analysis" / "final.json").exists()
+    rf_root = save_root / "receptive_field_analysis"
+    assert (rf_root / "final_summary.json").exists()
+    assert (rf_root / "final_rf_tuning.json").exists()
+    assert (rf_root / "final.json").exists()
 
 
 def test_receptive_field_rf_tuning_removes_hooks_after_failed_collection(
