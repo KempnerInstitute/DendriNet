@@ -20,12 +20,8 @@ from dendritic_modeling.config.analysis import (
     AnalysisConfig,
     AnalysisRuntimeConfig,
     EvaluationRuntimeConfig,
-    LocalRuleComponentAnalysisConfig,
-    LocalRuleComponentAnalysisParams,
     PerformanceAnalysisConfig,
     PerformanceAnalysisParams,
-    SpikeTrainAnalysisConfig,
-    SpikeTrainAnalysisParams,
 )
 from dendritic_modeling.config.base import BaseConfig
 from dendritic_modeling.config.conversion import to_plain_dict as _to_plain_dict
@@ -831,10 +827,44 @@ def _build_analysis_section_config(
     params_cls: type | None = None,
 ) -> Any:
     """Build an analysis config section, including nested params when present."""
-    section = dict(section_data)
+    section = _filter_dataclass_kwargs(config_cls, section_data)
     if params_cls is not None and isinstance(section.get("params"), Mapping):
-        section["params"] = params_cls(**section["params"])
+        section["params"] = params_cls(
+            **_filter_dataclass_kwargs(params_cls, section["params"])
+        )
     return config_cls(**section)
+
+
+def _analysis_section_config_class(field_name: str) -> type | None:
+    """Return the dataclass type for an ``AnalysisConfig`` field."""
+    for field_def in fields(AnalysisConfig):
+        if field_def.name == field_name:
+            return field_def.type if isinstance(field_def.type, type) else None
+    return None
+
+
+def _analysis_section_params_class(config_cls: type) -> type | None:
+    """Return the nested params dataclass type for an analysis section."""
+    for field_def in fields(config_cls):
+        if field_def.name == "params":
+            return field_def.type if isinstance(field_def.type, type) else None
+    return None
+
+
+def _build_mapped_analysis_sections(mapped: dict[str, Any]) -> None:
+    """Convert mapped analysis dicts into their typed config dataclasses."""
+    for field_name, section_data in list(mapped.items()):
+        if field_name == "runtime" or not isinstance(section_data, Mapping):
+            continue
+        config_cls = _analysis_section_config_class(field_name)
+        if config_cls is None:
+            continue
+        params_cls = _analysis_section_params_class(config_cls)
+        mapped[field_name] = _build_analysis_section_config(
+            section_data,
+            config_cls,
+            params_cls,
+        )
 
 
 def _map_analysis_config(
@@ -911,23 +941,7 @@ def _map_analysis_config(
     if "runtime" not in mapped:
         mapped["runtime"] = _default_analysis_runtime_config(distributed_mode)
 
-    if "local_rule_component_analysis" in mapped and isinstance(
-        mapped["local_rule_component_analysis"], Mapping
-    ):
-        mapped["local_rule_component_analysis"] = _build_analysis_section_config(
-            mapped["local_rule_component_analysis"],
-            LocalRuleComponentAnalysisConfig,
-            LocalRuleComponentAnalysisParams,
-        )
-
-    if "spike_train_analysis" in mapped and isinstance(
-        mapped["spike_train_analysis"], Mapping
-    ):
-        mapped["spike_train_analysis"] = _build_analysis_section_config(
-            mapped["spike_train_analysis"],
-            SpikeTrainAnalysisConfig,
-            SpikeTrainAnalysisParams,
-        )
+    _build_mapped_analysis_sections(mapped)
 
     return mapped
 

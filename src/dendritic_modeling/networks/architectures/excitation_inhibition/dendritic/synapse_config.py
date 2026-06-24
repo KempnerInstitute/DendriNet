@@ -18,7 +18,7 @@ class TopKConfig:
     gamma: float = 1.0
     temperature: float = 0.5
     ultrafast: bool = (
-        True  # develop parity: ultrafast stochastic-topk default (set False for rank-probabilistic)
+        True  # ultrafast stochastic-topk default (set False for rank-probabilistic)
     )
     strategy: str = "none"
 

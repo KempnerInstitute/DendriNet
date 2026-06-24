@@ -2,7 +2,7 @@
 Standard dataset loading utilities for dendritic modeling.
 
 This module contains functions for loading and preprocessing standard datasets
-like MNIST, CIFAR-10, and ImageNet, as well as synthetic datasets for theoretical validation.
+like MNIST, CIFAR, and ImageNet, as well as synthetic datasets for theoretical validation.
 """
 
 import importlib
@@ -482,7 +482,7 @@ def load_mnist_modulo10(
     return data
 
 
-def _materialize_cifar10_tensor_triplet(
+def _materialize_cifar_tensor_triplet(
     train_dataset: Dataset,
     test_dataset: Dataset,
     *,
@@ -490,7 +490,7 @@ def _materialize_cifar10_tensor_triplet(
     flatten: bool,
     split_seed: int,
 ) -> tuple[TensorDataset, TensorDataset, TensorDataset]:
-    """Split and materialize CIFAR-10 while preserving clone-valid semantics."""
+    """Split and materialize CIFAR-style datasets while preserving clone-valid semantics."""
     if train_valid_split < 1.0:
         train_dataset, valid_dataset = _split_train_valid_dataset(
             train_dataset,
@@ -514,6 +514,24 @@ def _materialize_cifar10_tensor_triplet(
         torch.utils.data.TensorDataset(x_train, y_train),
         torch.utils.data.TensorDataset(x_train.clone(), y_train.clone()),
         torch.utils.data.TensorDataset(x_test, y_test),
+    )
+
+
+def _materialize_cifar10_tensor_triplet(
+    train_dataset: Dataset,
+    test_dataset: Dataset,
+    *,
+    train_valid_split: float,
+    flatten: bool,
+    split_seed: int,
+) -> tuple[TensorDataset, TensorDataset, TensorDataset]:
+    """Compatibility wrapper for the CIFAR-style materializer."""
+    return _materialize_cifar_tensor_triplet(
+        train_dataset,
+        test_dataset,
+        train_valid_split=train_valid_split,
+        flatten=flatten,
+        split_seed=split_seed,
     )
 
 
@@ -550,7 +568,49 @@ def load_cifar10_as_datasets(
         dataset_name="CIFAR10",
     )
 
-    return _materialize_cifar10_tensor_triplet(
+    return _materialize_cifar_tensor_triplet(
+        train_dataset,
+        test_dataset,
+        train_valid_split=train_valid_split,
+        flatten=flatten,
+        split_seed=split_seed,
+    )
+
+
+def load_cifar100_as_datasets(
+    train_valid_split=1.0,
+    flatten=False,
+    normalize=False,
+    task_data_path=None,
+    split_seed: int = 0,
+):
+    """
+    Load the CIFAR-100 dataset and split into train, validation, and test sets.
+
+    Args:
+        train_valid_split (float): Proportion of training data to use for training (vs validation)
+        flatten (bool): Whether to flatten the images
+        normalize (bool): Whether to normalize the images
+        task_data_path (str, optional): Path from task.data_path config
+
+    Returns:
+        tuple: (train_dataset, valid_dataset, test_dataset)
+    """
+    transform = _build_to_tensor_transform(
+        normalize=normalize,
+        mean=(0.5071, 0.4867, 0.4408),
+        std=(0.2675, 0.2565, 0.2761),
+    )
+
+    cifar_dir = get_data_directory("cifar", task_data_path)
+    train_dataset, test_dataset = _load_torchvision_train_test_pair(
+        datasets.CIFAR100,
+        root=cifar_dir,
+        transform=transform,
+        dataset_name="CIFAR100",
+    )
+
+    return _materialize_cifar_tensor_triplet(
         train_dataset,
         test_dataset,
         train_valid_split=train_valid_split,
@@ -815,6 +875,7 @@ _STANDARD_VISION_DATASET_LOADERS: dict[str, str | Callable[..., _DatasetTriplet]
     "mnist": "load_mnist_as_datasets",
     "fashion_mnist": "load_fashion_mnist_as_datasets",
     "cifar10": "load_cifar10_as_datasets",
+    "cifar100": "load_cifar100_as_datasets",
 }
 
 

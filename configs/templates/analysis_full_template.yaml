@@ -213,7 +213,7 @@ analysis:
     training: false                   # bool: Also run during training snapshots.
     params:
       input_analysis: true            # bool: Include input-level discriminability metrics.
-      input_capture_mode: "branch"    # str: "branch" | "network"; branch = actual dendritic inputs, network = model-level input/output diagnostic.
+      input_capture_mode: "branch"    # str: "branch" | "network"; branch = dendritic branch inputs, network = network-level E/I input-output diagnostic.
       global_analysis: true           # bool: Include global summaries.
       layer_analysis: true            # bool: Include layer-level multivariate discriminability.
       branch_analysis: true           # bool: Include branch-level univariate d'^2 metrics.
@@ -232,7 +232,7 @@ analysis:
       n_steps: 10                     # int: Number of gain values.
       logspace: false                 # bool: Use logarithmically spaced gains.
       input_preprocess: "none"        # str: "none" | "relu" | "softplus" | "shift_min" | "global_shift_min".
-      noise_model: "none"             # str: "none" | "poisson"; poisson uses Maceo-style gain/noise sampling.
+      noise_model: "none"             # str: "none" | "poisson"; poisson applies input-dependent gain/noise sampling.
       poisson_eps: 0.000001           # float: Epsilon for Poisson-rate stability.
       accuracy: false                 # bool: Compute accuracy after gain/noise.
       auc: false                      # bool: Compute AUC after gain/noise.
@@ -305,7 +305,9 @@ analysis:
       inh_rf_shape: null              # list[int] | null: I-stream [H, W] shape; overrides rf_shape for I.
       fig_save_format: "png"          # str: Figure extension, e.g. "png" | "pdf" | "svg".
       compute_activation_tuning: false # bool: Add class tuning summaries for E, I, E/I ratio, and Vout branch activations.
-      compute_rf_tuning: false        # bool: Add iss369-style aggregate RF tuning, entropy, discriminability, and E-vs-I plots.
+      compute_component_rfs: false    # bool: Add compact soma-level E/I mean and conditioned component RF maps.
+      plot_component_rfs: true        # bool: Save compact component RF figures when compute_component_rfs is true and training is false.
+      compute_rf_tuning: false        # bool: Add aggregate RF tuning, entropy, discriminability, and E-vs-I plots.
       plot_rf_tuning: true            # bool: Save rich RF tuning figures when compute_rf_tuning is true and training is false.
       rf_tuning_layer_index: 0        # int: E/I layer index used for rich RF tuning.
       n_class_examples: 5             # int: Examples per class in rich RF input-example plots.

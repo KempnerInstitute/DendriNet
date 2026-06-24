@@ -1,16 +1,14 @@
-"""Regression tests for two iss367_hs_PR fixes over develop.
+"""Regression tests for calibration reuse and multilayer input sizing.
 
 1. Data-driven reactivation calibration must fire for *every* model built (and
-   trained) in a single Python process, not just the first. On develop,
-   ``calibrate_reactivation_from_data`` silently no-op'd (returned an empty
-   diagnostics dict, leaving the gate at its init value) for the 2nd+ model in a
-   process once a prior model had been built and trained — which breaks sweeps,
-   notebooks, and any multi-model driver.
+   trained) in a single Python process, not just the first. A stale global
+   calibration guard can otherwise leave the 2nd+ model in a process at its
+   initialization value, which breaks sweeps, notebooks, and multi-model drivers.
 
 2. Multi-layer EI networks with ``transfer.input_mode == 1`` must build and run
-   a forward pass. On develop this raised a shape-mismatch in the inter-layer
-   inhibitory projection (``branch_inhibition`` matmul); only ``input_mode == 0``
-   worked for >1 layer. PR supports both.
+   a forward pass. This guards the inter-layer inhibitory projection
+   (``branch_inhibition`` matmul) so both supported input modes work for
+   multi-layer networks.
 """
 
 from __future__ import annotations
@@ -68,8 +66,8 @@ def test_calibration_fires_for_every_model_in_one_process():
             )
         calibrated_layer_counts.append(len(diag) if diag else 0)
 
-        # Train the FIRST model briefly: on develop this in-process training was
-        # the trigger that made the *next* model's calibration silently no-op.
+        # Train the FIRST model briefly; this guards the next model against
+        # stale process-level calibration state.
         if i == 0:
             opt = torch.optim.Adam(net.parameters(), lr=1e-3)
             net.train()

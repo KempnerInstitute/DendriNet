@@ -40,6 +40,7 @@ from dendritic_modeling.networks import (
 from dendritic_modeling.utils import save_dict
 from dendritic_modeling.utils.hooks import (
     ForwardHookRemovalMixin,
+    iter_named_modules_of_type,
     register_hook_groups,
     register_named_forward_hook_groups,
     run_with_forward_hooks,
@@ -121,16 +122,23 @@ class CompartmentSNRAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         """Collect raw data from the model."""
         self.raw_dict = {}
 
-        core_network: ExcitationInhibitionNetwork = model.core_network
-        exc_dendrinet = core_network.layers[-1].excitatory_cells
+        core_network = getattr(model, "core_network", model)
+        direct_ei_core = isinstance(core_network, ExcitationInhibitionNetwork)
+        branch_root = (
+            core_network.layers[-1].excitatory_cells if direct_ei_core else core_network
+        )
 
         def _attach_hooks():
             handles = []
-            if self.input_analysis and self.input_capture_mode == "network":
+            if (
+                self.input_analysis
+                and self.input_capture_mode == "network"
+                and direct_ei_core
+            ):
                 handles.extend(self._attach_network_input_hooks(core_network))
             handles.extend(
                 register_named_forward_hook_groups(
-                    exc_dendrinet,
+                    branch_root,
                     DendriticBranchLayer,
                     self._collect_layer_raw_data,
                 )
@@ -619,22 +627,28 @@ class CompartmentSNRAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         Perform compartment SNR analysis with optional hierarchical summaries.
 
         Args:
-            model: The model to analyze (must have ExcitationInhibitionNetwork)
-            save_path: Path to save results (optional)
-            filename: Filename for saved results
+            model: Classifier whose core contains DendriticBranchLayer modules.
+                The optional network input-capture mode is only available for
+                explicit ExcitationInhibitionNetwork cores.
+            test_dataset: Dataset used to collect activations and labels.
+            device: Device for analysis execution.
+            save_path: Path to save results (optional).
+            filename: Filename for saved results.
             training: If True, only save data (no plots). If False, generate plots.
+            runtime: Optional evaluation/runtime controls for dataset materialization.
 
         Returns:
             Dictionary containing compartment SNR analysis results.
         """
-        try:
-            assert isinstance(model.core_network, ExcitationInhibitionNetwork)
-        except AssertionError:
+        core_network = getattr(model, "core_network", model)
+        if not any(iter_named_modules_of_type(core_network, DendriticBranchLayer)):
+            self.logger.warning(
+                "Skipping SNR analysis: model has no DendriticBranchLayer modules"
+            )
             return None
 
-        try:
-            assert isinstance(model, Classifier)
-        except AssertionError:
+        if not isinstance(model, Classifier):
+            self.logger.warning("Skipping SNR analysis: model is not a Classifier")
             return None
 
         start_time = time.time()
