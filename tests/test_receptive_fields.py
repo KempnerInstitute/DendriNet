@@ -95,6 +95,10 @@ def _branch_only_model() -> Classifier:
     return Classifier(Identity(6), _BranchOnlyCore(), Identity(4))
 
 
+def _branch_encoder_model() -> Classifier:
+    return Classifier(_BranchOnlyCore(), Identity(4), Identity(4))
+
+
 def _toy_dataset():
     torch.manual_seed(3)
     x = torch.rand(8, 6)
@@ -436,6 +440,23 @@ def test_receptive_field_runs_on_non_ei_branch_core(tmp_path):
     assert (tmp_path / "inh_receptive_fields.png").exists()
 
 
+def test_receptive_field_gate_checks_full_model(tmp_path):
+    model = _branch_encoder_model()
+    analyzer = ReceptiveFieldAnalyzer(
+        ReceptiveFieldAnalysisParams(n_rows=1, n_cols=2, rf_shape=(1, 6))
+    )
+
+    results = analyzer.analyze(
+        model=model,
+        save_path=str(tmp_path),
+        filename="rf",
+    )
+
+    assert results is not None
+    assert results["n_receptive_fields"] > 0
+    assert (tmp_path / "rf_raw_receptive_fields.pt").exists()
+
+
 def test_receptive_field_rf_tuning_outputs(tmp_path):
     model = _direct_inhibitory_model()
     _x, _labels, dataset = _toy_dataset()
@@ -497,6 +518,34 @@ def test_receptive_field_component_rfs_outputs(tmp_path):
     assert data["i_mean"].shape == (4, 1, 3)
     assert data["i_comp"].shape == (4, 1, 3)
     assert data["preferred"].shape == (4,)
+
+
+def test_receptive_field_component_rfs_skip_recurrent_branches(tmp_path):
+    model = _direct_inhibitory_model()
+    model.core_network.layers[0].excitatory_cells.branch_layers[
+        0
+    ].input_recurrent = True
+    _x, _labels, dataset = _toy_dataset()
+    analyzer = ReceptiveFieldAnalyzer(
+        ReceptiveFieldAnalysisParams(
+            rf_shape=(1, 3),
+            compute_component_rfs=True,
+        )
+    )
+
+    results = analyzer.analyze(
+        model=model,
+        test_dataset=dataset,
+        device="cpu",
+        save_path=str(tmp_path),
+        filename="rf",
+    )
+
+    assert results is not None
+    assert "component_receptive_fields" not in results
+    assert not (tmp_path / "rf_component_receptive_fields.json").exists()
+    assert not (tmp_path / "rf_component_receptive_fields.npz").exists()
+    assert not (tmp_path / "rf_component_receptive_fields.png").exists()
 
 
 def test_manager_runs_snr_and_rf_from_loaded_analysis_aliases(tmp_path):

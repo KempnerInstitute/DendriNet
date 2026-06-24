@@ -1270,6 +1270,15 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
                 "DendriNet cells"
             )
             return None
+        if any(
+            getattr(branch_layer, "input_recurrent", False)
+            or getattr(branch_layer, "input_rec_inhibitory", False)
+            for branch_layer in layer.excitatory_cells.branch_layers
+        ):
+            self.logger.warning(
+                "Skipping component RFs: recurrent dendritic branches are not supported"
+            )
+            return None
 
         records = self._collect_component_branch_records(
             model,
@@ -1822,8 +1831,7 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         runtime: Optional[EvaluationRuntimeConfig] = None,
     ) -> Optional[dict[str, object]]:
         """Analyze receptive fields for models with dendritic branch layers."""
-        core = getattr(model, "core_network", model)
-        if not any(iter_named_modules_of_type(core, DendriticBranchLayer)):
+        if not any(iter_named_modules_of_type(model, DendriticBranchLayer)):
             self.logger.error(
                 "Model must expose DendriticBranchLayer modules "
                 "for receptive field analysis"
