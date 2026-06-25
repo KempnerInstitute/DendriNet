@@ -33,7 +33,7 @@ analysis:
       materialize_threshold_mb: 1024  # int: Auto-mode threshold in MB.
 
   performance:
-    enabled: true                     # bool: Compute task performance metrics.
+    enabled: false                    # bool: Compute task performance metrics.
     training: false                   # bool: Also run during training snapshots.
     training_splits: ["train", "valid", "test"]  # list[str]: Splits for training-time analysis.
     final_splits: ["train", "valid", "test"]     # list[str]: Splits for final analysis.

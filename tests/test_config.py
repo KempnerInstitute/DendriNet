@@ -184,13 +184,15 @@ class TestConfigDataclasses(unittest.TestCase):
 
     def test_analysis_config_any_enabled_matches_final_analysis_gate(self):
         analysis = AnalysisConfig()
-        self.assertTrue(analysis.any_enabled())
 
         final_gate_fields = tuple(
             spec.config_field for spec in get_registered_analyzers().values()
         )
         for field_name in final_gate_fields:
-            getattr(analysis, field_name).enabled = False
+            self.assertFalse(
+                getattr(analysis, field_name).enabled,
+                f"{field_name} should be disabled by default",
+            )
         self.assertFalse(analysis.any_enabled())
 
         analysis.information_analysis.enabled = True
