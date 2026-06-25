@@ -77,7 +77,7 @@ class PerformanceAnalysisConfig(BaseConfig):
       during training-time vs. final evaluation.
     """
 
-    enabled: bool = True
+    enabled: bool = False
     training: bool = False
     params: PerformanceAnalysisParams = field(default_factory=PerformanceAnalysisParams)
     training_splits: list[str] = field(
@@ -535,7 +535,7 @@ class InformationAnalysisParams(BaseConfig):
 
 @dataclass
 class InformationAnalysisConfig(BaseConfig):
-    enabled: bool = True
+    enabled: bool = False
     training: bool = False
     params: InformationAnalysisParams = field(default_factory=InformationAnalysisParams)
 

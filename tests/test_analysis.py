@@ -302,6 +302,32 @@ class TestAblationAnalyzer(unittest.TestCase):
         for key, value in self.model.state_dict().items():
             torch.testing.assert_close(value, state_dict[key])
 
+    def test_mean_clamp_signal_hook_affects_raw_current_path(self):
+        """Signal ablations must work when code calls compute_raw_currents."""
+        module = next(
+            module for _name, module in _iter_complete_branch_layers(self.model)
+        )
+        x = torch.randn(8, module.branch_excitation.in_features)
+        inhibitory_input = torch.randn(8, module.branch_inhibition.in_features)
+
+        clean_raw = module.compute_raw_currents(x, inhibitory_input=inhibitory_input)
+        hooks = self.analyzer._register_signal_intervention_hooks(
+            module=module,
+            ablation_type="excitation",
+            method="mean_clamp",
+        )
+        try:
+            clamped_raw = module.compute_raw_currents(
+                x, inhibitory_input=inhibitory_input
+            )
+        finally:
+            for hook in hooks:
+                hook.remove()
+
+        self.assertGreater(len(hooks), 0)
+        self.assertFalse(torch.allclose(clean_raw[0], clamped_raw[0]))
+        torch.testing.assert_close(clean_raw[2], clamped_raw[2])
+
     def test_identity_weight_transform_uses_zero_lesion_value(self):
         """Identity/relu transforms should lesion by zeroing raw weights."""
         module_name, module = next(
@@ -2822,40 +2848,64 @@ class TestAnalysisManager(unittest.TestCase):
 
     def test_manager_initializer_uses_registered_attribute_names(self):
         """Enabled analyzers should be exposed at registry-declared attributes."""
+        config = AnalysisConfig()
+        config.performance_analysis.enabled = True
+        manager = AnalysisManager(
+            model=self.model,
+            data=self.data,
+            analysis_config=config,
+            save_root="/tmp/test_analysis",
+        )
         spec = get_analyzer_spec("performance")
 
         assert spec is not None
-        self.assertTrue(hasattr(self.manager, spec.attribute_name))
-        self.assertIsInstance(self.manager.performance_analyzer, spec.load_class())
+        self.assertTrue(hasattr(manager, spec.attribute_name))
+        self.assertIsInstance(manager.performance_analyzer, spec.load_class())
         self.assertIs(
-            self.manager.performance_analyzer,
-            getattr(self.manager, spec.attribute_name),
+            manager.performance_analyzer,
+            getattr(manager, spec.attribute_name),
         )
-        self.assertFalse(self.manager.correlation_analysis_enabled)
+        self.assertFalse(manager.correlation_analysis_enabled)
 
     def test_manager_registry_accessors_resolve_registered_metadata(self):
         """Manager helper methods should resolve through registry metadata."""
+        config = AnalysisConfig()
+        config.performance_analysis.enabled = True
+        manager = AnalysisManager(
+            model=self.model,
+            data=self.data,
+            analysis_config=config,
+            save_root="/tmp/test_analysis",
+        )
         spec = get_analyzer_spec("performance")
 
         assert spec is not None
         self.assertIs(
-            self.manager._analysis_config("performance"),
-            getattr(self.manager.config, spec.config_field),
+            manager._analysis_config("performance"),
+            getattr(manager.config, spec.config_field),
         )
-        self.assertTrue(self.manager._has_analysis_analyzer("performance"))
+        self.assertTrue(manager._has_analysis_analyzer("performance"))
         self.assertIs(
-            self.manager._analysis_analyzer("performance"),
-            getattr(self.manager, spec.attribute_name),
+            manager._analysis_analyzer("performance"),
+            getattr(manager, spec.attribute_name),
         )
         self.assertEqual(
-            self.manager._analysis_save_path("performance", "epochs"),
-            str(Path(self.manager.save_root) / spec.save_subdir / "epochs"),
+            manager._analysis_save_path("performance", "epochs"),
+            str(Path(manager.save_root) / spec.save_subdir / "epochs"),
         )
 
     def test_manager_call_analysis_analyzer_resolves_registry_metadata(self):
         """Analyzer invocation helper should preserve registry lookup and kwargs."""
-        with patch.object(self.manager, "performance_analyzer") as mock_analyzer:
-            self.manager._call_analysis_analyzer(
+        config = AnalysisConfig()
+        config.performance_analysis.enabled = True
+        manager = AnalysisManager(
+            model=self.model,
+            data=self.data,
+            analysis_config=config,
+            save_root="/tmp/test_analysis",
+        )
+        with patch.object(manager, "performance_analyzer") as mock_analyzer:
+            manager._call_analysis_analyzer(
                 "performance",
                 model=self.model,
                 filename="direct_call",
@@ -3089,17 +3139,25 @@ class TestAnalysisManager(unittest.TestCase):
 
     def test_run_performance_analysis(self):
         """Test running performance analysis through manager."""
+        config = AnalysisConfig()
+        config.performance_analysis.enabled = True
+
         with tempfile.TemporaryDirectory() as tmpdir:
-            self.manager.save_root = tmpdir
+            manager = AnalysisManager(
+                model=self.model,
+                data=self.data,
+                analysis_config=config,
+                save_root=tmpdir,
+            )
 
             # Mock the performance analyzer
-            with patch.object(self.manager, "performance_analyzer") as mock_analyzer:
+            with patch.object(manager, "performance_analyzer") as mock_analyzer:
                 mock_analyzer.analyze.return_value = {
                     "accuracy": 0.85,
                     "categorical_loglikelihood": -0.5,
                 }
 
-                results = self.manager.run_analysis()
+                results = manager.run_analysis()
 
                 # The method doesn't return results, so just check it doesn't crash
                 self.assertIsNone(results)

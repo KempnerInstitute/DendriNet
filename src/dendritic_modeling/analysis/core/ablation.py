@@ -265,6 +265,75 @@ class AblationAnalyzer(AbstractAnalyzer):
 
         return _hook
 
+    def _make_tensor_intervention_hook(self, *, method: str):
+        """Forward hook that intervenes on a tensor-valued synaptic signal."""
+        call_idx = 0
+
+        def _hook(_module, _inputs, output):
+            nonlocal call_idx
+            if not isinstance(output, torch.Tensor):
+                return None
+
+            if method == "shuffle":
+                seed = self.shuffle_seed + call_idx
+                call_idx += 1
+                gen = (
+                    torch.Generator(device=output.device)
+                    if output.is_cuda
+                    else torch.Generator()
+                )
+                gen.manual_seed(seed)
+                perm = torch.randperm(
+                    output.shape[0], generator=gen, device=output.device
+                )
+                return output[perm]
+
+            if method == "mean_clamp":
+                if self.clamp_statistic != "mean":
+                    raise ValueError(
+                        f"Unsupported clamp_statistic: {self.clamp_statistic}"
+                    )
+                return output.mean(dim=0, keepdim=True).expand_as(output)
+
+            return None
+
+        return _hook
+
+    def _register_signal_intervention_hooks(
+        self,
+        *,
+        module: DendriticBranchLayer,
+        ablation_type: str,
+        method: str,
+    ) -> list[torch.utils.hooks.RemovableHandle]:
+        """Register signal-level hooks on the modules that produce E/I currents.
+
+        Population-network recurrent and feedforward paths may call
+        ``DendriticBranchLayer.compute_raw_currents`` directly instead of
+        ``DendriticBranchLayer.forward``. Hooking the producing submodules keeps
+        signal interventions active on both the legacy and population-network
+        execution paths.
+        """
+        handles: list[torch.utils.hooks.RemovableHandle] = []
+        hook = self._make_tensor_intervention_hook(method=method)
+
+        if ablation_type in {"excitation", "all_synapses"}:
+            branch_excitation = getattr(module, "branch_excitation", None)
+            if branch_excitation is not None:
+                handles.append(branch_excitation.register_forward_hook(hook))
+
+        if ablation_type in {"inhibition", "all_synapses"}:
+            branch_inhibition = getattr(module, "branch_inhibition", None)
+            if branch_inhibition is not None:
+                handles.append(branch_inhibition.register_forward_hook(hook))
+
+        if ablation_type == "upstream":
+            branches_to_output = getattr(module, "branches_to_output", None)
+            if branches_to_output is not None:
+                handles.append(branches_to_output.register_forward_hook(hook))
+
+        return handles
+
     def ablate_layer_and_evaluate(
         self,
         test_dataset: torch.utils.data.Dataset,
@@ -348,13 +417,14 @@ class AblationAnalyzer(AbstractAnalyzer):
                     raise ValueError(f"Unknown ablation_method: {ablation_method}")
 
                 def _evaluate_metric(metric_func: Callable, metric_key: str):
-                    local_hook = None
+                    local_hooks = []
                     try:
                         if ablation_method in {"shuffle", "mean_clamp"}:
-                            pre_hook = self._make_signal_intervention_pre_hook(
-                                ablation_type=target_type_norm, method=ablation_method
+                            local_hooks = self._register_signal_intervention_hooks(
+                                module=module,
+                                ablation_type=target_type_norm,
+                                method=ablation_method,
                             )
-                            local_hook = module.register_forward_pre_hook(pre_hook)
 
                         metric_score = metric_func(
                             model,
@@ -363,7 +433,7 @@ class AblationAnalyzer(AbstractAnalyzer):
                             **eval_kwargs,
                         )[-1]
                     finally:
-                        if local_hook is not None:
+                        for local_hook in local_hooks:
                             local_hook.remove()
 
                     results_dict[ablation_type][module_name][f"{metric_key}_drop"] = (
