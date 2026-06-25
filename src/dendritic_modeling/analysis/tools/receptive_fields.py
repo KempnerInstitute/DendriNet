@@ -58,9 +58,7 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         self.exc_rf_shape = self._as_shape(
             rf_shape if exc_rf_shape is None else exc_rf_shape
         )
-        self.inh_rf_shape = self._as_shape(
-            rf_shape if inh_rf_shape is None else inh_rf_shape
-        )
+        self.inh_rf_shape = self._as_shape(inh_rf_shape)
 
         self.fig_save_format = str(getattr(params, "fig_save_format", "png")).lstrip(
             "."
@@ -83,6 +81,19 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         self.load_raw_data = bool(getattr(params, "load_raw_data", False))
         self.raw_filename = getattr(params, "raw_filename", None)
         self.epsilon = float(getattr(params, "epsilon", 1e-8))
+    
+    def _infer_inh_rf_shape(
+        self, 
+        core_network: ExcitationInhibitionNetwork
+    ) -> Optional[tuple[int, int]]:
+        """Pixel-space inhibition -> image shape; population-space -> raw vector."""
+        if isinstance(core_network.layers[0].inhibitory_cells, DendriNet):
+            return None
+        if self.inh_rf_shape is not None:
+            return self.inh_rf_shape  # explicit override wins
+        if self.exc_rf_shape is not None:
+            return self.exc_rf_shape
+        return None  # population-indexed vector, keep raw for the prod projection
 
     @staticmethod
     def _as_shape(value) -> Optional[tuple[int, int]]:
@@ -1837,6 +1848,8 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
                 "for receptive field analysis"
             )
             return None
+        
+        self.inh_rf_shape = self._infer_inh_rf_shape(model.core_network)
 
         loaded = self._prepare_raw_data(model, save_path, filename)
         if not self.raw_dict:
@@ -2668,7 +2681,8 @@ def _plot_pref_unpref_scatter_by_compartment(
             return
         try:
             sns.kdeplot(
-                x=xv, ax=ax_marg, color=color, fill=True, linewidth=2, alpha=0.35
+                x=xv, ax=ax_marg, color=color, fill=True, 
+                linewidth=2, alpha=0.35, warn_singular=False
             )
         except Exception:
             sns.histplot(x=xv, ax=ax_marg, color=color, stat="density", alpha=0.35)
