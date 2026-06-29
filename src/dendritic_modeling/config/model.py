@@ -14,6 +14,7 @@ class TransferFunctionConfig(BaseConfig):
     independent_pathways: bool = False
     excitatory_dim: Optional[int] = None
     inhibitory_dim: Optional[int] = None
+    split_strategy: str = "random"
     output_activation: Optional[str] = None
     inhibitory_mode: str = "first"  # "none", "first", "all"
     allow_direct_inhibitory_stream: bool = False

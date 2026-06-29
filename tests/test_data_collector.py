@@ -120,6 +120,53 @@ class TestDataCollector(unittest.TestCase):
             data,
         )
 
+    def test_load_information_uses_ablation_depth_map_when_available(self):
+        """Layer information and ablation should share the same depth convention."""
+        collector = DataCollector(self.results_dir)
+        config_dir = self.results_dir / "results" / "config_0"
+
+        info_dir = config_dir / "information_analysis"
+        info_dir.mkdir()
+        with open(info_dir / "final", "w") as f:
+            json.dump(
+                {
+                    "layer_statistics": {
+                        "core.layers.0.branch_layers.0": {"I(Vout;C)_mean": 0.4},
+                        "core.layers.0.branch_layers.1": {"I(Vout;C)_mean": 0.2},
+                    }
+                },
+                f,
+            )
+
+        ablation_dir = config_dir / "ablation_analysis"
+        ablation_dir.mkdir()
+        with open(ablation_dir / "final.json", "w") as f:
+            json.dump(
+                {
+                    "layer": {
+                        "mean_clamp": {
+                            "excitation": {
+                                "core.layers.0.branch_layers.0": {
+                                    "depth": 4,
+                                    "accuracy_drop": 0.1,
+                                },
+                                "core.layers.0.branch_layers.1": {
+                                    "depth": 3,
+                                    "accuracy_drop": 0.2,
+                                },
+                            }
+                        }
+                    }
+                },
+                f,
+            )
+
+        data = collector._load_information(config_dir)
+
+        self.assertEqual(data["layer_mi_V_C_depth4"], 0.4)
+        self.assertEqual(data["layer_mi_V_C_depth3"], 0.2)
+        self.assertNotIn("layer_mi_V_C_depth1", data)
+
     def test_load_gain_enriched_schema_exports_raw_and_generalization_scores(self):
         """New multiplicative-gain payloads should expose raw, ID, and OOD scores."""
         collector = DataCollector(self.results_dir)

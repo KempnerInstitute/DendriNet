@@ -219,6 +219,7 @@ class DataCollector:
             return {}
 
         result = {}
+        ablation_depth_map = self._load_ablation_depth_map(config_dir)
 
         # Basic MI
         if "basic_mi" in data and isinstance(data["basic_mi"], dict):
@@ -272,9 +273,7 @@ class DataCollector:
             for i, layer_name in enumerate(layer_names):
                 layer_data: dict[str, float] = data["layer_statistics"][layer_name]
                 if isinstance(layer_data, dict):
-                    # Extract depth from layer name
-                    # depth = self._extract_depth(layer_name)
-                    depth = depths[i]
+                    depth = ablation_depth_map.get(layer_name, depths[i])
                     for mi_key, mi_value in layer_data.items():
                         if isinstance(mi_value, (int, float)):
                             base_key = (
@@ -289,6 +288,43 @@ class DataCollector:
                             result[f"{base_key}_depth{depth}"] = mi_value
 
         return result
+
+    def _load_ablation_depth_map(self, config_dir: Path) -> dict[str, int]:
+        """Map module names to analyzer-provided ablation depths when available."""
+        ablation_files = list(config_dir.rglob("ablation_analysis/final.json"))
+        if not ablation_files:
+            ablation_files = list(config_dir.rglob("ablation_analysis/final"))
+        if ablation_files:
+            ablation_file = ablation_files[0]
+        else:
+            ablation_file = config_dir / "ablation_analysis" / "final"
+
+        data = self._load_json_file(ablation_file)
+        if not data:
+            return {}
+
+        depth_map: dict[str, int] = {}
+        layer_data = data.get("layer")
+        if not isinstance(layer_data, dict):
+            return depth_map
+
+        for targets in layer_data.values():
+            if not isinstance(targets, dict):
+                continue
+            for modules in targets.values():
+                if not isinstance(modules, dict):
+                    continue
+                for module_name, metrics in modules.items():
+                    if (
+                        isinstance(metrics, dict)
+                        and "depth" in metrics
+                        and module_name not in depth_map
+                    ):
+                        try:
+                            depth_map[module_name] = int(metrics["depth"])
+                        except (TypeError, ValueError):
+                            continue
+        return depth_map
 
     def _load_weights(self, config_dir: Path) -> dict:
         """Load weight analysis metrics."""

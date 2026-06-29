@@ -235,6 +235,25 @@ def extract_network_category(data: pd.DataFrame) -> pd.DataFrame:
             einet_mask & result["use_shunting"].eq(False), "network_category"
         ] = "dendritic_additive"
 
+    # ---- Canonical population-network surface: decide by population dynamics ----
+    population_mask = nt.eq("population_network")
+    if "use_shunting" in result.columns:
+        result.loc[
+            population_mask & result["use_shunting"].eq(True), "network_category"
+        ] = "dendritic_shunting"
+        additive_population = population_mask & result["use_shunting"].eq(False)
+        if "use_additive_normalization" in result.columns:
+            result.loc[
+                additive_population & result["use_additive_normalization"].eq(True),
+                "network_category",
+            ] = "dendritic_normalized_additive"
+            result.loc[
+                additive_population & ~result["use_additive_normalization"].eq(True),
+                "network_category",
+            ] = "dendritic_additive"
+        else:
+            result.loc[additive_population, "network_category"] = "dendritic_additive"
+
     # ---- Ultimate fallback: use_shunting boolean only ----
     if (
         result["network_category"] == "unknown"

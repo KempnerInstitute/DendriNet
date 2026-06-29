@@ -224,6 +224,65 @@ class TestConfigExtractor(unittest.TestCase):
         self.assertEqual(params["network_type"], "dendritic_normalized_additive")
         self.assertEqual(params["use_shunting"], False)
 
+    def test_extract_population_network_sweep_axes(self):
+        """Population-network configs should expose standard E/I sweep fields."""
+        config = OmegaConf.create(
+            {
+                "model": {
+                    "core": {
+                        "type": "population_network",
+                        "population_network": {
+                            "use_transfer": True,
+                            "transfer_params": {
+                                "input_mode": 1,
+                                "independent_pathways": False,
+                            },
+                            "layers": [
+                                {
+                                    "name": "layer0",
+                                    "readout_population": "e0",
+                                    "population_defaults": {
+                                        "ff_excitatory_synapses": 25,
+                                        "ff_inhibitory_synapses": 5,
+                                        "use_shunting": False,
+                                        "use_additive_normalization": True,
+                                    },
+                                    "populations": [
+                                        {
+                                            "name": "i0",
+                                            "polarity": "inhibitory",
+                                            "n_neurons": 8,
+                                            "branch_factors": [1],
+                                        },
+                                        {
+                                            "name": "e0",
+                                            "polarity": "excitatory",
+                                            "n_neurons": 20,
+                                            "branch_factors": [3, 3, 3],
+                                        },
+                                    ],
+                                }
+                            ],
+                        },
+                    }
+                }
+            }
+        )
+
+        params = self.extractor._extract_model_params(config)
+
+        self.assertEqual(params["network_type"], "population_network")
+        self.assertEqual(params["ee_value"], 25)
+        self.assertEqual(params["ie_value"], 5)
+        self.assertEqual(params["use_shunting"], False)
+        self.assertEqual(params["use_additive_normalization"], True)
+        self.assertEqual(params["branch_factors"], "3-3-3")
+        self.assertEqual(params["readout_n_neurons"], 20)
+        self.assertEqual(params["excitatory_layers"], [20])
+        self.assertEqual(params["inhibitory_layers"], [8])
+        self.assertEqual(params["input_mode"], 1)
+        self.assertEqual(params["independent_pathways"], False)
+
 
 if __name__ == "__main__":
     unittest.main()

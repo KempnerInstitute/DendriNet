@@ -1428,6 +1428,284 @@ def create_contextual_stream_gain_shift_dataset(
     )
 
 
+def create_branch_local_gain_load_dataset(
+    n_samples: int = 6000,
+    stream_dim: int = 64,
+    signal_fraction: float = 0.5,
+    n_gain_groups: int = 8,
+    n_classes: int = 2,
+    e_baseline: float = 5.0,
+    i_baseline: float = 2.0,
+    e_signal_delta: float = 1.0,
+    i_signal_delta: float = 0.0,
+    signal_mode: str = "e_only",
+    support_mode: str = "prefix",
+    train_gain_support_mode: str = "signal",
+    gain_fraction: Optional[float] = None,
+    load_fraction: float = 1.0,
+    load_alignment_alpha: float = 1.0,
+    independent_noise_std: float = 0.05,
+    train_gain_sigma: float = 0.8,
+    test_gain_sigma: float = 0.8,
+    gain_alignment_alpha: float = 1.0,
+    load_mean: float = 0.0,
+    load_noise_sigma: float = 0.0,
+    valid_split_mode: str = "test",
+    seed: Optional[int] = None,
+) -> tuple[TensorDataset, TensorDataset, TensorDataset]:
+    """Create a branch-local gain/load task with explicit positive E/I streams.
+
+    The input is ordered as ``[E_stream | I_stream]`` and is intended for
+    ``TransferLayer(independent_pathways=true, split_strategy=ordered)``.
+
+    Class information lives in a subset of signal dimensions.  ``support_mode``
+    controls whether these dimensions are the deterministic prefix used by the
+    original Fig. 4 control or a seed-sampled sparse support.  In the legacy
+    ``e_only`` mode, class 1 increases the excitatory stream.  In
+    ``balanced_ratio`` mode, the total local E+I drive is approximately fixed
+    while class identity changes the E/I split; this is the stricter
+    shunting-favorable regime because branch-local gain changes additive
+    amplitude but mostly preserves the local divisive ratio.
+
+    At test time, a positive lognormal gain multiplies local E/I groups.  In
+    sampled-support mode, ``train_gain_support_mode="signal"`` keeps training
+    gain on the class-support dimensions and uses ``gain_alignment_alpha`` to
+    control the test gain support, producing a sparse-support generalization
+    task.  ``train_gain_support_mode="matched"`` uses the same sampled gain
+    support for train/validation/test, so the same alpha becomes an
+    in-distribution signal-gain overlap axis.  Increasing ``load_mean`` or
+    ``load_noise_sigma`` pushes the same task toward a load-dominated regime.
+    """
+
+    if seed is not None:
+        torch.manual_seed(seed)
+        np.random.seed(seed)
+    if n_classes != 2:
+        raise ValueError("branch_local_gain_load supports binary classification only.")
+    if stream_dim < 4:
+        raise ValueError("stream_dim must be at least 4.")
+    if n_gain_groups <= 0:
+        raise ValueError("n_gain_groups must be positive.")
+    if valid_split_mode not in {"train", "test"}:
+        raise ValueError("valid_split_mode must be 'train' or 'test'.")
+    if signal_mode not in {"e_only", "balanced_ratio"}:
+        raise ValueError("signal_mode must be 'e_only' or 'balanced_ratio'.")
+    if support_mode not in {"prefix", "sampled"}:
+        raise ValueError("support_mode must be 'prefix' or 'sampled'.")
+    if train_gain_support_mode not in {"signal", "matched"}:
+        raise ValueError("train_gain_support_mode must be 'signal' or 'matched'.")
+
+    total_samples = int(n_samples)
+    stream_dim = int(stream_dim)
+    base_seed = int(seed or 0)
+    n_signal = round(stream_dim * float(signal_fraction))
+    n_signal = max(1, min(stream_dim - 1, n_signal))
+    support_generator = torch.Generator().manual_seed(base_seed + 7919)
+
+    def _fraction_to_count(
+        value: Optional[float],
+        *,
+        fallback_fraction: float,
+        default_to_signal: bool = False,
+    ) -> int:
+        if value is None or float(value) < 0.0:
+            frac = (
+                float(signal_fraction)
+                if default_to_signal
+                else float(fallback_fraction)
+            )
+        else:
+            frac = float(value)
+        frac = float(np.clip(frac, 0.0, 1.0))
+        return max(0, min(stream_dim, round(stream_dim * frac)))
+
+    def _sample_mask(
+        count: int,
+        *,
+        allowed_mask: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        mask = torch.zeros(stream_dim, dtype=torch.bool)
+        count = int(max(0, min(stream_dim, count)))
+        if count == 0:
+            return mask
+        allowed = (
+            torch.arange(stream_dim)
+            if allowed_mask is None
+            else torch.nonzero(allowed_mask, as_tuple=False).flatten()
+        )
+        if allowed.numel() == 0:
+            return mask
+        chosen = allowed[
+            torch.randperm(allowed.numel(), generator=support_generator)[
+                : min(count, allowed.numel())
+            ]
+        ]
+        mask[chosen] = True
+        return mask
+
+    def _aligned_sparse_mask(
+        count: int,
+        *,
+        alpha: float,
+        primary_mask: torch.Tensor,
+        fallback_mask: torch.Tensor,
+    ) -> torch.Tensor:
+        count = int(max(0, min(stream_dim, count)))
+        alpha = float(np.clip(alpha, 0.0, 1.0))
+        n_primary = round(count * alpha)
+        primary = _sample_mask(n_primary, allowed_mask=primary_mask)
+        remaining = count - int(primary.sum().item())
+        fallback = _sample_mask(remaining, allowed_mask=fallback_mask)
+        missing = count - int(primary.sum().item()) - int(fallback.sum().item())
+        if missing > 0:
+            fill_mask = ~(primary | fallback)
+            fallback = fallback | _sample_mask(missing, allowed_mask=fill_mask)
+        return primary | fallback
+
+    if support_mode == "sampled":
+        signal_mask = _sample_mask(n_signal)
+    else:
+        signal_mask = torch.zeros(stream_dim, dtype=torch.bool)
+        signal_mask[:n_signal] = True
+    nuisance_mask = ~signal_mask
+    gain_count = _fraction_to_count(
+        gain_fraction,
+        fallback_fraction=float(signal_fraction),
+        default_to_signal=True,
+    )
+    load_count = _fraction_to_count(
+        load_fraction,
+        fallback_fraction=1.0,
+        default_to_signal=False,
+    )
+    train_gain_mask = signal_mask.clone()
+    if support_mode == "sampled":
+        test_gain_mask = _aligned_sparse_mask(
+            gain_count,
+            alpha=float(gain_alignment_alpha),
+            primary_mask=signal_mask,
+            fallback_mask=nuisance_mask,
+        )
+        if train_gain_support_mode == "matched":
+            train_gain_mask = test_gain_mask.clone()
+        load_mask = _aligned_sparse_mask(
+            load_count,
+            alpha=float(load_alignment_alpha),
+            primary_mask=signal_mask,
+            fallback_mask=nuisance_mask,
+        )
+    else:
+        test_gain_mask = signal_mask.clone()
+        load_mask = torch.ones(stream_dim, dtype=torch.bool)
+        if load_count < stream_dim:
+            load_mask = torch.zeros(stream_dim, dtype=torch.bool)
+            load_mask[:load_count] = True
+
+    # Assign nearby features to the same gain group so gain is branch-local
+    # rather than a single global scalar.
+    group_ids = torch.arange(stream_dim) * int(n_gain_groups) // stream_dim
+
+    def _lognormal_gain(
+        *,
+        sigma: float,
+        generator: torch.Generator,
+        active_mask: torch.Tensor,
+    ) -> torch.Tensor:
+        if sigma <= 0 or not bool(active_mask.any()):
+            return torch.ones(total_samples, stream_dim)
+        group_z = torch.randn(total_samples, int(n_gain_groups), generator=generator)
+        z = group_z[:, group_ids]
+        gain = torch.exp(float(sigma) * z - 0.5 * float(sigma) ** 2)
+        return torch.where(active_mask.unsqueeze(0), gain, torch.ones_like(gain))
+
+    def _make_split(split_seed: int, split: str) -> tuple[torch.Tensor, torch.Tensor]:
+        generator = torch.Generator().manual_seed(split_seed)
+        labels = torch.randint(0, 2, (total_samples,), generator=generator)
+        y = labels.to(torch.float32).unsqueeze(1)
+        y_signed = (2.0 * y) - 1.0
+
+        e = torch.full((total_samples, stream_dim), float(e_baseline))
+        i = torch.full((total_samples, stream_dim), float(i_baseline))
+        if signal_mode == "balanced_ratio":
+            i_delta = (
+                float(i_signal_delta) if i_signal_delta > 0 else float(e_signal_delta)
+            )
+            e[:, signal_mask] = e[:, signal_mask] + y_signed * float(e_signal_delta)
+            i[:, signal_mask] = i[:, signal_mask] - y_signed * i_delta
+        else:
+            e[:, signal_mask] = e[:, signal_mask] + y * float(e_signal_delta)
+            i[:, signal_mask] = i[:, signal_mask] + y * float(i_signal_delta)
+
+        if independent_noise_std > 0:
+            e = e + float(independent_noise_std) * torch.randn(
+                e.shape, generator=generator
+            )
+            i = i + float(independent_noise_std) * torch.randn(
+                i.shape, generator=generator
+            )
+        e = torch.clamp(e, min=1e-4)
+        i = torch.clamp(i, min=1e-4)
+
+        if support_mode == "sampled":
+            active_gain_mask = train_gain_mask if split == "train" else test_gain_mask
+            sigma = float(train_gain_sigma if split == "train" else test_gain_sigma)
+            gain = _lognormal_gain(
+                sigma=sigma,
+                generator=generator,
+                active_mask=active_gain_mask,
+            )
+        else:
+            if split == "train":
+                sigma_signal = float(train_gain_sigma)
+                sigma_nuisance = 0.0
+            else:
+                alpha = float(np.clip(gain_alignment_alpha, 0.0, 1.0))
+                sigma_signal = float(test_gain_sigma) * alpha
+                sigma_nuisance = float(test_gain_sigma) * float(
+                    np.sqrt(max(1.0 - alpha**2, 0.0))
+                )
+
+            gain_signal = _lognormal_gain(
+                sigma=sigma_signal,
+                generator=generator,
+                active_mask=signal_mask,
+            )
+            gain_nuisance = _lognormal_gain(
+                sigma=sigma_nuisance,
+                generator=generator,
+                active_mask=nuisance_mask,
+            )
+            gain = gain_signal * gain_nuisance
+        e = e * gain
+        i = i * gain
+
+        if load_mean > 0:
+            load = torch.full_like(i, float(load_mean))
+            if load_noise_sigma > 0:
+                z = torch.randn(i.shape, generator=generator)
+                load = load * torch.exp(
+                    float(load_noise_sigma) * z - 0.5 * float(load_noise_sigma) ** 2
+                )
+            load = torch.where(load_mask.unsqueeze(0), load, torch.zeros_like(load))
+            i = i + load
+
+        data = torch.cat([torch.clamp(e, min=1e-5), torch.clamp(i, min=1e-5)], dim=1)
+        data, labels = _balance_classes(data, labels)
+        perm = torch.randperm(len(data), generator=generator)
+        return data[perm], labels[perm]
+
+    train_data, train_labels = _make_split(base_seed, "train")
+    valid_data, valid_labels = _make_split(
+        base_seed + 1, "train" if valid_split_mode == "train" else "test"
+    )
+    test_data, test_labels = _make_split(base_seed + 2, "test")
+    return (
+        TensorDataset(train_data, train_labels),
+        TensorDataset(valid_data, valid_labels),
+        TensorDataset(test_data, test_labels),
+    )
+
+
 def create_mnist_information_sampled_dataset(
     subset_size: int = 100,
     sampling_strategy: str = "info_balanced",
@@ -1760,6 +2038,34 @@ _SYNTHETIC_DATASET_SPECS: dict[str, _SyntheticDatasetSpec] = {
             "ood_mode": "irrelevant",
             "valid_split_mode": "ood",
             "context_signal_scale": 1.0,
+            "seed": None,
+        },
+    ),
+    "branch_local_gain_load": _SyntheticDatasetSpec(
+        factory=create_branch_local_gain_load_dataset,
+        defaults={
+            "n_samples": 6000,
+            "stream_dim": 64,
+            "signal_fraction": 0.5,
+            "n_gain_groups": 8,
+            "n_classes": 2,
+            "e_baseline": 5.0,
+            "i_baseline": 2.0,
+            "e_signal_delta": 1.0,
+            "i_signal_delta": 0.0,
+            "signal_mode": "e_only",
+            "support_mode": "prefix",
+            "train_gain_support_mode": "signal",
+            "gain_fraction": -1.0,
+            "load_fraction": 1.0,
+            "load_alignment_alpha": 1.0,
+            "independent_noise_std": 0.05,
+            "train_gain_sigma": 0.8,
+            "test_gain_sigma": 0.8,
+            "gain_alignment_alpha": 1.0,
+            "load_mean": 0.0,
+            "load_noise_sigma": 0.0,
+            "valid_split_mode": "test",
             "seed": None,
         },
     ),

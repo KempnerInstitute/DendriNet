@@ -194,6 +194,32 @@ class DatasetParamsConfig(BaseConfig):
             "context_signal_scale": 1.0,
         }
     )
+    branch_local_gain_load: dict[str, Any] = field(
+        default_factory=lambda: {
+            "n_samples": 6000,
+            "stream_dim": 64,
+            "signal_fraction": 0.5,
+            "n_gain_groups": 8,
+            "n_classes": 2,
+            "e_baseline": 5.0,
+            "i_baseline": 2.0,
+            "e_signal_delta": 1.0,
+            "i_signal_delta": 0.0,
+            "signal_mode": "e_only",
+            "support_mode": "prefix",
+            "train_gain_support_mode": "signal",
+            "gain_fraction": -1.0,
+            "load_fraction": 1.0,
+            "load_alignment_alpha": 1.0,
+            "independent_noise_std": 0.05,
+            "train_gain_sigma": 0.8,
+            "test_gain_sigma": 0.8,
+            "gain_alignment_alpha": 1.0,
+            "load_mean": 0.0,
+            "load_noise_sigma": 0.0,
+            "valid_split_mode": "test",
+        }
+    )
     imagenet: dict[str, Any] = field(
         default_factory=lambda: {
             "loader_backend": "auto",

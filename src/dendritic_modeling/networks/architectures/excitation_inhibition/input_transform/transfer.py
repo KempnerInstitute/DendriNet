@@ -75,6 +75,7 @@ class TransferLayer(nn.Module):
                 split_seed=transfer_params.get(
                     "split_seed", transfer_params.get("seed", None)
                 ),
+                split_strategy=transfer_params.get("split_strategy", "random"),
             )
         else:
             # When independent_pathways is False, both use full input_dim

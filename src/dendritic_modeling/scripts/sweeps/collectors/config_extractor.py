@@ -3,7 +3,7 @@
 import logging
 from pathlib import Path
 
-from omegaconf import ListConfig, OmegaConf
+from omegaconf import DictConfig, ListConfig, OmegaConf
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +86,15 @@ class ConfigExtractor:
                         "normalized_additive": "dendritic_normalized_additive",
                     }.get(core_type, core_type)
                     params["network_type"] = canonical_type
+
+                if str(
+                    getattr(core, "type", "")
+                ).lower() == "population_network" and hasattr(
+                    core, "population_network"
+                ):
+                    params.update(
+                        self._extract_population_network_params(core.population_network)
+                    )
 
                 # Connectivity parameters
                 if hasattr(core, "connectivity"):
@@ -180,6 +189,119 @@ class ConfigExtractor:
 
         except Exception as e:
             logger.warning(f"Error extracting model params: {e}")
+
+        return params
+
+    def _to_plain_container(self, value):
+        """Convert OmegaConf containers to plain Python containers."""
+        if isinstance(value, (DictConfig, ListConfig)):
+            return OmegaConf.to_container(value, resolve=True)
+        return value
+
+    def _format_branch_factors(self, branch_factors) -> str | None:
+        branch_factors = self._to_plain_container(branch_factors)
+        if branch_factors is None:
+            return None
+        if isinstance(branch_factors, (list, tuple)):
+            return "-".join(str(x) for x in branch_factors)
+        return str(branch_factors)
+
+    def _extract_population_network_params(self, population_network) -> dict:
+        """Extract sweep axes from canonical ``population_network`` configs.
+
+        Population-network configs encode the same E/I sweep axes as legacy
+        EINet configs, but under per-layer ``population_defaults`` and optional
+        per-population overrides. For sweep aggregation we use the readout
+        population of the first layer, which is the old single-layer E/I case
+        and the intended summary target for layered population-network sweeps.
+        """
+        params = {}
+        pn = self._to_plain_container(population_network) or {}
+        if not isinstance(pn, dict):
+            return params
+
+        layers = pn.get("layers") or []
+        if not layers:
+            return params
+
+        first_layer = layers[0]
+        if not isinstance(first_layer, dict):
+            return params
+
+        layer_defaults = first_layer.get("population_defaults") or {}
+        if not isinstance(layer_defaults, dict):
+            layer_defaults = {}
+
+        populations = first_layer.get("populations") or []
+        readout_name = first_layer.get("readout_population")
+        readout_pop = None
+        if isinstance(populations, list):
+            for pop in populations:
+                if isinstance(pop, dict) and pop.get("name") == readout_name:
+                    readout_pop = pop
+                    break
+            if readout_pop is None:
+                for pop in populations:
+                    if isinstance(pop, dict) and pop.get("polarity") == "excitatory":
+                        readout_pop = pop
+                        break
+            if readout_pop is None and populations:
+                first_pop = populations[0]
+                readout_pop = first_pop if isinstance(first_pop, dict) else None
+
+        pop_overrides = {}
+        if isinstance(readout_pop, dict):
+            pop_overrides = readout_pop.get("population") or {}
+            if not isinstance(pop_overrides, dict):
+                pop_overrides = {}
+
+        pop_params = {**layer_defaults, **pop_overrides}
+
+        if "ff_excitatory_synapses" in pop_params:
+            params["ee_value"] = pop_params["ff_excitatory_synapses"]
+        if "ff_inhibitory_synapses" in pop_params:
+            params["ie_value"] = pop_params["ff_inhibitory_synapses"]
+
+        if "use_shunting" in pop_params:
+            params["use_shunting"] = bool(pop_params["use_shunting"])
+        if "use_additive_normalization" in pop_params:
+            params["use_additive_normalization"] = bool(
+                pop_params["use_additive_normalization"]
+            )
+
+        if isinstance(readout_pop, dict):
+            if "branch_factors" in readout_pop:
+                formatted = self._format_branch_factors(readout_pop["branch_factors"])
+                if formatted is not None:
+                    params["branch_factors"] = formatted
+            if "n_neurons" in readout_pop:
+                params["readout_n_neurons"] = readout_pop["n_neurons"]
+
+        excitatory_sizes = []
+        inhibitory_sizes = []
+        if isinstance(populations, list):
+            for pop in populations:
+                if not isinstance(pop, dict) or "n_neurons" not in pop:
+                    continue
+                polarity = pop.get("polarity")
+                if polarity == "excitatory":
+                    excitatory_sizes.append(pop["n_neurons"])
+                elif polarity == "inhibitory":
+                    inhibitory_sizes.append(pop["n_neurons"])
+        if excitatory_sizes:
+            params["excitatory_layers"] = excitatory_sizes
+        if inhibitory_sizes:
+            params["inhibitory_layers"] = inhibitory_sizes
+
+        transfer = pn.get("transfer_params") or {}
+        if isinstance(transfer, dict):
+            if "input_mode" in transfer:
+                params["input_mode"] = transfer["input_mode"]
+            if "independent_pathways" in transfer:
+                params["independent_pathways"] = bool(transfer["independent_pathways"])
+
+        if "recurrent" in first_layer:
+            params["population_layer_recurrent"] = bool(first_layer["recurrent"])
 
         return params
 

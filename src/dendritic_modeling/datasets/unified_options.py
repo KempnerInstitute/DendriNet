@@ -43,6 +43,7 @@ _THEORETICAL_SYNTHETIC_DATASET_NAMES = (
     "block_correlated",
     "balanced_information",
     "contextual_stream_gain_shift",
+    "branch_local_gain_load",
 )
 
 _EXPERIMENTAL_DATASET_IMPORT_CANDIDATES = (
