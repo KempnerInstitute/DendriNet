@@ -45,12 +45,14 @@ model:
             indexed_rewire_frequency: 100
             indexed_rewire_quantile: 0.05
             indexed_rewire_until_step: null
+            indexed_output_chunk_size: 2048
             somatic_synapses: true
             reactivate: true
             reactivation_type: "param_tanh"
             reactivation_init_policy: "occupancy_quantile"
             dbl_init_method: "analytical_expectation"
             weight_transform: "softplus"
+            efficient_blocklinear: true
           populations:
             - name: "i"
               polarity: "inhibitory"

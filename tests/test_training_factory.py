@@ -239,6 +239,38 @@ class TestExtractEnhancedConfigs:
         assert result["target_saturation"] == 0.15
         assert "homeostatic_control_config" not in trainer_config
 
+    def test_extract_flat_strategy_configs_preserves_known_keys(self):
+        """Strategy-specific nested dicts should flatten into trainer kwargs."""
+        trainer_config = {
+            "voltage_stabilization_config": {"voltage_mode": "gate"},
+            "homeostatic_control_config": {"homeostasis_mode": "occupancy"},
+            "freeze_layers_config": {"freeze_until": 2},
+            "freeze_branches_config": {"branch_warmup": 3},
+            "fa_config": {"alignment_scale": 0.4},
+            "freeze_branch_kl_config": {"kl_weight": 0.7},
+        }
+
+        result = _extract_enhanced_configs(trainer_config)
+
+        assert result == {
+            "voltage_mode": "gate",
+            "homeostasis_mode": "occupancy",
+            "freeze_until": 2,
+            "branch_warmup": 3,
+            "alignment_scale": 0.4,
+            "kl_weight": 0.7,
+        }
+        assert trainer_config == {}
+
+    def test_extract_flat_strategy_config_ignores_non_dict_value(self):
+        """Non-dict strategy configs should preserve the previous drop behavior."""
+        trainer_config = {"fa_config": "legacy-non-dict"}
+
+        result = _extract_enhanced_configs(trainer_config)
+
+        assert result == {}
+        assert trainer_config == {}
+
 
 class TestGetTrainer:
     """Test get_trainer factory function."""
@@ -348,6 +380,35 @@ class TestGetTrainer:
             call_args = MockTrainer.call_args[1]
             assert call_args["stabilize_mode"] == "gate_occupancy"
             assert call_args["target_saturation"] == 0.25
+
+    @pytest.mark.parametrize(
+        ("strategy", "mode"),
+        [
+            ("shunting_fa", "fa"),
+            ("shunting_dfa", "dfa"),
+        ],
+    )
+    def test_get_shunting_feedback_alignment_trainer(
+        self,
+        strategy,
+        mode,
+        mock_optimizer,
+        basic_trainer_config,
+    ):
+        """Test creating shunting feedback-alignment trainers."""
+        trainer_config = dict(basic_trainer_config)
+        trainer_config["e_rev_exc"] = 0.7
+
+        with patch(
+            "dendritic_modeling.training.factory.ShuntingFeedbackAlignmentTrainer"
+        ) as mock_trainer:
+            get_trainer(strategy, mock_optimizer, trainer_config)
+
+            mock_trainer.assert_called_once()
+            call_args = mock_trainer.call_args[1]
+            assert call_args["optimizer"] == mock_optimizer
+            assert call_args["mode"] == mode
+            assert call_args["e_rev_exc"] == 0.7
 
     def test_get_fsdp_trainer_is_not_supported(
         self, mock_optimizer, basic_trainer_config

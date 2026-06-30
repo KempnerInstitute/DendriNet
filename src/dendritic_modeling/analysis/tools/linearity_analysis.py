@@ -66,29 +66,10 @@ class LinearityAnalyzer(AbstractAnalyzer):
         """
         logger.info("Computing linearity index...")
 
-        if not isinstance(data_loader, DataLoader):
-            data_loader = DataLoader(data_loader, batch_size=256, shuffle=False)
-
-        model_device = get_model_device(model)
-        analysis_device = torch.device(device)
-        if analysis_device != model_device:
-            analysis_device = model_device
-
-        # Collect samples for analysis
-        all_inputs = []
-        all_labels = []
-
-        with torch.no_grad():
-            for batch in data_loader:
-                x_batch = batch[0]
-                all_inputs.append(x_batch)
-                all_labels.append(batch[1])
-
-                if len(all_inputs) * x_batch.shape[0] >= self.n_samples:
-                    break
-
-        inputs = torch.cat(all_inputs, dim=0)[: self.n_samples].to(analysis_device)
-        labels = torch.cat(all_labels, dim=0)[: self.n_samples]
+        data_loader = self._ensure_dataloader(data_loader)
+        analysis_device = self._resolve_analysis_device(model, device)
+        inputs, labels = self._collect_samples(data_loader)
+        inputs = inputs.to(analysis_device)
 
         logger.info(f"Analyzing {len(inputs)} samples, input_dim = {inputs.shape[1]}")
 
@@ -96,17 +77,9 @@ class LinearityAnalyzer(AbstractAnalyzer):
             linearity_index = self._compute_linearity_index(model, inputs)
             gradient_norm = self._compute_gradient_norm(model, inputs)
             hessian_norm = self._compute_hessian_norm(model, inputs)
-
-            unique_classes = torch.unique(labels)
-            per_class_linearity = {}
-
-            for c in unique_classes:
-                mask = labels == c
-                if mask.sum() > 0:
-                    class_inputs = inputs[mask]
-                    per_class_linearity[int(c)] = self._compute_linearity_index(
-                        model, class_inputs
-                    )
+            per_class_linearity = self._compute_per_class_linearity(
+                model, inputs, labels
+            )
 
         # Store results
         self.results = {
@@ -126,6 +99,49 @@ class LinearityAnalyzer(AbstractAnalyzer):
         logger.info(f"Hessian norm: {hessian_norm:.4f}")
 
         return self.results
+
+    @staticmethod
+    def _ensure_dataloader(data_loader: DataLoader | Dataset) -> DataLoader:
+        if isinstance(data_loader, DataLoader):
+            return data_loader
+        return DataLoader(data_loader, batch_size=256, shuffle=False)
+
+    def _resolve_analysis_device(self, model: nn.Module, device: str) -> torch.device:
+        model_device = get_model_device(model)
+        analysis_device = torch.device(device)
+        if analysis_device != model_device:
+            analysis_device = model_device
+        return analysis_device
+
+    def _collect_samples(self, data_loader: DataLoader) -> tuple[torch.Tensor, ...]:
+        all_inputs = []
+        all_labels = []
+
+        with torch.no_grad():
+            for batch in data_loader:
+                x_batch = batch[0]
+                all_inputs.append(x_batch)
+                all_labels.append(batch[1])
+
+                if len(all_inputs) * x_batch.shape[0] >= self.n_samples:
+                    break
+
+        inputs = torch.cat(all_inputs, dim=0)[: self.n_samples]
+        labels = torch.cat(all_labels, dim=0)[: self.n_samples]
+        return inputs, labels
+
+    def _compute_per_class_linearity(
+        self, model: nn.Module, inputs: torch.Tensor, labels: torch.Tensor
+    ) -> dict[int, float]:
+        per_class_linearity = {}
+        for c in torch.unique(labels):
+            mask = labels == c
+            if mask.sum() > 0:
+                class_inputs = inputs[mask]
+                per_class_linearity[int(c)] = self._compute_linearity_index(
+                    model, class_inputs
+                )
+        return per_class_linearity
 
     def _compute_linearity_index(self, model: nn.Module, inputs: torch.Tensor) -> float:
         """Compute L(R) = 1 - E[||Hess||] / (E[||grad||] + eps)"""
@@ -295,7 +311,7 @@ def compute_linear_decoder_performance(
         "train_accuracy": float(accuracy_score(y_train, y_pred_train)),
         "test_accuracy": float(accuracy_score(y_test, y_pred_test)),
         "margin": float(np.abs(clf.decision_function(X_test)).min()),  # Minimum margin
-        "n_support_vectors": int(np.sum(clf.n_support_)),
+        "n_support_vectors": _count_linear_svc_margin_samples(clf, X_train, y_train),
     }
 
     logger.info(
@@ -303,3 +319,28 @@ def compute_linear_decoder_performance(
     )
 
     return results
+
+
+def _count_linear_svc_margin_samples(
+    clf: Any, branch_outputs: np.ndarray, labels: np.ndarray
+) -> int:
+    """Estimate support-like samples for LinearSVC from signed margins.
+
+    LinearSVC does not expose explicit support vectors. For the binary case,
+    samples with signed margin <= 1 are the hinge-loss active points. For
+    multiclass one-vs-rest scores, use the true-class score as the same
+    deterministic support-like diagnostic.
+    """
+    decision = clf.decision_function(branch_outputs)
+    labels = np.asarray(labels)
+
+    if np.ndim(decision) == 1:
+        class_to_sign = {clf.classes_[0]: -1.0, clf.classes_[1]: 1.0}
+        signs = np.array([class_to_sign[label] for label in labels], dtype=float)
+        margins = signs * decision
+        return int(np.sum(margins <= 1.0))
+
+    class_to_idx = {label: idx for idx, label in enumerate(clf.classes_)}
+    true_class_indices = np.array([class_to_idx[label] for label in labels])
+    true_class_scores = decision[np.arange(len(labels)), true_class_indices]
+    return int(np.sum(true_class_scores <= 1.0))

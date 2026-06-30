@@ -4,9 +4,13 @@ import pytest
 import torch
 
 from dendritic_modeling.networks.utils.weight_transforms import (
+    INVERSE_EXP_EPS,
+    NONNEGATIVE_TRANSFER_ACTIVATIONS,
+    POSITIVE_WEIGHT_TRANSFORMS,
     apply_weight_transform,
     get_weight_transform_fn,
     inverse_weight_transform,
+    safe_exp,
 )
 
 # ---------------------------------------------------------------------------
@@ -53,6 +57,37 @@ def test_apply_invalid_type_raises():
         apply_weight_transform(w, "nonexistent")
 
 
+def test_invalid_type_error_lists_supported_transforms():
+    w = torch.randn(2)
+
+    with pytest.raises(ValueError) as exc_info:
+        apply_weight_transform(w, "nonexistent")
+
+    message = str(exc_info.value)
+    for transform in ("identity", "exp", "relu", "softplus"):
+        assert f"'{transform}'" in message
+
+
+def test_shunting_guard_constants_match_legacy_import_sites():
+    from dendritic_modeling.networks.architectures.excitation_inhibition import (
+        ei_network,
+    )
+    from dendritic_modeling.utils import training_stability_validator
+
+    assert ei_network.POSITIVE_WEIGHT_TRANSFORMS is POSITIVE_WEIGHT_TRANSFORMS
+    assert (
+        training_stability_validator.POSITIVE_WEIGHT_TRANSFORMS
+        is POSITIVE_WEIGHT_TRANSFORMS
+    )
+    assert (
+        ei_network.NONNEGATIVE_TRANSFER_ACTIVATIONS is NONNEGATIVE_TRANSFER_ACTIVATIONS
+    )
+    assert (
+        training_stability_validator.NONNEGATIVE_TRANSFER_ACTIVATIONS
+        is NONNEGATIVE_TRANSFER_ACTIVATIONS
+    )
+
+
 # ---------------------------------------------------------------------------
 # get_weight_transform_fn
 # ---------------------------------------------------------------------------
@@ -82,6 +117,14 @@ def test_inverse_exp_roundtrip():
     forward = apply_weight_transform(w, "exp")
     recovered = inverse_weight_transform(forward, "exp")
     torch.testing.assert_close(recovered, w, atol=1e-5, rtol=1e-5)
+
+
+def test_inverse_exp_uses_stable_epsilon_for_zero_input():
+    zero = torch.tensor([0.0])
+
+    recovered = inverse_weight_transform(zero, "exp")
+
+    torch.testing.assert_close(recovered, torch.log(zero + INVERSE_EXP_EPS))
 
 
 def test_inverse_softplus_roundtrip():
@@ -128,3 +171,11 @@ def test_gradient_flow(transform):
     out.sum().backward()
     assert w.grad is not None
     assert w.grad.shape == w.shape
+
+
+def test_safe_exp_respects_explicit_max_exponent():
+    w = torch.tensor([0.0, 10.0], dtype=torch.float32)
+
+    out = safe_exp(w, max_exponent=2.0)
+
+    torch.testing.assert_close(out, torch.exp(torch.tensor([0.0, 2.0])))

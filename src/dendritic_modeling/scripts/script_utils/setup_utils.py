@@ -15,7 +15,7 @@ import wandb
 from omegaconf import OmegaConf
 
 from dendritic_modeling.config import DataConfig, ModelConfig, TrainingConfig
-from dendritic_modeling.config.conversion import to_plain_dict
+from dendritic_modeling.config.conversion import to_plain_dict as _config_to_plain_dict
 from dendritic_modeling.config.model import DecoderConfig, EncoderConfig
 from dendritic_modeling.config.recurrence import is_recurrent_core_config
 from dendritic_modeling.datasets import get_unified_datasets
@@ -27,11 +27,6 @@ from dendritic_modeling.utils.logging_config import LoggerManager
 
 logger = logging.getLogger(__name__)
 logger_manager = LoggerManager()
-
-
-def _config_to_plain_dict(cfg) -> dict:
-    """Convert config sections to plain dicts without leaking OmegaConf internals."""
-    return to_plain_dict(cfg)
 
 
 def _get_dataset_specific_params(data_config: DataConfig) -> dict:
@@ -75,7 +70,8 @@ def _warn_ignored_legacy_model_sections(model_config: ModelConfig) -> None:
 
     if ignored_sections:
         logger.warning(
-            "%s ignored because model.pretrained_replacement.enabled=true",
+            "%s ignored because model.pretrained_replacement.enabled=true or "
+            "model.vision_replacement.enabled=true",
             ", ".join(ignored_sections),
         )
 
@@ -85,8 +81,24 @@ def _is_recurrent_core_config(core_cfg) -> bool:
     return is_recurrent_core_config(core_cfg)
 
 
+def _active_vision_replacement_config(model_config: ModelConfig):
+    """Return the active vision replacement config, preferring the new name."""
+    vr = getattr(model_config, "vision_replacement", None)
+    pr = getattr(model_config, "pretrained_replacement", None)
+    if vr is not None and getattr(vr, "enabled", False):
+        if pr is not None and getattr(pr, "enabled", False):
+            logger.warning(
+                "Both model.vision_replacement and model.pretrained_replacement "
+                "are enabled; using model.vision_replacement."
+            )
+        return vr
+    if pr is not None and getattr(pr, "enabled", False):
+        return pr
+    return None
+
+
 def _build_from_pretrained_replacement(model_config: ModelConfig):
-    """Build encoder/core/decoder from a ``pretrained_replacement`` config.
+    """Build encoder/core/decoder from a vision replacement config.
 
     Loads the backbone once, splits it into prefix and suffix via
     :func:`build_split_plan`, then creates the core network in between.
@@ -101,7 +113,9 @@ def _build_from_pretrained_replacement(model_config: ModelConfig):
         _SPATIAL_DENDRITIC_TYPES,
     )
 
-    pr = model_config.pretrained_replacement
+    pr = _active_vision_replacement_config(model_config)
+    if pr is None:
+        raise ValueError("No enabled vision/pretrained replacement config found")
     prefix_freeze = pr.trainability.encoder.mode == "frozen"
     suffix_freeze = pr.trainability.decoder.mode == "frozen"
 
@@ -116,6 +130,7 @@ def _build_from_pretrained_replacement(model_config: ModelConfig):
         weights=pr.weights,
         replace_start=pr.replace.start,
         replace_end=pr.replace.end,
+        target_modules=list(getattr(pr, "target_modules", []) or []),
         omit_layers=list(pr.omit_layers) if pr.omit_layers else None,
         input_shape=list(pr.input_shape) if pr.input_shape else None,
         spatial=spatial,
@@ -212,9 +227,9 @@ def _build_from_pretrained_replacement(model_config: ModelConfig):
 def initialize_model(model_config: ModelConfig):
     """Initialize the model based on configuration."""
 
-    # New API: pretrained_replacement takes precedence when enabled
-    pr = getattr(model_config, "pretrained_replacement", None)
-    if pr is not None and getattr(pr, "enabled", False):
+    # Vision replacement takes precedence when enabled.
+    pr = _active_vision_replacement_config(model_config)
+    if pr is not None:
         _warn_ignored_legacy_model_sections(model_config)
         encoder, core_network, decoder_network, encoder_network = (
             _build_from_pretrained_replacement(model_config)

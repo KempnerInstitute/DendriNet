@@ -353,7 +353,7 @@ Examples:
   python sweep_manager.py --config configs/my_sweep.yaml --dry-run
 
   # Override SLURM account/partition at submission time
-  python sweep_manager.py --config configs/my_sweep.yaml --slurm-account kempner_dev --slurm-partition kempner_eng
+  python sweep_manager.py --config configs/my_sweep.yaml --slurm-account my_account --slurm-partition gpu_partition
 """,
     )
 
@@ -396,7 +396,7 @@ Examples:
     )
     parser.add_argument(
         "--slurm-account",
-        help="Override slurm_config.account in sweep config (e.g., kempner_dev)",
+        help="Override slurm_config.account in sweep config (e.g., my_account)",
     )
     parser.add_argument(
         "--slurm-partition",

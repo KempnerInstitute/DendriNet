@@ -31,19 +31,22 @@ data:
   dataset_params:
     imagenet:
       transform_preset: "pretrained"
-      allow_fake_data: false
+      loader_backend: "auto"                  # "auto" | "torchvision" | "imagefolder"; imagefolder is fastest for train/val class trees
       allow_flatten_materialize: false
 
 model:
   task: "classification"
-  pretrained_replacement:
+  vision_replacement:
     enabled: true
     backbone: "alexnet"
     weights: "IMAGENET1K_V1"
     input_shape: [3, 224, 224]
-    replace:
-      start: "classifier.1"
-      end: "classifier.5"
+    target_modules:
+      - "classifier.1"
+      - "classifier.2"
+      - "classifier.3"
+      - "classifier.4"
+      - "classifier.5"
     trainability:
       encoder:
         mode: "frozen"
@@ -79,6 +82,10 @@ training:
     common:
       epochs: 100
       batch_size: 64                    # per-GPU batch size (effective = 64 * n_gpus)
+      num_workers: 8                    # per-rank ImageNet workers
+      pin_memory: true
+      persistent_workers: true
+      prefetch_factor: 4
       shuffle: true
       grad_clip_value: 5.0
       loss_function: "cat_nll"
@@ -100,6 +107,7 @@ analysis:
     final:
       mode: "stream"                    # large-image analysis under FSDP: stream by default
       batch_size: 128
+      in_order: false
   performance:
     enabled: true
     params:

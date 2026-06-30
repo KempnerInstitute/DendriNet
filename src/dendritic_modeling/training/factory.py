@@ -35,6 +35,7 @@ from dendritic_modeling.training.strategies import (
     TwoStepTrainerWithKL,
     VoltageStabilizationTrainer,
 )
+from dendritic_modeling.utils.hooks import iter_child_modules_of_type
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +67,16 @@ TRAINER_STRATEGY_REGISTRY: dict[str, dict[str, Any]] = {
     "homeostatic_control": {"class": "HomeostaticControlTrainer"},
 }
 
+SHUNTING_FEEDBACK_ALIGNMENT_MODES = {
+    "shunting_fa": "fa",
+    "shunting_dfa": "dfa",
+}
+SPECIAL_TRAINER_STRATEGIES = [
+    *SHUNTING_FEEDBACK_ALIGNMENT_MODES.keys(),
+    "recurrent",
+    "multi_stage",
+]
+
 
 def register_trainer_strategy(
     name: str,
@@ -84,8 +95,7 @@ def register_trainer_strategy(
 
 def get_available_trainer_strategies() -> list[str]:
     """Return supported trainer strategy names."""
-    special = ["shunting_fa", "shunting_dfa", "recurrent", "multi_stage"]
-    return list(TRAINER_STRATEGY_REGISTRY.keys()) + special
+    return list(TRAINER_STRATEGY_REGISTRY.keys()) + SPECIAL_TRAINER_STRATEGIES
 
 
 def _resolve_trainer_class(class_ref: type[Trainer] | str) -> type[Trainer]:
@@ -132,6 +142,29 @@ def _build_multi_stage_config(raw_config: Any) -> MultiStageTrainingConfig:
 
     config_dict["stages"] = stage_configs
     return MultiStageTrainingConfig(**config_dict)
+
+
+_FLATTENED_STRATEGY_CONFIG_KEYS = (
+    "voltage_stabilization_config",
+    "homeostatic_control_config",
+    "freeze_layers_config",
+    "freeze_branches_config",
+    "fa_config",
+    "freeze_branch_kl_config",
+)
+
+
+def _pop_flat_strategy_config(
+    enhanced_configs: dict[str, Any],
+    trainer_config_dict: dict[str, Any],
+    key: str,
+) -> None:
+    """Pop a nested strategy config and flatten dict values into trainer kwargs."""
+    if key not in trainer_config_dict:
+        return
+    nested_config = trainer_config_dict.pop(key)
+    if isinstance(nested_config, dict):
+        enhanced_configs.update(nested_config)
 
 
 def _extract_enhanced_configs(trainer_config_dict: dict[str, Any]) -> dict[str, Any]:
@@ -235,43 +268,75 @@ def _extract_enhanced_configs(trainer_config_dict: dict[str, Any]) -> dict[str, 
             "local_rule_config"
         )
 
-    # Voltage stabilization
-    if "voltage_stabilization_config" in trainer_config_dict:
-        vs_cfg = trainer_config_dict.pop("voltage_stabilization_config")
-        if isinstance(vs_cfg, dict):
-            enhanced_configs.update(vs_cfg)
-
-    # Homeostatic control
-    if "homeostatic_control_config" in trainer_config_dict:
-        hc_cfg = trainer_config_dict.pop("homeostatic_control_config")
-        if isinstance(hc_cfg, dict):
-            enhanced_configs.update(hc_cfg)
-
-    # Freeze layers
-    if "freeze_layers_config" in trainer_config_dict:
-        fl_cfg = trainer_config_dict.pop("freeze_layers_config")
-        if isinstance(fl_cfg, dict):
-            enhanced_configs.update(fl_cfg)
-
-    # Freeze branches
-    if "freeze_branches_config" in trainer_config_dict:
-        fb_cfg = trainer_config_dict.pop("freeze_branches_config")
-        if isinstance(fb_cfg, dict):
-            enhanced_configs.update(fb_cfg)
-
-    # Feedback alignment
-    if "fa_config" in trainer_config_dict:
-        fa_cfg = trainer_config_dict.pop("fa_config")
-        if isinstance(fa_cfg, dict):
-            enhanced_configs.update(fa_cfg)
-
-    # Freeze branch with KL
-    if "freeze_branch_kl_config" in trainer_config_dict:
-        fbkl_cfg = trainer_config_dict.pop("freeze_branch_kl_config")
-        if isinstance(fbkl_cfg, dict):
-            enhanced_configs.update(fbkl_cfg)
+    for key in _FLATTENED_STRATEGY_CONFIG_KEYS:
+        _pop_flat_strategy_config(enhanced_configs, trainer_config_dict, key)
 
     return enhanced_configs
+
+
+def _apply_enhanced_configs(trainer_config_dict: dict[str, Any]) -> None:
+    trainer_config_dict.update(_extract_enhanced_configs(trainer_config_dict))
+
+
+def _build_shunting_feedback_alignment_trainer(
+    mode: str,
+    trainer_config_dict: dict[str, Any],
+) -> ShuntingFeedbackAlignmentTrainer:
+    _apply_enhanced_configs(trainer_config_dict)
+    trainer_config_dict["mode"] = mode
+    e_rev = trainer_config_dict.pop("e_rev_exc", 1.0)
+    return ShuntingFeedbackAlignmentTrainer(**trainer_config_dict, e_rev_exc=e_rev)
+
+
+def _build_recurrent_trainer(trainer_config_dict: dict[str, Any]) -> RecurrentTrainer:
+    """Build a recurrent trainer while preserving legacy kwarg precedence."""
+    # Strategy-specific recurrent config takes precedence over generic fields.
+    recurrent_cfg = trainer_config_dict.pop("recurrent_config", None)
+    if recurrent_cfg is not None and not isinstance(recurrent_cfg, dict):
+        recurrent_cfg = to_plain_dict(recurrent_cfg)
+    if isinstance(recurrent_cfg, dict):
+        # recurrent_cfg should only contain fields the user explicitly set
+        # (default-valued fields are stripped by config_utils).  Explicit
+        # strategy overrides take precedence over common settings.
+        trainer_config_dict.update(recurrent_cfg)
+
+    task = trainer_config_dict.pop("task", "classification")
+    grad_clip = trainer_config_dict.pop(
+        "grad_clip", trainer_config_dict.pop("grad_clip_value", 1.0)
+    )
+    use_amp = trainer_config_dict.pop("use_amp", False)
+    lr_schedule = trainer_config_dict.pop("lr_schedule", "none")
+    lr_warmup_epochs = trainer_config_dict.pop("lr_warmup_epochs", 0)
+    _apply_enhanced_configs(trainer_config_dict)
+    return RecurrentTrainer(
+        task=task,
+        grad_clip=grad_clip,
+        use_amp=use_amp,
+        lr_schedule=lr_schedule,
+        lr_warmup_epochs=lr_warmup_epochs,
+        **trainer_config_dict,
+    )
+
+
+def _build_multi_stage_trainer(
+    trainer_config_dict: dict[str, Any],
+    *,
+    optimizer: torch.optim.Optimizer,
+    analysis_manager: Optional[object],
+) -> MultiStageTrainer:
+    """Build a multi-stage trainer from normalized factory kwargs."""
+    raw_multi_stage_config = trainer_config_dict.pop("multi_stage_config", None)
+    multi_stage_config = _build_multi_stage_config(raw_multi_stage_config)
+
+    _apply_enhanced_configs(trainer_config_dict)
+
+    base_trainer_config = dict(trainer_config_dict)
+    return MultiStageTrainer(
+        multi_stage_config=multi_stage_config,
+        base_optimizer=optimizer,
+        base_trainer_config=base_trainer_config,
+        analysis_manager=analysis_manager,
+    )
 
 
 def get_trainer(
@@ -297,65 +362,23 @@ def get_trainer(
     trainer_config_dict["optimizer"] = optimizer
 
     if strategy in TRAINER_STRATEGY_REGISTRY:
-        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
-        trainer_config_dict.update(enhanced_configs)
+        _apply_enhanced_configs(trainer_config_dict)
         spec = TRAINER_STRATEGY_REGISTRY[strategy]
         trainer_config_dict.update(spec.get("fixed_kwargs", {}))
         trainer_cls = _resolve_trainer_class(spec["class"])
         return trainer_cls(**trainer_config_dict)
 
-    if strategy == "shunting_fa":
-        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
-        trainer_config_dict.update(enhanced_configs)
-        trainer_config_dict["mode"] = "fa"
-        e_rev = trainer_config_dict.pop("e_rev_exc", 1.0)
-        return ShuntingFeedbackAlignmentTrainer(**trainer_config_dict, e_rev_exc=e_rev)
-    elif strategy == "shunting_dfa":
-        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
-        trainer_config_dict.update(enhanced_configs)
-        trainer_config_dict["mode"] = "dfa"
-        e_rev = trainer_config_dict.pop("e_rev_exc", 1.0)
-        return ShuntingFeedbackAlignmentTrainer(**trainer_config_dict, e_rev_exc=e_rev)
+    if strategy in SHUNTING_FEEDBACK_ALIGNMENT_MODES:
+        return _build_shunting_feedback_alignment_trainer(
+            SHUNTING_FEEDBACK_ALIGNMENT_MODES[strategy],
+            trainer_config_dict,
+        )
     elif strategy == "recurrent":
-        # Strategy-specific recurrent config takes precedence over generic fields.
-        recurrent_cfg = trainer_config_dict.pop("recurrent_config", None)
-        if recurrent_cfg is not None and not isinstance(recurrent_cfg, dict):
-            recurrent_cfg = to_plain_dict(recurrent_cfg)
-        if isinstance(recurrent_cfg, dict):
-            # recurrent_cfg should only contain fields the user explicitly set
-            # (default-valued fields are stripped by config_utils).  Explicit
-            # strategy overrides take precedence over common settings.
-            trainer_config_dict.update(recurrent_cfg)
-
-        task = trainer_config_dict.pop("task", "classification")
-        grad_clip = trainer_config_dict.pop(
-            "grad_clip", trainer_config_dict.pop("grad_clip_value", 1.0)
-        )
-        use_amp = trainer_config_dict.pop("use_amp", False)
-        lr_schedule = trainer_config_dict.pop("lr_schedule", "none")
-        lr_warmup_epochs = trainer_config_dict.pop("lr_warmup_epochs", 0)
-        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
-        trainer_config_dict.update(enhanced_configs)
-        return RecurrentTrainer(
-            task=task,
-            grad_clip=grad_clip,
-            use_amp=use_amp,
-            lr_schedule=lr_schedule,
-            lr_warmup_epochs=lr_warmup_epochs,
-            **trainer_config_dict,
-        )
+        return _build_recurrent_trainer(trainer_config_dict)
     elif strategy == "multi_stage":
-        raw_multi_stage_config = trainer_config_dict.pop("multi_stage_config", None)
-        multi_stage_config = _build_multi_stage_config(raw_multi_stage_config)
-
-        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
-        trainer_config_dict.update(enhanced_configs)
-
-        base_trainer_config = dict(trainer_config_dict)
-        return MultiStageTrainer(
-            multi_stage_config=multi_stage_config,
-            base_optimizer=optimizer,
-            base_trainer_config=base_trainer_config,
+        return _build_multi_stage_trainer(
+            trainer_config_dict,
+            optimizer=optimizer,
             analysis_manager=analysis_manager,
         )
     else:
@@ -390,18 +413,12 @@ def transfer_mlp_weights_to_input_net(mlp_net, input_net, head_type="excitatory"
         return
 
     # Get the shared backbone and target head of the InputNetTransform
-    shared_layers = []
-    for module in input_net.shared:
-        if isinstance(module, torch.nn.Linear):
-            shared_layers.append(module)
+    shared_layers = list(iter_child_modules_of_type(input_net.shared, torch.nn.Linear))
 
     target_head = (
         input_net.head_exc if head_type == "excitatory" else input_net.head_inh
     )
-    head_layers = []
-    for module in target_head:
-        if isinstance(module, torch.nn.Linear):
-            head_layers.append(module)
+    head_layers = list(iter_child_modules_of_type(target_head, torch.nn.Linear))
 
     # Transfer weights for the shared backbone (only once, typically from excitatory head)
     if head_type == "excitatory":
@@ -445,25 +462,23 @@ def extract_weights_from_simple_mlp(simple_mlp, input_net_transform):
     logger.info("Transferring weights from SimpleMLP to InputNetTransform")
 
     # Get network modules
-    mlp_modules = list(simple_mlp.net.network.children())
-    mlp_linear_modules = [m for m in mlp_modules if isinstance(m, torch.nn.Linear)]
+    mlp_linear_modules = list(
+        iter_child_modules_of_type(simple_mlp.net.network, torch.nn.Linear)
+    )
 
     # Get shared backbone modules of InputNetTransform
-    shared_modules = []
-    for module in input_net_transform.shared:
-        if isinstance(module, torch.nn.Linear):
-            shared_modules.append(module)
+    shared_modules = list(
+        iter_child_modules_of_type(input_net_transform.shared, torch.nn.Linear)
+    )
 
     # Get head modules
-    exc_head_modules = []
-    for module in input_net_transform.head_exc:
-        if isinstance(module, torch.nn.Linear):
-            exc_head_modules.append(module)
+    exc_head_modules = list(
+        iter_child_modules_of_type(input_net_transform.head_exc, torch.nn.Linear)
+    )
 
-    inh_head_modules = []
-    for module in input_net_transform.head_inh:
-        if isinstance(module, torch.nn.Linear):
-            inh_head_modules.append(module)
+    inh_head_modules = list(
+        iter_child_modules_of_type(input_net_transform.head_inh, torch.nn.Linear)
+    )
 
     # Transfer weights for the shared backbone (from early layers of MLP)
     for i, shared_module in enumerate(shared_modules):

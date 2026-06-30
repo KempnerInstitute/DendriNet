@@ -5,6 +5,9 @@ from omegaconf import OmegaConf
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer import (
     DendriticBranchLayer,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.synapse_config import (
+    DendriticSynapseConfig,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.ei_network import (
     ConfigurableEINetwork,
 )
@@ -18,6 +21,10 @@ from dendritic_modeling.networks.architectures.recurrent import (
     EINetworkConfig,
     PopulationConfig,
     StatefulDendriNet,
+)
+from dendritic_modeling.networks.architectures.recurrent.stateful_dendrinet import (
+    _resolve_stateful_level_taus,
+    _resolve_stateful_soma_feedback_levels,
 )
 from dendritic_modeling.scripts.script_utils.setup_utils import (
     _is_recurrent_core_config,
@@ -49,6 +56,65 @@ def test_stateful_dendrinet_feedforward_shape():
     inh = torch.rand(3, 5)
     y = net(x, inh)
     assert y.shape == (3, 8)
+
+
+def test_stateful_dendrinet_stores_normalized_configs_without_numeric_change():
+    pop = PopulationConfig(
+        n_neurons=5,
+        branch_factors=[2, 1],
+        ff_excitatory_synapses=3,
+        ff_inhibitory_synapses=2,
+        rec_excitatory_synapses=0,
+        rec_inhibitory_synapses=0,
+        reactivate=False,
+        use_shunting=False,
+        use_noise=False,
+        weight_transform="softplus",
+        dbl_init_method="default",
+        adaptive_initialization=False,
+    )
+
+    torch.manual_seed(812)
+    reference = StatefulDendriNet(
+        pop_config=pop,
+        excitatory_input_dim=7,
+        inhibitory_input_dim=4,
+        dt=1.0,
+    )
+    torch.manual_seed(812)
+    net = StatefulDendriNet(
+        pop_config=pop,
+        excitatory_input_dim=7,
+        inhibitory_input_dim=4,
+        dt=1.0,
+    )
+
+    assert (
+        net.synapse_config.to_kwargs()
+        == DendriticSynapseConfig.from_population_config(pop).to_kwargs()
+    )
+    assert net.synapse_configs == tuple(
+        branch_layer.synapse_config for branch_layer in net.branch_layers
+    )
+    assert net.branch_configs == tuple(
+        branch_layer.branch_config for branch_layer in net.branch_layers
+    )
+    assert [cfg.to_kwargs() for cfg in net.branch_configs] == [
+        branch_layer.branch_config.to_kwargs() for branch_layer in net.branch_layers
+    ]
+
+    assert reference.state_dict().keys() == net.state_dict().keys()
+    for key, value in reference.state_dict().items():
+        torch.testing.assert_close(value, net.state_dict()[key], rtol=0.0, atol=0.0)
+
+    x = torch.rand(3, 7)
+    inh = torch.rand(3, 4)
+    torch.testing.assert_close(
+        reference(x, inh),
+        net(x, inh),
+        rtol=0.0,
+        atol=0.0,
+    )
 
 
 def test_stateful_dendrinet_recurrent_step_shape():
@@ -308,6 +374,24 @@ def test_soma_feedback_disabled_levels_have_no_trainable_projection():
     assert isinstance(net.soma_feedback_projections[2], torch.nn.Identity)
     assert net.soma_feedback_strength.shape == (2,)
     assert "soma_feedback_projections.2.weight" not in dict(net.named_parameters())
+
+
+def test_resolve_stateful_soma_feedback_levels_preserves_selector_rules():
+    assert _resolve_stateful_soma_feedback_levels(False, "all", 3) == set()
+    assert _resolve_stateful_soma_feedback_levels(True, "all", 3) == {0, 1, 2}
+    assert _resolve_stateful_soma_feedback_levels(True, "*", 3) == {0, 1, 2}
+    assert _resolve_stateful_soma_feedback_levels(True, "non_soma", 3) == {0, 1}
+    assert _resolve_stateful_soma_feedback_levels(True, "dendritic", 3) == {0, 1}
+    assert _resolve_stateful_soma_feedback_levels(True, "distal", 3) == {0}
+    assert _resolve_stateful_soma_feedback_levels(True, "proximal", 3) == {1}
+    assert _resolve_stateful_soma_feedback_levels(True, "soma", 3) == {2}
+    assert _resolve_stateful_soma_feedback_levels(True, "none", 3) == set()
+    assert _resolve_stateful_soma_feedback_levels(True, [0, "2"], 3) == {0, 2}
+
+    with pytest.raises(ValueError, match="soma_feedback_levels must be"):
+        _resolve_stateful_soma_feedback_levels(True, "middle", 3)
+    with pytest.raises(ValueError, match="indices in \\[0, 2\\]"):
+        _resolve_stateful_soma_feedback_levels(True, [3], 3)
 
 
 def test_legacy_unified_ei_tau_schema_builds_canonical_recurrent_network():
@@ -2223,6 +2307,33 @@ def test_fixed_tau_has_no_log_tau_parameter():
 # ---------------------------------------------------------------------------
 # Tau stability tests
 # ---------------------------------------------------------------------------
+
+
+def test_resolve_stateful_level_taus_preserves_explicit_and_geometric_rules():
+    explicit = PopulationConfig(
+        n_neurons=4,
+        branch_factors=[2],
+        ff_excitatory_synapses=4,
+        level_taus=[7.0, 3.0],
+    )
+    geometric = PopulationConfig(
+        n_neurons=4,
+        branch_factors=[2],
+        ff_excitatory_synapses=4,
+        tau_base=10.0,
+        tau_ratio=3.0,
+    )
+    mismatched = PopulationConfig(
+        n_neurons=4,
+        branch_factors=[2],
+        ff_excitatory_synapses=4,
+        level_taus=[7.0],
+    )
+
+    assert _resolve_stateful_level_taus(explicit, 2) == [7.0, 3.0]
+    assert _resolve_stateful_level_taus(geometric, 2) == [30.0, 10.0]
+    with pytest.raises(ValueError, match="level_taus length"):
+        _resolve_stateful_level_taus(mismatched, 2)
 
 
 def test_tau_stability_extreme_ratios():

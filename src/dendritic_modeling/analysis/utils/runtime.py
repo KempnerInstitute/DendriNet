@@ -4,89 +4,80 @@ from __future__ import annotations
 
 import contextlib
 import logging
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader, Dataset, Subset
+from torch.utils.data import DataLoader, Dataset
 
+from dendritic_modeling.analysis.utils.dataset_runtime import (
+    effective_sample_cap,
+    estimate_dataset_size_mb,
+    should_materialize_dataset,
+    subset_dataset_for_runtime,
+)
 from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
+from dendritic_modeling.training.dataloader_utils import dataloader_supports_kwarg
+from dendritic_modeling.utils.hooks import HookHandle, run_with_forward_hooks
 
 logger = logging.getLogger(__name__)
+AnalysisBatchProcessor = Callable[[tuple[torch.Tensor, ...], torch.device], None]
 
 
-def estimate_dataset_size_mb(dataset: Dataset) -> float:
-    """Estimate dataset footprint without full materialization."""
-    try:
-        n_items = len(dataset)
-    except (TypeError, AttributeError):
-        return float("inf")
-    if n_items == 0:
-        return 0.0
-    try:
-        sample = dataset[0]
-        item_bytes = 0
-        for value in sample if isinstance(sample, (tuple, list)) else [sample]:
-            if isinstance(value, torch.Tensor):
-                item_bytes += value.nelement() * value.element_size()
-            else:
-                item_bytes += 8
-        return n_items * item_bytes / (1024 * 1024)
-    except Exception:
-        return float("inf")
+def _resolve_analysis_prefetch_factor(
+    prefetch_factor: int | None,
+    *,
+    num_workers: int,
+) -> int | None:
+    if prefetch_factor is not None and num_workers > 0:
+        return max(1, int(prefetch_factor))
+    return None
 
 
-def should_materialize_dataset(
-    dataset: Dataset,
-    runtime: EvaluationRuntimeConfig | None,
+def _resolve_analysis_num_workers(runtime: EvaluationRuntimeConfig) -> int:
+    return max(0, int(getattr(runtime, "num_workers", 0)))
+
+
+def _resolve_analysis_persistent_workers(
+    persistent_workers: bool,
+    *,
+    num_workers: int,
 ) -> bool:
-    """Return whether *dataset* should be materialized under *runtime*."""
+    resolved_persistent = bool(persistent_workers)
+    if resolved_persistent and num_workers == 0:
+        raise ValueError("persistent_workers=True requires num_workers > 0")
+    return resolved_persistent
+
+
+def analysis_loader_kwargs_from_runtime(
+    runtime: EvaluationRuntimeConfig | None,
+    device: str | torch.device | None = None,
+) -> dict[str, object]:
+    """Return DataLoader kwargs governed by analysis runtime settings."""
     if runtime is None:
         runtime = EvaluationRuntimeConfig()
-    mode = getattr(runtime, "mode", "auto")
-    threshold = getattr(runtime, "materialize_threshold_mb", 1024)
-    if mode == "materialize":
-        return True
-    if mode == "stream":
-        return False
-    return estimate_dataset_size_mb(dataset) <= threshold
+    pin = resolve_analysis_pin_memory(runtime, device)
+    num_workers = _resolve_analysis_num_workers(runtime)
+    persistent_workers = _resolve_analysis_persistent_workers(
+        getattr(runtime, "persistent_workers", False),
+        num_workers=num_workers,
+    )
 
-
-def effective_sample_cap(
-    runtime: EvaluationRuntimeConfig | None,
-    explicit_max_samples: int | None = None,
-) -> int | None:
-    """Combine runtime and analyzer-local sample caps deterministically."""
-    caps: list[int] = []
-    if runtime is not None:
-        runtime_max_samples = getattr(runtime, "max_samples", None)
-        runtime_max_batches = getattr(runtime, "max_batches", None)
-        runtime_batch_size = getattr(runtime, "batch_size", 256)
-        if runtime_max_samples is not None:
-            caps.append(int(runtime_max_samples))
-        if runtime_max_batches is not None:
-            caps.append(int(runtime_batch_size) * int(runtime_max_batches))
-    if explicit_max_samples is not None:
-        caps.append(int(explicit_max_samples))
-    return min(caps) if caps else None
-
-
-def subset_dataset_for_runtime(
-    dataset: Dataset,
-    runtime: EvaluationRuntimeConfig | None,
-    explicit_max_samples: int | None = None,
-) -> Dataset:
-    """Apply deterministic head truncation for runtime/analyzer sample caps."""
-    cap = effective_sample_cap(runtime, explicit_max_samples)
-    if cap is None:
-        return dataset
-    try:
-        n_items = len(dataset)
-    except (TypeError, AttributeError):
-        return dataset
-    if cap >= n_items:
-        return dataset
-    return Subset(dataset, range(cap))
+    loader_kwargs: dict[str, object] = {
+        "num_workers": num_workers,
+        "pin_memory": pin,
+        "persistent_workers": persistent_workers,
+    }
+    prefetch_factor = _resolve_analysis_prefetch_factor(
+        getattr(runtime, "prefetch_factor", None),
+        num_workers=num_workers,
+    )
+    if prefetch_factor is not None:
+        loader_kwargs["prefetch_factor"] = prefetch_factor
+    in_order = getattr(runtime, "in_order", None)
+    if in_order is not None and dataloader_supports_kwarg("in_order"):
+        loader_kwargs["in_order"] = bool(in_order)
+    return loader_kwargs
 
 
 def make_analysis_loader(
@@ -99,13 +90,12 @@ def make_analysis_loader(
     if runtime is None:
         runtime = EvaluationRuntimeConfig()
     dataset_view = subset_dataset_for_runtime(dataset, runtime, explicit_max_samples)
-    pin = resolve_analysis_pin_memory(runtime, device)
+    loader_kwargs = analysis_loader_kwargs_from_runtime(runtime, device)
     return DataLoader(
         dataset_view,
         batch_size=runtime.batch_size,
         shuffle=False,
-        num_workers=runtime.num_workers,
-        pin_memory=pin,
+        **loader_kwargs,
     )
 
 
@@ -157,14 +147,19 @@ def evaluation_kwargs_from_runtime(
     """Translate runtime config into metric evaluation kwargs."""
     if runtime is None:
         runtime = EvaluationRuntimeConfig()
-    return {
+    kwargs: dict[str, int | bool | str | None] = {
         "eval_mode": runtime.mode,
         "eval_batch_size": runtime.batch_size,
         "eval_num_workers": runtime.num_workers,
         "eval_pin_memory": runtime.pin_memory,
+        "eval_persistent_workers": runtime.persistent_workers,
+        "eval_prefetch_factor": runtime.prefetch_factor,
         "eval_max_batches": runtime.max_batches,
         "eval_materialize_threshold_mb": runtime.materialize_threshold_mb,
     }
+    if runtime.in_order is not None:
+        kwargs["eval_in_order"] = runtime.in_order
+    return kwargs
 
 
 def iter_analysis_batches(
@@ -256,6 +251,73 @@ def analysis_device_context(
         model.train(was_training)
 
 
+def run_no_grad_analysis_batches(
+    *,
+    model: nn.Module,
+    dataset: Dataset,
+    device: str | torch.device,
+    runtime: EvaluationRuntimeConfig | None,
+    explicit_max_samples: int | None,
+    process_batch: AnalysisBatchProcessor,
+) -> None:
+    """Run a no-grad analysis pass over runtime-governed dataset batches."""
+    with analysis_device_context(model, device) as analysis_device:
+        _run_no_grad_batches(
+            dataset=dataset,
+            runtime=runtime,
+            explicit_max_samples=explicit_max_samples,
+            device=analysis_device,
+            process_batch=process_batch,
+        )
+
+
+def _run_no_grad_batches(
+    *,
+    dataset: Dataset,
+    runtime: EvaluationRuntimeConfig | None,
+    explicit_max_samples: int | None,
+    device: torch.device,
+    process_batch: AnalysisBatchProcessor,
+) -> None:
+    with torch.no_grad():
+        for batch in iter_analysis_batches(
+            dataset,
+            runtime,
+            explicit_max_samples,
+            device=device,
+        ):
+            process_batch(batch, device)
+
+
+def run_model_over_analysis_batches(
+    *,
+    model: nn.Module,
+    dataset: Dataset,
+    device: str | torch.device,
+    runtime: EvaluationRuntimeConfig | None,
+    explicit_max_samples: int | None,
+    attach_hooks: Callable[[], Iterable[HookHandle]],
+    remove_hooks: Callable[[Iterable[HookHandle]], None],
+) -> None:
+    """Run a model over analysis batches with managed hooks and device state."""
+
+    def _process_batch(batch: tuple[torch.Tensor, ...], analysis_device) -> None:
+        _ = model(batch[0].to(analysis_device))
+
+    with analysis_device_context(model, device) as analysis_device:
+        run_with_forward_hooks(
+            attach=attach_hooks,
+            remove=remove_hooks,
+            body=lambda: _run_no_grad_batches(
+                dataset=dataset,
+                runtime=runtime,
+                explicit_max_samples=explicit_max_samples,
+                device=analysis_device,
+                process_batch=_process_batch,
+            ),
+        )
+
+
 def resolve_analysis_pin_memory(
     runtime: EvaluationRuntimeConfig | None,
     device: str | torch.device | None = None,
@@ -270,3 +332,21 @@ def resolve_analysis_pin_memory(
     if device is None and not torch.cuda.is_available():
         return False
     return pin
+
+
+__all__ = [
+    "analysis_device_context",
+    "analysis_loader_kwargs_from_runtime",
+    "effective_sample_cap",
+    "estimate_dataset_size_mb",
+    "evaluation_kwargs_from_runtime",
+    "get_model_device",
+    "iter_analysis_batches",
+    "make_analysis_loader",
+    "materialize_dataset",
+    "resolve_analysis_pin_memory",
+    "run_model_over_analysis_batches",
+    "run_no_grad_analysis_batches",
+    "should_materialize_dataset",
+    "subset_dataset_for_runtime",
+]

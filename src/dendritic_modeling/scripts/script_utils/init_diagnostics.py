@@ -22,6 +22,8 @@ from typing import Any
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.utils.hooks import iter_named_modules_matching
+
 logger = logging.getLogger(__name__)
 
 
@@ -69,10 +71,11 @@ def collect_reactivation_stats(model: nn.Module) -> dict[str, Any]:
     Returns a dict keyed by module qualified name.
     """
     stats: dict[str, Any] = {}
-    for name, module in model.named_modules():
+    for name, module in iter_named_modules_matching(
+        model,
+        lambda module_name, _module: module_name.endswith("reactivation"),
+    ):
         # Heuristic: any module named ".reactivation" with an m or b attribute.
-        if not name.endswith("reactivation"):
-            continue
         m_vals = _extract_m(module)
         b_vals = _extract_b(module)
         if m_vals is None and b_vals is None:

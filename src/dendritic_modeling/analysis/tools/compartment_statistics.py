@@ -1,9 +1,8 @@
-"""
-Unified Weight Analysis Module.
+"""Compartment statistics analysis.
 
-This module provides comprehensive analysis of synaptic weights across the dendritic network,
-including both global statistics and hierarchical per-layer analysis with plotting capabilities.
-Provides comprehensive weight analysis with both global and hierarchical statistics.
+This module collects dendritic synapse weights, branch weights, inputs, and
+activations, then summarizes them at branch, layer, and global granularity with
+optional entropy and per-class statistics.
 """
 
 import logging
@@ -37,17 +36,91 @@ from dendritic_modeling.plotting.visualizations.plotting_utils import (
 from dendritic_modeling.plotting.visualizations.synaptic_weight_plots import (
     plot_synaptic_weight_analysis,
 )
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_pathways import (
+    iter_topk_path_modules,
+)
 from dendritic_modeling.utils import save_dict
+from dendritic_modeling.utils.hooks import (
+    ForwardHookRemovalMixin,
+    iter_named_modules_of_type,
+    register_hook_groups,
+    register_named_forward_hook_groups,
+    run_with_forward_hooks,
+)
 
 logger = logging.getLogger(__name__)
 
 
-class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
-    """
-    Unified analyzer for comprehensive synaptic weight analysis.
+def _empty_tensor_statistics(
+    prefix: str,
+    *,
+    compute_mean: bool,
+    compute_variance: bool,
+    compute_min_max: bool,
+    compute_percentiles: bool,
+) -> dict[str, float]:
+    """Return the legacy zero-valued statistics for empty tensors."""
+    stats: dict[str, float] = {}
+    if compute_mean:
+        stats[f"{prefix}_mean"] = 0.0
+    if compute_variance:
+        stats[f"{prefix}_var"] = 0.0
+        stats[f"{prefix}_std"] = 0.0
+    if compute_min_max:
+        stats[f"{prefix}_min"] = 0.0
+        stats[f"{prefix}_max"] = 0.0
+    if compute_percentiles:
+        stats[f"{prefix}_q1"] = 0.0
+        stats[f"{prefix}_q2"] = 0.0
+        stats[f"{prefix}_q3"] = 0.0
+    return stats
 
-    Provides both global weight statistics and hierarchical per-layer analysis
-    with enhanced plotting capabilities including min/max and dendritic strength plots.
+
+def _tensor_statistics(
+    data_tensor: torch.Tensor,
+    prefix: str,
+    *,
+    compute_mean: bool,
+    compute_variance: bool,
+    compute_min_max: bool,
+    compute_percentiles: bool,
+) -> dict[str, float]:
+    """Compute configured summary statistics with the historical torch reductions."""
+    if not isinstance(data_tensor, torch.Tensor) or data_tensor.numel() == 0:
+        return _empty_tensor_statistics(
+            prefix,
+            compute_mean=compute_mean,
+            compute_variance=compute_variance,
+            compute_min_max=compute_min_max,
+            compute_percentiles=compute_percentiles,
+        )
+
+    stats: dict[str, float] = {}
+    if compute_mean:
+        stats[f"{prefix}_mean"] = data_tensor.mean().item()
+
+    if compute_variance:
+        stats[f"{prefix}_var"] = data_tensor.var().item()
+        stats[f"{prefix}_std"] = data_tensor.std().item()
+
+    if compute_min_max:
+        stats[f"{prefix}_min"] = data_tensor.min().item()
+        stats[f"{prefix}_max"] = data_tensor.max().item()
+
+    if compute_percentiles:
+        stats[f"{prefix}_q1"] = data_tensor.quantile(0.25).item()
+        stats[f"{prefix}_q2"] = data_tensor.median().item()
+        stats[f"{prefix}_q3"] = data_tensor.quantile(0.75).item()
+
+    return stats
+
+
+class CompartmentStatisticsAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
+    """
+    Analyzer for compartment-level dendritic statistics.
+
+    Provides branch, layer, and global summaries for synapse weights, branch
+    weights, inputs, activations, entropy, and optional per-class statistics.
     """
 
     def __init__(self, params: CompartmentStatisticsAnalysisParams):
@@ -84,68 +157,117 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
         """Collect raw data from the model."""
         self.raw_dict = {}
         self.class_labels = y if self.per_class_analysis and y is not None else None
-        handles = []
-        for key, module in model.named_modules():
-            if isinstance(module, DendriticBranchLayer):
-                self.raw_dict[key] = {}
+
+        def _attach_hooks():
+            return register_named_forward_hook_groups(
+                model,
+                DendriticBranchLayer,
+                self._collect_layer_raw_data,
+            )
+
+        def _run_model():
+            if self.inputs or self.activations:
+                batch_x = x
+                if self.n_samples is not None:
+                    generator = torch.Generator(device=batch_x.device)
+                    generator.manual_seed(self.seed)
+                    indices = torch.randperm(
+                        batch_x.shape[0], generator=generator, device=batch_x.device
+                    )[: self.n_samples]
+                    batch_x = batch_x[indices]
+                    if self.class_labels is not None:
+                        self.class_labels = self.class_labels[indices]
+                with torch.no_grad():
+                    _ = model(batch_x)
+
+        run_with_forward_hooks(
+            attach=_attach_hooks,
+            remove=self.remove_forward_hooks,
+            body=_run_model,
+        )
+
+    def _collect_layer_raw_data(
+        self,
+        key: str,
+        module: DendriticBranchLayer,
+    ) -> list[torch.utils.hooks.RemovableHandle]:
+        self._initialize_branch_records(key, module)
+        synapse_modules = self._iter_synapse_modules(module)
+        self._collect_layer_static_data(key, module, synapse_modules)
+
+        if not (self.inputs or self.activations):
+            return []
+        return self._attach_synapse_capture_hooks(key, synapse_modules)
+
+    def _initialize_branch_records(
+        self, key: str, module: DendriticBranchLayer
+    ) -> None:
+        self.raw_dict[key] = {}
+        for branch_idx in range(module.n_branches):
+            self.raw_dict[key][branch_idx] = {"depth": module.layer_idx}
+
+    def _iter_synapse_modules(
+        self, module: DendriticBranchLayer
+    ) -> list[tuple[str, TopKLinear | None]]:
+        return [
+            (path.pathway, synapse_module)
+            for path, synapse_module in iter_topk_path_modules(module)
+        ]
+
+    def _collect_layer_static_data(
+        self,
+        key: str,
+        module: DendriticBranchLayer,
+        synapse_modules: list[tuple[str, TopKLinear | None]],
+    ) -> None:
+        if self.synapse_weights:
+            for synapse_type, synapse_module in synapse_modules:
+                if synapse_module is None:
+                    continue
+                weights = synapse_module.pruned_weight().detach().cpu()
                 for branch_idx in range(module.n_branches):
-                    self.raw_dict[key][branch_idx] = {"depth": module.layer_idx}
+                    w = weights[branch_idx]
+                    w = w[w > self.epsilon]
+                    self.raw_dict[key][branch_idx][f"{synapse_type}_weights"] = w
 
-                synapse_modules = [
-                    ("exc", module.branch_excitation),
-                    ("inh", module.branch_inhibition),
-                    ("rec_exc", getattr(module, "branch_recurrent", None)),
-                    ("rec_inh", getattr(module, "branch_rec_inhibition", None)),
-                ]
+        if self.branch_weights and hasattr(module, "branches_to_output"):
+            branch_weights = module.branches_to_output.weight().detach().cpu()
+            for branch_idx in range(module.n_branches):
+                branch_w = branch_weights[branch_idx]
+                branch_w = branch_w[branch_w > self.epsilon]
+                self.raw_dict[key][branch_idx]["branch_weights"] = branch_w
 
-                if self.synapse_weights:
-                    for synapse_type, synapse_module in synapse_modules:
-                        if synapse_module is None:
-                            continue
-                        weights = synapse_module.pruned_weight().detach().cpu()
-                        for branch_idx in range(module.n_branches):
-                            w = weights[branch_idx]
-                            w = w[w > self.epsilon]
-                            self.raw_dict[key][branch_idx][
-                                f"{synapse_type}_weights"
-                            ] = w
+    def _register_synapse_capture_hook(
+        self,
+        key: str,
+        synapse_type: str,
+        synapse_module: TopKLinear,
+    ) -> torch.utils.hooks.RemovableHandle:
+        return synapse_module.register_forward_hook(
+            lambda module, input, output, layer_key=key, label=synapse_type: self.forward_hook(
+                module, input, output, layer_key, label
+            )
+        )
 
-                if self.branch_weights and hasattr(module, "branches_to_output"):
-                    branch_weights = module.branches_to_output.weight().detach().cpu()
-                    for branch_idx in range(module.n_branches):
-                        branch_w = branch_weights[branch_idx]
-                        branch_w = branch_w[branch_w > self.epsilon]
-                        self.raw_dict[key][branch_idx]["branch_weights"] = branch_w
+    def _attach_synapse_capture_hooks(
+        self,
+        key: str,
+        synapse_modules: list[tuple[str, TopKLinear | None]],
+    ) -> list[torch.utils.hooks.RemovableHandle]:
+        def _register_synapse_hook(
+            synapse_entry: tuple[str, TopKLinear | None],
+        ) -> list[torch.utils.hooks.RemovableHandle]:
+            synapse_type, synapse_module = synapse_entry
+            if synapse_module is None:
+                return []
+            return [
+                self._register_synapse_capture_hook(key, synapse_type, synapse_module)
+            ]
 
-                if self.inputs or self.activations:
-                    for synapse_type, synapse_module in synapse_modules:
-                        if synapse_module is None:
-                            continue
-                        handle = synapse_module.register_forward_hook(
-                            lambda module, input, output, layer_key=key, label=synapse_type: self.forward_hook(
-                                module, input, output, layer_key, label
-                            )
-                        )
-                        handles.append(handle)
-
-        if self.inputs or self.activations:
-            if self.n_samples is not None:
-                generator = torch.Generator(device=x.device)
-                generator.manual_seed(self.seed)
-                indices = torch.randperm(
-                    x.shape[0], generator=generator, device=x.device
-                )[: self.n_samples]
-                x = x[indices]
-                if self.class_labels is not None:
-                    self.class_labels = self.class_labels[indices]
-            with torch.no_grad():
-                _ = model(x)
-            self.remove_forward_hooks(handles)
-
-    def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
-        """Remove forward hooks from the model."""
-        for handle in handles:
-            handle.remove()
+        return register_hook_groups(
+            synapse_modules,
+            _register_synapse_hook,
+        )
 
     def forward_hook(
         self,
@@ -235,39 +357,98 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
         stats_dict: dict[str, float],
     ) -> dict[str, float]:
         """Compute comprehensive statistics for a weight tensor."""
-        # Be robust to empty tensors (e.g., no active synapses selected).
-        if not isinstance(data_tensor, torch.Tensor) or data_tensor.numel() == 0:
-            if self.compute_mean:
-                stats_dict[f"{prefix}_mean"] = 0.0
-            if self.compute_variance:
-                stats_dict[f"{prefix}_var"] = 0.0
-                stats_dict[f"{prefix}_std"] = 0.0
-            if self.compute_min_max:
-                stats_dict[f"{prefix}_min"] = 0.0
-                stats_dict[f"{prefix}_max"] = 0.0
-            if self.compute_percentiles:
-                stats_dict[f"{prefix}_q1"] = 0.0
-                stats_dict[f"{prefix}_q2"] = 0.0
-                stats_dict[f"{prefix}_q3"] = 0.0
-            return stats_dict
-
-        if self.compute_mean:
-            stats_dict[f"{prefix}_mean"] = data_tensor.mean().item()
-
-        if self.compute_variance:
-            stats_dict[f"{prefix}_var"] = data_tensor.var().item()
-            stats_dict[f"{prefix}_std"] = data_tensor.std().item()
-
-        if self.compute_min_max:
-            stats_dict[f"{prefix}_min"] = data_tensor.min().item()
-            stats_dict[f"{prefix}_max"] = data_tensor.max().item()
-
-        if self.compute_percentiles:
-            stats_dict[f"{prefix}_q1"] = data_tensor.quantile(0.25).item()
-            stats_dict[f"{prefix}_q2"] = data_tensor.median().item()
-            stats_dict[f"{prefix}_q3"] = data_tensor.quantile(0.75).item()
-
+        stats_dict.update(
+            _tensor_statistics(
+                data_tensor,
+                prefix,
+                compute_mean=self.compute_mean,
+                compute_variance=self.compute_variance,
+                compute_min_max=self.compute_min_max,
+                compute_percentiles=self.compute_percentiles,
+            )
+        )
         return stats_dict
+
+    def _entropy_samples_for_prefix(
+        self,
+        data_tensor: torch.Tensor,
+        prefix: str,
+    ) -> np.ndarray | None:
+        if "inputs" in prefix:
+            return data_tensor.flatten(0, -2).mean(dim=-1).numpy()
+        if "activations" in prefix:
+            return data_tensor.flatten(0, -1).numpy()
+        return None
+
+    def _per_class_entropy(
+        self,
+        data_for_entropy: np.ndarray,
+        seed_key: str,
+    ):
+        if np.var(data_for_entropy) < 1e-10:
+            seed = zlib.adler32(seed_key.encode())
+            rng = np.random.default_rng(seed)
+            data_for_entropy = data_for_entropy + rng.normal(
+                0.0,
+                1e-8,
+                data_for_entropy.shape,
+            )
+        return differential_entropy(data_for_entropy, method="vasicek")
+
+    def _dequantize_entropy_samples(
+        self,
+        data_for_entropy: np.ndarray,
+        seed_key: str,
+    ) -> np.ndarray:
+        u = np.unique(data_for_entropy)
+        if u.size >= 2:
+            diffs = np.diff(u)
+            diffs = diffs[diffs > 0]
+            step = float(np.median(diffs)) if diffs.size > 0 else 1e-8
+        else:
+            step = 1e-8
+
+        if not np.isfinite(step) or step <= 0:
+            step = 1e-8
+
+        seed = zlib.adler32(seed_key.encode())
+        rng = np.random.default_rng(seed)
+        return data_for_entropy + ((rng.random(data_for_entropy.shape) - 0.5) * step)
+
+    def _generic_entropy(
+        self,
+        data_for_entropy: np.ndarray,
+        prefix: str,
+        layer_key: str,
+        branch_idx: int,
+    ) -> float:
+        data_for_entropy = np.asarray(data_for_entropy, dtype=float)
+        data_for_entropy = data_for_entropy[np.isfinite(data_for_entropy)]
+
+        # Degenerate / empty distributions should not produce NaNs.
+        if data_for_entropy.size < 2 or float(np.var(data_for_entropy)) < 1e-10:
+            return 0.0
+
+        if self.dequantize:
+            data_for_entropy = self._dequantize_entropy_samples(
+                data_for_entropy,
+                f"{layer_key}:{branch_idx}:{prefix}",
+            )
+
+        try:
+            ent = float(differential_entropy(data_for_entropy, method="vasicek"))
+        except Exception:
+            ent = 0.0
+
+        if not np.isfinite(ent):
+            logger.warning(
+                "Non-finite entropy for %s (layer=%s branch=%s); setting to 0.0",
+                prefix,
+                layer_key,
+                branch_idx,
+            )
+            ent = 0.0
+        return ent
 
     def _compute_branch_statistics(self):
         branch_statistics = {}
@@ -296,52 +477,17 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
 
                                 if self.compute_entropy:
                                     try:
-                                        if "inputs" in prefix:
-                                            data_for_entropy = (
-                                                class_data.flatten(0, -2)
-                                                .mean(dim=-1)
-                                                .numpy()
+                                        data_for_entropy = (
+                                            self._entropy_samples_for_prefix(
+                                                class_data,
+                                                prefix,
                                             )
-                                            # Add small noise to avoid zero variance
-                                            if np.var(data_for_entropy) < 1e-10:
-                                                seed = zlib.adler32(
-                                                    f"{layer_key}:{branch_idx}:{prefix}:class_{class_idx}".encode()
-                                                )
-                                                rng = np.random.default_rng(seed)
-                                                data_for_entropy = (
-                                                    data_for_entropy
-                                                    + rng.normal(
-                                                        0.0,
-                                                        1e-8,
-                                                        data_for_entropy.shape,
-                                                    )
-                                                )
+                                        )
+                                        if data_for_entropy is not None:
                                             branch_stats[f"{class_prefix}_entropy"] = (
-                                                differential_entropy(
-                                                    data_for_entropy, method="vasicek"
-                                                )
-                                            )
-                                        elif "activations" in prefix:
-                                            data_for_entropy = class_data.flatten(
-                                                0, -1
-                                            ).numpy()
-                                            # Add small noise to avoid zero variance
-                                            if np.var(data_for_entropy) < 1e-10:
-                                                seed = zlib.adler32(
-                                                    f"{layer_key}:{branch_idx}:{prefix}:class_{class_idx}".encode()
-                                                )
-                                                rng = np.random.default_rng(seed)
-                                                data_for_entropy = (
-                                                    data_for_entropy
-                                                    + rng.normal(
-                                                        0.0,
-                                                        1e-8,
-                                                        data_for_entropy.shape,
-                                                    )
-                                                )
-                                            branch_stats[f"{class_prefix}_entropy"] = (
-                                                differential_entropy(
-                                                    data_for_entropy, method="vasicek"
+                                                self._per_class_entropy(
+                                                    data_for_entropy,
+                                                    f"{layer_key}:{branch_idx}:{prefix}:class_{class_idx}",
                                                 )
                                             )
                                     except (ValueError, RuntimeWarning):
@@ -355,75 +501,44 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
                         )
 
                     if self.compute_entropy:
-                        if "inputs" in prefix:
-                            data_for_entropy = (
-                                data_tensor.flatten(0, -2).mean(dim=-1).numpy()
-                            )
-                        elif "activations" in prefix:
-                            data_for_entropy = data_tensor.flatten(0, -1).numpy()
-                        else:
-                            data_for_entropy = None
+                        data_for_entropy = self._entropy_samples_for_prefix(
+                            data_tensor,
+                            prefix,
+                        )
 
                         if data_for_entropy is not None:
-                            data_for_entropy = np.asarray(data_for_entropy, dtype=float)
-                            data_for_entropy = data_for_entropy[
-                                np.isfinite(data_for_entropy)
-                            ]
-
-                            # Degenerate / empty distributions should not produce NaNs.
-                            if (
-                                data_for_entropy.size < 2
-                                or float(np.var(data_for_entropy)) < 1e-10
-                            ):
-                                branch_stats[f"{prefix}_entropy"] = 0.0
-                            else:
-                                if self.dequantize:
-                                    u = np.unique(data_for_entropy)
-                                    if u.size >= 2:
-                                        diffs = np.diff(u)
-                                        diffs = diffs[diffs > 0]
-                                        step = (
-                                            float(np.median(diffs))
-                                            if diffs.size > 0
-                                            else 1e-8
-                                        )
-                                    else:
-                                        step = 1e-8
-
-                                    if not np.isfinite(step) or step <= 0:
-                                        step = 1e-8
-
-                                    seed = zlib.adler32(
-                                        f"{layer_key}:{branch_idx}:{prefix}".encode()
-                                    )
-                                    rng = np.random.default_rng(seed)
-                                    data_for_entropy = data_for_entropy + (
-                                        (rng.random(data_for_entropy.shape) - 0.5)
-                                        * step
-                                    )
-
-                                try:
-                                    ent = float(
-                                        differential_entropy(
-                                            data_for_entropy, method="vasicek"
-                                        )
-                                    )
-                                except Exception:
-                                    ent = 0.0
-
-                                if not np.isfinite(ent):
-                                    logger.warning(
-                                        "Non-finite entropy for %s (layer=%s branch=%s); setting to 0.0",
-                                        prefix,
-                                        layer_key,
-                                        branch_idx,
-                                    )
-                                    ent = 0.0
-
-                                branch_stats[f"{prefix}_entropy"] = ent
+                            branch_stats[f"{prefix}_entropy"] = self._generic_entropy(
+                                data_for_entropy,
+                                prefix,
+                                layer_key,
+                                branch_idx,
+                            )
                 branch_statistics[layer_key][branch_idx] = branch_stats
 
         return branch_statistics
+
+    def _aggregate_branch_stat_values(
+        self,
+        branch_records,
+    ) -> dict[str, list[Any]]:
+        aggregated: dict[str, list[Any]] = {}
+        for branch_data in branch_records:
+            for field, value in branch_data.items():
+                if field not in aggregated.keys() and field != "depth":
+                    aggregated[field] = []
+                if field != "depth":
+                    aggregated[field].append(value)
+        return aggregated
+
+    def _compute_aggregated_statistics(
+        self,
+        aggregated_values: dict[str, list[Any]],
+        stats_dict: dict[str, float],
+    ) -> dict[str, float]:
+        for prefix, values in aggregated_values.items():
+            data_tensor = torch.tensor(values)
+            stats_dict = self._compute_statistics(data_tensor, prefix, stats_dict)
+        return stats_dict
 
     def _compute_layer_statistics(
         self, branch_statistics: dict[str, dict[int, dict[str, float]]]
@@ -431,19 +546,14 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
         """Compute layer statistics from branch statistics."""
         layer_statistics = {}
         for layer_key, layer_data in branch_statistics.items():
-            layer_aggregated: dict[str, list[float]] = {}
-
+            layer_aggregated = self._aggregate_branch_stat_values(layer_data.values())
             for branch_data in layer_data.values():
-                for field, value in branch_data.items():
-                    if field not in layer_aggregated.keys() and field != "depth":
-                        layer_aggregated[field] = []
-                    if field != "depth":
-                        layer_aggregated[field].append(value)
-
-            layer_stats = {"depth": branch_data["depth"]}
-            for prefix, values in layer_aggregated.items():
-                data_tensor = torch.tensor(values)
-                layer_stats = self._compute_statistics(data_tensor, prefix, layer_stats)
+                depth = branch_data["depth"]
+            layer_stats = {"depth": depth}
+            layer_stats = self._compute_aggregated_statistics(
+                layer_aggregated,
+                layer_stats,
+            )
 
             layer_statistics[layer_key] = layer_stats
         return layer_statistics
@@ -452,22 +562,15 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
         self, branch_statistics: dict[str, dict[int, dict[str, float]]]
     ):
         """Compute global statistics from branch statistics."""
-        global_aggregated: dict[str, list[float]] = {}
+        global_aggregated: dict[str, list[Any]] = {}
         for layer_data in branch_statistics.values():
-            for branch_data in layer_data.values():
-                for field, value in branch_data.items():
-                    if field not in global_aggregated.keys() and field != "depth":
-                        global_aggregated[field] = []
-                    if field != "depth":
-                        global_aggregated[field].append(value)
+            layer_aggregated = self._aggregate_branch_stat_values(layer_data.values())
+            for field, values in layer_aggregated.items():
+                if field not in global_aggregated:
+                    global_aggregated[field] = []
+                global_aggregated[field].extend(values)
 
-        global_statistics = {}
-        for prefix, values in global_aggregated.items():
-            data_tensor = torch.tensor(values)
-            global_statistics = self._compute_statistics(
-                data_tensor, prefix, global_statistics
-            )
-        return global_statistics
+        return self._compute_aggregated_statistics(global_aggregated, {})
 
     def analyze(
         self,
@@ -480,7 +583,7 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
         runtime: Optional[EvaluationRuntimeConfig] = None,
     ):
         """
-        Perform comprehensive weight analysis including global and hierarchical statistics.
+        Perform compartment statistics analysis with optional hierarchical summaries.
 
         Args:
             model: The model to analyze (must have ExcitationInhibitionNetwork)
@@ -489,12 +592,10 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
             training: If True, only save data (no plots). If False, generate plots.
 
         Returns:
-            Dictionary containing all weight analysis results
+            Dictionary containing compartment statistics analysis results.
         """
         core = getattr(model, "core_network", model)
-        if not any(
-            isinstance(module, DendriticBranchLayer) for module in core.modules()
-        ):
+        if not any(iter_named_modules_of_type(core, DendriticBranchLayer)):
             return None
 
         start_time = time.time()
@@ -528,12 +629,14 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
             results["branch_statistics"] = branch_statistics
 
         elapsed_time = time.time() - start_time
-        self.logger.info(f"Weight analysis completed in {elapsed_time:.2f} seconds")
+        self.logger.info(
+            f"Compartment statistics analysis completed in {elapsed_time:.2f} seconds"
+        )
 
         # Save results and generate plots
         if save_path is not None:
             self.logger.info(
-                f"Saving weight analysis results to {save_path}/{filename}"
+                f"Saving compartment statistics results to {save_path}/{filename}"
             )
             save_dict(results, save_path, filename)
 
@@ -587,8 +690,8 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
     def _generate_all_plots(
         self, results: dict[str, Any], save_path: str, model: BaseModel
     ):
-        """Generate all weight analysis plots."""
-        self.logger.info("Generating weight analysis plots...")
+        """Generate all compartment statistics plots."""
+        self.logger.info("Generating compartment statistics plots...")
         self.logger.info(f"Results keys: {list(results.keys())}")
         self.logger.info(f"Save path: {save_path}")
 

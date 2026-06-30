@@ -14,6 +14,8 @@ Key features:
 """
 
 import logging
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from typing import Any, Optional
 
 import numpy as np
@@ -22,6 +24,31 @@ from torch.distributions.multivariate_normal import MultivariateNormal
 from torch.utils.data import TensorDataset
 
 logger = logging.getLogger(__name__)
+
+_SyntheticDatasetTriplet = tuple[TensorDataset, TensorDataset, TensorDataset]
+_SyntheticDatasetFactory = Callable[..., _SyntheticDatasetTriplet]
+
+
+@dataclass(frozen=True)
+class _SyntheticDatasetSpec:
+    """Constructor and default keyword values for one synthetic dataset."""
+
+    factory: _SyntheticDatasetFactory
+    defaults: Mapping[str, Any]
+
+    def build(self, dataset_config: Mapping[str, Any]) -> _SyntheticDatasetTriplet:
+        kwargs = {
+            key: dataset_config.get(key, _copy_synthetic_default(default))
+            for key, default in self.defaults.items()
+        }
+        return self.factory(**kwargs)
+
+
+def _copy_synthetic_default(value: Any) -> Any:
+    """Copy mutable factory defaults to preserve the old per-call literals."""
+    if isinstance(value, list):
+        return list(value)
+    return value
 
 
 def create_correlated_gaussian_dataset(
@@ -1564,6 +1591,181 @@ def _split_dataset(
     )
 
 
+_SYNTHETIC_DATASET_SPECS: dict[str, _SyntheticDatasetSpec] = {
+    "correlated_gaussian": _SyntheticDatasetSpec(
+        factory=create_correlated_gaussian_dataset,
+        defaults={
+            "n_samples": 1000,
+            "input_dim": 100,
+            "n_classes": 2,
+            "rho_ee": 0.0,
+            "rho_ii": 0.0,
+            "rho_ei": 0.0,
+            "ne": 50,
+            "ni": 50,
+            "class_separation": 0.3,
+            "noise_std": 0.2,
+            "seed": None,
+        },
+    ),
+    "nonlinear_interaction": _SyntheticDatasetSpec(
+        factory=create_nonlinear_interaction_dataset,
+        defaults={
+            "n_samples": 1000,
+            "input_dim": 2,
+            "n_classes": 2,
+            "interaction_strength": 1.0,
+            "noise_std": 0.1,
+            "seed": None,
+        },
+    ),
+    "linear_separable": _SyntheticDatasetSpec(
+        factory=create_linear_separable_dataset,
+        defaults={
+            "n_samples": 1000,
+            "input_dim": 100,
+            "ne": 50,
+            "ni": 50,
+            "rho_ee": 0.0,
+            "rho_ii": 0.0,
+            "rho_ei": 0.0,
+            "signal_strength": 0.3,
+            "noise_std": 0.2,
+            "seed": None,
+        },
+    ),
+    "nonlinear_separable": _SyntheticDatasetSpec(
+        factory=create_nonlinear_separable_dataset,
+        defaults={
+            "n_samples": 1000,
+            "input_dim": 100,
+            "ne": 50,
+            "ni": 50,
+            "nonlinearity_type": "quadratic",
+            "rho_ee": 0.0,
+            "rho_ii": 0.0,
+            "rho_ei": 0.0,
+            "noise_std": 0.2,
+            "seed": None,
+        },
+    ),
+    "block_correlated": _SyntheticDatasetSpec(
+        factory=create_block_correlated_dataset,
+        defaults={
+            "n_samples": 1000,
+            "input_dim": 100,
+            "ne": 50,
+            "ni": 50,
+            "n_blocks": 5,
+            "block_rho_ee": [0.0, 0.2, -0.1],
+            "block_rho_ii": [0.0, 0.2, -0.1],
+            "block_rho_ei": [0.0, 0.3, 0.5],
+            "class_separation": 0.3,
+            "noise_std": 0.2,
+            "seed": None,
+        },
+    ),
+    "balanced_information": _SyntheticDatasetSpec(
+        factory=create_balanced_information_dataset,
+        defaults={
+            "n_samples": 1000,
+            "input_dim": 100,
+            "ne": 50,
+            "ni": 50,
+            "info_per_dim": "balanced",
+            "rho_ee": 0.0,
+            "rho_ii": 0.0,
+            "rho_ei": 0.0,
+            "noise_std": 0.2,
+            "seed": None,
+        },
+    ),
+    "heterogeneous_information": _SyntheticDatasetSpec(
+        factory=create_heterogeneous_information_dataset,
+        defaults={
+            "n_samples": 2000,
+            "input_dim": 100,
+            "n_classes": 10,
+            "ne": 50,
+            "ni": 50,
+            "n_high_info_dims": 10,
+            "high_info_strength": 2.0,
+            "low_info_strength": 0.1,
+            "noise_std": 0.2,
+            "rho_ee": 0.0,
+            "rho_ii": 0.0,
+            "rho_ei": 0.0,
+            "seed": None,
+        },
+    ),
+    "nonlinear_transformation": _SyntheticDatasetSpec(
+        factory=create_nonlinear_transformation_dataset,
+        defaults={
+            "n_samples": 2000,
+            "n_classes": 2,
+            "nonlinearity_type": "xor",
+            "ne": 2,
+            "ni": 2,
+            "noise_std": 0.1,
+            "seed": None,
+        },
+    ),
+    "asymmetric_noise": _SyntheticDatasetSpec(
+        factory=create_asymmetric_noise_dataset,
+        defaults={
+            "n_samples": 2000,
+            "input_dim": 100,
+            "n_classes": 10,
+            "ne": 50,
+            "ni": 50,
+            "sigma_e": 0.2,
+            "sigma_i": 0.1,
+            "class_separation": 0.2,
+            "rho_ee": 0.0,
+            "rho_ii": 0.0,
+            "rho_ei": 0.0,
+            "seed": None,
+        },
+    ),
+    "population_code": _SyntheticDatasetSpec(
+        factory=create_population_code_dataset,
+        defaults={
+            "n_samples": 2000,
+            "pop_dim": 200,
+            "ne": 50,
+            "ni": 50,
+            "n_classes": 2,
+            "code_type": "mixed_selectivity",
+            "noise_std": 0.1,
+            "kappa": 2.0,
+            "seed": None,
+        },
+    ),
+    "contextual_stream_gain_shift": _SyntheticDatasetSpec(
+        factory=create_contextual_stream_gain_shift_dataset,
+        defaults={
+            "n_samples": 4000,
+            "stream_dim": 64,
+            "n_classes": 2,
+            "signal_strength": 0.35,
+            "relevant_noise_std": 0.08,
+            "irrelevant_noise_std": 0.18,
+            "train_gain_relevant_min": 0.9,
+            "train_gain_relevant_max": 1.1,
+            "train_gain_irrelevant_min": 0.8,
+            "train_gain_irrelevant_max": 1.2,
+            "test_gain_relevant": 1.0,
+            "test_gain_irrelevant": 3.0,
+            "test_irrelevant_alignment_alpha": 1.0,
+            "ood_mode": "irrelevant",
+            "valid_split_mode": "ood",
+            "context_signal_scale": 1.0,
+            "seed": None,
+        },
+    ),
+}
+
+
 def get_synthetic_datasets(
     dataset_config: dict[str, Any],
 ) -> tuple[TensorDataset, TensorDataset, TensorDataset]:
@@ -1577,172 +1779,7 @@ def get_synthetic_datasets(
         train_dataset, valid_dataset, test_dataset
     """
     dataset_type = dataset_config.get("type", "correlated_gaussian")
-
-    if dataset_type == "correlated_gaussian":
-        return create_correlated_gaussian_dataset(
-            n_samples=dataset_config.get("n_samples", 1000),
-            input_dim=dataset_config.get("input_dim", 100),
-            n_classes=dataset_config.get("n_classes", 2),
-            rho_ee=dataset_config.get("rho_ee", 0.0),
-            rho_ii=dataset_config.get("rho_ii", 0.0),
-            rho_ei=dataset_config.get("rho_ei", 0.0),
-            ne=dataset_config.get("ne", 50),
-            ni=dataset_config.get("ni", 50),
-            class_separation=dataset_config.get("class_separation", 0.3),
-            noise_std=dataset_config.get("noise_std", 0.2),
-            seed=dataset_config.get("seed", None),
-        )
-
-    elif dataset_type == "nonlinear_interaction":
-        return create_nonlinear_interaction_dataset(
-            n_samples=dataset_config.get("n_samples", 1000),
-            input_dim=dataset_config.get("input_dim", 2),
-            n_classes=dataset_config.get("n_classes", 2),
-            interaction_strength=dataset_config.get("interaction_strength", 1.0),
-            noise_std=dataset_config.get("noise_std", 0.1),
-            seed=dataset_config.get("seed", None),
-        )
-
-    elif dataset_type == "linear_separable":
-        return create_linear_separable_dataset(
-            n_samples=dataset_config.get("n_samples", 1000),
-            input_dim=dataset_config.get("input_dim", 100),
-            ne=dataset_config.get("ne", 50),
-            ni=dataset_config.get("ni", 50),
-            rho_ee=dataset_config.get("rho_ee", 0.0),
-            rho_ii=dataset_config.get("rho_ii", 0.0),
-            rho_ei=dataset_config.get("rho_ei", 0.0),
-            signal_strength=dataset_config.get("signal_strength", 0.3),
-            noise_std=dataset_config.get("noise_std", 0.2),
-            seed=dataset_config.get("seed", None),
-        )
-
-    elif dataset_type == "nonlinear_separable":
-        return create_nonlinear_separable_dataset(
-            n_samples=dataset_config.get("n_samples", 1000),
-            input_dim=dataset_config.get("input_dim", 100),
-            ne=dataset_config.get("ne", 50),
-            ni=dataset_config.get("ni", 50),
-            nonlinearity_type=dataset_config.get("nonlinearity_type", "quadratic"),
-            rho_ee=dataset_config.get("rho_ee", 0.0),
-            rho_ii=dataset_config.get("rho_ii", 0.0),
-            rho_ei=dataset_config.get("rho_ei", 0.0),
-            noise_std=dataset_config.get("noise_std", 0.2),
-            seed=dataset_config.get("seed", None),
-        )
-
-    elif dataset_type == "block_correlated":
-        return create_block_correlated_dataset(
-            n_samples=dataset_config.get("n_samples", 1000),
-            input_dim=dataset_config.get("input_dim", 100),
-            ne=dataset_config.get("ne", 50),
-            ni=dataset_config.get("ni", 50),
-            n_blocks=dataset_config.get("n_blocks", 5),
-            block_rho_ee=dataset_config.get("block_rho_ee", [0.0, 0.2, -0.1]),
-            block_rho_ii=dataset_config.get("block_rho_ii", [0.0, 0.2, -0.1]),
-            block_rho_ei=dataset_config.get("block_rho_ei", [0.0, 0.3, 0.5]),
-            class_separation=dataset_config.get("class_separation", 0.3),
-            noise_std=dataset_config.get("noise_std", 0.2),
-            seed=dataset_config.get("seed", None),
-        )
-
-    elif dataset_type == "balanced_information":
-        return create_balanced_information_dataset(
-            n_samples=dataset_config.get("n_samples", 1000),
-            input_dim=dataset_config.get("input_dim", 100),
-            ne=dataset_config.get("ne", 50),
-            ni=dataset_config.get("ni", 50),
-            info_per_dim=dataset_config.get("info_per_dim", "balanced"),
-            rho_ee=dataset_config.get("rho_ee", 0.0),
-            rho_ii=dataset_config.get("rho_ii", 0.0),
-            rho_ei=dataset_config.get("rho_ei", 0.0),
-            noise_std=dataset_config.get("noise_std", 0.2),
-            seed=dataset_config.get("seed", None),
-        )
-
-    elif dataset_type == "heterogeneous_information":
-        return create_heterogeneous_information_dataset(
-            n_samples=dataset_config.get("n_samples", 2000),
-            input_dim=dataset_config.get("input_dim", 100),
-            n_classes=dataset_config.get("n_classes", 10),
-            ne=dataset_config.get("ne", 50),
-            ni=dataset_config.get("ni", 50),
-            n_high_info_dims=dataset_config.get("n_high_info_dims", 10),
-            high_info_strength=dataset_config.get("high_info_strength", 2.0),
-            low_info_strength=dataset_config.get("low_info_strength", 0.1),
-            noise_std=dataset_config.get("noise_std", 0.2),
-            rho_ee=dataset_config.get("rho_ee", 0.0),
-            rho_ii=dataset_config.get("rho_ii", 0.0),
-            rho_ei=dataset_config.get("rho_ei", 0.0),
-            seed=dataset_config.get("seed", None),
-        )
-
-    elif dataset_type == "nonlinear_transformation":
-        return create_nonlinear_transformation_dataset(
-            n_samples=dataset_config.get("n_samples", 2000),
-            n_classes=dataset_config.get("n_classes", 2),
-            nonlinearity_type=dataset_config.get("nonlinearity_type", "xor"),
-            ne=dataset_config.get("ne", 2),
-            ni=dataset_config.get("ni", 2),
-            noise_std=dataset_config.get("noise_std", 0.1),
-            seed=dataset_config.get("seed", None),
-        )
-
-    elif dataset_type == "asymmetric_noise":
-        return create_asymmetric_noise_dataset(
-            n_samples=dataset_config.get("n_samples", 2000),
-            input_dim=dataset_config.get("input_dim", 100),
-            n_classes=dataset_config.get("n_classes", 10),
-            ne=dataset_config.get("ne", 50),
-            ni=dataset_config.get("ni", 50),
-            sigma_e=dataset_config.get("sigma_e", 0.2),
-            sigma_i=dataset_config.get("sigma_i", 0.1),
-            class_separation=dataset_config.get("class_separation", 0.2),
-            rho_ee=dataset_config.get("rho_ee", 0.0),
-            rho_ii=dataset_config.get("rho_ii", 0.0),
-            rho_ei=dataset_config.get("rho_ei", 0.0),
-            seed=dataset_config.get("seed", None),
-        )
-
-    elif dataset_type == "population_code":
-        return create_population_code_dataset(
-            n_samples=dataset_config.get("n_samples", 2000),
-            pop_dim=dataset_config.get("pop_dim", 200),
-            ne=dataset_config.get("ne", 50),
-            ni=dataset_config.get("ni", 50),
-            n_classes=dataset_config.get("n_classes", 2),
-            code_type=dataset_config.get("code_type", "mixed_selectivity"),
-            noise_std=dataset_config.get("noise_std", 0.1),
-            kappa=dataset_config.get("kappa", 2.0),
-            seed=dataset_config.get("seed", None),
-        )
-
-    elif dataset_type == "contextual_stream_gain_shift":
-        return create_contextual_stream_gain_shift_dataset(
-            n_samples=dataset_config.get("n_samples", 4000),
-            stream_dim=dataset_config.get("stream_dim", 64),
-            n_classes=dataset_config.get("n_classes", 2),
-            signal_strength=dataset_config.get("signal_strength", 0.35),
-            relevant_noise_std=dataset_config.get("relevant_noise_std", 0.08),
-            irrelevant_noise_std=dataset_config.get("irrelevant_noise_std", 0.18),
-            train_gain_relevant_min=dataset_config.get("train_gain_relevant_min", 0.9),
-            train_gain_relevant_max=dataset_config.get("train_gain_relevant_max", 1.1),
-            train_gain_irrelevant_min=dataset_config.get(
-                "train_gain_irrelevant_min", 0.8
-            ),
-            train_gain_irrelevant_max=dataset_config.get(
-                "train_gain_irrelevant_max", 1.2
-            ),
-            test_gain_relevant=dataset_config.get("test_gain_relevant", 1.0),
-            test_gain_irrelevant=dataset_config.get("test_gain_irrelevant", 3.0),
-            test_irrelevant_alignment_alpha=dataset_config.get(
-                "test_irrelevant_alignment_alpha", 1.0
-            ),
-            ood_mode=dataset_config.get("ood_mode", "irrelevant"),
-            valid_split_mode=dataset_config.get("valid_split_mode", "ood"),
-            context_signal_scale=dataset_config.get("context_signal_scale", 1.0),
-            seed=dataset_config.get("seed", None),
-        )
-
-    else:
+    spec = _SYNTHETIC_DATASET_SPECS.get(dataset_type)
+    if spec is None:
         raise ValueError(f"Unknown synthetic dataset type: {dataset_type}")
+    return spec.build(dataset_config)

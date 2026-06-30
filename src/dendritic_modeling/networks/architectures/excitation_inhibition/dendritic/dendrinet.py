@@ -10,13 +10,263 @@ from copy import deepcopy
 import torch
 import torch.nn as nn
 
-from dendritic_modeling.networks.activations import resolve_dendritic_activation
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_config import (
+    DendriticBranchConfig,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer import (
     DendriticBranchLayer,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_options import (
+    resolve_dendrinet_synapse_config,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet_config import (
+    DendriNetConfig,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.synapse_config import (
+    DendriticSynapseConfig,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.structured_mask import (
     sample_configured_mask,
 )
+
+
+def _sample_dendrinet_structured_mask(
+    structured_connectivity,
+    *,
+    pathway,
+    out_dim,
+    in_dim,
+    synapses_per_branch,
+    structured_layer_idx,
+    level_idx,
+):
+    """Sample an optional structured mask for one DendriNet pathway."""
+    if in_dim is None or synapses_per_branch is None or synapses_per_branch <= 0:
+        return None
+    return sample_configured_mask(
+        structured_connectivity,
+        pathway=pathway,
+        out_features=out_dim,
+        in_features=in_dim,
+        layer_idx=structured_layer_idx,
+        level_idx=level_idx,
+    )
+
+
+def _sample_dendrinet_structured_masks(
+    structured_connectivity,
+    *,
+    structured_excitatory_pathway,
+    structured_inhibitory_pathway,
+    out_dim,
+    excitatory_input_dim,
+    excitatory_synapses_per_branch,
+    inhibitory_input_dim,
+    inhibitory_synapses_per_branch,
+    structured_layer_idx,
+    level_idx,
+):
+    """Sample optional excitatory and inhibitory masks for one DendriNet level."""
+
+    excitatory_connection_mask = _sample_dendrinet_structured_mask(
+        structured_connectivity,
+        pathway=structured_excitatory_pathway,
+        out_dim=out_dim,
+        in_dim=excitatory_input_dim,
+        synapses_per_branch=excitatory_synapses_per_branch,
+        structured_layer_idx=structured_layer_idx,
+        level_idx=level_idx,
+    )
+    inhibitory_connection_mask = _sample_dendrinet_structured_mask(
+        structured_connectivity,
+        pathway=structured_inhibitory_pathway,
+        out_dim=out_dim,
+        in_dim=inhibitory_input_dim,
+        synapses_per_branch=inhibitory_synapses_per_branch,
+        structured_layer_idx=structured_layer_idx,
+        level_idx=level_idx,
+    )
+    return excitatory_connection_mask, inhibitory_connection_mask
+
+
+def _make_dendrinet_branch_layer(
+    *,
+    output_dim,
+    excitatory_input_dim,
+    excitatory_synapses_per_branch,
+    inhibitory_input_dim,
+    inhibitory_synapses_per_branch,
+    input_branch_factor,
+    layer_idx,
+    synapse_config,
+    branch_extra_kwargs,
+    excitatory_connection_mask=None,
+    inhibitory_connection_mask=None,
+):
+    """Create one DendriNet branch layer with the shared synapse config."""
+    return DendriticBranchLayer(
+        branch_config=DendriticBranchConfig(
+            output_dim=output_dim,
+            excitatory_input_dim=excitatory_input_dim,
+            excitatory_synapses_per_branch=excitatory_synapses_per_branch,
+            inhibitory_input_dim=inhibitory_input_dim,
+            inhibitory_synapses_per_branch=inhibitory_synapses_per_branch,
+            input_branch_factor=input_branch_factor,
+            layer_idx=layer_idx,
+            excitatory_connection_mask=excitatory_connection_mask,
+            inhibitory_connection_mask=inhibitory_connection_mask,
+        ),
+        synapse_config=synapse_config,
+        **branch_extra_kwargs,
+    )
+
+
+def _plan_dendrinet_branch_layout(
+    n_soma: int, branch_factors
+) -> tuple[list[int], list]:
+    """Return construction-order layer sizes and input branch factors."""
+
+    layer_sizes = [n_soma]
+    for branch_factor in branch_factors:
+        layer_sizes.append(layer_sizes[-1] * branch_factor)
+    return list(reversed(layer_sizes)), [None, *reversed(branch_factors)]
+
+
+def _validate_dendrinet_dimensions(
+    *,
+    n_soma,
+    branch_factors,
+    excitatory_input_dim,
+    excitatory_synapses_per_branch,
+    inhibitory_input_dim,
+    inhibitory_synapses_per_branch,
+) -> None:
+    """Validate DendriNet dimensions and synapse counts."""
+
+    if not isinstance(n_soma, int):
+        raise TypeError("n_soma must be an integer")
+    if n_soma < 1:
+        raise ValueError("n_soma must be >= 1")
+
+    for bf in branch_factors:
+        if not isinstance(bf, int):
+            raise TypeError("branch_factors must be integers")
+        if bf < 1:
+            raise ValueError("branch_factors must be >= 1")
+
+    if inhibitory_input_dim is not None and inhibitory_synapses_per_branch is not None:
+        if not isinstance(inhibitory_synapses_per_branch, int):
+            raise TypeError("inhibitory_synapses_per_branch must be int")
+        # if inhibitory_synapses_per_branch < 1:
+        #     raise ValueError("inhibitory_synapses_per_branch must be >= 1")
+
+    if excitatory_input_dim is not None and excitatory_synapses_per_branch is not None:
+        if not isinstance(excitatory_synapses_per_branch, int):
+            raise TypeError("excitatory_synapses_per_branch must be int")
+        if excitatory_synapses_per_branch < 1:
+            raise ValueError("excitatory_synapses_per_branch must be >= 1")
+
+
+def _build_dendrinet_branch_layers(
+    *,
+    n_soma,
+    n_branch_layers,
+    layer_sizes,
+    input_branch_factors,
+    excitatory_input_dim,
+    excitatory_synapses_per_branch,
+    inhibitory_input_dim,
+    inhibitory_synapses_per_branch,
+    somatic_synapses,
+    structured_connectivity,
+    structured_layer_idx,
+    structured_excitatory_pathway,
+    structured_inhibitory_pathway,
+    synapse_config,
+    branch_extra_kwargs,
+):
+    """Build DendriNet branch layers in forward construction order."""
+
+    branch_layers = []
+    for i in range(n_branch_layers):
+        (
+            excitatory_connection_mask,
+            inhibitory_connection_mask,
+        ) = _sample_dendrinet_structured_masks(
+            structured_connectivity,
+            structured_excitatory_pathway=structured_excitatory_pathway,
+            structured_inhibitory_pathway=structured_inhibitory_pathway,
+            out_dim=layer_sizes[i],
+            excitatory_input_dim=excitatory_input_dim,
+            excitatory_synapses_per_branch=excitatory_synapses_per_branch,
+            inhibitory_input_dim=inhibitory_input_dim,
+            inhibitory_synapses_per_branch=inhibitory_synapses_per_branch,
+            structured_layer_idx=structured_layer_idx,
+            level_idx=i,
+        )
+        lyr = _make_dendrinet_branch_layer(
+            output_dim=layer_sizes[i],
+            excitatory_input_dim=excitatory_input_dim,
+            excitatory_synapses_per_branch=excitatory_synapses_per_branch,
+            inhibitory_input_dim=inhibitory_input_dim,
+            inhibitory_synapses_per_branch=inhibitory_synapses_per_branch,
+            excitatory_connection_mask=excitatory_connection_mask,
+            inhibitory_connection_mask=inhibitory_connection_mask,
+            input_branch_factor=input_branch_factors[i],
+            layer_idx=n_branch_layers - i,
+            synapse_config=synapse_config,
+            branch_extra_kwargs=branch_extra_kwargs,
+        )
+        branch_layers.append(lyr)
+
+    if somatic_synapses:
+        soma_level_idx = n_branch_layers
+        (
+            excitatory_connection_mask,
+            inhibitory_connection_mask,
+        ) = _sample_dendrinet_structured_masks(
+            structured_connectivity,
+            structured_excitatory_pathway=structured_excitatory_pathway,
+            structured_inhibitory_pathway=structured_inhibitory_pathway,
+            out_dim=n_soma,
+            excitatory_input_dim=excitatory_input_dim,
+            excitatory_synapses_per_branch=excitatory_synapses_per_branch,
+            inhibitory_input_dim=inhibitory_input_dim,
+            inhibitory_synapses_per_branch=inhibitory_synapses_per_branch,
+            structured_layer_idx=structured_layer_idx,
+            level_idx=soma_level_idx,
+        )
+        branch_layers.append(
+            _make_dendrinet_branch_layer(
+                output_dim=n_soma,
+                excitatory_input_dim=excitatory_input_dim,
+                excitatory_synapses_per_branch=excitatory_synapses_per_branch,
+                inhibitory_input_dim=inhibitory_input_dim,
+                inhibitory_synapses_per_branch=inhibitory_synapses_per_branch,
+                excitatory_connection_mask=excitatory_connection_mask,
+                inhibitory_connection_mask=inhibitory_connection_mask,
+                input_branch_factor=input_branch_factors[-1],
+                layer_idx=0,
+                synapse_config=synapse_config,
+                branch_extra_kwargs=branch_extra_kwargs,
+            )
+        )
+    else:
+        branch_layers.append(
+            _make_dendrinet_branch_layer(
+                output_dim=n_soma,
+                excitatory_input_dim=None,
+                excitatory_synapses_per_branch=None,
+                inhibitory_input_dim=None,
+                inhibitory_synapses_per_branch=None,
+                input_branch_factor=input_branch_factors[-1],
+                layer_idx=0,
+                synapse_config=synapse_config,
+                branch_extra_kwargs=branch_extra_kwargs,
+            )
+        )
+
+    return branch_layers
 
 
 class DendriNet(nn.Module):
@@ -31,22 +281,22 @@ class DendriNet(nn.Module):
 
     def __init__(
         self,
-        n_soma,
-        branch_factors,
-        excitatory_input_dim,
-        excitatory_synapses_per_branch,
+        n_soma=None,
+        branch_factors=None,
+        excitatory_input_dim=None,
+        excitatory_synapses_per_branch=None,
         inhibitory_input_dim=None,
         inhibitory_synapses_per_branch=None,
         reactivate=False,
         somatic_synapses=True,
         topk_init_method="xavier_normal",
         topk_noise_level=0.0,
-        topk_type="standard",  # New parameter for TopK strategy
+        topk_type="standard",  # TopK implementation strategy.
         topk_weight_norm_order=None,
         topk_gamma=1.0,
         weight_transform="exp",  # Weight transformation for positive weights
-        topk_temperature=0.5,  # For stochastic TopK
-        topk_ultrafast=False,  # For much faster stochastic TopK
+        topk_temperature=0.5,  # Stochastic TopK temperature.
+        topk_ultrafast=True,  # ultrafast stochastic-topk default (set False for rank-probabilistic)
         topk_strategy="none",
         use_shunting=True,
         reactivation_type="param_tanh",
@@ -59,7 +309,7 @@ class DendriNet(nn.Module):
         reactivation_init_policy="analytical",
         reactivation_sigma_aware_k=0.25,
         dbl_init_method="analytical_expectation",
-        # DEEPST specific parameters, clean up later
+        # DeepST-compatible sparse-rewiring parameters.
         excitatory_target_density=0.1,
         inhibitory_target_density=0.1,
         use_noise=True,
@@ -72,274 +322,108 @@ class DendriNet(nn.Module):
         freeze_inhibitory_connectivity=False,
         init_method=None,
         weight_threshold=1e-6,
-        adaptive_initialization=True,  # Add adaptive initialization parameter
-        adaptive_initialization_policy="legacy_scale",
+        adaptive_initialization=True,
+        adaptive_initialization_policy="preserve_shunting_center",
         adaptive_target_conductance=5.0,
         structured_connectivity=None,
         structured_layer_idx: int = 0,
         structured_excitatory_pathway: str = "ee",
         structured_inhibitory_pathway: str = "ie",
+        synapse_config=None,
+        config=None,
         **kwargs,
     ):
         super().__init__()
-        reactivate, reactivation_type = resolve_dendritic_activation(
-            dendritic_activation,
-            reactivate,
-            reactivation_type,
+
+        if config is not None:
+            dendrinet_config = DendriNetConfig.from_config(config)
+            config_kwargs = dendrinet_config.to_kwargs()
+            n_soma = config_kwargs["n_soma"]
+            branch_factors = config_kwargs["branch_factors"]
+            excitatory_input_dim = config_kwargs["excitatory_input_dim"]
+            excitatory_synapses_per_branch = config_kwargs[
+                "excitatory_synapses_per_branch"
+            ]
+            inhibitory_input_dim = config_kwargs["inhibitory_input_dim"]
+            inhibitory_synapses_per_branch = config_kwargs[
+                "inhibitory_synapses_per_branch"
+            ]
+            somatic_synapses = config_kwargs["somatic_synapses"]
+            structured_connectivity = config_kwargs["structured_connectivity"]
+            structured_layer_idx = config_kwargs["structured_layer_idx"]
+            structured_excitatory_pathway = config_kwargs[
+                "structured_excitatory_pathway"
+            ]
+            structured_inhibitory_pathway = config_kwargs[
+                "structured_inhibitory_pathway"
+            ]
+            synapse_config = dendrinet_config.synapse_config
+
+        _validate_dendrinet_dimensions(
+            n_soma=n_soma,
+            branch_factors=branch_factors,
+            excitatory_input_dim=excitatory_input_dim,
+            excitatory_synapses_per_branch=excitatory_synapses_per_branch,
+            inhibitory_input_dim=inhibitory_input_dim,
+            inhibitory_synapses_per_branch=inhibitory_synapses_per_branch,
         )
-
-        if not isinstance(n_soma, int):
-            raise TypeError("n_soma must be an integer")
-        if n_soma < 1:
-            raise ValueError("n_soma must be >= 1")
-
-        layer_sizes = [n_soma]
-
-        for bf in branch_factors:
-            if not isinstance(bf, int):
-                raise TypeError("branch_factors must be integers")
-            if bf < 1:
-                raise ValueError("branch_factors must be >= 1")
 
         # Store branch factors for network-aware initialization
         self.branch_factors = deepcopy(branch_factors)
-        self.dendritic_activation = reactivation_type if reactivate else "none"
 
-        if (
-            inhibitory_input_dim is not None
-            and inhibitory_synapses_per_branch is not None
-        ):
-            if not isinstance(inhibitory_synapses_per_branch, int):
-                raise TypeError("inhibitory_synapses_per_branch must be int")
-            # if inhibitory_synapses_per_branch < 1:
-            #     raise ValueError("inhibitory_synapses_per_branch must be >= 1")
-
-        if (
-            excitatory_input_dim is not None
-            and excitatory_synapses_per_branch is not None
-        ):
-            if not isinstance(excitatory_synapses_per_branch, int):
-                raise TypeError("excitatory_synapses_per_branch must be int")
-            if excitatory_synapses_per_branch < 1:
-                raise ValueError("excitatory_synapses_per_branch must be >= 1")
-
-        branch_factors: list = deepcopy(branch_factors)
         self.n_branch_layers = len(branch_factors)
-        for i in range(self.n_branch_layers):
-            layer_sizes.append(layer_sizes[i] * branch_factors[i])
-        layer_sizes.reverse()
-        branch_factors.reverse()
-        branch_factors.insert(0, None)
-        branch_layers = []
+        layer_sizes, input_branch_factors = _plan_dendrinet_branch_layout(
+            n_soma,
+            branch_factors,
+        )
+        formal_synapse_kwargs = DendriticSynapseConfig.legacy_kwargs_from_mapping(
+            locals()
+        )
+        (
+            synapse_config,
+            branch_extra_kwargs,
+            self.dendritic_activation,
+            reactivate,
+            reactivation_type,
+        ) = resolve_dendrinet_synapse_config(
+            formal_synapse_kwargs=formal_synapse_kwargs,
+            extra_kwargs=kwargs,
+            synapse_config=synapse_config,
+            branch_factors=self.branch_factors,
+            dendritic_activation=dendritic_activation,
+            reactivate=reactivate,
+            reactivation_type=reactivation_type,
+        )
+        self.synapse_config = synapse_config
 
-        def _structured_mask(pathway, out_dim, in_dim, synapses_per_branch, level_idx):
-            if (
-                in_dim is None
-                or synapses_per_branch is None
-                or synapses_per_branch <= 0
-            ):
-                return None
-            return sample_configured_mask(
-                structured_connectivity,
-                pathway=pathway,
-                out_features=out_dim,
-                in_features=in_dim,
-                layer_idx=structured_layer_idx,
-                level_idx=level_idx,
-            )
-
-        for i in range(self.n_branch_layers):
-            excitatory_connection_mask = _structured_mask(
-                structured_excitatory_pathway,
-                layer_sizes[i],
-                excitatory_input_dim,
-                excitatory_synapses_per_branch,
-                i,
-            )
-            inhibitory_connection_mask = _structured_mask(
-                structured_inhibitory_pathway,
-                layer_sizes[i],
-                inhibitory_input_dim,
-                inhibitory_synapses_per_branch,
-                i,
-            )
-            lyr = DendriticBranchLayer(
-                output_dim=layer_sizes[i],
-                excitatory_input_dim=excitatory_input_dim,
-                excitatory_synapses_per_branch=excitatory_synapses_per_branch,
-                inhibitory_input_dim=inhibitory_input_dim,
-                inhibitory_synapses_per_branch=inhibitory_synapses_per_branch,
-                excitatory_connection_mask=excitatory_connection_mask,
-                inhibitory_connection_mask=inhibitory_connection_mask,
-                input_branch_factor=branch_factors[i],
-                topk_init_method=topk_init_method,
-                topk_noise_level=topk_noise_level,
-                topk_type=topk_type,  # Pass the parameter
-                topk_weight_norm_order=topk_weight_norm_order,
-                topk_gamma=topk_gamma,
-                weight_transform=weight_transform,
-                topk_temperature=topk_temperature,  # Pass the temperature
-                topk_ultrafast=topk_ultrafast,  # Pass the ultrafast flag
-                topk_strategy=topk_strategy,
-                use_shunting=use_shunting,
-                reactivate=reactivate,
-                dendritic_activation=dendritic_activation,
-                reactivation_init_m=reactivation_init_m,
-                reactivation_init_b=reactivation_init_b,
-                reactivation_init_policy=reactivation_init_policy,
-                reactivation_sigma_aware_k=reactivation_sigma_aware_k,
-                dbl_init_method=dbl_init_method,
-                reactivation_type=reactivation_type,
-                reactivation_strategy=reactivation_strategy,
-                blocklinear_strategy=blocklinear_strategy,
-                efficient_blocklinear=efficient_blocklinear,
-                layer_idx=self.n_branch_layers - i,
-                print_hooks=print_hooks,
-                use_noise=use_noise,
-                sigma=sigma,
-                rewiring_mode=rewiring_mode,
-                rewire_frequency=rewire_frequency,
-                synapses_per_branch=synapses_per_branch,
-                excitatory_target_density=excitatory_target_density,
-                inhibitory_target_density=inhibitory_target_density,
-                freeze_excitatory_connectivity=freeze_excitatory_connectivity,
-                freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
-                init_method=init_method,
-                weight_threshold=weight_threshold,
-                adaptive_initialization=adaptive_initialization,
-                adaptive_initialization_policy=adaptive_initialization_policy,
-                adaptive_target_conductance=adaptive_target_conductance,
-                branch_factors=self.branch_factors,  # Pass branch_factors
-                **kwargs,
-            )
-            branch_layers.append(lyr)
-
-        if somatic_synapses:
-            soma_level_idx = self.n_branch_layers
-            excitatory_connection_mask = _structured_mask(
-                structured_excitatory_pathway,
-                n_soma,
-                excitatory_input_dim,
-                excitatory_synapses_per_branch,
-                soma_level_idx,
-            )
-            inhibitory_connection_mask = _structured_mask(
-                structured_inhibitory_pathway,
-                n_soma,
-                inhibitory_input_dim,
-                inhibitory_synapses_per_branch,
-                soma_level_idx,
-            )
-            branch_layers.append(
-                DendriticBranchLayer(
-                    output_dim=n_soma,
-                    excitatory_input_dim=excitatory_input_dim,
-                    excitatory_synapses_per_branch=excitatory_synapses_per_branch,
-                    inhibitory_input_dim=inhibitory_input_dim,
-                    inhibitory_synapses_per_branch=inhibitory_synapses_per_branch,
-                    excitatory_connection_mask=excitatory_connection_mask,
-                    inhibitory_connection_mask=inhibitory_connection_mask,
-                    input_branch_factor=branch_factors[-1],
-                    topk_init_method=topk_init_method,
-                    topk_noise_level=topk_noise_level,
-                    topk_type=topk_type,  # Pass the parameter
-                    topk_weight_norm_order=topk_weight_norm_order,
-                    topk_gamma=topk_gamma,
-                    weight_transform=weight_transform,
-                    topk_temperature=topk_temperature,  # Pass the temperature
-                    topk_ultrafast=topk_ultrafast,  # Pass the ultrafast flag
-                    topk_strategy=topk_strategy,
-                    use_shunting=use_shunting,
-                    reactivate=reactivate,
-                    dendritic_activation=dendritic_activation,
-                    reactivation_init_m=reactivation_init_m,
-                    reactivation_init_b=reactivation_init_b,
-                    reactivation_init_policy=reactivation_init_policy,
-                    reactivation_sigma_aware_k=reactivation_sigma_aware_k,
-                    dbl_init_method=dbl_init_method,
-                    reactivation_type=reactivation_type,
-                    reactivation_strategy=reactivation_strategy,
-                    blocklinear_strategy=blocklinear_strategy,
-                    efficient_blocklinear=efficient_blocklinear,
-                    layer_idx=0,
-                    print_hooks=print_hooks,
-                    use_noise=use_noise,
-                    sigma=sigma,
-                    rewiring_mode=rewiring_mode,
-                    rewire_frequency=rewire_frequency,
-                    synapses_per_branch=synapses_per_branch,
-                    excitatory_target_density=excitatory_target_density,
-                    inhibitory_target_density=inhibitory_target_density,
-                    freeze_excitatory_connectivity=freeze_excitatory_connectivity,
-                    freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
-                    init_method=init_method,
-                    weight_threshold=weight_threshold,
-                    adaptive_initialization=adaptive_initialization,
-                    adaptive_initialization_policy=adaptive_initialization_policy,
-                    adaptive_target_conductance=adaptive_target_conductance,
-                    branch_factors=self.branch_factors,  # Pass branch_factors
-                    **kwargs,
-                )
-            )
-        else:
-            branch_layers.append(
-                DendriticBranchLayer(
-                    output_dim=n_soma,
-                    excitatory_input_dim=None,
-                    excitatory_synapses_per_branch=None,
-                    inhibitory_input_dim=None,
-                    inhibitory_synapses_per_branch=None,
-                    input_branch_factor=branch_factors[-1],
-                    topk_init_method=topk_init_method,
-                    topk_noise_level=topk_noise_level,
-                    topk_type=topk_type,  # Pass the parameter
-                    topk_weight_norm_order=topk_weight_norm_order,
-                    topk_gamma=topk_gamma,
-                    weight_transform=weight_transform,
-                    topk_temperature=topk_temperature,  # Pass the temperature
-                    topk_ultrafast=topk_ultrafast,  # Pass the ultrafast flag
-                    topk_strategy=topk_strategy,
-                    use_shunting=use_shunting,
-                    reactivate=reactivate,
-                    dendritic_activation=dendritic_activation,
-                    reactivation_init_m=reactivation_init_m,
-                    reactivation_init_b=reactivation_init_b,
-                    reactivation_init_policy=reactivation_init_policy,
-                    reactivation_sigma_aware_k=reactivation_sigma_aware_k,
-                    dbl_init_method=dbl_init_method,
-                    reactivation_type=reactivation_type,
-                    reactivation_strategy=reactivation_strategy,
-                    blocklinear_strategy=blocklinear_strategy,
-                    efficient_blocklinear=efficient_blocklinear,
-                    layer_idx=0,
-                    print_hooks=print_hooks,
-                    use_noise=use_noise,
-                    sigma=sigma,
-                    rewiring_mode=rewiring_mode,
-                    rewire_frequency=rewire_frequency,
-                    synapses_per_branch=synapses_per_branch,
-                    excitatory_target_density=excitatory_target_density,
-                    inhibitory_target_density=inhibitory_target_density,
-                    freeze_excitatory_connectivity=freeze_excitatory_connectivity,
-                    freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
-                    init_method=init_method,
-                    weight_threshold=weight_threshold,
-                    adaptive_initialization=adaptive_initialization,
-                    adaptive_initialization_policy=adaptive_initialization_policy,
-                    adaptive_target_conductance=adaptive_target_conductance,
-                    branch_factors=self.branch_factors,  # Pass branch_factors
-                    **kwargs,
-                )
-            )
-
+        branch_layers = _build_dendrinet_branch_layers(
+            n_soma=n_soma,
+            n_branch_layers=self.n_branch_layers,
+            layer_sizes=layer_sizes,
+            input_branch_factors=input_branch_factors,
+            excitatory_input_dim=excitatory_input_dim,
+            excitatory_synapses_per_branch=excitatory_synapses_per_branch,
+            inhibitory_input_dim=inhibitory_input_dim,
+            inhibitory_synapses_per_branch=inhibitory_synapses_per_branch,
+            somatic_synapses=somatic_synapses,
+            structured_connectivity=structured_connectivity,
+            structured_layer_idx=structured_layer_idx,
+            structured_excitatory_pathway=structured_excitatory_pathway,
+            structured_inhibitory_pathway=structured_inhibitory_pathway,
+            synapse_config=synapse_config,
+            branch_extra_kwargs=branch_extra_kwargs,
+        )
         self.branch_layers = nn.ModuleList(branch_layers)
+        self.branch_configs = tuple(layer.branch_config for layer in branch_layers)
 
         self.reactivate = reactivate
         self.layer_sizes = layer_sizes
         self.input_inhibitory = inhibitory_input_dim is not None
         self.n_soma = n_soma
         self.somatic_synapses = somatic_synapses
-        self.efficient_blocklinear = efficient_blocklinear
+        self.efficient_blocklinear = (
+            self.synapse_config.morphology.efficient_blocklinear
+        )
 
     def apply_rewiring(self):
         for layer in self.branch_layers:
@@ -409,4 +493,4 @@ class DendriNet(nn.Module):
             return (exc_total + 1e-8).log()
 
 
-__all__ = ["DendriNet"]
+__all__ = ["DendriNet", "DendriNetConfig"]

@@ -1,12 +1,10 @@
-"""
-Unified Weight Analysis Module.
+"""Compartment signal-to-noise analysis.
 
-This module provides comprehensive analysis of synaptic weights across the dendritic network,
-including both global statistics and hierarchical per-layer analysis with plotting capabilities.
-Provides comprehensive weight analysis with both global and hierarchical statistics.
+This module computes discriminability metrics for dendritic inputs, branch
+activations, and layer outputs, with global, per-layer, and per-branch
+aggregation plus plotting helpers for final and training-time summaries.
 """
 
-import json
 import logging
 import os
 import time
@@ -20,6 +18,11 @@ import seaborn as sns
 import torch
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
+from dendritic_modeling.analysis.tools.epoch_aggregation import (
+    initialize_epoch_aggregation_structure,
+    load_epoch_aggregation,
+    populate_epoch_aggregation,
+)
 from dendritic_modeling.analysis.utils.runtime import (
     analysis_device_context,
     materialize_dataset,
@@ -28,12 +31,20 @@ from dendritic_modeling.config import CompartmentSNRAnalysisParams
 from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.models import BaseModel, Classifier
 from dendritic_modeling.networks import (
+    DendriNet,
     DendriticBranchLayer,
     ExcitationInhibitionNetwork,
     ParametricActivation,
     TopKLinear,
 )
 from dendritic_modeling.utils import save_dict
+from dendritic_modeling.utils.hooks import (
+    ForwardHookRemovalMixin,
+    iter_named_modules_of_type,
+    register_hook_groups,
+    register_named_forward_hook_groups,
+    run_with_forward_hooks,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +57,31 @@ METRIC_MAPPING = {
 }
 
 
-class CompartmentSNRAnalyzer(AbstractAnalyzer):
+def _aggregate_non_depth_values(records) -> dict[str, list[float]]:
+    """Collect non-depth scalar fields across branch or layer records."""
+    aggregated: dict[str, list[float]] = {}
+    for record in records:
+        for field, value in record.items():
+            if field not in aggregated.keys() and field != "depth":
+                aggregated[field] = []
+            if field != "depth":
+                aggregated[field].append(value)
+    return aggregated
+
+
+def _summarize_population_values(
+    aggregated_values: dict[str, list[float]],
+    stats_dict: dict[str, float],
+) -> dict[str, float]:
+    """Summarize aggregated scalar metrics using population reductions."""
+    for field, values in aggregated_values.items():
+        data_tensor = torch.tensor(values)
+        stats_dict[f"{field}_mean"] = data_tensor.mean().item()
+        stats_dict[f"{field}_std"] = data_tensor.std(correction=0).item()
+    return stats_dict
+
+
+class CompartmentSNRAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
     """
     Unified analyzer for comprehensive compartment SNR analysis.
 
@@ -61,6 +96,21 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
         self.input_analysis = getattr(params, "input_analysis", True)
         self.layer_analysis = getattr(params, "layer_analysis", True)
         self.branch_analysis = getattr(params, "branch_analysis", True)
+        self.input_capture_mode = (
+            str(getattr(params, "input_capture_mode", "branch"))
+            .strip()
+            .lower()
+            .replace("-", "_")
+        )
+        if self.input_capture_mode in {"branch_inputs", "branch_input"}:
+            self.input_capture_mode = "branch"
+        elif self.input_capture_mode in {"network_inputs", "network_input"}:
+            self.input_capture_mode = "network"
+        if self.input_capture_mode not in {"branch", "network"}:
+            raise ValueError(
+                "input_capture_mode must be 'branch' or 'network', "
+                f"got {self.input_capture_mode!r}"
+            )
 
         self.global_aggregation = getattr(params, "global_aggregation", True)
         self.layer_aggregation = getattr(params, "layer_aggregation", True)
@@ -71,70 +121,122 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
     def collect_raw_data(self, model: BaseModel, x: torch.Tensor):
         """Collect raw data from the model."""
         self.raw_dict = {}
-        handles = []
 
-        exc_dendrinet = model.core_network.layers[-1].excitatory_cells
+        core_network = getattr(model, "core_network", model)
+        direct_ei_core = isinstance(core_network, ExcitationInhibitionNetwork)
+        branch_root = (
+            core_network.layers[-1].excitatory_cells if direct_ei_core else core_network
+        )
 
-        for key, module in exc_dendrinet.named_modules():
-            if isinstance(module, DendriticBranchLayer):
-                self.raw_dict[key] = {}
-                for branch_idx in range(module.n_branches):
-                    self.raw_dict[key][branch_idx] = {"depth": module.layer_idx}
+        def _attach_hooks():
+            handles = []
+            if (
+                self.input_analysis
+                and self.input_capture_mode == "network"
+                and direct_ei_core
+            ):
+                handles.extend(self._attach_network_input_hooks(core_network))
+            handles.extend(
+                register_named_forward_hook_groups(
+                    branch_root,
+                    DendriticBranchLayer,
+                    self._collect_layer_raw_data,
+                )
+            )
+            return handles
 
-                if self.input_analysis:
-                    handle = module.register_forward_pre_hook(
+        def _run_model():
+            with torch.no_grad():
+                _ = model(x)
+
+        run_with_forward_hooks(
+            attach=_attach_hooks,
+            remove=self.remove_forward_hooks,
+            body=_run_model,
+        )
+
+    def _attach_network_input_hooks(
+        self,
+        core_network: ExcitationInhibitionNetwork,
+    ) -> list[torch.utils.hooks.RemovableHandle]:
+        handles = [
+            core_network.register_forward_hook(
+                lambda module, input, output: self.network_input_hook(
+                    module, input, output
+                )
+            )
+        ]
+        inhibitory_cells = core_network.layers[-1].inhibitory_cells
+        if isinstance(inhibitory_cells, DendriNet):
+            handles.append(
+                inhibitory_cells.register_forward_hook(
+                    lambda module, input, output: self.network_input_hook(
+                        module, input, output
+                    )
+                )
+            )
+        return handles
+
+    def _collect_layer_raw_data(
+        self,
+        key: str,
+        module: DendriticBranchLayer,
+    ) -> list[torch.utils.hooks.RemovableHandle]:
+        self._initialize_branch_records(key, module)
+        return self._attach_layer_capture_hooks(key, module)
+
+    def _initialize_branch_records(
+        self, key: str, module: DendriticBranchLayer
+    ) -> None:
+        self.raw_dict[key] = {}
+        for branch_idx in range(module.n_branches):
+            self.raw_dict[key][branch_idx] = {"depth": module.layer_idx}
+
+    def _register_activation_hook(
+        self,
+        module: torch.nn.Module,
+        key: str,
+        activation_type: str,
+    ) -> torch.utils.hooks.RemovableHandle:
+        return module.register_forward_hook(
+            lambda module, input, output, layer_key=key: self.forward_hook(
+                module, input, output, layer_key, activation_type
+            )
+        )
+
+    def _attach_layer_capture_hooks(
+        self, key: str, module: DendriticBranchLayer
+    ) -> list[torch.utils.hooks.RemovableHandle]:
+        def _hook_specs():
+            if self.input_analysis and self.input_capture_mode == "branch":
+                yield ("input", module, "")
+            if module.branch_excitation is not None:
+                yield ("activation", module.branch_excitation, "exc")
+            if module.branch_inhibition is not None:
+                yield ("activation", module.branch_inhibition, "inh")
+            if hasattr(module, "branches_to_output"):
+                yield ("activation", module.branches_to_output, "upstream")
+            yield ("activation", module.reactivation, "vinf")
+            yield ("activation", module.reactivation, "vout")
+
+        def _register_hook(
+            hook_spec: tuple[str, torch.nn.Module, str],
+        ) -> list[torch.utils.hooks.RemovableHandle]:
+            hook_kind, hook_module, activation_type = hook_spec
+            if hook_kind == "input":
+                return [
+                    hook_module.register_forward_pre_hook(
                         lambda module, input, layer_key=key: self.branch_input_hook(
                             module, input, layer_key
                         )
                     )
-                    handles.append(handle)
+                ]
+            return [self._register_activation_hook(hook_module, key, activation_type)]
 
-                if module.branch_excitation is not None:
-                    handle = module.branch_excitation.register_forward_hook(
-                        lambda module, input, output, layer_key=key: self.forward_hook(
-                            module, input, output, layer_key, "exc"
-                        )
-                    )
-                    handles.append(handle)
-
-                if module.branch_inhibition is not None:
-                    handle = module.branch_inhibition.register_forward_hook(
-                        lambda module, input, output, layer_key=key: self.forward_hook(
-                            module, input, output, layer_key, "inh"
-                        )
-                    )
-                    handles.append(handle)
-
-                if hasattr(module, "branches_to_output"):
-                    handle = module.branches_to_output.register_forward_hook(
-                        lambda module, input, output, layer_key=key: self.forward_hook(
-                            module, input, output, layer_key, "upstream"
-                        )
-                    )
-                    handles.append(handle)
-
-                handle = module.reactivation.register_forward_hook(
-                    lambda module, input, output, layer_key=key: self.forward_hook(
-                        module, input, output, layer_key, "vinf"
-                    )
-                )
-                handles.append(handle)
-
-                handle = module.reactivation.register_forward_hook(
-                    lambda module, input, output, layer_key=key: self.forward_hook(
-                        module, input, output, layer_key, "vout"
-                    )
-                )
-                handles.append(handle)
-
-        with torch.no_grad():
-            _ = model(x)
-        self.remove_forward_hooks(handles)
-
-    def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
-        """Remove forward hooks from the model."""
-        for handle in handles:
-            handle.remove()
+        return register_hook_groups(
+            _hook_specs(),
+            _register_hook,
+        )
 
     def _capture_input_once(self, name: str, tensor: torch.Tensor | None) -> None:
         if tensor is None or hasattr(self, name):
@@ -142,6 +244,19 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
         if not torch.is_tensor(tensor):
             return
         setattr(self, name, tensor.detach().cpu())
+
+    def network_input_hook(
+        self,
+        module: Union[ExcitationInhibitionNetwork, DendriNet],
+        input: tuple[torch.Tensor, ...],
+        output: torch.Tensor,
+    ) -> None:
+        """Capture network-level inputs as a separate optional SNR mode."""
+        if isinstance(module, ExcitationInhibitionNetwork):
+            if input:
+                self._capture_input_once("network_excitatory_inputs", input[0])
+        elif isinstance(module, DendriNet):
+            self._capture_input_once("network_inhibitory_outputs", output)
 
     def branch_input_hook(
         self,
@@ -173,7 +288,7 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
         key: str,
         activation_type: str,
     ):
-        if self.input_analysis:
+        if self.input_analysis and self.input_capture_mode == "branch":
             if activation_type == "exc" and not hasattr(self, "excitatory_inputs"):
                 self._capture_input_once("excitatory_inputs", input[0])
             elif activation_type == "inh" and not hasattr(self, "inhibitory_inputs"):
@@ -216,6 +331,24 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
                 stats_dict=results,
             )
             delattr(self, "upstream_inputs")
+
+        if hasattr(self, "network_excitatory_inputs"):
+            results = self._compute_discriminability_multivariate(
+                data_tensor=self.network_excitatory_inputs,
+                labels=labels,
+                prefix="network_exc_inputs",
+                stats_dict=results,
+            )
+            delattr(self, "network_excitatory_inputs")
+
+        if hasattr(self, "network_inhibitory_outputs"):
+            results = self._compute_discriminability_multivariate(
+                data_tensor=self.network_inhibitory_outputs,
+                labels=labels,
+                prefix="network_inh_outputs",
+                stats_dict=results,
+            )
+            delattr(self, "network_inhibitory_outputs")
 
         return results
 
@@ -359,20 +492,8 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
         self, layer_statistics: dict[str, dict[str, int | float]]
     ):
         """Compute global statistics from layer statistics."""
-        global_aggregated: dict[str, int | list[float]] = {}
-        for layer_data in layer_statistics.values():
-            for field, value in layer_data.items():
-                if field not in global_aggregated.keys() and field != "depth":
-                    global_aggregated[field] = []
-                if field != "depth":
-                    global_aggregated[field].append(value)
-
-        global_statistics = {}
-        for field, values in global_aggregated.items():
-            data_tensor = torch.tensor(values)
-            global_statistics[f"{field}_mean"] = data_tensor.mean().item()
-            global_statistics[f"{field}_std"] = data_tensor.std(correction=0).item()
-        return global_statistics
+        global_aggregated = self._aggregate_stat_values(layer_statistics.values())
+        return self._summarize_aggregated_values(global_aggregated, {})
 
     def _branch_analysis(self, labels: torch.Tensor):
         """Analyze branches of the dendritic network."""
@@ -390,7 +511,7 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
                             data_tensor  # data_tensor is the depth index
                         )
                     else:
-                        branch_stats = self._compute_discriminality_univariate(
+                        branch_stats = self._compute_discriminability_univariate(
                             data_tensor, labels, prefix, branch_stats
                         )
 
@@ -411,7 +532,7 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
 
         return results
 
-    def _compute_discriminality_univariate(
+    def _compute_discriminability_univariate(
         self,
         data_tensor: torch.Tensor,
         labels: torch.Tensor,
@@ -436,25 +557,34 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
 
         return stats_dict
 
+    def _compute_discriminality_univariate(
+        self,
+        data_tensor: torch.Tensor,
+        labels: torch.Tensor,
+        prefix: str,
+        stats_dict: dict[str, float],
+    ) -> dict[str, float]:
+        """Backward-compatible alias for the corrected method name."""
+        return self._compute_discriminability_univariate(
+            data_tensor,
+            labels,
+            prefix,
+            stats_dict,
+        )
+
     def _global_branch_aggregation(
         self, branch_statistics: dict[str, dict[int, dict[str, float]]]
     ):
         """Compute global statistics from branch statistics."""
         global_aggregated: dict[str, list[float]] = {}
         for layer_data in branch_statistics.values():
-            for branch_data in layer_data.values():
-                for field, value in branch_data.items():
-                    if field not in global_aggregated.keys() and field != "depth":
-                        global_aggregated[field] = []
-                    if field != "depth":
-                        global_aggregated[field].append(value)
+            layer_aggregated = self._aggregate_stat_values(layer_data.values())
+            for field, values in layer_aggregated.items():
+                if field not in global_aggregated:
+                    global_aggregated[field] = []
+                global_aggregated[field].extend(values)
 
-        global_statistics = {}
-        for field, values in global_aggregated.items():
-            data_tensor = torch.tensor(values)
-            global_statistics[f"{field}_mean"] = data_tensor.mean().item()
-            global_statistics[f"{field}_std"] = data_tensor.std(correction=0).item()
-        return global_statistics
+        return self._summarize_aggregated_values(global_aggregated, {})
 
     def _layer_branch_aggregation(
         self, branch_statistics: dict[str, dict[int, dict[str, float]]]
@@ -462,23 +592,26 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
         """Compute layer statistics from branch statistics."""
         layer_statistics = {}
         for layer_key, layer_data in branch_statistics.items():
-            layer_aggregated: dict[str, list[float]] = {}
-
+            layer_aggregated = self._aggregate_stat_values(layer_data.values())
             for branch_data in layer_data.values():
-                for field, value in branch_data.items():
-                    if field not in layer_aggregated.keys() and field != "depth":
-                        layer_aggregated[field] = []
-                    if field != "depth":
-                        layer_aggregated[field].append(value)
-
-            layer_stats = {"depth": branch_data["depth"]}
-            for field, values in layer_aggregated.items():
-                data_tensor = torch.tensor(values)
-                layer_stats[f"{field}_mean"] = data_tensor.mean().item()
-                layer_stats[f"{field}_std"] = data_tensor.std(correction=0).item()
+                depth = branch_data["depth"]
+            layer_stats = self._summarize_aggregated_values(
+                layer_aggregated,
+                {"depth": depth},
+            )
 
             layer_statistics[layer_key] = layer_stats
         return layer_statistics
+
+    def _aggregate_stat_values(self, records) -> dict[str, list[float]]:
+        return _aggregate_non_depth_values(records)
+
+    def _summarize_aggregated_values(
+        self,
+        aggregated_values: dict[str, list[float]],
+        stats_dict: dict[str, float],
+    ) -> dict[str, float]:
+        return _summarize_population_values(aggregated_values, stats_dict)
 
     def analyze(
         self,
@@ -491,25 +624,31 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
         runtime: Optional[EvaluationRuntimeConfig] = None,
     ):
         """
-        Perform comprehensive weight analysis including global and hierarchical statistics.
+        Perform compartment SNR analysis with optional hierarchical summaries.
 
         Args:
-            model: The model to analyze (must have ExcitationInhibitionNetwork)
-            save_path: Path to save results (optional)
-            filename: Filename for saved results
+            model: Classifier whose core contains DendriticBranchLayer modules.
+                The optional network input-capture mode is only available for
+                explicit ExcitationInhibitionNetwork cores.
+            test_dataset: Dataset used to collect activations and labels.
+            device: Device for analysis execution.
+            save_path: Path to save results (optional).
+            filename: Filename for saved results.
             training: If True, only save data (no plots). If False, generate plots.
+            runtime: Optional evaluation/runtime controls for dataset materialization.
 
         Returns:
-            Dictionary containing all weight analysis results
+            Dictionary containing compartment SNR analysis results.
         """
-        try:
-            assert isinstance(model.core_network, ExcitationInhibitionNetwork)
-        except AssertionError:
+        core_network = getattr(model, "core_network", model)
+        if not any(iter_named_modules_of_type(core_network, DendriticBranchLayer)):
+            self.logger.warning(
+                "Skipping SNR analysis: model has no DendriticBranchLayer modules"
+            )
             return None
 
-        try:
-            assert isinstance(model, Classifier)
-        except AssertionError:
+        if not isinstance(model, Classifier):
+            self.logger.warning("Skipping SNR analysis: model is not a Classifier")
             return None
 
         start_time = time.time()
@@ -624,17 +763,10 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
         Returns:
             Dictionary with same structure but empty lists at leaf nodes
         """
-        agg_structure = {}
-        for key, value in data.items():
-            if isinstance(value, dict):
-                agg_structure[key] = self._initialize_agg_structure(value)
-            else:
-                # Leaf node - initialize as empty list
-                if key == "depth":
-                    agg_structure[key] = data[key]
-                else:
-                    agg_structure[key] = []
-        return agg_structure
+        return initialize_epoch_aggregation_structure(
+            data,
+            preserved_leaf_keys={"depth"},
+        )
 
     def _populate_agg_dict(self, agg_dict: dict, epoch_data: dict):
         """
@@ -644,61 +776,14 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
             agg_dict: The aggregate dictionary to populate (modified in place)
             epoch_data: The epoch data dictionary to extract values from
         """
-        for key, value in epoch_data.items():
-            if isinstance(value, dict):
-                if key in agg_dict:
-                    self._populate_agg_dict(agg_dict[key], value)
-            else:
-                # Leaf node - append value to list
-                if key in agg_dict and key != "depth":
-                    agg_dict[key].append(value)
+        populate_epoch_aggregation(
+            agg_dict,
+            epoch_data,
+            preserved_leaf_keys={"depth"},
+        )
 
     def load_epochs_data(self, save_path: str):
-        training_path = os.path.join(save_path, "epochs")
-
-        if not os.path.exists(training_path):
-            return None, None
-
-        agg_dict_initialized = False
-        agg_dict = {}
-
-        # Collect all epoch files and sort by epoch number
-        epoch_files = []
-        for filename in os.listdir(training_path):
-            # Check if file matches the "epoch#" naming convention
-            if filename.startswith("epoch") and filename.endswith(".json"):
-                # Extract the number part (everything between "epoch" and ".json")
-                epoch_number_str = filename[
-                    5:-5
-                ]  # Remove "epoch" prefix and ".json" suffix
-                try:
-                    epoch_number = int(epoch_number_str)
-                    epoch_files.append((epoch_number, filename))
-                except ValueError:
-                    # Skip files that don't have numeric epoch numbers
-                    continue
-
-        # Sort by epoch number to process in order
-        epoch_files.sort(key=lambda x: x[0])
-
-        # Iterate through epoch files in sorted order
-        epoch_numbers = []
-        for epoch_number, filename in epoch_files:
-            epoch_numbers.append(epoch_number)
-            # Load the JSON file
-            file_path = os.path.join(training_path, filename)
-            with open(file_path) as f:
-                epoch_data = json.load(f)
-
-            if not agg_dict_initialized:
-                # Initialize aggregate dictionary with same structure, empty lists at leaves
-                agg_dict = self._initialize_agg_structure(epoch_data)
-                agg_dict_initialized = True
-
-            # Populate aggregate dictionary by appending values from this epoch
-            self._populate_agg_dict(agg_dict, epoch_data)
-
-        return agg_dict, epoch_numbers
+        return load_epoch_aggregation(save_path, preserved_leaf_keys={"depth"})
 
 
 def plot_branch_analysis_global_agg_vs_training(

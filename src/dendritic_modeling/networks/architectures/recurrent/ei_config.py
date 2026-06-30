@@ -93,7 +93,7 @@ class PopulationConfig(BaseConfig):
     freeze_inhibitory_connectivity: bool = False
     init_method: str = "xavier_normal"
     weight_threshold: float = 1e-6
-    adaptive_initialization: bool = False
+    adaptive_initialization: bool = True
     adaptive_initialization_policy: str = "preserve_shunting_center"
     adaptive_target_conductance: float = 5.0
 
@@ -150,8 +150,6 @@ class PopulationConfig(BaseConfig):
     def __post_init__(self):
         if self.n_neurons <= 0:
             raise ValueError(f"n_neurons must be > 0, got {self.n_neurons}")
-        if not self.branch_factors:
-            raise ValueError("branch_factors must be non-empty")
         if any(b < 1 for b in self.branch_factors):
             raise ValueError(
                 f"branch_factors must all be >= 1, got {self.branch_factors}"

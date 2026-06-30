@@ -1,0 +1,76 @@
+import torch
+
+from dendritic_modeling.networks.architectures.replacement import (
+    LayerwiseTokenReplacementStack,
+    NonNegativeInputAdapter,
+    TokenReplacementCell,
+)
+from dendritic_modeling.networks.architectures.transformer import (
+    DendriticFFNReplacement,
+    LayerwiseEIStackReplacement,
+)
+
+
+def test_signed_split_adapter_maps_signed_features_to_nonnegative_channels():
+    adapter = NonNegativeInputAdapter(3, "signed_split")
+    x = torch.tensor([[-2.0, 0.0, 3.0]])
+
+    y = adapter(x)
+
+    assert y.shape == (1, 6)
+    assert torch.all(y >= 0)
+    assert torch.allclose(y, torch.tensor([[0.0, 0.0, 3.0, 2.0, 0.0, 0.0]]))
+
+
+def test_transformer_ffn_uses_shared_cell_without_state_dict_key_migration():
+    replacement = DendriticFFNReplacement(
+        hidden_size=4,
+        dendritic_units=3,
+        branch_factors=[1],
+        synapses_per_branch=2,
+        input_transform="signed_split",
+        topk_type="indexed",
+        indexed_seed=17,
+        use_shunting=False,
+    )
+
+    assert isinstance(replacement, TokenReplacementCell)
+    state_keys = set(replacement.state_dict())
+    assert "output_projection.weight" in state_keys
+    assert any(key.startswith("core.") for key in state_keys)
+    assert not any(key.startswith("cell.") for key in state_keys)
+
+    x = torch.randn(2, 5, 4)
+    adapted = replacement.encode_input(x)
+    y = replacement(x)
+
+    assert adapted.shape == (2, 5, 8)
+    assert torch.all(adapted >= 0)
+    assert y.shape == x.shape
+
+
+def test_layerwise_ei_stack_uses_shared_layerwise_cell_contract():
+    stack = LayerwiseEIStackReplacement(
+        hidden_size=4,
+        num_layers=2,
+        excitatory_cells=3,
+        inhibitory_cells=2,
+        excitatory_branch_factors=[1],
+        inhibitory_branch_factors=[1],
+        ee_synapses_per_branch=2,
+        ei_synapses_per_branch=1,
+        ie_synapses_per_branch=1,
+        ii_synapses_per_branch=1,
+        input_transform="signed_split",
+        topk_type="standard",
+        use_shunting=False,
+    )
+
+    assert isinstance(stack, LayerwiseTokenReplacementStack)
+    x = torch.randn(2, 5, 4)
+    adapted = stack.encode_layer_input(1, x)
+    y = stack.forward_layer(1, x)
+
+    assert adapted.shape == (2, 5, 8)
+    assert torch.all(adapted >= 0)
+    assert y.shape == x.shape

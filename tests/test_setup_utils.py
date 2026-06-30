@@ -22,6 +22,9 @@ from dendritic_modeling.networks.architectures.classical.pathway_router import (
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer import (
     DendriticBranchLayer,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed import (
+    IndexedRewireLinear,
+)
 from dendritic_modeling.networks.architectures.factory import get_architecture
 from dendritic_modeling.scripts.script_utils.config_utils import (
     canonicalize_model_core_flags,
@@ -284,7 +287,7 @@ def test_initialize_model_accepts_typed_point_mlp_config() -> None:
     assert model.core_network.output_dim == 32
 
 
-def test_standard_mnist_uses_develop_scale_shunting_init_by_default() -> None:
+def test_population_feedforward_example_uses_modern_sparse_defaults() -> None:
     cfg = load_config("configs/examples/population_network_feedforward.yaml")
 
     torch.manual_seed(0)
@@ -297,10 +300,13 @@ def test_standard_mnist_uses_develop_scale_shunting_init_by_default() -> None:
         and getattr(module, "branch_excitation", None) is not None
         and "populations.e.branch_layers.0" in name
     )
-    assert first_branch.adaptive_initialization is False
-    assert first_branch.branch_excitation.weight().mean().item() == pytest.approx(
-        0.693, rel=0.05
-    )
+    assert first_branch.adaptive_initialization is True
+    assert first_branch.adaptive_initialization_policy == "preserve_shunting_center"
+    assert first_branch.efficient_blocklinear is True
+    assert isinstance(first_branch.branch_excitation, IndexedRewireLinear)
+    candidate_weights = first_branch.branch_excitation.sparse_weight()
+    assert torch.isfinite(candidate_weights).all()
+    assert candidate_weights.min().item() > 0.0
     assert first_branch.reactivation.b.mean().item() == pytest.approx(0.478, rel=0.05)
 
 

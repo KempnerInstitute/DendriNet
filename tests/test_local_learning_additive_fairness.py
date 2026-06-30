@@ -120,6 +120,108 @@ def _run_local_update(
     return exc_grad, inh_grad, den_grad
 
 
+def test_topk_voltage_homeostasis_helper_matches_legacy_formula() -> None:
+    """Shared TopK homeostasis helper should preserve old per-path formulas."""
+    trainer = _make_trainer(dynamics_mode="conductance")
+    trainer.local_cfg.voltage_homeostasis.enabled = True
+    trainer.local_cfg.voltage_homeostasis.weight = 2.0
+    trainer.local_cfg.voltage_homeostasis.target_voltage = 0.25
+
+    v_n = torch.tensor([[0.1, 0.4], [0.3, -0.2]], dtype=torch.float32)
+    x_pre = torch.tensor([[0.5, -0.1, 0.2], [0.7, 0.3, -0.4]], dtype=torch.float32)
+    r_tot = torch.tensor([[0.8, 1.2], [0.5, 1.5]], dtype=torch.float32)
+
+    conductance_grad = trainer._compute_topk_voltage_homeostasis_grad(
+        v_n=v_n,
+        x_pre=x_pre,
+        r_tot=r_tot,
+        layer_dynamics_mode="conductance",
+        batch_size=v_n.size(0),
+        conductance_reversal=1.1,
+        additive_sign=1.0,
+    )
+    voltage_error = 2.0 * (0.25 - v_n)
+    expected_conductance = (voltage_error * r_tot * (1.1 - v_n)).t() @ x_pre
+    expected_conductance = expected_conductance / float(v_n.size(0))
+    torch.testing.assert_close(conductance_grad, expected_conductance)
+
+    additive_grad = trainer._compute_topk_voltage_homeostasis_grad(
+        v_n=v_n,
+        x_pre=x_pre,
+        r_tot=r_tot,
+        layer_dynamics_mode="additive",
+        batch_size=v_n.size(0),
+        conductance_reversal=0.0,
+        additive_sign=-1.0,
+    )
+    expected_additive = (-voltage_error).t() @ x_pre / float(v_n.size(0))
+    torch.testing.assert_close(additive_grad, expected_additive)
+
+    trainer.local_cfg.voltage_homeostasis.enabled = False
+    assert (
+        trainer._compute_topk_voltage_homeostasis_grad(
+            v_n=v_n,
+            x_pre=x_pre,
+            r_tot=r_tot,
+            layer_dynamics_mode="conductance",
+            batch_size=v_n.size(0),
+            conductance_reversal=1.1,
+            additive_sign=1.0,
+        )
+        is None
+    )
+
+
+def test_local_rule_gradient_dispatch_passes_records_in_order(monkeypatch) -> None:
+    """Batch-level local-rule dispatch should preserve per-record call context."""
+    trainer = _make_trainer(dynamics_mode="additive")
+    records = [
+        {"v_n": torch.zeros(2, 2)},
+        {"v_n": torch.zeros(2, 3)},
+    ]
+    v0 = torch.zeros(2, 2)
+    delta = torch.tensor([[0.2, -0.1], [0.4, 0.3]], dtype=torch.float32)
+    y_target = torch.tensor([0, 1])
+    model = object()
+    broadcast_state = object()
+    captured = []
+
+    def fake_prepare(**kwargs):
+        assert kwargs["model"] is model
+        assert kwargs["layer_records"] is records
+        assert kwargs["delta"] is delta
+        torch.testing.assert_close(
+            kwargs["delta_scalar"],
+            trainer._reduce_error_to_scalar(delta),
+        )
+        return broadcast_state
+
+    def fake_apply(**kwargs):
+        captured.append(kwargs)
+
+    monkeypatch.setattr(trainer, "_prepare_local_rule_broadcast_state", fake_prepare)
+    monkeypatch.setattr(trainer, "_apply_local_rule_record_gradients", fake_apply)
+
+    trainer._apply_local_rule_gradients(
+        model=model,
+        layer_records=records,
+        v0=v0,
+        delta=delta,
+        y_target=y_target,
+        update_reactivation=False,
+    )
+
+    assert [entry["rec"] for entry in captured] == records
+    assert [entry["layer_idx"] for entry in captured] == [0, 1]
+    assert [entry["num_layers"] for entry in captured] == [2, 2]
+    assert [entry["batch_size"] for entry in captured] == [2, 2]
+    assert all(entry["v0"] is v0 for entry in captured)
+    assert all(entry["delta"] is delta for entry in captured)
+    assert all(entry["broadcast_state"] is broadcast_state for entry in captured)
+    assert all(entry["y_target"] is y_target for entry in captured)
+    assert all(entry["update_reactivation"] is False for entry in captured)
+
+
 def test_additive_auto_uses_additive_derivatives() -> None:
     """Auto mode should use additive-consistent derivatives for additive layers."""
     torch.manual_seed(0)

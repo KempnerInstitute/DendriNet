@@ -16,6 +16,7 @@ from dendritic_modeling.utils.sparse_ops import (
     estimate_memory_usage,
     get_available_sparse_types,
     get_sparse_layer,
+    normalize_sparse_layer_type,
     register_sparse_layer,
 )
 
@@ -31,6 +32,29 @@ class TestSparseOps(unittest.TestCase):
         self.assertIn("variance", types)
         self.assertIsInstance(types, list)
 
+    def test_sparse_ops_preserves_layer_class_reexports(self):
+        """Legacy notebooks import sparse layer classes from sparse_ops."""
+        from dendritic_modeling.networks.architectures.excitation_inhibition.synapse import (
+            DenseToSparseLinear as SynapseDenseToSparseLinear,
+            IndexedDynamicTopKLinear as SynapseIndexedDynamicTopKLinear,
+            IndexedRewireLinear as SynapseIndexedRewireLinear,
+            IndexedSparseLinear as SynapseIndexedSparseLinear,
+            TopKLinear as SynapseTopKLinear,
+        )
+        from dendritic_modeling.utils.sparse_ops import (
+            DenseToSparseLinear,
+            IndexedDynamicTopKLinear,
+            IndexedRewireLinear,
+            IndexedSparseLinear,
+            TopKLinear as SparseOpsTopKLinear,
+        )
+
+        self.assertIs(IndexedSparseLinear, SynapseIndexedSparseLinear)
+        self.assertIs(IndexedDynamicTopKLinear, SynapseIndexedDynamicTopKLinear)
+        self.assertIs(IndexedRewireLinear, SynapseIndexedRewireLinear)
+        self.assertIs(DenseToSparseLinear, SynapseDenseToSparseLinear)
+        self.assertIs(SparseOpsTopKLinear, SynapseTopKLinear)
+
     def test_get_sparse_layer_standard(self):
         """Test creating standard sparse layer."""
         layer = get_sparse_layer("standard", 10, 5, 3)
@@ -38,6 +62,23 @@ class TestSparseOps(unittest.TestCase):
         self.assertEqual(layer.in_features, 10)
         self.assertEqual(layer.out_features, 5)
         self.assertEqual(layer.K, 3)
+
+    def test_sparse_layer_aliases_normalize_to_registry_keys(self):
+        """Public alias spellings should resolve before registry lookup."""
+        aliases = {
+            None: "standard",
+            "topk": "standard",
+            "indexed-dynamic": "indexed_dynamic",
+            "indexed_dynamic_topk": "indexed_dynamic",
+            "indexed-rewire": "indexed_rewire",
+            "indexed_rewire_topk": "indexed_rewire",
+            "dense-to-sparse": "dense_to_sparse",
+            "dense_to_sparse_topk": "dense_to_sparse",
+            "annealed-topk": "dense_to_sparse",
+        }
+
+        for alias, expected in aliases.items():
+            self.assertEqual(normalize_sparse_layer_type(alias), expected)
 
     def test_get_sparse_layer_stochastic(self):
         """Test creating stochastic sparse layer."""
@@ -162,10 +203,38 @@ class TestAbstractAnalyzer(unittest.TestCase):
         """Test that concrete analyzers inherit from AbstractAnalyzer."""
         from dendritic_modeling.analysis.core.ablation import AblationAnalyzer
         from dendritic_modeling.analysis.core.base import AbstractAnalyzer
+        from dendritic_modeling.analysis.core.branch_activation import (
+            BranchActivationAnalyzer,
+        )
         from dendritic_modeling.analysis.core.information import InformationAnalyzer
+        from dendritic_modeling.analysis.metrics.adversarial_robustness import (
+            AdversarialRobustnessAnalyzer,
+        )
+        from dendritic_modeling.analysis.metrics.layer_contribution import (
+            SingleLayerContributionAnalyzer,
+        )
+        from dendritic_modeling.analysis.metrics.noise_perturbation import (
+            NoisePerturbationAnalyzer,
+        )
+        from dendritic_modeling.analysis.metrics.performance import PerformanceAnalyzer
+        from dendritic_modeling.analysis.tools.synaptic_activation import (
+            SynapticActivationAnalyzer,
+        )
+        from dendritic_modeling.analysis.tools.synaptic_pruning import (
+            SynapticPruningAnalyzer,
+        )
+        from dendritic_modeling.analysis.tools.synaptic_turnover import (
+            SynapticTurnoverAnalyzer,
+        )
         from dendritic_modeling.config.analysis import (
             AblationAnalysisParams,
+            AdversarialRobustnessAnalysisParams,
+            BranchActivationAnalysisParams,
             InformationAnalysisParams,
+            NoisePerturbationAnalysisParams,
+            PerformanceAnalysisParams,
+            SingleLayerContributionAnalysisParams,
+            SynapticActivationAnalysisParams,
         )
 
         # Test AblationAnalyzer
@@ -181,6 +250,50 @@ class TestAbstractAnalyzer(unittest.TestCase):
         self.assertIsInstance(info_analyzer, AbstractAnalyzer)
         self.assertTrue(hasattr(info_analyzer, "save_results"))
         self.assertTrue(hasattr(info_analyzer, "logger"))
+
+        # Test hook-based analyzers
+        branch_analyzer = BranchActivationAnalyzer(BranchActivationAnalysisParams())
+        self.assertIsInstance(branch_analyzer, AbstractAnalyzer)
+        self.assertTrue(hasattr(branch_analyzer, "save_results"))
+        self.assertTrue(hasattr(branch_analyzer, "logger"))
+
+        synaptic_analyzer = SynapticActivationAnalyzer(
+            SynapticActivationAnalysisParams()
+        )
+        self.assertIsInstance(synaptic_analyzer, AbstractAnalyzer)
+        self.assertTrue(hasattr(synaptic_analyzer, "save_results"))
+        self.assertTrue(hasattr(synaptic_analyzer, "logger"))
+
+        # Test metric analyzers
+        metric_analyzers = [
+            PerformanceAnalyzer(PerformanceAnalysisParams()),
+            NoisePerturbationAnalyzer(NoisePerturbationAnalysisParams()),
+            AdversarialRobustnessAnalyzer(AdversarialRobustnessAnalysisParams()),
+            SingleLayerContributionAnalyzer(SingleLayerContributionAnalysisParams()),
+        ]
+        for analyzer in metric_analyzers:
+            self.assertIsInstance(analyzer, AbstractAnalyzer)
+            self.assertTrue(hasattr(analyzer, "save_results"))
+            self.assertTrue(hasattr(analyzer, "logger"))
+
+        # Test training-state analyzers on unsupported minimal models so no
+        # synaptic snapshot traversal runs during the interface check.
+        from types import SimpleNamespace
+
+        unsupported_model = SimpleNamespace(core_network=None)
+        turnover_params = SimpleNamespace(snapshot_interval=1)
+        turnover_analyzer = SynapticTurnoverAnalyzer(
+            unsupported_model,
+            turnover_params,
+        )
+        self.assertIsInstance(turnover_analyzer, AbstractAnalyzer)
+        self.assertTrue(hasattr(turnover_analyzer, "save_results"))
+        self.assertTrue(hasattr(turnover_analyzer, "logger"))
+
+        pruning_analyzer = SynapticPruningAnalyzer(unsupported_model)
+        self.assertIsInstance(pruning_analyzer, AbstractAnalyzer)
+        self.assertTrue(hasattr(pruning_analyzer, "save_results"))
+        self.assertTrue(hasattr(pruning_analyzer, "logger"))
 
 
 class TestConfigCaching(unittest.TestCase):

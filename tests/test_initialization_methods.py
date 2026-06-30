@@ -17,6 +17,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.i
     _compute_expectation_truncated_softplus,
     _expected_weight_for_transform,
     calibrate_reactivation_from_data,
+    collect_model_data_driven_reactivation_policies,
     compute_expectation_truncated_log_normal,
     compute_network_scale_factor,
 )
@@ -64,6 +65,31 @@ def test_quantile_reactivation_policy_warns_and_normalizes():
         policy = init_mod.normalize_reactivation_init_policy("quantile")
 
     assert policy == "occupancy_quantile"
+
+
+def test_collect_model_data_driven_reactivation_policies_reports_policy_presence():
+    class PolicyLayer(torch.nn.Module):
+        def __init__(self, policy):
+            super().__init__()
+            self.reactivation_init_policy = policy
+
+    model = torch.nn.Sequential(
+        PolicyLayer("fixed"),
+        PolicyLayer("occupancy_quantile"),
+        PolicyLayer("empirical"),
+    )
+
+    requested, saw_policy = collect_model_data_driven_reactivation_policies(model)
+
+    assert requested == {"occupancy_quantile", "empirical"}
+    assert saw_policy is True
+    assert collect_model_data_driven_reactivation_policies(torch.nn.Sequential()) == (
+        set(),
+        False,
+    )
+    assert collect_model_data_driven_reactivation_policies(
+        torch.nn.Sequential(PolicyLayer("fixed"))
+    ) == (set(), True)
 
 
 # ---------------------------------------------------------------------------
@@ -352,6 +378,7 @@ class TestEmpiricalCalibration:
                 reactivation_init_policy="analytical",
                 reactivation_sigma_aware_k=0.25,
                 dbl_init_method="analytical_expectation",
+                adaptive_initialization=False,
                 weight_transform="softplus",
             )
 
@@ -472,6 +499,48 @@ class TestEmpiricalCalibration:
             b_before, rel=1e-6
         )
 
+    def test_calibration_diagnostics_preserve_branch_layer_order(self):
+        """Diagnostics should follow module traversal order for eligible layers."""
+        torch.manual_seed(0)
+        first = DendriticBranchLayer(
+            output_dim=8,
+            excitatory_input_dim=20,
+            excitatory_synapses_per_branch=5,
+            use_shunting=True,
+            reactivate=True,
+            reactivation_type="param_tanh",
+            reactivation_init_policy="occupancy_quantile",
+        )
+        second = DendriticBranchLayer(
+            output_dim=4,
+            excitatory_input_dim=8,
+            excitatory_synapses_per_branch=2,
+            use_shunting=True,
+            reactivate=True,
+            reactivation_type="param_tanh",
+            reactivation_init_policy="occupancy_quantile",
+        )
+
+        class Wrapper(torch.nn.Module):
+            def __init__(self, layer1, layer2):
+                super().__init__()
+                self.first = layer1
+                self.unrelated = torch.nn.Identity()
+                self.second = layer2
+
+            def forward(self, x):
+                x = self.first(x)
+                x = self.unrelated(x)
+                return self.second(x)
+
+        model = Wrapper(first, second)
+        batches = [torch.rand(32, 20) for _ in range(2)]
+
+        diag = calibrate_reactivation_from_data(model, batches, mode=None)
+
+        assert list(diag) == ["first", "second"]
+        assert all(stats["n"] > 0 for stats in diag.values())
+
     def test_maybe_calibrate_uses_per_layer_mode_when_top_level_missing(self):
         """Launcher helper should preserve per-layer policy boundaries."""
 
@@ -509,6 +578,84 @@ class TestEmpiricalCalibration:
 
         mock_calibrate.assert_called_once()
         assert mock_calibrate.call_args.kwargs["mode"] is None
+
+    def test_maybe_calibrate_tunes_loader_for_lazy_dataset(self, monkeypatch):
+        """Init calibration should use worker loading for lazy image/file data."""
+
+        class DummyCore:
+            pass
+
+        class DummyModelCfg:
+            core = DummyCore()
+
+        class DummyCommon:
+            num_workers = None
+            pin_memory = None
+            persistent_workers = None
+            prefetch_factor = None
+
+        class DummyMain:
+            common = DummyCommon()
+
+        class DummyTraining:
+            main = DummyMain()
+
+        class DummyConfig:
+            model = DummyModelCfg()
+            training = DummyTraining()
+
+        class PolicyModule(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.reactivation_init_policy = "quantile"
+                self.weight = torch.nn.Parameter(torch.zeros(1))
+
+        class LazyDataset(torch.utils.data.Dataset):
+            def __len__(self):
+                return 16
+
+            def __getitem__(self, idx):
+                return torch.zeros(4), torch.tensor(idx % 2)
+
+        recorded_kwargs = {}
+
+        class RecordingDataLoader:
+            def __init__(self, dataset, **kwargs):
+                del dataset
+                recorded_kwargs.update(kwargs)
+
+            def __iter__(self):
+                yield torch.zeros(4, 4), torch.zeros(4, dtype=torch.long)
+
+        monkeypatch.setattr(
+            "dendritic_modeling.training.dataloader_utils.visible_cpu_count",
+            lambda: 4,
+        )
+        monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+        monkeypatch.setattr(
+            "dendritic_modeling.scripts.training.train_experiments.DataLoader",
+            RecordingDataLoader,
+        )
+
+        with patch(
+            "dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize.calibrate_reactivation_from_data"
+        ) as mock_calibrate:
+            mock_calibrate.return_value = {"layer": {"m": 1.0, "b": 0.0, "V_std": 1.0}}
+            _maybe_calibrate_data_driven_reactivation(
+                config=DummyConfig(),
+                model=PolicyModule(),
+                train_dataset=LazyDataset(),
+                is_main=False,
+                n_batches=1,
+                batch_size=4,
+                n_iterations=1,
+            )
+
+        mock_calibrate.assert_called_once()
+        assert recorded_kwargs["num_workers"] == 3
+        assert recorded_kwargs["pin_memory"] is False
+        assert recorded_kwargs["persistent_workers"] is True
+        assert "prefetch_factor" not in recorded_kwargs
 
     def test_maybe_calibrate_ignores_stale_config_when_layer_policies_exist(self):
         """Built module policies should override stale YAML-level init policy."""

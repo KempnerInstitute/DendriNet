@@ -116,7 +116,7 @@ class InformationPlotter(BasePlotter):
                     self._create_information_plots_1d_sweep(
                         data=data,
                         sweep_var="max_gain_factor",
-                        var_name="Max Gain Factor",
+                        var_name="Maximum Gain",
                         logscale=True,
                         output_dir=info_dir,
                     )
@@ -202,7 +202,7 @@ class InformationPlotter(BasePlotter):
             sweep_var=sweep_var,
             var_name=var_name,
             logscale=logscale,
-            output_dir=output_dir,
+            output_dir=output_dir / "aggregate_plots",
         )
         if panel_path:
             plot_paths.append(panel_path)
@@ -214,7 +214,7 @@ class InformationPlotter(BasePlotter):
                 sweep_var=sweep_var,
                 var_name=var_name,
                 logscale=logscale,
-                output_dir=output_dir,
+                output_dir=output_dir / "aggregate_plots",
             )
         )
 
@@ -240,6 +240,17 @@ class InformationPlotter(BasePlotter):
                     plots_dir=output_dir,
                 )
             )
+
+        # Generate new style information plots
+        plot_paths.extend(
+            self._generate_new_style_information_plots_1d_sweep(
+                valid_data=data,
+                sweep_var=sweep_var,
+                var_name=var_name,
+                logscale=logscale,
+                plots_dir=output_dir,
+            )
+        )
 
         return plot_paths
 
@@ -1241,6 +1252,810 @@ class InformationPlotter(BasePlotter):
         print(
             f"Created {len(plot_paths)} information theory plots (global + layer-specific + heatmaps)"
         )
+        return plot_paths
+
+    def _generate_new_style_information_plots_1d_sweep(
+        self,
+        valid_data: pd.DataFrame,
+        sweep_var: str,
+        var_name: str,
+        logscale: bool,
+        plots_dir: Path,
+    ) -> list[str]:
+        plot_paths = []
+
+        info_plot_dir = plots_dir / "new_style_info_plots"
+
+        plot_paths.extend(
+            self._plot_new_style_class_info_by_layer(
+                valid_data=valid_data,
+                sweep_var=sweep_var,
+                var_name=var_name,
+                logscale=logscale,
+                plots_dir=info_plot_dir / "class_information",
+            )
+        )
+
+        plot_paths.extend(
+            self._plot_new_style_component_info_by_layer(
+                valid_data=valid_data,
+                sweep_var=sweep_var,
+                var_name=var_name,
+                logscale=logscale,
+                plots_dir=info_plot_dir / "component_information",
+            )
+        )
+
+        plot_paths.extend(
+            self._plot_new_style_conditional_info_by_layer(
+                valid_data=valid_data,
+                sweep_var=sweep_var,
+                var_name=var_name,
+                logscale=logscale,
+                plots_dir=info_plot_dir / "conditional_information",
+            )
+        )
+
+        plot_paths.extend(
+            self._plot_new_style_coinfo_by_layer(
+                valid_data=valid_data,
+                sweep_var=sweep_var,
+                var_name=var_name,
+                logscale=logscale,
+                plots_dir=info_plot_dir / "interaction_information",
+            )
+        )
+
+        plot_paths.extend(
+            self._plot_new_style_total_info_panels(
+                valid_data=valid_data,
+                sweep_var=sweep_var,
+                var_name=var_name,
+                logscale=logscale,
+                plots_dir=info_plot_dir / "total_information",
+            )
+        )
+
+        plot_paths.extend(
+            self._plot_new_style_soma_info(
+                valid_data=valid_data,
+                sweep_var=sweep_var,
+                var_name=var_name,
+                logscale=logscale,
+                plots_dir=info_plot_dir,
+            )
+        )
+
+        return plot_paths
+
+    def _plot_new_style_total_info_panels(
+        self,
+        valid_data: pd.DataFrame,
+        sweep_var: str,
+        var_name: str,
+        logscale: bool,
+        plots_dir: Path,
+    ) -> list[Path]:
+        """
+        Two 2x3 figures: one subplot per ``network_category`` (dendritic/flat x shunting/additive/signed).
+        Uses aggregate ``mi_*_mean`` columns, matching ``plot_metric_groups_1d_sweep``
+        (groupby sweep, mean). Interaction terms: I(X;Y;C) = I(X;Y) - I(X;Y|C).
+        """
+        plot_paths: list[Path] = []
+        plots_dir.mkdir(parents=True, exist_ok=True)
+
+        if (
+            sweep_var not in valid_data.columns
+            or "network_category" not in valid_data.columns
+        ):
+            return plot_paths
+
+        layout: list[tuple[str, int, int]] = [
+            ("dendritic_shunting", 0, 0),
+            ("flat_shunting", 1, 0),
+            ("dendritic_additive", 0, 1),
+            ("flat_additive", 1, 1),
+            ("dendritic_signed", 0, 2),
+            ("flat_signed", 1, 2),
+        ]
+
+        def grouped_metric(cat_df: pd.DataFrame, metric: str) -> pd.Series | None:
+            col = f"{metric}_mean"
+            if col not in cat_df.columns:
+                return None
+            s = cat_df.groupby(sweep_var)[col].mean().sort_index()
+            return s if not s.empty else None
+
+        def coinfo_series(
+            cat_df: pd.DataFrame, mi_xy: str, mi_xy_given_c: str
+        ) -> pd.Series | None:
+            s_xy = grouped_metric(cat_df, mi_xy)
+            s_c = grouped_metric(cat_df, mi_xy_given_c)
+            if s_xy is None or s_c is None:
+                return None
+            idx = s_xy.index.intersection(s_c.index)
+            if len(idx) == 0:
+                return None
+            return (s_xy.loc[idx] - s_c.loc[idx]).sort_index()
+
+        def plot_series_on_ax(
+            ax: plt.Axes,
+            series: pd.Series | None,
+            label: str,
+            color: str,
+        ) -> None:
+            if series is None or series.empty:
+                return
+            ax.plot(
+                series.index,
+                series.values,
+                marker="o",
+                color=color,
+                label=label,
+                linewidth=2,
+                markersize=5,
+            )
+
+        def fill_figure(
+            fig: plt.Figure,
+            axes: np.ndarray,
+            series_specs: list[tuple[str, str, str | None, str]],
+            *,
+            suptitle: str,
+            ylabel: str,
+            show_zero_line: bool,
+        ) -> None:
+            # (legend_label, mi_xy, mi_xy_given_c or None, color)
+            for category, row, col in layout:
+                ax = axes[row, col]
+                cat_df = valid_data[valid_data["network_category"] == category]
+
+                if cat_df.empty:
+                    ax.text(
+                        0.5,
+                        0.5,
+                        f"No {category} data",
+                        ha="center",
+                        va="center",
+                        transform=ax.transAxes,
+                    )
+                else:
+                    for lbl, m_xy, m_given, color in series_specs:
+                        if m_given is not None:
+                            s = coinfo_series(cat_df, m_xy, m_given)
+                        else:
+                            s = grouped_metric(cat_df, m_xy)
+                        plot_series_on_ax(ax, s, lbl, color)
+
+                if show_zero_line:
+                    ax.axhline(
+                        y=0, color="gray", linestyle="--", alpha=0.45, linewidth=1
+                    )
+
+                self.setup_axes_style(
+                    ax=ax,
+                    xlabel=var_name if row == 1 else None,
+                    ylabel=ylabel,
+                    title=category.replace("_", " ").title(),
+                    use_log_x=logscale,
+                    grid=True,
+                )
+                ax.legend(fontsize=8, loc="best")
+
+            fig.suptitle(suptitle, fontsize=16)
+            fig.tight_layout(rect=[0, 0, 1, 0.96])
+
+        comp_colors = self.METRIC_GROUPS["component_information"]["colors"]
+        # E-V: cyan/teal (light = pairwise MI, dark = interaction); contrasts with I-V magenta/purple.
+        ev_pair_light = "#5DCEC4"
+        ev_pair_dark = "#004D52"
+        # E-I: amber/rust (light/dark), distinct from cyan (E-V) and purple (I-V).
+        ei_pair_light = "#FFCA70"
+        ei_pair_dark = "#A82A00"
+
+        # Figure 1: I(E;V), I(E;V;C), I(I;V), I(I;V;C)
+        need_ev = "mi_E_V_mean" in valid_data.columns
+        need_iv = "mi_I_V_mean" in valid_data.columns
+        if need_ev or need_iv:
+            fig1, axes1 = plt.subplots(2, 3, figsize=(21, 9))
+            specs_f1: list[tuple[str, str, str | None, str]] = [
+                ("I(E;V)", "mi_E_V", None, ev_pair_light),
+                ("I(E;V;C)", "mi_E_V", "mi_E_V_given_C", ev_pair_dark),
+                ("I(I;V)", "mi_I_V", None, comp_colors[2]),
+                ("I(I;V;C)", "mi_I_V", "mi_I_V_given_C", "#4A148C"),
+            ]
+            fill_figure(
+                fig1,
+                axes1,
+                specs_f1,
+                suptitle=(f"E-V and I-V Information vs {var_name}"),
+                ylabel="Information (bits)",
+                show_zero_line=True,
+            )
+            p1 = plots_dir / f"total_EV_IV_panels_{sweep_var}.png"
+            plot_paths.append(self.save_figure(fig1, p1))
+
+        # Figure 2: I(E;I), I(E;I;C)
+        if "mi_E_I_mean" in valid_data.columns:
+            fig2, axes2 = plt.subplots(2, 3, figsize=(21, 9))
+            specs_f2: list[tuple[str, str, str | None, str]] = [
+                ("I(E;I)", "mi_E_I", None, ei_pair_light),
+                ("I(E;I;C)", "mi_E_I", "mi_E_I_given_C", ei_pair_dark),
+            ]
+            fill_figure(
+                fig2,
+                axes2,
+                specs_f2,
+                suptitle=(f"E-I Information vs {var_name}"),
+                ylabel="Information (bits)",
+                show_zero_line=True,
+            )
+            p2 = plots_dir / f"total_EI_panels_{sweep_var}.png"
+            plot_paths.append(self.save_figure(fig2, p2))
+
+        return plot_paths
+
+    def _plot_new_style_soma_info(
+        self,
+        valid_data: pd.DataFrame,
+        sweep_var: str,
+        var_name: str,
+        logscale: bool,
+        plots_dir: Path,
+    ) -> list[Path]:
+        """
+        Analogous to SNR ``_create_soma_snr_plots_1d_sweep``: one panel, all categories,
+        error bars; y = I(V;C) at soma / layer 0 only (``layer_mi_V_C_depth0``).
+        """
+        plot_paths: list[Path] = []
+        y_col = "layer_mi_V_C_depth0"
+
+        if f"{y_col}_mean" not in valid_data.columns:
+            return plot_paths
+        if (
+            sweep_var not in valid_data.columns
+            or "network_category" not in valid_data.columns
+        ):
+            return plot_paths
+
+        fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+        fig.suptitle(
+            f"Soma Information: I(V;C) vs {var_name}",
+            fontsize=16,
+        )
+        self.plot_by_category(
+            ax=ax,
+            data=valid_data,
+            x_col=sweep_var,
+            y_col=y_col,
+            category_col="network_category",
+            show_error=True,
+        )
+        self.setup_axes_style(
+            ax=ax,
+            xlabel=var_name,
+            ylabel="I(V;C) (bits)",
+            use_log_x=logscale,
+            grid=True,
+        )
+        ax.legend(fontsize=10)
+        fig.tight_layout()
+
+        plot_path = plots_dir / f"soma_mi_V_C_vs_{sweep_var}.png"
+        plot_paths.append(self.save_figure(fig, plot_path))
+
+        return plot_paths
+
+    def _plot_new_style_class_info_by_layer(
+        self,
+        valid_data: pd.DataFrame,
+        sweep_var: str,
+        var_name: str,
+        logscale: bool,
+        plots_dir: Path,
+    ) -> list[Path]:
+        """
+        Ablation-style figures (1x2 shunting vs additive): one PNG per class metric,
+        each line is a layer depth (layer_mi_* columns).
+        """
+        plot_paths: list[Path] = []
+        plots_dir.mkdir(parents=True, exist_ok=True)
+        group_info = self.METRIC_GROUPS["class_information"]
+
+        if (
+            sweep_var not in valid_data.columns
+            or "network_category" not in valid_data.columns
+        ):
+            return plot_paths
+
+        if (
+            not valid_data["network_category"]
+            .isin(["dendritic_shunting", "dendritic_additive", "dendritic_signed"])
+            .any()
+        ):
+            return plot_paths
+
+        categories = ["dendritic_shunting", "dendritic_additive", "dendritic_signed"]
+
+        for metric, label in zip(group_info["metrics"], group_info["labels"]):
+            base_metric = metric.replace("mi_", "")
+            prefix = f"layer_mi_{base_metric}_depth"
+            depths: list[int] = []
+            for col in valid_data.columns:
+                if col.startswith(prefix) and col.endswith("_mean"):
+                    try:
+                        depth_str = col[len(prefix) : -len("_mean")]
+                        depths.append(int(depth_str))
+                    except ValueError:
+                        continue
+            depths = sorted(set(depths))
+            if not depths:
+                continue
+
+            cmap = plt.get_cmap("tab10")
+            depth_colors = {d: cmap(d / 9.0) for d in depths}
+
+            fig, axes = plt.subplots(1, 3, figsize=(21, 6))
+            fig.suptitle(
+                f"{group_info['title']}: {label} vs {var_name} by Layer",
+                fontsize=16,
+            )
+
+            depths.reverse()
+            for idx, category in enumerate(categories):
+                ax = axes[idx]
+                category_data = valid_data[valid_data["network_category"] == category]
+
+                if category_data.empty:
+                    ax.text(
+                        0.5,
+                        0.5,
+                        f"No {category} data",
+                        ha="center",
+                        va="center",
+                        transform=ax.transAxes,
+                    )
+                    ax.set_title(category.replace("_", " ").title())
+                    continue
+
+                for depth in depths:
+                    depth_col = f"layer_mi_{base_metric}_depth{depth}_mean"
+                    if depth_col not in category_data.columns:
+                        continue
+
+                    sorted_data = category_data.sort_values(sweep_var)
+                    plot_data = sorted_data[[depth_col, sweep_var]].dropna()
+                    if plot_data.empty:
+                        continue
+
+                    try:
+                        y_vals = pd.to_numeric(
+                            plot_data[depth_col], errors="coerce"
+                        ).dropna()
+                        x_vals = plot_data.loc[y_vals.index, sweep_var]
+                        if len(y_vals) > 0:
+                            ax.plot(
+                                x_vals,
+                                y_vals,
+                                marker="o",
+                                label=f"Layer {depth}",
+                                color=depth_colors[depth],
+                                alpha=0.8,
+                                linewidth=2,
+                            )
+                    except Exception as e:
+                        logger.warning(
+                            "Could not plot layer %s for %s: %s", depth, category, e
+                        )
+                        continue
+
+                self.setup_axes_style(
+                    ax=ax,
+                    xlabel=var_name,
+                    ylabel=group_info["ylabel"],
+                    title=category.replace("_", " ").title(),
+                    use_log_x=logscale,
+                    grid=True,
+                )
+                ax.legend()
+
+            fig.tight_layout()
+            plot_path = plots_dir / f"class_info_layer_{base_metric}_{sweep_var}.png"
+            plot_paths.append(self.save_figure(fig, plot_path))
+
+        return plot_paths
+
+    def _plot_new_style_component_info_by_layer(
+        self,
+        valid_data: pd.DataFrame,
+        sweep_var: str,
+        var_name: str,
+        logscale: bool,
+        plots_dir: Path,
+    ) -> list[Path]:
+        """
+        Ablation-style figures (1x2 shunting vs additive): one PNG per component metric,
+        each line is a layer depth.
+        """
+        plot_paths: list[Path] = []
+        plots_dir.mkdir(parents=True, exist_ok=True)
+        group_info = self.METRIC_GROUPS["component_information"]
+
+        if (
+            sweep_var not in valid_data.columns
+            or "network_category" not in valid_data.columns
+        ):
+            return plot_paths
+
+        if (
+            not valid_data["network_category"]
+            .isin(["dendritic_shunting", "dendritic_additive", "dendritic_signed"])
+            .any()
+        ):
+            return plot_paths
+
+        categories = ["dendritic_shunting", "dendritic_additive", "dendritic_signed"]
+
+        for metric, label in zip(group_info["metrics"], group_info["labels"]):
+            base_metric = metric.replace("mi_", "")
+            prefix = f"layer_mi_{base_metric}_depth"
+            depths: list[int] = []
+            for col in valid_data.columns:
+                if col.startswith(prefix) and col.endswith("_mean"):
+                    try:
+                        depth_str = col[len(prefix) : -len("_mean")]
+                        depths.append(int(depth_str))
+                    except ValueError:
+                        continue
+            depths = sorted(set(depths))
+            if not depths:
+                continue
+
+            cmap = plt.get_cmap("tab10")
+            depth_colors = {d: cmap(d / 9.0) for d in depths}
+
+            fig, axes = plt.subplots(1, 3, figsize=(21, 6))
+            fig.suptitle(
+                f"{group_info['title']}: {label} vs {var_name} by Layer",
+                fontsize=16,
+            )
+
+            depths.reverse()
+            for idx, category in enumerate(categories):
+                ax = axes[idx]
+                category_data = valid_data[valid_data["network_category"] == category]
+
+                if category_data.empty:
+                    ax.text(
+                        0.5,
+                        0.5,
+                        f"No {category} data",
+                        ha="center",
+                        va="center",
+                        transform=ax.transAxes,
+                    )
+                    ax.set_title(category.replace("_", " ").title())
+                    continue
+
+                for depth in depths:
+                    depth_col = f"layer_mi_{base_metric}_depth{depth}_mean"
+                    if depth_col not in category_data.columns:
+                        continue
+
+                    sorted_data = category_data.sort_values(sweep_var)
+                    plot_data = sorted_data[[depth_col, sweep_var]].dropna()
+                    if plot_data.empty:
+                        continue
+
+                    try:
+                        y_vals = pd.to_numeric(
+                            plot_data[depth_col], errors="coerce"
+                        ).dropna()
+                        x_vals = plot_data.loc[y_vals.index, sweep_var]
+                        if len(y_vals) > 0:
+                            ax.plot(
+                                x_vals,
+                                y_vals,
+                                marker="o",
+                                label=f"Layer {depth}",
+                                color=depth_colors[depth],
+                                alpha=0.8,
+                                linewidth=2,
+                            )
+                    except Exception as e:
+                        logger.warning(
+                            "Could not plot layer %s for %s: %s", depth, category, e
+                        )
+                        continue
+
+                self.setup_axes_style(
+                    ax=ax,
+                    xlabel=var_name,
+                    ylabel=group_info["ylabel"],
+                    title=category.replace("_", " ").title(),
+                    use_log_x=logscale,
+                    grid=True,
+                )
+                ax.legend()
+
+            fig.tight_layout()
+            plot_path = (
+                plots_dir / f"component_info_layer_{base_metric}_{sweep_var}.png"
+            )
+            plot_paths.append(self.save_figure(fig, plot_path))
+
+        return plot_paths
+
+    def _plot_new_style_conditional_info_by_layer(
+        self,
+        valid_data: pd.DataFrame,
+        sweep_var: str,
+        var_name: str,
+        logscale: bool,
+        plots_dir: Path,
+    ) -> list[Path]:
+        """
+        Ablation-style figures (1x2 shunting vs additive): one PNG per conditional metric,
+        each line is a layer depth.
+        """
+        plot_paths: list[Path] = []
+        plots_dir.mkdir(parents=True, exist_ok=True)
+        group_info = self.METRIC_GROUPS["conditional_information"]
+
+        if (
+            sweep_var not in valid_data.columns
+            or "network_category" not in valid_data.columns
+        ):
+            return plot_paths
+
+        if (
+            not valid_data["network_category"]
+            .isin(["dendritic_shunting", "dendritic_additive", "dendritic_signed"])
+            .any()
+        ):
+            return plot_paths
+
+        categories = ["dendritic_shunting", "dendritic_additive", "dendritic_signed"]
+
+        for metric, label in zip(group_info["metrics"], group_info["labels"]):
+            base_metric = metric.replace("mi_", "")
+            prefix = f"layer_mi_{base_metric}_depth"
+            depths: list[int] = []
+            for col in valid_data.columns:
+                if col.startswith(prefix) and col.endswith("_mean"):
+                    try:
+                        depth_str = col[len(prefix) : -len("_mean")]
+                        depths.append(int(depth_str))
+                    except ValueError:
+                        continue
+            depths = sorted(set(depths))
+            if not depths:
+                continue
+
+            cmap = plt.get_cmap("tab10")
+            depth_colors = {d: cmap(d / 9.0) for d in depths}
+
+            fig, axes = plt.subplots(1, 3, figsize=(21, 6))
+            fig.suptitle(
+                f"{group_info['title']}: {label} vs {var_name} by Layer",
+                fontsize=16,
+            )
+
+            depths.reverse()
+            for idx, category in enumerate(categories):
+                ax: plt.Axes = axes[idx]
+                category_data = valid_data[valid_data["network_category"] == category]
+
+                if category_data.empty:
+                    ax.text(
+                        0.5,
+                        0.5,
+                        f"No {category} data",
+                        ha="center",
+                        va="center",
+                        transform=ax.transAxes,
+                    )
+                    ax.set_title(category.replace("_", " ").title())
+                    continue
+
+                for depth in depths:
+                    depth_col = f"layer_mi_{base_metric}_depth{depth}_mean"
+                    if depth_col not in category_data.columns:
+                        continue
+
+                    sorted_data = category_data.sort_values(sweep_var)
+                    plot_data = sorted_data[[depth_col, sweep_var]].dropna()
+                    if plot_data.empty:
+                        continue
+
+                    try:
+                        y_vals = pd.to_numeric(
+                            plot_data[depth_col], errors="coerce"
+                        ).dropna()
+                        x_vals = plot_data.loc[y_vals.index, sweep_var]
+                        if len(y_vals) > 0:
+                            ax.plot(
+                                x_vals,
+                                y_vals,
+                                marker="o",
+                                label=f"Layer {depth}",
+                                color=depth_colors[depth],
+                                alpha=0.8,
+                                linewidth=2,
+                            )
+                    except Exception as e:
+                        logger.warning(
+                            "Could not plot layer %s for %s: %s", depth, category, e
+                        )
+                        continue
+
+                self.setup_axes_style(
+                    ax=ax,
+                    xlabel=var_name,
+                    ylabel=group_info["ylabel"],
+                    title=category.replace("_", " ").title(),
+                    use_log_x=logscale,
+                    grid=True,
+                )
+                ax.legend()
+
+            fig.tight_layout()
+            plot_path = (
+                plots_dir / f"conditional_info_layer_{base_metric}_{sweep_var}.png"
+            )
+            plot_paths.append(self.save_figure(fig, plot_path))
+
+        return plot_paths
+
+    def _plot_new_style_coinfo_by_layer(
+        self,
+        valid_data: pd.DataFrame,
+        sweep_var: str,
+        var_name: str,
+        logscale: bool,
+        plots_dir: Path,
+    ) -> list[Path]:
+        """
+        Ablation-style figures (1x2 shunting vs additive): one PNG per pair (E,I), (E,V), (I,V).
+
+        Coinformation / interaction information with class C:
+            I(X;Y;C) = I(X;Y) - I(X;Y|C)
+        computed per layer from layer_mi component minus layer_mi conditional columns.
+        """
+        plot_paths: list[Path] = []
+        plots_dir.mkdir(parents=True, exist_ok=True)
+
+        comp_group = self.METRIC_GROUPS["component_information"]
+        cond_group = self.METRIC_GROUPS["conditional_information"]
+
+        if (
+            sweep_var not in valid_data.columns
+            or "network_category" not in valid_data.columns
+        ):
+            return plot_paths
+
+        if (
+            not valid_data["network_category"]
+            .isin(["dendritic_shunting", "dendritic_additive", "dendritic_signed"])
+            .any()
+        ):
+            return plot_paths
+
+        categories = ["dendritic_shunting", "dendritic_additive", "dendritic_signed"]
+        ylabel = "Interaction information (bits)"
+
+        triples = list(
+            zip(
+                comp_group["metrics"],
+                cond_group["metrics"],
+                ["I(E;I;C)", "I(E;V;C)", "I(I;V;C)"],
+                comp_group["labels"],
+                cond_group["labels"],
+            )
+        )
+
+        for mi_comp, mi_cond, coinfo_label, _lab_comp, _lab_cond in triples:
+            base_comp = mi_comp.replace("mi_", "")
+            base_cond = mi_cond.replace("mi_", "")
+
+            prefix_comp = f"layer_mi_{base_comp}_depth"
+            depths: list[int] = []
+            for col in valid_data.columns:
+                if col.startswith(prefix_comp) and col.endswith("_mean"):
+                    try:
+                        depth_str = col[len(prefix_comp) : -len("_mean")]
+                        d = int(depth_str)
+                        cond_col = f"layer_mi_{base_cond}_depth{d}_mean"
+                        if cond_col in valid_data.columns:
+                            depths.append(d)
+                    except ValueError:
+                        continue
+            depths = sorted(set(depths))
+            if not depths:
+                continue
+
+            cmap = plt.get_cmap("tab10")
+            depth_colors = {d: cmap(d / 9.0) for d in depths}
+
+            fig, axes = plt.subplots(1, 3, figsize=(21, 6))
+            fig.suptitle(
+                f"Interaction Information: {coinfo_label} vs " f"{var_name} by Layer",
+                fontsize=16,
+            )
+
+            depths.reverse()
+            for idx, category in enumerate(categories):
+                ax: plt.Axes = axes[idx]
+                category_data = valid_data[valid_data["network_category"] == category]
+
+                if category_data.empty:
+                    ax.text(
+                        0.5,
+                        0.5,
+                        f"No {category} data",
+                        ha="center",
+                        va="center",
+                        transform=ax.transAxes,
+                    )
+                    ax.set_title(category.replace("_", " ").title())
+                    continue
+
+                for depth in depths:
+                    comp_col = f"layer_mi_{base_comp}_depth{depth}_mean"
+                    cond_col = f"layer_mi_{base_cond}_depth{depth}_mean"
+                    if comp_col not in category_data.columns:
+                        continue
+                    if cond_col not in category_data.columns:
+                        continue
+
+                    sorted_data = category_data.sort_values(sweep_var)
+                    plot_data = sorted_data[[comp_col, cond_col, sweep_var]].dropna()
+                    if plot_data.empty:
+                        continue
+
+                    try:
+                        y_comp = pd.to_numeric(plot_data[comp_col], errors="coerce")
+                        y_cond = pd.to_numeric(plot_data[cond_col], errors="coerce")
+                        valid_idx = y_comp.notna() & y_cond.notna()
+                        if not valid_idx.any():
+                            continue
+                        y_vals = y_comp[valid_idx] - y_cond[valid_idx]
+                        x_vals = plot_data.loc[y_vals.index, sweep_var]
+                        if len(y_vals) > 0:
+                            ax.plot(
+                                x_vals,
+                                y_vals,
+                                marker="o",
+                                label=f"Layer {depth}",
+                                color=depth_colors[depth],
+                                alpha=0.8,
+                                linewidth=2,
+                            )
+                    except Exception as e:
+                        logger.warning(
+                            "Could not plot coinfo layer %s for %s: %s",
+                            depth,
+                            category,
+                            e,
+                        )
+                        continue
+
+                ax.axhline(y=0, color="gray", linestyle="--", alpha=0.5, linewidth=1)
+                self.setup_axes_style(
+                    ax=ax,
+                    xlabel=var_name,
+                    ylabel=ylabel,
+                    title=category.replace("_", " ").title(),
+                    use_log_x=logscale,
+                    grid=True,
+                )
+                ax.legend()
+
+            fig.tight_layout()
+            safe_pair = f"{base_comp}_C"
+            plot_path = plots_dir / f"coinfo_layer_{safe_pair}_{sweep_var}.png"
+            plot_paths.append(self.save_figure(fig, plot_path))
+
         return plot_paths
 
     def _create_information_heatmaps(

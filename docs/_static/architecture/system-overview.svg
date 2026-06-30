@@ -144,9 +144,9 @@
   <text class="small" x="676" y="575">analysis can run during or after training</text>
 
   <rect class="tag" x="92" y="804" width="184" height="28"/>
-  <text class="tagText" x="110" y="823">canonical new configs</text>
+  <text class="tagText" x="110" y="823">canonical configs</text>
   <rect class="tag" x="296" y="804" width="196" height="28"/>
-  <text class="tagText" x="314" y="823">legacy aliases preserved</text>
+  <text class="tagText" x="314" y="823">compatibility aliases</text>
   <rect class="tag" x="512" y="804" width="232" height="28"/>
   <text class="tagText" x="530" y="823">typed defaults + validation</text>
   <rect class="tag" x="764" y="804" width="230" height="28"/>

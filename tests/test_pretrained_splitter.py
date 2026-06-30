@@ -9,8 +9,24 @@ import torch.nn as nn
 from dendritic_modeling.networks.architectures.classical.pretrained import (
     BackboneSegment,
     _extract_layers,
+    _filter_omitted_layers,
     _flatten_model_layers,
+    _has_linear_module,
+    _has_spatial_module,
+    _insert_flatten,
     _load_backbone,
+    _names_and_modules,
+    _needs_flatten,
+    _prepare_segment_input,
+    _require_layer_index,
+    _require_split_index,
+    _resolve_target_module_span,
+    _restore_segment_output,
+    _run_modules_no_grad,
+    _segment_output_metadata,
+    _select_layers_for_boundary,
+    _slice_layers_by_span,
+    _tensor_spec_from_spatial_output,
     build_encoder_decoder_from_plan,
     build_split_plan,
     list_backbone_layers,
@@ -150,6 +166,73 @@ class TestExtractLayers:
         assert names[-1] == "avgpool"
         assert "classifier.0" not in names
 
+    def test_select_layers_for_boundary_uses_split_after(self):
+        layers = [(f"layer.{idx}", nn.Identity()) for idx in range(4)]
+        names = [name for name, _ in layers]
+
+        selected = _select_layers_for_boundary(layers, names, split_after="layer.1")
+
+        assert [name for name, _ in selected] == ["layer.0", "layer.1"]
+
+    def test_select_layers_for_boundary_uses_split_from(self):
+        layers = [(f"layer.{idx}", nn.Identity()) for idx in range(4)]
+        names = [name for name, _ in layers]
+
+        selected = _select_layers_for_boundary(layers, names, split_from="layer.2")
+
+        assert [name for name, _ in selected] == ["layer.2", "layer.3"]
+
+    def test_select_layers_for_boundary_preserves_split_after_precedence(self):
+        layers = [(f"layer.{idx}", nn.Identity()) for idx in range(4)]
+        names = [name for name, _ in layers]
+
+        selected = _select_layers_for_boundary(
+            layers,
+            names,
+            split_after="layer.1",
+            split_from="layer.3",
+        )
+
+        assert [name for name, _ in selected] == ["layer.0", "layer.1"]
+
+    def test_require_split_index_returns_index_or_legacy_error(self):
+        names = ["layer.0", "layer.1"]
+
+        assert _require_split_index(names, "layer.1", arg_name="split_after") == 1
+        with pytest.raises(ValueError, match="split_from='missing' not found"):
+            _require_split_index(names, "missing", arg_name="split_from")
+
+
+# ---------------------------------------------------------------------------
+# Tests for flatten insertion helpers
+# ---------------------------------------------------------------------------
+class TestFlattenHelpers:
+    def test_module_type_predicates_detect_spatial_and_linear_layers(self):
+        spatial_modules = [nn.Conv2d(3, 4, 1), nn.ReLU()]
+        linear_modules = [nn.ReLU(), nn.Linear(4, 2)]
+
+        assert _has_spatial_module(spatial_modules)
+        assert not _has_spatial_module(linear_modules)
+        assert _has_linear_module(linear_modules)
+        assert not _has_linear_module(spatial_modules)
+
+    def test_needs_flatten_only_for_mixed_spatial_and_linear_stacks(self):
+        assert _needs_flatten([nn.Conv2d(3, 4, 1), nn.Flatten(), nn.Linear(4, 2)])
+        assert not _needs_flatten([nn.Conv2d(3, 4, 1), nn.ReLU()])
+        assert not _needs_flatten([nn.Linear(4, 2), nn.ReLU()])
+
+    def test_insert_flatten_before_first_linear_only(self):
+        conv = nn.Conv2d(3, 4, 1)
+        linear1 = nn.Linear(4, 3)
+        linear2 = nn.Linear(3, 2)
+
+        modules = _insert_flatten([conv, linear1, nn.ReLU(), linear2])
+
+        assert modules[0] is conv
+        assert isinstance(modules[1], nn.Flatten)
+        assert modules[2] is linear1
+        assert modules[4] is linear2
+
 
 # ---------------------------------------------------------------------------
 # Tests for _load_backbone
@@ -257,6 +340,35 @@ class TestBuildSplitPlan:
         assert "classifier.1" in plan.replaced_names
         assert "classifier.5" in plan.replaced_names
 
+    def test_target_modules_resolve_contiguous_replacement_span(self):
+        with patch(
+            "dendritic_modeling.networks.architectures.classical.pretrained._load_backbone",
+            return_value=_MiniAlexNet(),
+        ):
+            plan = build_split_plan(
+                "mini_alexnet",
+                weights=None,
+                target_modules=["classifier.5", "classifier.4"],
+                input_shape=[3, 8, 8],
+            )
+
+        assert plan.replaced_names == ["classifier.4", "classifier.5"]
+        assert plan.prefix_output_dim == 16
+        assert plan.suffix_input_dim == 16
+
+    def test_target_modules_must_be_contiguous(self):
+        with patch(
+            "dendritic_modeling.networks.architectures.classical.pretrained._load_backbone",
+            return_value=_MiniAlexNet(),
+        ):
+            with pytest.raises(ValueError, match="contiguous span"):
+                build_split_plan(
+                    "mini_alexnet",
+                    weights=None,
+                    target_modules=["classifier.1", "classifier.5"],
+                    input_shape=[3, 8, 8],
+                )
+
     def test_invalid_start_layer_raises(self):
         with pytest.raises(ValueError, match="not found"):
             build_split_plan(
@@ -310,10 +422,163 @@ class TestBuildSplitPlan:
         assert "suffix" in s
 
 
+class TestReplacementSpanHelpers:
+    def test_resolve_target_module_span_accepts_unordered_contiguous_targets(self):
+        all_names = ["features.0", "features.1", "classifier.1", "classifier.2"]
+
+        assert _resolve_target_module_span(
+            all_names, ["classifier.2", "classifier.1"]
+        ) == (2, 3)
+
+    def test_resolve_target_module_span_returns_none_without_targets(self):
+        assert _resolve_target_module_span(["features.0"], None) is None
+        assert _resolve_target_module_span(["features.0"], []) is None
+
+    def test_resolve_target_module_span_rejects_unknown_target(self):
+        with pytest.raises(ValueError, match="unknown layer"):
+            _resolve_target_module_span(["features.0"], ["classifier.1"])
+
+    def test_resolve_target_module_span_rejects_non_contiguous_targets(self):
+        all_names = ["features.0", "features.1", "classifier.1"]
+
+        with pytest.raises(ValueError, match="contiguous span"):
+            _resolve_target_module_span(all_names, ["features.0", "classifier.1"])
+
+    def test_require_layer_index_returns_index_or_raises_with_backbone_context(self):
+        all_names = ["features.0", "classifier.1"]
+
+        assert _require_layer_index(all_names, "classifier.1", backbone="mini") == 1
+        with pytest.raises(ValueError, match="Layer 'missing' not found in mini"):
+            _require_layer_index(all_names, "missing", backbone="mini")
+
+
+class TestLayerSplitHelpers:
+    def test_slice_layers_by_span_returns_prefix_replaced_and_suffix(self):
+        layers = [(f"layer.{idx}", nn.Identity()) for idx in range(5)]
+
+        prefix, replaced, suffix = _slice_layers_by_span(layers, 1, 3)
+
+        assert [name for name, _ in prefix] == ["layer.0"]
+        assert [name for name, _ in replaced] == ["layer.1", "layer.2", "layer.3"]
+        assert [name for name, _ in suffix] == ["layer.4"]
+
+    def test_names_and_modules_preserves_order_and_identity(self):
+        layers = [("a", nn.Identity()), ("b", nn.ReLU())]
+
+        names, modules = _names_and_modules(layers)
+
+        assert names == ["a", "b"]
+        assert modules == [layers[0][1], layers[1][1]]
+
+    def test_omit_filtering_is_applied_outside_replacement_span_only(self):
+        layers = [(f"layer.{idx}", nn.Identity()) for idx in range(5)]
+        prefix, replaced, suffix = _slice_layers_by_span(layers, 1, 3)
+
+        prefix_filtered = _filter_omitted_layers(prefix, ["layer.0", "layer.2"])
+        suffix_filtered = _filter_omitted_layers(suffix, ["layer.4", "layer.2"])
+
+        assert prefix_filtered == []
+        assert [name for name, _ in replaced] == ["layer.1", "layer.2", "layer.3"]
+        assert suffix_filtered == []
+
+
 # ---------------------------------------------------------------------------
 # Tests for BackboneSegment
 # ---------------------------------------------------------------------------
 class TestBackboneSegment:
+    def test_run_modules_no_grad_preserves_order_without_tracking_grad(self):
+        modules = [nn.Linear(3, 4), nn.ReLU(), nn.Linear(4, 2)]
+        x = torch.randn(5, 3, requires_grad=True)
+
+        expected = nn.Sequential(*modules)(x)
+        actual = _run_modules_no_grad(modules, x)
+
+        assert torch.allclose(actual, expected)
+        assert actual.requires_grad is False
+
+    def test_tensor_spec_from_spatial_output_uses_channel_height_width(self):
+        spec = _tensor_spec_from_spatial_output(torch.zeros(2, 3, 4, 5))
+
+        assert spec.channels == 3
+        assert spec.height == 4
+        assert spec.width == 5
+        assert spec.numel == 60
+
+    def test_segment_output_metadata_for_flat_output(self):
+        output_spec, output_dim = _segment_output_metadata(torch.zeros(2, 10))
+
+        assert output_spec is None
+        assert output_dim == 10
+
+    def test_segment_output_metadata_for_spatial_output(self):
+        output_spec, output_dim = _segment_output_metadata(torch.zeros(2, 3, 4, 5))
+
+        assert output_spec is not None
+        assert output_spec.channels == 3
+        assert output_spec.height == 4
+        assert output_spec.width == 5
+        assert output_dim == 60
+
+    def test_prepare_segment_input_preserves_flat_input_batch_shape(self):
+        x = torch.zeros(2, 8)
+
+        prepared, batch_shape, squeezed = _prepare_segment_input(x, auto_flatten=True)
+
+        assert prepared.shape == (2, 8)
+        assert batch_shape == torch.Size([2])
+        assert squeezed is False
+
+    def test_prepare_segment_input_batches_single_spatial_input(self):
+        x = torch.zeros(3, 4, 5)
+
+        prepared, batch_shape, squeezed = _prepare_segment_input(x, auto_flatten=True)
+
+        assert prepared.shape == (1, 3, 4, 5)
+        assert batch_shape == torch.Size([1])
+        assert squeezed is True
+
+    def test_prepare_segment_input_flattens_leading_spatial_batches(self):
+        x = torch.zeros(2, 4, 3, 5, 7)
+
+        prepared, batch_shape, squeezed = _prepare_segment_input(x, auto_flatten=True)
+
+        assert prepared.shape == (8, 3, 5, 7)
+        assert batch_shape == torch.Size([2, 4])
+        assert squeezed is False
+
+    def test_prepare_segment_input_is_noop_without_auto_flatten(self):
+        x = torch.zeros(3, 4, 5)
+
+        prepared, batch_shape, squeezed = _prepare_segment_input(x, auto_flatten=False)
+
+        assert prepared is x
+        assert batch_shape == torch.Size()
+        assert squeezed is False
+
+    def test_restore_segment_output_restores_batch_shape_and_squeeze(self):
+        restored = _restore_segment_output(
+            torch.zeros(8, 6),
+            auto_flatten=True,
+            batch_shape=torch.Size([2, 4]),
+            squeezed=False,
+        )
+        single = _restore_segment_output(
+            torch.zeros(1, 6),
+            auto_flatten=True,
+            batch_shape=torch.Size([1]),
+            squeezed=True,
+        )
+        unchanged = _restore_segment_output(
+            torch.zeros(3, 6),
+            auto_flatten=False,
+            batch_shape=torch.Size(),
+            squeezed=False,
+        )
+
+        assert restored.shape == (2, 4, 6)
+        assert single.shape == (6,)
+        assert unchanged.shape == (3, 6)
+
     def test_linear_segment(self):
         """Simple linear segment with known dims."""
         mods = [nn.Linear(32, 16), nn.ReLU(), nn.Linear(16, 10)]
@@ -692,6 +957,79 @@ outputs:
         with torch.no_grad():
             out = model(x)
         assert out.shape == (2, 1000)
+
+    def test_initialize_model_from_vision_replacement_target_modules(self, tmp_path):
+        """vision_replacement mirrors transformer-style target-module naming."""
+        from dendritic_modeling.config import load_config
+        from dendritic_modeling.scripts.script_utils.setup_utils import initialize_model
+
+        yaml_content = """\
+experiment:
+  seed: 42
+
+data:
+  dataset_name: "imagenet"
+  base_dir: "/tmp/fake"
+  processing:
+    flatten: false
+
+model:
+  task: "classification"
+  vision_replacement:
+    enabled: true
+    backbone: "mini_alexnet"
+    weights: null
+    input_shape: [3, 8, 8]
+    target_modules: ["classifier.4", "classifier.5"]
+    omit_layers: ["classifier.0", "classifier.3"]
+    trainability:
+      encoder:
+        mode: "frozen"
+      decoder:
+        mode: "trainable"
+  core:
+    type: "einet"
+    architecture:
+      excitatory_layer_sizes: [16]
+      inhibitory_layer_sizes: [4]
+      excitatory_branch_factors: [1]
+      inhibitory_branch_factors: [1]
+    connectivity:
+      ee_synapses_per_branch_per_layer: [2]
+      ei_synapses_per_branch_per_layer: [2]
+      ie_synapses_per_branch_per_layer: [1]
+      ii_synapses_per_branch_per_layer: [0]
+
+training:
+  main:
+    common:
+      param_groups:
+        lr: 0.001
+"""
+        config_path = tmp_path / "vision_replacement.yaml"
+        config_path.write_text(yaml_content)
+
+        with patch(
+            "dendritic_modeling.networks.architectures.classical.pretrained._load_backbone",
+            return_value=_MiniAlexNet(),
+        ):
+            config = load_config(str(config_path))
+            model, _encoder_network = initialize_model(config.model)
+
+        assert config.model.vision_replacement.enabled is True
+        assert config.model.vision_replacement.target_modules == [
+            "classifier.4",
+            "classifier.5",
+        ]
+        assert isinstance(model.encoder_network, BackboneSegment)
+        assert isinstance(model.decoder_network, BackboneSegment)
+        assert model.encoder_network.output_dim == 16
+        assert model.decoder_network.output_dim == 10
+
+        x = torch.randn(2, 3, 8, 8)
+        with torch.no_grad():
+            out = model(x)
+        assert out.shape == (2, 10)
 
     def test_initialize_model_warns_for_ignored_legacy_sections(self, tmp_path):
         """Legacy encoder/decoder config should warn when replacement is enabled."""

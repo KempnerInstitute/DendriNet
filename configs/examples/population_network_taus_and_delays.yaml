@@ -63,11 +63,16 @@ model:
             reactivation_init_policy: "occupancy_quantile"
             dbl_init_method: "analytical_expectation"
             weight_transform: "softplus"
-            topk_type: "standard"
+            topk_type: "indexed_rewire"
             topk_init_method: "xavier_normal"
+            indexed_seed: 44
+            indexed_rewire_frequency: 100
+            indexed_rewire_quantile: 0.05
+            indexed_rewire_until_step: null
+            indexed_output_chunk_size: 2048
             blocklinear_strategy: "none"
             reactivation_strategy: "none"
-            efficient_blocklinear: false
+            efficient_blocklinear: true
             tau_base: 20.0
             tau_ratio: 2.0
             learnable_tau: false

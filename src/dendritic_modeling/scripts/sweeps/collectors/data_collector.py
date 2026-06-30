@@ -262,10 +262,19 @@ class DataCollector:
 
         # Layer statistics
         if "layer_statistics" in data and isinstance(data["layer_statistics"], dict):
-            for layer_name, layer_data in data["layer_statistics"].items():
+            layer_names: list[str] = [
+                name
+                for name in data["layer_statistics"].keys()
+                if "inhibitory_cells" not in name
+            ]
+            depths: list[int] = list(range(len(layer_names)))
+            depths.reverse()
+            for i, layer_name in enumerate(layer_names):
+                layer_data: dict[str, float] = data["layer_statistics"][layer_name]
                 if isinstance(layer_data, dict):
                     # Extract depth from layer name
-                    depth = self._extract_depth(layer_name)
+                    # depth = self._extract_depth(layer_name)
+                    depth = depths[i]
                     for mi_key, mi_value in layer_data.items():
                         if isinstance(mi_value, (int, float)):
                             base_key = (
@@ -349,46 +358,9 @@ class DataCollector:
         result: dict[str, float] = {}
 
         if "layer" in data and isinstance(data["layer"], dict):
-            layer_data = data["layer"]
-            # Detect and convert legacy 2-level schema if needed
-            layer_data = self._ensure_3level(layer_data)
-            result.update(flatten_ablation_results(layer_data))
-            result.update(flatten_ablation_module_results(layer_data))
-
+            result.update(flatten_ablation_results(data["layer"]))
+            result.update(flatten_ablation_module_results(data["layer"]))
         return result
-
-    @staticmethod
-    def _ensure_3level(layer_dict: dict) -> dict:
-        """Convert legacy 2-level ablation schema to 3-level if needed.
-
-        2-level: ``{"lesion_excitation": {module: metrics}}``
-        3-level: ``{"lesion": {"excitation": {module: metrics}}}``
-
-        Already 3-level dicts are returned unchanged.
-        """
-        known_targets = {"all_synapses", "excitation", "inhibition", "upstream"}
-        # Convert any legacy 2-level entries while preserving already-canonical
-        # 3-level entries in mixed payloads.
-        nested: dict = {}
-        for key, modules in layer_dict.items():
-            if not isinstance(modules, dict):
-                continue
-            if set(modules.keys()) & known_targets:
-                nested[key] = modules
-                continue
-            key_norm = str(key).replace(" ", "_")
-            matched = False
-            for target in known_targets:
-                suffix = f"_{target}"
-                if key_norm.endswith(suffix):
-                    method = key_norm[: -len(suffix)]
-                    if method:
-                        nested.setdefault(method, {})[target] = modules
-                        matched = True
-                        break
-            if not matched:
-                nested[key] = modules
-        return nested
 
     def _load_snr(self, config_dir: Path) -> dict:
         """Load compartment SNR analysis metrics."""
@@ -424,9 +396,15 @@ class DataCollector:
 
         if "input_analysis" in data.keys():
             input_data = data["input_analysis"]
-            for prefix in ["exc", "inh"]:
+            for prefix in [
+                "exc_inputs",
+                "inh_inputs",
+                "upstream_inputs",
+                "network_exc_inputs",
+                "network_inh_outputs",
+            ]:
                 for metric in metrics:
-                    field_name = f"{prefix}_inputs_{metric}"
+                    field_name = f"{prefix}_{metric}"
                     if field_name in input_data:
                         result[f"snr_{field_name}"] = input_data[field_name]
 
@@ -470,32 +448,39 @@ class DataCollector:
 
         result = {}
 
-        gain_factors = data.get("gain_factors", [])
-        raw_scores = data.get("raw_scores")
-        if not isinstance(raw_scores, dict):
+        gain_factors: list[float] = list(data.get("gain_factors", []))
+
+        raw_scores: dict[str, list[float]] = data.get("raw_scores", {})
+        if not raw_scores:
             raw_scores = {
                 key: value
                 for key, value in data.items()
-                if key != "gain_factors" and isinstance(value, list)
+                if isinstance(value, list)
+                and key != "gain_factors"
+                and len(value) == len(gain_factors)
             }
 
-        for metric, scores in raw_scores.items():
-            for i, gain_factor in enumerate(gain_factors):
-                if i < len(scores):
-                    result[f"mult_gain_{metric}_gf{gain_factor}"] = scores[i]
+        id_scores: dict[str, float] = data.get("ID", {})
+        ood_lower_scores: dict[str, float] = data.get("OOD_lower", {})
+        ood_upper_scores: dict[str, float] = data.get("OOD_upper", {})
 
-        score_blocks = {
-            "ID": "id",
-            "OOD_lower": "ood_lower",
-            "OOD_upper": "ood_upper",
-        }
-        for block_name, suffix in score_blocks.items():
-            scores = data.get(block_name, {})
-            if not isinstance(scores, dict):
-                continue
-            for metric, value in scores.items():
-                if isinstance(value, (int, float)):
-                    result[f"mult_gain_{metric}_{suffix}"] = value
+        metrics = list(raw_scores.keys())
+        for metric in metrics:
+            # collect raw scores
+            for i, gain_factor in enumerate(gain_factors[: len(raw_scores[metric])]):
+                result[f"mult_gain_{metric}_gf{gain_factor}"] = raw_scores[metric][i]
+
+            # collect id scores
+            if metric in id_scores:
+                result[f"mult_gain_{metric}_id"] = id_scores[metric]
+
+            # collect ood lower scores
+            if metric in ood_lower_scores:
+                result[f"mult_gain_{metric}_ood_lower"] = ood_lower_scores[metric]
+
+            # collect ood upper scores
+            if metric in ood_upper_scores:
+                result[f"mult_gain_{metric}_ood_upper"] = ood_upper_scores[metric]
 
         return result
 

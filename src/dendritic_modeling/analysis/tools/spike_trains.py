@@ -3,15 +3,13 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 from typing import Any
 
 import torch
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
-from dendritic_modeling.analysis.utils.runtime import (
-    analysis_device_context,
-    iter_analysis_batches,
-)
+from dendritic_modeling.analysis.utils.runtime import run_no_grad_analysis_batches
 from dendritic_modeling.config.analysis import (
     EvaluationRuntimeConfig,
     SpikeTrainAnalysisParams,
@@ -19,9 +17,76 @@ from dendritic_modeling.config.analysis import (
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import LIFSoma
 from dendritic_modeling.utils import save_dict
+from dendritic_modeling.utils.hooks import (
+    ForwardHookRemovalMixin,
+    iter_named_modules_of_type,
+    register_named_forward_hooks,
+    run_with_forward_hooks,
+)
 
 
-class SpikeTrainAnalyzer(AbstractAnalyzer):
+def _binarize_spike_sequences(
+    sequences: list[torch.Tensor],
+    threshold: float,
+) -> list[torch.Tensor]:
+    return [(seq > threshold).float() for seq in sequences]
+
+
+def _sequence_dimensions(sequences: list[torch.Tensor]) -> tuple[int, int, int]:
+    n_samples = int(sum(seq.shape[0] for seq in sequences))
+    n_timesteps = int(max((seq.shape[1] for seq in sequences), default=0))
+    n_units = int(max((seq.shape[2] for seq in sequences), default=0))
+    return n_samples, n_timesteps, n_units
+
+
+def _total_spike_stats(
+    sequences: list[torch.Tensor],
+    dt: float,
+) -> tuple[int, float, float, float]:
+    total_bins = int(sum(seq.numel() for seq in sequences))
+    total_spikes_tensor = sum(
+        (seq.sum() for seq in sequences), torch.zeros((), dtype=torch.float32)
+    )
+    total_spikes = float(total_spikes_tensor.item())
+    mean_rate_hz = total_spikes / max(total_bins * dt, 1e-12)
+    spike_probability = total_spikes / max(total_bins, 1)
+    return total_bins, total_spikes, mean_rate_hz, spike_probability
+
+
+def _spike_count_stats(
+    sequences: list[torch.Tensor],
+) -> tuple[torch.Tensor, dict[str, float]]:
+    counts = torch.cat([seq.sum(dim=1) for seq in sequences], dim=0)
+    count_mean = counts.mean(dim=0)
+    count_var = counts.var(dim=0, unbiased=False)
+    fano = count_var / count_mean.clamp(min=1e-8)
+    return counts, {
+        "fraction_silent_units": float((counts.sum(dim=0) == 0).float().mean()),
+        "fraction_silent_trials": float((counts.sum(dim=1) == 0).float().mean()),
+        "spike_count_mean": float(counts.mean().item()),
+        "spike_count_std": float(counts.std(unbiased=False).item()),
+        "fano_factor_mean": float(fano.mean().item()),
+        "fano_factor_max": float(fano.max().item()),
+    }
+
+
+def _isi_stats(isi_values: torch.Tensor, dt: float) -> dict[str, float]:
+    if isi_values.numel() > 0:
+        isi_mean = float(isi_values.float().mean().item() * dt)
+        isi_std = float(isi_values.float().std(unbiased=False).item() * dt)
+        isi_cv = isi_std / max(isi_mean, 1e-12)
+    else:
+        isi_mean = 0.0
+        isi_std = 0.0
+        isi_cv = 0.0
+    return {
+        "isi_mean": isi_mean,
+        "isi_std": isi_std,
+        "isi_cv": isi_cv,
+    }
+
+
+class SpikeTrainAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
     """Collect raster and population statistics from ``LIFSoma`` modules."""
 
     def __init__(self, params: SpikeTrainAnalysisParams | None = None):
@@ -35,17 +100,38 @@ class SpikeTrainAnalyzer(AbstractAnalyzer):
     def _attach_hooks(
         self, model: BaseModel
     ) -> list[torch.utils.hooks.RemovableHandle]:
-        handles = []
-        for name, module in model.named_modules():
-            if isinstance(module, LIFSoma):
-                module._analysis_name = name
-                handles.append(module.register_forward_hook(self._forward_hook))
-        return handles
+        return register_named_forward_hooks(
+            model,
+            LIFSoma,
+            self._forward_hook,
+            prepare=self._prepare_spike_hook,
+        )
+
+    def _run_with_attached_hooks(
+        self,
+        handles: list[torch.utils.hooks.RemovableHandle],
+        body: Callable[[], Any],
+    ) -> Any:
+        return run_with_forward_hooks(
+            attach=lambda: handles,
+            remove=self.remove_forward_hooks,
+            body=body,
+        )
+
+    def _iter_lif_somas(self, model: BaseModel):
+        yield from iter_named_modules_of_type(model, LIFSoma)
 
     @staticmethod
-    def _remove_hooks(handles: list[torch.utils.hooks.RemovableHandle]) -> None:
-        for handle in handles:
-            handle.remove()
+    def _prepare_spike_hook(name: str, module: LIFSoma) -> None:
+        module._analysis_name = name
+
+    def _register_spike_hook(
+        self,
+        name: str,
+        module: LIFSoma,
+    ) -> torch.utils.hooks.RemovableHandle:
+        self._prepare_spike_hook(name, module)
+        return module.register_forward_hook(self._forward_hook)
 
     def _forward_hook(
         self,
@@ -85,25 +171,19 @@ class SpikeTrainAnalyzer(AbstractAnalyzer):
             self.logger.info("Skipping spike-train analysis: no LIFSoma modules found")
             return {}
         if data is None:
-            self.logger.info("Skipping spike-train analysis: no dataset provided")
-            self._remove_hooks(handles)
-            return {}
+
+            def _skip_missing_data() -> dict[str, Any]:
+                self.logger.info("Skipping spike-train analysis: no dataset provided")
+                return {}
+
+            return self._run_with_attached_hooks(handles, _skip_missing_data)
 
         sample_cap = getattr(self.params, "max_samples", None)
-        try:
-            with analysis_device_context(model, device) as analysis_device:
-                with torch.no_grad():
-                    for batch in iter_analysis_batches(
-                        data,
-                        runtime,
-                        sample_cap,
-                        device=analysis_device,
-                    ):
-                        self._current_batch = {}
-                        _ = model(batch[0].to(analysis_device))
-                        self._finalize_current_batch()
-        finally:
-            self._remove_hooks(handles)
+
+        def _collect_sequences() -> None:
+            self._collect_spike_sequences(model, data, device, runtime, sample_cap)
+
+        self._run_with_attached_hooks(handles, _collect_sequences)
 
         results = {
             "dt": float(self.params.dt),
@@ -121,34 +201,47 @@ class SpikeTrainAnalyzer(AbstractAnalyzer):
         self.log_analysis_end("spike_trains", num_results=len(results["populations"]))
         return results
 
+    def _collect_spike_sequences(
+        self,
+        model: BaseModel,
+        data: torch.utils.data.Dataset,
+        device: str,
+        runtime: EvaluationRuntimeConfig | None,
+        sample_cap: int | None,
+    ) -> None:
+        run_no_grad_analysis_batches(
+            model=model,
+            dataset=data,
+            device=device,
+            runtime=runtime,
+            explicit_max_samples=sample_cap,
+            process_batch=lambda batch, analysis_device: self._collect_batch_spikes(
+                model,
+                batch,
+                analysis_device,
+            ),
+        )
+
+    def _collect_batch_spikes(
+        self,
+        model: BaseModel,
+        batch: tuple[Any, ...],
+        device: torch.device,
+    ) -> None:
+        self._current_batch = {}
+        _ = model(batch[0].to(device))
+        self._finalize_current_batch()
+
     def _summarize_sequences(self, sequences: list[torch.Tensor]) -> dict[str, Any]:
         threshold = float(self.params.threshold)
         dt = float(self.params.dt)
-        binary = [(seq > threshold).float() for seq in sequences]
-        n_samples = int(sum(seq.shape[0] for seq in binary))
-        n_timesteps = int(max((seq.shape[1] for seq in binary), default=0))
-        n_units = int(max((seq.shape[2] for seq in binary), default=0))
-        total_bins = int(sum(seq.numel() for seq in binary))
-        total_spikes_tensor = sum(
-            (seq.sum() for seq in binary), torch.zeros((), dtype=torch.float32)
+        binary = _binarize_spike_sequences(sequences, threshold)
+        n_samples, n_timesteps, n_units = _sequence_dimensions(binary)
+        _total_bins, total_spikes, mean_rate_hz, spike_probability = _total_spike_stats(
+            binary, dt
         )
-        total_spikes = float(total_spikes_tensor.item())
-        mean_rate_hz = total_spikes / max(total_bins * dt, 1e-12)
-
-        counts = torch.cat([seq.sum(dim=1) for seq in binary], dim=0)
-        count_mean = counts.mean(dim=0)
-        count_var = counts.var(dim=0, unbiased=False)
-        fano = count_var / count_mean.clamp(min=1e-8)
-
-        isi_values = self._collect_isis(binary)
-        if isi_values.numel() > 0:
-            isi_mean = float(isi_values.float().mean().item() * dt)
-            isi_std = float(isi_values.float().std(unbiased=False).item() * dt)
-            isi_cv = isi_std / max(isi_mean, 1e-12)
-        else:
-            isi_mean = 0.0
-            isi_std = 0.0
-            isi_cv = 0.0
+        _counts, count_stats = _spike_count_stats(binary)
+        isi_summary = _isi_stats(self._collect_isis(binary), dt)
 
         summary: dict[str, Any] = {
             "n_samples": n_samples,
@@ -156,16 +249,9 @@ class SpikeTrainAnalyzer(AbstractAnalyzer):
             "n_units": n_units,
             "total_spikes": total_spikes,
             "mean_rate_hz": mean_rate_hz,
-            "spike_probability": total_spikes / max(total_bins, 1),
-            "fraction_silent_units": float((counts.sum(dim=0) == 0).float().mean()),
-            "fraction_silent_trials": float((counts.sum(dim=1) == 0).float().mean()),
-            "spike_count_mean": float(counts.mean().item()),
-            "spike_count_std": float(counts.std(unbiased=False).item()),
-            "fano_factor_mean": float(fano.mean().item()),
-            "fano_factor_max": float(fano.max().item()),
-            "isi_mean": isi_mean,
-            "isi_std": isi_std,
-            "isi_cv": isi_cv,
+            "spike_probability": spike_probability,
+            **count_stats,
+            **isi_summary,
         }
 
         if self.params.include_per_timestep_rate:

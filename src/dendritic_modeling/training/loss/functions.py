@@ -14,9 +14,93 @@ from dendritic_modeling.networks import (
 from dendritic_modeling.networks.architectures.classical.autoencoder import (
     BaseVariationalAutoencoder,
 )
+from dendritic_modeling.utils.hooks import (
+    ForwardHookRemovalMixin,
+    iter_modules_of_type,
+    register_forward_hook_groups,
+    register_hook_groups,
+)
 
 LossBuilder = Callable[[], "LossFunction"]
 LOSS_FUNCTION_REGISTRY: dict[str, LossBuilder] = {}
+
+
+def _identity_reduction(loss: torch.Tensor) -> torch.Tensor:
+    """Return unreduced loss tensors for non-mean/sum reductions."""
+
+    return loss
+
+
+def _loss_reduction_fn(reduction: str) -> Callable[[torch.Tensor], torch.Tensor]:
+    """Return the callable form of the project loss reduction convention."""
+
+    if reduction == "mean":
+        return torch.mean
+    if reduction == "sum":
+        return torch.sum
+    return _identity_reduction
+
+
+def _reduce_tensor_loss(loss: torch.Tensor, reduction: str) -> torch.Tensor:
+    """Apply the project loss reduction convention to a tensor."""
+
+    return _loss_reduction_fn(reduction)(loss)
+
+
+def _difference_first_mean_error(
+    reduction_fn: Callable[[torch.Tensor], torch.Tensor],
+    x: torch.Tensor,
+    y: torch.Tensor,
+) -> torch.Tensor:
+    """Return the historical voltage mean-error term."""
+    return reduction_fn(x - y)
+
+
+def _separate_reduction_mean_error(
+    reduction_fn: Callable[[torch.Tensor], torch.Tensor],
+    x: torch.Tensor,
+    y: torch.Tensor,
+) -> torch.Tensor:
+    """Return the historical E/I balance mean-error term."""
+    return reduction_fn(x) - reduction_fn(y)
+
+
+def _build_pair_metric_fn(
+    loss_metric: str,
+    *,
+    reduction: str,
+    eps: float,
+    error_context: str,
+    reduce_mean_error_difference_first: bool,
+) -> Callable[[torch.Tensor, torch.Tensor], torch.Tensor]:
+    """Build a two-tensor metric while preserving domain-specific formulas."""
+    reduction_fn = _loss_reduction_fn(reduction)
+    mean_error_fn = (
+        _difference_first_mean_error
+        if reduce_mean_error_difference_first
+        else _separate_reduction_mean_error
+    )
+
+    if loss_metric == "mse":
+        return lambda x, y: reduction_fn((x - y) ** 2)
+    if loss_metric == "log_mse":
+        return lambda x, y: torch.log(reduction_fn((x - y) ** 2) + eps)
+    if loss_metric == "mae":
+        return lambda x, y: reduction_fn(torch.abs(x - y))
+    if loss_metric == "log_mae":
+        return lambda x, y: torch.log(reduction_fn(torch.abs(x - y)) + eps)
+    if loss_metric == "squared_mean_error":
+        return lambda x, y: mean_error_fn(reduction_fn, x, y) ** 2
+    if loss_metric == "log_squared_mean_error":
+        return lambda x, y: torch.log(mean_error_fn(reduction_fn, x, y) ** 2 + eps)
+    if loss_metric == "abs_mean_error":
+        return lambda x, y: torch.abs(mean_error_fn(reduction_fn, x, y))
+    if loss_metric == "log_abs_mean_error":
+        return lambda x, y: torch.log(
+            torch.abs(mean_error_fn(reduction_fn, x, y)) + eps
+        )
+
+    raise ValueError(f"Invalid metric for {error_context}: {loss_metric}")
 
 
 def register_loss_function(
@@ -120,12 +204,7 @@ class CategoricalNLLLoss(LossFunction):
     ) -> torch.Tensor:
         logits = model(x)
         nll = -1 * Categorical(logits=logits).log_prob(y)
-        if self.reduction == "mean":
-            return torch.mean(nll)
-        elif self.reduction == "sum":
-            return torch.sum(nll)
-        else:
-            return nll
+        return _reduce_tensor_loss(nll, self.reduction)
 
 
 class VaeElboLoss(LossFunction):
@@ -158,12 +237,7 @@ class VaeElboLoss(LossFunction):
 
         loss = mse + kl_div
 
-        if self.reduction == "mean":
-            return torch.mean(loss)
-        elif self.reduction == "sum":
-            return torch.sum(loss)
-        else:
-            return loss
+        return _reduce_tensor_loss(loss, self.reduction)
 
 
 class NegativeCosineSimilarityLoss(LossFunction):
@@ -177,12 +251,7 @@ class NegativeCosineSimilarityLoss(LossFunction):
     ) -> torch.Tensor:
         y_hat = model(x)
         cosine_similarity = self.cosine_similarity(y_hat, y)
-        if self.reduction == "mean":
-            return torch.mean(-1 * cosine_similarity)
-        elif self.reduction == "sum":
-            return torch.sum(-1 * cosine_similarity)
-        else:
-            return -1 * cosine_similarity
+        return _reduce_tensor_loss(-1 * cosine_similarity, self.reduction)
 
 
 class LogAdjustedNegativeCosineSimilarityLoss(NegativeCosineSimilarityLoss):
@@ -201,7 +270,7 @@ class LogAdjustedNegativeCosineSimilarityLoss(NegativeCosineSimilarityLoss):
         return torch.log(neg_cos_sim + 1 + 1e-12)
 
 
-class VoltageStabilizationLoss(LossFunction):
+class VoltageStabilizationLoss(ForwardHookRemovalMixin, LossFunction):
     """Voltage / gate-occupancy stabilization loss.
 
     Modes:
@@ -261,55 +330,38 @@ class VoltageStabilizationLoss(LossFunction):
             # gate_occupancy hooks on the reactivation output (r)
             self.save_outputs = True
 
-        if self.reduction == "mean":
-            reduction_fn = torch.mean
-        elif self.reduction == "sum":
-            reduction_fn = torch.sum
-        else:
-
-            def reduction_fn(x):
-                return x
-
-        if loss_metric == "mse":
-            self.metric_fn = lambda x, y: reduction_fn((x - y) ** 2)
-        elif loss_metric == "log_mse":
-            self.metric_fn = lambda x, y: torch.log(
-                reduction_fn((x - y) ** 2) + self.eps
-            )
-        elif loss_metric == "mae":
-            self.metric_fn = lambda x, y: reduction_fn(torch.abs(x - y))
-        elif loss_metric == "log_mae":
-            self.metric_fn = lambda x, y: torch.log(
-                reduction_fn(torch.abs(x - y)) + self.eps
-            )
-        elif loss_metric == "squared_mean_error":
-            self.metric_fn = lambda x, y: reduction_fn(x - y) ** 2
-        elif loss_metric == "log_squared_mean_error":
-            self.metric_fn = lambda x, y: torch.log(reduction_fn(x - y) ** 2 + self.eps)
-        elif loss_metric == "abs_mean_error":
-            self.metric_fn = lambda x, y: torch.abs(reduction_fn(x - y))
-        elif loss_metric == "log_abs_mean_error":
-            self.metric_fn = lambda x, y: torch.log(
-                torch.abs(reduction_fn(x - y)) + self.eps
-            )
-        else:
-            raise ValueError(f"Invalid metric for voltage stabilization: {loss_metric}")
+        self.metric_fn = _build_pair_metric_fn(
+            loss_metric,
+            reduction=self.reduction,
+            eps=self.eps,
+            error_context="voltage stabilization",
+            reduce_mean_error_difference_first=True,
+        )
 
     def attach_forward_hooks(self, model: BaseModel):
-        handles = []
-        for module in model.modules():
-            if isinstance(module, DendriticBranchLayer):
-                if self.stabilize_mode == "gate_occupancy" and not isinstance(
-                    module.reactivation, ParametricActivation
-                ):
-                    continue
-                handle = module.reactivation.register_forward_hook(self.forward_hook)
-                handles.append(handle)
-        return handles
+        return register_forward_hook_groups(
+            model,
+            DendriticBranchLayer,
+            self._attach_reactivation_hooks,
+            predicate=self._should_hook_reactivation,
+        )
 
-    def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
-        for handle in handles:
-            handle.remove()
+    def _attach_reactivation_hooks(
+        self,
+        module: DendriticBranchLayer,
+    ) -> list[torch.utils.hooks.RemovableHandle]:
+        return [self._register_reactivation_hook(module)]
+
+    def _should_hook_reactivation(self, module: DendriticBranchLayer) -> bool:
+        if self.stabilize_mode != "gate_occupancy":
+            return True
+        return isinstance(module.reactivation, ParametricActivation)
+
+    def _register_reactivation_hook(
+        self,
+        module: DendriticBranchLayer,
+    ) -> torch.utils.hooks.RemovableHandle:
+        return module.reactivation.register_forward_hook(self.forward_hook)
 
     def forward_hook(
         self,
@@ -389,77 +441,51 @@ class VoltageStabilizationLoss(LossFunction):
         return self.compute_loss(x)
 
 
-class ExcitationInhibitionBalanceLoss(LossFunction):
+class ExcitationInhibitionBalanceLoss(ForwardHookRemovalMixin, LossFunction):
     def __init__(self, loss_metric: str = "mse", reduction: str = "mean"):
         super().__init__(reduction)
         self._loss_name = "Excitation-Inhibition Balance"
         self.loss_metric = loss_metric
-
-        if self.reduction == "mean":
-            reduction_fn = torch.mean
-        elif self.reduction == "sum":
-            reduction_fn = torch.sum
-        else:
-
-            def reduction_fn(x):
-                return x
-
-        if loss_metric == "mse":
-            self.metric_fn = lambda x, y: reduction_fn((x - y) ** 2)
-        elif loss_metric == "log_mse":
-            self.metric_fn = lambda x, y: torch.log(
-                reduction_fn((x - y) ** 2) + self.eps
-            )
-        elif loss_metric == "mae":
-            self.metric_fn = lambda x, y: reduction_fn(torch.abs(x - y))
-        elif loss_metric == "log_mae":
-            self.metric_fn = lambda x, y: torch.log(
-                reduction_fn(torch.abs(x - y)) + self.eps
-            )
-        elif loss_metric == "squared_mean_error":
-            self.metric_fn = lambda x, y: (reduction_fn(x) - reduction_fn(y)) ** 2
-        elif loss_metric == "log_squared_mean_error":
-            self.metric_fn = lambda x, y: torch.log(
-                (reduction_fn(x) - reduction_fn(y)) ** 2 + self.eps
-            )
-        elif loss_metric == "abs_mean_error":
-            self.metric_fn = lambda x, y: torch.abs(reduction_fn(x) - reduction_fn(y))
-        elif loss_metric == "log_abs_mean_error":
-            self.metric_fn = lambda x, y: torch.log(
-                torch.abs(reduction_fn(x) - reduction_fn(y)) + self.eps
-            )
-        else:
-            raise ValueError(
-                f"Invalid metric for excitation-inhibition balance: {loss_metric}"
-            )
-
         self.eps = torch.finfo(torch.float32).eps
 
-    def attach_forward_hooks(self, model: BaseModel):
-        handles = []
-        for module in model.modules():
-            if isinstance(module, DendriticBranchLayer):
-                if (
-                    module.branch_excitation is not None
-                    and module.branch_inhibition is not None
-                ):
-                    handle = module.branch_excitation.register_forward_hook(
-                        lambda module, inputs, outputs: self.forward_hook(
-                            module, inputs, outputs, "exc"
-                        )
-                    )
-                    handles.append(handle)
-                    handle = module.branch_inhibition.register_forward_hook(
-                        lambda module, inputs, outputs: self.forward_hook(
-                            module, inputs, outputs, "inh"
-                        )
-                    )
-                    handles.append(handle)
-        return handles
+        self.metric_fn = _build_pair_metric_fn(
+            loss_metric,
+            reduction=self.reduction,
+            eps=self.eps,
+            error_context="excitation-inhibition balance",
+            reduce_mean_error_difference_first=False,
+        )
 
-    def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
-        for handle in handles:
-            handle.remove()
+    def attach_forward_hooks(self, model: BaseModel):
+        return register_forward_hook_groups(
+            model,
+            DendriticBranchLayer,
+            self._attach_branch_balance_hooks,
+        )
+
+    def _attach_branch_balance_hooks(
+        self,
+        module: DendriticBranchLayer,
+    ) -> list[torch.utils.hooks.RemovableHandle]:
+        def _hook_specs():
+            if (
+                module.branch_excitation is not None
+                and module.branch_inhibition is not None
+            ):
+                yield module.branch_excitation, "exc"
+                yield module.branch_inhibition, "inh"
+
+        def _register_hook(spec):
+            hook_module, activation = spec
+            return [
+                hook_module.register_forward_hook(
+                    lambda module, inputs, outputs, activation=activation: (
+                        self.forward_hook(module, inputs, outputs, activation)
+                    )
+                )
+            ]
+
+        return register_hook_groups(_hook_specs(), _register_hook)
 
     def forward_hook(
         self,
@@ -498,7 +524,7 @@ class ExcitationInhibitionBalanceLoss(LossFunction):
         return self.compute_loss(x)
 
 
-class HomeostaticControlLoss(LossFunction):
+class HomeostaticControlLoss(ForwardHookRemovalMixin, LossFunction):
     def __init__(
         self,
         stabilize_mode: str = "vinf",
@@ -521,14 +547,10 @@ class HomeostaticControlLoss(LossFunction):
         )
 
     def attach_forward_hooks(self, model: BaseModel):
-        handles = []
-        handles.extend(self.voltage_stabilization.attach_forward_hooks(model))
-        handles.extend(self.ei_balance.attach_forward_hooks(model))
-        return handles
-
-    def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
-        for handle in handles:
-            handle.remove()
+        return register_hook_groups(
+            (self.voltage_stabilization, self.ei_balance),
+            lambda loss_fn: loss_fn.attach_forward_hooks(model),
+        )
 
     def forward(
         self, model: BaseModel, x: torch.Tensor, y: Optional[torch.Tensor] = None
@@ -565,12 +587,7 @@ class EIWeightRatioLoss(LossFunction):
         self.scope = scope  # "per_branch", "per_layer", "global"
         self.metric = metric  # "mean", "median", "rms"
 
-        if self.reduction == "mean":
-            self.reduction_fn = torch.mean
-        elif self.reduction == "sum":
-            self.reduction_fn = torch.sum
-        else:
-            self.reduction_fn = lambda x: x
+        self.reduction_fn = _loss_reduction_fn(self.reduction)
 
     def forward(
         self, model: BaseModel, x: torch.Tensor, y: Optional[torch.Tensor] = None
@@ -578,44 +595,43 @@ class EIWeightRatioLoss(LossFunction):
         """Compute E/I weight ratio loss."""
         ratio_losses = []
 
-        for module in model.modules():
-            if isinstance(module, DendriticBranchLayer):
-                if (
-                    module.branch_excitation is not None
-                    and module.branch_inhibition is not None
-                    and hasattr(module.branch_excitation, "pruned_weight")
-                    and hasattr(module.branch_inhibition, "pruned_weight")
-                ):
-                    try:
-                        exc_weights = (
-                            module.branch_excitation.pruned_weight()
-                        )  # [n_branches, in_features]
-                        inh_weights = (
-                            module.branch_inhibition.pruned_weight()
-                        )  # [n_branches, in_features]
+        for module in iter_modules_of_type(model, DendriticBranchLayer):
+            if (
+                module.branch_excitation is not None
+                and module.branch_inhibition is not None
+                and hasattr(module.branch_excitation, "pruned_weight")
+                and hasattr(module.branch_inhibition, "pruned_weight")
+            ):
+                try:
+                    exc_weights = (
+                        module.branch_excitation.pruned_weight()
+                    )  # [n_branches, in_features]
+                    inh_weights = (
+                        module.branch_inhibition.pruned_weight()
+                    )  # [n_branches, in_features]
 
-                        if self.scope == "per_branch":
-                            # Enforce ratio per branch
-                            ratio_loss = self._compute_per_branch_ratio_loss(
-                                exc_weights, inh_weights
-                            )
-                        elif self.scope == "per_layer":
-                            # Enforce ratio per layer (average across branches)
-                            ratio_loss = self._compute_per_layer_ratio_loss(
-                                exc_weights, inh_weights
-                            )
-                        else:  # global
-                            # Enforce global ratio across entire layer
-                            ratio_loss = self._compute_global_ratio_loss(
-                                exc_weights, inh_weights
-                            )
+                    if self.scope == "per_branch":
+                        # Enforce ratio per branch
+                        ratio_loss = self._compute_per_branch_ratio_loss(
+                            exc_weights, inh_weights
+                        )
+                    elif self.scope == "per_layer":
+                        # Enforce ratio per layer (average across branches)
+                        ratio_loss = self._compute_per_layer_ratio_loss(
+                            exc_weights, inh_weights
+                        )
+                    else:  # global
+                        # Enforce global ratio across entire layer
+                        ratio_loss = self._compute_global_ratio_loss(
+                            exc_weights, inh_weights
+                        )
 
-                        if ratio_loss is not None:
-                            ratio_losses.append(ratio_loss)
+                    if ratio_loss is not None:
+                        ratio_losses.append(ratio_loss)
 
-                    except Exception:
-                        # Skip layers that don't have proper weight structure
-                        continue
+                except Exception:
+                    # Skip layers that don't have proper weight structure
+                    continue
 
         if ratio_losses:
             total_ratio_loss = self.reduction_fn(torch.stack(ratio_losses))

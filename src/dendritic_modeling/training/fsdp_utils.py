@@ -7,6 +7,7 @@ that cannot fit on a single GPU using PyTorch's Fully Sharded Data Parallel (Ful
 """
 
 import logging
+from types import MethodType
 from typing import Any, Optional
 
 import torch
@@ -25,6 +26,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition import (
     ExcitationInhibitionLayer,
     ExcitationInhibitionNetwork,
 )
+from dendritic_modeling.utils.hooks import iter_named_modules_matching
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +55,23 @@ def _resolve_fsdp_dtype(value: Any, *, field_name: str) -> torch.dtype:
     return _FSDP_DTYPE_ALIASES[key]
 
 
+def _is_dendritic_fsdp_module(module: torch.nn.Module) -> bool:
+    """Return whether a module should be treated as an FSDP dendritic unit."""
+    return isinstance(module, (DendriticBranchLayer, ExcitationInhibitionLayer))
+
+
+def _is_large_linear_checkpoint_candidate(module: torch.nn.Module) -> bool:
+    """Return whether a Linear module meets the checkpointing size rule."""
+    return isinstance(module, torch.nn.Linear) and module.in_features > 1000
+
+
+def _is_gradient_checkpoint_candidate(_name: str, module: torch.nn.Module) -> bool:
+    """Return whether a module should have activation checkpointing applied."""
+    return _is_dendritic_fsdp_module(module) or _is_large_linear_checkpoint_candidate(
+        module
+    )
+
+
 def create_fsdp_wrap_policy(min_num_params: int = 1e6):
     """
     Create an auto-wrap policy for FullyShardedDataParallel that intelligently wraps dendritic layers.
@@ -66,7 +85,7 @@ def create_fsdp_wrap_policy(min_num_params: int = 1e6):
 
     def dendritic_auto_wrap_policy(module, recurse, nonwrapped_numel):
         # Always wrap these large layers
-        if isinstance(module, (DendriticBranchLayer, ExcitationInhibitionLayer)):
+        if _is_dendritic_fsdp_module(module):
             return True
 
         # Wrap based on parameter count
@@ -281,6 +300,18 @@ def wrap_model_with_fsdp(
     return fsdp_model
 
 
+def _checkpoint_module_forward(module: torch.nn.Module) -> None:
+    """Patch a module forward method to run through activation checkpointing."""
+    from torch.utils.checkpoint import checkpoint
+
+    original_forward = module.forward
+
+    def checkpointed_forward(self, *args, orig_forward=original_forward, **kwargs):
+        return checkpoint(orig_forward, *args, use_reentrant=False, **kwargs)
+
+    module.forward = MethodType(checkpointed_forward, module)
+
+
 def _apply_gradient_checkpointing(model: torch.nn.Module):
     """
     Apply gradient checkpointing to suitable modules in the model.
@@ -288,36 +319,16 @@ def _apply_gradient_checkpointing(model: torch.nn.Module):
     Args:
         model: Model to apply checkpointing to
     """
-    from torch.utils.checkpoint import checkpoint
-
     # Apply checkpointing to large linear layers and dendritic components
-    for name, module in model.named_modules():
-        if isinstance(module, (DendriticBranchLayer, ExcitationInhibitionLayer)):
-            # Wrap the forward method with checkpointing
-            original_forward = module.forward
-
-            def checkpointed_forward(
-                self, *args, orig_forward=original_forward, **kwargs
-            ):
-                return checkpoint(orig_forward, *args, use_reentrant=False, **kwargs)
-
-            # Bind the method to the instance
-            import types
-
-            module.forward = types.MethodType(checkpointed_forward, module)
+    for name, module in iter_named_modules_matching(
+        model,
+        _is_gradient_checkpoint_candidate,
+    ):
+        if _is_dendritic_fsdp_module(module):
+            _checkpoint_module_forward(module)
             logger.debug(f"Applied gradient checkpointing to {name}")
-        elif isinstance(module, torch.nn.Linear) and module.in_features > 1000:
-            # Apply to large linear layers
-            original_forward = module.forward
-
-            def checkpointed_forward(
-                self, *args, orig_forward=original_forward, **kwargs
-            ):
-                return checkpoint(orig_forward, *args, use_reentrant=False, **kwargs)
-
-            import types
-
-            module.forward = types.MethodType(checkpointed_forward, module)
+        elif _is_large_linear_checkpoint_candidate(module):
+            _checkpoint_module_forward(module)
             logger.debug(f"Applied gradient checkpointing to large linear layer {name}")
 
 

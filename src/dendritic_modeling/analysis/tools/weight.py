@@ -8,6 +8,7 @@ Provides comprehensive weight analysis with both global and hierarchical statist
 
 import logging
 import time
+from collections.abc import Iterator
 from typing import Any, Optional
 
 import numpy as np
@@ -15,12 +16,113 @@ import torch
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
 from dendritic_modeling.analysis.utils.einet_core import has_einet_core
+from dendritic_modeling.analysis.utils.recurrent_introspection import (
+    iter_recurrent_populations,
+)
 from dendritic_modeling.config import WeightAnalysisParams
 from dendritic_modeling.models import BaseModel
-from dendritic_modeling.networks import DendriNet, DendriticBranchLayer
+from dendritic_modeling.networks import DendriticBranchLayer
 from dendritic_modeling.utils import save_dict
+from dendritic_modeling.utils.hooks import iter_named_modules_of_type
 
 logger = logging.getLogger(__name__)
+
+
+def _weight_tensor_statistics(
+    weights: torch.Tensor,
+    *,
+    compute_mean: bool,
+    compute_variance: bool,
+    compute_min_max: bool,
+    compute_percentiles: bool,
+) -> dict[str, float]:
+    """Compute configured weight statistics with the historical torch reductions."""
+    stats = {}
+
+    if compute_mean:
+        stats["mean"] = weights.mean().item()
+
+    if compute_variance:
+        stats["variance"] = weights.var().item()
+        stats["std"] = weights.std().item()
+
+    if compute_min_max:
+        stats["min"] = weights.min().item()
+        stats["max"] = weights.max().item()
+
+    if compute_percentiles:
+        stats["median"] = weights.median().item()
+        stats["q1"] = weights.quantile(0.25).item()
+        stats["q3"] = weights.quantile(0.75).item()
+
+    return stats
+
+
+def _branch_synapse_statistics(
+    prefix: str,
+    active_weights: torch.Tensor,
+    *,
+    compute_mean: bool,
+    compute_variance: bool,
+    compute_min_max: bool,
+    compute_percentiles: bool,
+) -> dict[str, float | int]:
+    """Compute active-synapse branch statistics for one synapse type."""
+    stats: dict[str, float | int] = {f"{prefix}_n_active_synapses": len(active_weights)}
+    if len(active_weights) == 0:
+        return stats
+
+    if compute_mean:
+        stats[f"{prefix}_weight_mean"] = active_weights.mean().item()
+    if compute_variance:
+        stats[f"{prefix}_weight_var"] = active_weights.var().item()
+    if compute_min_max:
+        stats[f"{prefix}_weight_min"] = active_weights.min().item()
+        stats[f"{prefix}_weight_max"] = active_weights.max().item()
+    if compute_percentiles:
+        stats[f"{prefix}_weight_median"] = active_weights.median().item()
+
+    return stats
+
+
+def _iter_dendritic_populations(
+    model: BaseModel,
+    *,
+    include_inhibitory: bool = True,
+):
+    """Yield unique population modules that expose dendritic branch layers."""
+    core = getattr(model, "core_network", model)
+    seen: set[int] = set()
+
+    for record in iter_recurrent_populations(core):
+        if not include_inhibitory and record.polarity == "inhibitory":
+            continue
+        population = record.population
+        if not hasattr(population, "branch_layers"):
+            continue
+        ident = id(population)
+        if ident in seen:
+            continue
+        seen.add(ident)
+        yield population
+
+    for layer in getattr(core, "layers", []) or []:
+        for attr, polarity in (
+            ("excitatory_cells", "excitatory"),
+            ("inhibitory_cells", "inhibitory"),
+            ("e_population", "excitatory"),
+            ("i_population", "inhibitory"),
+        ):
+            if not include_inhibitory and polarity == "inhibitory":
+                continue
+            population = getattr(layer, attr, None)
+            if not hasattr(population, "branch_layers"):
+                continue
+            ident = id(population)
+            if ident in seen:
+                continue
+            seen.add(ident)
+            yield population
 
 
 class WeightAnalyzer(AbstractAnalyzer):
@@ -116,14 +218,10 @@ class WeightAnalyzer(AbstractAnalyzer):
                 # Dynamically determine expected layers from network structure
                 # Get the actual number of dendritic layers from the first EI layer
                 expected_max_idx = 0
-                for ei_layer in model.core_network.layers:
-                    ex_dn = getattr(ei_layer, "excitatory_cells", None)
-                    if ex_dn is not None and hasattr(ex_dn, "branch_layers"):
-                        # The highest layer_idx in the network should be n_branch_layers
-                        expected_max_idx = max(
-                            expected_max_idx, len(ex_dn.branch_layers)
-                        )
-                        break
+                for population in _iter_dendritic_populations(model):
+                    expected_max_idx = max(
+                        expected_max_idx, len(population.branch_layers)
+                    )
 
                 # Remove any layers beyond the expected range
                 for key in list(layer_stats.keys()):
@@ -185,36 +283,37 @@ class WeightAnalyzer(AbstractAnalyzer):
         inh_weights = []
         branch_weights = []
 
-        for _name, module in model.named_modules():
-            if isinstance(module, DendriticBranchLayer):
-                # Collect excitatory synapse weights
-                if (
-                    self.synapse_weights
-                    and self.analyze_excitatory
-                    and module.branch_excitation is not None
-                ):
-                    exc_w = module.branch_excitation.pruned_weight().flatten()
-                    exc_w = exc_w[exc_w > self.weight_threshold].cpu()
-                    exc_weights.append(exc_w)
+        for _name, module in iter_named_modules_of_type(model, DendriticBranchLayer):
+            # Collect excitatory synapse weights
+            if (
+                self.synapse_weights
+                and self.analyze_excitatory
+                and module.branch_excitation is not None
+            ):
+                exc_w = self._active_weights(
+                    module.branch_excitation.pruned_weight().flatten()
+                ).cpu()
+                exc_weights.append(exc_w)
 
-                # Collect inhibitory synapse weights
-                if (
-                    self.synapse_weights
-                    and self.analyze_inhibitory
-                    and module.branch_inhibition is not None
-                ):
-                    inh_w = module.branch_inhibition.pruned_weight().flatten()
-                    inh_w = inh_w[inh_w > self.weight_threshold].cpu()
-                    inh_weights.append(inh_w)
+            # Collect inhibitory synapse weights
+            if (
+                self.synapse_weights
+                and self.analyze_inhibitory
+                and module.branch_inhibition is not None
+            ):
+                inh_w = self._active_weights(
+                    module.branch_inhibition.pruned_weight().flatten()
+                ).cpu()
+                inh_weights.append(inh_w)
 
-                # Collect branch-to-output weights
-                if (
-                    self.branch_weights
-                    and self.analyze_branch_output
-                    and hasattr(module, "branches_to_output")
-                ):
-                    branch_w = module.branches_to_output.weight().cpu().flatten()
-                    branch_weights.append(branch_w)
+            # Collect branch-to-output weights
+            if (
+                self.branch_weights
+                and self.analyze_branch_output
+                and hasattr(module, "branches_to_output")
+            ):
+                branch_w = module.branches_to_output.weight().cpu().flatten()
+                branch_weights.append(branch_w)
 
         global_stats = {}
 
@@ -243,25 +342,47 @@ class WeightAnalyzer(AbstractAnalyzer):
 
     def _compute_weight_statistics(self, weights: torch.Tensor) -> dict[str, float]:
         """Compute comprehensive statistics for a weight tensor."""
-        stats = {}
+        return _weight_tensor_statistics(
+            weights,
+            compute_mean=self.compute_mean,
+            compute_variance=self.compute_variance,
+            compute_min_max=self.compute_min_max,
+            compute_percentiles=self.compute_percentiles,
+        )
 
-        if self.compute_mean:
-            stats["mean"] = weights.mean().item()
+    def _active_weights(self, weights: torch.Tensor) -> torch.Tensor:
+        """Return weights above the configured active-synapse threshold."""
+        return weights[weights > self.weight_threshold]
 
-        if self.compute_variance:
-            stats["variance"] = weights.var().item()
-            stats["std"] = weights.std().item()
+    @staticmethod
+    def _branch_layer_depth(
+        branch_layer: DendriticBranchLayer, fallback_depth: int
+    ) -> int:
+        return getattr(branch_layer, "layer_idx", fallback_depth)
 
-        if self.compute_min_max:
-            stats["min"] = weights.min().item()
-            stats["max"] = weights.max().item()
+    def _iter_branch_layers(
+        self,
+        model: BaseModel,
+        *,
+        include_inhibitory: bool,
+        require_excitatory_dendrinet: bool = False,
+        require_layer_idx: bool = False,
+    ) -> Iterator[tuple[int, DendriticBranchLayer]]:
+        del require_excitatory_dendrinet
+        for population in _iter_dendritic_populations(
+            model, include_inhibitory=include_inhibitory
+        ):
+            yield from self._iter_dendrinet_branch_layers(
+                population, require_layer_idx=require_layer_idx
+            )
 
-        if self.compute_percentiles:
-            stats["median"] = weights.median().item()
-            stats["q1"] = weights.quantile(0.25).item()
-            stats["q3"] = weights.quantile(0.75).item()
-
-        return stats
+    def _iter_dendrinet_branch_layers(
+        self, dendrinet, *, require_layer_idx: bool = False
+    ) -> Iterator[tuple[int, DendriticBranchLayer]]:
+        for depth_idx, branch_layer in enumerate(dendrinet.branch_layers):
+            if require_layer_idx and getattr(branch_layer, "layer_idx", None) is None:
+                continue
+            yield self._branch_layer_depth(branch_layer, depth_idx), branch_layer
 
     def _compute_layer_statistics(self, model: BaseModel) -> dict[str, Any]:
         """Compute hierarchical per-branch-depth weight statistics across the network.
@@ -275,38 +396,16 @@ class WeightAnalyzer(AbstractAnalyzer):
         # Accumulate branch statistics per dendritic depth across EI layers
         depth_to_branch_list: dict[int, list[dict[str, Any]]] = {}
 
-        for _ei_idx, ei_layer in enumerate(model.core_network.layers):
-            # Each EI layer may have excitatory and inhibitory DendriNets
-            ex_dn = getattr(ei_layer, "excitatory_cells", None)
-            in_dn = getattr(ei_layer, "inhibitory_cells", None)
-
-            # Iterate over dendritic branch layers within the excitatory DendriNet
-            if ex_dn is not None:
-                for depth_idx, branch_layer in enumerate(ex_dn.branch_layers):
-                    layer_idx_attr = getattr(branch_layer, "layer_idx", depth_idx)
-                    stats_dict = self._compute_branch_weight_statistics(
-                        branch_layer, module_name=f"branch_layers.{layer_idx_attr}"
-                    )
-                    if stats_dict and "branches" in stats_dict:
-                        if layer_idx_attr not in depth_to_branch_list:
-                            depth_to_branch_list[layer_idx_attr] = []
-                        depth_to_branch_list[layer_idx_attr].extend(
-                            stats_dict["branches"]
-                        )
-
-            # Include inhibitory DendriNet branch layers as well (for fuller coverage)
-            if isinstance(in_dn, DendriNet):
-                for depth_idx, branch_layer in enumerate(in_dn.branch_layers):
-                    layer_idx_attr = getattr(branch_layer, "layer_idx", depth_idx)
-                    stats_dict = self._compute_branch_weight_statistics(
-                        branch_layer, module_name=f"branch_layers.{layer_idx_attr}"
-                    )
-                    if stats_dict and "branches" in stats_dict:
-                        if layer_idx_attr not in depth_to_branch_list:
-                            depth_to_branch_list[layer_idx_attr] = []
-                        depth_to_branch_list[layer_idx_attr].extend(
-                            stats_dict["branches"]
-                        )
+        for layer_idx_attr, branch_layer in self._iter_branch_layers(
+            model, include_inhibitory=True
+        ):
+            stats_dict = self._compute_branch_weight_statistics(
+                branch_layer, module_name=f"branch_layers.{layer_idx_attr}"
+            )
+            if stats_dict and "branches" in stats_dict:
+                if layer_idx_attr not in depth_to_branch_list:
+                    depth_to_branch_list[layer_idx_attr] = []
+                depth_to_branch_list[layer_idx_attr].extend(stats_dict["branches"])
 
         # Now aggregate per-depth branch statistics to layer-level metrics
         layer_results: dict[str, Any] = {}
@@ -352,39 +451,11 @@ class WeightAnalyzer(AbstractAnalyzer):
 
             for branch_idx in range(exc_weights.shape[0]):
                 if branch_idx < len(branch_results):
-                    branch_exc_weights = exc_weights[branch_idx, :]
-                    active_weights = branch_exc_weights[
-                        branch_exc_weights > self.weight_threshold
-                    ]
-
-                    if len(active_weights) > 0:
-                        # Count of active synapses (needed for original plots)
-                        branch_results[branch_idx]["exc_n_active_synapses"] = len(
-                            active_weights
-                        )
-
-                        if self.compute_mean:
-                            branch_results[branch_idx][
-                                "exc_weight_mean"
-                            ] = active_weights.mean().item()
-                        if self.compute_variance:
-                            branch_results[branch_idx][
-                                "exc_weight_var"
-                            ] = active_weights.var().item()
-                        if self.compute_min_max:
-                            branch_results[branch_idx][
-                                "exc_weight_min"
-                            ] = active_weights.min().item()
-                            branch_results[branch_idx][
-                                "exc_weight_max"
-                            ] = active_weights.max().item()
-                        if self.compute_percentiles:
-                            branch_results[branch_idx][
-                                "exc_weight_median"
-                            ] = active_weights.median().item()
-                    else:
-                        # No active weights
-                        branch_results[branch_idx]["exc_n_active_synapses"] = 0
+                    self._record_branch_synapse_statistics(
+                        branch_results[branch_idx],
+                        prefix="exc",
+                        weights=exc_weights[branch_idx, :],
+                    )
 
         # Analyze inhibitory weights per branch
         if self.analyze_inhibitory and module.branch_inhibition is not None:
@@ -392,41 +463,29 @@ class WeightAnalyzer(AbstractAnalyzer):
 
             for branch_idx in range(inh_weights.shape[0]):
                 if branch_idx < len(branch_results):
-                    branch_inh_weights = inh_weights[branch_idx, :]
-                    active_weights = branch_inh_weights[
-                        branch_inh_weights > self.weight_threshold
-                    ]
-
-                    if len(active_weights) > 0:
-                        # Count of active synapses (needed for original plots)
-                        branch_results[branch_idx]["inh_n_active_synapses"] = len(
-                            active_weights
-                        )
-
-                        if self.compute_mean:
-                            branch_results[branch_idx][
-                                "inh_weight_mean"
-                            ] = active_weights.mean().item()
-                        if self.compute_variance:
-                            branch_results[branch_idx][
-                                "inh_weight_var"
-                            ] = active_weights.var().item()
-                        if self.compute_min_max:
-                            branch_results[branch_idx][
-                                "inh_weight_min"
-                            ] = active_weights.min().item()
-                            branch_results[branch_idx][
-                                "inh_weight_max"
-                            ] = active_weights.max().item()
-                        if self.compute_percentiles:
-                            branch_results[branch_idx][
-                                "inh_weight_median"
-                            ] = active_weights.median().item()
-                    else:
-                        # No active weights
-                        branch_results[branch_idx]["inh_n_active_synapses"] = 0
+                    self._record_branch_synapse_statistics(
+                        branch_results[branch_idx],
+                        prefix="inh",
+                        weights=inh_weights[branch_idx, :],
+                    )
 
         return {"branches": branch_results}
+
+    def _record_branch_synapse_statistics(
+        self, branch_stats: dict[str, Any], prefix: str, weights: torch.Tensor
+    ) -> None:
+        """Add active-synapse weight statistics for one branch and synapse type."""
+        active_weights = weights[weights > self.weight_threshold]
+        branch_stats.update(
+            _branch_synapse_statistics(
+                prefix,
+                active_weights,
+                compute_mean=self.compute_mean,
+                compute_variance=self.compute_variance,
+                compute_min_max=self.compute_min_max,
+                compute_percentiles=self.compute_percentiles,
+            )
+        )
 
     def _compute_branch_level_statistics(self, model: BaseModel) -> dict[str, Any]:
         """Compute and return raw per-branch statistics grouped by depth.
@@ -437,23 +496,17 @@ class WeightAnalyzer(AbstractAnalyzer):
         """
         depth_to_branch_list: dict[int, list[dict[str, Any]]] = {}
 
-        for ei_layer in model.core_network.layers:
-            if (
-                not hasattr(ei_layer, "excitatory_cells")
-                or ei_layer.excitatory_cells is None
-            ):
+        for layer_idx_attr, branch_layer in self._iter_branch_layers(
+            model, include_inhibitory=True
+        ):
+            stats_dict = self._compute_branch_weight_statistics(
+                branch_layer, module_name=f"branch_layers.{layer_idx_attr}"
+            )
+            if not stats_dict or "branches" not in stats_dict:
                 continue
-            ex_dn = ei_layer.excitatory_cells
-            for depth_idx, branch_layer in enumerate(ex_dn.branch_layers):
-                layer_idx_attr = getattr(branch_layer, "layer_idx", depth_idx)
-                stats_dict = self._compute_branch_weight_statistics(
-                    branch_layer, module_name=f"branch_layers.{layer_idx_attr}"
-                )
-                if not stats_dict or "branches" not in stats_dict:
-                    continue
-                if layer_idx_attr not in depth_to_branch_list:
-                    depth_to_branch_list[layer_idx_attr] = []
-                depth_to_branch_list[layer_idx_attr].extend(stats_dict["branches"])
+            if layer_idx_attr not in depth_to_branch_list:
+                depth_to_branch_list[layer_idx_attr] = []
+            depth_to_branch_list[layer_idx_attr].extend(stats_dict["branches"])
 
         # Format similar to layer_statistics but with raw branches list
         formatted: dict[str, Any] = {}
@@ -511,76 +564,18 @@ class WeightAnalyzer(AbstractAnalyzer):
         depth_to_strength: dict[int, float] = {}
         depth_to_weights: dict[int, list[torch.Tensor]] = {}
 
-        for ei_layer in model.core_network.layers:
-            ex_dn = getattr(ei_layer, "excitatory_cells", None)
-            in_dn = getattr(ei_layer, "inhibitory_cells", None)
-
-            # Helper to process a DendriNet's branch layers
-            def process_dn(dn):
-                if not isinstance(dn, DendriNet):
-                    return
-                for branch_layer in dn.branch_layers:
-                    layer_idx_attr = getattr(branch_layer, "layer_idx", None)
-                    if layer_idx_attr is None:
-                        continue
-
-                    # Initialize accumulators
-                    if layer_idx_attr not in depth_to_strength:
-                        depth_to_strength[layer_idx_attr] = 0.0
-                    if layer_idx_attr not in depth_to_weights:
-                        depth_to_weights[layer_idx_attr] = []
-
-                    # Compute strength
-                    if self.compute_dendritic_strength:
-                        if (
-                            self.analyze_excitatory
-                            and branch_layer.branch_excitation is not None
-                        ):
-                            exc_weights = branch_layer.branch_excitation.pruned_weight()
-                            active_exc = exc_weights[
-                                exc_weights > self.weight_threshold
-                            ]
-                            depth_to_strength[layer_idx_attr] += active_exc.sum().item()
-
-                        if (
-                            self.analyze_inhibitory
-                            and branch_layer.branch_inhibition is not None
-                        ):
-                            inh_weights = branch_layer.branch_inhibition.pruned_weight()
-                            active_inh = inh_weights[
-                                inh_weights > self.weight_threshold
-                            ]
-                            depth_to_strength[layer_idx_attr] += active_inh.sum().item()
-
-                    # Collect for min/max
-                    if self.compute_min_max:
-                        if (
-                            self.analyze_excitatory
-                            and branch_layer.branch_excitation is not None
-                        ):
-                            exc_weights = (
-                                branch_layer.branch_excitation.pruned_weight().flatten()
-                            )
-                            active_exc = exc_weights[
-                                exc_weights > self.weight_threshold
-                            ]
-                            if active_exc.numel() > 0:
-                                depth_to_weights[layer_idx_attr].append(active_exc)
-                        if (
-                            self.analyze_inhibitory
-                            and branch_layer.branch_inhibition is not None
-                        ):
-                            inh_weights = (
-                                branch_layer.branch_inhibition.pruned_weight().flatten()
-                            )
-                            active_inh = inh_weights[
-                                inh_weights > self.weight_threshold
-                            ]
-                            if active_inh.numel() > 0:
-                                depth_to_weights[layer_idx_attr].append(active_inh)
-
-            process_dn(ex_dn)
-            process_dn(in_dn)
+        for layer_idx_attr, branch_layer in self._iter_branch_layers(
+            model,
+            include_inhibitory=True,
+            require_excitatory_dendrinet=True,
+            require_layer_idx=True,
+        ):
+            self._accumulate_enhanced_branch_statistics(
+                branch_layer,
+                layer_idx_attr,
+                depth_to_strength,
+                depth_to_weights,
+            )
 
         # Build enhanced_stats from accumulators
         for layer_idx_attr in sorted(
@@ -603,6 +598,45 @@ class WeightAnalyzer(AbstractAnalyzer):
                     ] = all_weights.max().item()
 
         return enhanced_stats
+
+    def _accumulate_enhanced_branch_statistics(
+        self,
+        branch_layer: DendriticBranchLayer,
+        layer_idx_attr: int,
+        depth_to_strength: dict[int, float],
+        depth_to_weights: dict[int, list[torch.Tensor]],
+    ) -> None:
+        if layer_idx_attr not in depth_to_strength:
+            depth_to_strength[layer_idx_attr] = 0.0
+        if layer_idx_attr not in depth_to_weights:
+            depth_to_weights[layer_idx_attr] = []
+
+        if self.compute_dendritic_strength:
+            if self.analyze_excitatory and branch_layer.branch_excitation is not None:
+                active_exc = self._active_weights(
+                    branch_layer.branch_excitation.pruned_weight()
+                )
+                depth_to_strength[layer_idx_attr] += active_exc.sum().item()
+
+            if self.analyze_inhibitory and branch_layer.branch_inhibition is not None:
+                active_inh = self._active_weights(
+                    branch_layer.branch_inhibition.pruned_weight()
+                )
+                depth_to_strength[layer_idx_attr] += active_inh.sum().item()
+
+        if self.compute_min_max:
+            if self.analyze_excitatory and branch_layer.branch_excitation is not None:
+                active_exc = self._active_weights(
+                    branch_layer.branch_excitation.pruned_weight().flatten()
+                )
+                if active_exc.numel() > 0:
+                    depth_to_weights[layer_idx_attr].append(active_exc)
+            if self.analyze_inhibitory and branch_layer.branch_inhibition is not None:
+                active_inh = self._active_weights(
+                    branch_layer.branch_inhibition.pruned_weight().flatten()
+                )
+                if active_inh.numel() > 0:
+                    depth_to_weights[layer_idx_attr].append(active_inh)
 
     def _generate_all_plots(
         self, results: dict[str, Any], save_path: str, model: BaseModel

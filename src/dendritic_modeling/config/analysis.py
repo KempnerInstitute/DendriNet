@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Optional
 
+from dendritic_modeling.analysis.registry import get_registered_analyzers
 from dendritic_modeling.config.base import BaseConfig
 
 
@@ -31,6 +32,9 @@ class EvaluationRuntimeConfig(BaseConfig):
     batch_size: int = 256
     num_workers: int = 4
     pin_memory: bool = True
+    persistent_workers: bool = False
+    prefetch_factor: Optional[int] = 2
+    in_order: Optional[bool] = None
     max_batches: Optional[int] = None
     max_samples: Optional[int] = None
     materialize_threshold_mb: int = 1024
@@ -73,7 +77,7 @@ class PerformanceAnalysisConfig(BaseConfig):
       during training-time vs. final evaluation.
     """
 
-    enabled: bool = True
+    enabled: bool = False
     training: bool = False
     params: PerformanceAnalysisParams = field(default_factory=PerformanceAnalysisParams)
     training_splits: list[str] = field(
@@ -531,7 +535,7 @@ class InformationAnalysisParams(BaseConfig):
 
 @dataclass
 class InformationAnalysisConfig(BaseConfig):
-    enabled: bool = True
+    enabled: bool = False
     training: bool = False
     params: InformationAnalysisParams = field(default_factory=InformationAnalysisParams)
 
@@ -571,6 +575,9 @@ class NoisePerturbationAnalysisParams(BaseConfig):
     - gaussian_noise: enable Gaussian noise sweeps.
     - gaussian_sdevs: list of standard deviations for Gaussian noise.
     - n_samples: number of noisy replicates per magnitude/sdev.
+    - clamp_range: optional ``[min, max]`` output clamp. Set to ``None`` for
+      unnormalized neural activity where noise should not be clipped to an
+      image-like range.
 
     Metric toggles (same semantics as PerformanceAnalysisParams):
     - accuracy, auc, categorical_loglikelihood, mse, cosine_similarity
@@ -581,6 +588,7 @@ class NoisePerturbationAnalysisParams(BaseConfig):
     gaussian_noise: bool = True
     gaussian_sdevs: list[float] = field(default_factory=lambda: [0.1, 0.2])
     n_samples: int = 10
+    clamp_range: Optional[list[float]] = field(default_factory=lambda: [0.0, 1.0])
     accuracy: bool = True
     auc: bool = True
     categorical_loglikelihood: bool = True
@@ -803,6 +811,7 @@ class CompartmentSNRAnalysisParams(BaseConfig):
     """
 
     input_analysis: bool = True  # Analyze input-level statistics
+    input_capture_mode: str = "branch"  # "branch" or "network"
     global_analysis: bool = True  # Analyze global statistics
     layer_analysis: bool = True  # Analyze layer statistics
     branch_analysis: bool = True  # Analyze branch statistics
@@ -998,11 +1007,14 @@ class SingleLayerContributionAnalysisConfig(BaseConfig):
 class ReceptiveFieldAnalysisParams(BaseConfig):
     """Parameters for receptive field visualization.
 
-    - n_rows / n_cols: grid size for plotting receptive fields.
-    - rf_shape: optional shared (H, W) shape for both E and I receptive fields.
-    - exc_rf_shape / inh_rf_shape: optional per-stream (H, W) receptive field shapes.
-    - compute_activation_tuning: also summarize class tuning from branch activations
-      when a dataset is supplied by the analysis manager.
+    - rf_shape: optional (H, W) receptive field shape if known.
+    - exc_rf_shape / inh_rf_shape: optional synapse-specific receptive-field
+      shapes; fall back to rf_shape when omitted.
+    - compute_activation_tuning: also summarize class tuning of branch signals.
+    - compute_component_rfs: run compact E/I mean and conditioned component RF
+      maps, matching the empirical paper's soma-level RF summary.
+    - compute_rf_tuning: run the aggregate RF tuning,
+      discriminability, entropy, and compartment activation analysis.
     """
 
     n_rows: int = 2
@@ -1012,6 +1024,12 @@ class ReceptiveFieldAnalysisParams(BaseConfig):
     inh_rf_shape: Optional[tuple[int, int]] = None
     fig_save_format: str = "png"
     compute_activation_tuning: bool = False
+    compute_component_rfs: bool = False
+    plot_component_rfs: bool = True
+    compute_rf_tuning: bool = False
+    plot_rf_tuning: bool = True
+    rf_tuning_layer_index: int = 0
+    n_class_examples: int = 5
     save_raw_data: bool = True
     load_raw_data: bool = False
     raw_filename: Optional[str] = None
@@ -1424,3 +1442,10 @@ class AnalysisConfig(BaseConfig):
     adversarial_robustness_analysis: AdversarialRobustnessAnalysisConfig = field(
         default_factory=AdversarialRobustnessAnalysisConfig
     )
+
+    def any_enabled(self) -> bool:
+        """Return whether the final training analysis gate should run."""
+        return any(
+            bool(getattr(getattr(self, spec.config_field, None), "enabled", False))
+            for spec in get_registered_analyzers().values()
+        )

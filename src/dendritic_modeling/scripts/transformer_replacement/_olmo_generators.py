@@ -65,36 +65,47 @@ def _base_dendritic_ffn_core(
 ) -> dict[str, Any]:
     return {
         "type": "dendritic_ffn",
-        "architecture": {
-            "excitatory_layer_sizes": [int(width)],
-            "excitatory_branch_factors": list(branch_factors),
-        },
-        "connectivity": {
-            "ee_synapses_per_branch_per_layer": [64],
-            "ei_synapses_per_branch_per_layer": [0],
-            "ie_synapses_per_branch_per_layer": [0],
-            "ii_synapses_per_branch_per_layer": [0],
-        },
-        "transfer": {"input_transform": "signed_split"},
-        "morphology": {
-            "use_shunting": False,
-            "weight_transform": "softplus",
-        },
-        "sparsity": {
-            "type": "indexed_dynamic",
-            "init_method": "xavier_normal",
-            "temperature": 0.25,
-            "indexed": {
-                "candidate_size": 256,
-                "selection": "standard",
-                "seed": int(seed),
-                "output_chunk_size": int(output_chunk_size),
-            },
-        },
-        "reactivation": {
-            "enabled": True,
-            "type": "param_tanh",
-            "init_policy": "occupancy_quantile",
+        "population_network": {
+            "layers": [
+                {
+                    "name": "transformer_mlp",
+                    "readout_population": "ffn",
+                    "population_defaults": {
+                        "ff_excitatory_synapses": 64,
+                        "ff_inhibitory_synapses": 0,
+                        "rec_excitatory_synapses": 0,
+                        "rec_inhibitory_synapses": 0,
+                        "somatic_synapses": True,
+                        "use_shunting": False,
+                        "reactivate": True,
+                        "reactivation_type": "param_tanh",
+                        "reactivation_init_policy": "occupancy_quantile",
+                        "weight_transform": "softplus",
+                        "topk_type": "indexed_rewire",
+                        "topk_init_method": "xavier_normal",
+                        "indexed_seed": int(seed),
+                        "indexed_rewire_frequency": 100,
+                        "indexed_rewire_quantile": 0.05,
+                        "indexed_rewire_until_step": None,
+                        "indexed_output_chunk_size": int(output_chunk_size),
+                        "efficient_blocklinear": True,
+                    },
+                    "populations": [
+                        {
+                            "name": "ffn",
+                            "polarity": "excitatory",
+                            "n_neurons": int(width),
+                            "branch_factors": list(branch_factors),
+                        }
+                    ],
+                    "connections": [
+                        {
+                            "source": "input",
+                            "target": "ffn",
+                        }
+                    ],
+                }
+            ],
         },
     }
 
@@ -432,39 +443,66 @@ def _ei_stack_config(
                 },
             ),
             "core": {
-                "type": "einet",
-                "architecture": {
-                    "excitatory_layer_sizes": [200],
-                    "inhibitory_layer_sizes": [50],
-                    "excitatory_branch_factors": [2, 2],
-                    "inhibitory_branch_factors": [2],
-                },
-                "connectivity": {
-                    "ee_synapses_per_branch_per_layer": [32],
-                    "ei_synapses_per_branch_per_layer": [16],
-                    "ie_synapses_per_branch_per_layer": [16],
-                    "ii_synapses_per_branch_per_layer": [8],
-                },
-                "transfer": {"input_transform": "signed_split"},
-                "morphology": {
-                    "use_shunting": True,
-                    "weight_transform": "softplus",
-                },
-                "sparsity": {
-                    "type": "indexed_dynamic",
-                    "init_method": "xavier_normal",
-                    "temperature": 0.25,
-                    "indexed": {
-                        "candidate_size": 50,
-                        "selection": "standard",
-                        "seed": int(seed),
-                        "output_chunk_size": 2048,
-                    },
-                },
-                "reactivation": {
-                    "enabled": True,
-                    "type": "param_tanh",
-                    "init_policy": "occupancy_quantile",
+                "type": "population_network",
+                "population_network": {
+                    "layers": [
+                        {
+                            "name": "transformer_mlp",
+                            "readout_population": "e",
+                            "population_defaults": {
+                                "ff_excitatory_synapses": 32,
+                                "ff_inhibitory_synapses": 16,
+                                "rec_excitatory_synapses": 0,
+                                "rec_inhibitory_synapses": 0,
+                                "somatic_synapses": True,
+                                "use_shunting": True,
+                                "reactivate": True,
+                                "reactivation_type": "param_tanh",
+                                "reactivation_init_policy": "occupancy_quantile",
+                                "weight_transform": "softplus",
+                                "topk_type": "indexed_rewire",
+                                "topk_init_method": "xavier_normal",
+                                "indexed_seed": int(seed),
+                                "indexed_rewire_frequency": 100,
+                                "indexed_rewire_quantile": 0.05,
+                                "indexed_rewire_until_step": None,
+                                "indexed_output_chunk_size": 2048,
+                                "efficient_blocklinear": True,
+                            },
+                            "populations": [
+                                {
+                                    "name": "i",
+                                    "polarity": "inhibitory",
+                                    "n_neurons": 50,
+                                    "branch_factors": [2],
+                                    "population": {
+                                        "ff_excitatory_synapses": 16,
+                                        "ff_inhibitory_synapses": 8,
+                                    },
+                                },
+                                {
+                                    "name": "e",
+                                    "polarity": "excitatory",
+                                    "n_neurons": 200,
+                                    "branch_factors": [2, 2],
+                                },
+                            ],
+                            "connections": [
+                                {
+                                    "source": "input",
+                                    "target": "i",
+                                },
+                                {
+                                    "source": "input",
+                                    "target": "e",
+                                },
+                                {
+                                    "source": "i",
+                                    "target": "e",
+                                },
+                            ],
+                        }
+                    ],
                 },
             },
         },

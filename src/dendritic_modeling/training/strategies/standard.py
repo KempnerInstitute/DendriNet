@@ -27,6 +27,9 @@ from dendritic_modeling.config.training import (
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import ParametricActivation
 from dendritic_modeling.plotting import plot_loss_curves
+from dendritic_modeling.training.dataloader_utils import (
+    resolve_dataloader_tuning_from_config,
+)
 from dendritic_modeling.training.distributed_samplers import (
     PaddedDistributedEvalSampler,
 )
@@ -35,15 +38,7 @@ from dendritic_modeling.training.regularization import (
     PruningManager,
     RegularizationManager,
 )
-from dendritic_modeling.training.utils.profiling import (
-    finalize_profiling_run,
-    finish_profiler,
-    make_profiler,
-    profile_epochs,
-    profiling_enabled,
-    record_section,
-    total_profiled_steps,
-)
+from dendritic_modeling.utils.hooks import iter_modules_of_type
 
 logger = logging.getLogger(__name__)
 
@@ -130,6 +125,7 @@ class Trainer:
         # Performance optimization flags (disabled by default for speed)
         self.enable_nan_checking = kwargs.get("enable_nan_checking", False)
         self.enable_adaptive_clipping = kwargs.get("enable_adaptive_clipping", False)
+        self.profile_dataloader = kwargs.get("profile_dataloader", False)
 
         self.enable_amp = kwargs.get("use_amp", False)
         if self.enable_amp and torch.cuda.is_available():
@@ -211,62 +207,21 @@ class Trainer:
     def _dataloaders(
         self, train_data: torch.utils.data.Dataset, valid_data: torch.utils.data.Dataset
     ) -> tuple[DataLoader, DataLoader]:
-        # Respect scheduler CPU affinity when available (e.g., SLURM cpus-per-task).
-        available_cpus = os.cpu_count() or 1
-        if hasattr(os, "sched_getaffinity"):
-            try:
-                available_cpus = len(os.sched_getaffinity(0))
-            except OSError:
-                pass
-
-        # Determine number of workers automatically or use override
-        if hasattr(self, "num_workers") and self.num_workers is not None:
-            num_workers = max(0, int(self.num_workers))
-        else:
-            if torch.cuda.is_available():
-                # On GPU jobs, cap workers to avoid oversubscription warnings/freezes.
-                num_workers = min(16, available_cpus)
-            else:
-                # On CPU-only runs, leave one core for the main process and cap to 8.
-                num_workers = min(8, max(0, available_cpus - 1))
-
-        # Never spawn more workers than visible CPUs.
-        if num_workers > available_cpus:
-            num_workers = available_cpus
-
-        # Log the auto-detected value
-        if not self.suppress_prints and (
-            not hasattr(self, "num_workers") or self.num_workers is None
-        ):
-            total_cpus = os.cpu_count() or available_cpus
+        tuning = resolve_dataloader_tuning_from_config(
+            train_data,
+            device=getattr(self, "device", "cpu"),
+            config=self,
+        )
+        if not self.suppress_prints and tuning.auto_num_workers:
+            total_cpus = os.cpu_count() or tuning.available_cpus
             logger.info(
                 "Auto-detected num_workers=%s (visible CPUs: %s, total system CPUs: %s)",
-                num_workers,
-                available_cpus,
+                tuning.num_workers,
+                tuning.available_cpus,
                 total_cpus,
             )
-
-        pin_memory_cfg = getattr(self, "pin_memory", None)
-        persistent_workers_cfg = getattr(self, "persistent_workers", None)
-        prefetch_factor_cfg = getattr(self, "prefetch_factor", None)
-
-        use_pin_memory = (
-            bool(pin_memory_cfg)
-            if pin_memory_cfg is not None
-            else torch.cuda.is_available() and num_workers > 0
-        )
-        if persistent_workers_cfg is None:
-            use_persistent = num_workers > 0
-        else:
-            use_persistent = bool(persistent_workers_cfg)
-            if use_persistent and num_workers == 0:
-                raise ValueError("persistent_workers=True requires num_workers > 0")
-        if prefetch_factor_cfg is not None and num_workers == 0:
-            raise ValueError("prefetch_factor requires num_workers > 0")
-
-        loader_kwargs = {}
-        if prefetch_factor_cfg is not None:
-            loader_kwargs["prefetch_factor"] = max(1, int(prefetch_factor_cfg))
+        if not self.suppress_prints:
+            logger.info("DataLoader tuning: %s", tuning.summary(train_data))
 
         # Use distributed samplers for training and validation under DDP.
         # Validation uses an explicit padding sentinel sampler so every rank
@@ -298,20 +253,14 @@ class Trainer:
             batch_size=self.batch_size,
             shuffle=train_shuffle,
             sampler=self._train_sampler,
-            num_workers=num_workers,
-            pin_memory=use_pin_memory,
-            persistent_workers=use_persistent,
-            **loader_kwargs,
+            **tuning.as_kwargs(),
         )
         valid_loader = DataLoader(
             valid_data,
             batch_size=self.batch_size,
             shuffle=False,
             sampler=self._valid_sampler,
-            num_workers=num_workers,
-            pin_memory=use_pin_memory,
-            persistent_workers=use_persistent,
-            **loader_kwargs,
+            **tuning.as_kwargs(),
         )
         return train_loader, valid_loader
 
@@ -344,9 +293,9 @@ class Trainer:
     ) -> list[tuple[torch.nn.Parameter, bool]]:
         """Return reactivation params with their original trainability."""
         params: list[tuple[torch.nn.Parameter, bool]] = []
-        for module in self._unwrap_model(model).modules():
-            if not isinstance(module, ParametricActivation):
-                continue
+        for module in iter_modules_of_type(
+            self._unwrap_model(model), ParametricActivation
+        ):
             for param in module.parameters(recurse=False):
                 params.append((param, bool(param.requires_grad)))
         return params
@@ -459,22 +408,16 @@ class Trainer:
             return "occupancy_quantile"
 
         from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize import (
-            normalize_reactivation_init_policy,
-            reactivation_policy_to_calibration_mode,
+            collect_model_data_driven_reactivation_policies,
         )
 
-        saw_layer_policy = False
-        for module in self._unwrap_model(model).modules():
-            policy = getattr(module, "reactivation_init_policy", None)
-            if policy is None:
-                continue
-            saw_layer_policy = True
-            policy = normalize_reactivation_init_policy(policy)
-            mode = reactivation_policy_to_calibration_mode(policy)
-            if mode is not None:
-                # Defer to per-layer policies so fixed/analytical layers are
-                # not recalibrated just because a sibling layer is data-driven.
-                return None
+        requested_policies, saw_layer_policy = (
+            collect_model_data_driven_reactivation_policies(self._unwrap_model(model))
+        )
+        if requested_policies:
+            # Defer to per-layer policies so fixed/analytical layers are
+            # not recalibrated just because a sibling layer is data-driven.
+            return None
 
         return None if saw_layer_policy else "occupancy_quantile"
 
@@ -565,16 +508,6 @@ class Trainer:
             )
 
             if self._check_early_stopping():
-                break
-
-            # Profiling run (DENDRINET_PROFILE): trace captured, stop early so
-            # the job stays short instead of running the full schedule.
-            if getattr(self, "_profiling_stop", False):
-                if self._is_main_process:
-                    logger.info(
-                        "[profiler] capture complete; stopping training early "
-                        "(profiling run)."
-                    )
                 break
 
         return train_losses, valid_losses, train_losses_base, train_losses_reg
@@ -706,19 +639,32 @@ class Trainer:
 
         # Check once if regularization is enabled to avoid repeated checks
         has_regularization = self.regularization_manager.has_regularization()
+        profile_loader = bool(getattr(self, "profile_dataloader", False))
+        data_wait_total = 0.0
+        step_time_total = 0.0
+        max_data_wait = 0.0
 
-        profile_active = profiling_enabled() and not getattr(
-            self, "_profiling_done", False
-        )
-        epoch_mode = profile_active and profile_epochs() > 0
-        prof = make_profiler() if (profile_active and not epoch_mode) else None
-        for step, batch in enumerate(train_loader):
-            with record_section("data_h2d"):
-                x_batch, y_batch = batch[0].to(self.device), batch[1].to(self.device)
+        train_iter = iter(train_loader)
+        while True:
+            fetch_start = time.perf_counter()
+            try:
+                batch = next(train_iter)
+            except StopIteration:
+                break
+            if profile_loader:
+                data_wait = time.perf_counter() - fetch_start
+                data_wait_total += data_wait
+                max_data_wait = max(max_data_wait, data_wait)
+                step_start = time.perf_counter()
+
+            x_batch, y_batch = self._move_training_batch_to_device(
+                batch,
+                train_loader,
+            )
 
             if self.enable_amp:
                 # Mixed precision forward pass
-                with autocast(), record_section("forward"):
+                with autocast():
                     base_loss = self.loss_function(model, x_batch, y_batch)
 
                     # Add all regularization losses only if regularization is enabled
@@ -738,8 +684,7 @@ class Trainer:
                         reg_loss_item = 0.0
 
                 self.optimizer.zero_grad()
-                with record_section("backward"):
-                    self.scaler.scale(total_loss).backward()
+                self.scaler.scale(total_loss).backward()
 
                 # Optional expensive operations (configurable for performance)
                 if self.enable_nan_checking:
@@ -758,15 +703,11 @@ class Trainer:
                     else:
                         clip_grad_value_(model.parameters(), self.grad_clip_value)
 
-                with record_section("optimizer"):
-                    self.scaler.step(self.optimizer)
-                    self.scaler.update()
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
             else:
                 # Standard precision training
-                with record_section("forward"):
-                    base_loss: torch.Tensor = self.loss_function(
-                        model, x_batch, y_batch
-                    )
+                base_loss: torch.Tensor = self.loss_function(model, x_batch, y_batch)
 
                 # Add all regularization losses only if regularization is enabled
                 if has_regularization:
@@ -783,8 +724,7 @@ class Trainer:
                     reg_loss_item = 0.0
 
                 self.optimizer.zero_grad()
-                with record_section("backward"):
-                    total_loss.backward()
+                total_loss.backward()
 
                 # Optional expensive operations (configurable for performance)
                 if self.enable_nan_checking:
@@ -798,36 +738,16 @@ class Trainer:
                 else:
                     # Use simple, fast gradient clipping (default)
                     clip_grad_value_(model.parameters(), self.grad_clip_value)
-                with record_section("optimizer"):
-                    self.optimizer.step()
+                self.optimizer.step()
 
             train_loss_total += total_loss.item()
             train_loss_base += base_loss.item()
             train_loss_reg += reg_loss_item
             n_batches += 1
+            if profile_loader:
+                step_time_total += time.perf_counter() - step_start
 
-            if profile_active:
-                if prof is not None:
-                    prof.step()
-                if not epoch_mode and step + 1 >= total_profiled_steps():
-                    break
-
-        if profile_active:
-            # Step mode: done after the captured steps. Epoch mode: done after
-            # the requested number of full epochs.
-            done = True
-            if epoch_mode:
-                self._profiled_epochs = getattr(self, "_profiled_epochs", 0) + 1
-                done = self._profiled_epochs >= profile_epochs()
-            if done:
-                if prof is not None:
-                    finish_profiler(prof)
-                self._profiling_done = True
-                self._profiling_stop = True
-                # Capture complete — exit before post-training validation/
-                # analysis (keeps the trace bounded).
-                finalize_profiling_run()
-
+        local_n_batches = n_batches
         if self._is_distributed:
             stats = torch.tensor(
                 [
@@ -847,11 +767,66 @@ class Trainer:
                 int(stats[3].item()),
             )
 
+        if profile_loader and self._is_main_process:
+            self._log_dataloader_profile(
+                n_batches=local_n_batches,
+                data_wait_total=data_wait_total,
+                step_time_total=step_time_total,
+                max_data_wait=max_data_wait,
+            )
+
         denom = max(n_batches, 1)
         train_loss_total /= denom
         train_loss_base /= denom
         train_loss_reg /= denom
         return train_loss_total, train_loss_base, train_loss_reg
+
+    def _loader_uses_non_blocking_transfer(self, loader: DataLoader) -> bool:
+        """Return whether batch copies can be issued asynchronously."""
+        try:
+            device_type = torch.device(self.device).type
+        except (RuntimeError, TypeError):
+            return False
+        return device_type == "cuda" and bool(getattr(loader, "pin_memory", False))
+
+    def _move_training_batch_to_device(
+        self,
+        batch,
+        loader: DataLoader,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Move the input/target tensors using the loader's transfer policy."""
+        non_blocking = self._loader_uses_non_blocking_transfer(loader)
+        return (
+            batch[0].to(self.device, non_blocking=non_blocking),
+            batch[1].to(self.device, non_blocking=non_blocking),
+        )
+
+    def _log_dataloader_profile(
+        self,
+        *,
+        n_batches: int,
+        data_wait_total: float,
+        step_time_total: float,
+        max_data_wait: float,
+    ) -> None:
+        """Log epoch-level dataloader wait time for input-pipeline diagnosis."""
+        if n_batches <= 0:
+            return
+        total_time = data_wait_total + step_time_total
+        wait_fraction = data_wait_total / max(total_time, 1e-12)
+        logger.info(
+            "%sDataLoader profile epoch=%s batches=%s "
+            "data_wait=%.3fs step_time=%.3fs wait_fraction=%.1f%% "
+            "avg_wait=%.1fms max_wait=%.1fms",
+            getattr(self, "logger_info_prefix", "[Standard] "),
+            getattr(self, "epoch_counter", 0),
+            n_batches,
+            data_wait_total,
+            step_time_total,
+            100.0 * wait_fraction,
+            1000.0 * data_wait_total / n_batches,
+            1000.0 * max_data_wait,
+        )
 
     def _epoch_valid(
         self, model: BaseModel, valid_loader: DataLoader
@@ -862,8 +837,10 @@ class Trainer:
         n_batches = 0
         with torch.no_grad():
             for batch in valid_loader:
-                x_batch: torch.Tensor = batch[0].to(self.device)
-                y_batch: torch.Tensor = batch[1].to(self.device)
+                x_batch, y_batch = self._move_training_batch_to_device(
+                    batch,
+                    valid_loader,
+                )
                 loss: torch.Tensor = self.loss_function(model, x_batch, y_batch)
                 valid_loss += loss.item()
                 n_batches += 1
@@ -890,8 +867,10 @@ class Trainer:
         seen = 0
         with torch.no_grad():
             for batch in valid_loader:
-                x_batch: torch.Tensor = batch[0].to(self.device)
-                y_batch: torch.Tensor = batch[1].to(self.device)
+                x_batch, y_batch = self._move_training_batch_to_device(
+                    batch,
+                    valid_loader,
+                )
                 batch_size = y_batch.size(0)
                 if real_count is not None:
                     real_in_batch = min(batch_size, real_count - seen)

@@ -9,6 +9,7 @@ This module tests all training functionality including:
 """
 
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import torch
@@ -28,9 +29,20 @@ from dendritic_modeling.training.strategies import (
     TwoStepTrainer,
     TwoStepTrainerWithKL,
 )
+from dendritic_modeling.training.strategies.specialized import (
+    _merge_warmup_results,
+    _run_warmup_then_standard_training,
+    _set_parametric_activation_trainability,
+    _start_standard_phase,
+    _start_warmup_phase,
+)
 from dendritic_modeling.training.strategies.two_step import (
+    _forward_through_local_layers,
     _initialize_local_heads,
     _make_local_optimizers,
+    _prepend_pretrain_losses,
+    _resolve_layer_container,
+    _restore_full_model_trainability,
 )
 
 
@@ -241,7 +253,59 @@ class _TinyLayeredModel(nn.Module):
         return self.decoder(self.core_network(x))
 
 
+class _ActivationLayer(nn.Linear):
+    def __init__(self):
+        super().__init__(3, 2)
+        self.activation = torch.sigmoid
+
+
 class TestTwoStepLocalHeads(unittest.TestCase):
+    def test_resolve_layer_container_prefers_known_wrappers(self):
+        core_network = object()
+        wrapped_model = SimpleNamespace(
+            core_network=core_network,
+            net=object(),
+            network=object(),
+        )
+        net_model = SimpleNamespace(net=core_network, network=object())
+        bare_model = SimpleNamespace(layers=[])
+
+        self.assertIs(_resolve_layer_container(wrapped_model), core_network)
+        self.assertIs(_resolve_layer_container(net_model), core_network)
+        self.assertIs(_resolve_layer_container(bare_model), bare_model)
+
+    def test_restore_full_model_trainability_enables_all_parameters(self):
+        model = _TinyLayeredModel()
+        for param in model.parameters():
+            param.requires_grad = False
+
+        _restore_full_model_trainability(model)
+
+        self.assertTrue(all(param.requires_grad for param in model.parameters()))
+
+    def test_prepend_pretrain_losses_preserves_stage_order(self):
+        results = {"train_losses": [3.0], "valid_losses": [4.0]}
+
+        merged = _prepend_pretrain_losses(results, [1.0, 2.0], [1.5, 2.5])
+
+        self.assertIs(merged, results)
+        self.assertEqual(merged["train_losses"], [1.0, 2.0, 3.0])
+        self.assertEqual(merged["valid_losses"], [1.5, 2.5, 4.0])
+
+    def test_forward_through_local_layers_matches_inline_path(self):
+        net_obj = SimpleNamespace(
+            layers=nn.ModuleList([nn.Linear(4, 3), _ActivationLayer()])
+        )
+        x_batch = torch.randn(5, 4)
+
+        manual = net_obj.layers[0](x_batch)
+        manual = net_obj.layers[1](manual)
+        manual = net_obj.layers[1].activation(manual)
+
+        actual = _forward_through_local_layers(net_obj, x_batch, layer_idx=1)
+
+        torch.testing.assert_close(actual, manual)
+
     @patch("torch.distributed.is_initialized", return_value=True)
     def test_two_step_raises_explicitly_under_ddp(self, _mock_dist):
         model = _TinyLayeredModel()
@@ -292,6 +356,92 @@ class TestTwoStepLocalHeads(unittest.TestCase):
 
         self.assertFalse(torch.allclose(before, trainer.local_heads[0].weight))
 
+    def test_two_step_restores_state_after_pretrain_failure(self):
+        for trainer_cls, expected_prefix in (
+            (TwoStepTrainer, "twostep_stage1_"),
+            (TwoStepTrainerWithKL, "twostep_kl_stage1_"),
+        ):
+            with self.subTest(trainer=trainer_cls.__name__):
+                model = _TinyLayeredModel()
+                optimizer = torch.optim.Adam(model.parameters(), lr=0.05)
+                trainer = trainer_cls(
+                    optimizer=optimizer,
+                    loss_function="cross_entropy",
+                    epochs=1,
+                    batch_size=4,
+                    suppress_prints=True,
+                    num_workers=0,
+                )
+                trainer.pretrain_epochs = 1
+                trainer.device = "cpu"
+                train_data = torch.utils.data.TensorDataset(
+                    torch.randn(4, 4), torch.randint(0, 2, (4,))
+                )
+
+                def _fail_after_freeze(
+                    *_args,
+                    trainer=trainer,
+                    expected_prefix=expected_prefix,
+                    model=model,
+                    **_kwargs,
+                ):
+                    self.assertEqual(trainer.filename_prefix, expected_prefix)
+                    self.assertTrue(
+                        any(not param.requires_grad for param in model.parameters())
+                    )
+                    raise RuntimeError("local pretrain failed")
+
+                with patch(
+                    "dendritic_modeling.training.strategies.two_step."
+                    "_forward_through_local_layers",
+                    side_effect=_fail_after_freeze,
+                ):
+                    with self.assertRaisesRegex(RuntimeError, "local pretrain failed"):
+                        trainer.train(model, train_data, train_data)
+
+                self.assertEqual(trainer.filename_prefix, "")
+                self.assertTrue(
+                    all(param.requires_grad for param in model.parameters())
+                )
+
+    def test_two_step_restores_prefix_after_final_stage_failure(self):
+        for trainer_cls, expected_prefix in (
+            (TwoStepTrainer, "twostep_stage2_"),
+            (TwoStepTrainerWithKL, "twostep_kl_stage2_"),
+        ):
+            with self.subTest(trainer=trainer_cls.__name__):
+                model = _TinyLayeredModel()
+                optimizer = torch.optim.Adam(model.parameters(), lr=0.05)
+                trainer = trainer_cls(
+                    optimizer=optimizer,
+                    loss_function="cross_entropy",
+                    epochs=1,
+                    batch_size=4,
+                    suppress_prints=True,
+                    num_workers=0,
+                )
+                trainer.pretrain_epochs = 0
+                trainer.device = "cpu"
+                trainer._loss_plotting = lambda *_args, **_kwargs: None
+                train_data = torch.utils.data.TensorDataset(
+                    torch.randn(4, 4), torch.randint(0, 2, (4,))
+                )
+
+                def _fail_final_stage(
+                    *_args,
+                    trainer=trainer,
+                    expected_prefix=expected_prefix,
+                    **_kwargs,
+                ):
+                    self.assertEqual(trainer.filename_prefix, expected_prefix)
+                    raise RuntimeError("final stage failed")
+
+                with patch.object(Trainer, "train", side_effect=_fail_final_stage):
+                    with self.assertRaisesRegex(RuntimeError, "final stage failed"):
+                        trainer.train(model, train_data, train_data)
+
+                self.assertEqual(trainer.filename_prefix, "")
+
 
 if __name__ == "__main__":
     unittest.main()
@@ -321,6 +471,132 @@ class _MixedTrainabilityReactivationModel(nn.Module):
 
 
 class TestReactivationUpdateModes(unittest.TestCase):
+    def test_specialized_activation_trainability_helper_sets_all_parametric_params(
+        self,
+    ):
+        model = _MixedTrainabilityReactivationModel()
+
+        _set_parametric_activation_trainability(model, False)
+        self.assertFalse(model.trainable.log_m.requires_grad)
+        self.assertFalse(model.trainable.b.requires_grad)
+        self.assertFalse(model.frozen.log_m.requires_grad)
+
+        _set_parametric_activation_trainability(model, True)
+        self.assertTrue(model.trainable.log_m.requires_grad)
+        self.assertTrue(model.trainable.b.requires_grad)
+        self.assertTrue(model.frozen.log_m.requires_grad)
+
+    def test_specialized_warmup_phase_restores_standard_trainer_state(self):
+        model = _ToyReactivationModel()
+        trainer = Trainer(
+            optimizer=torch.optim.Adam(model.parameters(), lr=0.01),
+            loss_function="cross_entropy",
+            epochs=7,
+            suppress_prints=True,
+            num_workers=0,
+        )
+        trainer.pretrain_epochs = 3
+        warmup_loss = nn.MSELoss()
+        original_loss_fn = trainer.loss_function
+
+        default_loss_fn, default_epochs = _start_warmup_phase(
+            trainer,
+            warmup_loss,
+            "warmup_",
+            "[Warmup] ",
+        )
+
+        self.assertIs(default_loss_fn, original_loss_fn)
+        self.assertEqual(default_epochs, 7)
+        self.assertIs(trainer.loss_function, warmup_loss)
+        self.assertEqual(trainer.epochs, 3)
+        self.assertEqual(trainer.filename_prefix, "warmup_")
+        self.assertEqual(trainer.logger_info_prefix, "[Warmup] ")
+
+        _start_standard_phase(trainer, default_loss_fn, default_epochs)
+
+        self.assertIs(trainer.loss_function, default_loss_fn)
+        self.assertEqual(trainer.epochs, 7)
+        self.assertEqual(trainer.filename_prefix, "standard_")
+        self.assertEqual(trainer.logger_info_prefix, "[Standard] ")
+        self.assertEqual(trainer.best_loss, float("inf"))
+
+    def test_merge_warmup_results_preserves_stage_order(self):
+        pretrain_results = {"train_losses": [1.0], "valid_losses": [1.5]}
+        final_results = {
+            "train_losses": [2.0],
+            "valid_losses": [2.5],
+            "best_loss": 2.5,
+        }
+
+        merged = _merge_warmup_results(pretrain_results, final_results)
+
+        self.assertIs(merged, final_results)
+        self.assertEqual(merged["train_losses"], [1.0, 2.0])
+        self.assertEqual(merged["valid_losses"], [1.5, 2.5])
+        self.assertEqual(merged["best_loss"], 2.5)
+
+    def test_warmup_training_restores_state_after_failure(self):
+        model = _MixedTrainabilityReactivationModel()
+        default_loss_fn = nn.L1Loss()
+        trainer = SimpleNamespace(
+            loss_function=default_loss_fn,
+            epochs=7,
+            pretrain_epochs=3,
+            freeze_reactivation=True,
+            best_loss=0.25,
+        )
+        train_data = object()
+        valid_data = object()
+
+        class _WarmupLoss:
+            def __init__(self):
+                self.handles = [object()]
+                self.removed_handles = None
+
+            def attach_forward_hooks(self, attached_model):
+                self.attached_model = attached_model
+                return self.handles
+
+            def remove_forward_hooks(self, handles):
+                self.removed_handles = handles
+
+        warmup_loss = _WarmupLoss()
+
+        def _failing_train_fn(observed_model, observed_train_data, observed_valid_data):
+            self.assertIs(observed_model, model)
+            self.assertIs(observed_train_data, train_data)
+            self.assertIs(observed_valid_data, valid_data)
+            self.assertIs(trainer.loss_function, warmup_loss)
+            self.assertEqual(trainer.epochs, 3)
+            self.assertFalse(model.trainable.log_m.requires_grad)
+            self.assertFalse(model.frozen.log_m.requires_grad)
+            raise RuntimeError("warmup failed")
+
+        with self.assertRaisesRegex(RuntimeError, "warmup failed"):
+            _run_warmup_then_standard_training(
+                trainer,
+                _failing_train_fn,
+                model,
+                train_data,
+                valid_data,
+                warmup_loss,
+                filename_prefix="warmup_",
+                logger_info_prefix="[Warmup] ",
+                warmup_label="Warmup",
+                standard_label="Standard",
+            )
+
+        self.assertIs(warmup_loss.attached_model, model)
+        self.assertIs(warmup_loss.removed_handles, warmup_loss.handles)
+        self.assertIs(trainer.loss_function, default_loss_fn)
+        self.assertEqual(trainer.epochs, 7)
+        self.assertEqual(trainer.filename_prefix, "standard_")
+        self.assertEqual(trainer.logger_info_prefix, "[Standard] ")
+        self.assertEqual(trainer.best_loss, float("inf"))
+        self.assertTrue(model.trainable.log_m.requires_grad)
+        self.assertTrue(model.frozen.log_m.requires_grad)
+
     def test_quantile_mode_freezes_and_backprop_restores_original_trainability(self):
         model = _MixedTrainabilityReactivationModel()
         trainer = Trainer(

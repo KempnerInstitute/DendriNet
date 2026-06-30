@@ -168,21 +168,7 @@ class DendriticTimetracesAnalyzer(AbstractAnalyzer):
         self.log_analysis_start("dendritic_timetraces")
 
         core = getattr(model, "core_network", model)
-        per_layer: dict[str, dict[str, Any]] = {}
-        for record in iter_recurrent_populations(core):
-            if record.polarity != "excitatory":
-                continue
-            entry = _timetraces_for_population(record.population, self.params)
-            if entry is not None:
-                entry["population"] = record.population_name
-                entry["polarity"] = record.polarity
-                key = (
-                    f"layer_{record.layer_index}"
-                    if record.layer_index is not None
-                    and record.population_name == "excitatory"
-                    else record.key
-                )
-                per_layer[key] = entry
+        per_layer = self._collect_layer_timetraces(core)
 
         if not per_layer:
             self.logger.info(
@@ -191,7 +177,35 @@ class DendriticTimetracesAnalyzer(AbstractAnalyzer):
             )
             return {}
 
-        results = {
+        results = self._build_results(per_layer)
+
+        if save_path is not None:
+            self._save_results(results, save_path, filename)
+
+        self.log_analysis_end("dendritic_timetraces", num_results=len(per_layer))
+        return results
+
+    def _collect_layer_timetraces(self, core: torch.nn.Module) -> dict[str, Any]:
+        per_layer: dict[str, dict[str, Any]] = {}
+        for record in iter_recurrent_populations(core):
+            if record.polarity != "excitatory":
+                continue
+            entry = _timetraces_for_population(record.population, self.params)
+            if entry is None:
+                continue
+            entry["population"] = record.population_name
+            entry["polarity"] = record.polarity
+            per_layer[self._entry_key(record)] = entry
+        return per_layer
+
+    @staticmethod
+    def _entry_key(record) -> str:
+        if record.layer_index is not None and record.population_name == "excitatory":
+            return f"layer_{record.layer_index}"
+        return record.key
+
+    def _build_results(self, per_layer: dict[str, dict[str, Any]]) -> dict[str, Any]:
+        return {
             "stim1_window": (
                 list(self.params.stim1_window) if self.params.stim1_window else None
             ),
@@ -206,19 +220,18 @@ class DendriticTimetracesAnalyzer(AbstractAnalyzer):
             "layers": per_layer,
         }
 
-        if save_path is not None:
-            os.makedirs(save_path, exist_ok=True)
-            save_dict(results, save_path, f"{filename}.json")
-            if self.params.save_figures:
-                try:
-                    self._save_figures(results, save_path, filename)
-                except Exception as e:  # pragma: no cover - plotting is best-effort
-                    self.logger.warning(
-                        "Figure generation failed for dendritic timetraces: %s", e
-                    )
-
-        self.log_analysis_end("dendritic_timetraces", num_results=len(per_layer))
-        return results
+    def _save_results(
+        self, results: dict[str, Any], save_path: str, filename: str
+    ) -> None:
+        os.makedirs(save_path, exist_ok=True)
+        save_dict(results, save_path, f"{filename}.json")
+        if self.params.save_figures:
+            try:
+                self._save_figures(results, save_path, filename)
+            except Exception as e:  # pragma: no cover - plotting is best-effort
+                self.logger.warning(
+                    "Figure generation failed for dendritic timetraces: %s", e
+                )
 
     def _save_figures(
         self, results: dict[str, Any], save_path: str, filename: str

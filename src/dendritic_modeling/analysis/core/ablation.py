@@ -6,10 +6,11 @@ disabling or ablating different network components to understand their contribut
 """
 
 import json
+import logging
 import os
-import re
+from collections.abc import Callable, Iterator
 from copy import deepcopy
-from typing import Callable, Optional
+from typing import Optional
 
 import matplotlib.animation as animation
 import matplotlib.pyplot as plt
@@ -43,37 +44,59 @@ from dendritic_modeling.training.utils.evaluation import (
     evaluate_pred_label_mi,
 )
 from dendritic_modeling.utils import save_dict
+from dendritic_modeling.utils.epoch_files import epoch_files_by_number
+from dendritic_modeling.utils.hooks import iter_named_modules_of_type
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Ablation schema constants
 # ---------------------------------------------------------------------------
 _KNOWN_TARGETS = frozenset({"all_synapses", "excitation", "inhibition", "upstream"})
+ABLATION_VIDEO_METRIC_LABELS = {
+    "accuracy": "Accuracy",
+    "auc": "AUC",
+    "categorical_loglikelihood": "Log Likelihood",
+    "mse": "MSE",
+    "cosine_similarity": "Cosine Similarity",
+    "pred_label_mi_bits": "I(C; Ĉ) [bits]",
+}
 
 
-def flatten_3level_ablation(nested_results: dict) -> dict:
-    """Convert 3-level ablation results to 2-level for legacy consumers.
-
-    Input:  ``{"lesion": {"excitation": {module: metrics, ...}, ...}, ...}``
-    Output: ``{"lesion_excitation": {module: metrics, ...}, ...}``
-
-    If the dict is already 2-level (values contain module-level dicts with a
-    ``"depth"`` key), it is returned unchanged.
-
-    .. note:: New code should use the canonical 3-level schema directly.
-              This helper exists only for backward compatibility with old
-              plotting code.
-    """
-    flat: dict = {}
-    for method, targets in nested_results.items():
-        if not isinstance(targets, dict):
-            flat[method] = targets
+def _iter_complete_branch_layers(
+    model: torch.nn.Module,
+) -> Iterator[tuple[str, DendriticBranchLayer]]:
+    """Yield branch layers with both excitatory and inhibitory branches."""
+    for name, module in iter_named_modules_of_type(model, DendriticBranchLayer):
+        if module.branch_excitation is None or module.branch_inhibition is None:
             continue
-        if set(targets.keys()) & _KNOWN_TARGETS:
-            for target, modules in targets.items():
-                flat[f"{method}_{target}"] = modules
-        else:
-            flat[method] = targets
-    return flat
+        yield name, module
+
+
+def _iter_first_layer_upstream_branch_layers(
+    model: torch.nn.Module,
+) -> Iterator[tuple[str, DendriticBranchLayer]]:
+    """Yield first-level branch layers that expose upstream branch outputs."""
+    for name, module in iter_named_modules_of_type(model, DendriticBranchLayer):
+        if getattr(module, "layer_idx", None) != 0:
+            continue
+        if not hasattr(module, "branches_to_output"):
+            continue
+        yield name, module
+
+
+def _has_metric_drop_nested(dictionary, metric):
+    """Return whether ``<metric>_drop`` exists anywhere in a nested payload."""
+    if isinstance(dictionary, dict):
+        key = f"{metric}_drop"
+        if key in dictionary:
+            return True
+        return any(
+            _has_metric_drop_nested(value, metric) for value in dictionary.values()
+        )
+    if isinstance(dictionary, (list, tuple)):
+        return any(_has_metric_drop_nested(item, metric) for item in dictionary)
+    return False
 
 
 class AblationAnalyzer(AbstractAnalyzer):
@@ -138,6 +161,24 @@ class AblationAnalyzer(AbstractAnalyzer):
     def _normalize_ablation_target(target: str) -> str:
         """Normalize ablation target names (spaces -> underscores)."""
         return str(target).replace(" ", "_")
+
+    def _enabled_ablation_targets(
+        self,
+        module: DendriticBranchLayer | None = None,
+    ) -> tuple[str, ...]:
+        """Return enabled ablation targets in canonical result order."""
+        targets: list[str] = []
+        if self.ablate_all_synapses:
+            targets.append("all_synapses")
+        if self.ablate_excitation:
+            targets.append("excitation")
+        if self.ablate_inhibition:
+            targets.append("inhibition")
+        if self.ablate_upstream and (
+            module is None or hasattr(module, "branches_to_output")
+        ):
+            targets.append("upstream")
+        return tuple(targets)
 
     @staticmethod
     def _resolve_lesion_value(model: BaseModel) -> float:
@@ -224,6 +265,75 @@ class AblationAnalyzer(AbstractAnalyzer):
 
         return _hook
 
+    def _make_tensor_intervention_hook(self, *, method: str):
+        """Forward hook that intervenes on a tensor-valued synaptic signal."""
+        call_idx = 0
+
+        def _hook(_module, _inputs, output):
+            nonlocal call_idx
+            if not isinstance(output, torch.Tensor):
+                return None
+
+            if method == "shuffle":
+                seed = self.shuffle_seed + call_idx
+                call_idx += 1
+                gen = (
+                    torch.Generator(device=output.device)
+                    if output.is_cuda
+                    else torch.Generator()
+                )
+                gen.manual_seed(seed)
+                perm = torch.randperm(
+                    output.shape[0], generator=gen, device=output.device
+                )
+                return output[perm]
+
+            if method == "mean_clamp":
+                if self.clamp_statistic != "mean":
+                    raise ValueError(
+                        f"Unsupported clamp_statistic: {self.clamp_statistic}"
+                    )
+                return output.mean(dim=0, keepdim=True).expand_as(output)
+
+            return None
+
+        return _hook
+
+    def _register_signal_intervention_hooks(
+        self,
+        *,
+        module: DendriticBranchLayer,
+        ablation_type: str,
+        method: str,
+    ) -> list[torch.utils.hooks.RemovableHandle]:
+        """Register signal-level hooks on the modules that produce E/I currents.
+
+        Population-network recurrent and feedforward paths may call
+        ``DendriticBranchLayer.compute_raw_currents`` directly instead of
+        ``DendriticBranchLayer.forward``. Hooking the producing submodules keeps
+        signal interventions active on both the legacy and population-network
+        execution paths.
+        """
+        handles: list[torch.utils.hooks.RemovableHandle] = []
+        hook = self._make_tensor_intervention_hook(method=method)
+
+        if ablation_type in {"excitation", "all_synapses"}:
+            branch_excitation = getattr(module, "branch_excitation", None)
+            if branch_excitation is not None:
+                handles.append(branch_excitation.register_forward_hook(hook))
+
+        if ablation_type in {"inhibition", "all_synapses"}:
+            branch_inhibition = getattr(module, "branch_inhibition", None)
+            if branch_inhibition is not None:
+                handles.append(branch_inhibition.register_forward_hook(hook))
+
+        if ablation_type == "upstream":
+            branches_to_output = getattr(module, "branches_to_output", None)
+            if branches_to_output is not None:
+                handles.append(branches_to_output.register_forward_hook(hook))
+
+        return handles
+
     def ablate_layer_and_evaluate(
         self,
         test_dataset: torch.utils.data.Dataset,
@@ -238,30 +348,15 @@ class AblationAnalyzer(AbstractAnalyzer):
         eval_kwargs: Optional[dict] = None,
         device: Optional[str] = None,
     ):
-        """Ablate a single layer and evaluate its impact.
-
-        Args:
-            ablation_type: The ablation target, e.g. ``"excitation"``,
-                ``"inhibition"``, ``"all_synapses"``, ``"upstream"``.
-                Legacy composite keys like ``"lesion_excitation"`` are also
-                accepted and the method prefix is stripped automatically.
-            ablation_method: ``"lesion"`` | ``"shuffle"`` | ``"mean_clamp"``.
-            results_dict: Dict to write into at ``results_dict[ablation_type][module_name]``.
-        """
+        """Ablate a single layer and evaluate its impact."""
         results_dict[ablation_type][module_name] = {}
         results_dict[ablation_type][module_name]["depth"] = module.layer_idx
-        results_dict[ablation_type][module_name]["ablation_method"] = ablation_method
         if eval_kwargs is None:
             eval_kwargs = {}
         if device is None:
             device = str(get_model_device(model))
 
-        # Allow ablation_type keys to be namespaced, e.g. "lesion_excitation".
-        target_type = ablation_type
-        prefix = f"{ablation_method}_"
-        if isinstance(ablation_type, str) and ablation_type.startswith(prefix):
-            target_type = ablation_type[len(prefix) :]
-        target_type_norm = self._normalize_ablation_target(target_type)
+        target_type_norm = self._normalize_ablation_target(ablation_type)
 
         # Check if this is a soma layer without somatic synapses (using config)
         somatic_synapses_enabled = getattr(model.core_network, "somatic_synapses", True)
@@ -322,13 +417,14 @@ class AblationAnalyzer(AbstractAnalyzer):
                     raise ValueError(f"Unknown ablation_method: {ablation_method}")
 
                 def _evaluate_metric(metric_func: Callable, metric_key: str):
-                    local_hook = None
+                    local_hooks = []
                     try:
                         if ablation_method in {"shuffle", "mean_clamp"}:
-                            pre_hook = self._make_signal_intervention_pre_hook(
-                                ablation_type=target_type_norm, method=ablation_method
+                            local_hooks = self._register_signal_intervention_hooks(
+                                module=module,
+                                ablation_type=target_type_norm,
+                                method=ablation_method,
                             )
-                            local_hook = module.register_forward_pre_hook(pre_hook)
 
                         metric_score = metric_func(
                             model,
@@ -337,7 +433,7 @@ class AblationAnalyzer(AbstractAnalyzer):
                             **eval_kwargs,
                         )[-1]
                     finally:
-                        if local_hook is not None:
+                        for local_hook in local_hooks:
                             local_hook.remove()
 
                     results_dict[ablation_type][module_name][f"{metric_key}_drop"] = (
@@ -393,14 +489,7 @@ class AblationAnalyzer(AbstractAnalyzer):
             device = str(get_model_device(model))
         results_dict[ablation_type][module_name] = {}
         results_dict[ablation_type][module_name]["depth"] = module.layer_idx
-        results_dict[ablation_type][module_name]["ablation_method"] = ablation_method
-
-        # Allow ablation_type keys to be namespaced, e.g. "lesion_excitation".
-        target_type = ablation_type
-        prefix = f"{ablation_method}_"
-        if isinstance(ablation_type, str) and ablation_type.startswith(prefix):
-            target_type = ablation_type[len(prefix) :]
-        target_type_norm = self._normalize_ablation_target(target_type)
+        target_type_norm = self._normalize_ablation_target(ablation_type)
 
         if module.branch_excitation is not None:
             n_branches = module.branch_excitation.pre_w.shape[0]
@@ -514,7 +603,7 @@ class AblationAnalyzer(AbstractAnalyzer):
                 )
 
                 if os.path.exists(os.path.join(save_path, "epochs")):
-                    print("Creating video for ablation vs training", flush=True)
+                    logger.info("Creating video for ablation vs training")
                     create_video_layer_ablation_vs_training(
                         save_path=save_path,
                         metric="accuracy",
@@ -523,15 +612,16 @@ class AblationAnalyzer(AbstractAnalyzer):
 
             # Plot compartment ablation results if available
             if results.get("compartment"):
-                plot_ablation_results(
-                    results["compartment"],
-                    save_path=save_path,
-                    filename=f"{filename}_compartment",
-                )
+                for method, method_results in results["compartment"].items():
+                    plot_ablation_results(
+                        method_results,
+                        save_path=os.path.join(save_path, method),
+                        filename=f"{filename}_compartment",
+                    )
         except ImportError as e:
-            print(f"Warning: Ablation plotting functions not found: {e}")
+            logger.warning("Ablation plotting functions not found: %s", e)
         except Exception as e:
-            print(f"Warning: Could not generate ablation plots: {e}")
+            logger.warning("Could not generate ablation plots: %s", e)
 
     def analyze(
         self,
@@ -627,14 +717,8 @@ class AblationAnalyzer(AbstractAnalyzer):
                 layer_results: dict[str, dict] = {}
                 for method in self.ablation_methods:
                     layer_results.setdefault(method, {})
-                    if self.ablate_all_synapses:
-                        layer_results[method]["all_synapses"] = {}
-                    if self.ablate_excitation:
-                        layer_results[method]["excitation"] = {}
-                    if self.ablate_inhibition:
-                        layer_results[method]["inhibition"] = {}
-                    if self.ablate_upstream:
-                        layer_results[method]["upstream"] = {}
+                    for target in self._enabled_ablation_targets():
+                        layer_results[method][target] = {}
 
             if self.compartment_ablation:
                 compartment_results: dict[str, dict] = {}
@@ -642,119 +726,12 @@ class AblationAnalyzer(AbstractAnalyzer):
                     if method != "lesion":
                         continue
                     compartment_results.setdefault(method, {})
-                    if self.ablate_all_synapses:
-                        compartment_results[method]["all_synapses"] = {}
-                    if self.ablate_excitation:
-                        compartment_results[method]["excitation"] = {}
-                    if self.ablate_inhibition:
-                        compartment_results[method]["inhibition"] = {}
-                    if self.ablate_upstream:
-                        compartment_results[method]["upstream"] = {}
+                    for target in self._enabled_ablation_targets():
+                        compartment_results[method][target] = {}
 
-            for _name, module in model.named_modules():
-                if not (
-                    isinstance(module, DendriticBranchLayer)
-                    and module.branch_excitation is not None
-                    and module.branch_inhibition is not None
-                ):
-                    continue
-
+            for _name, module in _iter_complete_branch_layers(model):
                 for method in self.ablation_methods:
-                    if self.ablate_all_synapses:
-                        target = "all_synapses"
-                        if self.layer_ablation:
-                            self.ablate_layer_and_evaluate(
-                                test_dataset=test_dataset,
-                                model=model,
-                                module=module,
-                                module_name=_name,
-                                ablation_type=target,
-                                ablation_method=method,
-                                baseline_dict=baselines,
-                                results_dict=layer_results[method],
-                                state_dict=state_dict,
-                                eval_kwargs=eval_kwargs,
-                                device=analysis_device,
-                            )
-                        if self.compartment_ablation and method == "lesion":
-                            self.ablate_compartment_and_evaluate(
-                                test_dataset=test_dataset,
-                                model=model,
-                                module=module,
-                                module_name=_name,
-                                ablation_type=target,
-                                ablation_method=method,
-                                baseline_dict=baselines,
-                                results_dict=compartment_results[method],
-                                state_dict=state_dict,
-                                eval_kwargs=eval_kwargs,
-                                device=analysis_device,
-                            )
-
-                    if self.ablate_excitation:
-                        target = "excitation"
-                        if self.layer_ablation:
-                            self.ablate_layer_and_evaluate(
-                                test_dataset=test_dataset,
-                                model=model,
-                                module=module,
-                                module_name=_name,
-                                ablation_type=target,
-                                ablation_method=method,
-                                baseline_dict=baselines,
-                                results_dict=layer_results[method],
-                                state_dict=state_dict,
-                                eval_kwargs=eval_kwargs,
-                                device=analysis_device,
-                            )
-                        if self.compartment_ablation and method == "lesion":
-                            self.ablate_compartment_and_evaluate(
-                                test_dataset=test_dataset,
-                                model=model,
-                                module=module,
-                                module_name=_name,
-                                ablation_type=target,
-                                ablation_method=method,
-                                baseline_dict=baselines,
-                                results_dict=compartment_results[method],
-                                state_dict=state_dict,
-                                eval_kwargs=eval_kwargs,
-                                device=analysis_device,
-                            )
-
-                    if self.ablate_inhibition:
-                        target = "inhibition"
-                        if self.layer_ablation:
-                            self.ablate_layer_and_evaluate(
-                                test_dataset=test_dataset,
-                                model=model,
-                                module=module,
-                                module_name=_name,
-                                ablation_type=target,
-                                ablation_method=method,
-                                baseline_dict=baselines,
-                                results_dict=layer_results[method],
-                                state_dict=state_dict,
-                                eval_kwargs=eval_kwargs,
-                                device=analysis_device,
-                            )
-                        if self.compartment_ablation and method == "lesion":
-                            self.ablate_compartment_and_evaluate(
-                                test_dataset=test_dataset,
-                                model=model,
-                                module=module,
-                                module_name=_name,
-                                ablation_type=target,
-                                ablation_method=method,
-                                baseline_dict=baselines,
-                                results_dict=compartment_results[method],
-                                state_dict=state_dict,
-                                eval_kwargs=eval_kwargs,
-                                device=analysis_device,
-                            )
-
-                    if self.ablate_upstream and hasattr(module, "branches_to_output"):
-                        target = "upstream"
+                    for target in self._enabled_ablation_targets(module):
                         if self.layer_ablation:
                             self.ablate_layer_and_evaluate(
                                 test_dataset=test_dataset,
@@ -788,14 +765,7 @@ class AblationAnalyzer(AbstractAnalyzer):
                 model.core_network, "somatic_synapses", True
             )
             if self.ablate_upstream and not somatic_synapses_enabled:
-                for _name, module in model.named_modules():
-                    if not isinstance(module, DendriticBranchLayer):
-                        continue
-                    if getattr(module, "layer_idx", None) != 0:
-                        continue
-                    if not hasattr(module, "branches_to_output"):
-                        continue
-
+                for _name, module in _iter_first_layer_upstream_branch_layers(model):
                     for method in self.ablation_methods:
                         if self.layer_ablation:
                             if _name in layer_results.get(method, {}).get(
@@ -870,17 +840,8 @@ class AblationAnalyzer(AbstractAnalyzer):
             save_dict(results, save_path, f"{filename}.json")
 
             if not training:
-                plot_results = dict(results)
-                if "layer" in plot_results:
-                    plot_results["layer"] = flatten_3level_ablation(
-                        plot_results["layer"]
-                    )
-                if "compartment" in plot_results:
-                    plot_results["compartment"] = flatten_3level_ablation(
-                        plot_results["compartment"]
-                    )
                 self._plot_ablation_results(
-                    plot_results, save_path, filename, somatic_synapses_enabled
+                    results, save_path, filename, somatic_synapses_enabled
                 )
         else:
             return results
@@ -908,30 +869,17 @@ def create_video_layer_ablation_vs_training(
     if not os.path.exists(epochs_dir):
         raise ValueError(f"Epochs directory not found: {epochs_dir}")
 
-    # Collect and sort epoch JSON files
-    epoch_files = []
-    for filename in os.listdir(epochs_dir):
-        if filename.startswith("epoch") and filename.endswith(".json"):
-            # Extract epoch number from filename (e.g., "epoch0.json" -> 0)
-            match = re.match(r"epoch(\d+)\.json", filename)
-            if match:
-                epoch_number = int(match.group(1))
-                epoch_files.append((epoch_number, filename))
+    epoch_files = epoch_files_by_number(epochs_dir)
 
     if not epoch_files:
         raise ValueError(f"No epoch JSON files found in {epochs_dir}")
 
-    # Sort by epoch number
-    epoch_files.sort(key=lambda x: x[0])
-
-    # Load all epoch data (flatten 3-level schema to 2-level for plotting)
+    # Load all epoch data in the canonical method -> target -> module schema.
     epoch_data_list = []
     for epoch_number, filename in epoch_files:
         file_path = os.path.join(epochs_dir, filename)
         with open(file_path) as f:
             data = json.load(f)
-            if "layer" in data:
-                data["layer"] = flatten_3level_ablation(data["layer"])
             epoch_data_list.append((epoch_number, data))
 
     if not epoch_data_list:
@@ -949,54 +897,27 @@ def create_video_layer_ablation_vs_training(
     layer_results = first_epoch_data["layer"]
     # baselines = first_epoch_data.get("baseline", {})
 
-    # Determine available metrics
-    metric_mapping = {
-        "accuracy": "Accuracy",
-        "auc": "AUC",
-        "categorical_loglikelihood": "Log Likelihood",
-        "mse": "MSE",
-        "cosine_similarity": "Cosine Similarity",
-        "pred_label_mi_bits": "I(C; Ĉ) [bits]",
-    }
-
-    def has_metric_nested(dictionary, metric):
-        """Check if key exists at any level in a nested dictionary"""
-        if isinstance(dictionary, dict):
-            key = f"{metric}_drop"
-            if key in dictionary:
-                return True
-            return any(
-                has_metric_nested(value, metric) for value in dictionary.values()
-            )
-        elif isinstance(dictionary, (list, tuple)):
-            return any(has_metric_nested(item, metric) for item in dictionary)
-        return False
-
     # Validate that the requested metric exists
-    if metric not in metric_mapping:
+    if metric not in ABLATION_VIDEO_METRIC_LABELS:
         raise ValueError(
-            f"Invalid metric '{metric}'. Must be one of: {list(metric_mapping.keys())}"
+            f"Invalid metric '{metric}'. Must be one of: {list(ABLATION_VIDEO_METRIC_LABELS.keys())}"
         )
 
-    if not has_metric_nested(layer_results, metric):
+    if not _has_metric_drop_nested(layer_results, metric):
         available_metrics = []
-        for m in metric_mapping.keys():
-            if has_metric_nested(layer_results, m):
+        for m in ABLATION_VIDEO_METRIC_LABELS.keys():
+            if _has_metric_drop_nested(layer_results, m):
                 available_metrics.append(m)
         raise ValueError(
             f"Metric '{metric}' not found in ablation data. "
             f"Available metrics: {available_metrics}"
         )
 
-    # Determine ablation types (supports method-prefixed keys like "lesion_excitation")
     base_targets = ["excitation", "inhibition", "all_synapses", "upstream"]
 
-    available_methods = set()
-    for k in layer_results.keys():
-        k_norm = str(k).replace(" ", "_")
-        for base in base_targets:
-            if k_norm.endswith(f"_{base}"):
-                available_methods.add(k_norm[: -(len(base) + 1)])
+    available_methods = {
+        key for key, value in layer_results.items() if isinstance(value, dict)
+    }
 
     selected_method = method
     if selected_method is None:
@@ -1004,23 +925,13 @@ def create_video_layer_ablation_vs_training(
     if selected_method is None and available_methods:
         selected_method = sorted(available_methods)[0]
 
-    synapse_ablation_types = []
-    if selected_method is not None:
-        for base in base_targets:
-            key = f"{selected_method}_{base}"
-            if key in layer_results:
-                synapse_ablation_types.append(key)
-    else:
-        # Legacy (non-prefixed) keys
-        for legacy_key in (
-            "excitation",
-            "inhibition",
-            "all synapses",
-            "all_synapses",
-            "upstream",
-        ):
-            if legacy_key in layer_results:
-                synapse_ablation_types.append(legacy_key)
+    if selected_method is None:
+        raise ValueError("No ablation methods found in data")
+
+    method_results = layer_results.get(selected_method, {})
+    synapse_ablation_types = [
+        target for target in base_targets if target in method_results
+    ]
 
     if not synapse_ablation_types:
         raise ValueError("No ablation types found in data")
@@ -1031,7 +942,7 @@ def create_video_layer_ablation_vs_training(
 
     # Determine depth range from first epoch (assume consistent across epochs)
     first_layer_results = epoch_data_list[0][1]["layer"]
-    first_type_dict = first_layer_results[synapse_ablation_types[0]]
+    first_type_dict = first_layer_results[selected_method][synapse_ablation_types[0]]
     depths = sorted({layer_dict["depth"] for layer_dict in first_type_dict.values()})
 
     # Create depth labels
@@ -1046,7 +957,7 @@ def create_video_layer_ablation_vs_training(
     # Calculate global min and max values across all epochs for consistent y-axis
     all_values = []
     for _epoch_number, epoch_data in epoch_data_list:
-        layer_results = epoch_data["layer"]
+        layer_results = epoch_data["layer"].get(selected_method, {})
         for ablation_type in synapse_ablation_types:
             type_dict = layer_results.get(ablation_type, {})
             for layer_dict in type_dict.values():
@@ -1085,7 +996,7 @@ def create_video_layer_ablation_vs_training(
     ax.set_xticks(depths)
     ax.set_xticklabels(depth_labels, rotation=45)
     ax.set_xlabel("Branch Depth (Soma to Distal)")
-    ax.set_ylabel(f"{metric_mapping[metric]} Drop Decrease")
+    ax.set_ylabel(f"{ABLATION_VIDEO_METRIC_LABELS[metric]} Drop Decrease")
     # ax.legend()
     ax.grid(True, axis="y", alpha=0.3)
 
@@ -1102,14 +1013,14 @@ def create_video_layer_ablation_vs_training(
         ax.set_xticks(depths)
         ax.set_xticklabels(depth_labels, rotation=45)
         ax.set_xlabel("Branch Depth (Soma to Distal)")
-        ax.set_ylabel(f"{metric_mapping[metric]} Drop Decrease")
+        ax.set_ylabel(f"{ABLATION_VIDEO_METRIC_LABELS[metric]} Drop Decrease")
         ax.set_ylim(y_min, y_max)
         ax.set_yticks(y_ticks)
         ax.grid(True, axis="y", alpha=0.3)
 
         # Get data for this frame
         epoch_number, epoch_data = epoch_data_list[frame]
-        layer_results = epoch_data["layer"]
+        layer_results = epoch_data["layer"].get(selected_method, {})
         baselines = epoch_data.get("baseline", {})
 
         # Prepare data for plotting (matching plot_layer_ablation logic exactly)
@@ -1155,9 +1066,8 @@ def create_video_layer_ablation_vs_training(
 
         # Update title with epoch number and baseline
         baseline_value = baselines.get(metric, 0.0)
-        title = f"{metric_mapping[metric]} Drop Decrease vs. Branch Depth"
-        if selected_method is not None:
-            title += f"\nMethod: {selected_method}"
+        title = f"{ABLATION_VIDEO_METRIC_LABELS[metric]} Drop Decrease vs. Branch Depth"
+        title += f"\nMethod: {selected_method}"
         title += f"\nEpoch {epoch_number} (Baseline: {baseline_value:.3f})"
         ax.set_title(title)
         ax.legend()
@@ -1175,33 +1085,35 @@ def create_video_layer_ablation_vs_training(
     )
 
     # Save video
-    method_tag = selected_method if selected_method is not None else "legacy"
+    method_tag = selected_method
     video_filename = f"layer_ablation_{method_tag}_{metric}_evolution"
-    print(f"Creating {num_epochs}-frame video at {fps:.2f} fps (20 seconds total)")
+    logger.info(
+        "Creating %s-frame video at %.2f fps (20 seconds total)", num_epochs, fps
+    )
     if video_format == "mp4":
         if animation.writers.is_available("ffmpeg"):
             try:
                 writer = animation.FFMpegWriter(fps=fps, bitrate=1800)
                 video_path = os.path.join(save_path, f"{video_filename}.mp4")
                 ani.save(video_path, writer=writer)
-                print(f"Video saved to {video_path}")
+                logger.info("Video saved to %s", video_path)
             except Exception as e:
-                print(f"Error saving MP4 video: {e}")
-                print("Falling back to GIF format...")
+                logger.warning("Error saving MP4 video: %s", e)
+                logger.info("Falling back to GIF format")
                 writer = animation.PillowWriter(fps=fps)
                 video_path = os.path.join(save_path, f"{video_filename}.gif")
                 ani.save(video_path, writer=writer)
-                print(f"GIF saved to {video_path}")
+                logger.info("GIF saved to %s", video_path)
         else:
-            print("ffmpeg writer not available; saving GIF format...")
+            logger.info("ffmpeg writer not available; saving GIF format")
             writer = animation.PillowWriter(fps=fps)
             video_path = os.path.join(save_path, f"{video_filename}.gif")
             ani.save(video_path, writer=writer)
-            print(f"GIF saved to {video_path}")
+            logger.info("GIF saved to %s", video_path)
     else:
         writer = animation.PillowWriter(fps=fps)
         video_path = os.path.join(save_path, f"{video_filename}.gif")
         ani.save(video_path, writer=writer)
-        print(f"GIF saved to {video_path}")
+        logger.info("GIF saved to %s", video_path)
 
     plt.close(fig)

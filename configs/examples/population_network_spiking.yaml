@@ -1,8 +1,8 @@
 # ============================================================================
 # Population Network with Spiking Soma Dynamics
 # ============================================================================
-# LIF soma dynamics with surrogate-gradient spikes in the canonical
-# population_network schema.
+# LIF soma dynamics with surrogate-gradient spikes in the population-network
+# schema.
 #
 # Run:
 #   PYTHONPATH=src:$PYTHONPATH python \
@@ -60,6 +60,14 @@ model:
             dbl_init_method: "analytical_expectation"
             weight_transform: "softplus"
             use_shunting: true
+            topk_type: "indexed_rewire"
+            topk_init_method: "xavier_normal"
+            indexed_seed: 45
+            indexed_rewire_frequency: 100
+            indexed_rewire_quantile: 0.05
+            indexed_rewire_until_step: null
+            indexed_output_chunk_size: 2048
+            efficient_blocklinear: true
             dynamics_mode: "spike"
             spike_threshold: 0.25
             spike_reset: 0.0

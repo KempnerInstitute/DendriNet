@@ -42,7 +42,7 @@ class StochasticTopKLinear(TopKLinear):
         forbidden_input_index_per_output: Optional[torch.Tensor] = None,
         connection_mask: Optional[torch.Tensor] = None,
         temperature=0.5,  # extra hyperparam for sharper or flatter gating
-        ultrafast=False,  # Set to True for much faster but approximate implementation
+        ultrafast=True,  # ultrafast noisy-topk is the default; set False for rank-probabilistic
     ):
         super().__init__(
             in_features,

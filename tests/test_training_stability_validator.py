@@ -88,6 +88,65 @@ def _build_config(
     )
 
 
+def test_training_stability_context_resolves_current_and_legacy_paths():
+    fsdp_config = ConfigNode(
+        sharding_strategy="full",
+        reduce_communication_overhead=False,
+    )
+    config = _build_config(
+        use_amp=True,
+        enable_hooks=False,
+        distributed_mode="fsdp",
+        fsdp_config=fsdp_config,
+        learning_rate=0.02,
+        grad_clip_value=20.0,
+        topk_ultrafast=True,
+        efficient_blocklinear=True,
+        reactivation_strategy="scaled",
+        topk_strategy="legacy_scaled",
+        blocklinear_strategy="block_scaled",
+        core_type="dendritic_shunting",
+        morphology_use_shunting=True,
+        weight_transform="softplus",
+        normalize_inputs=False,
+        transfer_output_activation="relu",
+        dataset_name="stringer_v1",
+        dataset_params=ConfigNode(stringer_v1=ConfigNode(normalize=True)),
+    )
+
+    context = tsv._collect_training_stability_context(config)
+
+    assert context.enable_amp is True
+    assert context.enable_hooks is False
+    assert context.topk_ultrafast is True
+    assert context.efficient_blocklinear is True
+    assert context.reactivation_strategy == "scaled"
+    assert context.topk_strategy == "legacy_scaled"
+    assert context.blocklinear_strategy == "block_scaled"
+    assert context.effective_use_shunting is True
+    assert context.weight_transform == "softplus"
+    assert context.transfer_output_activation == "relu"
+    assert context.normalize_inputs is True
+    assert context.learning_rate == 0.02
+    assert context.dist_mode == "fsdp"
+    assert context.fsdp_config is fsdp_config
+    assert context.trainer_params.grad_clip_value == 20.0
+
+
+def test_automatic_safeguard_gradient_scaling_detects_current_sections():
+    config = _build_config(
+        reactivation_strategy="none",
+        topk_strategy="none",
+        blocklinear_strategy="none",
+    )
+
+    assert not tsv._automatic_safeguard_gradient_scaling_enabled(config)
+
+    config.model.core.reactivation = ConfigNode(gradient_scaling="scaled")
+
+    assert tsv._automatic_safeguard_gradient_scaling_enabled(config)
+
+
 def test_validate_training_stability_logs_expected_warnings(monkeypatch):
     config = _build_config(
         use_amp=True,

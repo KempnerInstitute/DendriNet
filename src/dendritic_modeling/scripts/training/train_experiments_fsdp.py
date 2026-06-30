@@ -36,14 +36,16 @@ os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
 import torch
 import torch.distributed as dist
-from torch.utils.data import DataLoader, DistributedSampler
+from torch.utils.data import DataLoader, Dataset, DistributedSampler
 
 from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.config import load_config
 from dendritic_modeling.datasets import get_unified_datasets
+from dendritic_modeling.datasets.dimensions import flat_dataset_input_dim
 from dendritic_modeling.models import Classifier, Regressor
 from dendritic_modeling.networks import Identity
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize import (
+    collect_model_data_driven_reactivation_policies,
     is_data_driven_reactivation_policy,
     normalize_reactivation_init_policy,
 )
@@ -56,6 +58,11 @@ from dendritic_modeling.scripts.script_utils.setup_utils import (
 )
 from dendritic_modeling.scripts.training.train_encoder_network import (
     load_train_encoder_network,
+)
+from dendritic_modeling.training.dataloader_utils import (
+    DataLoaderTuning,
+    resolve_dataloader_tuning_from_config,
+    visible_cpu_count,
 )
 from dendritic_modeling.training.fsdp_utils import get_fsdp_config, save_fsdp_checkpoint
 from dendritic_modeling.training.strategies.fsdp_standard import (
@@ -158,6 +165,35 @@ def setup_distributed() -> tuple[int, int, int]:
     return rank, local_rank, world_size
 
 
+def _save_fsdp_run_config(config, run_save_path: str) -> None:
+    """Persist the resolved FSDP run config with legacy flag canonicalization."""
+    config_payload = asdict(config)
+    if canonicalize_model_core_flags is not None:
+        config_payload = canonicalize_model_core_flags(config_payload)
+    if canonicalize_rnn_core_flags is not None:
+        config_payload = canonicalize_rnn_core_flags(config_payload)
+    save_dict(config_payload, run_save_path, "config.json")
+
+
+def _setup_rank0_run_directory(config) -> str:
+    """Create the rank-0 output directory, logger file, and config snapshot."""
+    run_id = f"{config.outputs.run_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    run_save_path = os.path.join(config.outputs.results_dir, run_id)
+    os.makedirs(run_save_path, exist_ok=True)
+
+    logger_manager.set_log_directory(run_save_path)
+    log_file = os.path.join(run_save_path, "train.log")
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setFormatter(
+        logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    )
+    logger.addHandler(file_handler)
+    logger.info(f"Logging to {log_file}")
+
+    _save_fsdp_run_config(config, run_save_path)
+    return run_save_path
+
+
 def print_model_parameter_summary(model, sample_input=None):
     """Print detailed model parameter summary using torchinfo if available."""
     logger.info("Network architecture summary before training:")
@@ -197,40 +233,106 @@ def print_model_parameter_summary(model, sample_input=None):
         logger.info(f"Trainable parameters: {trainable_params:,}")
 
 
+def _print_rank0_model_summary(model, train_ds) -> None:
+    """Generate the rank-0 model summary, falling back when sampling fails."""
+    try:
+        sample_input = train_ds[0][0]
+        print_model_parameter_summary(model, sample_input)
+    except Exception as e:
+        logger.warning(f"Could not generate model summary with sample input: {e}")
+        print_model_parameter_summary(model)
+
+
+def _build_fsdp_runtime_configs(config):
+    """Build trainer-common, FSDP, and optimizer configs from typed config."""
+    train_common = config.training.main.common
+
+    fsdp_cfg = config.distributed.fsdp
+    logger.info("Using FSDP configuration from config file")
+    fsdp_config = get_fsdp_config(
+        mixed_precision=fsdp_cfg.mixed_precision,
+        cpu_offload=fsdp_cfg.cpu_offload,
+        sharding_strategy=fsdp_cfg.sharding_strategy,
+        fsdp_config_dict=vars(fsdp_cfg) if hasattr(fsdp_cfg, "__dict__") else None,
+    )
+
+    optimizer_config = {
+        "lr": train_common.param_groups.lr,
+        "weight_decay": getattr(train_common, "weight_decay_rate", 0.0),
+        "split_params": getattr(train_common.param_groups, "split_params", False),
+    }
+    return train_common, fsdp_config, optimizer_config
+
+
+def _create_fsdp_trainer(
+    *,
+    rank: int,
+    world_size: int,
+    fsdp_config,
+    run_save_path,
+    train_common,
+    optimizer_config,
+    analysis_manager,
+    wandb_run,
+    config,
+):
+    """Create the FSDP trainer from resolved runtime config."""
+    return FSDPTrainer(
+        rank=rank,
+        world_size=world_size,
+        fsdp_config=fsdp_config,
+        checkpoint_dir=run_save_path if rank == 0 else None,
+        save_every_n_epochs=getattr(train_common, "save_every_n_epochs", None),
+        optimizer_config=optimizer_config,
+        analysis_manager=analysis_manager,
+        wandb_run=wandb_run,
+        epochs=train_common.epochs,
+        loss_function=getattr(train_common, "loss_function", "cat_nll"),
+        grad_clip_value=getattr(train_common, "grad_clip_value", 5.0),
+        use_amp=getattr(train_common, "use_amp", False),
+        early_stopping=getattr(train_common, "early_stopping", False),
+        patience=getattr(train_common, "patience", 10),
+        print_every=getattr(train_common, "print_every", 1),
+        save_checkpoints=True,
+        plot_losses=getattr(train_common, "plot_losses", False),
+        save_path=run_save_path if rank == 0 else None,
+        seed=int(config.experiment.seed),
+    )
+
+
+def _resolve_large_model_input_dim(data_config) -> int:
+    """Resolve flattened input size for manually assembled FSDP models."""
+    return flat_dataset_input_dim(
+        getattr(data_config, "dataset_name", None),
+        default_input_dim=784,
+    )
+
+
 def create_large_model(config):
     """Create a large dendritic model from configuration."""
     model_config = config.model
 
+    vision_replacement = getattr(model_config, "vision_replacement", None)
     pretrained_replacement = getattr(model_config, "pretrained_replacement", None)
-    if pretrained_replacement is not None and getattr(
-        pretrained_replacement, "enabled", False
-    ):
+    replacement_enabled = (
+        vision_replacement is not None and getattr(vision_replacement, "enabled", False)
+    ) or (
+        pretrained_replacement is not None
+        and getattr(pretrained_replacement, "enabled", False)
+    )
+    if replacement_enabled:
         model, _ = initialize_model(model_config)
 
         total_params = sum(p.numel() for p in model.parameters())
         trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
         logger.info(
-            "Model created from pretrained_replacement with %s total parameters",
+            "Model created from vision/pretrained replacement with %s total parameters",
             f"{total_params:,}",
         )
         logger.info("Trainable parameters: %s", f"{trainable_params:,}")
         return model
 
-    # Get input dimension from data config
-    data_params = config.data.processing if hasattr(config.data, "processing") else {}
-    if config.data.dataset_name == "mnist":
-        input_dim = 784  # 28x28 flattened
-    elif config.data.dataset_name == "cifar10":
-        input_dim = 3072  # 32x32x3 flattened
-    elif config.data.dataset_name == "imagenet":
-        # Check if images are flattened
-        if getattr(data_params, "flatten", False):
-            input_dim = 150528  # 224x224x3 flattened
-        else:
-            # For non-flattened, the encoder should handle the shape
-            input_dim = 150528
-    else:
-        input_dim = 784
+    input_dim = _resolve_large_model_input_dim(config.data)
 
     # Create encoder
     encoder_config = model_config.encoder
@@ -299,49 +401,290 @@ def _get_analysis_encoder_network(encoder_network):
     return encoder_network
 
 
-def _dataloader_kwargs_from_common(common_config) -> dict:
-    """Build validated DataLoader kwargs from training.main.common."""
-    available_cpus = os.cpu_count() or 1
-    if hasattr(os, "sched_getaffinity"):
-        try:
-            available_cpus = len(os.sched_getaffinity(0))
-        except OSError:
-            pass
+def _run_final_analysis_on_plain_model(
+    *,
+    config,
+    analysis_manager: AnalysisManager,
+    full_ckpt_path: str,
+    encoder_network,
+    local_rank: int,
+) -> None:
+    """Reload the gathered FSDP checkpoint into a plain model before analysis."""
+    try:
+        logger.info("Running final analysis on non-FSDP model...")
+        plain_model = create_large_model(config)
+        ckpt = torch.load(full_ckpt_path, map_location=f"cuda:{local_rank}")
+        plain_model.load_state_dict(ckpt["model_state_dict"])
+        plain_model = plain_model.to(f"cuda:{local_rank}")
+        plain_model.eval()
 
-    num_workers = getattr(common_config, "num_workers", None)
-    if num_workers is None:
-        num_workers = min(4, available_cpus)
-    else:
-        num_workers = max(0, int(num_workers))
-        num_workers = min(num_workers, available_cpus)
+        plain_model.encoder_network = _get_analysis_encoder_network(encoder_network)
 
-    pin_memory_cfg = getattr(common_config, "pin_memory", None)
-    pin_memory = (
-        bool(pin_memory_cfg)
-        if pin_memory_cfg is not None
-        else torch.cuda.is_available() and num_workers > 0
+        analysis_manager.model = plain_model
+        analysis_manager.run_analysis(filename="final", training=False)
+        logger.info("Final analysis completed - figures saved to performance folder")
+    except Exception as e:
+        logger.error(f"Final analysis failed: {e}")
+        import traceback
+
+        logger.error(traceback.format_exc())
+
+
+def _requested_data_driven_reactivation_policies(config, model) -> set[str]:
+    """Return data-driven reactivation policies requested by config or layers."""
+    requested_policies = set()
+    try:
+        reactivation_cfg = config.model.core.reactivation
+        init_policy = normalize_reactivation_init_policy(
+            getattr(reactivation_cfg, "init_policy", "analytical")
+        )
+        if is_data_driven_reactivation_policy(init_policy):
+            requested_policies.add(init_policy)
+    except AttributeError:
+        logger.debug(
+            "Reactivation config path missing (config.model.core.reactivation); "
+            "skipping config-level data-driven init policy detection."
+        )
+
+    layer_requested_policies, _saw_layer_policy = (
+        collect_model_data_driven_reactivation_policies(model)
+    )
+    requested_policies.update(layer_requested_policies)
+
+    return requested_policies
+
+
+def _maybe_calibrate_fsdp_data_driven_reactivation(
+    *,
+    config,
+    model,
+    train_dataset,
+) -> None:
+    """Run FSDP rank-0 data-driven reactivation calibration when requested."""
+    requested_policies = _requested_data_driven_reactivation_policies(config, model)
+    if not requested_policies:
+        return
+
+    logger.warning(
+        "FSDP + init_policy=%r: running calibration on rank 0 only. "
+        "Parameter writes may not propagate perfectly across ranks "
+        "depending on sharding strategy. Verify with the "
+        "ReactivationDynamicsAnalyzer if in doubt.",
+        ", ".join(sorted(requested_policies)),
+    )
+    from dendritic_modeling.scripts.training.train_experiments import (
+        _maybe_calibrate_data_driven_reactivation,
     )
 
-    persistent_cfg = getattr(common_config, "persistent_workers", None)
-    if persistent_cfg is None:
-        persistent_workers = num_workers > 0
-    else:
-        persistent_workers = bool(persistent_cfg)
-        if persistent_workers and num_workers == 0:
-            raise ValueError("persistent_workers=True requires num_workers > 0")
+    _maybe_calibrate_data_driven_reactivation(
+        config=config,
+        model=model,
+        train_dataset=train_dataset,
+        is_main=True,
+    )
 
-    prefetch_factor = getattr(common_config, "prefetch_factor", None)
-    if prefetch_factor is not None and num_workers == 0:
-        raise ValueError("prefetch_factor requires num_workers > 0")
 
-    kwargs = {
-        "num_workers": num_workers,
-        "pin_memory": pin_memory,
-        "persistent_workers": persistent_workers,
+def _setup_rank0_analysis_manager(
+    *,
+    config,
+    model,
+    encoder_network,
+    encoded_train_ds,
+    encoded_valid_ds,
+    encoded_test_ds,
+    run_save_path,
+    local_rank: int,
+):
+    """Create the rank-0 analysis manager and run pre-training calibration."""
+    logger.info("Setting up AnalysisManager...")
+
+    model.encoder_network = _get_analysis_encoder_network(encoder_network)
+    logger.info("Set model encoder to %s", type(model.encoder_network).__name__)
+
+    encoded_data = {
+        "train": encoded_train_ds,
+        "valid": encoded_valid_ds,
+        "test": encoded_test_ds,
     }
-    if prefetch_factor is not None:
-        kwargs["prefetch_factor"] = max(1, int(prefetch_factor))
-    return kwargs
+    analysis_manager = AnalysisManager(
+        model=model,
+        data=encoded_data,
+        analysis_config=config.analysis,
+        save_root=run_save_path,
+        device=f"cuda:{local_rank}",
+    )
+    logger.info(f"AnalysisManager created: {type(analysis_manager)}")
+    logger.info(
+        f"Performance analysis enabled: {config.analysis.performance_analysis.enabled}"
+    )
+    logger.info(
+        f"Performance analysis training: {config.analysis.performance_analysis.training}"
+    )
+
+    _maybe_calibrate_fsdp_data_driven_reactivation(
+        config=config,
+        model=model,
+        train_dataset=encoded_train_ds,
+    )
+    return analysis_manager
+
+
+def _save_final_fsdp_checkpoint_and_run_analysis(
+    *,
+    rank: int,
+    trainer,
+    run_save_path,
+    config,
+    analysis_manager,
+    encoder_network,
+    local_rank: int,
+) -> str:
+    """Save the full FSDP checkpoint and run final analysis on rank 0."""
+    fsdp_model = trainer.fsdp_model
+    full_ckpt_path = os.path.join(
+        run_save_path or "/tmp", "checkpoints", "final_full.pt"
+    )
+    if rank == 0:
+        os.makedirs(os.path.dirname(full_ckpt_path), exist_ok=True)
+
+    save_fsdp_checkpoint(
+        fsdp_model,
+        trainer.optimizer,
+        trainer.epochs - 1,
+        full_ckpt_path,
+        rank=rank,
+    )
+    if rank == 0:
+        logger.info(f"Full checkpoint saved to {full_ckpt_path}")
+
+    if rank == 0 and analysis_manager:
+        _run_final_analysis_on_plain_model(
+            config=config,
+            analysis_manager=analysis_manager,
+            full_ckpt_path=full_ckpt_path,
+            encoder_network=encoder_network,
+            local_rank=local_rank,
+        )
+
+    return full_ckpt_path
+
+
+def _save_rank0_training_results(
+    *,
+    rank: int,
+    results: dict,
+    run_save_path,
+) -> None:
+    """Log and save final training results on rank 0."""
+    if rank != 0:
+        return
+
+    logger.info("Training completed successfully!")
+    logger.info(f"Final training loss: {results.get('final_train_loss', 'N/A')}")
+    logger.info(f"Final validation loss: {results.get('final_valid_loss', 'N/A')}")
+    save_dict(results, run_save_path, "training_results.json")
+
+
+def _encode_rank0_analysis_datasets(
+    *,
+    model,
+    config,
+    train_ds,
+    valid_ds,
+    test_ds,
+):
+    """Encode datasets for rank-0 analysis without running FSDP autoencoder pretraining."""
+    from dendritic_modeling.networks.architectures.classical.autoencoder import (
+        BaseAutoencoder,
+    )
+
+    encoder_network = model.encoder_network
+    if isinstance(encoder_network, BaseAutoencoder):
+        logger.warning(
+            "BaseAutoencoder pretraining is not supported inside the "
+            "FSDP script.  Pretrain the encoder separately, then load "
+            "its checkpoint.  Skipping encoder pretraining."
+        )
+        return encoder_network, train_ds, valid_ds, test_ds
+
+    logger.info("Encoding datasets for analysis...")
+    return load_train_encoder_network(
+        encoder_network=encoder_network,
+        encoder_train_config=config.training.encoder,
+        train_ds=train_ds,
+        valid_ds=valid_ds,
+        test_ds=test_ds,
+        encoder_network_config=config.model.encoder,
+        task_config=config.data,
+    )
+
+
+def _prepare_rank_analysis_datasets(
+    *,
+    rank: int,
+    model,
+    config,
+    train_ds,
+    valid_ds,
+    test_ds,
+):
+    """Return encoded analysis datasets on rank 0 and placeholders elsewhere."""
+    if rank == 0:
+        return _encode_rank0_analysis_datasets(
+            model=model,
+            config=config,
+            train_ds=train_ds,
+            valid_ds=valid_ds,
+            test_ds=test_ds,
+        )
+
+    return Identity(1), None, None, None
+
+
+class _FSDPLoaderTuningDataset(Dataset):
+    """Placeholder used only for backwards-compatible helper calls."""
+
+    def __len__(self) -> int:
+        return 1
+
+    def __getitem__(self, index: int) -> tuple[torch.Tensor, torch.Tensor]:
+        del index
+        return torch.empty(0), torch.empty(0, dtype=torch.long)
+
+
+def _dataloader_kwargs_from_common(
+    common_config,
+    dataset: Dataset | None = None,
+    *,
+    device: torch.device | str | None = None,
+) -> dict:
+    """Build validated DataLoader kwargs from training.main.common."""
+    return _dataloader_tuning_from_common(
+        common_config,
+        dataset,
+        device=device,
+    ).as_kwargs()
+
+
+def _dataloader_tuning_from_common(
+    common_config,
+    dataset: Dataset | None = None,
+    *,
+    device: torch.device | str | None = None,
+) -> DataLoaderTuning:
+    """Resolve DataLoader tuning from training.main.common."""
+    default_num_workers = None
+    if dataset is None and getattr(common_config, "num_workers", None) is None:
+        # Preserve the historical standalone helper default.  Real call sites
+        # pass a dataset so shared tuning can choose tensor-vs-file loading.
+        default_num_workers = min(4, visible_cpu_count())
+
+    return resolve_dataloader_tuning_from_config(
+        dataset if dataset is not None else _FSDPLoaderTuningDataset(),
+        common_config,
+        device=device,
+        default_num_workers=default_num_workers,
+    )
 
 
 def setup_data_loaders(config, rank, world_size):
@@ -394,7 +737,14 @@ def setup_data_loaders(config, rank, world_size):
 
     # Create data loaders
     batch_size = config.training.main.common.batch_size
-    loader_kwargs = _dataloader_kwargs_from_common(config.training.main.common)
+    loader_tuning = _dataloader_tuning_from_common(
+        config.training.main.common,
+        train_ds,
+        device="cuda" if torch.cuda.is_available() else "cpu",
+    )
+    if rank == 0:
+        logger.info("FSDP DataLoader tuning: %s", loader_tuning.summary(train_ds))
+    loader_kwargs = loader_tuning.as_kwargs()
 
     train_loader = DataLoader(
         train_ds,
@@ -429,27 +779,7 @@ def main(config_path):
 
     # Setup output directory (only on rank 0)
     if rank == 0:
-        run_id = f"{config.outputs.run_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        run_save_path = os.path.join(config.outputs.results_dir, run_id)
-        os.makedirs(run_save_path, exist_ok=True)
-
-        # Set up logging
-        logger_manager.set_log_directory(run_save_path)
-        log_file = os.path.join(run_save_path, "train.log")
-        file_handler = logging.FileHandler(log_file)
-        file_handler.setFormatter(
-            logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-        )
-        logger.addHandler(file_handler)
-        logger.info(f"Logging to {log_file}")
-
-        # Save config
-        config_payload = asdict(config)
-        if canonicalize_model_core_flags is not None:
-            config_payload = canonicalize_model_core_flags(config_payload)
-        if canonicalize_rnn_core_flags is not None:
-            config_payload = canonicalize_rnn_core_flags(config_payload)
-        save_dict(config_payload, run_save_path, "config.json")
+        run_save_path = _setup_rank0_run_directory(config)
     else:
         run_save_path = None
 
@@ -472,166 +802,47 @@ def main(config_path):
     # To pretrain an autoencoder encoder, run it *before* FSDP
     # training with the standard single-GPU script, then point
     # the config at the saved checkpoint.
-    if rank == 0:
-        from dendritic_modeling.networks.architectures.classical.autoencoder import (
-            BaseAutoencoder,
+    encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds = (
+        _prepare_rank_analysis_datasets(
+            rank=rank,
+            model=model,
+            config=config,
+            train_ds=train_ds,
+            valid_ds=valid_ds,
+            test_ds=test_ds,
         )
-
-        encoder_network = model.encoder_network
-        if isinstance(encoder_network, BaseAutoencoder):
-            logger.warning(
-                "BaseAutoencoder pretraining is not supported inside the "
-                "FSDP script.  Pretrain the encoder separately, then load "
-                "its checkpoint.  Skipping encoder pretraining."
-            )
-            encoded_train_ds = train_ds
-            encoded_valid_ds = valid_ds
-            encoded_test_ds = test_ds
-        else:
-            logger.info("Encoding datasets for analysis...")
-            encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds = (
-                load_train_encoder_network(
-                    encoder_network=encoder_network,
-                    encoder_train_config=config.training.encoder,
-                    train_ds=train_ds,
-                    valid_ds=valid_ds,
-                    test_ds=test_ds,
-                    encoder_network_config=config.model.encoder,
-                    task_config=config.data,
-                )
-            )
-    else:
-        encoded_train_ds = encoded_valid_ds = encoded_test_ds = None
-        encoder_network = Identity(1)
+    )
 
     # Generate detailed parameter summary with real sample input
     if rank == 0:  # Only on rank 0 to avoid duplicate output
-        try:
-            sample_input = train_ds[0][0]  # Get sample input from dataset
-            print_model_parameter_summary(model, sample_input)
-        except Exception as e:
-            logger.warning(f"Could not generate model summary with sample input: {e}")
-            print_model_parameter_summary(model)  # Fallback without sample input
+        _print_rank0_model_summary(model, train_ds)
 
-    # Training common config is the source of truth for epochs, loss, etc.
-    train_common = config.training.main.common
-
-    # Read FSDP tuning knobs from config.distributed.fsdp.
-    fsdp_cfg = config.distributed.fsdp
-    logger.info("Using FSDP configuration from config file")
-    fsdp_config = get_fsdp_config(
-        mixed_precision=fsdp_cfg.mixed_precision,
-        cpu_offload=fsdp_cfg.cpu_offload,
-        sharding_strategy=fsdp_cfg.sharding_strategy,
-        fsdp_config_dict=vars(fsdp_cfg) if hasattr(fsdp_cfg, "__dict__") else None,
-    )
-
-    # Create optimizer config
-    optimizer_config = {
-        "lr": train_common.param_groups.lr,
-        "weight_decay": getattr(train_common, "weight_decay_rate", 0.0),
-        "split_params": getattr(train_common.param_groups, "split_params", False),
-    }
+    train_common, fsdp_config, optimizer_config = _build_fsdp_runtime_configs(config)
 
     # Setup analysis manager (only on rank 0)
     analysis_manager = None
     if rank == 0:
-        logger.info("Setting up AnalysisManager...")
-
-        # Set the model's encoder network
-        model.encoder_network = _get_analysis_encoder_network(encoder_network)
-        logger.info("Set model encoder to %s", type(model.encoder_network).__name__)
-
-        encoded_data = {
-            "train": encoded_train_ds,
-            "valid": encoded_valid_ds,
-            "test": encoded_test_ds,
-        }
-        analysis_manager = AnalysisManager(
+        analysis_manager = _setup_rank0_analysis_manager(
+            config=config,
             model=model,
-            data=encoded_data,
-            analysis_config=config.analysis,
-            save_root=run_save_path,
-            device=f"cuda:{local_rank}",
-        )
-        logger.info(f"AnalysisManager created: {type(analysis_manager)}")
-        logger.info(
-            f"Performance analysis enabled: {config.analysis.performance_analysis.enabled}"
-        )
-        logger.info(
-            f"Performance analysis training: {config.analysis.performance_analysis.training}"
+            encoder_network=encoder_network,
+            encoded_train_ds=encoded_train_ds,
+            encoded_valid_ds=encoded_valid_ds,
+            encoded_test_ds=encoded_test_ds,
+            run_save_path=run_save_path,
+            local_rank=local_rank,
         )
 
-        # Parity with the single-GPU launcher: if the config requests
-        # data-driven reactivation calibration, run it here before training
-        # starts. Under FSDP the model is already sharded by this point;
-        # calibration runs on rank 0's shard-view of the model and writes
-        # back to the ParametricTanh parameters, which then get
-        # synchronized across ranks via FSDP's standard parameter-sharing
-        # on the first forward pass. We log a warning so users can spot
-        # divergence if it occurs.
-        from dendritic_modeling.scripts.training.train_experiments import (
-            _maybe_calibrate_data_driven_reactivation,
-        )
-
-        requested_policies = set()
-        try:
-            reactivation_cfg = config.model.core.reactivation
-            init_policy = normalize_reactivation_init_policy(
-                getattr(reactivation_cfg, "init_policy", "analytical")
-            )
-            if is_data_driven_reactivation_policy(init_policy):
-                requested_policies.add(init_policy)
-        except AttributeError:
-            logger.debug(
-                "Reactivation config path missing (config.model.core.reactivation); "
-                "skipping config-level data-driven init policy detection."
-            )
-
-        for module in model.modules():
-            layer_policy = getattr(module, "reactivation_init_policy", None)
-            if layer_policy is None:
-                continue
-            layer_policy = normalize_reactivation_init_policy(layer_policy)
-            if is_data_driven_reactivation_policy(layer_policy):
-                requested_policies.add(layer_policy)
-
-        if requested_policies:
-            logger.warning(
-                "FSDP + init_policy=%r: running calibration on rank 0 only. "
-                "Parameter writes may not propagate perfectly across ranks "
-                "depending on sharding strategy. Verify with the "
-                "ReactivationDynamicsAnalyzer if in doubt.",
-                ", ".join(sorted(requested_policies)),
-            )
-            _maybe_calibrate_data_driven_reactivation(
-                config=config,
-                model=model,
-                train_dataset=encoded_train_ds,
-                is_main=True,
-            )
-
-    # Create FSDP trainer
-    trainer = FSDPTrainer(
+    trainer = _create_fsdp_trainer(
         rank=rank,
         world_size=world_size,
         fsdp_config=fsdp_config,
-        checkpoint_dir=run_save_path if rank == 0 else None,
-        save_every_n_epochs=getattr(train_common, "save_every_n_epochs", None),
+        run_save_path=run_save_path,
+        train_common=train_common,
         optimizer_config=optimizer_config,
         analysis_manager=analysis_manager,
         wandb_run=wandb_run,
-        epochs=train_common.epochs,
-        loss_function=getattr(train_common, "loss_function", "cat_nll"),
-        grad_clip_value=getattr(train_common, "grad_clip_value", 5.0),
-        use_amp=getattr(train_common, "use_amp", False),
-        early_stopping=getattr(train_common, "early_stopping", False),
-        patience=getattr(train_common, "patience", 10),
-        print_every=getattr(train_common, "print_every", 1),
-        save_checkpoints=True,
-        plot_losses=getattr(train_common, "plot_losses", False),
-        save_path=run_save_path if rank == 0 else None,
-        seed=int(config.experiment.seed),
+        config=config,
     )
 
     if rank == 0:
@@ -644,13 +855,11 @@ def main(config_path):
     # Train the model
     results = trainer.train(model, train_loader, valid_loader)
 
-    if rank == 0:
-        logger.info("Training completed successfully!")
-        logger.info(f"Final training loss: {results.get('final_train_loss', 'N/A')}")
-        logger.info(f"Final validation loss: {results.get('final_valid_loss', 'N/A')}")
-
-        # Save final results
-        save_dict(results, run_save_path, "training_results.json")
+    _save_rank0_training_results(
+        rank=rank,
+        results=results,
+        run_save_path=run_save_path,
+    )
 
     # --- Final analysis: gather full state dict, reload into plain model ---
     # FSDP shards parameters across ranks; analysis on the sharded model
@@ -659,47 +868,15 @@ def main(config_path):
     #    participate in the all-gather, rank 0 saves).
     # 2. On rank 0, create a fresh non-FSDP model and load that checkpoint.
     # 3. Run analysis on the plain model.
-    fsdp_model = trainer.fsdp_model
-    full_ckpt_path = os.path.join(
-        run_save_path or "/tmp", "checkpoints", "final_full.pt"
-    )
-    if rank == 0:
-        os.makedirs(os.path.dirname(full_ckpt_path), exist_ok=True)
-
-    # All ranks participate in the full state-dict gather.
-    save_fsdp_checkpoint(
-        fsdp_model,
-        trainer.optimizer,
-        trainer.epochs - 1,
-        full_ckpt_path,
+    _save_final_fsdp_checkpoint_and_run_analysis(
         rank=rank,
+        trainer=trainer,
+        run_save_path=run_save_path,
+        config=config,
+        analysis_manager=analysis_manager,
+        encoder_network=encoder_network,
+        local_rank=local_rank,
     )
-    if rank == 0:
-        logger.info(f"Full checkpoint saved to {full_ckpt_path}")
-
-    if rank == 0 and analysis_manager:
-        try:
-            logger.info("Running final analysis on non-FSDP model...")
-            # Create a fresh non-FSDP model and load the gathered state dict
-            plain_model = create_large_model(config)
-            ckpt = torch.load(full_ckpt_path, map_location=f"cuda:{local_rank}")
-            plain_model.load_state_dict(ckpt["model_state_dict"])
-            plain_model = plain_model.to(f"cuda:{local_rank}")
-            plain_model.eval()
-
-            # Set the encoder for analysis
-            plain_model.encoder_network = _get_analysis_encoder_network(encoder_network)
-
-            analysis_manager.model = plain_model
-            analysis_manager.run_analysis(filename="final", training=False)
-            logger.info(
-                "Final analysis completed - figures saved to performance folder"
-            )
-        except Exception as e:
-            logger.error(f"Final analysis failed: {e}")
-            import traceback
-
-            logger.error(traceback.format_exc())
 
     # Clean up distributed
     if wandb_run:

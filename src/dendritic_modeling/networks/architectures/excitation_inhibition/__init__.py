@@ -5,10 +5,20 @@ This module contains network architectures based on excitation-inhibition princi
 """
 
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic import (
+    AdaptiveInitConfig,
     BlockLinear,
+    DeepSTConfig,
     DendriNet,
+    DendriNetConfig,
+    DendriticBranchConfig,
     DendriticBranchLayer,
+    DendriticSynapseConfig,
+    DenseToSparseConfig,
     GradientScaler,
+    IndexedSynapseConfig,
+    MorphologyConfig,
+    ReactivationConfig,
+    TopKConfig,
     analytical_expectation_dbl_init,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.ei_layer import (
@@ -42,11 +52,17 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse imp
 )
 
 __all__ = [
+    "AdaptiveInitConfig",
     "BlockLinear",
     "ConfigurableEINetwork",
+    "DeepSTConfig",
     "DeepstLinear",
     "DendriNet",
+    "DendriNetConfig",
+    "DendriticBranchConfig",
     "DendriticBranchLayer",
+    "DendriticSynapseConfig",
+    "DenseToSparseConfig",
     "DenseToSparseLinear",
     "ExcitationInhibitionLayer",
     "ExcitationInhibitionNetwork",
@@ -56,7 +72,11 @@ __all__ = [
     "IndexedDynamicTopKLinear",
     "IndexedRewireLinear",
     "IndexedSparseLinear",
+    "IndexedSynapseConfig",
+    "MorphologyConfig",
+    "ReactivationConfig",
     "StochasticTopKLinear",
+    "TopKConfig",
     "TopKLinear",
     "TransferLayer",
     "VarianceTopKLinear",

@@ -150,6 +150,7 @@ def extract_network_category(data: pd.DataFrame) -> pd.DataFrame:
     dendritic_signed     - EINet with signed E/I synapses
     flat_signed          - EINet with signed E/I synapses, flattened
     dendritic_mlp        - EINet with synapse_mode="mlp", signed weights
+    flat_mlp             - EINet with synapse_mode="mlp" and signed weights, flattened dendritic tree
     point_mlp            - Shallow parameter-matched point-neuron MLP
     ss_mlp               - Sparse structured MLP (structural match)
     ss_mlp_flat          - Sparse structured MLP, flattened
@@ -166,7 +167,6 @@ def extract_network_category(data: pd.DataFrame) -> pd.DataFrame:
     result["network_category"] = "unknown"
 
     if "network_type" not in result.columns:
-        # Fallback: legacy boolean only
         if "use_shunting" in result.columns:
             result.loc[result["use_shunting"].eq(True), "network_category"] = (
                 "dendritic_shunting"
@@ -194,6 +194,14 @@ def extract_network_category(data: pd.DataFrame) -> pd.DataFrame:
             "normalized_additive": "dendritic_normalized_additive",
             "matchedtotalparammlp": "total_param_mlp",
             "matchedactiveparammlp": "active_param_mlp",
+            "dendritic_mlp": "dendritic_mlp",
+            "flat_shunting": "flat_shunting",
+            "flat_additive": "flat_additive",
+            "flat_mlp": "flat_mlp",
+            "ss_mlp": "ss_mlp",
+            "ss_mlp_flat": "ss_mlp_flat",
+            "total_param_mlp": "total_param_mlp",
+            "active_param_mlp": "active_param_mlp",
         }
     )
 

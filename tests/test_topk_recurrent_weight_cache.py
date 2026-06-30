@@ -23,6 +23,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.sto
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
     TopKLinear,
+    _iter_recurrent_weight_cache_setters,
     apply_recurrent_weight_cache,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.variance import (
@@ -34,6 +35,29 @@ from dendritic_modeling.networks.architectures.factory import get_architecture
 def _topk(seed: int = 0) -> TopKLinear:
     torch.manual_seed(seed)
     return TopKLinear(in_features=8, out_features=5, K=3, weight_transform="softplus")
+
+
+def test_recurrent_weight_cache_setter_iterator_preserves_module_order():
+    class CacheAwareModule(nn.Module):
+        def __init__(self, label: str):
+            super().__init__()
+            self.label = label
+
+        def set_recurrent_weight_cache(self, enabled: bool) -> None:
+            calls.append((self.label, enabled))
+
+    calls = []
+    net = nn.Sequential(
+        CacheAwareModule("first"),
+        nn.ReLU(),
+        nn.Sequential(CacheAwareModule("nested")),
+    )
+
+    setters = list(_iter_recurrent_weight_cache_setters(net))
+    for setter in setters:
+        setter(True)
+
+    assert calls == [("first", True), ("nested", True)]
 
 
 def test_cache_preserves_forward_and_gradients():

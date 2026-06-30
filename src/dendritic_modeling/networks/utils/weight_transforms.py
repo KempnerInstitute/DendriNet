@@ -7,17 +7,30 @@ remain positive during training. Each transformation has different characteristi
 """
 
 import math
+from collections.abc import Callable
 from typing import Literal
 
 import torch
 import torch.nn.functional as functional
 
 WeightTransformType = Literal["identity", "exp", "relu", "softplus"]
+POSITIVE_WEIGHT_TRANSFORMS = {"exp", "relu", "softplus"}
+NONNEGATIVE_TRANSFER_ACTIVATIONS = {"relu", "sigmoid", "softplus"}
+_SUPPORTED_WEIGHT_TRANSFORMS: tuple[WeightTransformType, ...] = (
+    "identity",
+    "exp",
+    "relu",
+    "softplus",
+)
+_TensorTransform = Callable[[torch.Tensor], torch.Tensor]
+DEFAULT_SAFE_EXP_MARGIN = 1.0
+INVERSE_EXP_EPS = 1e-8
+INVERSE_SOFTPLUS_EPS = 1e-8
 
 
 def safe_exp(
     weights: torch.Tensor,
-    margin: float = 1.0,
+    margin: float = DEFAULT_SAFE_EXP_MARGIN,
     max_exponent: float | None = None,
 ) -> torch.Tensor:
     """Exponentiate without overflowing finite floating-point tensors."""
@@ -32,7 +45,7 @@ def safe_exp(
 def inverse_softplus(
     positive_weights: torch.Tensor,
     *,
-    eps: float = 1e-8,
+    eps: float = INVERSE_SOFTPLUS_EPS,
 ) -> torch.Tensor:
     """Numerically stable inverse of ``softplus`` for positive values.
 
@@ -41,6 +54,47 @@ def inverse_softplus(
     """
     x = positive_weights.clamp_min(eps)
     return x + torch.log(-torch.expm1(-x))
+
+
+def _identity(weights: torch.Tensor) -> torch.Tensor:
+    return weights
+
+
+def _inverse_exp(positive_weights: torch.Tensor) -> torch.Tensor:
+    return torch.log(positive_weights + INVERSE_EXP_EPS)
+
+
+_WEIGHT_TRANSFORMS: dict[WeightTransformType, _TensorTransform] = {
+    "exp": safe_exp,
+    "identity": _identity,
+    "relu": functional.relu,
+    "softplus": functional.softplus,
+}
+_INVERSE_WEIGHT_TRANSFORMS: dict[WeightTransformType, _TensorTransform] = {
+    "exp": _inverse_exp,
+    "identity": _identity,
+    "relu": _identity,
+    "softplus": inverse_softplus,
+}
+
+
+def _unsupported_transform_error(transform_type: str) -> ValueError:
+    supported = ", ".join(f"'{name}'" for name in _SUPPORTED_WEIGHT_TRANSFORMS)
+    return ValueError(
+        f"Unsupported weight transform type: {transform_type}. "
+        f"Supported types: {supported}"
+    )
+
+
+def _lookup_transform(
+    registry: dict[WeightTransformType, _TensorTransform],
+    transform_type: str,
+) -> _TensorTransform:
+    """Return a transform from a registry or raise a supported-name error."""
+    transform = registry.get(transform_type)
+    if transform is None:
+        raise _unsupported_transform_error(transform_type)
+    return transform
 
 
 def apply_weight_transform(
@@ -59,23 +113,10 @@ def apply_weight_transform(
     Raises:
         ValueError: If transform_type is not supported
     """
-    if transform_type == "exp":
-        return safe_exp(weights)
-    elif transform_type == "relu":
-        return functional.relu(weights)
-    elif transform_type == "softplus":
-        return functional.softplus(weights)
-    elif transform_type == "identity":
-        # No constraint: signed weights allowed
-        return weights
-    else:
-        raise ValueError(
-            f"Unsupported weight transform type: {transform_type}. "
-            f"Supported types: 'identity', 'exp', 'relu', 'softplus'"
-        )
+    return _lookup_transform(_WEIGHT_TRANSFORMS, transform_type)(weights)
 
 
-def get_weight_transform_fn(transform_type: WeightTransformType):
+def get_weight_transform_fn(transform_type: WeightTransformType) -> _TensorTransform:
     """
     Get a transformation function for the specified type.
 
@@ -85,19 +126,7 @@ def get_weight_transform_fn(transform_type: WeightTransformType):
     Returns:
         Function that applies the transformation
     """
-    if transform_type == "exp":
-        return safe_exp
-    elif transform_type == "relu":
-        return functional.relu
-    elif transform_type == "softplus":
-        return functional.softplus
-    elif transform_type == "identity":
-        return lambda x: x
-    else:
-        raise ValueError(
-            f"Unsupported weight transform type: {transform_type}. "
-            f"Supported types: 'identity', 'exp', 'relu', 'softplus'"
-        )
+    return _lookup_transform(_WEIGHT_TRANSFORMS, transform_type)
 
 
 def inverse_weight_transform(
@@ -115,26 +144,14 @@ def inverse_weight_transform(
     Returns:
         Raw parameters that would produce the given positive weights
     """
-    if transform_type == "exp":
-        return torch.log(
-            positive_weights + 1e-8
-        )  # Add small epsilon for numerical stability
-    elif transform_type == "relu":
-        # ReLU doesn't have a unique inverse, return the weights themselves
-        return positive_weights
-    elif transform_type == "softplus":
-        return inverse_softplus(positive_weights)
-    elif transform_type == "identity":
-        # Identity transform is its own inverse (signed weights allowed)
-        return positive_weights
-    else:
-        raise ValueError(
-            f"Unsupported weight transform type: {transform_type}. "
-            f"Supported types: 'identity', 'exp', 'relu', 'softplus'"
-        )
+    return _lookup_transform(_INVERSE_WEIGHT_TRANSFORMS, transform_type)(
+        positive_weights
+    )
 
 
 __all__ = [
+    "NONNEGATIVE_TRANSFER_ACTIVATIONS",
+    "POSITIVE_WEIGHT_TRANSFORMS",
     "WeightTransformType",
     "apply_weight_transform",
     "get_weight_transform_fn",

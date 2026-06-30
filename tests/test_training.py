@@ -107,6 +107,54 @@ class TestTrainer(unittest.TestCase):
 
         self.assertGreater(train_loss_reg, 0.0)
 
+    def test_profile_dataloader_logs_epoch_wait_time(self):
+        """Dataloader profiling should be observable without changing training APIs."""
+        model = torch.nn.Sequential(
+            torch.nn.Linear(10, 5), torch.nn.ReLU(), torch.nn.Linear(5, 2)
+        )
+        trainer = Trainer(
+            optimizer=Adam(model.parameters(), lr=0.01),
+            loss_function="cross_entropy",
+            epochs=1,
+            batch_size=8,
+            suppress_prints=True,
+            num_workers=0,
+            profile_dataloader=True,
+        )
+        trainer.device = torch.device("cpu")
+        loader = DataLoader(
+            TensorDataset(torch.randn(16, 10), torch.randint(0, 2, (16,))),
+            batch_size=8,
+            shuffle=False,
+        )
+
+        with self.assertLogs(
+            "dendritic_modeling.training.strategies.standard",
+            level="INFO",
+        ) as captured:
+            trainer._epoch_train(model, loader)
+
+        self.assertIn("DataLoader profile", "\n".join(captured.output))
+
+    def test_non_blocking_transfer_requires_cuda_and_pinned_loader(self):
+        """Pinned CUDA loaders can use async copies; CPU/unpinned paths cannot."""
+        trainer = Trainer(
+            optimizer=self.optimizer,
+            loss_function="cross_entropy",
+            suppress_prints=True,
+        )
+        loader = DataLoader(self.train_data, batch_size=4, pin_memory=True)
+
+        trainer.device = torch.device("cuda:0")
+        self.assertTrue(trainer._loader_uses_non_blocking_transfer(loader))
+
+        trainer.device = torch.device("cpu")
+        self.assertFalse(trainer._loader_uses_non_blocking_transfer(loader))
+
+        loader.pin_memory = False
+        trainer.device = torch.device("cuda:0")
+        self.assertFalse(trainer._loader_uses_non_blocking_transfer(loader))
+
 
 if __name__ == "__main__":
     unittest.main()

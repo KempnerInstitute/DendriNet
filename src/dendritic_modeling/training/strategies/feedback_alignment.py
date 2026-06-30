@@ -7,6 +7,7 @@ replace the transpose of forward weights during error backpropagation.
 """
 
 import logging
+from functools import partial
 
 import torch
 import torch.nn as nn
@@ -17,11 +18,17 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.b
     BlockLinear,
 )
 from dendritic_modeling.training.strategies.standard import Trainer
+from dendritic_modeling.utils.hooks import (
+    ForwardHookRemovalMixin,
+    iter_modules_of_type,
+    register_hook_groups,
+    run_with_forward_hooks,
+)
 
 logger = logging.getLogger(__name__)
 
 
-class FeedbackAlignmentTrainer(Trainer):
+class FeedbackAlignmentTrainer(ForwardHookRemovalMixin, Trainer):
     """
     Training strategy using Feedback Alignment (FA) or Direct Feedback
     Alignment (DFA) for error signal propagation.
@@ -105,7 +112,7 @@ class FeedbackAlignmentTrainer(Trainer):
             seen_ids.add(id(mod))
             # BlockLinear.log_weight has shape (out_features, block_size),
             # but the effective input dimension is in_features = out * block_size
-            if isinstance(mod, BlockLinear) and pname == "log_weight":
+            if FeedbackAlignmentTrainer._is_blocklinear_log_weight(mod, pname):
                 out_dim = mod.out_features
                 in_dim = mod.in_features  # full input dimension
             else:
@@ -113,9 +120,7 @@ class FeedbackAlignmentTrainer(Trainer):
             layers.append((mod, pname, out_dim, in_dim))
 
         # Prefer DendriticBranchLayer order if present
-        branch_layers = [
-            m for m in model.modules() if isinstance(m, DendriticBranchLayer)
-        ]
+        branch_layers = list(iter_modules_of_type(model, DendriticBranchLayer))
         if branch_layers:
             for bl in branch_layers:
                 if getattr(bl, "branch_excitation", None) is not None:
@@ -128,15 +133,13 @@ class FeedbackAlignmentTrainer(Trainer):
         # Always include decoder nn.Linear layers (e.g. the final classifier head)
         decoder = getattr(model, "decoder_network", None)
         if decoder is not None:
-            for mod in decoder.modules():
-                if isinstance(mod, nn.Linear):
-                    _try_add(mod, "weight")
+            for mod in iter_modules_of_type(decoder, nn.Linear):
+                _try_add(mod, "weight")
 
         # Fallback: if no layers found yet, scan all nn.Linear
         if not layers:
-            for mod in model.modules():
-                if isinstance(mod, nn.Linear):
-                    _try_add(mod, "weight")
+            for mod in iter_modules_of_type(model, nn.Linear):
+                _try_add(mod, "weight")
 
         return layers
 
@@ -158,16 +161,11 @@ class FeedbackAlignmentTrainer(Trainer):
 
             # --- forward with activation caching ---
             activations: dict[int, torch.Tensor] = {}
-            handles = []
-            for idx, (mod, *_rest) in enumerate(self._layer_info):
-                handles.append(
-                    mod.register_forward_hook(self._make_hook(activations, idx))
-                )
-            try:
-                y_hat = model(x_batch)
-            finally:
-                for h in handles:
-                    h.remove()
+            y_hat = run_with_forward_hooks(
+                attach=partial(self._attach_activation_hooks, activations),
+                remove=self.remove_forward_hooks,
+                body=partial(model, x_batch),
+            )
 
             # --- loss (for logging only) ---
             loss = self.loss_function(model, x_batch, y_batch)
@@ -196,6 +194,19 @@ class FeedbackAlignmentTrainer(Trainer):
     # ------------------------------------------------------------------
     # Hook helper
     # ------------------------------------------------------------------
+    def _attach_activation_hooks(
+        self,
+        activations: dict[int, torch.Tensor],
+    ) -> list[torch.utils.hooks.RemovableHandle]:
+        def _register_layer_hook(layer_entry):
+            idx, (mod, *_rest) = layer_entry
+            return [mod.register_forward_hook(self._make_hook(activations, idx))]
+
+        return register_hook_groups(
+            enumerate(self._layer_info),
+            _register_layer_hook,
+        )
+
     @staticmethod
     def _make_hook(store: dict, key: int):
         def hook_fn(_module, inp, _out):
@@ -234,6 +245,11 @@ class FeedbackAlignmentTrainer(Trainer):
     # Gradient assignment helpers
     # ------------------------------------------------------------------
     @staticmethod
+    def _is_blocklinear_log_weight(mod: nn.Module, pname: str) -> bool:
+        """Return whether a parameter name refers to BlockLinear log-weights."""
+        return isinstance(mod, BlockLinear) and pname == "log_weight"
+
+    @staticmethod
     def _assign_grad(mod: nn.Module, pname: str, grad_dense: torch.Tensor) -> None:
         """Assign a dense gradient to a parameter, handling BlockLinear specially.
 
@@ -241,7 +257,7 @@ class FeedbackAlignmentTrainer(Trainer):
         block-diagonal entries from the dense gradient (shape [out, in_features]).
         """
         param = getattr(mod, pname)
-        if isinstance(mod, BlockLinear) and pname == "log_weight":
+        if FeedbackAlignmentTrainer._is_blocklinear_log_weight(mod, pname):
             # grad_dense is (out_features, in_features)
             # param is (out_features, block_size)
             # Output i uses inputs [i*bs : (i+1)*bs], so extract those entries
@@ -255,6 +271,17 @@ class FeedbackAlignmentTrainer(Trainer):
 
         g = grad_w.to(param.dtype)
         param.grad = g if param.grad is None else param.grad + g
+
+    @staticmethod
+    def _assign_linear_bias_grad(mod: nn.Module, error: torch.Tensor) -> None:
+        """Assign a summed bias gradient for Linear modules that own a bias."""
+        if not (isinstance(mod, nn.Linear) and mod.bias is not None):
+            return
+
+        grad_bias = error.sum(0).to(mod.bias.dtype)
+        mod.bias.grad = (
+            grad_bias if mod.bias.grad is None else mod.bias.grad + grad_bias
+        )
 
     # ------------------------------------------------------------------
     # FA gradient assignment
@@ -286,14 +313,7 @@ class FeedbackAlignmentTrainer(Trainer):
             grad_dense = e.t() @ h_in
             self._assign_grad(mod, pname, grad_dense)
 
-            # bias gradient for nn.Linear
-            if isinstance(mod, nn.Linear) and mod.bias is not None:
-                gb = e.sum(0)
-                mod.bias.grad = (
-                    gb.to(mod.bias.dtype)
-                    if mod.bias.grad is None
-                    else mod.bias.grad + gb.to(mod.bias.dtype)
-                )
+            self._assign_linear_bias_grad(mod, e)
 
             # propagate error to previous layer via random B
             if idx > 0:
@@ -330,13 +350,7 @@ class FeedbackAlignmentTrainer(Trainer):
             grad_dense = e_local.t() @ h_in
             self._assign_grad(mod, pname, grad_dense)
 
-            if isinstance(mod, nn.Linear) and mod.bias is not None:
-                gb = e_local.sum(0)
-                mod.bias.grad = (
-                    gb.to(mod.bias.dtype)
-                    if mod.bias.grad is None
-                    else mod.bias.grad + gb.to(mod.bias.dtype)
-                )
+            self._assign_linear_bias_grad(mod, e_local)
 
 
 class ShuntingFeedbackAlignmentTrainer(FeedbackAlignmentTrainer):
@@ -408,9 +422,7 @@ class ShuntingFeedbackAlignmentTrainer(FeedbackAlignmentTrainer):
         self._initialize_feedback(model)
 
         # Discover DendriticBranchLayers and build index mapping
-        branch_layers = [
-            m for m in model.modules() if isinstance(m, DendriticBranchLayer)
-        ]
+        branch_layers = list(iter_modules_of_type(model, DendriticBranchLayer))
         self._build_layer_to_bl_map(branch_layers)
 
         # Warn once if any branch layers are additive (no shunting diagnostics)
@@ -442,29 +454,13 @@ class ShuntingFeedbackAlignmentTrainer(FeedbackAlignmentTrainer):
                 activations: dict[int, torch.Tensor] = {}
                 self._layer_voltages.clear()
                 self._layer_g_tot.clear()
-                handles = []
-
-                # Activation hooks (input caching for gradient computation)
-                for idx, (mod, *_rest) in enumerate(self._layer_info):
-                    handles.append(
-                        mod.register_forward_hook(self._make_hook(activations, idx))
-                    )
-
-                # Voltage hooks on DendriticBranchLayer modules
-                for bl_idx, bl in enumerate(branch_layers):
-                    handles.append(
-                        bl.register_forward_hook(
-                            self._make_voltage_hook(
-                                self._layer_voltages, self._layer_g_tot, bl_idx
-                            )
-                        )
-                    )
-
-                try:
-                    y_hat = model(x_batch)
-                finally:
-                    for h in handles:
-                        h.remove()
+                y_hat = run_with_forward_hooks(
+                    attach=partial(
+                        self._attach_shunting_hooks, activations, branch_layers
+                    ),
+                    remove=self.remove_forward_hooks,
+                    body=partial(model, x_batch),
+                )
 
                 # --- loss (for logging only) ---
                 loss = self.loss_function(model, x_batch, y_batch)
@@ -493,6 +489,39 @@ class ShuntingFeedbackAlignmentTrainer(FeedbackAlignmentTrainer):
 
         n = len(train_loader)
         return total_loss / n, total_base / n, 0.0
+
+    def _attach_shunting_hooks(
+        self,
+        activations: dict[int, torch.Tensor],
+        branch_layers: list[DendriticBranchLayer],
+    ) -> list[torch.utils.hooks.RemovableHandle]:
+        def _attach_voltage_hooks():
+            def _register_branch_hook(branch_entry):
+                bl_idx, branch_layer = branch_entry
+                return [
+                    branch_layer.register_forward_hook(
+                        self._make_voltage_hook(
+                            self._layer_voltages,
+                            self._layer_g_tot,
+                            bl_idx,
+                        )
+                    )
+                ]
+
+            return register_hook_groups(
+                enumerate(branch_layers),
+                _register_branch_hook,
+            )
+
+        def _register_group(group_name: str):
+            if group_name == "activations":
+                return self._attach_activation_hooks(activations)
+            return _attach_voltage_hooks()
+
+        return register_hook_groups(
+            ("activations", "voltages"),
+            _register_group,
+        )
 
     def _modulate_error_with_shunting(
         self, e_local: torch.Tensor, layer_idx: int
@@ -544,13 +573,7 @@ class ShuntingFeedbackAlignmentTrainer(FeedbackAlignmentTrainer):
             grad_dense = e_mod.t() @ h_in
             self._assign_grad(mod, pname, grad_dense)
 
-            if isinstance(mod, nn.Linear) and mod.bias is not None:
-                gb = e_mod.sum(0)
-                mod.bias.grad = (
-                    gb.to(mod.bias.dtype)
-                    if mod.bias.grad is None
-                    else mod.bias.grad + gb.to(mod.bias.dtype)
-                )
+            self._assign_linear_bias_grad(mod, e_mod)
 
             if idx > 0:
                 e = e @ self._B_fa[idx].t()
@@ -583,10 +606,4 @@ class ShuntingFeedbackAlignmentTrainer(FeedbackAlignmentTrainer):
             grad_dense = e_local.t() @ h_in
             self._assign_grad(mod, pname, grad_dense)
 
-            if isinstance(mod, nn.Linear) and mod.bias is not None:
-                gb = e_local.sum(0)
-                mod.bias.grad = (
-                    gb.to(mod.bias.dtype)
-                    if mod.bias.grad is None
-                    else mod.bias.grad + gb.to(mod.bias.dtype)
-                )
+            self._assign_linear_bias_grad(mod, e_local)

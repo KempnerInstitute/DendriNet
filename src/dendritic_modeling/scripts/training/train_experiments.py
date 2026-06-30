@@ -28,7 +28,8 @@ os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"  # Disable oneDNN optimizations warnin
 # Core imports
 import argparse
 import logging
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
+from typing import Any
 
 import torch
 import torch.distributed as dist
@@ -37,6 +38,7 @@ import torch.distributed as dist
 import torchinfo
 import wandb
 from omegaconf import DictConfig, OmegaConf
+from torch.utils.data import DataLoader
 
 from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.config import load_config
@@ -57,6 +59,7 @@ from dendritic_modeling.scripts.training.train_encoder_network import (
     load_train_encoder_network,
 )
 from dendritic_modeling.training import CustomWeightDecayOptimizer, get_trainer
+from dendritic_modeling.training.dataloader_utils import dataloader_kwargs_from_config
 from dendritic_modeling.training.optimizers import create_optimizer
 from dendritic_modeling.utils import save_dict
 from dendritic_modeling.utils.training_stability_validator import (
@@ -77,6 +80,60 @@ canonicalize_model_core_flags = getattr(
 canonicalize_rnn_core_flags = getattr(
     _config_utils, "canonicalize_rnn_core_flags", None
 )
+
+
+@dataclass(frozen=True)
+class _MainTrainingSettings:
+    common_config: Any
+    strategy: str
+    optimizer_config: OptimizerConfig
+    param_groups: Any
+    weight_decay_rate: float
+    weight_boosting: bool
+    common_epochs: int
+
+
+@dataclass(frozen=True)
+class _MainTrainingRun:
+    main_train_config: Any
+    trainer_config_dict: dict[str, Any]
+    optimizer: Any
+    strategy: str
+    common_epochs: int
+    original_pruning_config: Any
+    training_results: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class _TrainingEnvironment:
+    run_save_path: str
+    train_ds: Any
+    valid_ds: Any
+    test_ds: Any
+    model: Any
+    unwrapped_model: Any
+    encoder_network: Any
+
+
+@dataclass(frozen=True)
+class _EncodedTrainingState:
+    encoder_network: Any
+    encoded_train_ds: Any
+    encoded_valid_ds: Any
+    encoded_test_ds: Any
+    analysis_manager: Any
+
+
+@dataclass(frozen=True)
+class _PreparedTrainingConfig:
+    config: Any
+    experiment_config: Any
+    data_config: Any
+    model_config: Any
+    training_config: Any
+    analysis_config: Any
+    wandb_config: Any
+    outputs_config: Any
 
 
 if normalize_param_groups_config is None:
@@ -120,14 +177,13 @@ def _maybe_calibrate_data_driven_reactivation(
     """Run data-driven reactivation calibration when requested by init_policy."""
     from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize import (
         calibrate_reactivation_from_data,
+        collect_model_data_driven_reactivation_policies,
         is_data_driven_reactivation_policy,
         normalize_reactivation_init_policy,
         reactivation_policy_to_calibration_mode,
     )
 
     config_requested_policies = set()
-    layer_requested_policies = set()
-    saw_layer_policy = False
 
     try:
         reactivation_cfg = config.model.core.reactivation
@@ -141,14 +197,9 @@ def _maybe_calibrate_data_driven_reactivation(
         # any per-layer policies directly from the built modules below.
         pass
 
-    for module in model.modules():
-        layer_policy = getattr(module, "reactivation_init_policy", None)
-        if layer_policy is None:
-            continue
-        saw_layer_policy = True
-        layer_policy = normalize_reactivation_init_policy(layer_policy)
-        if is_data_driven_reactivation_policy(layer_policy):
-            layer_requested_policies.add(layer_policy)
+    layer_requested_policies, saw_layer_policy = (
+        collect_model_data_driven_reactivation_policies(model)
+    )
 
     # Once the model is built, module-level policies are authoritative. This is
     # important for recurrent aliases where the factory may override stale YAML
@@ -171,17 +222,22 @@ def _maybe_calibrate_data_driven_reactivation(
         mode = None
         policy_msg = ", ".join(sorted(requested_policies))
 
-    print(f"[reactivation-calibration] init_policy={policy_msg}", flush=True)
-
-    from torch.utils.data import DataLoader
+    logger.info("[reactivation-calibration] init_policy=%s", policy_msg)
 
     device = next(model.parameters()).device
     # Don't pass a global k — let each layer use its own
     # reactivation_sigma_aware_k (threaded by the factory from config).
     # This respects per-population overrides in unified_ei / recurrent configs.
 
+    common_config = getattr(
+        getattr(getattr(config, "training", None), "main", None), "common", None
+    )
     loader = DataLoader(
-        train_dataset, batch_size=batch_size, shuffle=True, drop_last=True
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        drop_last=True,
+        **dataloader_kwargs_from_config(train_dataset, common_config, device=device),
     )
     is_recurrent = getattr(model, "_is_recurrent_core", False)
     batches = []
@@ -237,9 +293,9 @@ def _maybe_calibrate_data_driven_reactivation(
         batches = normalized_batches
         if is_main:
             shape_msg = "[B, 1, D]" if added_time_axis else "native [B, T, D]"
-            print(
-                f"[reactivation-calibration] recurrent model detected — using {shape_msg} batches",
-                flush=True,
+            logger.info(
+                "[reactivation-calibration] recurrent model detected; using %s batches",
+                shape_msg,
             )
 
     # Iterate: writing new (m, b) at layer i reshapes the V distribution at
@@ -260,24 +316,30 @@ def _maybe_calibrate_data_driven_reactivation(
         )
         if is_main:
             if not diag:
-                print(
+                logger.warning(
                     "[reactivation-calibration] found no DendriticBranchLayers with a non-Identity reactivation",
-                    flush=True,
                 )
                 break
             m_values = [d["m"] for d in diag.values()]
             b_values = [d["b"] for d in diag.values()]
             sig_values = [d["V_std"] for d in diag.values()]
-            print(
-                f"[reactivation-calibration] iter {iteration + 1}/{n_iterations} "
-                f"| mode={(mode if mode is not None else 'per-layer')} "
-                f"| {len(diag)} layers calibrated "
-                f"| m range [{min(m_values):.4f}, {max(m_values):.4f}] "
-                f"| b range [{min(b_values):.4f}, {max(b_values):.4f}] "
-                f"| sigma range [{min(sig_values):.4f}, {max(sig_values):.4f}] "
-                f"| aggregation={quantile_aggregation} "
-                f"| k=per-layer n_batches={n_batches}",
-                flush=True,
+            logger.info(
+                "[reactivation-calibration] iter %s/%s | mode=%s | %s layers "
+                "calibrated | m range [%.4f, %.4f] | b range [%.4f, %.4f] "
+                "| sigma range [%.4f, %.4f] | aggregation=%s | k=per-layer "
+                "n_batches=%s",
+                iteration + 1,
+                n_iterations,
+                mode if mode is not None else "per-layer",
+                len(diag),
+                min(m_values),
+                max(m_values),
+                min(b_values),
+                max(b_values),
+                min(sig_values),
+                max(sig_values),
+                quantile_aggregation,
+                n_batches,
             )
     if is_main and diag:
         for name, d in diag.items():
@@ -290,16 +352,22 @@ def _maybe_calibrate_data_driven_reactivation(
                 )
             if d.get("calibration_reverted"):
                 extra += " REVERTED"
-            print(
-                f"[reactivation-calibration]   {name}: "
-                f"m={d['m']:.4f} b={d['b']:.4f} "
-                f"V[mean={d['V_mean']:.4f} std={d['V_std']:.4f} "
-                f"mad_std={d.get('V_mad_std', float('nan')):.4f} "
-                f"q10={d.get('V_q10', float('nan')):.3g} "
-                f"q90={d.get('V_q90', float('nan')):.3g} "
-                f"min={d.get('V_min', float('nan')):.3g} "
-                f"max={d.get('V_max', float('nan')):.3g}] n={d['n']}{extra}",
-                flush=True,
+            logger.info(
+                "[reactivation-calibration]   %s: m=%.4f b=%.4f "
+                "V[mean=%.4f std=%.4f mad_std=%.4f q10=%.3g q90=%.3g "
+                "min=%.3g max=%.3g] n=%s%s",
+                name,
+                d["m"],
+                d["b"],
+                d["V_mean"],
+                d["V_std"],
+                d.get("V_mad_std", float("nan")),
+                d.get("V_q10", float("nan")),
+                d.get("V_q90", float("nan")),
+                d.get("V_min", float("nan")),
+                d.get("V_max", float("nan")),
+                d["n"],
+                extra,
             )
 
 
@@ -355,6 +423,69 @@ def normalize_optimizer_config(optimizer_cfg) -> OptimizerConfig:
     return OptimizerConfig(**sanitized)
 
 
+def _maybe_attach_pruning_results(
+    analysis_manager: AnalysisManager,
+    training_results: dict | None,
+) -> None:
+    """Attach pruning metrics to analysis when the training result includes them."""
+    if training_results and (
+        "pre_pruning_performance" in training_results
+        or "post_pruning_performance" in training_results
+    ):
+        analysis_manager.set_pruning_results(training_results)
+
+
+def _resolve_final_epoch_for_performance_plot(training_config) -> int | None:
+    """Return final epoch metadata from the training config when available."""
+    if (
+        training_config is not None
+        and hasattr(training_config, "main")
+        and hasattr(training_config.main, "common")
+        and hasattr(training_config.main.common, "epochs")
+    ):
+        return training_config.main.common.epochs
+    return None
+
+
+def _maybe_plot_performance_evolution(
+    *,
+    run_save_path: str,
+    analysis_manager: AnalysisManager,
+    training_config=None,
+) -> None:
+    """Generate final performance-evolution plots when epoch tracking exists."""
+    if not analysis_manager.config.performance_analysis.training:
+        return
+
+    performance_dir = os.path.join(run_save_path, "performance", "epochs")
+    logger.info(f"Checking for performance evolution data in: {performance_dir}")
+    if not os.path.exists(performance_dir):
+        logger.warning(f"Performance directory does not exist: {performance_dir}")
+        return
+
+    logger.info(
+        "Performance directory exists. Generating performance evolution plots..."
+    )
+    try:
+        final_epoch = _resolve_final_epoch_for_performance_plot(training_config)
+        pruning_performance = getattr(analysis_manager, "pruning_results", None)
+        logger.info(f"Pruning results available: {pruning_performance is not None}")
+
+        plotter = PerformancePlotter()
+        plotter.plot_performance_evolution(
+            performance_dir=performance_dir,
+            save_path=os.path.join(run_save_path, "performance"),
+            pruning_performance=pruning_performance,
+            final_epoch=final_epoch,
+        )
+        logger.info("Performance evolution plots generated successfully")
+    except Exception as e:
+        logger.error(f"Failed to generate performance evolution plots: {e}")
+        import traceback
+
+        logger.error(traceback.format_exc())
+
+
 def run_analysis(
     train_ds: torch.utils.data.Dataset,
     valid_ds: torch.utils.data.Dataset,
@@ -368,69 +499,47 @@ def run_analysis(
     """Run analysis using the AnalysisManager."""
     logger.info("Running analyses...")
     if analysis_manager is not None:
-        # Set pruning results if available
-        if training_results and (
-            "pre_pruning_performance" in training_results
-            or "post_pruning_performance" in training_results
-        ):
-            analysis_manager.set_pruning_results(training_results)
+        _maybe_attach_pruning_results(analysis_manager, training_results)
 
         analysis_manager.run_analysis(filename="final", training=training)
 
-        # Generate performance evolution plots if this is final analysis and training tracking was enabled
-        if not training and analysis_manager.config.performance_analysis.training:
-            performance_dir = os.path.join(run_save_path, "performance", "epochs")
-            logger.info(
-                f"Checking for performance evolution data in: {performance_dir}"
+        if not training:
+            _maybe_plot_performance_evolution(
+                run_save_path=run_save_path,
+                analysis_manager=analysis_manager,
+                training_config=training_config,
             )
-            if os.path.exists(performance_dir):
-                logger.info(
-                    "Performance directory exists. Generating performance evolution plots..."
-                )
-                try:
-                    # Get final epoch from training config if available
-                    final_epoch = None
-                    if (
-                        training_config is not None
-                        and hasattr(training_config, "main")
-                        and hasattr(training_config.main, "common")
-                        and hasattr(training_config.main.common, "epochs")
-                    ):
-                        final_epoch = training_config.main.common.epochs
-
-                    # Get pruning results if available
-                    pruning_performance = getattr(
-                        analysis_manager, "pruning_results", None
-                    )
-                    logger.info(
-                        f"Pruning results available: {pruning_performance is not None}"
-                    )
-
-                    plotter = PerformancePlotter()
-                    plotter.plot_performance_evolution(
-                        performance_dir=performance_dir,
-                        save_path=os.path.join(run_save_path, "performance"),
-                        pruning_performance=pruning_performance,
-                        final_epoch=final_epoch,
-                    )
-                    logger.info("Performance evolution plots generated successfully")
-                except Exception as e:
-                    logger.error(f"Failed to generate performance evolution plots: {e}")
-                    import traceback
-
-                    logger.error(traceback.format_exc())
-            else:
-                logger.warning(
-                    f"Performance directory does not exist: {performance_dir}"
-                )
 
         logger.info("Analysis completed")
 
 
-def main(config_path: str, args=None):
-    rank, local_rank, world_size = setup_distributed()
-    is_main = rank == 0
+def _apply_cli_overrides(config, args) -> None:
+    """Apply command-line overrides to a loaded training config."""
+    if not args:
+        return
 
+    if args.learning_strategy:
+        config.training.main.strategy = args.learning_strategy
+        logger.info(f"Override learning strategy: {args.learning_strategy}")
+    if args.output_dir:
+        config.outputs.results_dir = args.output_dir
+        logger.info(f"Override output directory: {args.output_dir}")
+    if args.run_name:
+        config.outputs.run_name = args.run_name
+        logger.info(f"Override run name: {args.run_name}")
+    if getattr(args, "seed", None) is not None:
+        config.experiment.seed = args.seed
+        logger.info(f"Override seed: {args.seed}")
+
+
+def _load_and_prepare_training_config(
+    config_path: str,
+    args,
+    *,
+    is_main: bool,
+    world_size: int,
+) -> _PreparedTrainingConfig:
+    """Load, validate, safeguard, and split the training configuration."""
     config = load_config(config_path)
     if is_main:
         logger.info(f"Loaded configuration from {config_path}")
@@ -450,263 +559,25 @@ def main(config_path: str, args=None):
     if is_main:
         logger.info("Configuration safeguards applied")
 
-    # Disable wandb on non-rank-0 processes to avoid duplicate logging.
     if not is_main and hasattr(config, "wandb"):
         config.wandb.use_wandb = False
 
-    if args:
-        if args.learning_strategy:
-            config.training.main.strategy = args.learning_strategy
-            logger.info(f"Override learning strategy: {args.learning_strategy}")
-        if args.output_dir:
-            config.outputs.results_dir = args.output_dir
-            logger.info(f"Override output directory: {args.output_dir}")
-        if args.run_name:
-            config.outputs.run_name = args.run_name
-            logger.info(f"Override run name: {args.run_name}")
-        if getattr(args, "seed", None) is not None:
-            config.experiment.seed = args.seed
-            logger.info(f"Override seed: {args.seed}")
-        # Opt-in profiling: translate CLI flags into the env vars read by
-        # dendritic_modeling.training.utils.profiling. Off by default.
-        if getattr(args, "profile_dir", None):
-            os.environ["DENDRINET_PROFILE_DIR"] = args.profile_dir
-        if getattr(args, "profile_backend", None):
-            os.environ["DENDRINET_PROFILE_BACKEND"] = args.profile_backend
-        if (
-            getattr(args, "profile", False)
-            or getattr(args, "profile_dir", None)
-            or getattr(args, "profile_backend", None)
-        ):
-            os.environ["DENDRINET_PROFILE"] = "1"
-            if is_main:
-                logger.info(
-                    "Profiling ENABLED (torch.profiler); training will stop "
-                    "early after the capture."
-                )
+    _apply_cli_overrides(config, args)
 
-    # Extract config sections
-    experiment_config = config.experiment
-    data_config = config.data
-    model_config = config.model
-    training_config = config.training
-    analysis_config = config.analysis
-    wandb_config = config.wandb
-    outputs_config = config.outputs
-
-    # In DDP, only rank 0 creates output dirs, log file handlers, and wandb.
-    # All ranks call setup_environment to load data + build the model, but
-    # non-rank-0 processes suppress side-effects by disabling wandb (already
-    # done above) and will adopt the run_save_path broadcast from rank 0.
-    run_save_path, train_ds, valid_ds, test_ds, model, encoder_network = (
-        setup_environment(
-            model_config=model_config,
-            training_config=training_config,
-            data_config=data_config,
-            wandb_config=wandb_config,
-            outputs_config=outputs_config,
-            experiment_config=experiment_config,
-            is_main=is_main,
-        )
-    )
-
-    # Broadcast run_save_path from rank 0 so all ranks use the same
-    # directory (timestamps may differ across ranks).
-    if world_size > 1:
-        if is_main:
-            path_bytes = run_save_path.encode("utf-8")
-            path_len = torch.tensor([len(path_bytes)], dtype=torch.long, device="cuda")
-        else:
-            path_len = torch.tensor([0], dtype=torch.long, device="cuda")
-        dist.broadcast(path_len, src=0)
-        if is_main:
-            path_tensor = torch.tensor(
-                list(path_bytes), dtype=torch.uint8, device="cuda"
-            )
-        else:
-            path_tensor = torch.empty(path_len.item(), dtype=torch.uint8, device="cuda")
-        dist.broadcast(path_tensor, src=0)
-        run_save_path = bytes(path_tensor.cpu().tolist()).decode("utf-8")
-
-    # --- DDP wrapping ---
-    if world_size > 1:
-        device = torch.device(f"cuda:{local_rank}")
-        model = model.to(device)
-        model = torch.nn.parallel.DistributedDataParallel(
-            model, device_ids=[local_rank]
-        )
-        if is_main:
-            logger.info("Model wrapped in DistributedDataParallel")
-
-    if is_main:
-        logger.info("Network architecture summary before training:")
-    # Use the unwrapped model for summary and param group extraction.
-    unwrapped_model = model.module if hasattr(model, "module") else model
-
-    # Post-build gate diagnostic: record per-layer (m, b) statistics to
-    # init_gate_stats.json in the run directory. This is a generic health
-    # check for runs that use learnable reactivation gates, especially when
-    # data-driven calibration is enabled.
-    if is_main:
-        try:
-            dump_init_gate_stats(unwrapped_model, run_save_path)
-        except Exception as exc:  # diagnostic must not break training
-            logger.warning("init_gate_stats diagnostic failed: %s", exc)
-    if is_main:
-        try:
-            is_recurrent_core = getattr(
-                unwrapped_model.core_network, "is_recurrent", False
-            )
-            if callable(is_recurrent_core):
-                is_recurrent_core = is_recurrent_core()
-
-            if is_recurrent_core:
-                strategy = getattr(
-                    getattr(config.training, "main", None), "strategy", "standard"
-                )
-                if strategy not in ("recurrent", "multi_stage"):
-                    logger.warning(
-                        "Recurrent model detected but training.main.strategy='%s'. "
-                        "Use strategy='recurrent' for correct sequence handling.",
-                        strategy,
-                    )
-                total_params = sum(p.numel() for p in unwrapped_model.parameters())
-                trainable_params = sum(
-                    p.numel() for p in unwrapped_model.parameters() if p.requires_grad
-                )
-                logger.info(
-                    "Skipping torchinfo summary for recurrent model. "
-                    f"total_params={total_params}, trainable_params={trainable_params}"
-                )
-                if wandb.run:
-                    wandb.log(
-                        {
-                            "total_params": total_params,
-                            "trainable_params": trainable_params,
-                        }
-                    )
-            else:
-                sample_input: torch.Tensor = train_ds[0][0]
-                summary = torchinfo.summary(
-                    unwrapped_model,
-                    input_size=(100, *sample_input.shape),
-                    col_names=["input_size", "output_size", "num_params"],
-                    col_width=25,
-                    row_settings=["depth"],
-                    depth=7,
-                )
-                logger.info("Model summary generated (see console output)")
-                if wandb.run:
-                    wandb.log(
-                        {
-                            "total_params": summary.total_params,
-                            "trainable_params": summary.trainable_params,
-                        }
-                    )
-        except Exception as e:
-            logger.error(f"Failed to generate model summary before training: {e}")
-
-    if is_main:
-        config_payload = asdict(config)
-        if canonicalize_model_core_flags is not None:
-            config_payload = canonicalize_model_core_flags(config_payload)
-        if canonicalize_rnn_core_flags is not None:
-            config_payload = canonicalize_rnn_core_flags(config_payload)
-        save_dict(config_payload, run_save_path, "config.json")
-
-    # Under DDP, autoencoder pretraining must be serialized: rank 0
-    # trains and saves the checkpoint, other ranks wait then load it.
-    # Identity and non-autoencoder encoders are safe on all ranks.
-    if world_size > 1 and isinstance(encoder_network, BaseAutoencoder):
-        if is_main:
-            encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds = (
-                load_train_encoder_network(
-                    encoder_network=encoder_network,
-                    encoder_train_config=training_config.encoder,
-                    train_ds=train_ds,
-                    valid_ds=valid_ds,
-                    test_ds=test_ds,
-                    encoder_network_config=model_config.encoder,
-                    task_config=data_config,
-                )
-            )
-        dist.barrier()  # wait for rank 0 to finish training/saving
-        if not is_main:
-            # Rank 0 has saved a checkpoint; non-rank-0 will find it and
-            # skip training, just load + encode.
-            encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds = (
-                load_train_encoder_network(
-                    encoder_network=encoder_network,
-                    encoder_train_config=training_config.encoder,
-                    train_ds=train_ds,
-                    valid_ds=valid_ds,
-                    test_ds=test_ds,
-                    encoder_network_config=model_config.encoder,
-                    task_config=data_config,
-                )
-            )
-    else:
-        encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds = (
-            load_train_encoder_network(
-                encoder_network=encoder_network,
-                encoder_train_config=training_config.encoder,
-                train_ds=train_ds,
-                valid_ds=valid_ds,
-                test_ds=test_ds,
-                encoder_network_config=model_config.encoder,
-                task_config=data_config,
-            )
-        )
-
-    encoded_data = {
-        "train": encoded_train_ds,
-        "valid": encoded_valid_ds,
-        "test": encoded_test_ds,
-    }
-    analysis_manager = AnalysisManager(
-        model=unwrapped_model,
-        data=encoded_data,
-        analysis_config=analysis_config,
-        save_root=run_save_path,
-        device="cuda" if torch.cuda.is_available() else "cpu",
-    )
-
-    # Replace encoder on the unwrapped model so the change is visible
-    # through the DDP wrapper (which delegates to model.module).
-    if isinstance(encoder_network, Identity):
-        unwrapped_model.encoder_network = encoder_network
-    elif hasattr(encoder_network, "encoder"):
-        unwrapped_model.encoder_network = Identity(encoder_network.encoder.output_dim)
-    else:
-        unwrapped_model.encoder_network = encoder_network
-
-    # Optional post-hoc empirical calibration of the reactivation (m, b).
-    # Triggered when model.core.reactivation.init_policy == "empirical".
-    # Runs a handful of training batches through the model, measures the
-    # per-layer voltage distribution before the reactivation, and sets
-    # b = E[V], m = k / std(V).
-    _maybe_calibrate_data_driven_reactivation(
+    return _PreparedTrainingConfig(
         config=config,
-        model=unwrapped_model,
-        train_dataset=encoded_train_ds,
-        is_main=is_main,
+        experiment_config=config.experiment,
+        data_config=config.data,
+        model_config=config.model,
+        training_config=config.training,
+        analysis_config=config.analysis,
+        wandb_config=config.wandb,
+        outputs_config=config.outputs,
     )
 
-    main_net_save_path = os.path.join(run_save_path, "main_network")
-    os.makedirs(main_net_save_path, exist_ok=True)
 
-    # Get main training config
-    main_train_config = training_config.main
-
-    # Prepare trainer configuration
-    main_trainer_config_dict = prepare_trainer_config(
-        main_train_config=main_train_config,
-        experiment_config=experiment_config,
-        save_path=main_net_save_path,
-    )
-    main_trainer_config_dict["seed"] = int(getattr(experiment_config, "seed", 0) or 0)
-
-    # Extract config values (handle both dict from sweeps and object from single runs)
+def _resolve_main_training_settings(main_train_config) -> _MainTrainingSettings:
+    """Resolve main training settings from dict or object config shapes."""
     if isinstance(main_train_config, dict):
         common_config = main_train_config.get("common", {})
         strategy = main_train_config.get("strategy", "standard")
@@ -720,7 +591,6 @@ def main(config_path: str, args=None):
             getattr(main_train_config, "optimizer", None)
         )
 
-    # Extract from common_config (also handle dict vs object)
     if isinstance(common_config, dict):
         param_groups = common_config.get("param_groups", {})
         weight_decay_rate = common_config.get("weight_decay_rate", 0.0)
@@ -732,21 +602,250 @@ def main(config_path: str, args=None):
         weight_boosting = getattr(common_config, "weight_boosting", False)
         common_epochs = common_config.epochs
 
-    param_groups = normalize_param_groups_config(param_groups)
+    return _MainTrainingSettings(
+        common_config=common_config,
+        strategy=strategy,
+        optimizer_config=optimizer_config,
+        param_groups=param_groups,
+        weight_decay_rate=weight_decay_rate,
+        weight_boosting=weight_boosting,
+        common_epochs=common_epochs,
+    )
+
+
+def _install_encoder_network(unwrapped_model, encoder_network) -> None:
+    """Install the post-pretraining encoder on the unwrapped model."""
+    if isinstance(encoder_network, Identity):
+        unwrapped_model.encoder_network = encoder_network
+    elif hasattr(encoder_network, "encoder"):
+        unwrapped_model.encoder_network = Identity(encoder_network.encoder.output_dim)
+    else:
+        unwrapped_model.encoder_network = encoder_network
+
+
+def _record_model_size_summary(unwrapped_model, config, run_save_path: str) -> int:
+    """Persist model size metadata and log size-based configuration suggestions."""
+    nparams = sum(p.numel() for p in unwrapped_model.parameters())
+    if wandb.run is not None:
+        wandb.log({"nparams": nparams})
+    save_dict({"nparams": nparams}, run_save_path, "nparams")
+
+    suggestions = suggest_optimal_config_for_model_size(nparams)
+    if suggestions:
+        logger.info(
+            f"=== MODEL SIZE RECOMMENDATIONS (Model has {nparams:,} parameters) ==="
+        )
+        for key, value in suggestions.items():
+            current_value = getattr(config.training, key, "Not available")
+            if current_value != value:
+                logger.info(f"  Consider: {key} = {value} (current: {current_value})")
+        logger.info("=" * 50)
+
+    return nparams
+
+
+def _save_run_config(config, run_save_path: str) -> None:
+    """Persist the resolved run config with legacy flag canonicalization."""
+    config_payload = asdict(config)
+    if canonicalize_model_core_flags is not None:
+        config_payload = canonicalize_model_core_flags(config_payload)
+    if canonicalize_rnn_core_flags is not None:
+        config_payload = canonicalize_rnn_core_flags(config_payload)
+    save_dict(config_payload, run_save_path, "config.json")
+
+
+def _load_or_train_encoder_datasets(
+    *,
+    encoder_network,
+    training_config,
+    model_config,
+    data_config,
+    train_ds,
+    valid_ds,
+    test_ds,
+    world_size: int,
+    is_main: bool,
+):
+    """Load/train the encoder and return encoded datasets with DDP serialization."""
+    loader_kwargs = {
+        "encoder_network": encoder_network,
+        "encoder_train_config": training_config.encoder,
+        "train_ds": train_ds,
+        "valid_ds": valid_ds,
+        "test_ds": test_ds,
+        "encoder_network_config": model_config.encoder,
+        "task_config": data_config,
+    }
+
+    if world_size > 1 and isinstance(encoder_network, BaseAutoencoder):
+        if is_main:
+            encoded = load_train_encoder_network(**loader_kwargs)
+        dist.barrier()  # wait for rank 0 to finish training/saving
+        if not is_main:
+            # Rank 0 has saved a checkpoint; non-rank-0 will find it and
+            # skip training, just load + encode.
+            encoded = load_train_encoder_network(**loader_kwargs)
+        return encoded
+
+    return load_train_encoder_network(**loader_kwargs)
+
+
+def _create_analysis_manager(
+    *,
+    unwrapped_model,
+    encoded_train_ds,
+    encoded_valid_ds,
+    encoded_test_ds,
+    analysis_config,
+    run_save_path: str,
+):
+    """Create the analysis manager from encoded train/valid/test datasets."""
+    encoded_data = {
+        "train": encoded_train_ds,
+        "valid": encoded_valid_ds,
+        "test": encoded_test_ds,
+    }
+    return AnalysisManager(
+        model=unwrapped_model,
+        data=encoded_data,
+        analysis_config=analysis_config,
+        save_root=run_save_path,
+        device="cuda" if torch.cuda.is_available() else "cpu",
+    )
+
+
+def _prepare_encoded_training_state(
+    *,
+    config,
+    unwrapped_model,
+    encoder_network,
+    training_config,
+    model_config,
+    data_config,
+    train_ds,
+    valid_ds,
+    test_ds,
+    analysis_config,
+    run_save_path: str,
+    world_size: int,
+    is_main: bool,
+) -> _EncodedTrainingState:
+    """Prepare encoded datasets, analysis manager, and post-encoder calibration."""
+    encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds = (
+        _load_or_train_encoder_datasets(
+            encoder_network=encoder_network,
+            training_config=training_config,
+            model_config=model_config,
+            data_config=data_config,
+            train_ds=train_ds,
+            valid_ds=valid_ds,
+            test_ds=test_ds,
+            world_size=world_size,
+            is_main=is_main,
+        )
+    )
+
+    analysis_manager = _create_analysis_manager(
+        unwrapped_model=unwrapped_model,
+        encoded_train_ds=encoded_train_ds,
+        encoded_valid_ds=encoded_valid_ds,
+        encoded_test_ds=encoded_test_ds,
+        analysis_config=analysis_config,
+        run_save_path=run_save_path,
+    )
+
+    _install_encoder_network(unwrapped_model, encoder_network)
+    _maybe_calibrate_data_driven_reactivation(
+        config=config,
+        model=unwrapped_model,
+        train_dataset=encoded_train_ds,
+        is_main=is_main,
+    )
+
+    return _EncodedTrainingState(
+        encoder_network=encoder_network,
+        encoded_train_ds=encoded_train_ds,
+        encoded_valid_ds=encoded_valid_ds,
+        encoded_test_ds=encoded_test_ds,
+        analysis_manager=analysis_manager,
+    )
+
+
+def _maybe_plot_multistage_training_performance(
+    *,
+    strategy: str,
+    analysis_config,
+    run_save_path: str,
+    main_train_config,
+    common_epochs: int,
+    analysis_manager,
+) -> None:
+    """Plot multi-stage training performance when epoch traces are available."""
+    if strategy != "multi_stage":
+        return
+    if not analysis_config.performance_analysis.training:
+        return
+
+    performance_dir = os.path.join(run_save_path, "performance", "epochs")
+    if not os.path.exists(performance_dir):
+        return
+
+    try:
+        multi_stage = main_train_config.strategies.multi_stage
+        stages = multi_stage.stages
+        total_epochs = sum(getattr(stage, "epochs", common_epochs) for stage in stages)
+        plotter = PerformancePlotter()
+        plotter.plot_performance_evolution(
+            performance_dir=performance_dir,
+            save_path=os.path.join(run_save_path, "performance"),
+            pruning_performance=getattr(analysis_manager, "pruning_results", None),
+            final_epoch=total_epochs,
+        )
+    except Exception as e:
+        logger.error(f"Failed to generate performance plots: {e}")
+
+
+def _run_main_training_phase(
+    *,
+    unwrapped_model,
+    model,
+    training_config,
+    model_config,
+    experiment_config,
+    run_save_path: str,
+    encoded_train_ds,
+    encoded_valid_ds,
+    analysis_manager,
+) -> _MainTrainingRun:
+    """Build the main trainer, run training, and return downstream state."""
+    main_net_save_path = os.path.join(run_save_path, "main_network")
+    os.makedirs(main_net_save_path, exist_ok=True)
+
+    main_train_config = training_config.main
+    main_trainer_config_dict = prepare_trainer_config(
+        main_train_config=main_train_config,
+        experiment_config=experiment_config,
+        save_path=main_net_save_path,
+    )
+    main_trainer_config_dict["seed"] = int(getattr(experiment_config, "seed", 0) or 0)
+
+    settings = _resolve_main_training_settings(main_train_config)
+    strategy = settings.strategy
+    common_epochs = settings.common_epochs
+    param_groups = normalize_param_groups_config(settings.param_groups)
     model_param_groups = unwrapped_model.get_param_groups(param_groups)
-    base_optimizer = create_optimizer(model_param_groups, optimizer_config)
+    base_optimizer = create_optimizer(model_param_groups, settings.optimizer_config)
 
     optimizer = CustomWeightDecayOptimizer(
         model=unwrapped_model,
         optimizer=base_optimizer,
-        weight_decay=weight_decay_rate,
-        weight_boosting=weight_boosting,
+        weight_decay=settings.weight_decay_rate,
+        weight_boosting=settings.weight_boosting,
     )
 
     original_pruning_config = main_trainer_config_dict.get("pruning", {})
     main_trainer_config_dict["pruning"] = {}
 
-    # Check if using multi-stage training
     if strategy == "multi_stage":
         if "multi_stage_config" not in main_trainer_config_dict:
             raise ValueError(
@@ -754,7 +853,6 @@ def main(config_path: str, args=None):
             )
         logger.info("Using multi-stage training strategy")
 
-    # Inject task from model config for recurrent trainer
     main_trainer_config_dict["task"] = model_config.task
 
     main_trainer = get_trainer(
@@ -768,112 +866,203 @@ def main(config_path: str, args=None):
         model=model, train_data=encoded_train_ds, valid_data=encoded_valid_ds
     )
 
-    if is_main:
-        nparams = sum(p.numel() for p in unwrapped_model.parameters())
-        if wandb.run is not None:
-            wandb.log({"nparams": nparams})
-        save_dict({"nparams": nparams}, run_save_path, "nparams")
+    return _MainTrainingRun(
+        main_train_config=main_train_config,
+        trainer_config_dict=main_trainer_config_dict,
+        optimizer=optimizer,
+        strategy=strategy,
+        common_epochs=common_epochs,
+        original_pruning_config=original_pruning_config,
+        training_results=training_results,
+    )
 
-        suggestions = suggest_optimal_config_for_model_size(nparams)
-        if suggestions:
-            logger.info(
-                f"=== MODEL SIZE RECOMMENDATIONS (Model has {nparams:,} parameters) ==="
-            )
-            for key, value in suggestions.items():
-                current_value = getattr(config.training, key, "Not available")
-                if current_value != value:
-                    logger.info(
-                        f"  Consider: {key} = {value} (current: {current_value})"
-                    )
-            logger.info("=" * 50)
 
-    # Run analysis if enabled (rank 0 only)
+def _maybe_apply_pruning_step(
+    *,
+    original_pruning_config,
+    is_main: bool,
+    main_trainer_config_dict,
+    strategy: str,
+    optimizer,
+    analysis_manager,
+    model,
+    common_epochs: int,
+    encoded_train_ds,
+    encoded_valid_ds,
+    training_results: dict,
+) -> dict:
+    """Apply the separate pruning step when enabled and merge its results."""
+    if not original_pruning_config or not original_pruning_config.get("enabled", False):
+        return training_results
+
     if is_main:
-        any_analysis_enabled = any(
-            [
-                analysis_config.performance_analysis.enabled,
-                analysis_config.information_analysis.enabled,
-                analysis_config.synapse_turnover_analysis.enabled,
-                analysis_config.noise_perturbation_analysis.enabled,
-                analysis_config.single_layer_contribution.enabled,
-                analysis_config.ablation_analysis.enabled,
-                analysis_config.weight_analysis.enabled,
-                analysis_config.synaptic_activation_analysis.enabled,
-                analysis_config.branch_activation_analysis.enabled,
-                hasattr(analysis_config, "correlation_analysis")
-                and analysis_config.correlation_analysis.enabled,
-                hasattr(analysis_config, "routing_analysis")
-                and analysis_config.routing_analysis.enabled,
-            ]
+        logger.info("Applying pruning as separate step...")
+    main_trainer_config_dict["pruning"] = original_pruning_config
+    main_trainer_config_dict["reporting"] = main_trainer_config_dict.get(
+        "reporting", {}
+    )
+
+    pruning_trainer = get_trainer(
+        strategy=strategy,
+        optimizer=optimizer,
+        trainer_config_dict=main_trainer_config_dict,
+        analysis_manager=analysis_manager,
+    )
+
+    pruning_trainer._initialize_attributes(model, common_epochs)
+
+    pruning_results = pruning_trainer._apply_pruning_and_evaluate(
+        model=model, train_data=encoded_train_ds, valid_data=encoded_valid_ds
+    )
+    training_results.update(pruning_results)
+    if is_main:
+        logger.info("Pruning completed")
+    return training_results
+
+
+def _save_final_model_and_analysis(
+    *,
+    unwrapped_model,
+    run_save_path: str,
+    any_analysis_enabled: bool,
+    strategy: str,
+    train_ds,
+    valid_ds,
+    test_ds,
+    analysis_manager,
+    training_config,
+    training_results: dict,
+) -> None:
+    """Save the final model and run non-multi-stage final analysis."""
+    torch.save(
+        unwrapped_model.state_dict(),
+        os.path.join(run_save_path, "final_model.pt"),
+    )
+
+    if any_analysis_enabled and strategy != "multi_stage":
+        run_analysis(
+            train_ds=train_ds,
+            valid_ds=valid_ds,
+            test_ds=test_ds,
+            run_save_path=run_save_path,
+            analysis_manager=analysis_manager,
+            training_config=training_config,
+            training=False,
+            training_results=training_results,
         )
 
-        if strategy == "multi_stage":
-            if analysis_config.performance_analysis.training:
-                performance_dir = os.path.join(run_save_path, "performance", "epochs")
-                if os.path.exists(performance_dir):
-                    try:
-                        multi_stage = main_train_config.strategies.multi_stage
-                        stages = multi_stage.stages
-                        total_epochs = sum(
-                            getattr(stage, "epochs", common_epochs) for stage in stages
-                        )
-                        plotter = PerformancePlotter()
-                        plotter.plot_performance_evolution(
-                            performance_dir=performance_dir,
-                            save_path=os.path.join(run_save_path, "performance"),
-                            pruning_performance=getattr(
-                                analysis_manager, "pruning_results", None
-                            ),
-                            final_epoch=total_epochs,
-                        )
-                    except Exception as e:
-                        logger.error(f"Failed to generate performance plots: {e}")
 
-    # Now apply pruning if enabled (separate step)
-    if original_pruning_config and original_pruning_config.get("enabled", False):
-        if is_main:
-            logger.info("Applying pruning as separate step...")
-        main_trainer_config_dict["pruning"] = original_pruning_config
-        main_trainer_config_dict["reporting"] = main_trainer_config_dict.get(
-            "reporting", {}
-        )
-
-        pruning_trainer = get_trainer(
-            strategy=strategy,
-            optimizer=optimizer,
-            trainer_config_dict=main_trainer_config_dict,
+def _finalize_main_training_phase(
+    *,
+    is_main: bool,
+    unwrapped_model,
+    config,
+    run_save_path: str,
+    analysis_config,
+    main_training: _MainTrainingRun,
+    analysis_manager,
+    model,
+    encoded_train_ds,
+    encoded_valid_ds,
+    train_ds,
+    valid_ds,
+    test_ds,
+    training_config,
+    training_results: dict[str, Any],
+) -> dict[str, Any]:
+    """Run post-training bookkeeping, pruning, and final rank-0 outputs."""
+    if is_main:
+        _record_model_size_summary(unwrapped_model, config, run_save_path)
+        any_analysis_enabled = analysis_config.any_enabled()
+        _maybe_plot_multistage_training_performance(
+            strategy=main_training.strategy,
+            analysis_config=analysis_config,
+            run_save_path=run_save_path,
+            main_train_config=main_training.main_train_config,
+            common_epochs=main_training.common_epochs,
             analysis_manager=analysis_manager,
         )
 
-        pruning_trainer._initialize_attributes(model, common_epochs)
+    training_results = _maybe_apply_pruning_step(
+        original_pruning_config=main_training.original_pruning_config,
+        is_main=is_main,
+        main_trainer_config_dict=main_training.trainer_config_dict,
+        strategy=main_training.strategy,
+        optimizer=main_training.optimizer,
+        analysis_manager=analysis_manager,
+        model=model,
+        common_epochs=main_training.common_epochs,
+        encoded_train_ds=encoded_train_ds,
+        encoded_valid_ds=encoded_valid_ds,
+        training_results=training_results,
+    )
 
-        pruning_results = pruning_trainer._apply_pruning_and_evaluate(
-            model=model, train_data=encoded_train_ds, valid_data=encoded_valid_ds
-        )
-        training_results.update(pruning_results)
-        if is_main:
-            logger.info("Pruning completed")
-
-    # Save final model (rank 0 only).  Encoder was already swapped
-    # to Identity before training started (see above).
     if is_main:
-        torch.save(
-            unwrapped_model.state_dict(),
-            os.path.join(run_save_path, "final_model.pt"),
+        _save_final_model_and_analysis(
+            unwrapped_model=unwrapped_model,
+            run_save_path=run_save_path,
+            any_analysis_enabled=any_analysis_enabled,
+            strategy=main_training.strategy,
+            train_ds=train_ds,
+            valid_ds=valid_ds,
+            test_ds=test_ds,
+            analysis_manager=analysis_manager,
+            training_config=training_config,
+            training_results=training_results,
         )
 
-        if any_analysis_enabled and strategy != "multi_stage":
-            run_analysis(
-                train_ds=train_ds,
-                valid_ds=valid_ds,
-                test_ds=test_ds,
-                run_save_path=run_save_path,
-                analysis_manager=analysis_manager,
-                training_config=training_config,
-                training=False,
-                training_results=training_results,
-            )
+    return training_results
 
+
+def _broadcast_run_save_path(
+    run_save_path: str,
+    *,
+    world_size: int,
+    is_main: bool,
+    device: str | torch.device = "cuda",
+) -> str:
+    """Broadcast the rank-0 run directory to all DDP ranks."""
+    if world_size <= 1:
+        return run_save_path
+
+    if is_main:
+        path_bytes = run_save_path.encode("utf-8")
+        path_len = torch.tensor([len(path_bytes)], dtype=torch.long, device=device)
+    else:
+        path_len = torch.tensor([0], dtype=torch.long, device=device)
+    dist.broadcast(path_len, src=0)
+
+    if is_main:
+        path_tensor = torch.tensor(list(path_bytes), dtype=torch.uint8, device=device)
+    else:
+        path_tensor = torch.empty(path_len.item(), dtype=torch.uint8, device=device)
+    dist.broadcast(path_tensor, src=0)
+    return bytes(path_tensor.cpu().tolist()).decode("utf-8")
+
+
+def _wrap_ddp_model(model, *, world_size: int, local_rank: int, is_main: bool):
+    """Wrap the model in DDP when running with multiple processes."""
+    if world_size <= 1:
+        return model
+
+    device = torch.device(f"cuda:{local_rank}")
+    model = model.to(device)
+    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[local_rank])
+    if is_main:
+        logger.info("Model wrapped in DistributedDataParallel")
+    return model
+
+
+def _dump_init_gate_stats_diagnostic(unwrapped_model, run_save_path: str) -> None:
+    """Write init-gate diagnostics without letting failures stop training."""
+    try:
+        dump_init_gate_stats(unwrapped_model, run_save_path)
+    except Exception as exc:  # diagnostic must not break training
+        logger.warning("init_gate_stats diagnostic failed: %s", exc)
+
+
+def _cleanup_training_runtime(wandb_config, *, world_size: int) -> None:
+    """Finish optional logging and tear down distributed runtime state."""
     if (
         hasattr(wandb_config, "use_wandb")
         and wandb_config.use_wandb
@@ -881,9 +1070,212 @@ def main(config_path: str, args=None):
     ):
         wandb.finish()
 
-    # Clean up distributed process group.
     if world_size > 1 and dist.is_initialized():
         dist.destroy_process_group()
+
+
+def _log_model_summary_before_training(unwrapped_model, train_ds, config) -> None:
+    """Log the pre-training architecture summary and parameter counts."""
+    try:
+        is_recurrent_core = getattr(unwrapped_model.core_network, "is_recurrent", False)
+        if callable(is_recurrent_core):
+            is_recurrent_core = is_recurrent_core()
+
+        if is_recurrent_core:
+            strategy = getattr(
+                getattr(config.training, "main", None), "strategy", "standard"
+            )
+            if strategy not in ("recurrent", "multi_stage"):
+                logger.warning(
+                    "Recurrent model detected but training.main.strategy='%s'. "
+                    "Use strategy='recurrent' for correct sequence handling.",
+                    strategy,
+                )
+            total_params = sum(p.numel() for p in unwrapped_model.parameters())
+            trainable_params = sum(
+                p.numel() for p in unwrapped_model.parameters() if p.requires_grad
+            )
+            logger.info(
+                "Skipping torchinfo summary for recurrent model. "
+                f"total_params={total_params}, trainable_params={trainable_params}"
+            )
+            if wandb.run:
+                wandb.log(
+                    {
+                        "total_params": total_params,
+                        "trainable_params": trainable_params,
+                    }
+                )
+        else:
+            sample_input: torch.Tensor = train_ds[0][0]
+            summary = torchinfo.summary(
+                unwrapped_model,
+                input_size=(100, *sample_input.shape),
+                col_names=["input_size", "output_size", "num_params"],
+                col_width=25,
+                row_settings=["depth"],
+                depth=7,
+            )
+            logger.info("Model summary generated (see console output)")
+            if wandb.run:
+                wandb.log(
+                    {
+                        "total_params": summary.total_params,
+                        "trainable_params": summary.trainable_params,
+                    }
+                )
+    except Exception as e:
+        logger.error(f"Failed to generate model summary before training: {e}")
+
+
+def _setup_training_environment(
+    *,
+    config,
+    model_config,
+    training_config,
+    data_config,
+    wandb_config,
+    outputs_config,
+    experiment_config,
+    world_size: int,
+    local_rank: int,
+    is_main: bool,
+) -> _TrainingEnvironment:
+    """Build datasets/model, apply DDP wrapping, and run rank-0 setup outputs."""
+    run_save_path, train_ds, valid_ds, test_ds, model, encoder_network = (
+        setup_environment(
+            model_config=model_config,
+            training_config=training_config,
+            data_config=data_config,
+            wandb_config=wandb_config,
+            outputs_config=outputs_config,
+            experiment_config=experiment_config,
+            is_main=is_main,
+        )
+    )
+
+    run_save_path = _broadcast_run_save_path(
+        run_save_path,
+        world_size=world_size,
+        is_main=is_main,
+    )
+
+    model = _wrap_ddp_model(
+        model,
+        world_size=world_size,
+        local_rank=local_rank,
+        is_main=is_main,
+    )
+
+    if is_main:
+        logger.info("Network architecture summary before training:")
+
+    unwrapped_model = model.module if hasattr(model, "module") else model
+
+    if is_main:
+        _dump_init_gate_stats_diagnostic(unwrapped_model, run_save_path)
+        _log_model_summary_before_training(unwrapped_model, train_ds, config)
+        _save_run_config(config, run_save_path)
+
+    return _TrainingEnvironment(
+        run_save_path=run_save_path,
+        train_ds=train_ds,
+        valid_ds=valid_ds,
+        test_ds=test_ds,
+        model=model,
+        unwrapped_model=unwrapped_model,
+        encoder_network=encoder_network,
+    )
+
+
+def main(config_path: str, args=None):
+    rank, local_rank, world_size = setup_distributed()
+    is_main = rank == 0
+
+    prepared_config = _load_and_prepare_training_config(
+        config_path,
+        args,
+        is_main=is_main,
+        world_size=world_size,
+    )
+    config = prepared_config.config
+    experiment_config = prepared_config.experiment_config
+    data_config = prepared_config.data_config
+    model_config = prepared_config.model_config
+    training_config = prepared_config.training_config
+    analysis_config = prepared_config.analysis_config
+    wandb_config = prepared_config.wandb_config
+    outputs_config = prepared_config.outputs_config
+
+    environment = _setup_training_environment(
+        config=config,
+        model_config=model_config,
+        training_config=training_config,
+        data_config=data_config,
+        wandb_config=wandb_config,
+        outputs_config=outputs_config,
+        experiment_config=experiment_config,
+        world_size=world_size,
+        local_rank=local_rank,
+        is_main=is_main,
+    )
+    run_save_path = environment.run_save_path
+    train_ds = environment.train_ds
+    valid_ds = environment.valid_ds
+    test_ds = environment.test_ds
+    model = environment.model
+    unwrapped_model = environment.unwrapped_model
+    encoder_network = environment.encoder_network
+
+    encoded_state = _prepare_encoded_training_state(
+        config=config,
+        unwrapped_model=unwrapped_model,
+        encoder_network=encoder_network,
+        training_config=training_config,
+        model_config=model_config,
+        data_config=data_config,
+        train_ds=train_ds,
+        valid_ds=valid_ds,
+        test_ds=test_ds,
+        analysis_config=analysis_config,
+        run_save_path=run_save_path,
+        world_size=world_size,
+        is_main=is_main,
+    )
+    encoded_train_ds = encoded_state.encoded_train_ds
+    encoded_valid_ds = encoded_state.encoded_valid_ds
+    analysis_manager = encoded_state.analysis_manager
+
+    main_training = _run_main_training_phase(
+        unwrapped_model=unwrapped_model,
+        model=model,
+        training_config=training_config,
+        model_config=model_config,
+        experiment_config=experiment_config,
+        run_save_path=run_save_path,
+        encoded_train_ds=encoded_train_ds,
+        encoded_valid_ds=encoded_valid_ds,
+        analysis_manager=analysis_manager,
+    )
+    _finalize_main_training_phase(
+        is_main=is_main,
+        unwrapped_model=unwrapped_model,
+        config=config,
+        run_save_path=run_save_path,
+        analysis_config=analysis_config,
+        main_training=main_training,
+        analysis_manager=analysis_manager,
+        model=model,
+        encoded_train_ds=encoded_train_ds,
+        encoded_valid_ds=encoded_valid_ds,
+        train_ds=train_ds,
+        valid_ds=valid_ds,
+        test_ds=test_ds,
+        training_config=training_config,
+        training_results=main_training.training_results,
+    )
+
+    _cleanup_training_runtime(wandb_config, world_size=world_size)
 
     if is_main:
         logger.info("Training experiment completed successfully")
@@ -922,29 +1314,6 @@ def _parse_cli_args():
         type=int,
         default=None,
         help="Override experiment seed (for running multiple seeds per config).",
-    )
-    parser.add_argument(
-        "--profile",
-        action="store_true",
-        help=(
-            "Enable opt-in torch.profiler over a few warmup+active training "
-            "steps, then stop early. Equivalent to DENDRINET_PROFILE=1. Off by "
-            "default; does not change training numerics."
-        ),
-    )
-    parser.add_argument(
-        "--profile_dir",
-        default=None,
-        help="Directory for profiler traces (default ./profiler_logs). "
-        "Implies --profile.",
-    )
-    parser.add_argument(
-        "--profile_backend",
-        choices=["torch", "nsys"],
-        default=None,
-        help="Profiling backend. 'torch' (default) runs torch.profiler "
-        "(Rung 1). 'nsys' emits only NVTX ranges + early-stop for Nsight "
-        "Systems (Rung 2), avoiding a CUPTI conflict. Implies --profile.",
     )
 
     return parser.parse_args()

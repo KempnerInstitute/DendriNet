@@ -1,9 +1,10 @@
-Complete Configuration Reference
-================================
+Population-Network Reference Config
+===================================
 
 This page reproduces ``configs/config_exp.yaml`` -- the authoritative
-reference for every parameter accepted by the framework.  Each parameter
-is shown with its default value and the full set of valid options.
+single-GPU reference config for the ``population_network`` schema. E/I
+compatibility fields are supported by the loader and factory for existing
+configs, but they are not duplicated in this runnable template.
 
 Copy this file as your starting point and modify as needed.
 

@@ -97,10 +97,37 @@ def _compartment_mean_level_weights(
     return per_level
 
 
+def _apply_weight_transform(pre_w: torch.Tensor, weight_transform: str) -> torch.Tensor:
+    transform = weight_transform.lower()
+    if transform == "exp":
+        return torch.exp(pre_w)
+    if transform == "softplus":
+        return torch.nn.functional.softplus(pre_w)
+    if transform == "relu":
+        return torch.relu(pre_w)
+    if transform == "identity":
+        return pre_w
+    raise ValueError(f"Unsupported weight_transform: {weight_transform}")
+
+
+def _population_fraction_summary(
+    level_fracs: list[torch.Tensor],
+) -> dict[str, float]:
+    return {
+        "frac_distal_pop": float(level_fracs[0].mean().item()),
+        "frac_soma_pop": float(level_fracs[-1].mean().item()),
+        "frac_middle_pop": (
+            float(torch.stack(level_fracs[1:-1], dim=0).mean().item())
+            if len(level_fracs) > 2
+            else 0.0
+        ),
+    }
+
+
 def _fractions_per_level(
     e_population: torch.nn.Module,
     n_E: int,
-) -> list[torch.Tensor] | None:
+) -> list[torch.Tensor | None] | None:
     """Return per-level inhibition fractions ``f_l`` of shape ``(n_E, n_I)``.
 
     For each branch layer of the excitatory population that carries a
@@ -119,11 +146,11 @@ def _fractions_per_level(
     if branch_layers is None or len(branch_layers) == 0:
         return None
 
-    per_level: list[torch.Tensor] = []
+    per_level: list[torch.Tensor | None] = []
     for lyr in branch_layers:
         rec_inh = getattr(lyr, "branch_rec_inhibition", None)
         if rec_inh is None:
-            per_level.append(None)  # type: ignore[arg-type]
+            per_level.append(None)
             continue
         with torch.no_grad():
             w = rec_inh.weight().detach().cpu()
@@ -220,16 +247,6 @@ def _analyze_layer(
     mean_G, std_G, classes = _classify_i_neurons(G, hi=hi, sigma=sigma)
     class_counts = {c: int(classes.count(c)) for c in CLASS_ORDER}
 
-    population_fracs: dict[str, float] = {}
-    if len(level_fracs) >= 2:
-        population_fracs["frac_distal_pop"] = float(level_fracs[0].mean().item())
-        population_fracs["frac_soma_pop"] = float(level_fracs[-1].mean().item())
-        if len(level_fracs) > 2:
-            middle = torch.stack(level_fracs[1:-1], dim=0).mean(dim=0)
-            population_fracs["frac_middle_pop"] = float(middle.mean().item())
-        else:
-            population_fracs["frac_middle_pop"] = 0.0
-
     return {
         "n_E": int(n_E),
         "n_I": int(n_I),
@@ -240,7 +257,7 @@ def _analyze_layer(
         "classes": classes,
         "class_counts": class_counts,
         "pair_level": _pair_level_stats(G, hi=hi),
-        **population_fracs,
+        **_population_fraction_summary(level_fracs),
     }
 
 
@@ -309,7 +326,6 @@ def extract_recurrent_inhibitory_compartment_weights_from_state_dict(
         Effective transform applied to ``pre_w``. Supported values are
         ``"exp"``, ``"softplus"``, ``"relu"``, and ``"identity"``.
     """
-    transform = weight_transform.lower()
     level_tensors: list[torch.Tensor] = []
     level = 0
     while True:
@@ -317,16 +333,7 @@ def extract_recurrent_inhibitory_compartment_weights_from_state_dict(
         if key not in state_dict:
             break
         pre_w = state_dict[key].detach().cpu().float()
-        if transform == "exp":
-            w = torch.exp(pre_w)
-        elif transform == "softplus":
-            w = torch.nn.functional.softplus(pre_w)
-        elif transform == "relu":
-            w = torch.relu(pre_w)
-        elif transform == "identity":
-            w = pre_w
-        else:
-            raise ValueError(f"Unsupported weight_transform: {weight_transform}")
+        w = _apply_weight_transform(pre_w, weight_transform)
         compartment_w = _reshape_weight_matrix_by_compartment(w, n_E=n_E)
         if compartment_w is None:
             raise ValueError(
@@ -363,15 +370,6 @@ def summarize_inhibitory_specialization_from_compartment_weights(
     G, level_fracs = out
     mean_G, std_G, classes = _classify_i_neurons(G, hi=hi, sigma=sigma)
     class_counts = {c: int(classes.count(c)) for c in CLASS_ORDER}
-    population_fracs: dict[str, float] = {
-        "frac_distal_pop": float(level_fracs[0].mean().item()),
-        "frac_soma_pop": float(level_fracs[-1].mean().item()),
-        "frac_middle_pop": (
-            float(torch.stack(level_fracs[1:-1], dim=0).mean().item())
-            if len(level_fracs) > 2
-            else 0.0
-        ),
-    }
     frac_by_level = [lvl.T for lvl in level_fracs]
     return {
         "n_E": n_E,
@@ -392,7 +390,7 @@ def summarize_inhibitory_specialization_from_compartment_weights(
             else torch.zeros_like(frac_by_level[0])
         ),
         "frac_soma": frac_by_level[-1],
-        **population_fracs,
+        **_population_fraction_summary(level_fracs),
     }
 
 
@@ -479,34 +477,14 @@ class InhibitorySpecializationAnalyzer(AbstractAnalyzer):
         hi = float(self.params.gate_threshold)
         sigma = float(self.params.std_threshold)
 
-        per_layer: dict[str, dict[str, Any]] = {}
-        total_inhibitory_by_layer: dict[int | None, int] = {}
-        for record in records:
-            if record.polarity != "inhibitory":
-                continue
-            total_inhibitory_by_layer[record.layer_index] = (
-                total_inhibitory_by_layer.get(record.layer_index, 0) + record.n_neurons
-            )
-
-        for record in records:
-            if record.polarity != "excitatory":
-                continue
-            n_E = record.n_neurons
-            n_I = total_inhibitory_by_layer.get(record.layer_index, 0)
-            if n_E == 0 or n_I == 0:
-                continue
-            entry = _analyze_layer(
-                record.population, n_E=n_E, n_I=n_I, hi=hi, sigma=sigma
-            )
-            if entry is not None:
-                entry.update(_record_source_summary(core, record.key))
-                key = (
-                    f"layer_{record.layer_index}"
-                    if record.layer_index is not None
-                    and record.population_name == "excitatory"
-                    else record.key
-                )
-                per_layer[key] = entry
+        total_inhibitory_by_layer = self._inhibitory_counts_by_layer(records)
+        per_layer = self._analyze_excitatory_records(
+            core=core,
+            records=records,
+            total_inhibitory_by_layer=total_inhibitory_by_layer,
+            hi=hi,
+            sigma=sigma,
+        )
 
         if not per_layer:
             self.logger.info(
@@ -522,19 +500,84 @@ class InhibitorySpecializationAnalyzer(AbstractAnalyzer):
         }
 
         if save_path is not None:
-            os.makedirs(save_path, exist_ok=True)
-            save_dict(results, save_path, f"{filename}.json")
-            if self.params.save_figures:
-                try:
-                    self._save_figures(results, save_path, filename)
-                except Exception as e:  # pragma: no cover - plotting is best-effort
-                    self.logger.warning(
-                        "Figure generation failed for inhibitory specialization: %s",
-                        e,
-                    )
+            self._save_results(results, save_path, filename)
 
         self.log_analysis_end("inhibitory_specialization", num_results=len(per_layer))
         return results
+
+    @staticmethod
+    def _inhibitory_counts_by_layer(records: list[Any]) -> dict[int | None, int]:
+        total_inhibitory_by_layer: dict[int | None, int] = {}
+        for record in records:
+            if record.polarity != "inhibitory":
+                continue
+            total_inhibitory_by_layer[record.layer_index] = (
+                total_inhibitory_by_layer.get(record.layer_index, 0) + record.n_neurons
+            )
+        return total_inhibitory_by_layer
+
+    def _analyze_excitatory_records(
+        self,
+        core: torch.nn.Module,
+        records: list[Any],
+        total_inhibitory_by_layer: dict[int | None, int],
+        hi: float,
+        sigma: float,
+    ) -> dict[str, dict[str, Any]]:
+        per_layer: dict[str, dict[str, Any]] = {}
+        for record in records:
+            if record.polarity != "excitatory":
+                continue
+            entry = self._analyze_excitatory_record(
+                core=core,
+                record=record,
+                n_I=total_inhibitory_by_layer.get(record.layer_index, 0),
+                hi=hi,
+                sigma=sigma,
+            )
+            if entry is not None:
+                per_layer[self._record_result_key(record)] = entry
+        return per_layer
+
+    @staticmethod
+    def _analyze_excitatory_record(
+        core: torch.nn.Module,
+        record: Any,
+        n_I: int,
+        hi: float,
+        sigma: float,
+    ) -> dict[str, Any] | None:
+        n_E = record.n_neurons
+        if n_E == 0 or n_I == 0:
+            return None
+        entry = _analyze_layer(record.population, n_E=n_E, n_I=n_I, hi=hi, sigma=sigma)
+        if entry is not None:
+            entry.update(_record_source_summary(core, record.key))
+        return entry
+
+    @staticmethod
+    def _record_result_key(record: Any) -> str:
+        if record.layer_index is not None and record.population_name == "excitatory":
+            return f"layer_{record.layer_index}"
+        return record.key
+
+    def _save_results(
+        self,
+        results: dict[str, Any],
+        save_path: str,
+        filename: str,
+    ) -> None:
+        os.makedirs(save_path, exist_ok=True)
+        save_dict(results, save_path, f"{filename}.json")
+        if not self.params.save_figures:
+            return
+        try:
+            self._save_figures(results, save_path, filename)
+        except Exception as e:  # pragma: no cover - plotting is best-effort
+            self.logger.warning(
+                "Figure generation failed for inhibitory specialization: %s",
+                e,
+            )
 
     def _save_figures(
         self,

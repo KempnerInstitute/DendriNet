@@ -1,11 +1,253 @@
 import unittest
+from unittest.mock import call, patch
 
 import torch
 
-from dendritic_modeling.networks import BlockLinear, DendriNet, DendriticBranchLayer
+from dendritic_modeling.networks import (
+    BlockLinear,
+    DendriNet,
+    DendriNetConfig,
+    DendriticBranchLayer,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet import (
+    _build_dendrinet_branch_layers,
+    _plan_dendrinet_branch_layout,
+    _sample_dendrinet_structured_masks,
+    _validate_dendrinet_dimensions,
+)
 
 
 class TestDendriNet(unittest.TestCase):
+    def assert_state_dicts_equal(self, left, right):
+        self.assertEqual(left.keys(), right.keys())
+        for key in left:
+            torch.testing.assert_close(left[key], right[key], rtol=0, atol=0)
+
+    def test_branch_layout_plan_matches_construction_order(self):
+        """Test DendriNet branch layout planning."""
+        layer_sizes, input_branch_factors = _plan_dendrinet_branch_layout(
+            n_soma=2,
+            branch_factors=[2, 3],
+        )
+
+        self.assertEqual(layer_sizes, [12, 4, 2])
+        self.assertEqual(input_branch_factors, [None, 3, 2])
+
+        soma_only_sizes, soma_only_factors = _plan_dendrinet_branch_layout(
+            n_soma=2,
+            branch_factors=[],
+        )
+        self.assertEqual(soma_only_sizes, [2])
+        self.assertEqual(soma_only_factors, [None])
+
+    def test_structured_mask_pair_samples_excitatory_then_inhibitory(self):
+        """Test DendriNet structured mask pair sampling."""
+        structured_connectivity = object()
+        with patch(
+            "dendritic_modeling.networks.architectures.excitation_inhibition."
+            "dendritic.dendrinet.sample_configured_mask"
+        ) as sample_mask:
+            sample_mask.side_effect = ["exc-mask", "inh-mask"]
+
+            masks = _sample_dendrinet_structured_masks(
+                structured_connectivity,
+                structured_excitatory_pathway="ee",
+                structured_inhibitory_pathway="ie",
+                out_dim=4,
+                excitatory_input_dim=7,
+                excitatory_synapses_per_branch=3,
+                inhibitory_input_dim=5,
+                inhibitory_synapses_per_branch=2,
+                structured_layer_idx=6,
+                level_idx=1,
+            )
+
+        self.assertEqual(masks, ("exc-mask", "inh-mask"))
+        sample_mask.assert_has_calls(
+            [
+                call(
+                    structured_connectivity,
+                    pathway="ee",
+                    out_features=4,
+                    in_features=7,
+                    layer_idx=6,
+                    level_idx=1,
+                ),
+                call(
+                    structured_connectivity,
+                    pathway="ie",
+                    out_features=4,
+                    in_features=5,
+                    layer_idx=6,
+                    level_idx=1,
+                ),
+            ]
+        )
+
+    def test_dimension_validation_preserves_public_errors(self):
+        """Test DendriNet dimension validation errors."""
+        valid_kwargs = {
+            "n_soma": 1,
+            "branch_factors": [2],
+            "excitatory_input_dim": 10,
+            "excitatory_synapses_per_branch": 3,
+            "inhibitory_input_dim": 5,
+            "inhibitory_synapses_per_branch": 2,
+        }
+
+        with self.assertRaisesRegex(TypeError, "n_soma must be an integer"):
+            _validate_dendrinet_dimensions(**{**valid_kwargs, "n_soma": 1.5})
+        with self.assertRaisesRegex(TypeError, "branch_factors must be integers"):
+            _validate_dendrinet_dimensions(**{**valid_kwargs, "branch_factors": [2.0]})
+        with self.assertRaisesRegex(
+            TypeError,
+            "inhibitory_synapses_per_branch must be int",
+        ):
+            _validate_dendrinet_dimensions(
+                **{**valid_kwargs, "inhibitory_synapses_per_branch": 1.0}
+            )
+        with self.assertRaisesRegex(
+            TypeError,
+            "excitatory_synapses_per_branch must be int",
+        ):
+            _validate_dendrinet_dimensions(
+                **{**valid_kwargs, "excitatory_synapses_per_branch": 1.0}
+            )
+
+    def test_branch_layer_builder_preserves_layer_and_soma_order(self):
+        """Test DendriNet branch layer construction order."""
+        synapse_config = object()
+        extra_kwargs = {"extra": "value"}
+        with (
+            patch(
+                "dendritic_modeling.networks.architectures.excitation_inhibition."
+                "dendritic.dendrinet._sample_dendrinet_structured_masks"
+            ) as sample_masks,
+            patch(
+                "dendritic_modeling.networks.architectures.excitation_inhibition."
+                "dendritic.dendrinet._make_dendrinet_branch_layer"
+            ) as make_layer,
+        ):
+            sample_masks.side_effect = [("exc-0", "inh-0"), ("exc-1", "inh-1")]
+            make_layer.side_effect = ["distal", "soma"]
+
+            layers = _build_dendrinet_branch_layers(
+                n_soma=2,
+                n_branch_layers=1,
+                layer_sizes=[4, 2],
+                input_branch_factors=[None, 2],
+                excitatory_input_dim=7,
+                excitatory_synapses_per_branch=3,
+                inhibitory_input_dim=5,
+                inhibitory_synapses_per_branch=2,
+                somatic_synapses=True,
+                structured_connectivity="structured",
+                structured_layer_idx=6,
+                structured_excitatory_pathway="ee",
+                structured_inhibitory_pathway="ie",
+                synapse_config=synapse_config,
+                branch_extra_kwargs=extra_kwargs,
+            )
+
+        self.assertEqual(layers, ["distal", "soma"])
+        sample_masks.assert_has_calls(
+            [
+                call(
+                    "structured",
+                    structured_excitatory_pathway="ee",
+                    structured_inhibitory_pathway="ie",
+                    out_dim=4,
+                    excitatory_input_dim=7,
+                    excitatory_synapses_per_branch=3,
+                    inhibitory_input_dim=5,
+                    inhibitory_synapses_per_branch=2,
+                    structured_layer_idx=6,
+                    level_idx=0,
+                ),
+                call(
+                    "structured",
+                    structured_excitatory_pathway="ee",
+                    structured_inhibitory_pathway="ie",
+                    out_dim=2,
+                    excitatory_input_dim=7,
+                    excitatory_synapses_per_branch=3,
+                    inhibitory_input_dim=5,
+                    inhibitory_synapses_per_branch=2,
+                    structured_layer_idx=6,
+                    level_idx=1,
+                ),
+            ]
+        )
+        make_layer.assert_has_calls(
+            [
+                call(
+                    output_dim=4,
+                    excitatory_input_dim=7,
+                    excitatory_synapses_per_branch=3,
+                    inhibitory_input_dim=5,
+                    inhibitory_synapses_per_branch=2,
+                    excitatory_connection_mask="exc-0",
+                    inhibitory_connection_mask="inh-0",
+                    input_branch_factor=None,
+                    layer_idx=1,
+                    synapse_config=synapse_config,
+                    branch_extra_kwargs=extra_kwargs,
+                ),
+                call(
+                    output_dim=2,
+                    excitatory_input_dim=7,
+                    excitatory_synapses_per_branch=3,
+                    inhibitory_input_dim=5,
+                    inhibitory_synapses_per_branch=2,
+                    excitatory_connection_mask="exc-1",
+                    inhibitory_connection_mask="inh-1",
+                    input_branch_factor=2,
+                    layer_idx=0,
+                    synapse_config=synapse_config,
+                    branch_extra_kwargs=extra_kwargs,
+                ),
+            ]
+        )
+
+    def test_branch_layer_builder_preserves_soma_without_external_synapses(self):
+        """Test DendriNet soma construction when somatic synapses are disabled."""
+        with patch(
+            "dendritic_modeling.networks.architectures.excitation_inhibition."
+            "dendritic.dendrinet._make_dendrinet_branch_layer"
+        ) as make_layer:
+            make_layer.return_value = "soma"
+
+            layers = _build_dendrinet_branch_layers(
+                n_soma=2,
+                n_branch_layers=0,
+                layer_sizes=[2],
+                input_branch_factors=[None],
+                excitatory_input_dim=7,
+                excitatory_synapses_per_branch=3,
+                inhibitory_input_dim=5,
+                inhibitory_synapses_per_branch=2,
+                somatic_synapses=False,
+                structured_connectivity="structured",
+                structured_layer_idx=6,
+                structured_excitatory_pathway="ee",
+                structured_inhibitory_pathway="ie",
+                synapse_config="synapse",
+                branch_extra_kwargs={},
+            )
+
+        self.assertEqual(layers, ["soma"])
+        make_layer.assert_called_once_with(
+            output_dim=2,
+            excitatory_input_dim=None,
+            excitatory_synapses_per_branch=None,
+            inhibitory_input_dim=None,
+            inhibitory_synapses_per_branch=None,
+            input_branch_factor=None,
+            layer_idx=0,
+            synapse_config="synapse",
+            branch_extra_kwargs={},
+        )
+
     def test_initialization_valid_parameters(self):
         """Test that DendriNet initializes correctly with valid parameters."""
         n_soma = 2
@@ -25,6 +267,76 @@ class TestDendriNet(unittest.TestCase):
 
         # Check that the soma layer is correctly initialized (last layer)
         self.assertIsInstance(model.branch_layers[-1], DendriticBranchLayer)
+
+    def test_config_path_matches_legacy_constructor_numerically(self):
+        """Typed DendriNetConfig construction should preserve legacy behavior."""
+        kwargs = {
+            "n_soma": 2,
+            "branch_factors": [2, 1],
+            "excitatory_input_dim": 8,
+            "excitatory_synapses_per_branch": 3,
+            "inhibitory_input_dim": 5,
+            "inhibitory_synapses_per_branch": 2,
+            "reactivate": True,
+            "reactivation_type": "param_tanh",
+            "reactivation_init_m": 0.75,
+            "reactivation_init_b": 0.25,
+            "topk_type": "standard",
+            "topk_init_method": "xavier_normal",
+            "use_shunting": False,
+            "weight_transform": "softplus",
+            "efficient_blocklinear": True,
+        }
+
+        torch.manual_seed(123)
+        legacy = DendriNet(**kwargs)
+        torch.manual_seed(123)
+        configured = DendriNet(config=DendriNetConfig.from_kwargs(kwargs))
+
+        self.assertEqual(configured.branch_factors, legacy.branch_factors)
+        self.assertEqual(configured.branch_configs, legacy.branch_configs)
+        self.assertEqual(configured.synapse_config, legacy.synapse_config)
+        self.assertEqual(configured.efficient_blocklinear, legacy.efficient_blocklinear)
+        self.assert_state_dicts_equal(configured.state_dict(), legacy.state_dict())
+
+        x = torch.rand(4, kwargs["excitatory_input_dim"])
+        inhibitory = torch.rand(4, kwargs["inhibitory_input_dim"])
+        torch.testing.assert_close(
+            configured(x, inhibitory),
+            legacy(x, inhibitory),
+            rtol=0,
+            atol=0,
+        )
+
+    def test_config_mapping_accepts_nested_synapse_sections(self):
+        """Nested synapse sections should feed the same typed synapse config."""
+        config = DendriNetConfig.from_config(
+            {
+                "n_soma": 1,
+                "branch_factors": [2],
+                "excitatory_input_dim": 6,
+                "excitatory_synapses_per_branch": 2,
+                "synapse": {
+                    "topk": {"type": "indexed_rewire"},
+                    "morphology": {
+                        "weight_transform": "softplus",
+                        "efficient_blocklinear": True,
+                    },
+                    "reactivation": {
+                        "enabled": True,
+                        "type": "relu",
+                    },
+                },
+            }
+        )
+
+        model = DendriNet(config=config)
+
+        self.assertEqual(model.synapse_config.topk.type, "indexed_rewire")
+        self.assertEqual(model.synapse_config.morphology.weight_transform, "softplus")
+        self.assertTrue(model.synapse_config.morphology.efficient_blocklinear)
+        self.assertEqual(model.dendritic_activation, "relu")
+        self.assertTrue(model.efficient_blocklinear)
 
     @property
     def soma_layer(self):

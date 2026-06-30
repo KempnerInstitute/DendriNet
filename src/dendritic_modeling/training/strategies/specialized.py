@@ -6,6 +6,7 @@ and other advanced training techniques for dendritic networks.
 """
 
 import logging
+from functools import partial
 
 import torch
 
@@ -17,8 +18,94 @@ from dendritic_modeling.training.loss.functions import (
     VoltageStabilizationLoss,
 )
 from dendritic_modeling.training.strategies.standard import Trainer
+from dendritic_modeling.utils.hooks import iter_modules_of_type, run_with_forward_hooks
 
 logger = logging.getLogger(__name__)
+
+
+def _set_parametric_activation_trainability(model, requires_grad: bool) -> None:
+    for module in iter_modules_of_type(model, ParametricActivation):
+        for param in module.parameters():
+            param.requires_grad = requires_grad
+
+
+def _start_warmup_phase(trainer, warmup_loss, filename_prefix, logger_info_prefix):
+    default_loss_fn = trainer.loss_function
+    default_epochs = trainer.epochs
+
+    trainer.loss_function = warmup_loss
+    trainer.epochs = max(trainer.pretrain_epochs, 1)
+    trainer.filename_prefix = filename_prefix
+    trainer.logger_info_prefix = logger_info_prefix
+
+    return default_loss_fn, default_epochs
+
+
+def _start_standard_phase(trainer, default_loss_fn, default_epochs):
+    trainer.loss_function = default_loss_fn
+    trainer.epochs = default_epochs
+    trainer.filename_prefix = "standard_"
+    trainer.logger_info_prefix = "[Standard] "
+    trainer.best_loss = float("inf")
+
+
+def _merge_warmup_results(pretrain_results, final_results):
+    final_results["train_losses"] = (
+        pretrain_results["train_losses"] + final_results["train_losses"]
+    )
+    final_results["valid_losses"] = (
+        pretrain_results["valid_losses"] + final_results["valid_losses"]
+    )
+    return final_results
+
+
+def _run_warmup_then_standard_training(
+    trainer,
+    train_fn,
+    model,
+    train_data,
+    valid_data,
+    warmup_loss,
+    *,
+    filename_prefix,
+    logger_info_prefix,
+    warmup_label,
+    standard_label,
+):
+    handles = warmup_loss.attach_forward_hooks(model)
+
+    default_loss_fn, default_epochs = _start_warmup_phase(
+        trainer,
+        warmup_loss,
+        filename_prefix,
+        logger_info_prefix,
+    )
+
+    if trainer.freeze_reactivation:
+        _set_parametric_activation_trainability(model, False)
+
+    logger.info(
+        f"=== {warmup_label}: "
+        f"Starting pretraining phase for {trainer.pretrain_epochs} epochs ==="
+    )
+    try:
+        pretrain_results = run_with_forward_hooks(
+            attach=lambda: handles,
+            remove=warmup_loss.remove_forward_hooks,
+            body=partial(train_fn, model, train_data, valid_data),
+        )
+    finally:
+        if trainer.freeze_reactivation:
+            _set_parametric_activation_trainability(model, True)
+
+        _start_standard_phase(trainer, default_loss_fn, default_epochs)
+
+    logger.info(
+        f"=== {standard_label}: "
+        f"Starting normal training for {trainer.epochs} epochs ==="
+    )
+    final_results = train_fn(model, train_data, valid_data)
+    return _merge_warmup_results(pretrain_results, final_results)
 
 
 class VoltageStabilizationTrainer(Trainer):
@@ -62,52 +149,18 @@ class VoltageStabilizationTrainer(Trainer):
             reduction=self.loss_function.reduction,
         )
 
-        handles = voltage_stabilization_loss.attach_forward_hooks(model)
-
-        default_loss_fn = self.loss_function
-        self.loss_function = voltage_stabilization_loss
-        default_epochs = self.epochs
-        self.epochs = max(self.pretrain_epochs, 1)
-        self.filename_prefix = "voltage_stabilization_"
-        self.logger_info_prefix = "[Voltage Stabilization] "
-
-        if self.freeze_reactivation:
-            for module in model.modules():
-                if isinstance(module, ParametricActivation):
-                    for param in module.parameters():
-                        param.requires_grad = False
-
-        logger.info(
-            "=== VoltageStabilization: "
-            f"Starting pretraining phase for {self.pretrain_epochs} epochs ==="
+        return _run_warmup_then_standard_training(
+            self,
+            super().train,
+            model,
+            train_data,
+            valid_data,
+            voltage_stabilization_loss,
+            filename_prefix="voltage_stabilization_",
+            logger_info_prefix="[Voltage Stabilization] ",
+            warmup_label="VoltageStabilization",
+            standard_label="Voltage Stabilization",
         )
-        pretrain_results = super().train(model, train_data, valid_data)
-        voltage_stabilization_loss.remove_forward_hooks(handles)
-
-        if self.freeze_reactivation:
-            for module in model.modules():
-                if isinstance(module, ParametricActivation):
-                    for param in module.parameters():
-                        param.requires_grad = True
-
-        self.loss_function = default_loss_fn
-        self.epochs = default_epochs
-        self.filename_prefix = "standard_"
-        self.logger_info_prefix = "[Standard] "
-        self.best_loss = float("inf")
-
-        logger.info(
-            "=== Voltage Stabilization: "
-            f"Starting normal training for {self.epochs} epochs ==="
-        )
-        final_results = super().train(model, train_data, valid_data)
-        final_results["train_losses"] = (
-            pretrain_results["train_losses"] + final_results["train_losses"]
-        )
-        final_results["valid_losses"] = (
-            pretrain_results["valid_losses"] + final_results["valid_losses"]
-        )
-        return final_results
 
 
 class ExcitationInhibitionEquilibriumTrainer(Trainer):
@@ -144,52 +197,18 @@ class ExcitationInhibitionEquilibriumTrainer(Trainer):
             loss_metric=self.loss_metric
         )
 
-        handles = ei_equilibrium_loss.attach_forward_hooks(model)
-
-        default_loss_fn = self.loss_function
-        self.loss_function = ei_equilibrium_loss
-        default_epochs = self.epochs
-        self.epochs = max(self.pretrain_epochs, 1)
-        self.filename_prefix = "ei_equilibrium_"
-        self.logger_info_prefix = "[Excitation-Inhibition Equilibrium] "
-
-        if self.freeze_reactivation:
-            for module in model.modules():
-                if isinstance(module, ParametricActivation):
-                    for param in module.parameters():
-                        param.requires_grad = False
-
-        logger.info(
-            "=== Excitation-Inhibition Equilibrium: "
-            f"Starting pretraining phase for {self.pretrain_epochs} epochs ==="
+        return _run_warmup_then_standard_training(
+            self,
+            super().train,
+            model,
+            train_data,
+            valid_data,
+            ei_equilibrium_loss,
+            filename_prefix="ei_equilibrium_",
+            logger_info_prefix="[Excitation-Inhibition Equilibrium] ",
+            warmup_label="Excitation-Inhibition Equilibrium",
+            standard_label="Excitation-Inhibition Equilibrium",
         )
-        pretrain_results = super().train(model, train_data, valid_data)
-        ei_equilibrium_loss.remove_forward_hooks(handles)
-
-        if self.freeze_reactivation:
-            for module in model.modules():
-                if isinstance(module, ParametricActivation):
-                    for param in module.parameters():
-                        param.requires_grad = True
-
-        self.loss_function = default_loss_fn
-        self.epochs = default_epochs
-        self.filename_prefix = "standard_"
-        self.logger_info_prefix = "[Standard] "
-        self.best_loss = float("inf")
-
-        logger.info(
-            "=== Excitation-Inhibition Equilibrium: "
-            f"Starting normal training for {self.epochs} epochs ==="
-        )
-        final_results = super().train(model, train_data, valid_data)
-        final_results["train_losses"] = (
-            pretrain_results["train_losses"] + final_results["train_losses"]
-        )
-        final_results["valid_losses"] = (
-            pretrain_results["valid_losses"] + final_results["valid_losses"]
-        )
-        return final_results
 
 
 class HomeostaticControlTrainer(Trainer):
@@ -233,52 +252,18 @@ class HomeostaticControlTrainer(Trainer):
             reduction=self.loss_function.reduction,
         )
 
-        handles = homeostatic_control_loss.attach_forward_hooks(model)
-
-        default_loss_fn = self.loss_function
-        self.loss_function = homeostatic_control_loss
-        default_epochs = self.epochs
-        self.epochs = max(self.pretrain_epochs, 1)
-        self.filename_prefix = "homeostatic_control_"
-        self.logger_info_prefix = "[Homeostatic Control] "
-
-        if self.freeze_reactivation:
-            for module in model.modules():
-                if isinstance(module, ParametricActivation):
-                    for param in module.parameters():
-                        param.requires_grad = False
-
-        logger.info(
-            "=== Homeostatic Control: "
-            f"Starting pretraining phase for {self.pretrain_epochs} epochs ==="
+        return _run_warmup_then_standard_training(
+            self,
+            super().train,
+            model,
+            train_data,
+            valid_data,
+            homeostatic_control_loss,
+            filename_prefix="homeostatic_control_",
+            logger_info_prefix="[Homeostatic Control] ",
+            warmup_label="Homeostatic Control",
+            standard_label="HomeostaticControl",
         )
-        pretrain_results = super().train(model, train_data, valid_data)
-        homeostatic_control_loss.remove_forward_hooks(handles)
-
-        if self.freeze_reactivation:
-            for module in model.modules():
-                if isinstance(module, ParametricActivation):
-                    for param in module.parameters():
-                        param.requires_grad = True
-
-        self.loss_function = default_loss_fn
-        self.epochs = default_epochs
-        self.filename_prefix = "standard_"
-        self.logger_info_prefix = "[Standard] "
-        self.best_loss = float("inf")
-
-        logger.info(
-            "=== HomeostaticControl: "
-            f"Starting normal training for {self.epochs} epochs ==="
-        )
-        final_results = super().train(model, train_data, valid_data)
-        final_results["train_losses"] = (
-            pretrain_results["train_losses"] + final_results["train_losses"]
-        )
-        final_results["valid_losses"] = (
-            pretrain_results["valid_losses"] + final_results["valid_losses"]
-        )
-        return final_results
 
 
 class TrainOnlyMReactivation(Trainer):

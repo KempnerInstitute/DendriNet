@@ -4,7 +4,13 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import TensorDataset
 
-from dendritic_modeling.analysis import get_analyzer_spec, get_registered_analyzer_names
+from dendritic_modeling.analysis import (
+    get_analyzer_spec,
+    get_registered_analyzer_names,
+    load_analyzer_class,
+    register_analyzer,
+    unregister_analyzer,
+)
 from dendritic_modeling.config import canonicalize_model_core_flags
 from dendritic_modeling.config.training import OptimizerConfig
 from dendritic_modeling.datasets import (
@@ -118,6 +124,21 @@ def test_analyzer_registry_exposes_builtin_metadata_without_execution_change():
     assert spec is not None
     assert spec.config_field == "performance_analysis"
     assert spec.attribute_name == "performance_analyzer"
+    assert spec.constructor_style == "params"
+    assert load_analyzer_class("performance") is spec.load_class()
+
+
+def test_analyzer_registry_rejects_unknown_constructor_style():
+    with pytest.raises(ValueError, match="Unsupported analyzer constructor style"):
+        register_analyzer(
+            "unit_test_bad_analyzer",
+            config_field="bad_analysis",
+            class_path="dendritic_modeling.analysis.metrics.performance.PerformanceAnalyzer",
+            attribute_name="bad_analyzer",
+            save_subdir="bad_analysis",
+            constructor_style="bad_style",
+        )
+    unregister_analyzer("unit_test_bad_analyzer")
 
 
 def test_config_alias_canonicalization_is_config_level_and_script_compatible():

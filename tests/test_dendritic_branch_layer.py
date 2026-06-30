@@ -79,6 +79,34 @@ class TestDendriticBranchLayer(unittest.TestCase):
         output = layer(x, inhibitory_input, branch_input)
         self.assertEqual(output.shape, (2, self.output_dim))
 
+    def test_analysis_current_cache_matches_forward_currents(self):
+        for use_shunting in (True, False):
+            layer = DendriticBranchLayer(
+                self.output_dim,
+                self.excitatory_input_dim,
+                self.excitatory_synapses_per_branch,
+                self.inhibitory_input_dim,
+                self.inhibitory_synapses_per_branch,
+                self.input_branch_factor,
+                reactivate=False,
+                use_shunting=use_shunting,
+            )
+            x = torch.rand(2, self.excitatory_input_dim)
+            inhibitory_input = torch.rand(2, self.inhibitory_input_dim)
+            branch_input = torch.rand(2, self.output_dim * self.input_branch_factor)
+
+            layer._store_analysis_currents = True
+            layer(x, inhibitory_input, branch_input)
+            cached = layer._last_analysis_currents
+
+            assert torch.allclose(cached["excitation"], layer.branch_excitation(x))
+            assert torch.allclose(
+                cached["inhibition"], layer.branch_inhibition(inhibitory_input)
+            )
+            assert torch.allclose(
+                cached["branch_input"], layer.branches_to_output(branch_input)
+            )
+
     def test_forward_with_reactivation(self):
         # Test reactivation in forward pass
         layer = DendriticBranchLayer(
@@ -336,6 +364,41 @@ class TestDendriticBranchLayerAdditional:
             mask = layer.branch_recurrent.weight_mask().bool()
         rows = torch.arange(forbidden.numel())
         assert not bool(mask[rows, forbidden].any())
+
+    def test_all_sparse_pathways_construct_and_toggle_dynamic_scaling(self):
+        layer = DendriticBranchLayer(
+            output_dim=3,
+            excitatory_input_dim=5,
+            excitatory_synapses_per_branch=2,
+            inhibitory_input_dim=4,
+            inhibitory_synapses_per_branch=2,
+            recurrent_input_dim=3,
+            recurrent_synapses_per_branch=2,
+            rec_inhibitory_input_dim=3,
+            rec_inhibitory_synapses_per_branch=1,
+            topk_type="standard",
+            reactivate=False,
+            input_branch_factor=None,
+            weight_transform="identity",
+            dbl_init_method="default",
+            adaptive_initialization=False,
+        )
+
+        sparse_attrs = (
+            "branch_excitation",
+            "branch_inhibition",
+            "branch_recurrent",
+            "branch_rec_inhibition",
+        )
+        for attr in sparse_attrs:
+            pathway = getattr(layer, attr)
+            assert isinstance(pathway, TopKLinear)
+            assert pathway._use_forward_dynamic_grad_scaling is False
+
+        layer.set_forward_dynamic_grad_scaling(True)
+
+        for attr in sparse_attrs:
+            assert getattr(layer, attr)._use_forward_dynamic_grad_scaling is True
 
 
 if __name__ == "__main__":

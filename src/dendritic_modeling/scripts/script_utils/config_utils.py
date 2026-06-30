@@ -276,9 +276,6 @@ def _get_explicit_strategy_overrides(
 ) -> dict[str, Any]:
     """Return raw user-provided overrides for the selected strategy when available."""
 
-    def _to_dict_local(config):
-        return to_plain_dict(config)
-
     explicit_overrides = (
         main_train_config.get("_explicit_strategy_overrides")
         if isinstance(main_train_config, dict)
@@ -287,9 +284,9 @@ def _get_explicit_strategy_overrides(
     if not explicit_overrides:
         return {}
 
-    explicit_dict = _to_dict_local(explicit_overrides)
+    explicit_dict = to_plain_dict(explicit_overrides)
     selected = explicit_dict.get(strategy_name, {})
-    return _to_dict_local(selected) if selected is not None else {}
+    return to_plain_dict(selected) if selected is not None else {}
 
 
 def prepare_trainer_config(
@@ -309,16 +306,13 @@ def prepare_trainer_config(
         Flattened trainer configuration dictionary
     """
 
-    def to_dict(config):
-        return to_plain_dict(config)
-
     # Start with common training parameters
     common_config = (
         main_train_config.get("common")
         if isinstance(main_train_config, dict)
         else main_train_config.common
     )
-    trainer_config = to_dict(common_config)
+    trainer_config = to_plain_dict(common_config)
     trainer_config.pop("save_path", None)
     trainer_config["save_path"] = save_path
 
@@ -328,7 +322,7 @@ def prepare_trainer_config(
         if isinstance(common_config, dict)
         else common_config.param_groups
     )
-    trainer_config["param_groups"] = to_dict(param_groups)
+    trainer_config["param_groups"] = to_plain_dict(param_groups)
 
     # Add regularization and pruning
     regularization = (
@@ -342,11 +336,11 @@ def prepare_trainer_config(
         else main_train_config.pruning
     )
 
-    trainer_config["regularization"] = to_dict(regularization)
-    trainer_config["pruning"] = to_dict(pruning)
+    trainer_config["regularization"] = to_plain_dict(regularization)
+    trainer_config["pruning"] = to_plain_dict(pruning)
 
     # Extract reporting config from pruning
-    pruning_dict = to_dict(pruning)
+    pruning_dict = to_plain_dict(pruning)
     trainer_config["reporting"] = {
         "report_non_pruned": pruning_dict.get("report_non_pruned", False),
         "save_pruning_stats": pruning_dict.get("save_pruning_stats", False),
@@ -373,7 +367,7 @@ def prepare_trainer_config(
         else experiment_config.enable_hooks
     )
 
-    checkpointing_dict = to_dict(checkpointing)
+    checkpointing_dict = to_plain_dict(checkpointing)
     if checkpointing_dict.get("enabled", False):
         trainer_config["save_every_n_epochs"] = checkpointing_dict.get(
             "save_every_n_epochs", 10
@@ -398,7 +392,7 @@ def prepare_trainer_config(
     )
 
     if learning_strategy_config is not None:
-        trainer_config["local_rule_config"] = to_dict(learning_strategy_config)
+        trainer_config["local_rule_config"] = to_plain_dict(learning_strategy_config)
 
     strategies = (
         main_train_config.get("strategies")
@@ -407,7 +401,7 @@ def prepare_trainer_config(
     )
 
     if strategies is not None:
-        strategies_dict = to_dict(strategies)
+        strategies_dict = to_plain_dict(strategies)
         selected_strategy = (
             main_train_config.get("strategy")
             if isinstance(main_train_config, dict)

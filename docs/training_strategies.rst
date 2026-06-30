@@ -66,10 +66,10 @@ Transformer Replacement Distillation
 Transformer MLP/FFN replacement is trained with the dedicated
 ``training.transformer_replacement`` block rather than the image-classification
 ``training.main.strategy`` loop.  The target model and layers are defined in
-``model.transformer_replacement``; the dendritic FFN architecture is defined in
+``model.transformer_replacement``; the dendritic architecture is defined in
 ``model.core``; and this block defines how teacher data are produced.
 
-The implemented mode is ``layerwise_distillation``:
+The most controlled mode is ``layerwise_distillation``:
 
 .. math::
 
@@ -77,10 +77,18 @@ The implemented mode is ``layerwise_distillation``:
    \quad\text{is approximated by}\quad
    h_{\ell} \mapsto D_{\theta,\ell}(h_{\ell}).
 
-Only the dendritic replacement is trained by default
+Only the dendritic replacement is trained in this mode
 (``train_target: replacement_only``).  This keeps the experiment interpretable:
 each loss value measures how well the dendritic module matches the original
-MLP block before any full-model language-model fine-tuning.
+target module before any full-model language-model fine-tuning.
+
+``joint_lm_distillation`` patches the selected modules inside a loaded causal
+LM and trains through the language-modeling loss on token windows from
+``teacher_source: hf_text``.  With ``train_target: replacement_only`` the
+backbone remains frozen and only the dendritic modules update.  With
+``train_target: full_model`` the entire patched student is trainable, which is
+the fine-tuning path after a replacement has already passed the layerwise
+smoke test.
 
 .. code-block:: yaml
 
@@ -107,6 +115,20 @@ MLP block before any full-model language-model fine-tuning.
        text:
          text_path: /path/to/text_corpus.txt
          tokenizer_name: deepseek-ai/DeepSeek-V3
+
+For joint training, switch the mode and choose the trainable scope:
+
+.. code-block:: yaml
+
+   training:
+     transformer_replacement:
+       enabled: true
+       mode: joint_lm_distillation
+       teacher_source: hf_text
+       train_target: full_model         # or replacement_only
+       lm_loss_weight: 1.0
+       kl_loss_weight: 0.0
+       hidden_loss_weight: 0.0
 
 Run it with:
 
@@ -290,10 +312,10 @@ representations. Enabled via ``hsic.enabled: true``. Kernel options:
            enabled: true
            weight: 0.01
 
-Compatibility with New Components
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Component Compatibility
+~~~~~~~~~~~~~~~~~~~~~~~
 
-The local learning recorder now captures all TopK pathways on a
+The local learning recorder captures all TopK pathways on a
 ``DendriticBranchLayer``:
 
 .. code-block:: text
@@ -322,7 +344,7 @@ The local learning recorder now captures all TopK pathways on a
        allow non-active TopK weights to move, but forbidden masked connections
        stay frozen.
    * - Recurrent pathways
-     - ``3f``/``4f``/``5f`` and STDP now update ``rec_exc`` and ``rec_inh``
+     - ``3f``/``4f``/``5f`` and STDP update ``rec_exc`` and ``rec_inh``
        pathways when those modules are present and enabled by config.
    * - Spiking soma
      - STDP can use spike-like or rate-like pre/post tensors depending on the

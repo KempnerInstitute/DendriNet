@@ -6,9 +6,9 @@ for configuration while maintaining compatibility with older pip versions.
 
 Usage:
     pip install -e .                    # Development install
-    pip install -e .[dev]               # Install with development dependencies
-    pip install -e .[test]              # Install with testing dependencies
-    pip install -e .[all]               # Install with all optional dependencies
+    pip install -e ".[dev]"             # Install with development dependencies
+    pip install -e ".[test]"            # Install with testing dependencies
+    pip install -e ".[all]"             # Install with all optional dependencies
 """
 
 from setuptools import setup

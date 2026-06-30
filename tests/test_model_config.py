@@ -12,6 +12,7 @@ from dendritic_modeling.config.model import (
     ImplementationConfig,
     ModelConfig,
     MorphologyConfig,
+    PretrainedReplacementConfig,
     ReactivationConfig,
     SparsityConfig,
     StructuredConnectivityConfig,
@@ -30,6 +31,8 @@ def test_model_config_defaults():
     assert isinstance(cfg.encoder, EncoderConfig)
     assert isinstance(cfg.core, CoreConfig)
     assert isinstance(cfg.decoder, DecoderConfig)
+    assert isinstance(cfg.vision_replacement, PretrainedReplacementConfig)
+    assert isinstance(cfg.pretrained_replacement, PretrainedReplacementConfig)
     assert isinstance(cfg.transformer_replacement, TransformerReplacementConfig)
 
 
@@ -66,7 +69,7 @@ def test_sparsity_config_defaults():
     assert cfg.noise_level == 0.0
     assert cfg.type == "standard"
     assert cfg.temperature == 0.0
-    assert cfg.ultrafast is False
+    assert cfg.ultrafast is True  # ultrafast stochastic-topk is the default
     assert isinstance(cfg.deepst, dict)
     assert isinstance(cfg.indexed, dict)
     assert "excitatory_target_density" in cfg.deepst
@@ -104,9 +107,8 @@ def test_transfer_function_config_defaults():
 
 def test_implementation_config_defaults():
     cfg = ImplementationConfig()
-    # Default False (develop-compatible, opt-in) — adaptive init collapses
-    # leaf-layer shunting conductances, so it must not be on by default.
-    assert cfg.adaptive_initialization is False
+    assert cfg.adaptive_initialization is True
+    assert cfg.adaptive_initialization_policy == "preserve_shunting_center"
     assert cfg.compile_forward is False
 
 

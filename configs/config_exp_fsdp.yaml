@@ -7,6 +7,9 @@ analysis:
       batch_size: 256
       num_workers: 4
       pin_memory: true
+      persistent_workers: true
+      prefetch_factor: 4
+      in_order: false
       max_batches: null
       max_samples: null
       materialize_threshold_mb: 1024
@@ -15,6 +18,9 @@ analysis:
       batch_size: 256
       num_workers: 4
       pin_memory: true
+      persistent_workers: true
+      prefetch_factor: 4
+      in_order: false
       max_batches: null
       max_samples: null
       materialize_threshold_mb: 1024
@@ -275,83 +281,7 @@ distributed:
     use_orig_params: true
 model:
   core:
-    architecture:
-      excitatory_branch_factors:
-      - 3
-      - 3
-      - 3
-      excitatory_layer_sizes:
-      - 128
-      inhibitory_branch_factors:
-      - 1
-      inhibitory_layer_sizes:
-      - 32
-
-      # Inhibitory network configuration
-      inhibitory_network_type: "dendritic"  # Options: "dendritic", "mlp"
-      mlp_inhibitory_network_params:     # Parameters for MLP inhibitory network (used when type="mlp")
-        hidden_dims: [200]               # Hidden layer dimensions for MLP inhibitory network
-        activation: "relu"               # Activation function for MLP inhibitory network
-    blocklinear:
-      efficient: false
-      gradient_scaling: none
-    connectivity:
-      ee_synapses_per_branch_per_layer:
-      - 40
-      ei_synapses_per_branch_per_layer:
-      - 10
-      ie_synapses_per_branch_per_layer:
-      - 10
-      ii_synapses_per_branch_per_layer:
-      - 0
-    implementation:
-      adaptive_initialization: false
-      print_hooks: false
-    morphology:
-      dbl_init_method: analytical_expectation  # Options: analytical_expectation, default, ei_equivalence, naive
-      somatic_synapses: false
-      use_shunting: true
-      weight_transform: softplus
-    reactivation:
-      enabled: true
-      init_b: 0.5
-      init_m: 1.5
-      gradient_scaling: none
-      type: param_tanh
-      init_policy: "occupancy_quantile"
-    sparsity:
-      deepst:
-        excitatory_target_density: 0.1
-        freeze_excitatory_connectivity: false
-        freeze_inhibitory_connectivity: false
-        inhibitory_target_density: 0.1
-        init_method: xavier_normal
-        rewire_frequency: 1
-        rewiring_mode: global
-        sigma: 0.05
-        synapses_per_branch: null
-        use_noise: true
-        weight_threshold: 1.0e-06
-      init_method: xavier_normal
-      noise_level: 0.0
-      gradient_scaling: none
-      temperature: 0.0
-      type: standard
-      indexed:
-        candidate_size: null
-        selection: standard
-        seed: null
-        output_chunk_size: 2048
-        rewire_frequency: 100
-        rewire_quantile: 0.05
-        rewire_until_step: null
-    transfer:
-      excitatory_dim: null
-      independent_pathways: false
-      inhibitory_dim: null
-      input_mode: 0
-      allow_direct_inhibitory_stream: true
-      output_activation: null
+    type: population_network
     population_network:
       use_transfer: false
       transfer_params: {}
@@ -375,8 +305,14 @@ model:
           reactivation_init_b: 0.5
           dbl_init_method: analytical_expectation
           weight_transform: softplus
-          topk_type: standard
+          topk_type: indexed_rewire
           topk_init_method: xavier_normal
+          indexed_seed: 42
+          indexed_rewire_frequency: 100
+          indexed_rewire_quantile: 0.05
+          indexed_rewire_until_step: null
+          indexed_output_chunk_size: 2048
+          efficient_blocklinear: true
         populations:
         - name: i
           polarity: inhibitory
@@ -395,7 +331,6 @@ model:
           target: e
         - source: i
           target: e
-    type: population_network
   decoder:
     params: {}
     type: MLP
@@ -415,10 +350,10 @@ training:
     strategy: standard
   main:
     common:
-      num_workers: 4
+      num_workers: 8
       pin_memory: true
       persistent_workers: true
-      prefetch_factor: null
+      prefetch_factor: 4
       param_groups: {}
       weight_decay_rate: 0.0
     pruning: {}

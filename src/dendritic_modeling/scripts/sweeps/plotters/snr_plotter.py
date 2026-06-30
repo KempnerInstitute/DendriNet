@@ -18,6 +18,9 @@ logger = logging.getLogger(__name__)
 SNR_PREFIX_MAP = {
     "exc_inputs": "Excitatory Inputs",
     "inh_inputs": "Inhibitory Inputs",
+    "upstream_inputs": "Upstream Inputs",
+    "network_exc_inputs": "Network Excitatory Inputs",
+    "network_inh_outputs": "Network Inhibitory Outputs",
     "exc": "Excitation",
     "inh": "Inhibition",
     "upstream": "Upstream",
@@ -68,7 +71,9 @@ class SNRPlotter(BasePlotter):
 
         # Find SNR columns (look for both column name patterns)
         input_snr_cols: list[str] = [
-            col for col in valid_data.columns if "snr_" in col and "inputs" in col
+            col
+            for col in valid_data.columns
+            if col.startswith("snr_") and ("inputs" in col or "outputs" in col)
         ]
 
         act_snr_cols: list[str] = [
@@ -83,14 +88,21 @@ class SNRPlotter(BasePlotter):
         input_metrics = []
 
         for col in input_snr_cols:
-            if "std" not in col:
-                parts = col.replace("snr_", "").replace("_mean", "").split("_inputs_")
-                input_prefix = f"{parts[0]}_inputs"
-                input_metric = parts[1]
+            if "std" in col:
+                continue
+
+            stem = col.replace("snr_", "").replace("_mean", "")
+            for input_metric in METRIC_MAPPING:
+                suffix = f"_{input_metric}"
+                if not stem.endswith(suffix):
+                    continue
+
+                input_prefix = stem[: -len(suffix)]
                 if input_prefix not in input_prefixes:
                     input_prefixes.append(input_prefix)
                 if input_metric not in input_metrics:
                     input_metrics.append(input_metric)
+                break
 
         act_prefixes = []
         act_metrics = []
@@ -173,7 +185,7 @@ class SNRPlotter(BasePlotter):
                     self._create_snr_plots_1d_sweep(
                         valid_data=valid_data,
                         sweep_var="max_gain_factor",
-                        var_name="Max Gain Factor",
+                        var_name="Maximum Gain",
                         logscale=True,
                         output_dir=plots_dir,
                         input_prefixes=input_prefixes,
@@ -311,6 +323,18 @@ class SNRPlotter(BasePlotter):
                 )
             )
 
+        for act_metric in act_metrics:
+            plot_paths.extend(
+                self._create_soma_snr_plots_1d_sweep(
+                    valid_data=valid_data,
+                    sweep_var=sweep_var,
+                    var_name=var_name,
+                    logscale=logscale,
+                    output_dir=output_dir,
+                    act_metric=act_metric,
+                )
+            )
+
         return plot_paths
 
     def _create_input_snr_plots_1d_sweep(
@@ -321,92 +345,123 @@ class SNRPlotter(BasePlotter):
         logscale: bool,
         output_dir: str,
         input_prefixes: list[str],
-        input_metric: list[str],
+        input_metric: str,
     ) -> list[str]:
         """Create input SNR vs sweep_var plots"""
         plot_paths = []
 
         # Create separate plots for each network category
-        categories = ["dendritic_shunting", "dendritic_additive", "dendritic_signed"]
+        categories = [
+            "dendritic_shunting",
+            "flat_shunting",
+            "dendritic_additive",
+            "flat_additive",
+            "dendritic_signed",
+            "flat_signed",
+            "dendritic_mlp",
+            "flat_mlp",
+        ]
 
-        # Choose a colormap (viridis, plasma, inferno, tab10, etc.)
-        # cmap = plt.get_cmap("gnuplot2")
-
-        # # Create depth -> color mapping
-        # depth_colors = {
-        #     depth: cmap(norm_val) for depth, norm_val in zip(depths, normalized_depths)
-        # }
-
-        color_mapping = {"exc_inputs": "m", "inh_inputs": "g"}
-
-        fig, axes = plt.subplots(1, len(categories), figsize=(7.5 * len(categories), 6))
+        fig, ax = plt.subplots(1, 1, figsize=(8, 6))
         fig.suptitle(
             "Input Disciminability: " + f"{METRIC_MAPPING[input_metric]} vs {var_name}",
             fontsize=16,
         )
 
-        for idx, category in enumerate(categories):
-            ax = axes[idx]
-            category_data = valid_data[valid_data["network_category"] == category]
+        def _plot_data(
+            category_data: pd.DataFrame,
+            category: str,
+            input_prefix: str,
+            input_metric: str,
+            label: str,
+            color: str,
+            linestyle: str,
+            marker: str,
+        ):
+            field_name = f"{input_prefix}_{input_metric}"
+            mean_col = f"snr_{field_name}_mean"
+            std_col = f"snr_{field_name}_std"
+            if mean_col not in category_data.columns:
+                return
 
-            if category_data.empty:
-                ax.text(
-                    0.5,
-                    0.5,
-                    f"No {category} data",
-                    ha="center",
-                    va="center",
-                    transform=ax.transAxes,
-                )
-                ax.set_title(f"{category.title()}")
-                continue
+            sorted_data = category_data.sort_values(sweep_var)
 
-            for input_prefix in input_prefixes:
-                mean_col = f"snr_{input_prefix}_{input_metric}_mean"
-                std_col = f"snr_{input_prefix}_{input_metric}_std"
+            # Filter out non-numeric or missing values
+            plot_cols = [mean_col, sweep_var]
+            if std_col in sorted_data.columns:
+                plot_cols.append(std_col)
+            plot_data = sorted_data[plot_cols].dropna()
+            if plot_data.empty:
+                return
 
-                sorted_data = category_data.sort_values(sweep_var)
-
-                # Filter out non-numeric or missing values
-                plot_data = sorted_data[[mean_col, std_col, sweep_var]].dropna()
-                if plot_data.empty:
-                    continue
-
-                try:
-                    # Convert to numeric if needed
-                    mean_vals = pd.to_numeric(
-                        plot_data[mean_col], errors="coerce"
-                    ).dropna()
+            try:
+                # Convert to numeric if needed
+                mean_vals = pd.to_numeric(plot_data[mean_col], errors="coerce").dropna()
+                x_vals = plot_data.loc[mean_vals.index, sweep_var]
+                if std_col in plot_data.columns:
                     std_vals = pd.to_numeric(
-                        plot_data[std_col], errors="coerce"
-                    ).dropna()
-                    x_vals = plot_data.loc[mean_vals.index, sweep_var]
+                        plot_data.loc[mean_vals.index, std_col], errors="coerce"
+                    ).fillna(0.0)
+                else:
+                    std_vals = None
 
-                    if len(mean_vals) > 0:
-                        ax.errorbar(
-                            x_vals,
-                            mean_vals,
-                            yerr=std_vals,
-                            marker="o",
-                            label=f"{SNR_PREFIX_MAP[input_prefix]}",
-                            color=color_mapping[input_prefix],
-                            alpha=0.8,
-                            linewidth=2,
-                            capsize=3,
-                        )
-                except Exception as e:
-                    print(f"Warning: Could not plot {input_prefix} for {category}: {e}")
-                    continue
+                if len(mean_vals) > 0:
+                    ax.errorbar(
+                        x_vals,
+                        mean_vals,
+                        yerr=std_vals,
+                        marker=marker,
+                        label=label,
+                        color=color,
+                        linestyle=linestyle,
+                        alpha=0.8,
+                        linewidth=2,
+                        capsize=3,
+                    )
+            except Exception as e:
+                print(
+                    f"Warning: Could not plot {input_prefix} for {category}: {e}",
+                    flush=True,
+                )
+                traceback.print_exc()
 
-            self.setup_axes_style(
-                ax=ax,
-                xlabel=var_name,
-                ylabel=f"{METRIC_MAPPING[input_metric]}",
-                title=f"{category.title()}",
-                use_log_x=logscale,
-                grid=True,
-            )
-            ax.legend()
+        for category in categories:
+            category_data = valid_data[valid_data["network_category"] == category]
+            for input_prefix in input_prefixes:
+                prefix_label = SNR_PREFIX_MAP.get(
+                    input_prefix, input_prefix.replace("_", " ").title()
+                )
+                label = f"{category.replace('_', ' ').title()} {prefix_label}"
+                color = self.category_colors.get(category, "black")
+                linestyle = self.category_linestyles.get(category, "-")
+                marker = self.category_markers.get(category, "o")
+
+                if input_prefix in {"exc_inputs", "network_exc_inputs"}:
+                    linestyle = "-"
+                    marker = "o"
+                elif input_prefix in {"inh_inputs", "network_inh_outputs"}:
+                    linestyle = "--"
+                    marker = "s"
+
+                _plot_data(
+                    category_data=category_data,
+                    category=category,
+                    input_prefix=input_prefix,
+                    input_metric=input_metric,
+                    label=label,
+                    color=color,
+                    linestyle=linestyle,
+                    marker=marker,
+                )
+
+        self.setup_axes_style(
+            ax=ax,
+            xlabel=var_name,
+            ylabel=f"{METRIC_MAPPING[input_metric]}",
+            use_log_x=logscale,
+            grid=True,
+        )
+        ax.legend()
 
         fig.tight_layout()
 
@@ -512,6 +567,53 @@ class SNRPlotter(BasePlotter):
             output_dir
             / f"{act_prefix}_act"
             / f"{act_prefix}_act_{act_metric}_vs_{sweep_var}.png"
+        )
+        plot_paths.append(self.save_figure(fig, plot_path))
+
+        return plot_paths
+
+    def _create_soma_snr_plots_1d_sweep(
+        self,
+        valid_data: pd.DataFrame,
+        sweep_var: str,
+        var_name: str,
+        logscale: bool,
+        output_dir: str,
+        act_metric: str,
+    ):
+        """Create soma SNR vs sweep_var plots"""
+        plot_paths = []
+
+        y_col = f"snr_vout_{act_metric}_depth0"
+
+        if f"{y_col}_mean" not in valid_data.columns:
+            return plot_paths
+
+        fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+        fig.suptitle(
+            f"Soma Disciminability: {METRIC_MAPPING[act_metric]} vs {var_name}",
+            fontsize=16,
+        )
+        self.plot_by_category(
+            ax=ax,
+            data=valid_data,
+            x_col=sweep_var,
+            y_col=y_col,
+            category_col="network_category",
+            show_error=True,
+        )
+        self.setup_axes_style(
+            ax=ax,
+            xlabel=var_name,
+            ylabel=f"{METRIC_MAPPING[act_metric]}",
+            use_log_x=logscale,
+            grid=True,
+        )
+        ax.legend(fontsize=10)
+        fig.tight_layout()
+
+        plot_path = (
+            output_dir / "soma_act" / f"soma_act_{act_metric}_vs_{sweep_var}.png"
         )
         plot_paths.append(self.save_figure(fig, plot_path))
 

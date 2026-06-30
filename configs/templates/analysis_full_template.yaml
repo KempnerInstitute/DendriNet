@@ -1,0 +1,367 @@
+# Full analysis block template.
+#
+# This file is meant to be copied into another experiment config under the
+# top-level `analysis:` key. It documents the preferred, non-deprecated analysis
+# schema. Older `*_analysis` names and legacy flat information/correlation keys
+# may still load, but new configs should use the short names and grouped params
+# below.
+
+analysis:
+  # Shared runtime policy used by analysis modules when reading datasets.
+  runtime:
+    training:
+      mode: "auto"                    # str: "auto" | "materialize" | "stream"; auto materializes small datasets and streams large ones.
+      batch_size: 256                 # int: DataLoader batch size for streamed analysis.
+      num_workers: 4                  # int: DataLoader workers for streamed analysis.
+      pin_memory: true                # bool: Pin CPU memory for GPU transfer; ignored/disabled for CPU-only analysis.
+      persistent_workers: false       # bool: Keep DataLoader workers alive between batches when num_workers > 0.
+      prefetch_factor: 2              # int | null: Batches prefetched per worker.
+      in_order: null                  # bool | null: false can improve large streamed datasets; null uses PyTorch default.
+      max_batches: null               # int | null: Optional training-time cap for cheap approximate analysis.
+      max_samples: null               # int | null: Optional cap on examples exposed to each analysis.
+      materialize_threshold_mb: 1024  # int: Auto-mode memory threshold for materializing a dataset.
+    final:
+      mode: "auto"                    # str: "auto" | "materialize" | "stream"; use "materialize" for exact small-dataset parity checks.
+      batch_size: 256                 # int: DataLoader batch size for streamed final analysis.
+      num_workers: 4                  # int: DataLoader workers for streamed final analysis.
+      pin_memory: true                # bool: Pin CPU memory for GPU transfer when analysis runs on GPU.
+      persistent_workers: false       # bool: Keep workers alive across final analysis batches.
+      prefetch_factor: 2              # int | null: Batches prefetched per worker.
+      in_order: null                  # bool | null: false can reduce worker head-of-line blocking.
+      max_batches: null               # int | null: Optional cap; usually null for final analysis.
+      max_samples: null               # int | null: Optional cap for expensive hook-based modules.
+      materialize_threshold_mb: 1024  # int: Auto-mode threshold in MB.
+
+  performance:
+    enabled: false                    # bool: Compute task performance metrics.
+    training: false                   # bool: Also run during training snapshots.
+    training_splits: ["train", "valid", "test"]  # list[str]: Splits for training-time analysis.
+    final_splits: ["train", "valid", "test"]     # list[str]: Splits for final analysis.
+    params:
+      accuracy: true                  # bool: Classification accuracy.
+      auc: true                       # bool: ROC-AUC when labels/scores support it.
+      categorical_loglikelihood: true # bool: Categorical log likelihood for classification.
+      mse: false                      # bool: Mean squared error for regression/logit diagnostics.
+      cosine_similarity: false        # bool: Cosine similarity for vector outputs.
+
+  information:
+    enabled: false                    # bool: Compute information-theoretic signal metrics.
+    training: false                   # bool: Also run during training snapshots.
+    params:
+      selection:
+        components: []                # list[str]: "basic" | "pairwise" | "conditional" | "gaussian_fisher" | "pid" | "ablation_aligned" | "layer_proxies" | "upstream_unique_cmi".
+        scopes: []                    # list[str]: "layer" | "einet" | "neuron"; extra breakdowns beyond the core metrics.
+        signal_variants: []           # list[str]: "network" | "lda" | "random"; "random" needs baselines.random_weights.n_shuffles > 0.
+      compute:
+        max_samples: null             # int | null: Limit samples before computing MI/CMI.
+        include_vinf: true            # bool: Include soma/pre-output activation where available.
+        normalize_mi: false           # bool: Normalize by class entropy H(C).
+        output_units: "bits"          # str: "bits" | "nats"; estimators run internally in nats.
+        verbose: false                # bool: Emit detailed logging.
+        computation_level: "single_branch"  # str: "single_branch" | "layer_branch" | "all_branch".
+        branch_aggregation: "mean"    # str: "mean" | "multivariate" | "sample"; used for layer/all-branch levels.
+        layer_total_topk: 10          # int: K for layer-total topK proxy metrics.
+        gaussian_fisher:
+          aggregation: "sum"          # str: "sum" | "mean" | "max"; how branch Fisher proxies combine.
+          mi_transform: "half_log1p"  # str: "half_log1p" | "log1p" | "none"; proxy-to-MI transform.
+          eps: 0.00000001             # float: Numerical epsilon.
+          ridge: null                 # float | null: Optional ridge override; null uses eps.
+      estimator:
+        method: "kraskov"             # str: "kraskov" | "decoder" | "binned" | "sklearn" | "copula" | "auto".
+        kraskov:
+          n_neighbors: 10             # int: KSG nearest neighbors.
+        binned:
+          n_bins: 20                  # int: Histogram/bin count.
+          binning_strategy: "quantile" # str: "quantile" | "uniform".
+          bias_correction: "none"     # str: "none" | "miller_madow".
+        decoder:
+          cv_folds: 5                 # int: Cross-validation folds.
+          C: 1.0                      # float: Logistic decoder inverse regularization.
+          standardize: true           # bool: Standardize decoder inputs.
+          seed: 0                     # int: Decoder RNG seed.
+          continuous:
+            strategy: "none"          # str: "none" | "binned" | "gaussian"; continuous fallback for decoder method.
+            max_total_dim: 2          # int: Max joint continuous dimensionality for fallback.
+            gaussian_ridge: 0.000001  # float: Covariance ridge for gaussian fallback.
+        copula:
+          type: "gaussian"            # str: "gaussian" | "kernel" | "dvc"; dvc currently falls back to local copula path.
+        sklearn:
+          n_bins: 20                  # int: Histogram bins used by sklearn-style estimator.
+          bandwidth: null             # float | null: KDE bandwidth; null chooses estimator default.
+      baselines:
+        random_weights:
+          n_shuffles: 0               # int >= 0: Random-weight LDA baseline repeats; produces *_sh metrics.
+          seed: 0                     # int: Random-weight baseline seed.
+        label_shuffle_null:
+          n_shuffles: 0               # int >= 0: Label-permutation null repeats; produces *_null metrics.
+          seed: 0                     # int: Label-shuffle seed.
+          components: ["basic"]       # list[str]: "basic" | "pairwise" | "conditional" | "ablation_aligned" | "layer_proxies" | "upstream_unique_cmi" | "all".
+      pid:
+        binarize: true                # bool: Binarize signals for PID backend compatibility.
+        binarize_method: "median"     # str: "median" | "mean" | "quantile".
+        binarize_threshold: 0.5       # float: Threshold used by compatible binarization modes.
+
+  correlation:
+    enabled: false                    # bool: Compute E/I/output correlation analyses.
+    training: false                   # bool: Also run during training snapshots.
+    params:
+      selection:
+        components: []                # list[str]: "total" | "noise" | "signal" | "tuning".
+        pairs: []                     # list[str]: "EE" | "II" | "EI" | "E_output" | "I_output" | "output_output".
+        scopes: []                    # list[str]: "layer" | "einet" | "neuron".
+      compute:
+        computation_level: "layer_branch" # str: "synaptic" | "single_branch" | "layer_branch" | "all_branch".
+        max_samples: 5000             # int | null: Limit examples for faster correlation estimates.
+        batch_process: true           # bool: Batch computations to reduce memory pressure.
+        per_layer_analysis: true      # bool: Include per-layer breakdown.
+        per_einet_analysis: true      # bool: Separate excitatory/inhibitory pathway summaries.
+        per_neuron_analysis: false    # bool: Include per-neuron summaries; expensive.
+      sampling:
+        n_synapse_pairs: 10000        # int: Number of synapse pairs sampled when computation_level="synaptic".
+        sampling_strategy: "stratified" # str: "random" | "stratified" | "importance".
+        stratified_categories: ["within_branch", "within_layer", "across_layer"] # list[str]: Synaptic pair categories.
+        max_pairs_per_category: 1000  # int: Max sampled pairs per stratified category.
+
+  ablation:
+    enabled: false                    # bool: Run intervention/ablation analysis.
+    training: false                   # bool: Also run during training snapshots.
+    params:
+      selection:
+        levels: []                    # list[str]: "layer" | "compartment".
+        targets: []                   # list[str]: "all_synapses" | "excitation" | "inhibition" | "upstream".
+        metrics: []                   # list[str]: "accuracy" | "auc" | "categorical_loglikelihood" | "mse" | "cosine_similarity" | "pred_label_mi_bits".
+      methods:
+        ablation_methods: ["lesion"]  # list[str]: "lesion" | "shuffle" | "mean_clamp".
+        shuffle_seed: 0               # int: RNG seed for shuffle interventions.
+        clamp_statistic: "mean"       # str: "mean"; "median" is reserved/future.
+
+  synapse_turnover:
+    enabled: false                    # bool: Track active synapse changes over training.
+    training: false                   # bool: Usually true for turnover trajectories.
+    params:
+      snapshot_interval: 1            # int: Epoch interval between connectivity snapshots.
+      synaptic_analysis: true         # bool: Compute connectivity summaries.
+      save_synaptic_report: true      # bool: Write detailed connectivity report.
+
+  noise_perturbation:
+    enabled: false                    # bool: Evaluate input-noise robustness.
+    training: false                   # bool: Also run during training snapshots.
+    params:
+      uniform_noise: true             # bool: Include uniform-noise sweep.
+      uniform_magnitudes: [0.1, 0.2]  # list[float]: Uniform noise magnitudes.
+      gaussian_noise: true            # bool: Include Gaussian-noise sweep.
+      gaussian_sdevs: [0.1, 0.2]      # list[float]: Gaussian standard deviations.
+      n_samples: 10                   # int: Noisy replicates per noise setting.
+      clamp_range: [0.0, 1.0]         # list[float] | null: Clamp perturbed inputs; null for unbounded neural activity.
+      accuracy: true                  # bool: Compute accuracy under noise.
+      auc: true                       # bool: Compute AUC under noise.
+      categorical_loglikelihood: true # bool: Compute categorical log likelihood under noise.
+      mse: true                       # bool: Compute MSE under noise.
+      cosine_similarity: true         # bool: Compute cosine similarity under noise.
+      seed: 0                         # int: RNG seed for perturbation replicates.
+
+  adversarial_robustness:
+    enabled: false                    # bool: Evaluate FGSM adversarial robustness.
+    training: false                   # bool: Also run during training snapshots.
+    params:
+      epsilons: [0.0, 0.05, 0.1, 0.15, 0.2, 0.3] # list[float]: FGSM epsilon values.
+      batch_size: 256                 # int: Attack/evaluation batch size.
+
+  weight:
+    enabled: false                    # bool: Analyze synapse and branch-output weights.
+    training: false                   # bool: Also run during training snapshots.
+    params:
+      synapse_weights: true           # bool: Include E/I synaptic weights.
+      branch_weights: true            # bool: Include branch-to-output aggregation weights.
+      computation_level: "single_branch" # str: "single_branch" | "layer_branch" | "all_branch".
+      branch_aggregation: "mean"      # str: "mean" | "multivariate" | "sample".
+      per_layer_analysis: true        # bool: Include per-layer summaries.
+      per_einet_analysis: true        # bool: Separate E/I network summaries.
+      per_neuron_analysis: false      # bool: Include per-neuron summaries; expensive.
+      analyze_excitatory: true        # bool: Include excitatory weights.
+      analyze_inhibitory: true        # bool: Include inhibitory weights.
+      analyze_branch_output: true     # bool: Include branch-output weights.
+      compute_mean: true              # bool: Report means.
+      compute_variance: true          # bool: Report variances.
+      compute_percentiles: true       # bool: Report percentiles.
+      compute_min_max: true           # bool: Report min/max.
+      compute_dendritic_strength: true # bool: Report total dendritic strength.
+      weight_threshold: 0.000001      # float: Minimum absolute weight treated as active.
+
+  compartment_statistics:
+    enabled: false                    # bool: Summarize compartment weights, inputs, and activations.
+    training: false                   # bool: Also run during training snapshots.
+    params:
+      synapse_weights: true           # bool: Include synapse weight statistics.
+      branch_weights: true            # bool: Include branch-output weight statistics.
+      inputs: true                    # bool: Include input tensor statistics.
+      activations: true               # bool: Include activation tensor statistics.
+      global_analysis: true           # bool: Include global summaries.
+      layer_analysis: true            # bool: Include per-layer summaries.
+      branch_analysis: true           # bool: Include per-branch summaries.
+      compute_mean: true              # bool: Report means.
+      compute_variance: true          # bool: Report variances.
+      compute_percentiles: true       # bool: Report percentiles.
+      compute_min_max: true           # bool: Report min/max.
+      compute_entropy: true           # bool: Report entropy-like summaries where defined.
+      per_class_analysis: false       # bool: Split statistics by class label.
+      n_samples: null                 # int | null: Limit examples.
+      seed: 0                         # int: Sampling seed.
+
+  compartment_snr:
+    enabled: false                    # bool: Compute compartment discriminability metrics.
+    training: false                   # bool: Also run during training snapshots.
+    params:
+      input_analysis: true            # bool: Include input-level discriminability metrics.
+      input_capture_mode: "branch"    # str: "branch" | "network"; branch = dendritic branch inputs, network = network-level E/I input-output diagnostic.
+      global_analysis: true           # bool: Include global summaries.
+      layer_analysis: true            # bool: Include layer-level multivariate discriminability.
+      branch_analysis: true           # bool: Include branch-level univariate d'^2 metrics.
+      global_aggregation: true        # bool: Aggregate layer/branch metrics globally.
+      layer_aggregation: true         # bool: Keep per-layer aggregated metrics.
+      branch_aggregation: true        # bool: Keep per-branch metrics.
+      epsilon: 0.000001               # float: Variance/eigenvalue threshold for numerical stability.
+
+  multiplicative_gain:
+    enabled: false                    # bool: Sweep multiplicative gain/noise perturbations.
+    training: false                   # bool: Also run during training snapshots.
+    params:
+      uniform_gain: true              # bool: Use linearly spaced gain values when true.
+      gain_min: 0.0                   # float: Minimum gain.
+      gain_max: 10.0                  # float: Maximum gain.
+      n_steps: 10                     # int: Number of gain values.
+      logspace: false                 # bool: Use logarithmically spaced gains.
+      input_preprocess: "none"        # str: "none" | "relu" | "softplus" | "shift_min" | "global_shift_min".
+      noise_model: "none"             # str: "none" | "poisson"; poisson applies input-dependent gain/noise sampling.
+      poisson_eps: 0.000001           # float: Epsilon for Poisson-rate stability.
+      accuracy: false                 # bool: Compute accuracy after gain/noise.
+      auc: false                      # bool: Compute AUC after gain/noise.
+      categorical_loglikelihood: false # bool: Compute categorical log likelihood after gain/noise.
+      mse: false                      # bool: Compute MSE after gain/noise.
+      cosine_similarity: false        # bool: Compute cosine similarity after gain/noise.
+
+  synaptic_activation:
+    enabled: false                    # bool: Analyze synaptic activation tensors.
+    training: false                   # bool: Also run during training snapshots.
+    params:
+      network_summary: true           # bool: Include network-level summary.
+      layer_summary: true             # bool: Include layer-level summary.
+      branch_summary: true            # bool: Include branch-level summary.
+      raw_summary: true               # bool: Include raw/downsampled activation examples.
+      logspace: false                 # bool: Summarize/plot in log space.
+      downsample: true                # bool: Downsample raw activations.
+      samples: 5                      # int: Number of samples to retain when downsampling.
+
+  branch_activation:
+    enabled: false                    # bool: Analyze branch activation tensors.
+    training: false                   # bool: Also run during training snapshots.
+    params:
+      synapse_activations: true       # bool: Include synaptic activations feeding branches.
+      branch_activations: true        # bool: Include branch voltage/output activations.
+      network_summary: true           # bool: Include network-level summary.
+      layer_summary: true             # bool: Include layer-level summary.
+      branch_summary: true            # bool: Include branch-level summary.
+      raw_summary: true               # bool: Include raw/downsampled activation examples.
+      logspace: false                 # bool: Summarize/plot in log space.
+      downsample: true                # bool: Downsample raw activations.
+      samples: 5                      # int: Number of samples to retain when downsampling.
+
+  local_rule_components:
+    enabled: false                    # bool: Record LocalCA/local-rule component factors.
+    training: false                   # bool: Usually true for trajectories over epochs.
+    params:
+      max_samples: 1024               # int | null: Examples per snapshot.
+      include_dendritic: true         # bool: Include branch-to-parent conductance terms.
+      include_broadcast: true         # bool: Include scalar/per-soma broadcast-error proxy.
+      broadcast_mode: "scalar"        # str: "scalar" | "per_soma".
+      error_mode: "auto"              # str: "auto" | "ce" | "mse" | "none".
+      e_rev_exc: 1.0                  # float: Excitatory reversal used in local factors.
+      e_rev_inh: 0.0                  # float: Inhibitory reversal used in local factors.
+      save_json: true                 # bool: Save per-snapshot JSON.
+      save_csv: true                  # bool: Save per-snapshot CSV.
+      append_training_csv: true       # bool: Append training snapshots to one trajectory CSV.
+
+  single_layer_contribution:
+    enabled: false                    # bool: Measure each layer's contribution to output metrics.
+    training: false                   # bool: Also run during training snapshots.
+    params:
+      excitation_contribution: true   # bool: Measure excitation-only contribution.
+      inhibition_contribution: true   # bool: Measure inhibition-only contribution.
+      both_contribution: true         # bool: Measure combined E+I contribution.
+      accuracy: true                  # bool: Compute accuracy.
+      auc: true                       # bool: Compute AUC.
+      categorical_loglikelihood: true # bool: Compute categorical log likelihood.
+      mse: true                       # bool: Compute MSE.
+      cosine_similarity: true         # bool: Compute cosine similarity.
+
+  receptive_field:
+    enabled: false                    # bool: Collect/plot dendritic receptive-field maps.
+    training: false                   # bool: Also run during training snapshots; rich plots are final-only.
+    params:
+      n_rows: 2                       # int: Grid rows for sampled RF plots.
+      n_cols: 2                       # int: Grid columns for sampled RF plots.
+      rf_shape: null                  # list[int] | null: Shared [H, W] RF shape for E and I streams.
+      exc_rf_shape: null              # list[int] | null: E-stream [H, W] shape; overrides rf_shape for E.
+      inh_rf_shape: null              # list[int] | null: I-stream [H, W] shape; overrides rf_shape for I.
+      fig_save_format: "png"          # str: Figure extension, e.g. "png" | "pdf" | "svg".
+      compute_activation_tuning: false # bool: Add class tuning summaries for E, I, E/I ratio, and Vout branch activations.
+      compute_component_rfs: false    # bool: Add compact soma-level E/I mean and conditioned component RF maps.
+      plot_component_rfs: true        # bool: Save compact component RF figures when compute_component_rfs is true and training is false.
+      compute_rf_tuning: false        # bool: Add aggregate RF tuning, entropy, discriminability, and E-vs-I plots.
+      plot_rf_tuning: true            # bool: Save rich RF tuning figures when compute_rf_tuning is true and training is false.
+      rf_tuning_layer_index: 0        # int: E/I layer index used for rich RF tuning.
+      n_class_examples: 5             # int: Examples per class in rich RF input-example plots.
+      save_raw_data: true             # bool: Save raw RF tensor checkpoint for later plotting.
+      load_raw_data: false            # bool: Reuse raw RF checkpoint instead of re-reading model weights.
+      raw_filename: null              # str | null: Override raw RF checkpoint filename.
+      epsilon: 0.00000001             # float: Numerical epsilon for tuning ratios/cosines.
+
+  reactivation_dynamics:
+    enabled: false                    # bool: Snapshot ParametricTanh m/b and voltage statistics.
+    training: true                    # bool: Default true because this is most useful as an epoch trajectory.
+    params:
+      max_samples: 1024               # int: Examples used per snapshot.
+
+  routing:
+    enabled: false                    # bool: Analyze recurrent routing/alpha traces; requires compatible recurrent core.
+    training: false                   # bool: Also run during training snapshots.
+
+  inhibitory_specialization:
+    enabled: false                    # bool: Analyze recurrent inhibitory gate specialization.
+    training: false                   # bool: Also run during training snapshots.
+    params:
+      gate_threshold: 0.1             # float: Mean gate cutoff for specialization labels.
+      std_threshold: 0.15             # float: Gate std cutoff for mixed/conditional labels.
+      save_figures: true              # bool: Save specialization figures alongside JSON.
+
+  jacobian_spectrum:
+    enabled: false                    # bool: Analyze recurrent branch Jacobian/singular spectrum.
+    training: false                   # bool: Also run during training snapshots.
+    params:
+      top_k: 16                       # int: Number of leading singular values to report.
+      save_figures: true              # bool: Save spectrum figures alongside JSON.
+
+  dendritic_timetraces:
+    enabled: false                    # bool: Simulate learned dendritic time traces on a synthetic two-pulse input.
+    training: false                   # bool: Also run during training snapshots.
+    params:
+      n_timesteps: 90                 # int: Trial length.
+      stim1_window: [5, 25]           # list[int] | null: First pulse [start, end); null disables.
+      stim2_window: [55, 75]          # list[int] | null: Second pulse [start, end); null disables.
+      response_window: [75, 90]       # list[int] | null: Window highlighted as response period.
+      stim1_amp: 0.8                  # float: First pulse amplitude.
+      stim2_amp: 0.6                  # float: Second pulse amplitude.
+      noise_std: 0.05                 # float: White-noise standard deviation; 0 disables noise.
+      seed: 0                         # int: Synthetic/noise RNG seed.
+      save_figures: true              # bool: Save per-layer trace figures.
+
+  spike_train:
+    enabled: false                    # bool: Analyze spike trains for opt-in LIF recurrent populations; alias `spike_trains` also loads.
+    training: false                   # bool: Also run during training snapshots.
+    params:
+      dt: 1.0                         # float: Time per recurrent step for rate reporting.
+      threshold: 0.5                  # float: Spike binarization threshold.
+      max_samples: 512                # int | null: Cap examples used for spike analysis.
+      include_raster: true            # bool: Include compact raster event lists.
+      max_raster_samples: 8           # int: Examples included in raster event output.
+      include_per_timestep_rate: true # bool: Include population firing-rate trace per timestep.

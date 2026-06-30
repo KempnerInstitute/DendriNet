@@ -315,9 +315,7 @@ class SweepJobManager:
             f.write(
                 f"#SBATCH --ntasks-per-node={self.slurm_config.get('ntasks_per_node', 1)}\n"
             )
-            f.write(
-                f"#SBATCH --gpus-per-node={self.slurm_config.get('gpus_per_node', 1)}\n"
-            )
+            f.write(f"#SBATCH --gres=gpu:{self.slurm_config.get('gpus_per_node', 1)}\n")
             f.write(
                 f"#SBATCH --cpus-per-task={self.slurm_config.get('cpus_per_task', 4)}\n"
             )
@@ -424,9 +422,7 @@ class SweepJobManager:
             f.write(
                 f"#SBATCH --ntasks-per-node={self.slurm_config.get('ntasks_per_node', 1)}\n"
             )
-            f.write(
-                f"#SBATCH --gpus-per-node={self.slurm_config.get('gpus_per_node', 1)}\n"
-            )
+            f.write(f"#SBATCH --gres=gpu:{self.slurm_config.get('gpus_per_node', 1)}\n")
             f.write(
                 f"#SBATCH --cpus-per-task={self.slurm_config.get('cpus_per_task', 4)}\n"
             )
