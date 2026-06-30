@@ -3,19 +3,20 @@
 scripts/__pycache__/*
 tests/__pycache__/*
 results/*
-slurm_jobs/  # Generated SLURM script directories
+# Generated SLURM script directories
+slurm_jobs/
 dendritic_modeling.egg-info/*
 dendritic_modeling/__pycache__/*
 # Ignore ad-hoc root shell scripts; keep scripts under src/ addable.
 /*.sh
 *.out
-*.sbatch  # Generated SLURM batch scripts
+# Generated SLURM batch scripts
+*.sbatch
 notebooks/data/*
 notebook/wandb/*
 notebook/votage_plots/*
 notebook/*.log
 notebook/test/*
-# experiments/* - now using submodule
 data/*
 configs/*.txt
 # Private merge/runtime comparison configs belong under ignored projects/ or
@@ -24,11 +25,6 @@ configs/branch_comparison/
 configs/examples/*_multi_population_ei.yaml
 configs/examples/recurrent_synapse_types_ampa_nmda_gaba.yaml
 configs/examples/recurrent_soma_feedback.yaml
-.fusion_scratch/
-.scratch/
-.verify*
-.fc_verify.py
-.v1_verify_panel.py
 src/data/*
 cifar-10-*
 wandb/*
@@ -71,7 +67,6 @@ share/python-wheels/
 *.egg
 MANIFEST
 output/*
-outputs/*
 # PyInstaller
 #  Usually these files are written by a python script from a template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
@@ -80,7 +75,6 @@ outputs/*
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
-archive/*
 # Unit test / coverage reports
 htmlcov/
 .tox/
@@ -171,7 +165,6 @@ celerybeat.pid
 
 # Environments
 .env
-.*env
 .venv
 env/
 venv/
@@ -200,9 +193,6 @@ dmypy.json
 # Pyre type checker
 .pyre/
 .claude/
-.fc_verify.py
-.fusion_scratch/
-.v1_verify_panel.py
 # pytype static type analyzer
 .pytype/
 
@@ -218,7 +208,6 @@ cython_debug/
 
 .DS_Store
 .vscode/*
-outputs/*
 .data/*
 trained_encoder_networks/*
 .trained_encoder_networks/*
@@ -244,11 +233,17 @@ figures/
 outputs_smoke/
 outputs_sweep_smoke/
 tmp/
-generated/
-jobs/
-.scratch*/
-.verify_*
-_tmp_reviewer_*.py
+
+# Profiler report artifacts — large binaries, keep locally but never commit.
+# (.gitkeep files under profilings/ stay tracked; only the reports are ignored.)
+*.nsys-rep
+*.ncu-rep
+*.qdstrm
+*.sqlite
+*.pt.trace.json
+chrome_trace.json
+profilings/**/*.log
+profilings/**/*.json
 .claude/*.lock
 /analysis/
 !src/dendritic_modeling/analysis/
@@ -258,3 +253,41 @@ src/dendritic_modeling/analysis/**/*.py[cod]
 
 # Internal code-review working docs (keep out of version control)
 CODEBASE_REVIEW_*.md
+
+# Test-run artifacts and accidental duplicate trees (regenerated locally; never commit).
+# When the suite is run with tests/ as the working dir it dumps copies of the repo
+# (src/, docs/, configs/, jobs/, etc.) and run outputs into tests/. The real test
+# infra (test_*.py, conftest.py, setup.py) stays tracked; everything below does not.
+tests/src/
+tests/outputs/
+tests/docs/
+tests/configs/
+tests/jobs/
+tests/setup/
+tests/projects/
+tests/results/
+tests/profilings/
+tests/profilings-notignored/
+tests/CHANGELOG.md
+tests/LICENSE
+tests/README.md
+tests/INSTALL.md
+tests/PROFILING_FINDINGS.md
+tests/PROFILING_HANDOFF.md
+tests/PROFILING_REPORT.md
+tests/pyproject.toml
+tests/requirements.txt
+tests/ruff.toml
+tests/pytest.ini
+
+# --- Scratch/verify-artifact rules carried over from origin/develop ---
+.*env
+.fc_verify.py
+.fusion_scratch/
+.scratch*/
+.scratch/
+.v1_verify_panel.py
+.verify*
+.verify_*
+_tmp_reviewer_*.py
+generated/
