@@ -70,7 +70,7 @@ class PerformancePlotter(BasePlotter):
                 self.plot_performance_1d_sweep(
                     data=data,
                     sweep_var="max_gain_factor",
-                    var_name="Max Gain Factor",
+                    var_name="Maximum Gain",
                     logscale=True,
                     output_dir=plots_dir,
                 )
