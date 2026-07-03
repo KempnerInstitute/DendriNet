@@ -837,6 +837,7 @@ class CompartmentSNRAnalysisConfig(BaseConfig):
 @dataclass
 class MultiplicativeGainAnalysisParams(BaseConfig):
     uniform_gain: bool = True
+    gain_sampling: str = "log_uniform"
     gain_min: float = 0.0
     gain_max: float = 10.0
     n_steps: int = 10

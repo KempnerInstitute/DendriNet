@@ -750,6 +750,7 @@ def _wrap_poisson_generator_dataset(
     *,
     multiplicative_gain: bool,
     fixed_gain_factor: Optional[float],
+    min_gain_factor: Optional[float],
     max_gain_factor: Optional[float],
     uniform_gain: bool,
     gain_sampling: str,
@@ -762,6 +763,7 @@ def _wrap_poisson_generator_dataset(
         *dataset[:],
         multiplicative_gain=multiplicative_gain,
         fixed_gain_factor=fixed_gain_factor,
+        min_gain_factor=min_gain_factor,
         max_gain_factor=max_gain_factor,
         uniform_gain=uniform_gain,
         gain_sampling=gain_sampling,
@@ -778,6 +780,7 @@ def _wrap_poisson_generator_triplet(
     *,
     multiplicative_gain: bool,
     fixed_gain_factor: Optional[float],
+    min_gain_factor: Optional[float],
     max_gain_factor: Optional[float],
     uniform_gain: bool,
     poisson_sampling: bool,
@@ -789,6 +792,7 @@ def _wrap_poisson_generator_triplet(
     kwargs = {
         "multiplicative_gain": multiplicative_gain,
         "fixed_gain_factor": fixed_gain_factor,
+        "min_gain_factor": min_gain_factor,
         "max_gain_factor": max_gain_factor,
         "uniform_gain": uniform_gain,
         "gain_sampling": gain_sampling,
@@ -807,6 +811,7 @@ def load_poisson_generator_datasets(
     base_dataset: str,
     multiplicative_gain: bool = True,
     fixed_gain_factor: Optional[float] = None,
+    min_gain_factor: Optional[float] = None,
     max_gain_factor: Optional[float] = None,
     uniform_gain: bool = True,
     gain_sampling: str = "log_uniform",
@@ -825,6 +830,7 @@ def load_poisson_generator_datasets(
         base_dataset (str): The base dataset to sample from
         stimulus_duration (float): The stimulus duration for the Poisson distribution
         fixed_gain_factor (float): The fixed gain factor for the Poisson distribution
+        min_gain_factor (float): The minimum gain factor for the Poisson distribution
         max_gain_factor (float): The maximum gain factor for the Poisson distribution
         max_gain_tau_ratio (float): The maximum gain tau ratio for the Poisson distribution
         uniform_gain (bool): Whether one gain is shared across each sample
@@ -862,6 +868,7 @@ def load_poisson_generator_datasets(
         test_ds,
         multiplicative_gain=multiplicative_gain,
         fixed_gain_factor=fixed_gain_factor,
+        min_gain_factor=min_gain_factor,
         max_gain_factor=max_gain_factor,
         uniform_gain=uniform_gain,
         gain_sampling=gain_sampling,
@@ -1027,6 +1034,7 @@ def _load_poisson_generator_from_options(
         base_dataset=options.base_dataset,
         multiplicative_gain=options.multiplicative_gain,
         fixed_gain_factor=options.fixed_gain_factor,
+        min_gain_factor=options.min_gain_factor,
         max_gain_factor=options.max_gain_factor,
         uniform_gain=options.uniform_gain,
         gain_sampling=options.gain_sampling,

@@ -17,6 +17,7 @@ class PoissonGeneratorDataset(Dataset):
         base_labels: torch.Tensor,
         multiplicative_gain: bool = True,
         fixed_gain_factor: Optional[float] = None,
+        min_gain_factor: Optional[float] = None,
         max_gain_factor: Optional[float] = None,
         uniform_gain: bool = True,
         gain_sampling: str = "log_uniform",
@@ -42,7 +43,9 @@ class PoissonGeneratorDataset(Dataset):
 
         if fixed_gain_factor is not None:
             fixed_gain_factor = float(fixed_gain_factor)
-        elif max_gain_factor is not None:
+        if min_gain_factor is not None:
+            min_gain_factor = float(min_gain_factor)
+        if max_gain_factor is not None:
             max_gain_factor = float(max_gain_factor)
         elif max_gain_tau_ratio is not None:
             max_gain_factor = float(max_gain_tau_ratio) * stimulus_duration
@@ -60,19 +63,26 @@ class PoissonGeneratorDataset(Dataset):
                     "uniform_gain=False requires fixed_gain_factor, "
                     "max_gain_factor, or max_gain_tau_ratio."
                 )
-        if max_gain_factor is not None and max_gain_factor < 1.0:
+        # if max_gain_factor is not None and max_gain_factor < 1.0:
+        #     raise ValueError(
+        #         f"max_gain_factor must be >= 1.0 when provided, got {max_gain_factor}"
+        #     )
+        if (
+            min_gain_factor is not None 
+            and max_gain_factor is not None
+            and min_gain_factor > max_gain_factor
+        ):
             raise ValueError(
-                f"max_gain_factor must be >= 1.0 when provided, got {max_gain_factor}"
+                f"min_gain_factor must be <= max_gain_factor when provided, "
+                f"got {min_gain_factor} > {max_gain_factor}"
             )
 
         self.base_inputs = base_inputs
         self.base_labels = base_labels
         self.multiplicative_gain = multiplicative_gain
         self.fixed_gain_factor = fixed_gain_factor
+        self.min_gain_factor = min_gain_factor
         self.max_gain_factor = max_gain_factor
-        self.log_max_gain_factor = (
-            None if max_gain_factor is None else log(max_gain_factor)
-        )
         self.uniform_gain = uniform_gain
         self.gain_sampling = gain_sampling
         self.poisson_sampling = poisson_sampling
@@ -87,6 +97,10 @@ class PoissonGeneratorDataset(Dataset):
 
     def _set_max_gain_factor(self, max_gain_factor: float | torch.Tensor):
         self._max_gf = max_gain_factor
+    
+    def _clear_gain(self):
+        self._fixed_gf = None
+        self._max_gf = None
 
     @staticmethod
     def _is_batched_index(idx) -> bool:
@@ -100,22 +114,23 @@ class PoissonGeneratorDataset(Dataset):
 
     @staticmethod
     def _sample_gain(
-        input: torch.Tensor,
+        min_gain_factor: float,
         max_gain_factor: float,
         *,
         gain_sampling: str,
         shape: tuple[int, ...],
+        dtype: torch.dtype,
+        device: torch.device,
     ) -> torch.Tensor:
-        random_gain = torch.rand(shape, dtype=input.dtype, device=input.device)
+        random_gain = torch.rand(shape, dtype=dtype, device=device)
         if gain_sampling == "log_uniform":
-            return torch.exp(random_gain * log(max_gain_factor))
+            log_min_gain_factor = log(min_gain_factor)
+            log_max_gain_factor = log(max_gain_factor)
+            log_range = log_max_gain_factor - log_min_gain_factor
+            return torch.exp((random_gain * log_range) + log_min_gain_factor)
         if gain_sampling == "linear_uniform":
-            max_gain = torch.as_tensor(
-                max_gain_factor,
-                dtype=input.dtype,
-                device=input.device,
-            )
-            return (random_gain * (max_gain - 1)) + 1
+            linear_range = max_gain_factor - min_gain_factor
+            return (random_gain * linear_range) + min_gain_factor
         raise ValueError(f"Unknown gain_sampling={gain_sampling!r}")
 
     @staticmethod
@@ -134,32 +149,40 @@ class PoissonGeneratorDataset(Dataset):
 
         if self._fixed_gf is not None:
             input = input * self._fixed_gf
-            self._fixed_gf = None
 
         elif self._max_gf is not None:
-            input = input * ((torch.rand_like(input) * (self._max_gf - 1)) + 1)
-            self._max_gf = None
+            if self.uniform_gain:
+                shape = self._uniform_gain_shape(input, batched=batched)
+            else:
+                shape = tuple(input.shape)
+            
+            gain_factor = self._sample_gain(
+                min_gain_factor=self.min_gain_factor,
+                max_gain_factor=self._max_gf,
+                gain_sampling=self.gain_sampling,
+                shape=shape,
+                dtype=input.dtype,
+                device=input.device,
+            )
+            input = gain_factor * input
 
         elif self.multiplicative_gain:
             if self.fixed_gain_factor is not None:
                 gain_factor = self.fixed_gain_factor
-
-            elif self.uniform_gain:
-                gain_factor = self._sample_gain(
-                    input,
-                    self.max_gain_factor,
-                    gain_sampling=self.gain_sampling,
-                    shape=self._uniform_gain_shape(input, batched=batched),
-                )
-
             else:
+                if self.uniform_gain:
+                    shape = self._uniform_gain_shape(input, batched=batched)
+                else:
+                    shape = tuple(input.shape)
+                
                 gain_factor = self._sample_gain(
-                    input,
-                    self.max_gain_factor,
+                    min_gain_factor=self.min_gain_factor,
+                    max_gain_factor=self.max_gain_factor,
                     gain_sampling=self.gain_sampling,
-                    shape=tuple(input.shape),
+                    shape=shape,
+                    dtype=input.dtype,
+                    device=input.device,
                 )
-
             input = gain_factor * input
 
         if self.poisson_sampling:

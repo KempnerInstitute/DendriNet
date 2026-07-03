@@ -51,6 +51,7 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
         super().__init__("MultiplicativeGainAnalyzer")
 
         self.uniform_gain = getattr(params, "uniform_gain", True)
+        self.gain_sampling = str(getattr(params, "gain_sampling", "log_uniform")).lower()
         self.gain_min = getattr(params, "gain_min", 0.0)
         self.gain_max = getattr(params, "gain_max", 10.0)
         self.n_steps = getattr(params, "n_steps", 10)
@@ -73,6 +74,7 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
         gain_factor: float,
         runtime: Optional[EvaluationRuntimeConfig] = None,
         base_inputs: Optional[torch.Tensor] = None,
+        base_labels: Optional[torch.Tensor] = None,
         device: str | torch.device | None = None,
     ) -> torch.Tensor:
         def _preprocess_inputs(inputs: torch.Tensor) -> torch.Tensor:
@@ -108,6 +110,7 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
                 dataset._set_max_gain_factor(gain_factor)
 
             inputs = materialize_dataset(dataset, runtime, device=device)[0]
+            dataset._clear_gain()
             return inputs
 
         else:
@@ -118,15 +121,30 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
             )
             inputs = _preprocess_inputs(inputs)
 
-            if not self.uniform_gain:
-                gain_factor = (torch.rand_like(inputs) * (gain_factor - 1)) + 1
-                # gain_factor = torch.exp(
-                #     ((torch.rand_like(inputs) * 2) - 1
-                #     ) * log(gain_factor)
-                # )
+            labels = (
+                base_labels
+                if base_labels is not None
+                else materialize_dataset(dataset, runtime, device=device)[1]
+            )
 
-            inputs = inputs * gain_factor
-            inputs = _apply_noise_model(inputs)
+            pg_ds = PoissonGeneratorDataset(
+                base_inputs=inputs,
+                base_labels=labels,
+                multiplicative_gain=True,
+                max_gain_factor=gain_factor,
+                uniform_gain=self.uniform_gain,
+                gain_sampling=self.gain_sampling,
+                poisson_sampling=self.noise_model == "poisson",
+                stimulus_duration=1.0,
+            )
+
+            if self.uniform_gain:
+                pg_ds._set_gain_factor(gain_factor)
+            else:
+                pg_ds._set_max_gain_factor(gain_factor)
+
+            inputs = materialize_dataset(pg_ds, runtime, device=device)[0]
+            pg_ds._clear_gain()
             return inputs
 
     def analyze(
@@ -225,7 +243,11 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
         if test_dataset.fixed_gain_factor is not None:
             train_g_min = float(test_dataset.fixed_gain_factor)
             train_g_max = float(test_dataset.fixed_gain_factor)
-        elif test_dataset.max_gain_factor is not None:
+        elif (
+            test_dataset.min_gain_factor is not None
+            and test_dataset.max_gain_factor is not None
+        ):
+            train_g_min = float(test_dataset.min_gain_factor)
             train_g_max = float(test_dataset.max_gain_factor)
         return train_g_min, train_g_max
 
@@ -271,6 +293,7 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
                     gain_factor,
                     runtime,
                     base_inputs,
+                    test_labels,
                     device=analysis_device,
                 )
                 scaled_test_inputs = scaled_test_inputs.to(analysis_device)
@@ -293,10 +316,24 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
                         metric_key=metric_key,
                         dataset=scaled_test_dataset,
                     )
+            
+            if self.logspace and self.gain_sampling == "linear_uniform":
+                weight_fn = lambda g: g
+            elif not self.logspace and self.gain_sampling == "log_uniform":
+                weight_fn = lambda g: 1/g
+            else:
+                weight_fn = lambda g: 1
+            
+            def _weighted_mean(
+                gain_factors: torch.Tensor, 
+                scores: torch.Tensor
+            ) -> float:
+                w = weight_fn(gain_factors)
+                return float((scores * w).mean())
 
             id_dict: dict[str, float] = {}
-            if metric_funcs and train_g_min == train_g_max:
-                scaled_test_dataset = _scaled_dataset_for_gain(train_g_min)
+            if metric_funcs and (train_g_min == train_g_max or not self.uniform_gain):
+                scaled_test_dataset = _scaled_dataset_for_gain(train_g_max)
                 for metric_key, metric_func in metric_funcs:
                     id_dict[metric_key] = _score_metric(
                         metric_func, scaled_test_dataset
@@ -306,7 +343,10 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
                 if bool(id_mask.any()):
                     for metric_key, _metric_func in metric_funcs:
                         scores = torch.as_tensor(data_dict[metric_key])
-                        id_dict[metric_key] = float(scores[id_mask].mean())
+                        id_dict[metric_key] = _weighted_mean(
+                            gain_factors=gain_factors[id_mask], 
+                            scores=scores[id_mask]
+                        )
 
             def _mean_scores_for_mask(mask: torch.Tensor) -> dict[str, float]:
                 scores_dict: dict[str, float] = {}
@@ -314,13 +354,20 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
                     return scores_dict
                 for metric_key, _metric_func in metric_funcs:
                     scores = torch.as_tensor(data_dict[metric_key])
-                    scores_dict[metric_key] = float(scores[mask].mean())
+                    scores_dict[metric_key] = _weighted_mean(
+                        gain_factors=gain_factors[mask], 
+                        scores=scores[mask]
+                    )
                 return scores_dict
 
             ood_lower_dict: dict[str, float] = {}
-            if self.gain_min < train_g_min:
+            if self.uniform_gain and self.gain_min < train_g_min:
                 ood_lower_dict = _mean_scores_for_mask(
                     (gain_factors >= self.gain_min) & (gain_factors < train_g_min)
+                )
+            elif not self.uniform_gain and self.gain_min < train_g_max:
+                ood_lower_dict = _mean_scores_for_mask(
+                    (gain_factors >= self.gain_min) & (gain_factors < train_g_max)
                 )
 
             ood_upper_dict: dict[str, float] = {}

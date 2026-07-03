@@ -152,6 +152,7 @@ class DatasetParamsConfig(BaseConfig):
             "base_dataset": "mnist",
             "multiplicative_gain": True,
             "fixed_gain_factor": None,
+            "min_gain_factor": None,
             "max_gain_factor": None,
             "max_gain_tau_ratio": None,
             "uniform_gain": True,
