@@ -164,18 +164,6 @@ class ConfigExtractor:
                         inferred_use_shunting = None
 
                     if inferred_use_shunting is not None:
-                        if (
-                            saved_use_shunting is not None
-                            and saved_use_shunting != inferred_use_shunting
-                        ):
-                            logger.warning(
-                                "Config mismatch: network_type='%s' implies "
-                                "use_shunting=%s but saved morphology.use_shunting=%s. "
-                                "Using network_type for sweep extraction.",
-                                nt,
-                                inferred_use_shunting,
-                                saved_use_shunting,
-                            )
                         params["use_shunting"] = inferred_use_shunting
 
         except Exception as e:
