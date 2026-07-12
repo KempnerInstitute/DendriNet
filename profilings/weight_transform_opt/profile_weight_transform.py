@@ -25,7 +25,11 @@ p = argparse.ArgumentParser()
 p.add_argument("--synthetic", action="store_true", help="skip disk, use random input")
 p.add_argument("--warmup", type=int, default=5)
 p.add_argument("--iters", type=int, default=10)
+p.add_argument("--batch", type=int, default=None, help="override batch size (default: config's 512)")
 args = p.parse_args()
+
+# reduce allocator fragmentation on small MIG slices
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
 assert torch.cuda.is_available(), "no CUDA device visible"
 dev = "cuda"
@@ -42,7 +46,7 @@ n_params = sum(p.numel() for p in model.parameters())
 print(f"model built: {n_params/1e6:.1f}M params")
 
 # ---- one real (or synthetic) batch -----------------------------------------
-B = cfg.training.main.common.batch_size  # 512
+B = args.batch or cfg.training.main.common.batch_size  # default 512
 if args.synthetic:
     x = torch.randn(B, 3072, device=dev)
     y = torch.randint(0, 10, (B,), device=dev)
