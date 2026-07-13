@@ -20,10 +20,11 @@ def _sample_indices_from_mask(
     """Sample exactly ``K`` unique allowed input indices for each output."""
     allowed = validate_connection_mask(connection_mask, out_features, in_features)
     indices = torch.empty(out_features, K, dtype=torch.long)
+    full_arange = torch.arange(in_features, dtype=torch.long) if allowed is None else None
 
     for out_idx in range(out_features):
         if allowed is None:
-            row_allowed = torch.arange(in_features, dtype=torch.long)
+            row_allowed = full_arange
         else:
             row_allowed = torch.nonzero(allowed[out_idx], as_tuple=False).flatten()
 
