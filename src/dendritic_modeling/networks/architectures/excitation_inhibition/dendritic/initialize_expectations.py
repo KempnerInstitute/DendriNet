@@ -196,8 +196,6 @@ def _compute_expectation_truncated_softplus(
     g'(x) = sigmoid(x), g''(x) = sigmoid(x) * (1 - sigmoid(x)).
     """
     _, mu_c, var_c = _truncated_normal_moments(mean, std, upper_quantile)
-    # softplus at conditional mean
-    from math import exp as mexp, log as mlog
 
     # Clip mu_c to prevent overflow
     mu_c = max(-50.0, min(50.0, mu_c))
@@ -206,13 +204,13 @@ def _compute_expectation_truncated_softplus(
     if mu_c > 20:
         sp = mu_c  # For large x, softplus(x) ≈ x
     else:
-        sp = mlog(1 + mexp(mu_c))
+        sp = log(1 + exp(mu_c))
 
     # Safe computation of sigmoid to avoid overflow
     if mu_c > 0:
-        sig = 1.0 / (1.0 + mexp(-mu_c))
+        sig = 1.0 / (1.0 + exp(-mu_c))
     else:
-        exp_mu = mexp(mu_c)
+        exp_mu = exp(mu_c)
         sig = exp_mu / (1.0 + exp_mu)
 
     sp_corr = sp + 0.5 * sig * (1 - sig) * var_c
