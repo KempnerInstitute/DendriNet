@@ -166,6 +166,7 @@ def create_branch_sparse_layer(
             forbidden_input_index_per_output=forbidden_input_index_per_output,
             seed=_indexed_synapse_seed(owner, synapse_type),
             output_chunk_size=owner.indexed_output_chunk_size,
+            use_fused_gather=owner.indexed_use_fused_gather,
             **extra_kwargs,
         )
 
