@@ -154,9 +154,13 @@ def _sample_indices_from_mask(
             indices[start:end] = values
         return indices
 
+    full_arange = (
+        torch.arange(in_features, dtype=torch.long) if allowed is None else None
+    )
+
     for out_idx in range(out_features):
         if allowed is None:
-            row_allowed = torch.arange(in_features, dtype=torch.long)
+            row_allowed = full_arange
         else:
             row_allowed = torch.nonzero(allowed[out_idx], as_tuple=False).flatten()
         if forbidden is not None and forbidden[out_idx] >= 0:
