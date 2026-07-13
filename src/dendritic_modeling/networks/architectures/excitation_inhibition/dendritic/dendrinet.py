@@ -436,16 +436,17 @@ class DendriNet(nn.Module):
     def forward(self, x, inhibitory_input=None):
         output = None
         for i in range(self.n_branch_layers + 1):
+            layer = self.branch_layers[i]
             # Store excitatory and inhibitory inputs for visualization if needed
             # The excitatory input for the current layer is always x
-            if hasattr(self.branch_layers[i], "excitatory_input"):
-                self.branch_layers[i].excitatory_input = x
+            if hasattr(layer, "excitatory_input"):
+                layer.excitatory_input = x
 
             # The inhibitory input is whatever was passed in or None
-            if hasattr(self.branch_layers[i], "inhibitory_input"):
-                self.branch_layers[i].inhibitory_input = inhibitory_input
+            if hasattr(layer, "inhibitory_input"):
+                layer.inhibitory_input = inhibitory_input
 
-            output = self.branch_layers[i](x, inhibitory_input, output)
+            output = layer(x, inhibitory_input, output)
         return output
 
     def sum_weights(self, pruned=False):
