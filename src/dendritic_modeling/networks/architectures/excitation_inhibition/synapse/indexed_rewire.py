@@ -130,6 +130,7 @@ class IndexedRewireLinear(IndexedSparseLinear):
             fresh_weights = self._new_pre_weights((self.out_features, n_rewire))
 
             conn_cpu = self.connection_indices.detach().cpu()
+            seed_base = self._rewire_seed + 104729 * step
             for row_idx in range(self.out_features):
                 available_mask = torch.zeros(self.in_features, dtype=torch.bool)
                 allowed = self._allowed_indices_for_row_cpu(row_idx)
@@ -140,9 +141,7 @@ class IndexedRewireLinear(IndexedSparseLinear):
                     continue
 
                 n_select = min(n_rewire, int(available.numel()))
-                generator = _connection_generator(
-                    self._rewire_seed + (104729 * step) + row_idx
-                )
+                generator = _connection_generator(seed_base + row_idx)
                 selected = available[
                     torch.randperm(available.numel(), generator=generator)[:n_select]
                 ].to(self.connection_indices.device)
