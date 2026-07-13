@@ -98,13 +98,13 @@ def _resolve_target_connections(
     allowed_connection_mask: torch.Tensor,
     target_density: float,
     synapses_per_branch,
+    allowed_connections: int,
 ) -> int:
     if rewiring_mode == "constant_branch":
         allowed_per_branch = allowed_connection_mask.sum(dim=1)
         return int(
             torch.clamp(allowed_per_branch, max=synapses_per_branch).sum().item()
         )
-    allowed_connections = int(allowed_connection_mask.sum().item())
     return int(allowed_connections * target_density)
 
 
@@ -243,6 +243,7 @@ class DeepstLinear(nn.Module):
             allowed_connection_mask,
             target_density,
             synapses_per_branch,
+            self.allowed_connections,
         )
 
         self.pre_w = _initialize_weight_parameter(
