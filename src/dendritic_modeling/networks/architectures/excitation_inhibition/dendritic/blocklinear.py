@@ -115,16 +115,21 @@ class BlockLinear(nn.Module):
         """Return transformed per-block weights with shape (out_features, block_size)."""
         return apply_weight_transform(self.log_weight, self.weight_transform)
 
+    def _block_indices(self):
+        """Row/col index tensors that scatter per-block weights into the dense (out, in) matrix."""
+        row_ix = torch.arange(self.out_features, device=self.log_weight.device)[:, None]
+        col_ix = torch.arange(self.in_features, device=self.log_weight.device).view(
+            self.out_features, self.block_size
+        )
+        return row_ix, col_ix
+
     def block(self):
         block = torch.zeros(
             (self.out_features, self.in_features),
             device=self.log_weight.device,
             dtype=self.log_weight.dtype,
         )
-        row_ix = torch.arange(self.out_features, device=self.log_weight.device)[:, None]
-        col_ix = torch.arange(self.in_features, device=self.log_weight.device).view(
-            self.out_features, self.block_size
-        )
+        row_ix, col_ix = self._block_indices()
         weights = self.weight()
         block[row_ix, col_ix] = weights
         return block
@@ -138,10 +143,7 @@ class BlockLinear(nn.Module):
             )
             * -10
         )
-        row_ix = torch.arange(self.out_features, device=self.log_weight.device)[:, None]
-        col_ix = torch.arange(self.in_features, device=self.log_weight.device).view(
-            self.out_features, self.block_size
-        )
+        row_ix, col_ix = self._block_indices()
         log_block[row_ix, col_ix] = self.log_weight
         return log_block
 
@@ -151,10 +153,7 @@ class BlockLinear(nn.Module):
             device=self.log_weight.device,
             dtype=self.log_weight.dtype,
         )
-        row_ix = torch.arange(self.out_features, device=self.log_weight.device)[:, None]
-        col_ix = torch.arange(self.in_features, device=self.log_weight.device).view(
-            self.out_features, self.block_size
-        )
+        row_ix, col_ix = self._block_indices()
         if self.log_weight.grad is not None:
             grad_block[row_ix, col_ix] = self.log_weight.grad
         return grad_block
@@ -218,10 +217,7 @@ class BlockLinear(nn.Module):
             device=self.log_weight.device,
             dtype=self.log_weight.dtype,
         )
-        row_ix = torch.arange(self.out_features, device=self.log_weight.device)[:, None]
-        col_ix = torch.arange(self.in_features, device=self.log_weight.device).view(
-            self.out_features, self.block_size
-        )
+        row_ix, col_ix = self._block_indices()
         weights = self.weight() * 1.0
         object.__setattr__(self, "_last_forward_param_tensor", weights)
         block[row_ix, col_ix] = weights
