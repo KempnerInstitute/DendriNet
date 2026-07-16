@@ -6,6 +6,7 @@ import logging
 import math
 import os
 import re
+from itertools import pairwise
 from pathlib import Path
 
 import numpy as np
@@ -171,6 +172,16 @@ class OculomotorDelayedResponseDataset(Dataset):
         return self.inputs[idx], self.targets[idx], seq_lengths
 
 
+ROMO_PAIR_SAMPLING_INDEPENDENT_UNEQUAL_V1 = "independent_unequal_v1"
+ROMO_PAIR_SAMPLING_BALANCED_SECOND_STIMULUS_V1 = "balanced_second_stimulus_v1"
+ROMO_PAIR_SAMPLING_POLICIES = frozenset(
+    {
+        ROMO_PAIR_SAMPLING_INDEPENDENT_UNEQUAL_V1,
+        ROMO_PAIR_SAMPLING_BALANCED_SECOND_STIMULUS_V1,
+    }
+)
+
+
 class RomoDelayComparisonDataset(Dataset):
     """Delayed comparison of two vibrotactile frequencies.
 
@@ -191,8 +202,33 @@ class RomoDelayComparisonDataset(Dataset):
         positive_input_encoding: bool = False,
         tuning_dim: int = 8,
         tuning_sigma: float | None = None,
+        pair_sampling: str = ROMO_PAIR_SAMPLING_INDEPENDENT_UNEQUAL_V1,
     ):
         super().__init__()
+        if pair_sampling not in ROMO_PAIR_SAMPLING_POLICIES:
+            raise ValueError(
+                "pair_sampling must be one of "
+                f"{sorted(ROMO_PAIR_SAMPLING_POLICIES)}, got {pair_sampling!r}"
+            )
+        if len(frequency_values) < 2:
+            raise ValueError("frequency_values must contain at least two entries")
+        if pair_sampling == ROMO_PAIR_SAMPLING_BALANCED_SECOND_STIMULUS_V1:
+            if n_samples <= 0 or n_samples % 2 != 0:
+                raise ValueError(
+                    "balanced_second_stimulus_v1 requires a positive even n_samples"
+                )
+            if len(frequency_values) < 3:
+                raise ValueError(
+                    "balanced_second_stimulus_v1 requires at least three frequencies"
+                )
+            if any(
+                float(right) <= float(left)
+                for left, right in pairwise(frequency_values)
+            ):
+                raise ValueError(
+                    "balanced_second_stimulus_v1 requires strictly increasing "
+                    "frequency_values"
+                )
         self.n_samples = n_samples
         self.frequency_values = tuple(float(v) for v in frequency_values)
         self.stimulus_duration = stimulus_duration
@@ -201,6 +237,7 @@ class RomoDelayComparisonDataset(Dataset):
         self.response_duration = response_duration
         self.positive_input_encoding = bool(positive_input_encoding)
         self.tuning_dim = int(tuning_dim)
+        self.pair_sampling = str(pair_sampling)
         self.input_dim = (self.tuning_dim if self.positive_input_encoding else 1) + 3
         self.max_total_len = 2 * stimulus_duration + max_delay + response_duration
 
@@ -214,6 +251,12 @@ class RomoDelayComparisonDataset(Dataset):
         self.frequency2_indices = torch.zeros(n_samples, dtype=torch.long)
         self.frequency1_values = torch.zeros(n_samples, dtype=torch.float32)
         self.frequency2_values = torch.zeros(n_samples, dtype=torch.float32)
+        # ``pair_ids`` is -1 for the historical independent sampler. Under the
+        # shortcut-resistant policy, exactly two rows share each non-negative
+        # pair ID: one lower-first positive trial and one higher-first negative
+        # trial with byte-identical input from delay onset onward.
+        self.pair_ids = torch.full((n_samples,), -1, dtype=torch.long)
+        self.comparison_distance_indices = torch.zeros(n_samples, dtype=torch.long)
 
         phase_grid = torch.arange(stimulus_duration, dtype=torch.float32)
         if self.positive_input_encoding:
@@ -231,34 +274,36 @@ class RomoDelayComparisonDataset(Dataset):
                 float(tuning_sigma) if tuning_sigma is not None else spacing
             )
 
-        for i in range(n_samples):
-            f1_idx = torch.randint(0, len(self.frequency_values), (1,)).item()
-            f2_idx = torch.randint(0, len(self.frequency_values), (1,)).item()
-            while f2_idx == f1_idx:
-                f2_idx = torch.randint(0, len(self.frequency_values), (1,)).item()
+        def frequency_signal(frequency: float) -> torch.Tensor:
+            if self.positive_input_encoding:
+                return self._positive_frequency_code(frequency, noise_std)
+            signal = torch.sin(
+                2.0 * math.pi * frequency * phase_grid / stimulus_duration
+            )
+            signal = signal + noise_std * torch.randn_like(signal)
+            return signal.unsqueeze(-1)
 
+        def write_trial(
+            index: int,
+            *,
+            f1_idx: int,
+            f2_idx: int,
+            delay: int,
+            sig1: torch.Tensor,
+            sig2: torch.Tensor,
+            pair_id: int = -1,
+        ) -> None:
             f1 = self.frequency_values[f1_idx]
             f2 = self.frequency_values[f2_idx]
-            delay = torch.randint(min_delay, max_delay + 1, (1,)).item()
             total_len = 2 * stimulus_duration + delay + response_duration
-
-            if self.positive_input_encoding:
-                sig1 = self._positive_frequency_code(f1, noise_std)
-                sig2 = self._positive_frequency_code(f2, noise_std)
-            else:
-                sig1 = torch.sin(2.0 * math.pi * f1 * phase_grid / stimulus_duration)
-                sig2 = torch.sin(2.0 * math.pi * f2 * phase_grid / stimulus_duration)
-                sig1 = sig1 + noise_std * torch.randn_like(sig1)
-                sig2 = sig2 + noise_std * torch.randn_like(sig2)
-                sig1 = sig1.unsqueeze(-1)
-                sig2 = sig2.unsqueeze(-1)
-
-            self.targets[i] = int(f2 > f1)
-            self.delays[i] = delay
-            self.frequency1_indices[i] = int(f1_idx)
-            self.frequency2_indices[i] = int(f2_idx)
-            self.frequency1_values[i] = float(f1)
-            self.frequency2_values[i] = float(f2)
+            self.targets[index] = int(f2 > f1)
+            self.delays[index] = delay
+            self.frequency1_indices[index] = int(f1_idx)
+            self.frequency2_indices[index] = int(f2_idx)
+            self.frequency1_values[index] = float(f1)
+            self.frequency2_values[index] = float(f2)
+            self.pair_ids[index] = int(pair_id)
+            self.comparison_distance_indices[index] = abs(f2_idx - f1_idx)
 
             s1_start = 0
             s1_end = stimulus_duration
@@ -267,11 +312,74 @@ class RomoDelayComparisonDataset(Dataset):
             rsp_start = s2_end
 
             stim_dim = self.tuning_dim if self.positive_input_encoding else 1
-            self.inputs[i, s1_start:s1_end, :stim_dim] = sig1
-            self.inputs[i, s1_start:s1_end, stim_dim] = 1.0
-            self.inputs[i, s2_start:s2_end, :stim_dim] = sig2
-            self.inputs[i, s2_start:s2_end, stim_dim + 1] = 1.0
-            self.inputs[i, rsp_start:total_len, stim_dim + 2] = 1.0
+            self.inputs[index, s1_start:s1_end, :stim_dim] = sig1
+            self.inputs[index, s1_start:s1_end, stim_dim] = 1.0
+            self.inputs[index, s2_start:s2_end, :stim_dim] = sig2
+            self.inputs[index, s2_start:s2_end, stim_dim + 1] = 1.0
+            self.inputs[index, rsp_start:total_len, stim_dim + 2] = 1.0
+
+        if pair_sampling == ROMO_PAIR_SAMPLING_INDEPENDENT_UNEQUAL_V1:
+            for i in range(n_samples):
+                f1_idx = torch.randint(0, len(self.frequency_values), (1,)).item()
+                f2_idx = torch.randint(0, len(self.frequency_values), (1,)).item()
+                while f2_idx == f1_idx:
+                    f2_idx = torch.randint(0, len(self.frequency_values), (1,)).item()
+                delay = torch.randint(min_delay, max_delay + 1, (1,)).item()
+                write_trial(
+                    i,
+                    f1_idx=f1_idx,
+                    f2_idx=f2_idx,
+                    delay=delay,
+                    sig1=frequency_signal(self.frequency_values[f1_idx]),
+                    sig2=frequency_signal(self.frequency_values[f2_idx]),
+                )
+        else:
+            n_frequencies = len(self.frequency_values)
+            for pair_id in range(n_samples // 2):
+                f2_idx = torch.randint(1, n_frequencies - 1, (1,)).item()
+                max_distance = min(f2_idx, n_frequencies - 1 - f2_idx)
+                distance = torch.randint(1, max_distance + 1, (1,)).item()
+                delay = torch.randint(min_delay, max_delay + 1, (1,)).item()
+                shared_sig2 = frequency_signal(self.frequency_values[f2_idx])
+                lower_index = 2 * pair_id
+                higher_index = lower_index + 1
+                lower_f1_idx = f2_idx - distance
+                higher_f1_idx = f2_idx + distance
+                write_trial(
+                    lower_index,
+                    f1_idx=lower_f1_idx,
+                    f2_idx=f2_idx,
+                    delay=delay,
+                    sig1=frequency_signal(self.frequency_values[lower_f1_idx]),
+                    sig2=shared_sig2,
+                    pair_id=pair_id,
+                )
+                write_trial(
+                    higher_index,
+                    f1_idx=higher_f1_idx,
+                    f2_idx=f2_idx,
+                    delay=delay,
+                    sig1=frequency_signal(self.frequency_values[higher_f1_idx]),
+                    sig2=shared_sig2,
+                    pair_id=pair_id,
+                )
+
+            # Pair construction is exact, while this final permutation prevents
+            # adjacent opposite-label rows from becoming a loader-order cue.
+            permutation = torch.randperm(n_samples)
+            for field_name in (
+                "inputs",
+                "targets",
+                "delays",
+                "frequency1_indices",
+                "frequency2_indices",
+                "frequency1_values",
+                "frequency2_values",
+                "pair_ids",
+                "comparison_distance_indices",
+            ):
+                value = getattr(self, field_name)
+                setattr(self, field_name, value[permutation])
 
         self.seq_lengths = (
             2 * self.stimulus_duration + self.delays + self.response_duration
@@ -1069,6 +1177,9 @@ class StringerV1Dataset(Dataset):
 
 
 __all__ = [
+    "ROMO_PAIR_SAMPLING_BALANCED_SECOND_STIMULUS_V1",
+    "ROMO_PAIR_SAMPLING_INDEPENDENT_UNEQUAL_V1",
+    "ROMO_PAIR_SAMPLING_POLICIES",
     "GainModulatedContextualComparisonDataset",
     "OculomotorDelayedResponseDataset",
     "RomoDelayComparisonDataset",

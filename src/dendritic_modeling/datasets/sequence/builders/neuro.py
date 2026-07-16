@@ -66,6 +66,7 @@ def build_romo_delay_comparison(
         "positive_input_encoding": positive_input_encoding(dataset_name, kwargs),
         "tuning_dim": kwargs.get("tuning_dim", 8),
         "tuning_sigma": kwargs.get("tuning_sigma", None),
+        "pair_sampling": kwargs.get("pair_sampling", "independent_unequal_v1"),
     }
     return build_explicit_or_deferred_split(
         dataset_cls=RomoDelayComparisonDataset,
@@ -149,7 +150,7 @@ def build_stringer_v1(
     state_holdout_fraction = float(kwargs.get("state_holdout_fraction", 0.0))
     if not (0.0 <= state_holdout_fraction < 1.0):
         raise ValueError(
-            "state_holdout_fraction must be in [0, 1), got " f"{state_holdout_fraction}"
+            f"state_holdout_fraction must be in [0, 1), got {state_holdout_fraction}"
         )
     gain_group_count = kwargs.get("gain_group_count", 1)
     gain_grouping = kwargs.get("gain_grouping", "preferred_class")

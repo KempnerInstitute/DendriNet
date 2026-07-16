@@ -416,6 +416,81 @@ def test_romo_and_gain_modulated_comparison_datasets():
         )
 
 
+def test_romo_balanced_second_stimulus_pairs_are_exact_and_shortcut_free():
+    dataset = RomoDelayComparisonDataset(
+        n_samples=96,
+        frequency_values=(2.0, 2.8, 3.6, 4.4, 5.2, 6.0),
+        stimulus_duration=5,
+        min_delay=2,
+        max_delay=5,
+        response_duration=2,
+        noise_std=0.05,
+        positive_input_encoding=True,
+        tuning_dim=5,
+        pair_sampling="balanced_second_stimulus_v1",
+    )
+
+    assert dataset.targets.bincount(minlength=2).tolist() == [48, 48]
+    assert sorted(dataset.pair_ids.unique().tolist()) == list(range(48))
+    stratum_counts = {}
+    for pair_id in range(48):
+        positions = torch.nonzero(dataset.pair_ids == pair_id, as_tuple=False).flatten()
+        assert positions.numel() == 2
+        first, second = (int(value) for value in positions.tolist())
+        assert {int(dataset.targets[first]), int(dataset.targets[second])} == {0, 1}
+        assert dataset.frequency2_indices[first] == dataset.frequency2_indices[second]
+        assert dataset.delays[first] == dataset.delays[second]
+        assert (
+            dataset.comparison_distance_indices[first]
+            == dataset.comparison_distance_indices[second]
+        )
+        # Everything after the first stimulus is byte-identical across the
+        # opposite-label pair, including the silent delay, noisy f2 trace,
+        # phase markers, response window, and padding.
+        assert torch.equal(
+            dataset.inputs[first, dataset.stimulus_duration :],
+            dataset.inputs[second, dataset.stimulus_duration :],
+        )
+        for position in (first, second):
+            target = int(dataset.targets[position])
+            f1_index = int(dataset.frequency1_indices[position])
+            f2_index = int(dataset.frequency2_indices[position])
+            assert (f1_index < f2_index) is bool(target)
+            key = (
+                f2_index,
+                int(dataset.comparison_distance_indices[position]),
+                int(dataset.delays[position]),
+            )
+            counts = stratum_counts.setdefault(key, [0, 0])
+            counts[target] += 1
+
+    assert all(counts[0] == counts[1] for counts in stratum_counts.values())
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"n_samples": 3}, "positive even"),
+        ({"frequency_values": (2.0, 3.0)}, "at least three"),
+        (
+            {"frequency_values": (2.0, 4.0, 3.0)},
+            "strictly increasing",
+        ),
+    ],
+)
+def test_romo_balanced_second_stimulus_rejects_invalid_designs(kwargs, message):
+    with pytest.raises(ValueError, match=message):
+        RomoDelayComparisonDataset(
+            pair_sampling="balanced_second_stimulus_v1",
+            **kwargs,
+        )
+
+
+def test_romo_rejects_unknown_pair_sampling_policy():
+    with pytest.raises(ValueError, match="pair_sampling"):
+        RomoDelayComparisonDataset(pair_sampling="unknown")
+
+
 def test_frequency_forecast_and_dynamical_sequence_datasets(tmp_path):
     freq_ds = MultiFrequencyDataset(
         n_samples=3, seq_len=16, n_frequencies=4, base_freq=0.05
