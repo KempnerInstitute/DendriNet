@@ -3,7 +3,7 @@ RoutingAnalyzer: per-level routing analysis for recurrent dendritic models.
 
 Temporarily enables store_routing on the model, runs forward passes to collect
 per-timestep routing info, then resets store_routing. Computes:
-- Per-level contribution (beta_l): how much each dendritic level contributes
+- Per-level raw-L2 and dimension-normalized RMS activity shares
 - FF/REC decomposition (gamma_l): fraction of signal from feedforward compartments
 - Temporal dynamics of these readouts within trials
 """
@@ -124,11 +124,13 @@ class RoutingAnalyzer(AbstractAnalyzer):
         loader = torch.utils.data.DataLoader(data, batch_size=batch_size, shuffle=False)
 
         try:
-            level_contribs, ff_rec_ratios = self._collect_routing_values(
-                model,
-                core,
-                loader,
-                device,
+            level_contribs, level_activity_rms, ff_rec_ratios = (
+                self._collect_routing_values(
+                    model,
+                    core,
+                    loader,
+                    device,
+                )
             )
         finally:
             core.store_routing = original_store_routing
@@ -137,7 +139,9 @@ class RoutingAnalyzer(AbstractAnalyzer):
             self.logger.warning("No routing info collected")
             return {}
 
-        results = self._summarize_routing_values(level_contribs, ff_rec_ratios)
+        results = self._summarize_routing_values(
+            level_contribs, level_activity_rms, ff_rec_ratios
+        )
 
         self.log_analysis_end("routing_analysis", num_results=len(results))
 
@@ -152,9 +156,14 @@ class RoutingAnalyzer(AbstractAnalyzer):
         core: Any,
         loader: torch.utils.data.DataLoader,
         device: str,
-    ) -> tuple[dict[str, list[torch.Tensor]], dict[str, list[torch.Tensor]]]:
+    ) -> tuple[
+        dict[str, list[torch.Tensor]],
+        dict[str, list[torch.Tensor]],
+        dict[str, list[torch.Tensor]],
+    ]:
         # Per key, each chunk is [n_valid, n_levels].
         level_contribs: dict[str, list[torch.Tensor]] = {}
+        level_activity_rms: dict[str, list[torch.Tensor]] = {}
         ff_rec_ratios: dict[str, list[torch.Tensor]] = {}
 
         with analysis_device_context(model, device) as analysis_device:
@@ -169,16 +178,18 @@ class RoutingAnalyzer(AbstractAnalyzer):
                         core._routing_info,
                         seq_lengths,
                         level_contribs,
+                        level_activity_rms,
                         ff_rec_ratios,
                     )
 
-        return level_contribs, ff_rec_ratios
+        return level_contribs, level_activity_rms, ff_rec_ratios
 
     def _collect_batch_routing_values(
         self,
         routing_info: list[dict[str, Any]],
         seq_lengths: Optional[torch.Tensor],
         level_contribs: dict[str, list[torch.Tensor]],
+        level_activity_rms: dict[str, list[torch.Tensor]],
         ff_rec_ratios: dict[str, list[torch.Tensor]],
     ) -> None:
         for timestep_idx, timestep_info in enumerate(routing_info):
@@ -194,6 +205,14 @@ class RoutingAnalyzer(AbstractAnalyzer):
                         valid_mask,
                     )
 
+                if "level_activity_rms" in pop_info:
+                    _append_masked_routing_values(
+                        level_activity_rms,
+                        full_key,
+                        pop_info["level_activity_rms"],
+                        valid_mask,
+                    )
+
                 if "ff_rec_ratios" in pop_info:
                     _append_masked_routing_values(
                         ff_rec_ratios,
@@ -205,12 +224,14 @@ class RoutingAnalyzer(AbstractAnalyzer):
     def _summarize_routing_values(
         self,
         level_contribs: dict[str, list[torch.Tensor]],
+        level_activity_rms: dict[str, list[torch.Tensor]],
         ff_rec_ratios: dict[str, list[torch.Tensor]],
     ) -> dict[str, Any]:
         results: dict[str, Any] = {}
         for key in sorted(level_contribs.keys()):
             results[key] = self._summarize_routing_entry(
                 level_contribs[key],
+                level_activity_rms.get(key),
                 ff_rec_ratios.get(key),
             )
         return results
@@ -218,21 +239,38 @@ class RoutingAnalyzer(AbstractAnalyzer):
     def _summarize_routing_entry(
         self,
         level_contribs: list[torch.Tensor],
+        level_activity_rms: Optional[list[torch.Tensor]],
         ff_rec_ratios: Optional[list[torch.Tensor]],
     ) -> dict[str, Any]:
         # Concatenate: [N, n_levels] where N = total_timesteps * batch_size.
         contribs = torch.cat(level_contribs, dim=0)
-        # Normalize to get fractional contribution beta_l.
+        # Historical raw-L2 share. It scales with sqrt(level width).
         contribs_sum = contribs.sum(dim=-1, keepdim=True).clamp(min=1e-8)
-        beta = contribs / contribs_sum
+        l2_share = contribs / contribs_sum
 
         entry: dict[str, Any] = {
             "n_levels": contribs.shape[-1],
             "n_samples": contribs.shape[0],
-            "mean_level_contribution": beta.mean(dim=0).tolist(),
-            "std_level_contribution": beta.std(dim=0).tolist(),
+            "mean_level_contribution": l2_share.mean(dim=0).tolist(),
+            "std_level_contribution": l2_share.std(dim=0).tolist(),
             "mean_raw_voltage_norm": contribs.mean(dim=0).tolist(),
+            "legacy_level_contribution_definition": "raw_l2_share",
         }
+
+        if level_activity_rms:
+            rms = torch.cat(level_activity_rms, dim=0)
+            rms_sum = rms.sum(dim=-1, keepdim=True).clamp(min=1e-8)
+            rms_share = rms / rms_sum
+            entry.update(
+                {
+                    "mean_level_activity_rms": rms.mean(dim=0).tolist(),
+                    "mean_level_activity_share_rms": rms_share.mean(dim=0).tolist(),
+                    "std_level_activity_share_rms": rms_share.std(dim=0).tolist(),
+                    "activity_share_definition": (
+                        "level_l2_div_sqrt_width_then_normalized"
+                    ),
+                }
+            )
 
         if ff_rec_ratios:
             ratios = torch.cat(ff_rec_ratios, dim=0)

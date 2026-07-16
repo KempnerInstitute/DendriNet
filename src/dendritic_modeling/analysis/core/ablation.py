@@ -18,11 +18,16 @@ import numpy as np
 import torch
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
+from dendritic_modeling.analysis.utils.dendritic_depth import (
+    SOMA_RELATIVE_DEPTH_REFERENCE,
+    soma_relative_dendritic_depth,
+)
 from dendritic_modeling.analysis.utils.einet_core import has_einet_core
 from dendritic_modeling.analysis.utils.runtime import (
     analysis_device_context,
     evaluation_kwargs_from_runtime,
     get_model_device,
+    iter_analysis_batches,
     subset_dataset_for_runtime,
 )
 from dendritic_modeling.config.analysis import (
@@ -53,6 +58,11 @@ logger = logging.getLogger(__name__)
 # Ablation schema constants
 # ---------------------------------------------------------------------------
 _KNOWN_TARGETS = frozenset({"all_synapses", "excitation", "inhibition", "upstream"})
+_MEAN_CLAMP_SIGNAL_NAMES = (
+    ("excitation", "branch_excitation"),
+    ("inhibition", "branch_inhibition"),
+    ("upstream", "branches_to_output"),
+)
 ABLATION_VIDEO_METRIC_LABELS = {
     "accuracy": "Accuracy",
     "auc": "AUC",
@@ -78,7 +88,7 @@ def _iter_first_layer_upstream_branch_layers(
 ) -> Iterator[tuple[str, DendriticBranchLayer]]:
     """Yield first-level branch layers that expose upstream branch outputs."""
     for name, module in iter_named_modules_of_type(model, DendriticBranchLayer):
-        if getattr(module, "layer_idx", None) != 0:
+        if soma_relative_dendritic_depth(module) != 0:
             continue
         if not hasattr(module, "branches_to_output"):
             continue
@@ -156,6 +166,7 @@ class AblationAnalyzer(AbstractAnalyzer):
             {"pred_label_mi_bits", "pred_label_mi", "pred_mi"}.intersection(metrics)
         )
         self.lesion_value = -1000.0
+        self._mean_clamp_references: dict[tuple[int, str], torch.Tensor] = {}
 
     @staticmethod
     def _normalize_ablation_target(target: str) -> str:
@@ -188,6 +199,63 @@ class AblationAnalyzer(AbstractAnalyzer):
         if weight_transform in {"identity", "relu"}:
             return 0.0
         return -1000.0
+
+    def _collect_fixed_mean_clamp_references(
+        self,
+        *,
+        model: BaseModel,
+        reference_dataset: torch.utils.data.Dataset,
+        device: str | torch.device,
+        runtime: EvaluationRuntimeConfig | None,
+    ) -> dict[tuple[int, str], torch.Tensor]:
+        """Calibrate one fixed dataset mean for every ablatable signal."""
+        accumulators: dict[tuple[int, str], dict[str, object]] = {}
+        handles: list[torch.utils.hooks.RemovableHandle] = []
+
+        def _collector(key: tuple[int, str]):
+            def _hook(_producer, _inputs, output):
+                if not isinstance(output, torch.Tensor) or output.ndim == 0:
+                    return None
+                values = output.detach().to(dtype=torch.float64)
+                batch_sum = values.sum(dim=0, keepdim=True).cpu()
+                record = accumulators[key]
+                previous = record["sum"]
+                record["sum"] = batch_sum if previous is None else previous + batch_sum
+                record["count"] = int(record["count"]) + int(values.shape[0])
+                return None
+
+            return _hook
+
+        try:
+            for _name, branch_layer in iter_named_modules_of_type(
+                model, DendriticBranchLayer
+            ):
+                for signal_name, producer_attr in _MEAN_CLAMP_SIGNAL_NAMES:
+                    producer = getattr(branch_layer, producer_attr, None)
+                    if producer is None:
+                        continue
+                    key = (id(branch_layer), signal_name)
+                    accumulators[key] = {"sum": None, "count": 0}
+                    handles.append(producer.register_forward_hook(_collector(key)))
+
+            with torch.no_grad():
+                for batch in iter_analysis_batches(
+                    reference_dataset,
+                    runtime,
+                    device=device,
+                ):
+                    _ = model(batch[0].to(device))
+        finally:
+            for handle in handles:
+                handle.remove()
+
+        references = {}
+        for key, record in accumulators.items():
+            count = int(record["count"])
+            if count <= 0 or record["sum"] is None:
+                continue
+            references[key] = record["sum"] / count
+        return references
 
     def _make_signal_intervention_pre_hook(
         self,
@@ -265,7 +333,12 @@ class AblationAnalyzer(AbstractAnalyzer):
 
         return _hook
 
-    def _make_tensor_intervention_hook(self, *, method: str):
+    def _make_tensor_intervention_hook(
+        self,
+        *,
+        method: str,
+        fixed_reference: torch.Tensor | None = None,
+    ):
         """Forward hook that intervenes on a tensor-valued synaptic signal."""
         call_idx = 0
 
@@ -293,7 +366,23 @@ class AblationAnalyzer(AbstractAnalyzer):
                     raise ValueError(
                         f"Unsupported clamp_statistic: {self.clamp_statistic}"
                     )
-                return output.mean(dim=0, keepdim=True).expand_as(output)
+                if fixed_reference is None:
+                    # Backward compatibility for direct hook users.  The full
+                    # analyzer always supplies a fixed dataset reference.
+                    reference = output.mean(dim=0, keepdim=True)
+                else:
+                    reference = fixed_reference.to(
+                        device=output.device, dtype=output.dtype
+                    )
+                if reference.shape != output.shape[1:] and reference.shape != (
+                    1,
+                    *output.shape[1:],
+                ):
+                    raise ValueError(
+                        "Mean-clamp reference shape does not match signal output: "
+                        f"{tuple(reference.shape)} vs {tuple(output.shape)}"
+                    )
+                return reference.reshape(1, *output.shape[1:]).expand_as(output)
 
             return None
 
@@ -305,6 +394,7 @@ class AblationAnalyzer(AbstractAnalyzer):
         module: DendriticBranchLayer,
         ablation_type: str,
         method: str,
+        require_fixed_reference: bool = False,
     ) -> list[torch.utils.hooks.RemovableHandle]:
         """Register signal-level hooks on the modules that produce E/I currents.
 
@@ -315,22 +405,28 @@ class AblationAnalyzer(AbstractAnalyzer):
         execution paths.
         """
         handles: list[torch.utils.hooks.RemovableHandle] = []
-        hook = self._make_tensor_intervention_hook(method=method)
-
+        selected_signals = []
         if ablation_type in {"excitation", "all_synapses"}:
-            branch_excitation = getattr(module, "branch_excitation", None)
-            if branch_excitation is not None:
-                handles.append(branch_excitation.register_forward_hook(hook))
-
+            selected_signals.append(("excitation", "branch_excitation"))
         if ablation_type in {"inhibition", "all_synapses"}:
-            branch_inhibition = getattr(module, "branch_inhibition", None)
-            if branch_inhibition is not None:
-                handles.append(branch_inhibition.register_forward_hook(hook))
-
+            selected_signals.append(("inhibition", "branch_inhibition"))
         if ablation_type == "upstream":
-            branches_to_output = getattr(module, "branches_to_output", None)
-            if branches_to_output is not None:
-                handles.append(branches_to_output.register_forward_hook(hook))
+            selected_signals.append(("upstream", "branches_to_output"))
+
+        for signal_name, producer_attr in selected_signals:
+            producer = getattr(module, producer_attr, None)
+            if producer is None:
+                continue
+            reference = self._mean_clamp_references.get((id(module), signal_name))
+            if method == "mean_clamp" and require_fixed_reference and reference is None:
+                raise RuntimeError(
+                    f"No fixed mean-clamp reference was collected for {signal_name}."
+                )
+            hook = self._make_tensor_intervention_hook(
+                method=method,
+                fixed_reference=reference,
+            )
+            handles.append(producer.register_forward_hook(hook))
 
         return handles
 
@@ -347,10 +443,12 @@ class AblationAnalyzer(AbstractAnalyzer):
         state_dict: dict,
         eval_kwargs: Optional[dict] = None,
         device: Optional[str] = None,
+        use_fixed_mean_clamp_reference: bool = False,
     ):
         """Ablate a single layer and evaluate its impact."""
         results_dict[ablation_type][module_name] = {}
-        results_dict[ablation_type][module_name]["depth"] = module.layer_idx
+        depth = soma_relative_dendritic_depth(module)
+        results_dict[ablation_type][module_name]["depth"] = depth
         if eval_kwargs is None:
             eval_kwargs = {}
         if device is None:
@@ -364,7 +462,7 @@ class AblationAnalyzer(AbstractAnalyzer):
         # We only short-circuit to "zero drop" for synapse-based targets; upstream
         # (branch input / branches_to_output) is still meaningful and must be computed.
         is_soma_without_synapses = (
-            module.layer_idx == 0
+            depth == 0
             and not somatic_synapses_enabled
             and target_type_norm in {"all_synapses", "excitation", "inhibition"}
         )
@@ -424,6 +522,10 @@ class AblationAnalyzer(AbstractAnalyzer):
                                 module=module,
                                 ablation_type=target_type_norm,
                                 method=ablation_method,
+                                require_fixed_reference=(
+                                    ablation_method == "mean_clamp"
+                                    and use_fixed_mean_clamp_reference
+                                ),
                             )
 
                         metric_score = metric_func(
@@ -488,7 +590,9 @@ class AblationAnalyzer(AbstractAnalyzer):
         if device is None:
             device = str(get_model_device(model))
         results_dict[ablation_type][module_name] = {}
-        results_dict[ablation_type][module_name]["depth"] = module.layer_idx
+        results_dict[ablation_type][module_name]["depth"] = (
+            soma_relative_dendritic_depth(module)
+        )
         target_type_norm = self._normalize_ablation_target(ablation_type)
 
         if module.branch_excitation is not None:
@@ -632,6 +736,7 @@ class AblationAnalyzer(AbstractAnalyzer):
         filename: str = "final",
         training: bool = False,
         runtime: Optional[EvaluationRuntimeConfig] = None,
+        reference_dataset: torch.utils.data.Dataset | None = None,
     ):
         """Perform ablation analysis and return results."""
         if not has_einet_core(model):
@@ -641,8 +746,22 @@ class AblationAnalyzer(AbstractAnalyzer):
 
         eval_kwargs = evaluation_kwargs_from_runtime(runtime)
         test_dataset = subset_dataset_for_runtime(test_dataset, runtime)
+        reference_split = "training" if reference_dataset is not None else "evaluation"
+        if reference_dataset is None:
+            reference_dataset = test_dataset
+        reference_dataset = subset_dataset_for_runtime(reference_dataset, runtime)
         with analysis_device_context(model, device) as analysis_device:
             state_dict = deepcopy(model.state_dict())
+
+            if "mean_clamp" in self.ablation_methods:
+                self._mean_clamp_references = self._collect_fixed_mean_clamp_references(
+                    model=model,
+                    reference_dataset=reference_dataset,
+                    device=analysis_device,
+                    runtime=runtime,
+                )
+            else:
+                self._mean_clamp_references = {}
 
             baselines = {}
             if self.accuracy:
@@ -745,6 +864,7 @@ class AblationAnalyzer(AbstractAnalyzer):
                                 state_dict=state_dict,
                                 eval_kwargs=eval_kwargs,
                                 device=analysis_device,
+                                use_fixed_mean_clamp_reference=True,
                             )
                         if self.compartment_ablation and method == "lesion":
                             self.ablate_compartment_and_evaluate(
@@ -784,6 +904,7 @@ class AblationAnalyzer(AbstractAnalyzer):
                                 state_dict=state_dict,
                                 eval_kwargs=eval_kwargs,
                                 device=analysis_device,
+                                use_fixed_mean_clamp_reference=True,
                             )
 
                         if self.compartment_ablation and method == "lesion":
@@ -805,7 +926,17 @@ class AblationAnalyzer(AbstractAnalyzer):
                                 device=analysis_device,
                             )
 
-            results = {"baseline": baselines}
+            results = {
+                "baseline": baselines,
+                "depth_reference": SOMA_RELATIVE_DEPTH_REFERENCE,
+            }
+            if "mean_clamp" in self.ablation_methods:
+                results["mean_clamp_reference"] = {
+                    "split": reference_split,
+                    "statistic": "fixed_dataset_mean",
+                    "n_samples": len(reference_dataset),
+                    "n_signals": len(self._mean_clamp_references),
+                }
             if self.layer_ablation:
                 results["layer"] = layer_results
             if self.compartment_ablation:

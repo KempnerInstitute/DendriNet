@@ -185,6 +185,9 @@ class InformationSingleBranchMixin:
         results["branch_names"] = branch_names
         results["num_branches"] = len(all_results)
         results["layer_statistics"] = layer_results
+        layer_depths = self.collected_soma_relative_depths()
+        if layer_depths:
+            results["layer_soma_relative_depths"] = layer_depths
         results["computation_level"] = "single_branch"
         return results
 

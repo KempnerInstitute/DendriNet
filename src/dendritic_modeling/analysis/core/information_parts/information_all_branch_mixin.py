@@ -211,6 +211,9 @@ class InformationAllBranchMixin:
         )
         results["aggregation_method"] = self.branch_aggregation
         results["computation_level"] = "all_branch"
+        layer_depths = self.collected_soma_relative_depths()
+        if layer_depths:
+            results["layer_soma_relative_depths"] = layer_depths
         return results
 
     def _compute_all_branch_results(

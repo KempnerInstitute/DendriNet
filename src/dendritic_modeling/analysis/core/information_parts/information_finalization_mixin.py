@@ -6,6 +6,12 @@ from typing import Any
 
 import torch
 
+from dendritic_modeling.analysis.core.information_parts.information_results import (
+    LAYER_INFORMATION_PROXY_SEMANTICS,
+)
+from dendritic_modeling.analysis.utils.dendritic_depth import (
+    SOMA_RELATIVE_DEPTH_REFERENCE,
+)
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.utils import save_dict
 
@@ -53,6 +59,17 @@ class InformationFinalizationMixin:
         results["per_einet_analysis_enabled"] = self.per_einet_analysis
         results["per_layer_analysis_enabled"] = self.per_layer_analysis
         results["has_inhibitory_data"] = self.has_inhibitory_data(self.data_dict)
+        results["dendritic_depth_reference"] = SOMA_RELATIVE_DEPTH_REFERENCE
+        results["signal_semantics"] = {
+            "E": "pre_gate_excitation_current",
+            "I": "pre_gate_inhibition_current",
+            "Vb": "pre_gate_upstream_current",
+            "V": "pre_gate_voltage",
+            "Vout": "post_gate_output",
+        }
+        results["layer_information_proxy_semantics"] = dict(
+            LAYER_INFORMATION_PROXY_SEMANTICS
+        )
 
     def _log_analysis_summary(
         self, results: dict[str, Any], total_analysis_time: float

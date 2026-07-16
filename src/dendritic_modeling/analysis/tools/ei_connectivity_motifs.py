@@ -266,8 +266,18 @@ def extract_compartment_weights_from_state_dict(
     synapse_attr: str,
     n_target: int,
     weight_transform: str = "exp",
+    active_masks: list[torch.Tensor] | None = None,
 ) -> list[torch.Tensor]:
-    """Extract per-level compartment weights as ``(n_target, K_l, n_source)``."""
+    """Extract realized per-level weights as ``(n_target, K_l, n_source)``.
+
+    A state dict stores candidate parameters, so callers must supply the exact
+    active masks from the analyzed model/forward realization.
+    """
+    if active_masks is None:
+        raise ValueError(
+            "active_masks are required: checkpoint pre_w tensors are dense "
+            "candidate parameters, not realized synapses"
+        )
     level_tensors: list[torch.Tensor] = []
     level = 0
     while True:
@@ -275,7 +285,15 @@ def extract_compartment_weights_from_state_dict(
         if key not in state_dict:
             break
         pre_w = state_dict[key].detach().cpu().float()
-        w = _apply_weight_transform(pre_w, weight_transform)
+        if level >= len(active_masks):
+            raise ValueError(f"Missing active mask for route level {level}")
+        mask = active_masks[level].detach().cpu().to(dtype=pre_w.dtype)
+        if mask.shape != pre_w.shape:
+            raise ValueError(
+                f"Mask shape at level {level} is {tuple(mask.shape)}, expected "
+                f"{tuple(pre_w.shape)}"
+            )
+        w = _apply_weight_transform(pre_w, weight_transform) * mask
         compartment_w = _reshape_weight_matrix_by_compartment(w, n_target=n_target)
         if compartment_w is None:
             raise ValueError(
@@ -343,8 +361,13 @@ def analyze_ei_connectivity_motifs_from_state_dict(
     route_keys: list[str] | None = None,
     hi: float = 0.1,
     sigma: float = 0.15,
+    active_masks_by_route: dict[str, list[torch.Tensor]] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Analyze all requested routes present in a checkpoint state dict."""
+    if active_masks_by_route is None:
+        raise ValueError(
+            "active_masks_by_route is required for realized connectivity analysis"
+        )
     if route_keys is None:
         route_keys = list(ROUTE_SPECS.keys())
 
@@ -354,12 +377,16 @@ def analyze_ei_connectivity_motifs_from_state_dict(
         n_target = n_E if spec.target_label == "E" else n_I
         prefix = f"{layer_prefix}.{spec.population}"
         try:
+            route_masks = active_masks_by_route.get(route_key)
+            if route_masks is None:
+                continue
             compartment_weights = extract_compartment_weights_from_state_dict(
                 state_dict,
                 prefix=prefix,
                 synapse_attr=spec.synapse_attr,
                 n_target=n_target,
                 weight_transform=weight_transform,
+                active_masks=route_masks,
             )
         except ValueError:
             continue
