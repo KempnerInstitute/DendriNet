@@ -105,15 +105,109 @@ their source of truth. Transformer replacement builders follow the same
 ``model.core.type`` alias when one is present, otherwise they read
 ``model.core.morphology.use_shunting``.
 
-For additive modes, prefer ``reactivation.init_policy: "occupancy_quantile"``.
+Fair Additive Comparison Controls
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``DendriticBranchLayer`` and population configs expose an explicit
+``additive_mode`` for mechanism-controlled comparisons. The default is
+``"raw"``, so existing configurations and checkpoints retain their historical
+behavior. ``use_shunting: true`` takes precedence; ``additive_mode`` is only
+evaluated when ``use_shunting: false``.
+
+For the implemented branch decomposition, let ``E`` be the summed local
+feedforward and recurrent excitatory pathway output, ``I`` the corresponding
+inhibitory output, ``C`` the child-branch current, and ``G`` the child coupling
+conductance. Then ``N = E + C`` and ``T = E + I + G``. The available modes are:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 24 34 42
+
+   * - Configuration
+     - Pre-reactivation voltage
+     - Intended comparison
+   * - ``use_shunting: true``
+     - ``N / (1 + T + epsilon)``
+     - Implemented conductance-based shunting circuit.
+   * - ``additive_mode: raw``
+     - ``E - I + C``
+     - Historical subtractive additive baseline.
+   * - ``additive_mode: conductance_normalized``
+     - ``(E - I + C) / (1 + T + epsilon)``
+     - Additive-sign numerator with the same total-conductance normalization.
+   * - ``additive_mode: tangent_matched``
+     - ``V0 + ((N-N0) - V0*(T-T0)) / D0``, where
+       ``D0=1+T0+epsilon`` and ``V0=N0/D0``
+     - Affine first-order control matching the shunting value and Jacobian at a
+       frozen operating point.
+
+The tangent anchor is never estimated or updated during ``forward``. Supply a
+fixed scalar anchor with ``additive_tangent_n0`` and
+``additive_tangent_t0``, or calibrate explicitly from a shunting reference:
+
+.. code-block:: python
+
+   reference_layer.set_branch_diagnostics(True)
+   reference_layer(calibration_input, inhibitory_input, child_input)
+   diagnostics = reference_layer.get_branch_diagnostics()
+
+   tangent_layer.calibrate_additive_operating_point(diagnostics)
+   # The resulting (N0, T0) is now frozen and is saved in state_dict().
+
+For multi-level models, calibrate and copy the anchor for each corresponding
+``DendriticBranchLayer``. Use held-out calibration data or a predetermined
+analytical anchor, record the resulting values with the run metadata, and do
+not recalibrate one condition during training unless that adaptation is itself
+the experimental manipulation.
+
+``use_additive_normalization`` has a different legacy meaning: it z-scores the
+raw additive voltage across output features within each sample. It is not a
+conductance normalization. To prevent mislabeled controls, it can only be used
+with ``additive_mode: raw``; the two new modes reject it. Typed
+reversal-potential synapses likewise currently support only ``raw`` when
+``use_shunting: false``, because their signed current equation does not share
+the legacy ``N/T`` decomposition.
+
+Calling ``set_branch_diagnostics(True)`` exposes detached ``E``, ``I``, ``C``,
+``G``, ``N``, ``T``, and pre-reactivation ``V`` tensors through
+``get_branch_diagnostics()``. Its ``realized_K`` mapping reports the exact
+active synapse count per output for ``E``, ``I``, ``E_rec``, and ``I_rec`` on
+the most recent forward. This is preferable to reporting only requested K when
+connection masks or dynamic sparsity can reduce the realized count.
+
+For additive modes without a validation sweep, prefer
+``reactivation.init_policy: "occupancy_quantile"`` as a safe operating-point
+fallback.
 When an additive YAML config omits ``reactivation.init_policy``, typed config
 loading chooses ``occupancy_quantile`` by default; explicit policies such as
 ``analytical`` or ``fixed`` are preserved for reproduction. The deprecated
 spelling ``quantile`` is accepted as an alias for ``occupancy_quantile``.
 When you use a data-driven gate init policy
-(``occupancy_quantile`` or ``empirical``), each run also writes
-``init_gate_stats.json`` into its run directory. Use that artifact to confirm
-that reactivation gates were initialized sensibly before trusting the run.
+(``occupancy_quantile``, ``analytical_slope_occupancy_center``,
+``occupancy_slope_analytical_center``, or ``empirical``), each run
+writes both the post-build ``init_gate_stats.json`` and the executed
+``post_calibration_gate_stats.json`` into its run directory, together with
+``reactivation_calibration.json``. Use these artifacts to verify convergence
+and the actual gate state before trusting the run. For an attainable-performance
+comparison, the initializer and learning rate may be selected separately for
+each architecture, but the validation information and search budget must be
+equal. A same-named initializer is a robustness control, not necessarily an
+effective-operating-point match when the mechanisms have different voltage
+scales.
+
+The two center/slope component policies require no fitted mixing coefficient.
+``analytical_slope_occupancy_center`` keeps the mechanism-aware analytical
+slope and recenters the gate on the observed voltage quantiles.
+``occupancy_slope_analytical_center`` uses the quantile-derived slope while
+retaining the analytical expected-voltage center. Together with the analytical
+and occupancy endpoints, these policies form a 2-by-2 diagnostic that separates
+center mismatch from scale mismatch.
+
+Note that ``occupancy_quantile`` already combines the two information sources:
+the code analytically initializes synaptic weights from morphology and contact
+statistics before it measures branch voltages on unlabeled training inputs.
+The empirical step calibrates only the gate operating point; it does not refit
+the weights or use validation/test labels.
 
 Config loading validates structural model contracts before model creation.
 For example, invalid ``input_mode`` values, impossible per-layer synapse-list

@@ -124,10 +124,10 @@ morphology block contains a contradictory ``use_shunting`` or
 ``use_additive_normalization``
 value, the builder emits a warning and the type alias wins. Use the generic
 ``einet`` type when you intentionally want ``morphology.use_shunting`` to be
-the selector. For additive modes, prefer
-``reactivation.init_policy: "occupancy_quantile"``; additive YAML configs that
-omit ``init_policy`` use this data-driven policy by default, while explicit
-policies remain reproducible.
+the selector. For additive modes without validation tuning, prefer
+``reactivation.init_policy: "occupancy_quantile"`` as a stability fallback;
+additive YAML configs that omit ``init_policy`` use this data-driven policy by
+default, while explicit policies remain reproducible.
 
 For recurrent unified E-I networks, plain ``ei_unified`` keeps the
 population-level fields as the source of truth. The convenience aliases
@@ -517,7 +517,9 @@ When ``use_shunting=False``:
    V = E + E_rec + V_branch - I - I_rec
    output = reactivation(V)
 
-Optional additive normalization: ``V = (V - mean) / (std + epsilon)``.
+Optional legacy additive normalization is a per-sample, across-output scale
+control: ``V = (V - mean_output) / (std_output + epsilon)``. It is not
+conductance normalization and does not normalize each feature across a batch.
 
 Components
 ~~~~~~~~~~
@@ -1048,19 +1050,27 @@ The reactivation gate ``(tanh(m * (V - b)) + 1) / 2`` has two learnable
 parameters: the slope ``m`` and the midpoint ``b``. How these are initialized
 determines the gate's operating point at the start of training.
 
-Reactivation policies can initialize the gate either from analytical branch
-statistics or from sampled branch-voltage statistics. The data-driven
-policies place the gate using the observed voltage distribution ``V``, which
-keeps the same interface usable across shunting and additive morphologies.
+Reactivation policies can initialize the gate from analytical branch
+statistics, sampled branch-voltage statistics, or deterministic center/slope
+combinations of the two. The data-driven policies place the gate using the observed voltage
+distribution ``V``, which keeps the same interface usable across shunting and
+additive morphologies. This common interface does not imply that the two
+mechanisms should have identical numerical ``(m, b)`` values: their raw
+voltages have different scales.
 
 ``init_policy`` selects the initialization strategy:
 
 ``occupancy_quantile`` **(recommended data-driven default)**
-   Post-init calibration using quantile-occupancy. After the model is built,
-   a few training batches are run through it. For each reactivation layer,
-   the low/high percentiles of the pre-reactivation voltage ``V`` are
-   measured, and ``(m, b)`` are set to pin those quantiles to target
-   gate-output occupancies. By default this maps q10/q90 to [0.1, 0.9]:
+   This is a two-stage analytical-weight/empirical-gate initializer, rather
+   than an input-only alternative to analytical initialization. Synaptic
+   weights are initialized first from the analytical morphology/contact prior.
+   After the model is built, a few unlabeled training batches are run through
+   those realized weights. For each reactivation layer, the low/high
+   percentiles of the pre-reactivation voltage ``V`` are measured, and
+   ``(m, b)`` are set to pin those quantiles to target gate-output occupancies.
+   It therefore combines weight statistics, morphology, and input statistics
+   without fitting a supervised parameter or mixing coefficient. By default
+   this maps q10/q90 to [0.1, 0.9]:
 
    - ``b = (q10 + q90) / 2``
    - ``m = atanh(0.8) / ((q90 - q10) / 2)``
@@ -1068,9 +1078,11 @@ keeps the same interface usable across shunting and additive morphologies.
    This is morphology-invariant by construction: it places the gate's active
    region around the observed voltage distribution regardless of whether the
    network uses shunting (V bounded in [0, 1]) or additive (V unbounded)
-   morphology. All data-driven modes use iterative calibration
-   (``n_iterations=3``) because updating upstream layers reshapes downstream
-   voltage distributions.
+   morphology. Production data-driven initialization iterates until the
+   layer-wise ``(m, b)`` chain changes by less than ``1e-3`` (with a 50-pass
+   safety cap), because updating upstream layers reshapes downstream voltage
+   distributions. An explicit iteration count is available only as a
+   deterministic test/debug override.
 
    The outer tails are allowed to saturate on purpose. This policy is not
    trying to use the entire gate range uniformly; it is trying to place the
@@ -1089,10 +1101,11 @@ keeps the same interface usable across shunting and additive morphologies.
    normalized gate coordinates or occupancy statistics rather than raw
    voltages across layers.
 
-   Pair with a small ``reactivation_lr`` (``1e-4`` or ``1e-5``) to keep gate
-   slope drift under control. For data-driven init policies, check the
-   automatically written ``init_gate_stats.json`` artifact in the run
-   directory before treating a run as healthy.
+   Pair with a validation-tuned ``reactivation_lr`` to keep gate slope drift
+   under control. For data-driven init policies, check the automatically
+   written ``reactivation_calibration.json`` and
+   ``post_calibration_gate_stats.json`` artifacts before treating a run as
+   healthy.
 
    ``quantile`` is accepted as an alias and is normalized to
    ``occupancy_quantile``. Prefer ``occupancy_quantile`` in YAML configs.
@@ -1104,10 +1117,22 @@ keeps the same interface usable across shunting and additive morphologies.
 ``empirical``
    Robust median/MAD calibration from sampled voltages.
 
+``analytical_slope_occupancy_center``
+   A deterministic component policy with ``m=m_a`` and ``b=b_o``. It retains
+   the analytical mechanism-aware slope and uses the robust occupancy center
+   measured on unlabeled training inputs. A finite center remains usable when
+   the occupancy slope alone exceeds the configured slope safeguard.
+
+``occupancy_slope_analytical_center``
+   The complementary deterministic component policy with ``m=m_o`` and
+   ``b=b_a``. If the occupancy slope is invalid, the complete gate falls back
+   to the analytical state. Neither component policy has a mixing coefficient.
+
 ``analytical`` (default)
    Analytical initialization derived from the weight-init statistics by the
-   chosen ``dbl_init_method``. No data is required. Uses ``init_m`` and
-   ``init_b`` as starting values.
+   chosen ``dbl_init_method`` and the branch morphology. No sampled data is
+   required. The resulting values are generally different for additive and
+   shunting voltage rules.
 
 ``fixed``
    Uses the YAML-supplied ``init_m`` and ``init_b`` verbatim, ignoring all
@@ -1116,7 +1141,7 @@ keeps the same interface usable across shunting and additive morphologies.
 Strategy-Specific Recommendations
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Recommended default choices are:
+Operational fallback choices when no validation sweep is available are:
 
 .. list-table::
    :header-rows: 1
@@ -1132,15 +1157,21 @@ Recommended default choices are:
      - ``occupancy_quantile``
      - ``q_low=0.05, q_high=0.95, r_low=0.2, r_high=0.8``; ``reactivation_lr = 1e-3``
 
-No morphology-specific defaults are needed.
+These are stability defaults, not claims of universal optimality. For a
+best-attainable trained-system comparison, give each architecture the same
+validation budget over initializer and optimizer recipes. For a causal
+integration-rule swap, instead match the effective operating point or use a
+mechanism-neutral passive initializer.
 
 Init diagnostics
 ^^^^^^^^^^^^^^^^
 
 When a model contains learnable reactivation gates, the training script writes
-``init_gate_stats.json`` into the run directory immediately after model build.
-This summarizes the initial ``m`` and ``b`` distributions per reactivation
-module and flags suspicious patterns such as:
+``init_gate_stats.json`` immediately after model build. Data-driven policies
+also write ``reactivation_calibration.json`` and
+``post_calibration_gate_stats.json`` after the executed calibration. These
+artifacts summarize the requested policy, convergence, fitted and applied
+``(m,b)``, and suspicious patterns such as:
 
 - slopes near the calibration clip
 - repeated identical values across a full layer combined with saturation
@@ -1185,13 +1216,15 @@ Gate-occupancy warmup in a ``multi_stage`` pipeline is available when a staged
 training setup is desired, but it is separate from the default local-learning
 configuration shown above.
 
-Recommended defaults
-^^^^^^^^^^^^^^^^^^^^
+Operational fallbacks
+^^^^^^^^^^^^^^^^^^^^^
 
 - ``occupancy_quantile`` for backprop, with a small ``reactivation_lr``
 - ``occupancy_quantile`` for local CA, using q05/q95 -> 0.2/0.8
 
-These defaults apply across both shunting and additive settings.
+These fallbacks apply across both shunting and additive settings, but a
+validation-selected capacity comparison may choose different recipes under an
+equal search budget.
 
 Training-Time Gate Maintenance
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -2391,7 +2424,7 @@ MorphologyConfig
    * - ``use_additive_normalization``
      - bool
      - ``False``
-     - Normalize voltage in additive mode
+     - Legacy per-sample z-score across output units in raw additive mode
    * - ``weight_transform``
      - str
      - ``"softplus"``
@@ -2465,6 +2498,10 @@ ReactivationConfig
      - float
      - ``0.5``
      - Initial midpoint parameter
+   * - ``init_policy``
+     - str
+     - ``"analytical"``
+     - ``analytical``, ``occupancy_quantile``, the two center/slope component policies, ``empirical``, or ``fixed``
 
 TransferFunctionConfig
 ~~~~~~~~~~~~~~~~~~~~~~

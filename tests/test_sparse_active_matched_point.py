@@ -3,24 +3,14 @@
 from __future__ import annotations
 
 import math
-from dataclasses import asdict
-from pathlib import Path
 
 import pytest
 import torch
 
-from dendritic_modeling.config import load_config
 from dendritic_modeling.networks.architectures.classical.mlp import (
     SparseActiveMatchedPointAffine,
 )
 from dendritic_modeling.networks.architectures.factory import get_architecture
-
-ROOT = Path(__file__).resolve().parents[1]
-CONFIG = (
-    ROOT
-    / "drafts/dendritic-information-processing/empirical/configs/fig5"
-    / "empirical_publication_v2_fig5_alexnet_fc7_sparse_point_seed41.yaml"
-)
 
 
 def _control(
@@ -290,41 +280,3 @@ def test_factory_builds_sparse_point_and_fails_closed_on_interface_or_seed() -> 
             input_dim=8,
             suffix_input_dim=8,
         )
-
-
-def test_seed41_config_changes_only_the_control_and_output_identity() -> None:
-    sparse = load_config(str(CONFIG))
-    direct_path = CONFIG.with_name(
-        "empirical_publication_v2_fig5_alexnet_fc7_direct_point_seed41.yaml"
-    )
-    direct = load_config(str(direct_path))
-
-    assert sparse.model.core.type == "sparse_active_matched_point"
-    assert sparse.model.core.sparsity.type == "indexed"
-    assert sparse.model.core.sparsity.indexed["seed"] == 41
-    assert sparse.model.core.sparsity.indexed["output_chunk_size"] == 2048
-    assert sparse.model.core.transfer.output_activation == "relu"
-    assert sparse.experiment.record_dataset_fingerprints is False
-    assert sparse.outputs.run_name == "fig5_sparse_point_affine_active_matched_seed41"
-    assert "fig5_sparse_point_affine_active_matched_seed41" in (
-        sparse.outputs.results_dir
-    )
-
-    sparse_experiment = asdict(sparse.experiment)
-    direct_experiment = asdict(direct.experiment)
-    sparse_experiment["checkpointing"].pop("checkpoint_dir")
-    direct_experiment["checkpointing"].pop("checkpoint_dir")
-    assert sparse_experiment == direct_experiment
-    assert sparse.data == direct.data
-    assert sparse.model.vision_replacement == direct.model.vision_replacement
-    assert sparse.model.core.architecture == direct.model.core.architecture
-    assert sparse.model.core.connectivity == direct.model.core.connectivity
-    assert sparse.model.core.transfer == direct.model.core.transfer
-    assert sparse.model.core.morphology == direct.model.core.morphology
-    assert sparse.model.core.sparsity == direct.model.core.sparsity
-    assert sparse.model.core.reactivation == direct.model.core.reactivation
-    assert sparse.model.core.blocklinear == direct.model.core.blocklinear
-    assert sparse.model.core.implementation == direct.model.core.implementation
-    assert sparse.training == direct.training
-    assert sparse.analysis == direct.analysis
-    assert sparse.distributed == direct.distributed

@@ -536,4 +536,7 @@ BlockLinear Initialization
 
 Set via ``model.core.morphology.dbl_init_method``:
 
-``analytical_expectation``, ``ei_equivalence``, ``naive``, ``default``.
+``analytical_expectation``, ``ei_equivalence``, ``naive``, ``default``,
+``mechanism_neutral``. The last option is reserved for paired causal controls:
+with a shared seed it initializes shunting and additive models identically and
+does not provide mechanism-specific operating-point optimization.

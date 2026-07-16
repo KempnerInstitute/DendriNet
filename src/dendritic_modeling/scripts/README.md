@@ -2,6 +2,7 @@
 
 This directory contains CLI entry points. Reusable logic should live in package
 modules under `dendritic_modeling.*`, not in these scripts.
+Paper-specific artifact release workflows belong in their paper repositories.
 
 ## Layout
 
