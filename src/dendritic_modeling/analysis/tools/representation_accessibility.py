@@ -527,6 +527,11 @@ class RepresentationAccessibilityAnalyzer:
                             "validation/test projection contracts differ"
                         )
                     for probe_index, probe in enumerate(self.params.probes):
+                        if (
+                            probe.max_projection_draws is not None
+                            and projection_draw >= probe.max_projection_draws
+                        ):
+                            continue
                         probe_draws = 1 if probe.type == "ridge" else int(probe.draws)
                         for probe_draw in range(probe_draws):
                             probe_seed = _derived_seed(

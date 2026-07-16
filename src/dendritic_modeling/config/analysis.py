@@ -578,6 +578,7 @@ class RepresentationProbeConfig(BaseConfig):
     name: str = "linear"
     type: str = "ridge"  # ridge | mlp
     draws: int = 1
+    max_projection_draws: Optional[int] = None
     n_label_shuffles: int = 20
     ridge_alpha: float = 1.0
     hidden_dims: list[int] = field(default_factory=lambda: [32, 16])
@@ -601,6 +602,10 @@ class RepresentationProbeConfig(BaseConfig):
             raise ValueError("probe draws must be positive and shuffles non-negative")
         self.draws = int(self.draws)
         self.n_label_shuffles = int(self.n_label_shuffles)
+        if self.max_projection_draws is not None:
+            if int(self.max_projection_draws) < 1:
+                raise ValueError("max_projection_draws must be positive")
+            self.max_projection_draws = int(self.max_projection_draws)
         self.hidden_dims = [int(width) for width in self.hidden_dims]
 
 

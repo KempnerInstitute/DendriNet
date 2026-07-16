@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections import Counter
+
 import numpy as np
 import pytest
 import torch
@@ -182,6 +184,7 @@ def test_params_normalize_nested_yaml_mappings() -> None:
                 "name": "nonlinear",
                 "type": "mlp",
                 "hidden_dims": [8],
+                "max_projection_draws": 1,
                 "n_label_shuffles": 1,
             }
         ],
@@ -195,7 +198,52 @@ def test_params_normalize_nested_yaml_mappings() -> None:
     assert params.projections[0].output_dim == 2
     assert isinstance(params.probes[0], RepresentationProbeConfig)
     assert params.probes[0].hidden_dims == [8]
+    assert params.probes[0].max_projection_draws == 1
     assert isinstance(params.information, RepresentationInformationConfig)
+
+
+def test_probe_can_cap_projection_repeats() -> None:
+    params = RepresentationAccessibilityAnalysisParams(
+        representations=["joint"],
+        projections=[
+            RepresentationProjectionConfig(
+                name="matched2",
+                type="balanced_countsketch",
+                output_dim=2,
+                draws=3,
+            )
+        ],
+        probes=[
+            RepresentationProbeConfig(
+                name="first_draw",
+                type="ridge",
+                max_projection_draws=1,
+                n_label_shuffles=0,
+            ),
+            RepresentationProbeConfig(
+                name="first_two_draws",
+                type="ridge",
+                max_projection_draws=2,
+                n_label_shuffles=0,
+            ),
+        ],
+        information=RepresentationInformationConfig(enabled=False),
+    )
+    result = RepresentationAccessibilityAnalyzer(params).analyze(
+        _model(),
+        valid_ds=_dataset(1),
+        test_ds=_dataset(2),
+        device="cpu",
+        runtime=EvaluationRuntimeConfig(
+            mode="materialize",
+            batch_size=32,
+            num_workers=0,
+            pin_memory=False,
+        ),
+    )
+
+    counts = Counter(record["probe_name"] for record in result["probe_records"])
+    assert counts == {"first_draw": 2, "first_two_draws": 4}
 
 
 def test_information_outputs_keep_joint_and_scalar_estimands_separate() -> None:

@@ -827,6 +827,31 @@ def load_config(path: Optional[str] = None) -> Config:
     return deepcopy(_load_config_cached(path))
 
 
+def load_analysis_config(
+    path: str,
+    *,
+    distributed_mode: str = "none",
+) -> AnalysisConfig:
+    """Load a standalone, typed ``analysis:`` YAML profile.
+
+    Checkpoint analyses often need to reuse an immutable training config while
+    applying a newer measurement profile.  Keeping the analysis profile in a
+    separate YAML avoids copying or mutating the scientific training config.
+    The input may either contain an ``analysis:`` root or be the analysis
+    mapping itself.
+    """
+
+    raw_conf = OmegaConf.load(path)
+    analysis_data = raw_conf.get("analysis", raw_conf)
+    if not isinstance(analysis_data, Mapping):
+        raise ValueError(f"Analysis profile must be a mapping: {path}")
+    mapped = _map_analysis_config(
+        analysis_data,
+        distributed_mode=distributed_mode,
+    )
+    return AnalysisConfig(**mapped)
+
+
 # Preserve the lru_cache testing/debug interface that callers already use.
 load_config.cache_clear = _load_config_cached.cache_clear  # type: ignore[attr-defined]
 load_config.cache_info = _load_config_cached.cache_info  # type: ignore[attr-defined]

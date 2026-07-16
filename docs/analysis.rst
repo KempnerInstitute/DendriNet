@@ -286,6 +286,7 @@ them within a trained checkpoint before inference across training seeds.
              n_label_shuffles: 20
            - name: "nonlinear"
              type: "mlp"
+             max_projection_draws: 1
              hidden_dims: [32, 16]
              activation: "relu"
              alpha: 0.0001
@@ -307,6 +308,24 @@ them within a trained checkpoint before inference across training seeds.
            n_label_shuffles: 20
            standardize: true
          seed: 42
+
+Frozen checkpoint execution
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The same analysis profile can be applied to an existing checkpoint without
+rerunning training. Keep the original resolved training YAML immutable and put
+the measurement declaration in a standalone YAML with an ``analysis:`` root::
+
+    dendritic-analyze-checkpoint \
+      --config /path/to/resolved_training_config.yaml \
+      --checkpoint /path/to/final_model.pt \
+      --analysis-config /path/to/representation_accessibility.yaml \
+      --output-dir /path/to/posthoc/config_0
+
+The runner reconstructs the canonical dataset splits and model from the
+training config, performs strict checkpoint loading, runs no optimization, and
+writes ``checkpoint_analysis_provenance.json`` with hashes of all three inputs,
+resolved random streams, dataset sizes, and checkpoint compatibility records.
 
 Ablation Analysis
 -----------------

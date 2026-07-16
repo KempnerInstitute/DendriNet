@@ -68,6 +68,7 @@ from dendritic_modeling.config.config import (
     FSDPConfig,
     OutputsConfig,
     WandbConfig,
+    load_analysis_config,
     load_config,
 )
 from dendritic_modeling.config.conversion import (
@@ -247,6 +248,7 @@ __all__ = [
     "has_enabled_synapse_types",
     "is_recurrent_core_config",
     "layer_value",
+    "load_analysis_config",
     "load_config",
     "normalize_sparsity_type",
     "to_plain_dict",

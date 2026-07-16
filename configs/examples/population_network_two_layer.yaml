@@ -188,6 +188,7 @@ analysis:
           n_label_shuffles: 20
         - name: "nonlinear"
           type: "mlp"
+          max_projection_draws: 1
           hidden_dims: [32, 16]
           activation: "relu"
           alpha: 0.0001
