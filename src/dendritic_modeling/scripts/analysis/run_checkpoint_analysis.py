@@ -22,11 +22,16 @@ from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.analysis.registry import get_registered_analyzers
 from dendritic_modeling.config import load_analysis_config, load_config
 from dendritic_modeling.scripts.script_utils.setup_utils import setup_environment
+from dendritic_modeling.scripts.sweeps.control_plane import discover_source_identity
 from dendritic_modeling.utils import resolve_experiment_seeds, save_dict
 
 logger = logging.getLogger(__name__)
 
 SCHEMA_VERSION = "checkpoint_analysis_run_v1"
+
+
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parents[4]
 
 
 def _sha256_file(path: Path, *, chunk_size: int = 2**20) -> str:
@@ -162,6 +167,9 @@ def run_checkpoint_analysis(
             "test": len(test_ds),
         },
         "enabled_analyzers": _enabled_analyzer_names(config.analysis),
+        "code_identity": discover_source_identity(
+            _repo_root(), source_files=(Path(__file__),)
+        ),
     }
     save_dict(provenance, run_save_path, "checkpoint_analysis_provenance.json")
     logger.info(

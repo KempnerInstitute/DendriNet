@@ -115,4 +115,5 @@ def test_run_checkpoint_analysis_records_provenance(
     assert provenance["training_performed"] is False
     assert provenance["state_dict_key_count"] == 2
     assert provenance["dataset_sizes"] == {"train": 1, "valid": 1, "test": 1}
+    assert "code_identity" in provenance
     assert (output_dir / "checkpoint_analysis_provenance.json").is_file()

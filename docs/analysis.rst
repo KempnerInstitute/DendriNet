@@ -325,7 +325,23 @@ the measurement declaration in a standalone YAML with an ``analysis:`` root::
 The runner reconstructs the canonical dataset splits and model from the
 training config, performs strict checkpoint loading, runs no optimization, and
 writes ``checkpoint_analysis_provenance.json`` with hashes of all three inputs,
-resolved random streams, dataset sizes, and checkpoint compatibility records.
+resolved random streams, dataset sizes, checkpoint compatibility records, and
+the source commit/dirty state when run from a Git checkout.
+
+After an array of checkpoint analyses finishes, collect the exact job
+declarations instead of discovering result directories by filename::
+
+    dendritic-collect-representations \
+      --jobs /path/to/jobs_pilot.jsonl \
+      --jobs /path/to/jobs_full.jsonl \
+      --expected-count 100 \
+      --output-dir /path/to/collected
+
+The collector verifies strict checkpoint loading and the config, checkpoint,
+and analysis hashes for every job. It writes long-form records plus
+within-checkpoint technical-draw summaries. Projection and MLP initialization
+draws remain technical repeats; biological inference should use one aggregated
+value per independently trained checkpoint.
 
 Ablation Analysis
 -----------------

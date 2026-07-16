@@ -57,6 +57,7 @@ dendritic-benchmark-transformer-replacement = "dendritic_modeling.scripts.traini
 dendritic-sweep = "dendritic_modeling.scripts.sweeps.sweep_manager:main"
 dendritic-analyze = "dendritic_modeling.scripts.sweeps.result_analyzer:main"
 dendritic-analyze-checkpoint = "dendritic_modeling.scripts.analysis.run_checkpoint_analysis:main"
+dendritic-collect-representations = "dendritic_modeling.scripts.analysis.collect_representation_accessibility:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
