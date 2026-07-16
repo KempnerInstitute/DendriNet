@@ -232,6 +232,30 @@ class TestDataCollector(unittest.TestCase):
         self.assertEqual(data["resource_ff_excitatory_active_synapses"], 7)
         self.assertEqual(data["resource_ff_inhibitory_candidate_slots"], 30)
 
+    def test_load_training_summary_exports_only_compact_convergence_fields(self):
+        collector = DataCollector(self.results_dir)
+        config_dir = self.results_dir / "results" / "config_0"
+        with open(config_dir / "training_summary.json", "w") as f:
+            json.dump(
+                {
+                    "best_epoch": 7,
+                    "best_loss": 0.25,
+                    "train_losses": [0.8, 0.5, 0.3],
+                    "valid_losses": [0.9, 0.6, 0.4],
+                    "state_dict": {"large": "payload"},
+                },
+                f,
+            )
+
+        data = collector._load_training_summary(config_dir)
+
+        self.assertEqual(data["training_best_epoch"], 7)
+        self.assertEqual(data["training_best_valid_loss"], 0.25)
+        self.assertEqual(data["training_epochs_completed"], 3)
+        self.assertEqual(data["training_final_train_loss"], 0.3)
+        self.assertEqual(data["training_final_valid_loss"], 0.4)
+        self.assertNotIn("train_losses", data)
+
 
 if __name__ == "__main__":
     unittest.main()

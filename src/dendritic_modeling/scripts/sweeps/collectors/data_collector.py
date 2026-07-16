@@ -131,6 +131,7 @@ class DataCollector:
         params.update(self._load_noise(config_dir))
         params.update(self._load_nparams(config_dir))
         params.update(self._load_model_resources(config_dir))
+        params.update(self._load_training_summary(config_dir))
 
         return params
 
@@ -561,6 +562,45 @@ class DataCollector:
                                     f"noise_{noise_type}_{metric_clean}_{noise_level}"
                                 ] = value
 
+        return result
+
+    def _load_training_summary(self, config_dir: Path) -> dict:
+        """Load compact convergence fields without exporting epoch histories."""
+
+        files = list(config_dir.rglob("training_summary.json"))
+        if not files:
+            files = list(config_dir.rglob("training_summary"))
+        if not files:
+            return {}
+        data = self._load_json_file(files[0])
+        if not isinstance(data, dict):
+            return {}
+
+        result = {}
+        best_epoch = data.get("best_epoch")
+        best_loss = data.get("best_loss")
+        if isinstance(best_epoch, int) and not isinstance(best_epoch, bool):
+            result["training_best_epoch"] = best_epoch
+        if isinstance(best_loss, (int, float)) and not isinstance(best_loss, bool):
+            result["training_best_valid_loss"] = best_loss
+
+        history_fields = {
+            "train_losses": "training_final_train_loss",
+            "valid_losses": "training_final_valid_loss",
+        }
+        history_lengths = []
+        for source, destination in history_fields.items():
+            history = data.get(source)
+            if not isinstance(history, list) or not history:
+                continue
+            history_lengths.append(len(history))
+            final_value = history[-1]
+            if isinstance(final_value, (int, float)) and not isinstance(
+                final_value, bool
+            ):
+                result[destination] = final_value
+        if history_lengths:
+            result["training_epochs_completed"] = max(history_lengths)
         return result
 
     def _load_nparams(self, config_dir: Path) -> dict:
