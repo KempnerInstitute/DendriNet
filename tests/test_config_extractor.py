@@ -246,6 +246,13 @@ class TestConfigExtractor(unittest.TestCase):
                                         "ff_inhibitory_synapses": 5,
                                         "use_shunting": False,
                                         "use_additive_normalization": True,
+                                        "blocklinear_strategy": "conductance_dynamic",
+                                        "topk_strategy": "none",
+                                        "reactivation_strategy": "none",
+                                        "reactivation_init_policy": "occupancy_quantile",
+                                        "reactivate": True,
+                                        "dbl_init_method": "analytical_expectation",
+                                        "init_method": "xavier_normal",
                                     },
                                     "populations": [
                                         {
@@ -280,8 +287,155 @@ class TestConfigExtractor(unittest.TestCase):
         self.assertEqual(params["readout_n_neurons"], 20)
         self.assertEqual(params["excitatory_layers"], [20])
         self.assertEqual(params["inhibitory_layers"], [8])
+        self.assertEqual(params["inhibitory_population_count"], 1)
+        self.assertEqual(params["inhibitory_neuron_count"], 8)
+        self.assertEqual(params["inhibitory_routing"], "none")
         self.assertEqual(params["input_mode"], 1)
         self.assertEqual(params["independent_pathways"], False)
+        self.assertEqual(params["network_layer_count"], 1)
+        self.assertEqual(params["blocklinear_strategy"], "conductance_dynamic")
+        self.assertEqual(params["topk_strategy"], "none")
+        self.assertEqual(params["reactivation_strategy"], "none")
+        self.assertEqual(params["reactivation_init_policy"], "occupancy_quantile")
+        self.assertEqual(params["reactivate"], True)
+        self.assertEqual(params["dbl_init_method"], "analytical_expectation")
+        self.assertEqual(params["init_method"], "xavier_normal")
+
+    def test_extract_population_network_distinguishes_inhibitory_routes(self):
+        def _config(source, populations):
+            return OmegaConf.create(
+                {
+                    "model": {
+                        "core": {
+                            "type": "population_network",
+                            "population_network": {
+                                "layers": [
+                                    {
+                                        "readout_population": "e0",
+                                        "population_defaults": {
+                                            "ff_excitatory_synapses": 25,
+                                            "ff_inhibitory_synapses": 10,
+                                        },
+                                        "populations": populations,
+                                        "connections": [
+                                            {
+                                                "source": source,
+                                                "target": "e0",
+                                                "pathway": "ff_inhibitory",
+                                                "timing": "same_step",
+                                                "enabled": True,
+                                            }
+                                        ],
+                                    }
+                                ]
+                            },
+                        }
+                    }
+                }
+            )
+
+        excitatory = {
+            "name": "e0",
+            "polarity": "excitatory",
+            "n_neurons": 20,
+            "branch_factors": [3, 3, 3],
+        }
+        direct = self.extractor._extract_model_params(_config("input_i", [excitatory]))
+        population = self.extractor._extract_model_params(
+            _config(
+                "i0",
+                [
+                    {
+                        "name": "i0",
+                        "polarity": "inhibitory",
+                        "n_neurons": 50,
+                        "branch_factors": [1],
+                    },
+                    excitatory,
+                ],
+            )
+        )
+
+        self.assertEqual(direct["inhibitory_routing"], "direct_input")
+        self.assertEqual(population["inhibitory_routing"], "population_mediated")
+
+    def test_extract_population_network_reports_mixed_effective_strategy(self):
+        """Per-population overrides must not be merged under the first default."""
+        config = OmegaConf.create(
+            {
+                "model": {
+                    "core": {
+                        "type": "population_network",
+                        "population_network": {
+                            "layers": [
+                                {
+                                    "population_defaults": {
+                                        "blocklinear_strategy": "none",
+                                    },
+                                    "populations": [
+                                        {"name": "e0", "polarity": "excitatory"},
+                                        {
+                                            "name": "i0",
+                                            "polarity": "inhibitory",
+                                            "population": {
+                                                "blocklinear_strategy": "conductance_dynamic"
+                                            },
+                                        },
+                                    ],
+                                },
+                                {
+                                    "population_defaults": {
+                                        "blocklinear_strategy": "none",
+                                    },
+                                    "populations": [
+                                        {"name": "e1", "polarity": "excitatory"}
+                                    ],
+                                },
+                            ]
+                        },
+                    }
+                }
+            }
+        )
+
+        params = self.extractor._extract_model_params(config)
+        self.assertEqual(params["network_layer_count"], 2)
+        self.assertEqual(
+            params["blocklinear_strategy"], "mixed:conductance_dynamic|none"
+        )
+
+    def test_extract_training_reproducibility_parameters(self):
+        """Optimizer decay and sparse maintenance must remain distinguishable."""
+        config = OmegaConf.create(
+            {
+                "training": {
+                    "main": {
+                        "strategy": "standard",
+                        "common": {
+                            "epochs": 400,
+                            "batch_size": 512,
+                            "early_stopping": True,
+                            "patience": 80,
+                            "grad_clip_value": 5.0,
+                            "weight_decay_rate": 0.01,
+                            "weight_boosting": True,
+                            "param_groups": {"lr": 0.001},
+                        },
+                        "optimizer": {"name": "adam", "lr": 0.001},
+                    }
+                }
+            }
+        )
+
+        params = self.extractor._extract_training_params(config)
+        self.assertEqual(params["epochs"], 400)
+        self.assertEqual(params["early_stopping"], True)
+        self.assertEqual(params["early_stopping_patience"], 80)
+        self.assertEqual(params["grad_clip_value"], 5.0)
+        self.assertEqual(params["sparse_weight_decay_rate"], 0.01)
+        self.assertEqual(params["sparse_weight_boosting"], True)
+        self.assertEqual(params["optimizer_name"], "adam")
+        self.assertEqual(params["optimizer_weight_decay"], 0.0)
 
 
 if __name__ == "__main__":

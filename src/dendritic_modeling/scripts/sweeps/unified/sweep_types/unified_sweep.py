@@ -183,6 +183,52 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
             fixed_group_lrs,
         )
 
+    def _warn_if_optimizer_lr_axis_is_effectively_noop(
+        self, sweep_params: DictConfig, base_train_config: DictConfig
+    ) -> None:
+        """Warn when an optimizer-LR sweep is shadowed by parameter-group LRs.
+
+        ``BaseModel.get_param_groups`` attaches an explicit ``lr`` to every
+        optimizer parameter group. PyTorch gives those group-level values
+        precedence over ``training.main.optimizer.lr``. Consequently, varying
+        only the optimizer-level value does not change the effective learning
+        rate when the standard parameter-group configuration is present.
+        """
+        optimizer_lr_key = "training.main.optimizer.lr"
+        if optimizer_lr_key not in sweep_params:
+            return
+
+        param_groups = OmegaConf.select(
+            base_train_config, "training.main.common.param_groups"
+        )
+        if param_groups is None:
+            return
+
+        configured_lrs = {}
+        for key in (
+            "lr",
+            "topk_lr",
+            "blocklinear_lr",
+            "reactivation_lr",
+            "decoder_lr",
+            "encoder_lr",
+        ):
+            value = OmegaConf.select(param_groups, key)
+            if value is not None:
+                configured_lrs[key] = value
+
+        if not configured_lrs:
+            return
+
+        logger.warning(
+            "Sweep parameter '%s' is ineffective with the current standard "
+            "training path because model parameter groups carry explicit "
+            "learning rates: %s. Sweep the relevant "
+            "training.main.common.param_groups.* fields instead.",
+            optimizer_lr_key,
+            configured_lrs,
+        )
+
     def validate_config(self, config: DictConfig) -> bool:
         """Validate unified sweep configuration."""
         # Check for sweep_config or filter_config (at least one must generate parameters)
@@ -508,6 +554,10 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
         # Expand sweep parameters (handle ranges like [start, end, step])
         param_values = {}
         self._warn_if_param_group_lr_axis_is_effectively_noop(
+            sweep_params=sweep_params,
+            base_train_config=base_train_config,
+        )
+        self._warn_if_optimizer_lr_axis_is_effectively_noop(
             sweep_params=sweep_params,
             base_train_config=base_train_config,
         )

@@ -195,6 +195,43 @@ class TestDataCollector(unittest.TestCase):
         self.assertEqual(data["mult_gain_accuracy_ood_lower"], 0.2)
         self.assertEqual(data["mult_gain_accuracy_ood_upper"], 0.6)
 
+    def test_load_model_resources_exports_totals_and_pathways(self):
+        collector = DataCollector(self.results_dir)
+        config_dir = self.results_dir / "results" / "config_0"
+        with open(config_dir / "model_resources.json", "w") as f:
+            json.dump(
+                {
+                    "total_parameters": 120,
+                    "trainable_parameters": 110,
+                    "synapse_candidate_parameters": 90,
+                    "non_synaptic_parameters": 30,
+                    "candidate_synapse_slots": 80,
+                    "active_synapses": 12,
+                    "persistent_state_scalars_per_sample": 0,
+                    "synapses": [
+                        {
+                            "pathway": "ff_excitatory",
+                            "active_synapses": 7,
+                            "candidate_slots": 50,
+                            "candidate_parameters": 60,
+                        },
+                        {
+                            "pathway": "ff_inhibitory",
+                            "active_synapses": 5,
+                            "candidate_slots": 30,
+                            "candidate_parameters": 30,
+                        },
+                    ],
+                },
+                f,
+            )
+
+        data = collector._load_model_resources(config_dir)
+        self.assertEqual(data["resource_trainable_parameters"], 110)
+        self.assertEqual(data["resource_active_synapses"], 12)
+        self.assertEqual(data["resource_ff_excitatory_active_synapses"], 7)
+        self.assertEqual(data["resource_ff_inhibitory_candidate_slots"], 30)
+
 
 if __name__ == "__main__":
     unittest.main()

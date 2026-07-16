@@ -130,6 +130,7 @@ class DataCollector:
         params.update(self._load_gain(config_dir))
         params.update(self._load_noise(config_dir))
         params.update(self._load_nparams(config_dir))
+        params.update(self._load_model_resources(config_dir))
 
         return params
 
@@ -192,7 +193,7 @@ class DataCollector:
             if isinstance(value, dict):
                 # Nested metrics (e.g., {'accuracy': ..., 'auc': ...})
                 for metric, val in value.items():
-                    result[f"{metric}_{key}"] = val  # e.g., accuracy_test
+                    result[f"{metric}_{key}"] = val  # e.g., test_accuracy
             else:
                 result[key] = value
 
@@ -584,6 +585,58 @@ class DataCollector:
             return {"nparams": data["nparams"]}
 
         return {}
+
+    def _load_model_resources(self, config_dir: Path) -> dict:
+        """Load exact model-resource accounting saved by the trainer."""
+        resource_files = list(config_dir.rglob("model_resources.json"))
+        if not resource_files:
+            resource_files = list(config_dir.rglob("model_resources"))
+        if not resource_files:
+            return {}
+
+        data = self._load_json_file(resource_files[0])
+        if not isinstance(data, dict):
+            return {}
+
+        result = {}
+        for key in (
+            "total_parameters",
+            "trainable_parameters",
+            "synapse_candidate_parameters",
+            "non_synaptic_parameters",
+            "candidate_synapse_slots",
+            "active_synapses",
+            "persistent_state_scalars_per_sample",
+        ):
+            value = data.get(key)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                result[f"resource_{key}"] = value
+
+        pathway_totals: dict[str, dict[str, float]] = {}
+        synapses = data.get("synapses", [])
+        if isinstance(synapses, list):
+            for record in synapses:
+                if not isinstance(record, dict):
+                    continue
+                pathway = str(record.get("pathway", "unknown"))
+                totals = pathway_totals.setdefault(
+                    pathway,
+                    {
+                        "active_synapses": 0.0,
+                        "candidate_slots": 0.0,
+                        "candidate_parameters": 0.0,
+                    },
+                )
+                for key in tuple(totals):
+                    value = record.get(key)
+                    if isinstance(value, (int, float)) and not isinstance(value, bool):
+                        totals[key] += float(value)
+        for pathway, totals in pathway_totals.items():
+            safe_pathway = re.sub(r"[^a-zA-Z0-9]+", "_", pathway).strip("_")
+            for key, value in totals.items():
+                result[f"resource_{safe_pathway}_{key}"] = int(value)
+
+        return result
 
     def _extract_depth(self, layer_name: str) -> int:
         """Extract depth/layer index from layer name."""

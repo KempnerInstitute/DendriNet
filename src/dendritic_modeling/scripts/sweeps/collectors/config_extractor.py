@@ -206,6 +206,49 @@ class ConfigExtractor:
             return "-".join(str(x) for x in branch_factors)
         return str(branch_factors)
 
+    def _summarize_population_field(self, layers: list, field: str):
+        """Return one analysis-safe value for an effective population field.
+
+        Population-network options can be declared in each layer's defaults and
+        overridden per population.  Sweep analysis must therefore inspect the
+        effective value for every instantiated population.  A mixed value is
+        encoded explicitly instead of silently selecting the first layer and
+        merging scientifically different conditions.
+        """
+        values = []
+        missing = object()
+        for layer in layers:
+            if not isinstance(layer, dict):
+                continue
+            defaults = layer.get("population_defaults") or {}
+            if not isinstance(defaults, dict):
+                defaults = {}
+            populations = layer.get("populations") or []
+            if not isinstance(populations, list) or not populations:
+                value = defaults.get(field, missing)
+                if value is not missing:
+                    values.append(value)
+                continue
+            for population in populations:
+                if not isinstance(population, dict):
+                    continue
+                overrides = population.get("population") or {}
+                if not isinstance(overrides, dict):
+                    overrides = {}
+                value = overrides.get(field, defaults.get(field, missing))
+                if value is not missing:
+                    values.append(value)
+
+        unique = []
+        for value in values:
+            if value not in unique:
+                unique.append(value)
+        if not unique:
+            return None
+        if len(unique) == 1:
+            return unique[0]
+        return "mixed:" + "|".join(sorted(str(value) for value in unique))
+
     def _extract_population_network_params(self, population_network) -> dict:
         """Extract sweep axes from canonical ``population_network`` configs.
 
@@ -223,6 +266,20 @@ class ConfigExtractor:
         layers = pn.get("layers") or []
         if not layers:
             return params
+
+        params["network_layer_count"] = len(layers)
+        for field in (
+            "blocklinear_strategy",
+            "topk_strategy",
+            "reactivation_strategy",
+            "reactivation_init_policy",
+            "reactivate",
+            "dbl_init_method",
+            "init_method",
+        ):
+            value = self._summarize_population_field(layers, field)
+            if value is not None:
+                params[field] = value
 
         first_layer = layers[0]
         if not isinstance(first_layer, dict):
@@ -292,6 +349,45 @@ class ConfigExtractor:
             params["excitatory_layers"] = excitatory_sizes
         if inhibitory_sizes:
             params["inhibitory_layers"] = inhibitory_sizes
+            params["inhibitory_population_count"] = len(inhibitory_sizes)
+            params["inhibitory_neuron_count"] = sum(
+                int(value) for value in inhibitory_sizes
+            )
+
+        # Record the actual source of inhibition into the readout population.
+        # ``input_mode`` alone is not sufficient: legacy configurations can
+        # use mode 0 without constructing inhibitory cells, while canonical
+        # PopulationNetwork configurations declare the route explicitly.
+        inhibitory_population_names = {
+            str(pop.get("name"))
+            for pop in populations
+            if isinstance(pop, dict) and pop.get("polarity") == "inhibitory"
+        }
+        connections = first_layer.get("connections") or []
+        direct_inhibitory = False
+        population_inhibitory = False
+        for connection in connections:
+            if not isinstance(connection, dict) or not connection.get("enabled", True):
+                continue
+            if connection.get("target") != readout_name:
+                continue
+            pathway = str(connection.get("pathway", ""))
+            if pathway != "ff_inhibitory":
+                continue
+            source = str(connection.get("source", ""))
+            if source in {"input", "input_i", "inhibitory_input"}:
+                direct_inhibitory = True
+            if source in inhibitory_population_names:
+                population_inhibitory = True
+
+        if direct_inhibitory and population_inhibitory:
+            params["inhibitory_routing"] = "mixed_direct_and_population"
+        elif population_inhibitory:
+            params["inhibitory_routing"] = "population_mediated"
+        elif direct_inhibitory:
+            params["inhibitory_routing"] = "direct_input"
+        else:
+            params["inhibitory_routing"] = "none"
 
         transfer = pn.get("transfer_params") or {}
         if isinstance(transfer, dict):
@@ -328,6 +424,27 @@ class ConfigExtractor:
                             params["learning_rate"] = lr
                     if hasattr(common, "batch_size"):
                         params["batch_size"] = common.batch_size
+                    for source_key, output_key in (
+                        ("epochs", "epochs"),
+                        ("early_stopping", "early_stopping"),
+                        ("patience", "early_stopping_patience"),
+                        ("grad_clip_value", "grad_clip_value"),
+                        ("weight_decay_rate", "sparse_weight_decay_rate"),
+                        ("weight_boosting", "sparse_weight_boosting"),
+                    ):
+                        if hasattr(common, source_key):
+                            params[output_key] = getattr(common, source_key)
+
+                if hasattr(main, "optimizer"):
+                    optimizer = main.optimizer
+                    if hasattr(optimizer, "name"):
+                        params["optimizer_name"] = optimizer.name
+                        # OptimizerConfig's runtime default is zero.  Recording
+                        # that default distinguishes Adam decay from the custom
+                        # sparse maintenance rule in ``common``.
+                        params["optimizer_weight_decay"] = getattr(
+                            optimizer, "weight_decay", 0.0
+                        )
 
                 # Local learning parameters
                 if (
