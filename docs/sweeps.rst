@@ -71,6 +71,13 @@ run inside each training job, so population-network sweeps can also collect
 routing, spike-train, synaptic-activation, and other configured analysis
 artifacts per condition.
 
+The shared ``DataCollector`` also exports compact convergence fields from
+``training_summary.json``: best validation epoch/loss, epochs completed, and
+the final train/validation losses. Full epoch histories are deliberately not
+copied into tabular sweep outputs. Compare ``training_best_epoch`` with the
+declared ``epochs`` horizon when auditing undertraining; do not select a
+mechanism or condition from test accuracy.
+
 Typical layout:
 
 .. code-block:: text
