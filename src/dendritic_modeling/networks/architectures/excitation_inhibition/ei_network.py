@@ -305,6 +305,7 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         adaptive_initialization=True,
         adaptive_initialization_policy="preserve_shunting_center",
         adaptive_target_conductance=5.0,
+        initial_child_conductance=1.0,
         compile_forward: bool = False,
         structured_connectivity=None,
         **kwargs,
@@ -365,6 +366,7 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         self.adaptive_initialization = adaptive_initialization
         self.adaptive_initialization_policy = adaptive_initialization_policy
         self.adaptive_target_conductance = adaptive_target_conductance
+        self.initial_child_conductance = initial_child_conductance
         self.compile_forward = compile_forward
         self.structured_connectivity = structured_connectivity
 
@@ -470,6 +472,7 @@ class ExcitationInhibitionNetwork(BaseNetwork):
             adaptive_initialization=self.adaptive_initialization,
             adaptive_initialization_policy=self.adaptive_initialization_policy,
             adaptive_target_conductance=self.adaptive_target_conductance,
+            initial_child_conductance=self.initial_child_conductance,
             structured_connectivity=self.structured_connectivity,
             structured_layer_idx=layer_idx,
             **extra_kwargs,

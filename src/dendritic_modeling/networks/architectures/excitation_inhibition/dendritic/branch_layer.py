@@ -6,6 +6,9 @@ computation along a layer of branches, modeling the interaction between
 excitatory and inhibitory inputs.
 """
 
+import math
+from contextlib import contextmanager
+
 import torch
 import torch.nn as nn
 
@@ -21,6 +24,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.b
     compute_branch_raw_currents,
     compute_branch_voltage_from_currents,
     forward_branch_dynamics,
+    normalize_additive_mode,
     normalize_branch_additive_voltage,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_grad_scales import (
@@ -47,12 +51,14 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.i
     default_dbl_init,
     ei_equivalence_dbl_init,
     identity_weighttransform_dbl_init,
+    mechanism_neutral_dbl_init,
     naive_dbl_init,
     normalize_reactivation_init_policy,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.synapse_config import (
     DendriticSynapseConfig,
 )
+from dendritic_modeling.utils.stable_hash import stable_seed_offset
 
 
 class DendriticBranchLayer(nn.Module):
@@ -157,7 +163,10 @@ class DendriticBranchLayer(nn.Module):
         adaptive_initialization=True,
         adaptive_initialization_policy="preserve_shunting_center",
         adaptive_target_conductance=5.0,
+        initial_child_conductance=1.0,
         branch_factors=None,  # Branch count per dendritic level.
+        initialization_seed=None,
+        initialization_namespace="",
         epsilon=1e-8,  # Numerical stability constant.
         weight_transform="exp",  # Weight transformation for positive weights
         excitatory_connection_mask=None,
@@ -308,8 +317,37 @@ class DendriticBranchLayer(nn.Module):
         self.efficient_blocklinear = synapse_options["efficient_blocklinear"]
         self.use_shunting = synapse_options["use_shunting"]
         self.use_additive_normalization = synapse_options["use_additive_normalization"]
+        self.additive_mode = normalize_additive_mode(synapse_options["additive_mode"])
+        if (
+            not self.use_shunting
+            and self.additive_mode != "raw"
+            and self.use_additive_normalization
+        ):
+            raise ValueError(
+                "use_additive_normalization is the legacy per-sample, "
+                "across-output z-score "
+                "and can only be combined with additive_mode='raw'. Set it to "
+                "false for tangent_matched or conductance_normalized controls."
+            )
         self.dbl_init_method = synapse_options["dbl_init_method"]
         self.epsilon = synapse_options["epsilon"]
+        self.register_buffer("_additive_tangent_n0", torch.tensor(0.0), persistent=True)
+        self.register_buffer("_additive_tangent_t0", torch.tensor(0.0), persistent=True)
+        self.register_buffer(
+            "_additive_tangent_is_set", torch.tensor(False), persistent=True
+        )
+        tangent_n0 = synapse_options["additive_tangent_n0"]
+        tangent_t0 = synapse_options["additive_tangent_t0"]
+        if (tangent_n0 is None) != (tangent_t0 is None):
+            raise ValueError(
+                "additive_tangent_n0 and additive_tangent_t0 must be provided together"
+            )
+        if tangent_n0 is not None:
+            self.set_additive_operating_point(tangent_n0, tangent_t0)
+        self._store_diagnostics = False
+        self._last_branch_diagnostics: dict = {}
+        self._diag_g_tot = None
+        self._diag_numerator = None
         self.topk_type = synapse_options["topk_type"]
         self.topk_weight_norm_order = synapse_options["topk_weight_norm_order"]
         self.topk_gamma = synapse_options["topk_gamma"]
@@ -368,7 +406,20 @@ class DendriticBranchLayer(nn.Module):
         self.adaptive_target_conductance = synapse_options[
             "adaptive_target_conductance"
         ]
+        self.initial_child_conductance = float(
+            synapse_options["initial_child_conductance"]
+        )
+        if (
+            not math.isfinite(self.initial_child_conductance)
+            or self.initial_child_conductance <= 0.0
+        ):
+            raise ValueError(
+                "initial_child_conductance must be finite and positive, got "
+                f"{self.initial_child_conductance!r}"
+            )
         self.branch_factors = synapse_options["branch_factors"]
+        self.initialization_seed = synapse_options["initialization_seed"]
+        self.initialization_namespace = synapse_options["initialization_namespace"]
         self.weight_transform = synapse_options["weight_transform"]
         self.dendritic_activation = (
             synapse_options["reactivation_type"]
@@ -385,6 +436,31 @@ class DendriticBranchLayer(nn.Module):
             layer_idx=self.layer_idx,
             print_hooks=self.print_hooks,
         )
+
+    @contextmanager
+    def initialization_seed_scope(self, component: str):
+        """Run one initialization component in a stable, isolated RNG stream.
+
+        The keyed stream is opt-in. With ``initialization_seed=None`` the code
+        follows the legacy global RNG exactly. The scope restores the caller's
+        CPU RNG state, so constructing a larger path cannot perturb the next
+        population, pathway, or decoder.
+        """
+        if self.initialization_seed is None:
+            yield
+            return
+        seed = (
+            int(self.initialization_seed)
+            + stable_seed_offset(
+                "dendritic_parameter_initialization",
+                self.initialization_namespace,
+                int(self.layer_idx),
+                component,
+            )
+        ) % ((1 << 63) - 1)
+        with torch.random.fork_rng(devices=[]):
+            torch.manual_seed(seed)
+            yield
 
     def _init_feedforward_synapse_paths(
         self,
@@ -409,6 +485,7 @@ class DendriticBranchLayer(nn.Module):
                 noise_level=synapse_options["topk_noise_level"],
                 gradient_scaler=gradient_scaler,
                 synapse_type="exc",
+                pathway="ff_excitatory",
                 connection_mask=excitatory_connection_mask,
             )
             self.excitatory_input_dim = excitatory_input_dim
@@ -430,6 +507,7 @@ class DendriticBranchLayer(nn.Module):
                 noise_level=synapse_options["topk_noise_level"],
                 gradient_scaler=gradient_scaler,
                 synapse_type="inh",
+                pathway="ff_inhibitory",
                 connection_mask=inhibitory_connection_mask,
             )
             self.inhibitory_input_dim = inhibitory_input_dim
@@ -466,6 +544,7 @@ class DendriticBranchLayer(nn.Module):
                 noise_level=synapse_options["topk_noise_level"],
                 gradient_scaler=gradient_scaler,
                 synapse_type="exc",
+                pathway="rec_excitatory",
                 forbidden_input_index_per_output=recurrent_forbidden_input_index_per_output,
                 connection_mask=recurrent_connection_mask,
             )
@@ -487,6 +566,7 @@ class DendriticBranchLayer(nn.Module):
                 noise_level=synapse_options["topk_noise_level"],
                 gradient_scaler=gradient_scaler,
                 synapse_type="inh",
+                pathway="rec_inhibitory",
                 forbidden_input_index_per_output=(
                     rec_inhibitory_forbidden_input_index_per_output
                 ),
@@ -509,11 +589,12 @@ class DendriticBranchLayer(nn.Module):
             BlockCls = (
                 EfficientBlockLinear if self.efficient_blocklinear else BlockLinear
             )
-            self.branches_to_output = BlockCls(
-                output_dim * input_branch_factor,
-                output_dim,
-                weight_transform=self.weight_transform,
-            )
+            with self.initialization_seed_scope("constructor.branch_aggregation"):
+                self.branches_to_output = BlockCls(
+                    output_dim * input_branch_factor,
+                    output_dim,
+                    weight_transform=self.weight_transform,
+                )
             gradient_scaler.register_block_linear_dynamic(self.branches_to_output)
         self.input_branch_factor = input_branch_factor
 
@@ -556,13 +637,14 @@ class DendriticBranchLayer(nn.Module):
 
         if synapse_options["reactivate"]:
             # initialize() may later overwrite these values based on policy.
-            self.reactivation = ActivationFactory.create(
-                act_type=synapse_options["reactivation_type"],
-                output_dim=output_dim,
-                init_m=synapse_options["reactivation_init_m"],
-                init_b=synapse_options["reactivation_init_b"],
-                **activation_kwargs,
-            )
+            with self.initialization_seed_scope("constructor.reactivation"):
+                self.reactivation = ActivationFactory.create(
+                    act_type=synapse_options["reactivation_type"],
+                    output_dim=output_dim,
+                    init_m=synapse_options["reactivation_init_m"],
+                    init_b=synapse_options["reactivation_init_b"],
+                    **activation_kwargs,
+                )
             if self.use_shunting:
                 gradient_scaler.register_reactivation_inverse(self.reactivation)
         else:
@@ -592,21 +674,25 @@ class DendriticBranchLayer(nn.Module):
         init_method,
         noise_level,
         synapse_type="exc",
+        pathway=None,
         forbidden_input_index_per_output=None,
         connection_mask=None,
     ):
         """Helper function that picks which topk class to use based on strategy."""
-        return create_branch_sparse_layer(
-            self,
-            in_features=in_features,
-            out_features=out_features,
-            K=K,
-            init_method=init_method,
-            noise_level=noise_level,
-            synapse_type=synapse_type,
-            forbidden_input_index_per_output=forbidden_input_index_per_output,
-            connection_mask=connection_mask,
-        )
+        component = pathway or synapse_type
+        with self.initialization_seed_scope(f"constructor.{component}"):
+            return create_branch_sparse_layer(
+                self,
+                in_features=in_features,
+                out_features=out_features,
+                K=K,
+                init_method=init_method,
+                noise_level=noise_level,
+                synapse_type=synapse_type,
+                pathway=pathway,
+                forbidden_input_index_per_output=forbidden_input_index_per_output,
+                connection_mask=connection_mask,
+            )
 
     def _create_registered_topk_layer(
         self,
@@ -617,22 +703,26 @@ class DendriticBranchLayer(nn.Module):
         noise_level,
         gradient_scaler,
         synapse_type="exc",
+        pathway=None,
         forbidden_input_index_per_output=None,
         connection_mask=None,
     ):
         """Create a sparse synapse layer and register gradient scaling hooks."""
-        return create_registered_branch_sparse_layer(
-            self,
-            gradient_scaler,
-            in_features=in_features,
-            out_features=out_features,
-            K=K,
-            init_method=init_method,
-            noise_level=noise_level,
-            synapse_type=synapse_type,
-            forbidden_input_index_per_output=forbidden_input_index_per_output,
-            connection_mask=connection_mask,
-        )
+        component = pathway or synapse_type
+        with self.initialization_seed_scope(f"constructor.{component}"):
+            return create_registered_branch_sparse_layer(
+                self,
+                gradient_scaler,
+                in_features=in_features,
+                out_features=out_features,
+                K=K,
+                init_method=init_method,
+                noise_level=noise_level,
+                synapse_type=synapse_type,
+                pathway=pathway,
+                forbidden_input_index_per_output=forbidden_input_index_per_output,
+                connection_mask=connection_mask,
+            )
 
     def initialize(self):
         if (self.weight_transform or "").lower() == "identity":
@@ -650,6 +740,8 @@ class DendriticBranchLayer(nn.Module):
             naive_dbl_init(self)
         elif self.dbl_init_method == "default":
             default_dbl_init(self)
+        elif self.dbl_init_method == "mechanism_neutral":
+            mechanism_neutral_dbl_init(self)
         else:
             raise ValueError(f"Unknown dbl_init_method: {self.dbl_init_method}")
 
@@ -662,6 +754,127 @@ class DendriticBranchLayer(nn.Module):
         Apply rewiring to all synaptic connections.
         """
         apply_branch_rewiring(self)
+
+    @property
+    def has_additive_operating_point(self) -> bool:
+        """Whether a finite tangent-matching anchor has been frozen."""
+        return bool(self._additive_tangent_is_set.item())
+
+    @property
+    def additive_operating_point(self) -> tuple[float, float] | None:
+        """Return the frozen ``(N0, T0)`` tangent anchor, when configured."""
+        if not self.has_additive_operating_point:
+            return None
+        return (
+            float(self._additive_tangent_n0.item()),
+            float(self._additive_tangent_t0.item()),
+        )
+
+    def set_additive_operating_point(self, n0, t0) -> None:
+        """Freeze the scalar operating point used by ``tangent_matched``.
+
+        This method never runs implicitly during ``forward``. Callers can use
+        a fixed analytical anchor or explicitly calibrate a shunting reference
+        with :meth:`calibrate_additive_operating_point`.
+        """
+
+        def _finite_scalar(name, value) -> float:
+            tensor = torch.as_tensor(value).detach()
+            if tensor.numel() != 1:
+                raise ValueError(f"{name} must be a scalar, got shape {tensor.shape}")
+            scalar = float(tensor.item())
+            if not torch.isfinite(torch.tensor(scalar)):
+                raise ValueError(f"{name} must be finite, got {scalar}")
+            return scalar
+
+        n0_value = _finite_scalar("n0", n0)
+        t0_value = _finite_scalar("t0", t0)
+        if 1 + t0_value + self.epsilon <= 0:
+            raise ValueError(
+                "The tangent operating point requires "
+                f"1 + t0 + epsilon > 0, got t0={t0_value}"
+            )
+        self._additive_tangent_n0.fill_(n0_value)
+        self._additive_tangent_t0.fill_(t0_value)
+        self._additive_tangent_is_set.fill_(True)
+
+    def calibrate_additive_operating_point(
+        self, diagnostics: dict | None = None
+    ) -> tuple[float, float]:
+        """Freeze ``(N0, T0)`` as means from explicit shunting diagnostics."""
+        diagnostics = diagnostics or self._last_branch_diagnostics
+        if "N" not in diagnostics or "T" not in diagnostics:
+            raise RuntimeError(
+                "Calibration requires diagnostics containing N and T. Enable "
+                "branch diagnostics on a shunting reference and run it first."
+            )
+        n_values = diagnostics["N"]
+        t_values = diagnostics["T"]
+        if not torch.is_tensor(n_values) or not torch.is_tensor(t_values):
+            raise TypeError("Calibration diagnostics N and T must be tensors")
+        self.set_additive_operating_point(n_values.mean(), t_values.mean())
+        operating_point = self.additive_operating_point
+        assert operating_point is not None
+        return operating_point
+
+    def clear_additive_operating_point(self) -> None:
+        """Clear a calibrated tangent anchor."""
+        self._additive_tangent_n0.zero_()
+        self._additive_tangent_t0.zero_()
+        self._additive_tangent_is_set.fill_(False)
+
+    def set_branch_diagnostics(self, enabled: bool = True) -> None:
+        """Enable or disable detached E/I/C/G/N/T/V forward diagnostics."""
+        self._store_diagnostics = bool(enabled)
+        if not enabled:
+            self._pending_realized_k = None
+
+    def clear_branch_diagnostics(self) -> None:
+        """Discard the most recently stored branch decomposition."""
+        self._last_branch_diagnostics = {}
+        self._pending_realized_k = None
+        self._diag_g_tot = None
+        self._diag_numerator = None
+
+    def get_branch_diagnostics(self) -> dict:
+        """Return a shallow copy of the most recent detached diagnostics."""
+        return dict(self._last_branch_diagnostics)
+
+    def _load_from_state_dict(
+        self,
+        state_dict,
+        prefix,
+        local_metadata,
+        strict,
+        missing_keys,
+        unexpected_keys,
+        error_msgs,
+    ):
+        """Load old checkpoints while preserving configured tangent anchors."""
+        is_set_key = prefix + "_additive_tangent_is_set"
+        incoming_is_set = state_dict.get(is_set_key)
+        preserve_current = self.has_additive_operating_point and (
+            incoming_is_set is None or not bool(incoming_is_set.item())
+        )
+        for name in (
+            "_additive_tangent_n0",
+            "_additive_tangent_t0",
+            "_additive_tangent_is_set",
+        ):
+            key = prefix + name
+            current = getattr(self, name).detach()
+            incoming = state_dict.get(key)
+            if incoming is None or preserve_current:
+                state_dict[key] = current.clone()
+        super()._load_from_state_dict(
+            state_dict,
+            prefix,
+            local_metadata,
+            strict,
+            missing_keys,
+            unexpected_keys,
+            error_msgs,
+        )
 
     def forward(
         self,

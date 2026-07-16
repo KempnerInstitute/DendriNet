@@ -113,10 +113,16 @@ class PointMatchedParamMLP(nn.Module):
             activation_factory.create(act_type=activation, output_dim=hidden_width),
             fc2,
         )
+        transfer_params = kwargs.get("transfer_params", {}) or {}
+        output_activation = transfer_params.get("output_activation") or "none"
+        self.output_activation = activation_factory.create(
+            act_type=output_activation,
+            output_dim=output_dim,
+        )
         self.output_dim = output_dim
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.hidden(x)
+        return self.output_activation(self.hidden(x))
 
 
 __all__ = ["PointMatchedParamMLP"]

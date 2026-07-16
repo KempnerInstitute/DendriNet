@@ -1,6 +1,7 @@
 import unittest
 from typing import Optional
 
+import pytest
 import torch
 import torch.nn as nn
 from torch.distributions import Categorical, Normal
@@ -174,6 +175,72 @@ def test_classifier_forward():
     x = torch.randn(2, 10)
     output = model(x)
     assert output.shape == (2, 5)
+
+
+def test_classifier_can_use_literal_identity_logits():
+    model = Classifier(
+        Identity(5),
+        Identity(5),
+        Identity(5),
+        learned_output_scale=False,
+    )
+    x = torch.randn(3, 5)
+
+    assert not hasattr(model, "log_output_scale")
+    assert torch.equal(model(x), x)
+
+
+def test_classifier_identity_scale_remains_backward_compatible():
+    model = Classifier(Identity(5), Identity(5), Identity(5))
+
+    assert hasattr(model, "log_output_scale")
+    assert model.log_output_scale.requires_grad
+
+
+def test_classifier_fixed_global_scale_preserves_identity_and_argmax():
+    model = Classifier(
+        Identity(5),
+        Identity(5),
+        Identity(5),
+        learned_output_scale=False,
+        fixed_output_scale=10.0,
+    )
+    x = torch.randn(3, 5)
+
+    assert torch.equal(model(x), 10.0 * x)
+    assert torch.equal(model(x).argmax(dim=-1), x.argmax(dim=-1))
+    assert not hasattr(model, "log_output_scale")
+
+
+def test_classifier_rejects_invalid_fixed_global_scale():
+    with pytest.raises(ValueError, match="fixed_output_scale"):
+        Classifier(
+            Identity(5),
+            Identity(5),
+            Identity(5),
+            learned_output_scale=False,
+            fixed_output_scale=0.0,
+        )
+
+
+def test_classifier_single_global_temperature_preserves_argmax():
+    model = Classifier(
+        Identity(5),
+        Identity(5),
+        Identity(5),
+        learned_output_scale=False,
+        output_scale_mode="global",
+    )
+    x = torch.randn(3, 5)
+
+    assert not hasattr(model, "log_output_scale")
+    assert model.log_global_output_scale.shape == ()
+    assert model.log_global_output_scale.requires_grad
+    assert torch.equal(model(x), x)
+    with torch.no_grad():
+        model.log_global_output_scale.fill_(torch.log(torch.tensor(7.0)))
+    assert torch.allclose(model(x), 7.0 * x)
+    assert torch.equal(model(x).argmax(dim=-1), x.argmax(dim=-1))
 
 
 def test_regressor_init():

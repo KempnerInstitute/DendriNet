@@ -369,9 +369,14 @@ def prepare_trainer_config(
 
     checkpointing_dict = to_plain_dict(checkpointing)
     if checkpointing_dict.get("enabled", False):
-        trainer_config["save_every_n_epochs"] = checkpointing_dict.get(
-            "save_every_n_epochs", 10
-        )
+        checkpoint_interval = checkpointing_dict.get("save_every_n_epochs", 10)
+        # StandardTrainer historically expects ``checkpointing`` and
+        # ``checkpoint_interval``, whereas FSDPStandardTrainer consumes
+        # ``save_every_n_epochs``.  Populate both spellings so the public
+        # experiment-level checkpoint contract is honored by either backend.
+        trainer_config["checkpointing"] = True
+        trainer_config["checkpoint_interval"] = checkpoint_interval
+        trainer_config["save_every_n_epochs"] = checkpoint_interval
         trainer_config["checkpoint_dir"] = checkpointing_dict.get(
             "checkpoint_dir", save_path
         )
@@ -382,6 +387,12 @@ def prepare_trainer_config(
         trainer_config["profiling_output_dir"] = f"{save_path}/profiling"
 
     trainer_config["enable_hooks"] = enable_hooks
+
+    base_seed = get_config_value(experiment_config, "seed", 0)
+    loader_seed = get_config_value(experiment_config, "loader_seed", None)
+    trainer_config["loader_seed"] = int(
+        base_seed if loader_seed is None else loader_seed
+    )
 
     # Add strategy-specific configurations
     # First, check for learning_strategy_config (new structure)

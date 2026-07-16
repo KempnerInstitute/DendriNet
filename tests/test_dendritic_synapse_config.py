@@ -72,6 +72,7 @@ def test_dendritic_synapse_config_round_trips_legacy_kwargs():
         "adaptive_initialization": False,
         "adaptive_initialization_policy": "preserve_shunting_center",
         "adaptive_target_conductance": 4.0,
+        "initial_child_conductance": 3.0,
         "branch_factors": [2, 1],
         "unknown_activation_kwarg": "kept out of config",
     }
@@ -114,6 +115,9 @@ def test_dendritic_synapse_config_round_trips_every_legacy_key():
         "indexed_rewire_until_step": 40,
         "use_shunting": False,
         "use_additive_normalization": True,
+        "additive_mode": "raw",
+        "additive_tangent_n0": None,
+        "additive_tangent_t0": None,
         "epsilon": 1e-6,
         "weight_transform": "softplus",
         "efficient_blocklinear": True,
@@ -137,7 +141,10 @@ def test_dendritic_synapse_config_round_trips_every_legacy_key():
         "adaptive_initialization": False,
         "adaptive_initialization_policy": "preserve_shunting_center",
         "adaptive_target_conductance": 4.0,
+        "initial_child_conductance": 3.0,
         "branch_factors": [2, 1],
+        "initialization_seed": 123,
+        "initialization_namespace": "layer0.excitatory",
         "use_noise": False,
         "rewiring_mode": "local",
         "rewire_frequency": 7,
@@ -571,6 +578,7 @@ def test_population_config_builds_equivalent_synapse_config():
         adaptive_initialization=True,
         adaptive_initialization_policy="legacy_scale",
         adaptive_target_conductance=3.0,
+        initial_child_conductance=2.5,
     )
 
     kwargs = DendriticSynapseConfig.from_population_config(population).to_kwargs()

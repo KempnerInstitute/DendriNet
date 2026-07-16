@@ -52,8 +52,11 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.i
 from dendritic_modeling.networks.architectures.factory import get_architecture
 from dendritic_modeling.scripts.script_utils import config_utils as _config_utils
 from dendritic_modeling.scripts.script_utils.setup_utils import (
+    _apply_initialization_seed_defaults,
+    _apply_topology_seed_defaults,
     _config_to_plain_dict,
     _get_dataset_specific_params,
+    _validate_sealed_test_dataset,
     initialize_model,
 )
 from dendritic_modeling.scripts.training.train_encoder_network import (
@@ -62,6 +65,7 @@ from dendritic_modeling.scripts.training.train_encoder_network import (
 from dendritic_modeling.training.dataloader_utils import (
     DataLoaderTuning,
     resolve_dataloader_tuning_from_config,
+    seeded_dataloader_kwargs,
     visible_cpu_count,
 )
 from dendritic_modeling.training.fsdp_utils import get_fsdp_config, save_fsdp_checkpoint
@@ -69,6 +73,7 @@ from dendritic_modeling.training.strategies.fsdp_standard import (
     FSDPTrainer,
     PaddedDistributedEvalSampler,
 )
+from dendritic_modeling.utils import resolve_experiment_seeds
 from dendritic_modeling.utils.general import save_dict, set_seed
 from dendritic_modeling.utils.logging_config import LoggerManager
 
@@ -177,8 +182,11 @@ def _save_fsdp_run_config(config, run_save_path: str) -> None:
 
 def _setup_rank0_run_directory(config) -> str:
     """Create the rank-0 output directory, logger file, and config snapshot."""
-    run_id = f"{config.outputs.run_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    run_save_path = os.path.join(config.outputs.results_dir, run_id)
+    if bool(getattr(config.outputs, "exact_run_dir", False)):
+        run_save_path = config.outputs.results_dir
+    else:
+        run_id = f"{config.outputs.run_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        run_save_path = os.path.join(config.outputs.results_dir, run_id)
     os.makedirs(run_save_path, exist_ok=True)
 
     logger_manager.set_log_directory(run_save_path)
@@ -377,7 +385,14 @@ def create_large_model(config):
 
     # Create model based on task
     if model_config.task == "classification":
-        model = Classifier(encoder, core_network, decoder)
+        model = Classifier(
+            encoder,
+            core_network,
+            decoder,
+            learned_output_scale=getattr(model_config, "learned_output_scale", True),
+            fixed_output_scale=getattr(model_config, "fixed_output_scale", 1.0),
+            output_scale_mode=getattr(model_config, "output_scale_mode", None),
+        )
     elif model_config.task == "regression":
         model = Regressor(encoder, core_network, decoder)
     else:
@@ -497,6 +512,13 @@ def _setup_rank0_analysis_manager(
 ):
     """Create the rank-0 analysis manager and run pre-training calibration."""
     logger.info("Setting up AnalysisManager...")
+    from dendritic_modeling.scripts.training.train_experiments import (
+        _validate_sealed_test_analysis,
+    )
+
+    experiment_config = getattr(config, "experiment", None)
+    if experiment_config is not None:
+        _validate_sealed_test_analysis(experiment_config, config.analysis)
 
     model.encoder_network = _get_analysis_encoder_network(encoder_network)
     logger.info("Set model encoder to %s", type(model.encoder_network).__name__)
@@ -506,13 +528,20 @@ def _setup_rank0_analysis_manager(
         "valid": encoded_valid_ds,
         "test": encoded_test_ds,
     }
-    analysis_manager = AnalysisManager(
-        model=model,
-        data=encoded_data,
-        analysis_config=config.analysis,
-        save_root=run_save_path,
-        device=f"cuda:{local_rank}",
-    )
+    manager_kwargs = {
+        "model": model,
+        "data": encoded_data,
+        "analysis_config": config.analysis,
+        "save_root": run_save_path,
+        "device": f"cuda:{local_rank}",
+    }
+    if experiment_config is not None:
+        analysis_seeds = resolve_experiment_seeds(experiment_config)
+        manager_kwargs.update(
+            evaluation_seed=analysis_seeds.evaluation_seed,
+            probe_seed=analysis_seeds.probe_seed,
+        )
+    analysis_manager = AnalysisManager(**manager_kwargs)
     logger.info(f"AnalysisManager created: {type(analysis_manager)}")
     logger.info(
         f"Performance analysis enabled: {config.analysis.performance_analysis.enabled}"
@@ -689,6 +718,17 @@ def _dataloader_tuning_from_common(
 
 def setup_data_loaders(config, rank, world_size):
     """Setup distributed data loaders."""
+    resolved_seeds = resolve_experiment_seeds(config.experiment, write_back=True)
+    set_seed(
+        resolved_seeds.dataset_seed,
+        deterministic=bool(getattr(config.experiment, "deterministic", True)),
+        cudnn_benchmark=bool(getattr(config.experiment, "cudnn_benchmark", False)),
+        allow_tf32=bool(getattr(config.experiment, "allow_tf32", False)),
+        float32_matmul_precision=str(
+            getattr(config.experiment, "float32_matmul_precision", "highest")
+        ),
+        strict_deterministic=resolved_seeds.strict_deterministic,
+    )
     data_config = config.data
     base_dir = data_config.base_dir or ""
     dataset_specific_params = _get_dataset_specific_params(data_config)
@@ -704,13 +744,15 @@ def setup_data_loaders(config, rank, world_size):
             "parameters": {
                 **processing_params,
                 **dataset_specific_params,
-                "label_noise_seed": config.experiment.seed,
-                "split_seed": config.experiment.seed,
+                "label_noise_seed": resolved_seeds.dataset_seed,
+                "split_seed": resolved_seeds.split_seed,
             },
         },
     )()
+    task_cfg.parameters.setdefault("seed", resolved_seeds.dataset_seed)
 
     train_ds, valid_ds, test_ds = get_unified_datasets(task_cfg=task_cfg)
+    _validate_sealed_test_dataset(config.experiment, test_ds)
 
     # Create distributed sampler for training only.
     # Validation uses a non-padded sampler: each rank gets a disjoint
@@ -721,7 +763,7 @@ def setup_data_loaders(config, rank, world_size):
         num_replicas=world_size,
         rank=rank,
         shuffle=True,
-        seed=int(config.experiment.seed),
+        seed=resolved_seeds.loader_seed,
     )
 
     # PaddedDistributedEvalSampler gives each rank an equal number of
@@ -750,6 +792,11 @@ def setup_data_loaders(config, rank, world_size):
         train_ds,
         batch_size=batch_size,
         sampler=train_sampler,
+        **seeded_dataloader_kwargs(
+            resolved_seeds.loader_seed,
+            stream=0,
+            rank=rank,
+        ),
         **loader_kwargs,
     )
 
@@ -757,6 +804,11 @@ def setup_data_loaders(config, rank, world_size):
         valid_ds,
         batch_size=batch_size,
         sampler=valid_sampler,
+        **seeded_dataloader_kwargs(
+            resolved_seeds.loader_seed,
+            stream=1,
+            rank=rank,
+        ),
         **loader_kwargs,
     )
 
@@ -773,13 +825,32 @@ def main(config_path):
 
     # Load config
     config = load_config(config_path)
+    from dendritic_modeling.scripts.training.train_experiments import (
+        _validate_sealed_test_analysis,
+    )
 
-    # Set seed
-    set_seed(config.experiment.seed)
+    _validate_sealed_test_analysis(config.experiment, config.analysis)
+
+    resolved_seeds = resolve_experiment_seeds(config.experiment, write_back=True)
+    _apply_topology_seed_defaults(config.model, resolved_seeds.topology_seed)
+    _apply_initialization_seed_defaults(config.model, resolved_seeds.model_seed)
+    set_seed(
+        resolved_seeds.model_seed,
+        deterministic=bool(getattr(config.experiment, "deterministic", True)),
+        cudnn_benchmark=bool(getattr(config.experiment, "cudnn_benchmark", False)),
+        allow_tf32=bool(getattr(config.experiment, "allow_tf32", False)),
+        float32_matmul_precision=str(
+            getattr(config.experiment, "float32_matmul_precision", "highest")
+        ),
+        strict_deterministic=resolved_seeds.strict_deterministic,
+    )
+    if rank == 0:
+        logger.info("Resolved RNG seeds: %s", resolved_seeds.asdict())
 
     # Setup output directory (only on rank 0)
     if rank == 0:
         run_save_path = _setup_rank0_run_directory(config)
+        save_dict(resolved_seeds.asdict(), run_save_path, "resolved_seeds.json")
     else:
         run_save_path = None
 

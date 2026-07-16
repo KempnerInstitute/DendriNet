@@ -1,10 +1,11 @@
-"""Post-build gate diagnostics for models with learnable reactivation gates.
+"""Gate diagnostics for models with learnable reactivation gates.
 
 Captures a summary of reactivation gate parameters (m, b) for each dendritic
 layer immediately after the model is built and before training begins. The
-output is written to ``<run_dir>/init_gate_stats.json`` so every training run
-automatically records whether calibration produced a healthy or pathological
-initialization.
+default output is written to ``<run_dir>/init_gate_stats.json`` immediately
+after model construction.  Data-driven training paths additionally write
+``post_calibration_gate_stats.json`` after calibration, so the requested policy
+can be audited from the executed state rather than inferred from configuration.
 
 This is intentionally lightweight: it does not depend on experiment-specific
 task logic, and it only inspects modules that already exist in the built model.
@@ -162,9 +163,11 @@ def dump_init_gate_stats(
     with path.open("w", encoding="utf-8") as fh:
         json.dump(payload, fh, indent=2)
 
+    stage = "Post-calibration" if "post_calibration" in name else "Post-build"
     if warnings:
         logger.warning(
-            "Post-build gate diagnostic flagged %d suspicious patterns (see %s):",
+            "%s gate diagnostic flagged %d suspicious patterns (see %s):",
+            stage,
             len(warnings),
             path,
         )
@@ -172,7 +175,8 @@ def dump_init_gate_stats(
             logger.warning("  %s", warning)
     else:
         logger.info(
-            "Post-build gate diagnostic clean (%d reactivation modules, written to %s).",
+            "%s gate diagnostic clean (%d reactivation modules, written to %s).",
+            stage,
             len(stats),
             path,
         )

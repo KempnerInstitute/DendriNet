@@ -56,6 +56,7 @@ def _build_common_synapse_config(
     adaptive_initialization,
     adaptive_initialization_policy,
     adaptive_target_conductance,
+    initial_child_conductance,
 ) -> DendriticSynapseConfig:
     """Normalize EI-layer synapse kwargs into the shared typed config."""
     if provided_synapse_config is not None:
@@ -96,6 +97,7 @@ def _build_common_synapse_config(
             "adaptive_initialization": adaptive_initialization,
             "adaptive_initialization_policy": adaptive_initialization_policy,
             "adaptive_target_conductance": adaptive_target_conductance,
+            "initial_child_conductance": initial_child_conductance,
         }
     )
 
@@ -339,6 +341,7 @@ class ExcitationInhibitionLayer(nn.Module):
         adaptive_initialization=True,
         adaptive_initialization_policy="preserve_shunting_center",
         adaptive_target_conductance=5.0,
+        initial_child_conductance=1.0,
         structured_connectivity=None,
         structured_layer_idx: int = 0,
         **kwargs,
@@ -389,6 +392,7 @@ class ExcitationInhibitionLayer(nn.Module):
             adaptive_initialization=adaptive_initialization,
             adaptive_initialization_policy=adaptive_initialization_policy,
             adaptive_target_conductance=adaptive_target_conductance,
+            initial_child_conductance=initial_child_conductance,
         )
 
         self.inhibitory_cells = _build_inhibitory_cells(

@@ -78,6 +78,9 @@ class MorphologyConfig:
 
     use_shunting: bool = True
     use_additive_normalization: bool = False
+    additive_mode: str = "raw"
+    additive_tangent_n0: float | None = None
+    additive_tangent_t0: float | None = None
     epsilon: float = 1e-8
     weight_transform: str = "exp"
     efficient_blocklinear: bool = False
@@ -92,7 +95,10 @@ class AdaptiveInitConfig:
     adaptive_initialization: bool = True
     adaptive_initialization_policy: str = "preserve_shunting_center"
     adaptive_target_conductance: float = 5.0
+    initial_child_conductance: float = 1.0
     branch_factors: tuple[int, ...] | None = None
+    initialization_seed: int | None = None
+    initialization_namespace: str = ""
 
 
 @dataclass(frozen=True)
@@ -188,6 +194,9 @@ def _morphology_config_from_kwargs(source: Mapping[str, Any]) -> MorphologyConfi
     return MorphologyConfig(
         use_shunting=source.get("use_shunting", True),
         use_additive_normalization=source.get("use_additive_normalization", False),
+        additive_mode=source.get("additive_mode", "raw"),
+        additive_tangent_n0=source.get("additive_tangent_n0", None),
+        additive_tangent_t0=source.get("additive_tangent_t0", None),
         epsilon=source.get("epsilon", 1e-8),
         weight_transform=source.get("weight_transform", "exp"),
         efficient_blocklinear=source.get("efficient_blocklinear", False),
@@ -208,7 +217,10 @@ def _initialization_config_from_kwargs(source: Mapping[str, Any]) -> AdaptiveIni
             "adaptive_initialization_policy", "preserve_shunting_center"
         ),
         adaptive_target_conductance=source.get("adaptive_target_conductance", 5.0),
+        initial_child_conductance=source.get("initial_child_conductance", 1.0),
         branch_factors=branch_factors,
+        initialization_seed=source.get("initialization_seed", None),
+        initialization_namespace=str(source.get("initialization_namespace", "") or ""),
     )
 
 
@@ -305,6 +317,9 @@ def _morphology_kwargs(config: MorphologyConfig) -> dict[str, Any]:
     return {
         "use_shunting": config.use_shunting,
         "use_additive_normalization": config.use_additive_normalization,
+        "additive_mode": config.additive_mode,
+        "additive_tangent_n0": config.additive_tangent_n0,
+        "additive_tangent_t0": config.additive_tangent_t0,
         "epsilon": config.epsilon,
         "weight_transform": config.weight_transform,
         "efficient_blocklinear": config.efficient_blocklinear,
@@ -319,9 +334,12 @@ def _initialization_kwargs(config: AdaptiveInitConfig) -> dict[str, Any]:
         "adaptive_initialization": config.adaptive_initialization,
         "adaptive_initialization_policy": config.adaptive_initialization_policy,
         "adaptive_target_conductance": config.adaptive_target_conductance,
+        "initial_child_conductance": config.initial_child_conductance,
         "branch_factors": (
             None if config.branch_factors is None else list(config.branch_factors)
         ),
+        "initialization_seed": config.initialization_seed,
+        "initialization_namespace": config.initialization_namespace,
     }
 
 

@@ -5,6 +5,7 @@ Tests for utils gpu_estimation module to improve coverage.
 import json
 import os
 import tempfile
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -752,6 +753,62 @@ class TestEstimateFromConfig:
                 pass
         finally:
             os.unlink(config_path)
+
+    def test_delayed_comparison_paper_config_reaches_resource_estimation(
+        self, monkeypatch
+    ):
+        """Typed current config should build the real recurrent model and estimate."""
+        config_path = (
+            Path(__file__).resolve().parents[1]
+            / "drafts"
+            / "dendritic_RNN"
+            / "configs"
+            / "E22p_romo_full_paperclean.yaml"
+        )
+        captured = {}
+
+        class TinySequenceDataset:
+            def __len__(self):
+                return 1
+
+            def __getitem__(self, _index):
+                return torch.zeros(7, 8), torch.tensor(0)
+
+        def tiny_dataset_loader(*, task_cfg):
+            from dendritic_modeling.datasets.unified_options import (
+                _resolve_unified_dataset_options,
+            )
+
+            options = _resolve_unified_dataset_options(task_cfg)
+            captured["task_params"] = options.parameters
+            dataset = TinySequenceDataset()
+            return dataset, dataset, dataset
+
+        def capture_report(estimator, model, batch_size, input_shape, config=None):
+            captured["breakdown"] = estimator.estimate_memory_breakdown(
+                model,
+                batch_size,
+                input_shape,
+            )
+
+        monkeypatch.setattr(
+            "dendritic_modeling.datasets.get_unified_datasets",
+            tiny_dataset_loader,
+        )
+        monkeypatch.setattr(
+            GPUMemoryEstimator,
+            "print_estimation_report",
+            capture_report,
+        )
+
+        estimator, model = estimate_from_config(str(config_path), batch_size=2)
+
+        assert isinstance(estimator, GPUMemoryEstimator)
+        assert model.core_network.config.input_dim == 8
+        assert model.decoder_network.output_dim == 2
+        assert captured["task_params"]["flatten"] is False
+        assert captured["task_params"]["train"]["n_samples"] == 30000
+        assert captured["breakdown"].total > 0
 
 
 class TestGPUEstimationEdgeCases:

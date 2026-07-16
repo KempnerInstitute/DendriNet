@@ -207,6 +207,13 @@ class RomoDelayComparisonDataset(Dataset):
         self.inputs = torch.zeros(n_samples, self.max_total_len, self.input_dim)
         self.targets = torch.zeros(n_samples, dtype=torch.long)
         self.delays = torch.zeros(n_samples, dtype=torch.long)
+        # Preserve the latent comparison variables so evaluation banks can
+        # report accuracy as a function of delay and comparison difficulty
+        # without trying to infer frequencies back from noisy input traces.
+        self.frequency1_indices = torch.zeros(n_samples, dtype=torch.long)
+        self.frequency2_indices = torch.zeros(n_samples, dtype=torch.long)
+        self.frequency1_values = torch.zeros(n_samples, dtype=torch.float32)
+        self.frequency2_values = torch.zeros(n_samples, dtype=torch.float32)
 
         phase_grid = torch.arange(stimulus_duration, dtype=torch.float32)
         if self.positive_input_encoding:
@@ -248,6 +255,10 @@ class RomoDelayComparisonDataset(Dataset):
 
             self.targets[i] = int(f2 > f1)
             self.delays[i] = delay
+            self.frequency1_indices[i] = int(f1_idx)
+            self.frequency2_indices[i] = int(f2_idx)
+            self.frequency1_values[i] = float(f1)
+            self.frequency2_values[i] = float(f2)
 
             s1_start = 0
             s1_end = stimulus_duration
@@ -617,6 +628,16 @@ class StringerV1Dataset(Dataset):
         data_dir: Directory containing a Stringer drifting-gratings response
                   file and all_running.npy.
         n_neurons: Number of neurons to select by response variance.
+        neuron_selection_scope: Trials used to rank neurons by response variance.
+            ``"all_trials"`` preserves the legacy transductive behavior.
+            ``"train_split"`` ranks neurons using only the training side of the
+            deterministic train/test split, for prospective held-out evaluation.
+            For a state-specific ``split="all"`` training set, it ranks only
+            the selected training state; builders can then pass those indices
+            unchanged to a disjoint held-out state.
+        neuron_selection_indices: Optional explicit ordered neuron indices.
+            This is an internal builder hook for reusing a training-state
+            selection in a disjoint state-specific test set.
         n_classes: Number of orientation bins (orientations span [0, 2*pi)).
         split: "train", "test", or "all".
         train_fraction: Fraction of trials for training (rest = test).
@@ -628,6 +649,8 @@ class StringerV1Dataset(Dataset):
         running_state: Keep all trials, or only the low/high running subset.
         running_quantile: Quantile used to define low/high states. `0.5` gives
             a median split, `1/3` gives lower/upper tertiles.
+            State-transfer builders may additionally reserve a deterministic
+            within-state holdout before their train/validation split.
         gain_group_count: Number of pathway-specific multiplicative gain factors.
         gain_grouping: How neurons are grouped for pathway-specific gains.
             Supported: "preferred_class", "random", "contiguous".
@@ -650,6 +673,8 @@ class StringerV1Dataset(Dataset):
         self,
         data_dir: str,
         n_neurons: int = 500,
+        neuron_selection_scope: str = "all_trials",
+        neuron_selection_indices: np.ndarray | list[int] | None = None,
         n_classes: int = 8,
         split: str = "train",
         train_fraction: float = 0.9,
@@ -675,6 +700,22 @@ class StringerV1Dataset(Dataset):
         super().__init__()
         if split not in ("train", "test", "all"):
             raise ValueError(f"split must be 'train', 'test', or 'all', got '{split}'")
+        if neuron_selection_scope not in ("all_trials", "train_split"):
+            raise ValueError(
+                "neuron_selection_scope must be 'all_trials' or 'train_split', "
+                f"got {neuron_selection_scope!r}"
+            )
+        if (
+            neuron_selection_scope == "train_split"
+            and split == "all"
+            and running_state == "all"
+            and neuron_selection_indices is None
+        ):
+            raise ValueError(
+                "neuron_selection_scope='train_split' requires split='train' or "
+                "split='test', unless split='all' is a declared low/high "
+                "training state or explicit training-state indices are supplied"
+            )
         if running_state not in ("all", "low", "high"):
             raise ValueError(
                 f"running_state must be 'all', 'low', or 'high', got '{running_state}'"
@@ -725,13 +766,6 @@ class StringerV1Dataset(Dataset):
             )
             running_speed_full = np.zeros(n_trials, dtype=np.float32)
 
-        # --- Select top neurons by variance ---
-        neuron_var = sresp.var(axis=1)  # variance across trials per neuron
-        n_select = min(n_neurons, n_neurons_total)
-        top_idx = np.argsort(neuron_var)[-n_select:][::-1]  # descending
-        self._neuron_indices = top_idx
-        raw_responses = sresp[top_idx, :].T.astype(np.float32)  # (n_trials, n_select)
-
         # --- Bin orientations into classes ---
         # istim is in [0, 2*pi), bin into n_classes equal bins
         bin_edges = np.linspace(0, 2 * np.pi, n_classes + 1)
@@ -781,6 +815,42 @@ class StringerV1Dataset(Dataset):
             selected_global_idx = available_idx
         else:
             selected_global_idx = available_idx[idx]
+
+        # --- Select top neurons by variance ---
+        # For prospective evaluation, train and test constructors use the same
+        # seed and therefore derive the same training indices and neuron order.
+        # This keeps candidate pools nested while preventing held-out response
+        # variance from affecting feature selection.
+        n_select = min(n_neurons, n_neurons_total)
+        if neuron_selection_indices is not None:
+            explicit_indices = np.asarray(neuron_selection_indices, dtype=np.int64)
+            if explicit_indices.ndim != 1 or len(explicit_indices) < n_select:
+                raise ValueError(
+                    "neuron_selection_indices must be a one-dimensional ordered "
+                    f"array with at least {n_select} entries"
+                )
+            if (
+                np.any(explicit_indices < 0)
+                or np.any(explicit_indices >= n_neurons_total)
+                or len(np.unique(explicit_indices)) != len(explicit_indices)
+            ):
+                raise ValueError(
+                    "neuron_selection_indices must contain unique in-range indices"
+                )
+            top_idx = explicit_indices[:n_select]
+        else:
+            if neuron_selection_scope == "train_split":
+                selection_global_idx = (
+                    available_idx[perm[:n_train]] if split != "all" else available_idx
+                )
+            else:
+                selection_global_idx = np.arange(n_trials)
+            neuron_var = sresp[:, selection_global_idx].var(axis=1)
+            ranked_idx = np.argsort(neuron_var, kind="stable")[::-1]
+            top_idx = ranked_idx[:n_select]
+        self._neuron_indices = top_idx
+        self.neuron_selection_scope = neuron_selection_scope
+        raw_responses = sresp[top_idx, :].T.astype(np.float32)  # (n_trials, n_select)
 
         # --- Normalize ---
         if normalize:

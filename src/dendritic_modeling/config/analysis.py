@@ -1,3 +1,4 @@
+import math
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -38,6 +39,7 @@ class EvaluationRuntimeConfig(BaseConfig):
     max_batches: Optional[int] = None
     max_samples: Optional[int] = None
     materialize_threshold_mb: int = 1024
+    seed: int = 0
 
 
 @dataclass
@@ -566,6 +568,75 @@ class SynapseTurnoverAnalysisConfig(BaseConfig):
 
 
 @dataclass
+class PoissonExposureTransferParams(BaseConfig):
+    """Reproducible parameters for posthoc Poisson exposure transfer.
+
+    This standalone parameter block is intentionally not an ``AnalysisConfig``
+    field. Exposure transfer rebuilds multiple stochastic test datasets and
+    coordinates draws across independently trained checkpoints, while
+    ``AnalysisManager`` analyzes one fixed test split within one run. The
+    posthoc analyzer accepts this dataclass directly and it can be saved to or
+    loaded from YAML through :class:`BaseConfig`.
+    """
+
+    test_durations: list[float] = field(
+        default_factory=lambda: [0.05, 0.1, 0.3162, 1.0, 3.1623]
+    )
+    draws_per_duration: int = 5
+    base_draw_seed: int = 73000
+    batch_size: int = 256
+    max_samples: Optional[int] = None
+    fingerprint_realized_datasets: bool = False
+
+    def __post_init__(self) -> None:
+        if isinstance(self.test_durations, (str, bytes)):
+            raise TypeError("test_durations must be a sequence of positive values")
+        self.test_durations = [float(value) for value in self.test_durations]
+        if not self.test_durations:
+            raise ValueError("At least one test duration is required")
+        keys = []
+        for duration in self.test_durations:
+            if not math.isfinite(duration) or duration <= 0:
+                raise ValueError(
+                    "Test durations must be finite and positive, " f"got {duration!r}"
+                )
+            key = round(duration * 1_000_000)
+            if key <= 0:
+                raise ValueError(
+                    "Test duration is below micro-duration resolution: " f"{duration}"
+                )
+            keys.append(key)
+        if len(set(keys)) != len(keys):
+            raise ValueError(
+                "Test durations collide at micro-duration precision: "
+                f"{tuple(self.test_durations)}"
+            )
+
+        for name in ("draws_per_duration", "base_draw_seed", "batch_size"):
+            value = getattr(self, name)
+            if isinstance(value, bool) or int(value) != value:
+                raise ValueError(f"{name} must be an integer, got {value!r}")
+            setattr(self, name, int(value))
+        if not 1 <= self.draws_per_duration <= 100:
+            raise ValueError("draws_per_duration must be in [1, 100]")
+        if self.batch_size <= 0:
+            raise ValueError("batch_size must be positive")
+        if self.max_samples is not None:
+            if (
+                isinstance(self.max_samples, bool)
+                or int(self.max_samples) != self.max_samples
+            ):
+                raise ValueError(
+                    f"max_samples must be an integer, got {self.max_samples!r}"
+                )
+            self.max_samples = int(self.max_samples)
+            if self.max_samples <= 0:
+                raise ValueError("max_samples must be positive")
+        if not isinstance(self.fingerprint_realized_datasets, bool):
+            raise TypeError("fingerprint_realized_datasets must be a bool")
+
+
+@dataclass
 class NoisePerturbationAnalysisParams(BaseConfig):
     """Parameters for noise perturbation analysis.
 
@@ -659,7 +730,9 @@ class AblationAnalysisParams(BaseConfig):
     - "shuffle": signal intervention that permutes the targeted signal across samples
       (destroys label-alignment while preserving marginal distribution).
     - "mean_clamp": signal intervention that replaces the targeted signal with its
-      batch mean (preserves operating point; removes trial-to-trial variability).
+      fixed training-dataset mean (preserves a fixed operating-point reference while
+      removing trial-to-trial variability). Direct low-level hook use retains the
+      legacy batch-mean fallback for compatibility.
 
     Core string options:
     - clamp_statistic: "mean" (supported), "median" (reserved)

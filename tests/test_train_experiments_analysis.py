@@ -340,12 +340,21 @@ def test_record_model_size_summary_logs_and_saves_count(monkeypatch, tmp_path):
         "suggest_optimal_config_for_model_size",
         lambda nparams: {},
     )
+    resources = {"trainable_parameters": 6, "active_synapses": 4}
+    monkeypatch.setattr(
+        train_experiments,
+        "model_resource_summary",
+        lambda received_model: resources,
+    )
 
     nparams = train_experiments._record_model_size_summary(model, config, str(tmp_path))
 
     assert nparams == 10
     assert wandb_logs == [{"nparams": 10}]
-    assert saved_payloads == [({"nparams": 10}, str(tmp_path), "nparams")]
+    assert saved_payloads == [
+        ({"nparams": 10}, str(tmp_path), "nparams"),
+        (resources, str(tmp_path), "model_resources.json"),
+    ]
 
 
 def test_record_model_size_summary_logs_only_changed_suggestions(
@@ -371,15 +380,66 @@ def test_record_model_size_summary_logs_only_changed_suggestions(
         "suggest_optimal_config_for_model_size",
         lambda nparams: {"lr": 0.01, "batch_size": 128},
     )
+    resources = {"trainable_parameters": 5, "active_synapses": 0}
+    monkeypatch.setattr(
+        train_experiments,
+        "model_resource_summary",
+        lambda received_model: resources,
+    )
 
     with caplog.at_level("INFO", logger=train_experiments.__name__):
         train_experiments._record_model_size_summary(model, config, str(tmp_path))
 
     messages = [record.getMessage() for record in caplog.records]
-    assert saved_payloads == [({"nparams": 5}, str(tmp_path), "nparams")]
+    assert saved_payloads == [
+        ({"nparams": 5}, str(tmp_path), "nparams"),
+        (resources, str(tmp_path), "model_resources.json"),
+    ]
     assert any("MODEL SIZE RECOMMENDATIONS" in message for message in messages)
     assert any("batch_size = 128" in message for message in messages)
     assert all("lr = 0.01" not in message for message in messages)
+
+
+def test_save_training_summary_recursively_removes_state_dicts(monkeypatch):
+    saved_payloads = []
+    monkeypatch.setattr(
+        train_experiments,
+        "save_dict",
+        lambda payload, save_path, name: saved_payloads.append(
+            (payload, save_path, name)
+        ),
+    )
+    results = {
+        "best_loss": 0.25,
+        "best_state_dict": {"weight": torch.ones(100)},
+        "stages": [
+            {
+                "name": "fit",
+                "results": {
+                    "valid_losses": (0.5, 0.25),
+                    "final_state_dict": {"weight": torch.zeros(100)},
+                },
+            }
+        ],
+    }
+
+    train_experiments._save_training_summary(results, "/tmp/run")
+
+    assert saved_payloads == [
+        (
+            {
+                "best_loss": 0.25,
+                "stages": [
+                    {
+                        "name": "fit",
+                        "results": {"valid_losses": [0.5, 0.25]},
+                    }
+                ],
+            },
+            "/tmp/run",
+            "training_summary.json",
+        )
+    ]
 
 
 def test_save_run_config_applies_canonicalizers_in_order(monkeypatch):
@@ -1031,6 +1091,7 @@ def test_run_main_training_phase_builds_trainer_and_runs_training(
         "pruning": {},
         "existing": "value",
         "seed": 123,
+        "loader_seed": 123,
         "task": "sequence-classification",
     }
     assert result.optimizer is not None
@@ -1426,6 +1487,11 @@ def test_finalize_main_training_phase_runs_rank0_outputs_and_pruning(monkeypatch
         "_save_final_model_and_analysis",
         lambda **kwargs: events.append(("save", kwargs)),
     )
+    monkeypatch.setattr(
+        train_experiments,
+        "_save_training_summary",
+        lambda *args: events.append(("summary", args)),
+    )
 
     result = train_experiments._finalize_main_training_phase(
         is_main=True,
@@ -1446,7 +1512,13 @@ def test_finalize_main_training_phase_runs_rank0_outputs_and_pruning(monkeypatch
     )
 
     assert result is pruned_results
-    assert [event[0] for event in events] == ["size", "plot", "pruning", "save"]
+    assert [event[0] for event in events] == [
+        "size",
+        "plot",
+        "pruning",
+        "summary",
+        "save",
+    ]
     assert events[0][1] == (unwrapped_model, config, "/tmp/run")
     assert events[1][1] == {
         "strategy": "standard",
@@ -1469,7 +1541,8 @@ def test_finalize_main_training_phase_runs_rank0_outputs_and_pruning(monkeypatch
         "encoded_valid_ds": encoded_valid_ds,
         "training_results": training_results,
     }
-    assert events[3][1] == {
+    assert events[3][1] == (pruned_results, "/tmp/run")
+    assert events[4][1] == {
         "unwrapped_model": unwrapped_model,
         "run_save_path": "/tmp/run",
         "any_analysis_enabled": True,
@@ -1512,6 +1585,11 @@ def test_finalize_main_training_phase_workers_only_run_pruning(monkeypatch):
         train_experiments,
         "_save_final_model_and_analysis",
         lambda **kwargs: pytest.fail("worker rank should not save final model"),
+    )
+    monkeypatch.setattr(
+        train_experiments,
+        "_save_training_summary",
+        lambda *args: pytest.fail("worker rank should not save training summary"),
     )
     monkeypatch.setattr(
         train_experiments,

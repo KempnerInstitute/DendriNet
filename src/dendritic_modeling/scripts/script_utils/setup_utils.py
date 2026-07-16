@@ -22,7 +22,8 @@ from dendritic_modeling.datasets import get_unified_datasets
 from dendritic_modeling.models import Classifier, RecurrentClassifier, Regressor
 from dendritic_modeling.networks import Identity
 from dendritic_modeling.networks.architectures.factory import get_architecture
-from dendritic_modeling.utils import set_seed
+from dendritic_modeling.utils import resolve_experiment_seeds, save_dict, set_seed
+from dendritic_modeling.utils.dataset_fingerprint import fingerprint_dataset_splits
 from dendritic_modeling.utils.logging_config import LoggerManager
 
 logger = logging.getLogger(__name__)
@@ -52,6 +53,247 @@ def _get_experiment_value(experiment_config, key: str, default):
     if isinstance(experiment_config, dict):
         return experiment_config.get(key, default)
     return getattr(experiment_config, key, default)
+
+
+def _config_child(config, key: str, default=None):
+    """Read a child from dict, OmegaConf, or attribute-based configs."""
+    if config is None:
+        return default
+    if isinstance(config, dict) or OmegaConf.is_config(config):
+        return config.get(key, default)
+    return getattr(config, key, default)
+
+
+def _set_config_default(config, key: str, value) -> None:
+    """Set a config value only when it is absent or explicitly ``None``."""
+    if config is None or _config_child(config, key, None) is not None:
+        return
+    if isinstance(config, dict) or OmegaConf.is_config(config):
+        config[key] = value
+    else:
+        setattr(config, key, value)
+
+
+def _set_transfer_topology_seed(transfer_config, topology_seed: int) -> None:
+    """Seed random input partitioning while preserving explicit transfer seeds."""
+    if transfer_config is None:
+        return
+    if _config_child(transfer_config, "split_seed", None) is not None:
+        return
+    if _config_child(transfer_config, "seed", None) is not None:
+        return
+    _set_config_default(transfer_config, "split_seed", topology_seed)
+
+
+def _seed_population_topology(population_config, topology_seed: int) -> None:
+    if population_config is None:
+        return
+    _set_config_default(population_config, "indexed_seed", topology_seed)
+    _set_config_default(
+        _config_child(population_config, "population", None),
+        "indexed_seed",
+        topology_seed,
+    )
+
+
+def _seed_named_population_topology(population_definition, topology_seed: int) -> None:
+    """Seed a named population's nested ``PopulationConfig`` overrides.
+
+    ``PopulationDefinitionConfig`` deliberately keeps model options inside its
+    ``population`` mapping. Adding ``indexed_seed`` beside ``name`` or
+    ``polarity`` makes dataclass construction fail, so population-network
+    definitions need a narrower path than unified-E/I population configs.
+    """
+    if population_definition is None:
+        return
+    population_overrides = _config_child(population_definition, "population", None)
+    if population_overrides is None:
+        population_overrides = {}
+        if isinstance(population_definition, dict) or OmegaConf.is_config(
+            population_definition
+        ):
+            population_definition["population"] = population_overrides
+        else:
+            population_definition.population = population_overrides
+    _set_config_default(population_overrides, "indexed_seed", topology_seed)
+
+
+def _set_initialization_namespace(config, namespace: str) -> None:
+    """Fill an absent/empty component namespace without replacing user intent."""
+    if config is None:
+        return
+    configured = _config_child(config, "initialization_namespace", None)
+    if configured not in (None, ""):
+        return
+    if isinstance(config, dict) or OmegaConf.is_config(config):
+        config["initialization_namespace"] = namespace
+    else:
+        config.initialization_namespace = namespace
+
+
+def _seed_population_initialization(
+    population_config,
+    model_seed: int,
+    *,
+    namespace: str,
+) -> None:
+    """Configure stable parameter-initialization streams for one population."""
+    if population_config is None:
+        return
+    _set_config_default(population_config, "initialization_seed", model_seed)
+    _set_initialization_namespace(population_config, namespace)
+
+
+def _seed_named_population_initialization(
+    population_definition,
+    model_seed: int,
+    *,
+    namespace: str,
+) -> None:
+    """Seed the nested overrides of a named population definition."""
+    if population_definition is None:
+        return
+    population_overrides = _config_child(population_definition, "population", None)
+    if population_overrides is None:
+        population_overrides = {}
+        if isinstance(population_definition, dict) or OmegaConf.is_config(
+            population_definition
+        ):
+            population_definition["population"] = population_overrides
+        else:
+            population_definition.population = population_overrides
+    _seed_population_initialization(
+        population_overrides,
+        model_seed,
+        namespace=namespace,
+    )
+
+
+def _apply_initialization_seed_defaults(
+    model_config: ModelConfig,
+    model_seed: int,
+) -> None:
+    """Propagate the model stream into stable population/component substreams."""
+    core = _config_child(model_config, "core", None)
+    if core is None:
+        return
+    _set_config_default(core, "initialization_seed", model_seed)
+    core_initialization_seed = int(
+        _config_child(core, "initialization_seed", model_seed)
+    )
+
+    unified_ei = _config_child(core, "unified_ei", None)
+    for layer_idx, layer in enumerate(_config_child(unified_ei, "layers", []) or []):
+        _seed_population_initialization(
+            _config_child(layer, "excitatory", None),
+            core_initialization_seed,
+            namespace=f"unified.layer.{layer_idx}.excitatory",
+        )
+        _seed_population_initialization(
+            _config_child(layer, "inhibitory", None),
+            core_initialization_seed,
+            namespace=f"unified.layer.{layer_idx}.inhibitory",
+        )
+
+    population_network = _config_child(core, "population_network", None)
+    for layer_idx, layer in enumerate(
+        _config_child(population_network, "layers", []) or []
+    ):
+        layer_name = str(_config_child(layer, "name", f"layer{layer_idx}"))
+        _set_config_default(
+            _config_child(layer, "population_defaults", None),
+            "initialization_seed",
+            core_initialization_seed,
+        )
+        default_initialization_seed = _config_child(
+            _config_child(layer, "population_defaults", None),
+            "initialization_seed",
+            core_initialization_seed,
+        )
+        for population_idx, population in enumerate(
+            _config_child(layer, "populations", []) or []
+        ):
+            population_name = str(
+                _config_child(population, "name", f"population{population_idx}")
+            )
+            _seed_named_population_initialization(
+                population,
+                int(default_initialization_seed),
+                namespace=(f"population_network.{layer_name}.{population_name}"),
+            )
+
+
+def _validate_sealed_test_dataset(experiment_config, test_dataset) -> None:
+    """Enforce the declared held-out-test audit boundary after construction."""
+    if not bool(_get_experiment_value(experiment_config, "sealed_test", False)):
+        return
+    if bool(_get_experiment_value(experiment_config, "allow_test_data", True)):
+        raise ValueError("experiment.sealed_test=true requires allow_test_data=false")
+    max_test_samples = _get_experiment_value(
+        experiment_config, "max_test_samples", None
+    )
+    if max_test_samples is None:
+        raise ValueError(
+            "experiment.sealed_test=true requires max_test_samples to be set"
+        )
+    max_test_samples = int(max_test_samples)
+    if max_test_samples < 0:
+        raise ValueError("experiment.max_test_samples must be nonnegative")
+    actual_test_samples = len(test_dataset)
+    if actual_test_samples > max_test_samples:
+        raise ValueError(
+            "sealed test dataset exceeds experiment.max_test_samples: "
+            f"{actual_test_samples} > {max_test_samples}"
+        )
+
+
+def _apply_topology_seed_defaults(
+    model_config: ModelConfig, topology_seed: int
+) -> None:
+    """Apply one topology stream wherever the model lacks an explicit seed."""
+    core = _config_child(model_config, "core", None)
+    if core is None:
+        return
+
+    sparsity = _config_child(core, "sparsity", None)
+    _set_config_default(_config_child(sparsity, "indexed", None), "seed", topology_seed)
+    connectivity = _config_child(core, "connectivity", None)
+    _set_config_default(
+        _config_child(connectivity, "structured", None), "seed", topology_seed
+    )
+    _set_transfer_topology_seed(_config_child(core, "transfer", None), topology_seed)
+
+    recurrent_ei = _config_child(core, "recurrent_ei", None)
+    _set_transfer_topology_seed(
+        _config_child(recurrent_ei, "transfer", None), topology_seed
+    )
+    _set_transfer_topology_seed(
+        _config_child(recurrent_ei, "transfer_params", None), topology_seed
+    )
+
+    unified_ei = _config_child(core, "unified_ei", None)
+    _set_transfer_topology_seed(
+        _config_child(unified_ei, "transfer_params", None), topology_seed
+    )
+    for layer in _config_child(unified_ei, "layers", []) or []:
+        _seed_population_topology(
+            _config_child(layer, "excitatory", None), topology_seed
+        )
+        _seed_population_topology(
+            _config_child(layer, "inhibitory", None), topology_seed
+        )
+
+    population_network = _config_child(core, "population_network", None)
+    _set_transfer_topology_seed(
+        _config_child(population_network, "transfer_params", None), topology_seed
+    )
+    for layer in _config_child(population_network, "layers", []) or []:
+        _set_config_default(layer, "connection_seed", topology_seed)
+        _seed_population_topology(
+            _config_child(layer, "population_defaults", None), topology_seed
+        )
+        for population in _config_child(layer, "populations", []) or []:
+            _seed_named_population_topology(population, topology_seed)
 
 
 def _warn_ignored_legacy_model_sections(model_config: ModelConfig) -> None:
@@ -298,7 +540,20 @@ def initialize_model(model_config: ModelConfig):
         else:
             raise ValueError(f"Invalid task: {model_config.task}")
     elif model_config.task == "classification":
-        model = Classifier(encoder, core_network, decoder_network)
+        model = Classifier(
+            encoder,
+            core_network,
+            decoder_network,
+            learned_output_scale=_get_experiment_value(
+                model_config, "learned_output_scale", True
+            ),
+            fixed_output_scale=_get_experiment_value(
+                model_config, "fixed_output_scale", 1.0
+            ),
+            output_scale_mode=_get_experiment_value(
+                model_config, "output_scale_mode", None
+            ),
+        )
     elif model_config.task == "regression":
         model = Regressor(encoder, core_network, decoder_network)
     else:
@@ -327,8 +582,7 @@ def setup_environment(
             from rank 0 to other ranks.
     """
 
-    # Set seed
-    seed = experiment_config.seed
+    resolved_seeds = resolve_experiment_seeds(experiment_config, write_back=True)
     fast_mode = bool(_get_experiment_value(experiment_config, "fast_mode", False))
     deterministic = bool(
         _get_experiment_value(experiment_config, "deterministic", not fast_mode)
@@ -346,23 +600,43 @@ def setup_environment(
             "high" if fast_mode else "highest",
         )
     )
+    strict_deterministic = resolved_seeds.strict_deterministic
+    if strict_deterministic:
+        deterministic = True
+        cudnn_benchmark = False
+        allow_tf32 = False
+        float32_matmul_precision = "highest"
 
     set_seed(
-        seed,
+        resolved_seeds.dataset_seed,
         deterministic=deterministic,
         cudnn_benchmark=cudnn_benchmark,
         allow_tf32=allow_tf32,
         float32_matmul_precision=float32_matmul_precision,
+        strict_deterministic=strict_deterministic,
     )
-    logger.info(f"Set random seed to {seed}")
+    logger.info(
+        "Resolved RNG seeds: seed=%s dataset=%s split=%s model=%s topology=%s "
+        "loader=%s evaluation=%s probe=%s strict_deterministic=%s",
+        resolved_seeds.seed,
+        resolved_seeds.dataset_seed,
+        resolved_seeds.split_seed,
+        resolved_seeds.model_seed,
+        resolved_seeds.topology_seed,
+        resolved_seeds.loader_seed,
+        resolved_seeds.evaluation_seed,
+        resolved_seeds.probe_seed,
+        strict_deterministic,
+    )
     logger.info(
         "Runtime performance: fast_mode=%s deterministic=%s cudnn_benchmark=%s "
-        "allow_tf32=%s matmul_precision=%s",
+        "allow_tf32=%s matmul_precision=%s strict_deterministic=%s",
         fast_mode,
         deterministic,
         cudnn_benchmark and not deterministic,
         allow_tf32,
         float32_matmul_precision,
+        strict_deterministic,
     )
 
     # Setup output directory — only rank 0 creates dirs and log files.
@@ -376,8 +650,14 @@ def setup_environment(
             os.makedirs(output_dir, exist_ok=True)
             logger.info(f"Created output directory: {output_dir}")
 
+        if bool(getattr(outputs_config, "exact_run_dir", False)):
+            run_save_path = output_dir
+            logger.info(
+                "Exact run-directory mode - using manifest path: %s",
+                run_save_path,
+            )
         # Check if this is part of a sweep (has _sweep_config_id)
-        if hasattr(outputs_config, "_sweep_config_id") or (
+        elif hasattr(outputs_config, "_sweep_config_id") or (
             hasattr(outputs_config, "run_name")
             and "/config_" in str(outputs_config.results_dir)
         ):
@@ -401,6 +681,13 @@ def setup_environment(
     else:
         # Placeholder — caller will broadcast the real path from rank 0.
         run_save_path = output_dir
+
+    if is_main:
+        save_dict(
+            resolved_seeds.asdict(),
+            run_save_path,
+            "resolved_seeds.json",
+        )
 
     # Setup wandb if enabled (rank 0 only; caller disables on other ranks)
     if wandb_config.use_wandb and is_main:
@@ -442,16 +729,31 @@ def setup_environment(
             "parameters": {
                 **processing_params,
                 **dataset_specific_params,
-                "label_noise_seed": experiment_config.seed,
-                "split_seed": experiment_config.seed,
+                "label_noise_seed": resolved_seeds.dataset_seed,
+                "split_seed": resolved_seeds.split_seed,
             },
         },
     )()
+    task_cfg.parameters.setdefault("seed", resolved_seeds.dataset_seed)
 
     unified_datasets = get_unified_datasets(
         task_cfg=task_cfg,
     )
     train_ds, valid_ds, test_ds = unified_datasets
+    _validate_sealed_test_dataset(experiment_config, test_ds)
+
+    if is_main and bool(
+        _get_experiment_value(experiment_config, "record_dataset_fingerprints", False)
+    ):
+        save_dict(
+            fingerprint_dataset_splits(
+                train=train_ds,
+                valid=valid_ds,
+                test=test_ds,
+            ),
+            run_save_path,
+            "dataset_fingerprints.json",
+        )
 
     logger.info(
         f"Loaded datasets: {len(train_ds)} training, {len(valid_ds)} validation, {len(test_ds)} test samples"
@@ -484,7 +786,19 @@ def setup_environment(
             "input_shape": input_shape,
         }
 
-    # Initialize model
+    _apply_topology_seed_defaults(model_config, resolved_seeds.topology_seed)
+    _apply_initialization_seed_defaults(model_config, resolved_seeds.model_seed)
+    set_seed(
+        resolved_seeds.model_seed,
+        deterministic=deterministic,
+        cudnn_benchmark=cudnn_benchmark,
+        allow_tf32=allow_tf32,
+        float32_matmul_precision=float32_matmul_precision,
+        strict_deterministic=strict_deterministic,
+    )
+
+    # Initialize model from its independent weight stream. Topology samplers
+    # receive their own explicit seeds above and therefore do not consume it.
     model, encoder_network = initialize_model(model_config)
 
     return run_save_path, train_ds, valid_ds, test_ds, model, encoder_network

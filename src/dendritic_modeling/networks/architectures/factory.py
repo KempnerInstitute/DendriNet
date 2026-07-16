@@ -22,10 +22,12 @@ from dendritic_modeling.networks.architectures.classical.cnn import (
 from dendritic_modeling.networks.architectures.classical.identity import Identity
 from dendritic_modeling.networks.architectures.classical.mlp import (
     MLP,
+    DirectActiveMatchedPointBottleneck,
     EffectiveMatchedParamMLP,
     MatchedActiveParamMLP,
     MatchedTotalParamMLP,
     PointMatchedParamMLP,
+    SparseActiveMatchedPointAffine,
     SparseStructuredMLP,
 )
 from dendritic_modeling.networks.architectures.classical.pathway_router import (
@@ -114,6 +116,7 @@ _BUILTIN_ARCHITECTURE_TYPES: frozenset[str] = frozenset(
         "cnnvariationalautoencoder",
         "cnndownsample",
         "cnnupsample",
+        "direct_active_matched_point",
         "effectivematchedparammlp",
         "identity",
         "mlp",
@@ -123,6 +126,7 @@ _BUILTIN_ARCHITECTURE_TYPES: frozenset[str] = frozenset(
         "pathway_router",
         "point_mlp",
         "router",
+        "sparse_active_matched_point",
         "ss_mlp",
         "ss_mlp_flat",
         "total_param_mlp",
@@ -236,6 +240,86 @@ def _build_point_mlp_architecture(
 
     params = prepare_ei_network_params(raw_params, input_dim)
     return PointMatchedParamMLP(**params)
+
+
+def _build_direct_active_matched_point_architecture(
+    type: str,
+    parameters: Union[dict[str, Any], DictConfig],
+    input_dim: Optional[int],
+    suffix_input_dim: Optional[int],
+) -> nn.Module:
+    """Build a one-affine-layer point control matched to active E/I params."""
+
+    del type
+    raw_params = _to_plain_mapping(parameters)
+    if not ("architecture" in raw_params and "connectivity" in raw_params):
+        raise ValueError(
+            "direct_active_matched_point requires structured "
+            "architecture/connectivity reference config"
+        )
+    if input_dim is None:
+        raise ValueError("input_dim required when building direct_active_matched_point")
+
+    reference_output_sizes = raw_params["architecture"].get(
+        "excitatory_layer_sizes", []
+    )
+    if not reference_output_sizes:
+        raise ValueError("direct_active_matched_point requires excitatory_layer_sizes")
+    configured_output_dim = int(reference_output_sizes[-1])
+    if suffix_input_dim is not None and configured_output_dim != int(suffix_input_dim):
+        raise ValueError(
+            "direct_active_matched_point zero-padded interface does not match "
+            f"the suffix: configured={configured_output_dim}, "
+            f"suffix_input_dim={int(suffix_input_dim)}"
+        )
+
+    from dendritic_modeling.scripts.script_utils.config_utils import (
+        prepare_ei_network_params,
+    )
+
+    params = prepare_ei_network_params(raw_params, input_dim)
+    return DirectActiveMatchedPointBottleneck(**params)
+
+
+def _build_sparse_active_matched_point_architecture(
+    type: str,
+    parameters: Union[dict[str, Any], DictConfig],
+    input_dim: Optional[int],
+    suffix_input_dim: Optional[int],
+) -> nn.Module:
+    """Build an all-output-active fixed-index affine point control."""
+
+    del type
+    raw_params = _to_plain_mapping(parameters)
+    if not ("architecture" in raw_params and "connectivity" in raw_params):
+        raise ValueError(
+            "sparse_active_matched_point requires structured "
+            "architecture/connectivity reference config"
+        )
+    if input_dim is None:
+        raise ValueError("input_dim required when building sparse_active_matched_point")
+
+    reference_output_sizes = raw_params["architecture"].get(
+        "excitatory_layer_sizes", []
+    )
+    if not reference_output_sizes:
+        raise ValueError("sparse_active_matched_point requires excitatory_layer_sizes")
+    configured_output_dim = int(reference_output_sizes[-1])
+    if suffix_input_dim is not None and configured_output_dim != int(suffix_input_dim):
+        raise ValueError(
+            "sparse_active_matched_point output does not match the suffix: "
+            f"configured={configured_output_dim}, "
+            f"suffix_input_dim={int(suffix_input_dim)}"
+        )
+
+    from dendritic_modeling.scripts.script_utils.config_utils import (
+        prepare_ei_network_params,
+    )
+
+    params = prepare_ei_network_params(raw_params, input_dim)
+    if "target_active_parameters" in raw_params:
+        params["target_active_parameters"] = raw_params["target_active_parameters"]
+    return SparseActiveMatchedPointAffine(**params)
 
 
 def _build_reference_matched_mlp(
@@ -410,6 +494,12 @@ def _build_builtin_architecture_registry() -> dict[str, ArchitectureBuilder]:
     builders.update(dict.fromkeys(_EINET_TYPES, _build_einet_architecture))
     builders.update(
         {
+            "direct_active_matched_point": (
+                _build_direct_active_matched_point_architecture
+            ),
+            "sparse_active_matched_point": (
+                _build_sparse_active_matched_point_architecture
+            ),
             "point_mlp": _build_point_mlp_architecture,
             "mlp": _build_flat_mlp_architecture,
             "total_param_mlp": _build_total_param_mlp,

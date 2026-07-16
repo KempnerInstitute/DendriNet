@@ -15,11 +15,14 @@ from typing import Any, ClassVar, Optional
 import numpy as np
 import torch
 
+from dendritic_modeling.config.conversion import to_plain_dict
+from dendritic_modeling.config.recurrence import is_recurrent_core_config
 from dendritic_modeling.datasets.dimensions import (
     dataset_class_count,
     dataset_input_shape,
 )
 from dendritic_modeling.utils.hooks import iter_modules_matching
+from dendritic_modeling.utils.reproducibility import resolve_experiment_seeds
 
 logger = logging.getLogger(__name__)
 
@@ -128,21 +131,38 @@ def _resolve_task_config(config: Any) -> tuple[Any, Any]:
     """Resolve legacy task config or synthesize one from the data config."""
     if hasattr(config, "task"):
         task_cfg = config.task
-        task_params = getattr(task_cfg, "parameters", {}) or {}
+        task_params = to_plain_dict(getattr(task_cfg, "parameters", {}))
+        # Dataset loading requires Mapping semantics (not merely attributes).
+        # Keep the legacy object identity while normalizing its boundary field.
+        task_cfg.parameters = task_params
         return task_cfg, task_params
 
+    processing_params = to_plain_dict(getattr(config.data, "processing", {}))
+    dataset_name = config.data.dataset_name
+    all_dataset_params = to_plain_dict(getattr(config.data, "dataset_params", {}))
+    dataset_params = to_plain_dict(all_dataset_params.get(dataset_name, {}))
+    task_params = {**processing_params, **dataset_params}
+
+    experiment = getattr(config, "experiment", None)
+    if experiment is not None and hasattr(experiment, "seed"):
+        resolved_seeds = resolve_experiment_seeds(experiment)
+        task_params["label_noise_seed"] = resolved_seeds.dataset_seed
+        task_params["split_seed"] = resolved_seeds.split_seed
+        task_params.setdefault("seed", resolved_seeds.dataset_seed)
+
     task_cfg = type("TaskConfig", (), {})()
-    task_cfg.dataset = config.data.dataset_name
+    task_cfg.dataset = dataset_name
     task_cfg.data_path = getattr(config.data, "base_dir", None)
-    task_cfg.parameters = getattr(config.data, "processing", {})
+    task_cfg.parameters = task_params
     task_cfg.train_valid_split = getattr(
         config.experiment, "train_valid_split", DEFAULT_TRAIN_VALID_SPLIT
     )
-    return task_cfg, task_cfg.parameters or {}
+    return task_cfg, task_params
 
 
 def _fallback_input_shape(task_cfg: Any, task_params: Any) -> tuple[int, ...]:
     """Return the historical hardcoded input shape when dataset loading fails."""
+    task_params = to_plain_dict(task_params)
     dataset_name = getattr(task_cfg, "dataset", "cifar10")
     shape = dataset_input_shape(
         dataset_name,
@@ -161,8 +181,8 @@ def _flat_input_dim(input_shape: tuple[int, ...]) -> int:
 
 def _config_params(config_node: Any) -> dict[str, Any]:
     """Return explicit legacy/current params from a config node."""
-    return dict(
-        getattr(config_node, "parameters", {}) or getattr(config_node, "params", {})
+    return to_plain_dict(
+        getattr(config_node, "parameters", None) or getattr(config_node, "params", {})
     )
 
 
@@ -183,6 +203,7 @@ def _resolve_n_classes(task_type: str, task_cfg: Any, task_params: Any) -> int:
     if task_type != "classification":
         return REGRESSION_OUTPUT_DIM
 
+    task_params = to_plain_dict(task_params)
     dataset_name = getattr(task_cfg, "dataset", "cifar10")
     return dataset_class_count(
         dataset_name,
@@ -228,7 +249,18 @@ def _resolve_estimation_input_shape(
         return _fallback_input_shape(task_cfg, task_params)
 
 
-def _build_estimation_encoder(model_config: Any, input_shape: tuple[int, ...]):
+def _estimation_input_dim(
+    model_config: Any, input_shape: tuple[int, ...] | torch.Size
+) -> int:
+    """Match training's feature-dimension handling for recurrent inputs."""
+    if is_recurrent_core_config(model_config.core):
+        return int(input_shape[-1])
+    return _flat_input_dim(tuple(input_shape))
+
+
+def _build_estimation_encoder(
+    model_config: Any, input_shape: tuple[int, ...] | torch.Size
+):
     """Build the encoder used for memory estimation."""
     from dendritic_modeling.networks import Identity
     from dendritic_modeling.networks.architectures.factory import get_architecture
@@ -236,11 +268,12 @@ def _build_estimation_encoder(model_config: Any, input_shape: tuple[int, ...]):
     encoder_config = (
         getattr(model_config, "encoder_network", None) or model_config.encoder
     )
+    input_dim = _estimation_input_dim(model_config, input_shape)
     if encoder_config.type.lower() == "identity":
-        return Identity(_flat_input_dim(input_shape))
+        return Identity(input_dim)
 
     encoder_params = _config_params(encoder_config)
-    encoder_params["input_dim"] = _flat_input_dim(input_shape)
+    encoder_params["input_dim"] = input_dim
     return get_architecture(encoder_config.type, encoder_params)
 
 
@@ -249,7 +282,20 @@ def _build_estimation_core(model_config: Any, encoder: torch.nn.Module):
     from dendritic_modeling.networks.architectures.factory import get_architecture
 
     core_config = getattr(model_config, "core_network", None) or model_config.core
-    if core_config.type.lower() == "einet" and hasattr(core_config, "architecture"):
+    core_type = core_config.type.lower()
+    if core_type in {
+        "einet",
+        "ei_unified",
+        "unified_ei",
+        "ei_net",
+        "unified_einet",
+        "rnn_dendritic_shunting",
+        "rnn_dendritic_additive",
+        "rnn_dendritic_normalized_additive",
+        "rnn_flat_shunting",
+        "rnn_flat_additive",
+        "rnn_flat_normalized_additive",
+    } and hasattr(core_config, "architecture"):
         return get_architecture(core_config.type, core_config, encoder.output_dim)
 
     core_params = _core_params_from_config(core_config)
@@ -274,7 +320,8 @@ def _build_estimation_decoder(
 
     decoder_params = _config_params(decoder_config)
     decoder_params["input_dim"] = core_network.output_dim
-    decoder_params["output_dim"] = n_classes
+    if decoder_params.get("output_dim") is None:
+        decoder_params["output_dim"] = n_classes
     return get_architecture(decoder_config.type, decoder_params)
 
 
@@ -300,6 +347,9 @@ def _build_estimation_model(
             encoder_network=encoder,
             core_network=core_network,
             decoder_network=decoder,
+            learned_output_scale=getattr(model_config, "learned_output_scale", True),
+            fixed_output_scale=getattr(model_config, "fixed_output_scale", 1.0),
+            output_scale_mode=getattr(model_config, "output_scale_mode", None),
         )
 
     return Regressor(

@@ -335,6 +335,14 @@ def test_romo_and_gain_modulated_comparison_datasets():
     )
     assert signed_ds.input_dim == 4
     assert float(signed_inputs[: signed_ds.stimulus_duration, 0].min()) < 0.0
+    assert torch.all(signed_ds.frequency1_indices != signed_ds.frequency2_indices)
+    assert torch.equal(
+        signed_ds.targets,
+        (signed_ds.frequency2_values > signed_ds.frequency1_values).long(),
+    )
+    assert torch.all(
+        (signed_ds.frequency2_values - signed_ds.frequency1_values).abs() > 0
+    )
 
     positive_ds = RomoDelayComparisonDataset(
         n_samples=2,
@@ -540,6 +548,8 @@ def test_frequency_forecast_and_dynamical_sequence_datasets(tmp_path):
         StringerV1Dataset(data_dir=str(tmp_path), gain_group_count=0)
     with pytest.raises(ValueError, match="poisson_rate_scale"):
         StringerV1Dataset(data_dir=str(tmp_path), poisson_rate_scale=0.0)
+    with pytest.raises(ValueError, match="neuron_selection_scope"):
+        StringerV1Dataset(data_dir=str(tmp_path), neuron_selection_scope="future")
     with pytest.raises(FileNotFoundError, match="Stringer V1 data not found"):
         StringerV1Dataset(data_dir=str(tmp_path))
     with pytest.raises(ValueError, match="grating_file must be a filename"):
@@ -653,11 +663,15 @@ def test_stringer_v1_session_id_resolves_file_and_running_index(tmp_path):
         n_classes=4,
         normalize=False,
         session_id="GT1_2019_04_12",
+        neuron_selection_scope="train_split",
         train_valid_split=0.8,
     )
 
     assert train_ds.dataset.grating_file == session_file
     assert test_ds.grating_file == session_file
+    assert train_ds.dataset.neuron_selection_scope == "train_split"
+    assert test_ds.neuron_selection_scope == "train_split"
+    assert np.array_equal(train_ds.dataset._neuron_indices, test_ds._neuron_indices)
 
 
 def test_stringer_v1_uses_train_split_normalization_stats(tmp_path):
@@ -700,6 +714,86 @@ def test_stringer_v1_uses_train_split_normalization_stats(tmp_path):
     assert not np.allclose(train_mu, raw.mean(axis=0, keepdims=True))
 
 
+def test_stringer_v1_training_only_neuron_selection_excludes_test_trials(tmp_path):
+    n_trials = 20
+    seed = 3
+    train_fraction = 0.5
+    perm = np.random.RandomState(seed).permutation(n_trials)
+    train_idx = perm[: int(n_trials * train_fraction)]
+    test_idx = perm[int(n_trials * train_fraction) :]
+
+    responses = np.zeros((4, n_trials), dtype=np.float32)
+    # Neuron 0 varies only in the held-out trials, whereas neuron 1 has the
+    # largest variance in the training partition.
+    responses[0, test_idx] = np.linspace(0.0, 100.0, len(test_idx))
+    responses[1, train_idx] = np.linspace(0.0, 10.0, len(train_idx))
+    responses[2, train_idx] = np.linspace(0.0, 2.0, len(train_idx))
+    orientations = np.linspace(0.0, 2 * np.pi, n_trials, endpoint=False).astype(
+        np.float32
+    )
+    np.save(
+        tmp_path / StringerV1Dataset._GRATING_FILE,
+        {"sresp": responses, "istim": orientations},
+        allow_pickle=True,
+    )
+    all_running = np.empty(1, dtype=object)
+    all_running[0] = np.linspace(0.0, 1.0, n_trials).astype(np.float32)
+    np.save(tmp_path / StringerV1Dataset._RUNNING_FILE, all_running, allow_pickle=True)
+
+    legacy = StringerV1Dataset(
+        data_dir=str(tmp_path),
+        n_neurons=1,
+        split="train",
+        train_fraction=train_fraction,
+        normalize=False,
+        seed=seed,
+        session_idx=0,
+    )
+    prospective_train = StringerV1Dataset(
+        data_dir=str(tmp_path),
+        n_neurons=1,
+        neuron_selection_scope="train_split",
+        split="train",
+        train_fraction=train_fraction,
+        normalize=False,
+        seed=seed,
+        session_idx=0,
+    )
+    prospective_test = StringerV1Dataset(
+        data_dir=str(tmp_path),
+        n_neurons=1,
+        neuron_selection_scope="train_split",
+        split="test",
+        train_fraction=train_fraction,
+        normalize=False,
+        seed=seed,
+        session_idx=0,
+    )
+
+    assert legacy._neuron_indices.tolist() == [0]
+    assert prospective_train._neuron_indices.tolist() == [1]
+    assert np.array_equal(
+        prospective_train._neuron_indices, prospective_test._neuron_indices
+    )
+    assert set(prospective_train._split_indices).isdisjoint(
+        set(prospective_test._split_indices)
+    )
+
+    prospective_top_three = StringerV1Dataset(
+        data_dir=str(tmp_path),
+        n_neurons=3,
+        neuron_selection_scope="train_split",
+        split="train",
+        train_fraction=train_fraction,
+        normalize=False,
+        seed=seed,
+        session_idx=0,
+    )
+    assert (
+        prospective_top_three._neuron_indices[0] == prospective_train._neuron_indices[0]
+    )
+
+
 def test_stringer_v1_state_specific_overlap_is_rejected(tmp_path):
     _write_tiny_stringer(tmp_path)
     with pytest.raises(ValueError, match="disjoint"):
@@ -712,6 +806,80 @@ def test_stringer_v1_state_specific_overlap_is_rejected(tmp_path):
             session_idx=0,
             train_running_state="all",
             test_running_state="high",
+        )
+
+
+def test_stringer_v1_state_transfer_reuses_training_state_neurons(tmp_path):
+    _write_tiny_stringer(tmp_path, n_neurons=6, n_trials=40)
+    train_ds, _, test_ds = get_sequence_datasets(
+        "stringer_v1",
+        data_path=str(tmp_path),
+        n_neurons=3,
+        n_classes=4,
+        normalize=False,
+        session_idx=0,
+        neuron_selection_scope="train_split",
+        train_running_state="low",
+        test_running_state="high",
+        running_quantile=0.25,
+        train_valid_split=0.8,
+    )
+
+    assert train_ds.dataset.neuron_selection_scope == "train_split"
+    assert test_ds.neuron_selection_scope == "train_split"
+    assert np.array_equal(train_ds.dataset._neuron_indices, test_ds._neuron_indices)
+    assert set(train_ds.dataset._split_indices).isdisjoint(test_ds._split_indices)
+
+
+def test_stringer_v1_state_transfer_reserves_untouched_same_state_holdout(tmp_path):
+    _write_tiny_stringer(tmp_path, n_neurons=6, n_trials=80)
+    train_ds, valid_ds, high_ds = get_sequence_datasets(
+        "stringer_v1",
+        data_path=str(tmp_path),
+        n_neurons=3,
+        n_classes=4,
+        normalize=False,
+        session_idx=0,
+        neuron_selection_scope="train_split",
+        train_running_state="low",
+        test_running_state="high",
+        running_quantile=0.25,
+        state_holdout_fraction=0.2,
+        train_valid_split=0.8,
+        label_noise_seed=7,
+    )
+    train_full = train_ds.dataset
+    low_holdout = StringerV1Dataset(
+        data_dir=str(tmp_path),
+        n_neurons=3,
+        n_classes=4,
+        normalize=False,
+        session_idx=0,
+        neuron_selection_scope="train_split",
+        neuron_selection_indices=train_full._neuron_indices,
+        split="test",
+        train_fraction=0.8,
+        seed=7,
+        running_state="low",
+        running_quantile=0.25,
+    )
+
+    used_low = set(train_full._split_indices.tolist())
+    heldout_low = set(low_holdout._split_indices.tolist())
+    assert used_low.isdisjoint(heldout_low)
+    assert set(high_ds._split_indices.tolist()).isdisjoint(used_low | heldout_low)
+    assert np.array_equal(train_full._neuron_indices, low_holdout._neuron_indices)
+    assert np.array_equal(train_full._neuron_indices, high_ds._neuron_indices)
+    assert len(train_ds) + len(valid_ds) == len(train_full)
+
+
+def test_stringer_v1_state_holdout_fraction_is_validated(tmp_path):
+    _write_tiny_stringer(tmp_path)
+    with pytest.raises(ValueError, match="state_holdout_fraction"):
+        get_sequence_datasets(
+            "stringer_v1",
+            data_path=str(tmp_path),
+            state_holdout_fraction=1.0,
         )
 
 

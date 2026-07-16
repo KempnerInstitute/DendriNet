@@ -12,7 +12,9 @@ import unittest
 import torch
 
 from dendritic_modeling.networks.architectures.classical.mlp import (
+    DirectActiveMatchedPointBottleneck,
     EffectiveMatchedParamMLP,
+    matched_direct_bottleneck_width,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition import (
     ExcitationInhibitionNetwork,
@@ -91,6 +93,86 @@ class TestEffectiveMatchedParamMLP(unittest.TestCase):
 
         # Check that output is finite
         self.assertTrue(torch.isfinite(output).all())
+
+    def test_point_mlp_honors_structured_output_activation(self):
+        """The matched point control preserves the replaced layer interface."""
+        params = dict(self.params)
+        params["transfer_params"] = {
+            "input_mode": 0,
+            "independent_pathways": False,
+            "excitatory_dim": [],
+            "inhibitory_dim": [],
+            "output_activation": "relu",
+        }
+        from dendritic_modeling.networks.architectures.classical.mlp import (
+            PointMatchedParamMLP,
+        )
+
+        mlp = PointMatchedParamMLP(**params)
+        output = mlp(torch.randn(16, self.params["input_dim"]))
+        self.assertTrue(torch.all(output >= 0))
+
+        params["transfer_params"]["output_activation"] = None
+        identity_mlp = PointMatchedParamMLP(**params)
+        self.assertIsInstance(identity_mlp.output_activation, torch.nn.Identity)
+
+    def test_direct_active_matched_bottleneck_is_one_layer_and_zero_padded(self):
+        """The direct control spends all learned scalars before zero-padding."""
+
+        self.assertEqual(
+            matched_direct_bottleneck_width(1_376_320, 4096, 4096),
+            336,
+        )
+        mlp = DirectActiveMatchedPointBottleneck(
+            input_dim=8,
+            excitatory_layer_sizes=[5],
+            inhibitory_layer_sizes=[3],
+            excitatory_branch_factors=[2],
+            inhibitory_branch_factors=[],
+            ee_synapses_per_branch_per_layer=[3],
+            ei_synapses_per_branch_per_layer=[2],
+            ie_synapses_per_branch_per_layer=[1],
+            target_active_parameters=27,
+            transfer_params={"output_activation": "relu"},
+        )
+        output = mlp(torch.randn(7, 8))
+
+        self.assertEqual(mlp.bottleneck_width, 3)
+        self.assertEqual(mlp.padding_width, 2)
+        self.assertEqual(mlp.target_active_parameters, 27)
+        self.assertEqual(mlp.actual_active_parameters, 27)
+        self.assertEqual(mlp.get_effective_params(), 27)
+        self.assertEqual(
+            sum(parameter.numel() for parameter in mlp.parameters()),
+            27,
+        )
+        self.assertEqual(list(mlp.buffers()), [])
+        self.assertEqual(output.shape, (7, 5))
+        self.assertTrue(torch.all(output >= 0))
+        self.assertTrue(torch.equal(output[:, 3:], torch.zeros_like(output[:, 3:])))
+
+    def test_direct_active_matched_bottleneck_fails_closed_on_bad_contract(self):
+        with self.assertRaisesRegex(ValueError, "does not fit the output interface"):
+            matched_direct_bottleneck_width(100, 4, 3)
+        with self.assertRaisesRegex(ValueError, "within tolerance"):
+            matched_direct_bottleneck_width(
+                10,
+                8,
+                5,
+                max_relative_error=0.01,
+            )
+
+        structured = {
+            "architecture": {"excitatory_layer_sizes": [5]},
+            "connectivity": {},
+        }
+        with self.assertRaisesRegex(ValueError, "does not match the suffix"):
+            get_architecture(
+                "direct_active_matched_point",
+                structured,
+                input_dim=8,
+                suffix_input_dim=6,
+            )
 
     def test_factory_creation(self):
         """Test that EffectiveMatchedParamMLP can be created via factory."""

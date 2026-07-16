@@ -28,6 +28,9 @@ from dendritic_modeling.config.model import (
 def test_model_config_defaults():
     cfg = ModelConfig()
     assert cfg.task == "classification"
+    assert cfg.learned_output_scale is True
+    assert cfg.fixed_output_scale == 1.0
+    assert cfg.output_scale_mode is None
     assert isinstance(cfg.encoder, EncoderConfig)
     assert isinstance(cfg.core, CoreConfig)
     assert isinstance(cfg.decoder, DecoderConfig)
@@ -166,6 +169,7 @@ def test_core_config_asdict_keys():
     d = cfg.asdict()
     expected_keys = {
         "type",
+        "initialization_seed",
         "architecture",
         "connectivity",
         "transfer",

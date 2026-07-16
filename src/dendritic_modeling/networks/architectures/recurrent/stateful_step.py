@@ -482,10 +482,14 @@ def _build_stateful_routing_info(
 ) -> dict[str, Tensor]:
     """Build per-level routing diagnostics from completed step tensors."""
     eps = 1e-8
-    level_voltages = []
+    level_voltage_l2 = []
+    level_voltage_rms = []
     ff_rec_ratios = []
     for level_idx in range(n_levels):
-        level_voltages.append(level_voltage_cache[level_idx].norm(dim=-1))
+        voltage = level_voltage_cache[level_idx]
+        l2 = voltage.norm(dim=-1)
+        level_voltage_l2.append(l2)
+        level_voltage_rms.append(l2 / float(voltage.shape[-1]) ** 0.5)
 
         ff_mag = trace_E[level_idx].abs().sum(dim=-1) + trace_I[level_idx].abs().sum(
             dim=-1
@@ -496,7 +500,11 @@ def _build_stateful_routing_info(
         ff_rec_ratios.append(ff_mag / (ff_mag + rec_mag + eps))
 
     return {
-        "level_contributions": torch.stack(level_voltages, dim=-1),
+        # Historical alias retained for old consumers. Raw L2 magnitude is not
+        # dimension-invariant and should not be interpreted as causal routing.
+        "level_contributions": torch.stack(level_voltage_l2, dim=-1),
+        "level_activity_l2": torch.stack(level_voltage_l2, dim=-1),
+        "level_activity_rms": torch.stack(level_voltage_rms, dim=-1),
         "ff_rec_ratios": torch.stack(ff_rec_ratios, dim=-1),
     }
 

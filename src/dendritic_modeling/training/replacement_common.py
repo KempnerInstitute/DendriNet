@@ -17,6 +17,7 @@ from dendritic_modeling.config.conversion import to_plain_dict as _to_plain_mapp
 from dendritic_modeling.training.dataloader_utils import (
     DataLoaderTuning,
     resolve_dataloader_tuning_from_config,
+    seeded_dataloader_kwargs,
 )
 
 _DTYPE_ALIASES = {
@@ -304,11 +305,17 @@ def _make_replacement_loader(
             device=device,
         )
     loader_kwargs = tuning.as_kwargs() if tuning is not None else {}
+    configured_seed = (
+        getattr(train_cfg, "loader_seed", None) if train_cfg is not None else None
+    )
+    if configured_seed is None:
+        configured_seed = getattr(train_cfg, "seed", 0) if train_cfg is not None else 0
     return DataLoader(
         dataset,
         batch_size=batch_size,
         shuffle=shuffle,
         drop_last=False,
+        **seeded_dataloader_kwargs(int(configured_seed or 0)),
         **loader_kwargs,
     )
 

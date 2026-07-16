@@ -87,6 +87,26 @@ class ExperimentConfig(BaseConfig):
     """Basic experiment settings."""
 
     seed: int = 42
+    # Independent confirmatory RNG streams. ``None`` preserves legacy config
+    # ergonomics and resolves to ``seed`` at runtime after CLI overrides.
+    dataset_seed: Optional[int] = None
+    split_seed: Optional[int] = None
+    model_seed: Optional[int] = None
+    topology_seed: Optional[int] = None
+    loader_seed: Optional[int] = None
+    evaluation_seed: Optional[int] = None
+    probe_seed: Optional[int] = None
+    strict_deterministic: bool = False
+    # Optional reviewer-facing test seal. Legacy runs retain unrestricted test
+    # access; confirmatory harnesses can expose only an explicitly capped audit
+    # set and disable every analysis path that could adapt to test examples.
+    sealed_test: bool = False
+    allow_test_data: bool = True
+    max_test_samples: Optional[int] = None
+    # Opt-in content hashes over the realized train/validation/test datasets.
+    # Confirmatory generated-data runs use this to prove which exact tensors
+    # reached the training process without serializing the examples twice.
+    record_dataset_fingerprints: bool = False
     train_valid_split: float = 0.8
     fast_mode: bool = False
     deterministic: bool = True
@@ -220,6 +240,35 @@ class DatasetParamsConfig(BaseConfig):
             "valid_split_mode": "test",
         }
     )
+    hierarchical_gain_load: dict[str, Any] = field(
+        default_factory=lambda: {
+            "n_samples": 6000,
+            "stream_dim": 64,
+            "n_levels": 3,
+            "hierarchy_branching": 2,
+            "n_flat_groups": 8,
+            "n_classes": 2,
+            "e_baseline": 5.0,
+            "i_baseline": 2.0,
+            "e_signal_delta": 0.35,
+            "i_signal_delta": 0.35,
+            "signal_mode": "e_only",
+            "signal_profile": "all",
+            "nuisance_layout": "factorized_sensors",
+            "sensor_e_baseline": 0.02,
+            "gain_structure": "hierarchical",
+            "gain_scale_decay": 1.0,
+            "train_gain_sigma": 0.4,
+            "test_gain_sigma": 1.4,
+            "sensor_alignment_alpha": 1.0,
+            "sensor_support_mode": "matched",
+            "private_gain_sigma": 0.0,
+            "independent_noise_std": 0.08,
+            "load_mean": 0.0,
+            "load_noise_sigma": 0.0,
+            "valid_split_mode": "test",
+        }
+    )
     imagenet: dict[str, Any] = field(
         default_factory=lambda: {
             "loader_backend": "auto",
@@ -257,6 +306,10 @@ class OutputsConfig(BaseConfig):
 
     run_name: str = "ei_sweep"
     results_dir: str = "results"
+    # Use ``results_dir`` itself as the run directory. This is intended for
+    # manifest-controlled runs whose output path has already been atomically
+    # claimed; the legacy timestamped behavior remains the default.
+    exact_run_dir: bool = False
 
 
 @dataclass
@@ -625,6 +678,9 @@ def _build_model_config(model_data: Any) -> ModelConfig:
 
     return ModelConfig(
         task=str(model_dict.get("task", "classification")),
+        learned_output_scale=bool(model_dict.get("learned_output_scale", True)),
+        fixed_output_scale=float(model_dict.get("fixed_output_scale", 1.0)),
+        output_scale_mode=model_dict.get("output_scale_mode"),
         encoder=EncoderConfig(
             type=str(encoder_dict.get("type", "identity")),
             load_save_root=str(

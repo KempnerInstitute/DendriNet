@@ -38,6 +38,10 @@ def test_fix_tensor_shapes_flattens_extra_dims_for_efficient_blocklinear():
 def test_wrap_model_for_analysis_flattens_efficient_blocklinear_inputs_by_batch():
     torch.manual_seed(7)
     layer = EfficientBlockLinear(in_features=12, out_features=4)
+    # BlockLinear parameters are intentionally initialized by the owning
+    # dendritic layer; initialize explicitly in this standalone wrapper test so
+    # it never forwards uninitialized ``torch.empty`` storage.
+    layer.initialize()
     wrapped = wrap_model_for_analysis(nn.Sequential(layer))
     x = torch.randn(2, 3, 4)
 
