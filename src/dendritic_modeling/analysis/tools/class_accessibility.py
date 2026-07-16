@@ -26,6 +26,14 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
+_SKLEARN_RANDOM_STATE_MODULUS = 2**32
+
+
+def _bounded_sklearn_seed(seed: int) -> int:
+    """Map deterministic integer seeds into scikit-learn's uint32 domain."""
+
+    return int(seed) % _SKLEARN_RANDOM_STATE_MODULUS
+
 
 def _aligned_feature_matrix(
     values: np.ndarray,
@@ -89,7 +97,7 @@ def _mlp_decoder(
             learning_rate_init=float(learning_rate_init),
             max_iter=int(max_iter),
             shuffle=True,
-            random_state=int(seed),
+            random_state=_bounded_sklearn_seed(seed),
             early_stopping=bool(early_stopping),
             validation_fraction=float(validation_fraction),
             n_iter_no_change=int(n_iter_no_change),
@@ -122,7 +130,7 @@ def cross_validated_linear_decode(
     splitter = StratifiedKFold(
         n_splits=int(folds),
         shuffle=True,
-        random_state=int(seed),
+        random_state=_bounded_sklearn_seed(seed),
     )
     splits = list(splitter.split(values, labels))
 
@@ -332,6 +340,7 @@ def validation_to_test_probe_decode(
         *,
         fit_seed: int,
     ) -> tuple[float, float, dict[str, Any]]:
+        fit_seed = _bounded_sklearn_seed(fit_seed)
         decoder = _mlp_decoder(
             hidden_dims=hidden_dims,
             activation=str(mlp_activation),

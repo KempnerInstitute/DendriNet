@@ -94,3 +94,22 @@ def test_nonlinear_probe_recovers_xor_without_touching_test_for_selection() -> N
     assert nonlinear["primary_test_used_for_selection"] is False
     assert nonlinear["heldout_test_balanced_accuracy"] > 0.95
     assert linear["heldout_test_balanced_accuracy"] < 0.7
+
+
+def test_nonlinear_probe_bounds_derived_fit_seeds_for_sklearn() -> None:
+    valid_x, valid_y = _separable(21)
+    test_x, test_y = _separable(22)
+    seed = 2**32 - 100
+
+    result = ClassAccessibilityProbeAnalyzer(
+        probe_type="mlp",
+        n_label_shuffles=1,
+        seed=seed,
+        mlp_hidden_dims=(4,),
+        mlp_batch_size=16,
+        mlp_max_iter=2,
+        mlp_early_stopping=False,
+    ).validation_to_test(valid_x, valid_y, test_x, test_y)
+
+    assert result["observed_fit"]["fit_seed"] == seed
+    assert result["label_shuffle_fit"][0]["fit_seed"] == (seed + 104729) % 2**32
