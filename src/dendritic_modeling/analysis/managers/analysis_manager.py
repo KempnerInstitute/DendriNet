@@ -85,6 +85,14 @@ class AnalysisManager:
 
         if self.probe_seed is None:
             return
+        representation = getattr(
+            self.config,
+            "representation_accessibility_analysis",
+            None,
+        )
+        representation_params = getattr(representation, "params", None)
+        if representation_params is not None and hasattr(representation_params, "seed"):
+            representation_params.seed = self.probe_seed
         information = getattr(self.config, "information_analysis", None)
         params = getattr(information, "params", None)
         if params is None:
@@ -104,6 +112,14 @@ class AnalysisManager:
             cfg = getattr(self.config, initializer.config_field, None)
             if cfg is None or not getattr(cfg, "enabled", False):
                 continue
+            if (
+                getattr(cfg, "training", False)
+                and not initializer.spec.supports_training
+            ):
+                raise ValueError(
+                    f"Analyzer {initializer.registry_name!r} is final-only and "
+                    "cannot set training=true"
+                )
             params = getattr(cfg, "params", None)
             setattr(
                 self,
@@ -455,6 +471,22 @@ class AnalysisManager:
             filename=filename,
             training=training,
             runtime=runtime,
+        )
+
+    def _run_representation_accessibility_analysis(
+        self,
+        *,
+        filename: str,
+        training: bool,
+        runtime: object | None,
+    ) -> None:
+        """Run validation-fit representation probes and information metrics."""
+        self._run_split_dataset_analysis(
+            registry_name="representation_accessibility",
+            filename=filename,
+            training=training,
+            runtime=runtime,
+            require_analyzer=True,
         )
 
     def _run_local_rule_component_analysis(

@@ -161,6 +161,13 @@ class InformationConfigSetupMixin:
         )
         self.include_vinf = runtime_config.include_vinf
         self.normalize_mi = runtime_config.normalize_mi
+        self.network_population_information = bool(
+            _get_config_value(
+                compute_cfg,
+                "network_population_information",
+                False,
+            )
+        )
         if runtime_config.invalid_output_units is not None:
             self.logger.warning(
                 "Unknown output_units=%r; falling back to 'bits'.",

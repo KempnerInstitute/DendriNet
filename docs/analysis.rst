@@ -200,8 +200,11 @@ Branch Aggregation
 Scopes
 ~~~~~~
 
-``"layer"`` -- per-layer breakdown. ``"einet"`` -- separate E vs I summaries.
-``"neuron"`` -- per-neuron (expensive).
+``"layer"`` -- within-tree dendritic branch-layer breakdown.
+``"einet"`` -- separate excitatory/inhibitory synaptic pathway summaries.
+``"neuron"`` -- per captured branch coordinate (expensive). This legacy name
+does not denote the joint soma population of a stacked network layer. Use
+``representation_accessibility`` for soma-population analyses.
 
 Estimator Methods
 ~~~~~~~~~~~~~~~~~
@@ -229,6 +232,81 @@ Estimator Methods
            method: "kraskov"
            kraskov:
              n_neighbors: 10
+
+Representation Accessibility
+----------------------------
+
+``representation_accessibility`` analyzes the post-gate soma outputs of every
+feedforward ``PopulationNetwork`` layer. It keeps three estimands separate:
+
+- validation-fit/test-evaluated Ridge or MLP class accessibility;
+- joint ``I(X; C)`` on a declared label-independent population projection;
+- separately estimated scalar ``I(x_i; C)`` for individual somas.
+
+The MLP result is nonlinear class accessibility, not mutual information. The
+mean of per-soma scalar information is redundancy-sensitive and is not the
+joint information in the layer. Every probe is fit on ``valid`` and the
+untouched ``test`` split is used only for final evaluation. The analyzer is
+therefore final-only; ``training: true`` is rejected.
+
+Representations may be ``excitatory``, ``inhibitory``, ``joint``, ``readout``,
+or an exact name such as ``population:e0``. Networks without an inhibitory soma
+population record that representation as missing rather than confusing raw
+inhibitory synaptic current with an I-population output.
+
+``balanced_countsketch`` provides a label-independent matched-width control.
+Use native width when comparing mechanisms with identical architectures, and a
+common projected width when comparing E, I, and joint populations of different
+sizes. Projection draws and MLP initializations are technical repeats; average
+them within a trained checkpoint before inference across training seeds.
+
+.. code-block:: yaml
+
+   analysis:
+     runtime:
+       final:
+         mode: "stream"
+         batch_size: 256
+         num_workers: 4
+         max_samples: null
+     representation_accessibility:
+       enabled: true
+       training: false
+       params:
+         representations: ["excitatory", "inhibitory", "joint"]
+         projections:
+           - name: "matched16"
+             type: "balanced_countsketch"
+             output_dim: 16
+             draws: 5
+         probes:
+           - name: "linear"
+             type: "ridge"
+             ridge_alpha: 1.0
+             n_label_shuffles: 20
+           - name: "nonlinear"
+             type: "mlp"
+             hidden_dims: [32, 16]
+             activation: "relu"
+             alpha: 0.0001
+             learning_rate_init: 0.001
+             batch_size: 256
+             max_iter: 300
+             early_stopping: true
+             validation_fraction: 0.1
+             n_iter_no_change: 20
+             draws: 3
+             n_label_shuffles: 5
+         information:
+           enabled: true
+           compute_joint: true
+           compute_per_soma: true
+           projection_names: ["matched16"]
+           per_soma_representations: ["excitatory", "inhibitory"]
+           n_neighbors: 5
+           n_label_shuffles: 20
+           standardize: true
+         seed: 42
 
 Ablation Analysis
 -----------------

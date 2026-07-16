@@ -60,6 +60,21 @@ _BUILTIN_ANALYZERS: tuple[AnalyzerSpec, ...] = (
         save_subdir="information_analysis",
     ),
     AnalyzerSpec(
+        name="representation_accessibility",
+        config_field="representation_accessibility_analysis",
+        class_path=(
+            "dendritic_modeling.analysis.tools.representation_accessibility."
+            "RepresentationAccessibilityAnalyzer"
+        ),
+        attribute_name="representation_accessibility_analyzer",
+        save_subdir="representation_accessibility",
+        supports_training=False,
+        description=(
+            "Validation-fit linear/nonlinear probes and matched-support class "
+            "information for stacked soma populations"
+        ),
+    ),
+    AnalyzerSpec(
         name="synapse_turnover",
         config_field="synapse_turnover_analysis",
         class_path="dendritic_modeling.analysis.tools.synaptic_turnover.SynapticTurnoverAnalyzer",

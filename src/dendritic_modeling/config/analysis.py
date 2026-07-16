@@ -1,4 +1,5 @@
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -137,6 +138,9 @@ class InformationComputeParams(BaseConfig):
     max_samples: Optional[int] = None
     include_vinf: bool = True  # Include soma activation (Vinf)
     normalize_mi: bool = False  # Normalize by H(C)
+    # Raw high-dimensional soma-population MI is opt-in. Prefer the dedicated
+    # representation accessibility analyzer for matched projections and nulls.
+    network_population_information: bool = False
     # Output units for MI/CMI-like quantities reported by the analyzer/plots.
     # Estimators operate in nats internally; the analyzer can convert to bits for reporting.
     output_units: str = "bits"  # "bits"|"nats"
@@ -540,6 +544,157 @@ class InformationAnalysisConfig(BaseConfig):
     enabled: bool = False
     training: bool = False
     params: InformationAnalysisParams = field(default_factory=InformationAnalysisParams)
+
+
+@dataclass
+class RepresentationProjectionConfig(BaseConfig):
+    """Label-independent feature projection for population analyses."""
+
+    name: str = "native"
+    type: str = "identity"  # identity | balanced_countsketch
+    output_dim: Optional[int] = None
+    draws: int = 1
+
+    def __post_init__(self) -> None:
+        self.name = str(self.name)
+        self.type = str(self.type).lower()
+        if not self.name:
+            raise ValueError("representation projection name cannot be empty")
+        if self.type not in {"identity", "balanced_countsketch"}:
+            raise ValueError(f"unsupported representation projection: {self.type}")
+        if self.type == "balanced_countsketch":
+            if self.output_dim is None or int(self.output_dim) < 1:
+                raise ValueError("balanced_countsketch requires a positive output_dim")
+            self.output_dim = int(self.output_dim)
+        if int(self.draws) < 1:
+            raise ValueError("representation projection draws must be positive")
+        self.draws = int(self.draws)
+
+
+@dataclass
+class RepresentationProbeConfig(BaseConfig):
+    """One fixed-capacity held-out representation probe."""
+
+    name: str = "linear"
+    type: str = "ridge"  # ridge | mlp
+    draws: int = 1
+    n_label_shuffles: int = 20
+    ridge_alpha: float = 1.0
+    hidden_dims: list[int] = field(default_factory=lambda: [32, 16])
+    activation: str = "relu"
+    alpha: float = 1e-4
+    learning_rate_init: float = 1e-3
+    batch_size: int = 256
+    max_iter: int = 300
+    early_stopping: bool = True
+    validation_fraction: float = 0.1
+    n_iter_no_change: int = 20
+
+    def __post_init__(self) -> None:
+        self.name = str(self.name)
+        self.type = str(self.type).lower()
+        if self.type == "linear":
+            self.type = "ridge"
+        if not self.name or self.type not in {"ridge", "mlp"}:
+            raise ValueError(f"unsupported representation probe: {self.type}")
+        if int(self.draws) < 1 or int(self.n_label_shuffles) < 0:
+            raise ValueError("probe draws must be positive and shuffles non-negative")
+        self.draws = int(self.draws)
+        self.n_label_shuffles = int(self.n_label_shuffles)
+        self.hidden_dims = [int(width) for width in self.hidden_dims]
+
+
+@dataclass
+class RepresentationInformationConfig(BaseConfig):
+    """Joint and per-soma class-information sensitivity analyses."""
+
+    enabled: bool = False
+    compute_joint: bool = True
+    compute_per_soma: bool = False
+    projection_names: list[str] = field(default_factory=lambda: ["matched16"])
+    per_soma_representations: list[str] = field(
+        default_factory=lambda: ["excitatory", "inhibitory"]
+    )
+    n_neighbors: int = 5
+    n_label_shuffles: int = 20
+    standardize: bool = True
+
+    def __post_init__(self) -> None:
+        if int(self.n_neighbors) < 1 or int(self.n_label_shuffles) < 1:
+            raise ValueError(
+                "information neighbors and label shuffles must be positive"
+            )
+        self.n_neighbors = int(self.n_neighbors)
+        self.n_label_shuffles = int(self.n_label_shuffles)
+        self.projection_names = [str(name) for name in self.projection_names]
+        self.per_soma_representations = [
+            str(name) for name in self.per_soma_representations
+        ]
+
+
+@dataclass
+class RepresentationAccessibilityAnalysisParams(BaseConfig):
+    """Config-driven analysis of stacked soma-population representations."""
+
+    representations: list[str] = field(
+        default_factory=lambda: ["excitatory", "inhibitory", "joint"]
+    )
+    projections: list[RepresentationProjectionConfig] = field(
+        default_factory=lambda: [RepresentationProjectionConfig()]
+    )
+    probes: list[RepresentationProbeConfig] = field(
+        default_factory=lambda: [RepresentationProbeConfig()]
+    )
+    information: RepresentationInformationConfig = field(
+        default_factory=RepresentationInformationConfig
+    )
+    max_samples: Optional[int] = None
+    seed: int = 0
+
+    def __post_init__(self) -> None:
+        self.representations = [str(name) for name in self.representations]
+        normalized_projections = []
+        for value in self.projections:
+            if isinstance(value, RepresentationProjectionConfig):
+                normalized_projections.append(value)
+            elif isinstance(value, Mapping):
+                normalized_projections.append(
+                    RepresentationProjectionConfig(**dict(value))
+                )
+            else:
+                raise TypeError("representation projections must be mappings")
+        self.projections = normalized_projections
+        normalized_probes = []
+        for value in self.probes:
+            if isinstance(value, RepresentationProbeConfig):
+                normalized_probes.append(value)
+            elif isinstance(value, Mapping):
+                normalized_probes.append(RepresentationProbeConfig(**dict(value)))
+            else:
+                raise TypeError("representation probes must be mappings")
+        self.probes = normalized_probes
+        if isinstance(self.information, Mapping):
+            self.information = RepresentationInformationConfig(**dict(self.information))
+        elif not isinstance(self.information, RepresentationInformationConfig):
+            raise TypeError("representation information must be a mapping")
+        if not self.representations or not self.projections or not self.probes:
+            raise ValueError(
+                "representation analysis requires representations, projections, and probes"
+            )
+        if self.max_samples is not None and int(self.max_samples) < 1:
+            raise ValueError("representation max_samples must be positive")
+        self.seed = int(self.seed)
+
+
+@dataclass
+class RepresentationAccessibilityAnalysisConfig(BaseConfig):
+    """Enable held-out linear/nonlinear and population-information analyses."""
+
+    enabled: bool = False
+    training: bool = False
+    params: RepresentationAccessibilityAnalysisParams = field(
+        default_factory=RepresentationAccessibilityAnalysisParams
+    )
 
 
 @dataclass
@@ -1487,6 +1642,9 @@ class AnalysisConfig(BaseConfig):
     )
     information_analysis: InformationAnalysisConfig = field(
         default_factory=InformationAnalysisConfig
+    )
+    representation_accessibility_analysis: RepresentationAccessibilityAnalysisConfig = (
+        field(default_factory=RepresentationAccessibilityAnalysisConfig)
     )
     receptive_field_analysis: ReceptiveFieldAnalysisConfig = field(
         default_factory=ReceptiveFieldAnalysisConfig

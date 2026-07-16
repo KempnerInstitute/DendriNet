@@ -37,9 +37,10 @@ class InformationEnhancedAnalysisMixin:
         self, results: dict[str, Any], C: np.ndarray
     ) -> None:
         """Add optional per-layer, per-neuron, and EI-specific analysis results."""
-        network_layer_results = self._compute_network_layer_information(C)
-        if network_layer_results:
-            results["network_layer_information"] = network_layer_results
+        if getattr(self, "network_population_information", False):
+            network_layer_results = self._compute_network_layer_information(C)
+            if network_layer_results:
+                results["network_layer_information"] = network_layer_results
 
         if not self._enhanced_analysis_requested():
             return

@@ -2,9 +2,11 @@
 
 from .causal_intervention import SameCheckpointCausalInterventionAnalyzer
 from .class_accessibility import (
+    ClassAccessibilityProbeAnalyzer,
     LinearClassAccessibilityAnalyzer,
     cross_validated_linear_decode,
     validation_to_test_linear_decode,
+    validation_to_test_probe_decode,
 )
 from .class_information import (
     MatchedClassInformationAnalyzer,
@@ -38,6 +40,14 @@ from .poisson_exposure_transfer import (
     validate_poisson_exposure_durations,
 )
 from .reactivation_dynamics import ReactivationDynamicsAnalyzer
+from .representation_accessibility import (
+    RepresentationAccessibilityAnalyzer,
+    apply_balanced_countsketch,
+    balanced_countsketch_projection,
+    build_layer_representations,
+    collect_layer_population_features,
+    population_layer_inventory,
+)
 from .spike_trains import SpikeTrainAnalyzer
 from .state_transition_jacobian import StateTransitionJacobianAnalyzer
 from .synaptic_activation import SynapticActivationAnalyzer
@@ -54,6 +64,7 @@ __all__ = [
     "POSTHOC_INTEGRATION_NOTE",
     "ROUTE_SPECS",
     "TARGETING_CLASS_ORDER",
+    "ClassAccessibilityProbeAnalyzer",
     "CorrelationAnalyzer",
     "DendriticTimetracesAnalyzer",
     "InhibitoryRoutingComparison",
@@ -64,6 +75,7 @@ __all__ = [
     "MatchedClassInformationAnalyzer",
     "PoissonExposureTransferAnalyzer",
     "ReactivationDynamicsAnalyzer",
+    "RepresentationAccessibilityAnalyzer",
     "SameCheckpointCausalInterventionAnalyzer",
     "SpikeTrainAnalyzer",
     "StateTransitionJacobianAnalyzer",
@@ -72,6 +84,10 @@ __all__ = [
     "SynapticTurnoverAnalyzer",
     "WeightAnalyzer",  # Now includes all weight analysis functionality
     "analyze_ei_connectivity_motifs_from_state_dict",
+    "apply_balanced_countsketch",
+    "balanced_countsketch_projection",
+    "build_layer_representations",
+    "collect_layer_population_features",
     "cross_validated_linear_decode",
     "evaluate_poisson_exposure_accuracy",
     "extract_compartment_weights_from_state_dict",
@@ -81,7 +97,9 @@ __all__ = [
     "pair_stats_by_class",
     "poisson_exposure_draw_seed",
     "poisson_exposure_duration_key",
+    "population_layer_inventory",
     "summarize_compartment_targeting_from_compartment_weights",
     "validate_poisson_exposure_durations",
     "validation_to_test_linear_decode",
+    "validation_to_test_probe_decode",
 ]

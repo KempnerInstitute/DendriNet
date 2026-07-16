@@ -28,6 +28,10 @@ _LAZY_IMPORTS = {
         "dendritic_modeling.analysis.tools",
         "CorrelationAnalyzer",
     ),
+    "ClassAccessibilityProbeAnalyzer": (
+        "dendritic_modeling.analysis.tools",
+        "ClassAccessibilityProbeAnalyzer",
+    ),
     "DendriticTimetracesAnalyzer": (
         "dendritic_modeling.analysis.tools",
         "DendriticTimetracesAnalyzer",
@@ -72,6 +76,10 @@ _LAZY_IMPORTS = {
     "ReactivationDynamicsAnalyzer": (
         "dendritic_modeling.analysis.tools",
         "ReactivationDynamicsAnalyzer",
+    ),
+    "RepresentationAccessibilityAnalyzer": (
+        "dendritic_modeling.analysis.tools",
+        "RepresentationAccessibilityAnalyzer",
     ),
     "SameCheckpointCausalInterventionAnalyzer": (
         "dendritic_modeling.analysis.tools",

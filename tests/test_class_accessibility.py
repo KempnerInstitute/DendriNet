@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 
 from dendritic_modeling.analysis.tools.class_accessibility import (
+    ClassAccessibilityProbeAnalyzer,
     LinearClassAccessibilityAnalyzer,
     cross_validated_linear_decode,
 )
@@ -57,3 +58,39 @@ def test_cross_validated_accessibility_validates_feature_contract() -> None:
             ridge_alpha=1.0,
             n_label_shuffles=0,
         )
+
+
+def test_nonlinear_probe_recovers_xor_without_touching_test_for_selection() -> None:
+    def _xor(seed: int, repeats: int = 100):
+        rng = np.random.default_rng(seed)
+        corners = np.asarray(
+            [[-1.0, -1.0], [-1.0, 1.0], [1.0, -1.0], [1.0, 1.0]],
+            dtype=np.float32,
+        )
+        values = np.repeat(corners, repeats, axis=0)
+        values += rng.normal(0.0, 0.08, size=values.shape)
+        labels = np.repeat(np.asarray([0, 1, 1, 0]), repeats)
+        order = rng.permutation(labels.size)
+        return values[order], labels[order]
+
+    valid_x, valid_y = _xor(4)
+    test_x, test_y = _xor(5)
+    nonlinear = ClassAccessibilityProbeAnalyzer(
+        probe_type="mlp",
+        n_label_shuffles=1,
+        seed=19,
+        mlp_hidden_dims=(32, 16),
+        mlp_learning_rate_init=1e-2,
+        mlp_max_iter=400,
+        mlp_early_stopping=False,
+    ).validation_to_test(valid_x, valid_y, test_x, test_y)
+    linear = ClassAccessibilityProbeAnalyzer(
+        probe_type="ridge",
+        n_label_shuffles=1,
+        seed=19,
+    ).validation_to_test(valid_x, valid_y, test_x, test_y)
+
+    assert nonlinear["probe_family"] == "nonlinear"
+    assert nonlinear["primary_test_used_for_selection"] is False
+    assert nonlinear["heldout_test_balanced_accuracy"] > 0.95
+    assert linear["heldout_test_balanced_accuracy"] < 0.7
