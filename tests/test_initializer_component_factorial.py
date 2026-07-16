@@ -17,7 +17,8 @@ ROOT = Path(__file__).resolve().parent.parent
     ("relative_path", "expected_count", "expected_seeds"),
     [
         (
-            "drafts/dendritic-information-processing/empirical/configs/pilots/"
+            "drafts/dendritic-information-processing/empirical/configs/"
+            "publication_v3/confirmatory/initialization/"
             "empirical_initializer_component_factorial_resource_matched_cifar10.yaml",
             96,
             3,
