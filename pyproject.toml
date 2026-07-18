@@ -62,6 +62,9 @@ dendritic-sweep = "dendritic_modeling.scripts.sweeps.sweep_manager:main"
 dendritic-analyze = "dendritic_modeling.scripts.sweeps.result_analyzer:main"
 dendritic-analyze-checkpoint = "dendritic_modeling.scripts.analysis.run_checkpoint_analysis:main"
 dendritic-collect-representations = "dendritic_modeling.scripts.analysis.collect_representation_accessibility:main"
+dendritic-collect-path-interventions = "dendritic_modeling.scripts.analysis.collect_path_matched_intervention:main"
+dendritic-collect-path-information = "dendritic_modeling.scripts.analysis.collect_path_matched_information:main"
+dendritic-collect-local-i-interventions = "dendritic_modeling.scripts.analysis.collect_layer_population_interventions:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

@@ -249,9 +249,9 @@ class AnalysisManager:
         }
         if pass_training:
             kwargs["training"] = training
-        if registry_name == "ablation":
-            # Mean-clamp interventions are calibrated once on training data,
-            # then held fixed while evaluating the test split.
+        if registry_name in {"ablation", "path_matched_intervention"}:
+            # Fixed-reference interventions are calibrated once on training
+            # data, then held fixed while evaluating the test split.
             kwargs["reference_dataset"] = self.data.get("train", self.data["test"])
 
         self._call_analysis_analyzer(registry_name, **kwargs)
@@ -423,6 +423,36 @@ class AnalysisManager:
         else:
             with isolated_random_seed(self.probe_seed):
                 run()
+
+    def _run_path_matched_information_analysis(
+        self, *, filename: str, training: bool, runtime: object | None
+    ) -> None:
+        """Run matched-width dendritic information on validation data only."""
+        if not self._should_run_registered_analysis(
+            "path_matched_information",
+            training=training,
+            require_analyzer=True,
+        ):
+            return
+        config = self._analysis_config("path_matched_information")
+        params = getattr(config, "params", None)
+        add_probe_offset = bool(getattr(params, "add_probe_seed_offset", False))
+        seed_offset = (
+            int(self.probe_seed)
+            if add_probe_offset and self.probe_seed is not None
+            else 0
+        )
+        self._call_analysis_analyzer(
+            "path_matched_information",
+            model=self.model,
+            validation_dataset=self.data["valid"],
+            device=self.device,
+            save_path=self._analysis_save_path("path_matched_information"),
+            filename=filename,
+            training=training,
+            runtime=runtime,
+            seed_offset=seed_offset,
+        )
 
     def _run_synaptic_turnover_analysis(self, *, filename: str, training: bool) -> None:
         """Run synaptic turnover analysis."""

@@ -104,6 +104,51 @@ _BUILTIN_ANALYZERS: tuple[AnalyzerSpec, ...] = (
         save_subdir="ablation_analysis",
     ),
     AnalyzerSpec(
+        name="path_matched_intervention",
+        config_field="path_matched_intervention_analysis",
+        class_path=(
+            "dendritic_modeling.analysis.tools.path_matched_intervention."
+            "PathMatchedInterventionAnalyzer"
+        ),
+        attribute_name="path_matched_intervention_analyzer",
+        save_subdir="path_matched_intervention",
+        supports_training=False,
+        description=(
+            "Fixed-count, nested soma-to-distal coordinate interventions across "
+            "dendritic depth"
+        ),
+    ),
+    AnalyzerSpec(
+        name="local_inhibitory_population_intervention",
+        config_field="local_inhibitory_population_intervention_analysis",
+        class_path=(
+            "dendritic_modeling.analysis.tools.layer_population_intervention."
+            "LocalInhibitoryPopulationInterventionAnalyzer"
+        ),
+        attribute_name="local_inhibitory_population_intervention_analyzer",
+        save_subdir="local_inhibitory_population_intervention",
+        supports_training=False,
+        description=(
+            "Whole local inhibitory soma-population interventions across "
+            "feedforward network layers"
+        ),
+    ),
+    AnalyzerSpec(
+        name="path_matched_information",
+        config_field="path_matched_information_analysis",
+        class_path=(
+            "dendritic_modeling.analysis.tools.path_matched_information."
+            "PathMatchedInformationAnalyzer"
+        ),
+        attribute_name="path_matched_information_analyzer",
+        save_subdir="path_matched_information",
+        supports_training=False,
+        description=(
+            "Validation-set joint class information on fixed-width, nested "
+            "soma-to-distal coordinate supports"
+        ),
+    ),
+    AnalyzerSpec(
         name="weight",
         config_field="weight_analysis",
         class_path="dendritic_modeling.analysis.tools.weight.WeightAnalyzer",

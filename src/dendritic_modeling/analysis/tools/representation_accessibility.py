@@ -3,8 +3,8 @@
 The analyzer captures post-gate soma outputs from every feedforward
 ``PopulationLayer``. Linear and nonlinear probes are fit only on validation
 representations and evaluated on untouched test representations. Optional
-mutual-information estimates use the test representation with explicit label
-shuffle baselines.
+mutual-information estimates use validation representations with explicit
+label-shuffle baselines, leaving test examples for held-out probe evaluation.
 
 Probe accuracy and mutual information are intentionally reported as different
 estimands. Per-soma scalar information is also kept separate from joint
@@ -426,6 +426,88 @@ def _probe_kwargs(probe: RepresentationProbeConfig) -> dict[str, Any]:
     }
 
 
+def _spectrum_summary(eigenvalues: np.ndarray) -> dict[str, float]:
+    """Return scale-free effective-dimension statistics for one spectrum."""
+
+    values = np.asarray(eigenvalues, dtype=np.float64)
+    values = values[np.isfinite(values) & (values > 0)]
+    if values.size == 0:
+        return {
+            "participation_ratio": 0.0,
+            "entropy_effective_rank": 0.0,
+            "top_eigenvalue_fraction": 0.0,
+        }
+    probabilities = values / values.sum()
+    participation_ratio = 1.0 / float(np.square(probabilities).sum())
+    entropy_effective_rank = float(
+        np.exp(-np.sum(probabilities * np.log(probabilities)))
+    )
+    return {
+        "participation_ratio": participation_ratio,
+        "entropy_effective_rank": entropy_effective_rank,
+        "top_eigenvalue_fraction": float(probabilities.max()),
+    }
+
+
+def population_geometry(
+    values: np.ndarray,
+    *,
+    variance_epsilon: float,
+) -> dict[str, Any]:
+    """Measure covariance and correlation effective dimension without labels."""
+
+    matrix = np.asarray(values, dtype=np.float64)
+    if matrix.ndim != 2 or matrix.shape[0] < 2 or matrix.shape[1] < 1:
+        raise ValueError("population geometry requires a samples-by-features matrix")
+    if not np.isfinite(matrix).all():
+        raise ValueError("population geometry requires finite values")
+
+    centered = matrix - matrix.mean(axis=0, keepdims=True)
+    variances = centered.var(axis=0, ddof=1)
+    nonconstant = variances > float(variance_epsilon)
+    covariance_singular_values = np.linalg.svd(
+        centered,
+        full_matrices=False,
+        compute_uv=False,
+    )
+    covariance_eigenvalues = np.square(covariance_singular_values)
+    covariance = _spectrum_summary(covariance_eigenvalues)
+
+    if np.any(nonconstant):
+        standardized = centered[:, nonconstant] / np.sqrt(variances[nonconstant])
+        correlation_singular_values = np.linalg.svd(
+            standardized,
+            full_matrices=False,
+            compute_uv=False,
+        )
+        correlation_eigenvalues = np.square(correlation_singular_values)
+    else:
+        correlation_eigenvalues = np.asarray([], dtype=np.float64)
+    correlation = _spectrum_summary(correlation_eigenvalues)
+
+    native_width = int(matrix.shape[1])
+    nonconstant_width = int(nonconstant.sum())
+    return {
+        "native_feature_count": native_width,
+        "nonconstant_feature_count": nonconstant_width,
+        "constant_feature_count": native_width - nonconstant_width,
+        "covariance_participation_ratio": covariance["participation_ratio"],
+        "covariance_entropy_effective_rank": covariance["entropy_effective_rank"],
+        "covariance_top_eigenvalue_fraction": covariance["top_eigenvalue_fraction"],
+        "covariance_participation_ratio_fraction": (
+            covariance["participation_ratio"] / native_width
+        ),
+        "correlation_participation_ratio": correlation["participation_ratio"],
+        "correlation_entropy_effective_rank": correlation["entropy_effective_rank"],
+        "correlation_top_eigenvalue_fraction": correlation["top_eigenvalue_fraction"],
+        "correlation_participation_ratio_fraction": (
+            correlation["participation_ratio"] / nonconstant_width
+            if nonconstant_width
+            else 0.0
+        ),
+    }
+
+
 class RepresentationAccessibilityAnalyzer:
     """Config-driven held-out analysis of stacked soma populations."""
 
@@ -587,8 +669,8 @@ class RepresentationAccessibilityAnalyzer:
                     ):
                         info_seed = _derived_seed(projection_seed, 0x1F0)
                         info = matched_support_class_information(
-                            test_projected,
-                            test_labels,
+                            validation_projected,
+                            validation_labels,
                             n_neighbors=information.n_neighbors,
                             n_label_shuffles=information.n_label_shuffles,
                             seed=info_seed,
@@ -600,9 +682,10 @@ class RepresentationAccessibilityAnalyzer:
                                 "network_layer_number": int(key[0]) + 1,
                                 "representation": str(key[1]),
                                 "population_names": members[key],
-                                "native_feature_count": int(test_values.shape[1]),
+                                "native_feature_count": int(validation_values.shape[1]),
                                 "projection_name": projection.name,
                                 "projection_draw": int(projection_draw),
+                                "information_split": "valid",
                                 "information_scope": "joint projected population",
                                 **projection_metadata,
                                 **info,
@@ -610,11 +693,22 @@ class RepresentationAccessibilityAnalyzer:
                         )
 
         per_soma_records = self._per_soma_information(
-            test_representations,
-            test_labels,
+            validation_representations,
+            validation_labels,
             members,
         )
         per_soma_summary = self._summarize_per_soma_information(per_soma_records)
+        subset_probe_records, subset_probe_missing = self._subset_probe_records(
+            validation_representations=validation_representations,
+            validation_labels=validation_labels,
+            test_representations=test_representations,
+            test_labels=test_labels,
+            members=members,
+        )
+        geometry_records = self._population_geometry_records(
+            validation_representations,
+            members,
+        )
         result = {
             "schema_version": 1,
             "analysis_type": "representation_accessibility",
@@ -622,7 +716,9 @@ class RepresentationAccessibilityAnalyzer:
             "network_depth_reference": NETWORK_DEPTH_REFERENCE,
             "fit_split": "valid",
             "evaluation_split": "test",
+            "information_split": "valid",
             "test_used_for_probe_selection": False,
+            "test_used_for_information": False,
             "interpretation": {
                 "probe_accuracy": (
                     "held-out class accessibility under the declared probe; not MI"
@@ -632,6 +728,16 @@ class RepresentationAccessibilityAnalyzer:
                 ),
                 "per_soma_information": (
                     "separate scalar I(x_i; C) values; their mean is not joint MI"
+                ),
+                "subset_decoding": (
+                    "held-out accessibility of label-independently sampled nested "
+                    "population-coordinate subsets; E- or I-only coordinates are "
+                    "individual somas, and technical subset draws are not "
+                    "trained-model replicates"
+                ),
+                "population_geometry": (
+                    "validation-only unsupervised covariance/correlation spectral "
+                    "dimension; not class information"
                 ),
             },
             "seed": int(self.params.seed),
@@ -643,15 +749,151 @@ class RepresentationAccessibilityAnalyzer:
             "joint_information_records": joint_information_records,
             "per_soma_information_records": per_soma_records,
             "per_soma_information_summary": per_soma_summary,
+            "subset_probe_records": subset_probe_records,
+            "subset_probe_missing": subset_probe_missing,
+            "population_geometry_records": geometry_records,
         }
         if save_path is not None:
             save_dict(result, save_path, f"{filename}.json")
         return result
 
-    def _per_soma_information(
+    def _subset_probe_records(
         self,
+        *,
+        validation_representations: dict[tuple[int, str], np.ndarray],
+        validation_labels: np.ndarray,
         test_representations: dict[tuple[int, str], np.ndarray],
         test_labels: np.ndarray,
+        members: dict[tuple[int, str], list[str]],
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        subset = self.params.subset_decoding
+        if not subset.enabled:
+            return [], []
+
+        allowed = set(subset.representations)
+        records: list[dict[str, Any]] = []
+        missing: list[dict[str, Any]] = []
+        requested_keys = [
+            key for key in sorted(validation_representations) if key[1] in allowed
+        ]
+        present_representations = {key[1] for key in requested_keys}
+        for representation in sorted(allowed - present_representations):
+            missing.append(
+                {
+                    "representation": representation,
+                    "reason": "representation was not captured",
+                }
+            )
+
+        for representation_index, key in enumerate(requested_keys):
+            validation_values = validation_representations[key]
+            test_values = test_representations[key]
+            native_width = int(validation_values.shape[1])
+            valid_sizes = [
+                int(size) for size in subset.subset_sizes if int(size) <= native_width
+            ]
+            omitted_sizes = [
+                int(size) for size in subset.subset_sizes if int(size) > native_width
+            ]
+            if omitted_sizes:
+                missing.append(
+                    {
+                        "network_layer_index": int(key[0]),
+                        "network_layer_number": int(key[0]) + 1,
+                        "representation": str(key[1]),
+                        "native_feature_count": native_width,
+                        "omitted_subset_sizes": omitted_sizes,
+                        "reason": "requested subset exceeds native width",
+                    }
+                )
+            for subset_draw in range(int(subset.draws)):
+                selection_seed = _derived_seed(
+                    self.params.seed,
+                    key[0],
+                    representation_index,
+                    subset_draw,
+                    0x5AB5E7,
+                )
+                generator = np.random.Generator(np.random.PCG64(selection_seed))
+                permutation = generator.permutation(native_width)
+                for subset_size in valid_sizes:
+                    if subset_size == native_width and subset_draw > 0:
+                        continue
+                    selected = np.sort(permutation[:subset_size])
+                    probe_seed = _derived_seed(selection_seed, subset_size, 0xDEC0DE)
+                    decoded = validation_to_test_probe_decode(
+                        validation_values[:, selected],
+                        validation_labels,
+                        test_values[:, selected],
+                        test_labels,
+                        seed=probe_seed,
+                        **_probe_kwargs(subset.probe),
+                    )
+                    observed = float(decoded["heldout_test_balanced_accuracy"])
+                    null = decoded["heldout_test_label_shuffle_balanced_accuracy"]
+                    records.append(
+                        {
+                            "network_layer_index": int(key[0]),
+                            "network_layer_number": int(key[0]) + 1,
+                            "representation": str(key[1]),
+                            "population_names": members[key],
+                            "native_feature_count": native_width,
+                            "subset_size": int(subset_size),
+                            "subset_draw": int(subset_draw),
+                            "subset_selection_seed": int(selection_seed),
+                            "selected_coordinate_indices": selected.tolist(),
+                            "subset_sampling": (
+                                "label-independent nested uniform permutation of "
+                                "native representation coordinates without replacement"
+                            ),
+                            "probe_name": subset.probe.name,
+                            "class_accessibility_metric": (
+                                "heldout test balanced accuracy above "
+                                "validation-label shuffle null"
+                            ),
+                            "class_accessibility_above_null": (
+                                observed - float(null) if null is not None else None
+                            ),
+                            "is_mutual_information": False,
+                            **decoded,
+                        }
+                    )
+        return records, missing
+
+    def _population_geometry_records(
+        self,
+        validation_representations: dict[tuple[int, str], np.ndarray],
+        members: dict[tuple[int, str], list[str]],
+    ) -> list[dict[str, Any]]:
+        geometry = self.params.geometry
+        if not geometry.enabled:
+            return []
+        allowed = set(geometry.representations)
+        records: list[dict[str, Any]] = []
+        for key in sorted(validation_representations):
+            if key[1] not in allowed:
+                continue
+            records.append(
+                {
+                    "network_layer_index": int(key[0]),
+                    "network_layer_number": int(key[0]) + 1,
+                    "representation": str(key[1]),
+                    "population_names": members[key],
+                    "measurement_split": "valid",
+                    "label_usage": "none",
+                    "geometry_scope": "complete native soma population",
+                    **population_geometry(
+                        validation_representations[key],
+                        variance_epsilon=geometry.variance_epsilon,
+                    ),
+                }
+            )
+        return records
+
+    def _per_soma_information(
+        self,
+        validation_representations: dict[tuple[int, str], np.ndarray],
+        validation_labels: np.ndarray,
         members: dict[tuple[int, str], list[str]],
     ) -> list[dict[str, Any]]:
         information = self.params.information
@@ -659,15 +901,15 @@ class RepresentationAccessibilityAnalyzer:
             return []
         records: list[dict[str, Any]] = []
         allowed = set(information.per_soma_representations)
-        for key in sorted(test_representations):
+        for key in sorted(validation_representations):
             if key[1] not in allowed:
                 continue
-            values = test_representations[key]
+            values = validation_representations[key]
             for soma_index in range(values.shape[1]):
                 seed = _derived_seed(self.params.seed, key[0], soma_index, 0x50A4)
                 info = matched_support_class_information(
                     values[:, soma_index : soma_index + 1],
-                    test_labels,
+                    validation_labels,
                     n_neighbors=information.n_neighbors,
                     n_label_shuffles=information.n_label_shuffles,
                     seed=seed,
@@ -680,6 +922,7 @@ class RepresentationAccessibilityAnalyzer:
                         "representation": str(key[1]),
                         "population_names": members[key],
                         "soma_index_within_representation": int(soma_index),
+                        "information_split": "valid",
                         "information_scope": "single soma scalar",
                         **info,
                     }
@@ -709,6 +952,7 @@ class RepresentationAccessibilityAnalyzer:
                     "network_layer_index": int(key[0]),
                     "network_layer_number": int(key[0]) + 1,
                     "representation": str(key[1]),
+                    "information_split": "valid",
                     "n_somas": int(observed.size),
                     "mean_scalar_mi_bits": float(observed.mean()),
                     "median_scalar_mi_bits": float(np.median(observed)),
@@ -731,5 +975,6 @@ __all__ = [
     "balanced_countsketch_projection",
     "build_layer_representations",
     "collect_layer_population_features",
+    "population_geometry",
     "population_layer_inventory",
 ]

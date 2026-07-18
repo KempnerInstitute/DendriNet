@@ -14,6 +14,7 @@ from dendritic_modeling.analysis.tools.representation_accessibility import (
     RepresentationAccessibilityAnalyzer,
     apply_balanced_countsketch,
     balanced_countsketch_projection,
+    population_geometry,
     population_layer_inventory,
 )
 from dendritic_modeling.config import (
@@ -22,9 +23,11 @@ from dendritic_modeling.config import (
     EvaluationRuntimeConfig,
     RepresentationAccessibilityAnalysisConfig,
     RepresentationAccessibilityAnalysisParams,
+    RepresentationGeometryConfig,
     RepresentationInformationConfig,
     RepresentationProbeConfig,
     RepresentationProjectionConfig,
+    RepresentationSubsetProbeConfig,
 )
 from dendritic_modeling.models import Classifier
 from dendritic_modeling.networks.architectures.classical import Identity
@@ -193,6 +196,13 @@ def test_params_normalize_nested_yaml_mappings() -> None:
             "projection_names": ["matched2"],
             "n_label_shuffles": 1,
         },
+        subset_decoding={
+            "enabled": True,
+            "subset_sizes": [2, 1, 2],
+            "draws": 2,
+            "probe": {"name": "subset", "type": "ridge"},
+        },
+        geometry={"enabled": True, "representations": ["excitatory"]},
     )
     assert isinstance(params.projections[0], RepresentationProjectionConfig)
     assert params.projections[0].output_dim == 2
@@ -200,6 +210,97 @@ def test_params_normalize_nested_yaml_mappings() -> None:
     assert params.probes[0].hidden_dims == [8]
     assert params.probes[0].max_projection_draws == 1
     assert isinstance(params.information, RepresentationInformationConfig)
+    assert isinstance(params.subset_decoding, RepresentationSubsetProbeConfig)
+    assert params.subset_decoding.subset_sizes == [1, 2]
+    assert params.subset_decoding.probe.name == "subset"
+    assert isinstance(params.geometry, RepresentationGeometryConfig)
+
+
+def test_subset_decoding_rejects_unsupported_probe_repeats() -> None:
+    with pytest.raises(ValueError, match="requires a ridge probe"):
+        RepresentationSubsetProbeConfig(
+            probe=RepresentationProbeConfig(type="mlp", hidden_dims=[8])
+        )
+    with pytest.raises(ValueError, match="exactly one probe draw"):
+        RepresentationSubsetProbeConfig(
+            probe=RepresentationProbeConfig(type="ridge", draws=2)
+        )
+
+
+def test_subset_decoding_and_population_geometry_are_separate_outputs() -> None:
+    params = RepresentationAccessibilityAnalysisParams(
+        representations=["excitatory"],
+        projections=[RepresentationProjectionConfig(name="native", type="identity")],
+        probes=[
+            RepresentationProbeConfig(
+                name="linear",
+                type="ridge",
+                n_label_shuffles=0,
+            )
+        ],
+        information=RepresentationInformationConfig(enabled=False),
+        subset_decoding=RepresentationSubsetProbeConfig(
+            enabled=True,
+            representations=["excitatory"],
+            subset_sizes=[1, 2, 3, 4],
+            draws=2,
+            probe=RepresentationProbeConfig(
+                name="subset_linear",
+                type="ridge",
+                n_label_shuffles=0,
+            ),
+        ),
+        geometry=RepresentationGeometryConfig(
+            enabled=True,
+            representations=["excitatory"],
+        ),
+        seed=47,
+    )
+    result = RepresentationAccessibilityAnalyzer(params).analyze(
+        _model(),
+        valid_ds=_dataset(11),
+        test_ds=_dataset(12),
+        device="cpu",
+        runtime=EvaluationRuntimeConfig(
+            mode="materialize",
+            batch_size=24,
+            num_workers=0,
+            pin_memory=False,
+        ),
+    )
+
+    assert len(result["subset_probe_records"]) == 10
+    assert len(result["subset_probe_missing"]) == 2
+    assert len(result["population_geometry_records"]) == 2
+    assert {record["subset_size"] for record in result["subset_probe_records"]} == {
+        1,
+        2,
+        3,
+    }
+    full_width = [
+        record
+        for record in result["subset_probe_records"]
+        if record["subset_size"] == 3
+    ]
+    assert len(full_width) == 2
+    assert all(record["subset_draw"] == 0 for record in full_width)
+    assert all(
+        record["measurement_split"] == "valid" and record["label_usage"] == "none"
+        for record in result["population_geometry_records"]
+    )
+    assert all(
+        "selected_coordinate_indices" in record and "soma_indices" not in record
+        for record in result["subset_probe_records"]
+    )
+
+
+def test_population_geometry_detects_low_effective_dimension() -> None:
+    axis = np.linspace(-1.0, 1.0, 101)
+    values = np.column_stack((axis, 2.0 * axis, -3.0 * axis))
+    geometry = population_geometry(values, variance_epsilon=1e-12)
+    assert geometry["nonconstant_feature_count"] == 3
+    assert geometry["covariance_participation_ratio"] == pytest.approx(1.0)
+    assert geometry["correlation_participation_ratio"] == pytest.approx(1.0)
 
 
 def test_probe_can_cap_projection_repeats() -> None:
@@ -274,10 +375,12 @@ def test_information_outputs_keep_joint_and_scalar_estimands_separate() -> None:
         ),
         seed=37,
     )
+    validation = _dataset(3)
+    test = torch.utils.data.Subset(_dataset(4), range(24))
     result = RepresentationAccessibilityAnalyzer(params).analyze(
         _model(),
-        valid_ds=_dataset(3),
-        test_ds=_dataset(4),
+        valid_ds=validation,
+        test_ds=test,
         device="cpu",
         runtime=EvaluationRuntimeConfig(
             mode="stream",
@@ -296,6 +399,22 @@ def test_information_outputs_keep_joint_and_scalar_estimands_separate() -> None:
     assert {
         record["information_scope"] for record in result["per_soma_information_records"]
     } == {"single soma scalar"}
+    assert result["information_split"] == "valid"
+    assert result["test_used_for_information"] is False
+    assert result["validation_summary"]["n_samples"] == 48
+    assert result["test_summary"]["n_samples"] == 24
+    assert all(
+        record["information_split"] == "valid" and record["n_samples"] == 48
+        for record in result["joint_information_records"]
+    )
+    assert all(
+        record["information_split"] == "valid" and record["n_samples"] == 48
+        for record in result["per_soma_information_records"]
+    )
+    assert all(
+        record["information_split"] == "valid"
+        for record in result["per_soma_information_summary"]
+    )
     assert all(
         "not joint population MI" in record["interpretation"]
         for record in result["per_soma_information_summary"]

@@ -485,7 +485,8 @@ Available modules: ``performance``, ``information``,
 ``representation_accessibility`` captures post-gate soma populations from
 stacked feedforward population networks. It provides validation-to-test Ridge
 and MLP probes, label-independent matched-width projections, joint population
-class information, and separate per-soma scalar information summaries.
+class information on validation representations, and separate validation-set
+per-soma scalar information summaries.
 
 Information Analysis Components
 -------------------------------

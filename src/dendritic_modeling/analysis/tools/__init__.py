@@ -29,7 +29,16 @@ from .inhibitory_routing_comparison import (
 )
 from .inhibitory_specialization import InhibitorySpecializationAnalyzer
 from .jacobian_spectrum import JacobianSpectrumAnalyzer
+from .layer_population_intervention import LocalInhibitoryPopulationInterventionAnalyzer
 from .local_rule_components import LocalRuleComponentAnalyzer
+from .path_matched_information import (
+    PathMatchedInformationAnalyzer,
+    estimate_path_matched_class_information,
+)
+from .path_matched_intervention import (
+    PathMatchedInterventionAnalyzer,
+    build_nested_path_supports,
+)
 from .poisson_exposure_transfer import (
     POISSON_EXPOSURE_DRAW_SEED_RULE,
     POSTHOC_INTEGRATION_NOTE,
@@ -46,6 +55,7 @@ from .representation_accessibility import (
     balanced_countsketch_projection,
     build_layer_representations,
     collect_layer_population_features,
+    population_geometry,
     population_layer_inventory,
 )
 from .spike_trains import SpikeTrainAnalyzer
@@ -71,8 +81,11 @@ __all__ = [
     "InhibitorySpecializationAnalyzer",
     "JacobianSpectrumAnalyzer",
     "LinearClassAccessibilityAnalyzer",
+    "LocalInhibitoryPopulationInterventionAnalyzer",
     "LocalRuleComponentAnalyzer",
     "MatchedClassInformationAnalyzer",
+    "PathMatchedInformationAnalyzer",
+    "PathMatchedInterventionAnalyzer",
     "PoissonExposureTransferAnalyzer",
     "ReactivationDynamicsAnalyzer",
     "RepresentationAccessibilityAnalyzer",
@@ -87,8 +100,10 @@ __all__ = [
     "apply_balanced_countsketch",
     "balanced_countsketch_projection",
     "build_layer_representations",
+    "build_nested_path_supports",
     "collect_layer_population_features",
     "cross_validated_linear_decode",
+    "estimate_path_matched_class_information",
     "evaluate_poisson_exposure_accuracy",
     "extract_compartment_weights_from_state_dict",
     "fixed_budget_inhibitory_routing_comparison",
@@ -97,6 +112,7 @@ __all__ = [
     "pair_stats_by_class",
     "poisson_exposure_draw_seed",
     "poisson_exposure_duration_key",
+    "population_geometry",
     "population_layer_inventory",
     "summarize_compartment_targeting_from_compartment_weights",
     "validate_poisson_exposure_durations",

@@ -443,17 +443,47 @@ If you omit ``analysis.runtime`` entirely, non-distributed runs default to
 The ``pin_memory`` flag is also interpreted per device: CPU analysis disables
 it automatically even if the shared runtime block leaves it set to ``true``.
 
-Preferred short names are ``performance``, ``information``, ``ablation``, and
+Preferred short names are ``performance``, ``information``, ``ablation``,
+``path_matched_intervention``, ``local_inhibitory_population_intervention``,
+``path_matched_information``, and
 ``correlation``. The longer ``*_analysis`` names are accepted as aliases.
 
 Available modules: ``performance``, ``information``, ``correlation``,
-``ablation``, ``synapse_turnover``, ``noise_perturbation``, ``weight``,
+``ablation``, ``path_matched_intervention``,
+``local_inhibitory_population_intervention``, ``synapse_turnover``,
+``path_matched_information``,
+``noise_perturbation``, ``weight``,
 ``single_layer_contribution``, ``synaptic_activation``, ``branch_activation``,
 ``compartment_statistics``, ``compartment_snr``, ``multiplicative_gain``,
 ``receptive_field``, ``adversarial_robustness``, ``routing``,
 ``reactivation_dynamics``, ``inhibitory_specialization``,
 ``jacobian_spectrum``, ``dendritic_timetraces``, ``local_rule_components``,
 ``spike_train``.
+
+Use ``path_matched_intervention`` when comparing causal sensitivity across
+dendritic depth. It prespecifies one complete soma-to-distal path per soma and
+uses nested path prefixes, so every depth replaces the same number of
+compartment coordinates. It can replace excitation, inhibition, or joint E/I
+currents with zero, a training-split mean, or a dataset-wide shuffled test
+donor. Joint E/I shuffles share the donor permutation and therefore preserve
+the donor pair's sample-wise E/I covariance. Technical coordinate draws are
+reported separately from independently trained model seeds. For multi-layer
+models, set ``module_name_prefix`` to select exactly one dendritic tree.
+
+Use ``local_inhibitory_population_intervention`` for complete local-I
+population dependence across the positions of a feedforward population stack.
+It requires one inhibitory population per layer and exactly one same-step
+I-to-E route, then compares global-donor, within-class-donor, and zero
+replacement controls. This is a network-position estimand and must not be
+described as dendritic depth or lateral/recurrent inhibition.
+
+Use ``path_matched_information`` for matched-width information comparisons
+along dendritic depth. It shares the intervention analyzer's prespecified
+nested paths, but receives only validation data and estimates joint
+continuous--discrete class information for E, I, joint E+I, child current, and
+post-reactivation output. Its path draws are retained as technical support
+sensitivity records and must be averaged within checkpoint before inference
+across independently trained seeds.
 
 See :doc:`analysis` for per-module parameter details. For a copy/paste YAML
 reference with every preferred analysis key, default value, and option hint,

@@ -61,6 +61,10 @@ _LAZY_IMPORTS = {
         "dendritic_modeling.analysis.tools",
         "LocalRuleComponentAnalyzer",
     ),
+    "LocalInhibitoryPopulationInterventionAnalyzer": (
+        "dendritic_modeling.analysis.tools",
+        "LocalInhibitoryPopulationInterventionAnalyzer",
+    ),
     "NoisePerturbationAnalyzer": (
         "dendritic_modeling.analysis.metrics",
         "NoisePerturbationAnalyzer",

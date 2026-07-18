@@ -240,13 +240,19 @@ Representation Accessibility
 feedforward ``PopulationNetwork`` layer. It keeps three estimands separate:
 
 - validation-fit/test-evaluated Ridge or MLP class accessibility;
-- joint ``I(X; C)`` on a declared label-independent population projection;
-- separately estimated scalar ``I(x_i; C)`` for individual somas.
+- validation-set joint ``I(X; C)`` on a declared label-independent population
+  projection;
+- validation-set, separately estimated scalar ``I(x_i; C)`` for individual
+  somas;
+- held-out decoding from label-independent nested population-coordinate
+  subsets (individual somas for E- or I-only representations);
+- validation-only covariance and correlation effective dimension.
 
 The MLP result is nonlinear class accessibility, not mutual information. The
 mean of per-soma scalar information is redundancy-sensitive and is not the
-joint information in the layer. Every probe is fit on ``valid`` and the
-untouched ``test`` split is used only for final evaluation. The analyzer is
+joint information in the layer. Mutual information and population geometry
+are measured on ``valid``. Every probe is fit on ``valid`` and the untouched
+``test`` split is used only for final probe evaluation. The analyzer is
 therefore final-only; ``training: true`` is rejected.
 
 Representations may be ``excitatory``, ``inhibitory``, ``joint``, ``readout``,
@@ -259,6 +265,18 @@ Use native width when comparing mechanisms with identical architectures, and a
 common projected width when comparing E, I, and joint populations of different
 sizes. Projection draws and MLP initializations are technical repeats; average
 them within a trained checkpoint before inference across training seeds.
+Random-subset draws are likewise technical repeats. Within each draw, subset
+sizes are nested prefixes of one uniformly sampled coordinate permutation, so
+the capacity curve is paired and does not select coordinates using labels.
+Subset decoding currently requires one deterministic ridge-probe fit per
+selected coordinate set; nonlinear probe repeats belong in the complete
+population probe family above.
+
+Population geometry reports participation-ratio and entropy effective ranks.
+The covariance spectrum retains native soma scales, while the correlation
+spectrum standardizes every nonconstant soma first. These unsupervised
+validation-set diagnostics quantify dimensional concentration; they are not
+class information or decoder accuracy.
 
 .. code-block:: yaml
 
@@ -307,6 +325,20 @@ them within a trained checkpoint before inference across training seeds.
            n_neighbors: 5
            n_label_shuffles: 20
            standardize: true
+         subset_decoding:
+           enabled: true
+           representations: ["excitatory"]
+           subset_sizes: [1, 2, 4, 8, 16, 32, 64]
+           draws: 10
+           probe:
+             name: "subset_linear"
+             type: "ridge"
+             ridge_alpha: 1.0
+             n_label_shuffles: 5
+         geometry:
+           enabled: true
+           representations: ["excitatory"]
+           variance_epsilon: 1.0e-12
          seed: 42
 
 Frozen checkpoint execution
@@ -382,6 +414,145 @@ Selectors live under ``params.selection``:
            metrics: ["accuracy", "pred_label_mi_bits"]
          methods:
            ablation_methods: ["lesion", "shuffle", "mean_clamp"]
+
+Path-Matched Dendritic Interventions
+------------------------------------
+
+``path_matched_intervention`` is the fixed-count control for comparing causal
+sensitivity across dendritic depth. One complete path is selected per soma and
+technical draw without inspecting data, labels, activations, the trained
+mechanism, or the checkpoint. Prefixing the complete paths yields the same
+number of compartment coordinates at every depth. The analyzer changes only
+those coordinates; every other current coordinate remains exactly as produced
+by the model.
+
+Targets are ``"excitation_current"``, ``"inhibition_current"``, and
+``"joint_EI_currents"``. Methods are ``"zero"``,
+``"fixed_train_mean"``, and ``"global_test_shuffle"``. The fixed mean is
+estimated once on the training reference split. The global shuffle uses one
+dataset-wide test-donor permutation, shared across depth and across E/I in the
+joint condition. Reported outputs include accuracy, cross entropy, loss
+relative to above-chance baseline performance, exact available/replaced
+coordinate counts, and hashed anatomical supports. Coordinate draws are
+technical sensitivity draws, not additional trained-model replicates.
+
+.. code-block:: yaml
+
+   analysis:
+     path_matched_intervention:
+       enabled: true
+       training: false
+       params:
+         targets: ["excitation_current", "inhibition_current", "joint_EI_currents"]
+         methods: ["zero", "fixed_train_mean", "global_test_shuffle"]
+         support_draws: 5
+         support_seed: 271828
+         support_namespace: "fig3-v4"
+         shuffle_seed: 314159
+         expected_n_somas: 20
+         expected_branch_factors: [3, 3, 3, 3]
+
+Set ``module_name_prefix`` when a checkpoint contains more than one dendritic
+tree. Optional expected morphology fields make a publication analysis fail
+closed if it is applied to the wrong checkpoint architecture.
+
+After frozen-checkpoint jobs complete, use
+``dendritic-collect-path-interventions`` on their JSONL job declaration. The
+collector verifies strict checkpoint loading and config/checkpoint/profile
+hashes, checks the complete intervention grid, and writes both an auditable
+``support_draw_records.csv`` and an inference-ready
+``checkpoint_records.csv``. The latter averages technical coordinate draws
+within each checkpoint. For a frozen publication collection, pass both
+``--expected-count`` and ``--expected-support-hash``.
+
+Local Inhibitory Population Interventions
+-----------------------------------------
+
+``local_inhibitory_population_intervention`` is a distinct network-position
+analysis for feedforward ``PopulationNetwork`` stacks. It replaces the complete
+post-reactivation output of the single inhibitory population at one network
+layer and reevaluates the frozen classifier. The analyzer fails closed unless
+that population has exactly one outgoing, same-step ``ff_inhibitory`` route to
+a local excitatory population. It therefore measures the complete local I-to-E
+signal in this restricted graph; it is neither a within-tree compartment
+intervention nor recurrent/lateral inhibition.
+
+Global test-donor, within-class test-donor, and zero controls report accuracy
+drop and mean-cross-entropy increase. The prespecified global-minus-within-class
+contrast measures class-aligned causal dependence, not a unique information
+component. Donor permutations are technical repeats within each trained
+checkpoint, and the within-class control uses evaluation labels only to select
+donors.
+
+.. code-block:: yaml
+
+   analysis:
+     local_inhibitory_population_intervention:
+       enabled: true
+       training: false
+       params:
+         methods: [global_test_shuffle, within_class_test_shuffle, zero]
+         permutation_draws: 5
+         shuffle_seed: 20260718
+         expected_network_layers: 5
+         expected_inhibitory_width: 16
+
+Collect completed checkpoint jobs with
+``python -m dendritic_modeling.scripts.analysis.collect_layer_population_interventions``.
+The collector verifies strict checkpoint loading, source hashes, the complete
+layer-by-method-by-draw factorial, and the local I-to-E route contract before
+writing raw and within-checkpoint technical-summary tables.
+
+Path-Matched Dendritic Information
+----------------------------------
+
+``path_matched_information`` measures joint-vector class mutual information
+on the same nested anatomical supports used by
+``path_matched_intervention``. It captures pre-reactivation excitatory and
+inhibitory currents, their joint E+I vector, learned child/upstream current,
+and post-reactivation compartment output. Every coordinate is standardized
+on the validation examples without labels before applying the Ross
+continuous--discrete k-nearest-neighbour estimator. Results are reported in
+bits together with an explicit label-permutation distribution.
+
+The two analyzers share the same support namespace, seed, and draw-count
+defaults, so their default non-somatic coordinate supports coincide. When
+overriding any of those fields for a frozen analysis, set the same values in
+both profiles and verify the selected-support digest during collection.
+
+The manager passes only the validation split to this analyzer; test examples
+and labels are not part of its API. Depth zero uses the complete soma
+population once. Every non-somatic depth uses the configured complete-path
+draws, normally five. Individual support records remain in the JSON. Average
+these technical draws within each checkpoint before treating independently
+trained checkpoints as the inferential units.
+
+.. code-block:: yaml
+
+   analysis:
+     path_matched_information:
+       enabled: true
+       training: false
+       params:
+         signals: [excitation_current, inhibition_current, joint_EI_currents,
+                   upstream_child_current, post_gate_output]
+         depths: [0, 1, 2, 3, 4]
+         support_draws: 5
+         support_seed: 271828
+         support_namespace: "fig3-v4"
+         information_seed: 314159
+         add_probe_seed_offset: true
+         n_neighbors: 10
+         n_label_shuffles: 20
+         expected_n_somas: 20
+         expected_branch_factors: [3, 3, 3, 3]
+
+Set ``module_name_prefix`` when the model has more than one dendritic tree.
+The frozen Figure 3 path selection is obtained with 20 somas, morphology
+``[3, 3, 3, 3]``, five draws, seed 271828, and namespace ``fig3-v4``.
+With ``add_probe_seed_offset: true``, the standalone checkpoint runner adds
+the checkpoint's resolved experiment/probe seed to ``information_seed``;
+this reproduces the frozen per-checkpoint label-null seed rule.
 
 Correlation Analysis
 --------------------
