@@ -33,8 +33,12 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.i
     analytical_expectation_dbl_init,
     default_dbl_init,
     ei_equivalence_dbl_init,
+    he_normal_fan_in_,
     identity_weighttransform_dbl_init,
+    kaiming_dbl_init,
     naive_dbl_init,
+    xavier_dbl_init,
+    xavier_normal_fan_in_out_,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize_reactivation import (
     _apply_reactivation_calibration,
@@ -96,10 +100,14 @@ __all__ = [
     "compute_network_scale_factor",
     "default_dbl_init",
     "ei_equivalence_dbl_init",
+    "he_normal_fan_in_",
     "identity_weighttransform_dbl_init",
     "is_data_driven_reactivation_policy",
+    "kaiming_dbl_init",
     "naive_dbl_init",
     "normalize_adaptive_initialization_policy",
     "normalize_reactivation_init_policy",
     "reactivation_policy_to_calibration_mode",
+    "xavier_dbl_init",
+    "xavier_normal_fan_in_out_",
 ]

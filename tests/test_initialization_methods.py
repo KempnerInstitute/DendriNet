@@ -788,6 +788,136 @@ class TestEIEquivalenceInit:
 
 
 # ---------------------------------------------------------------------------
+# kaiming init (He normal with TopK K / BlockLinear block_size fan-in)
+# ---------------------------------------------------------------------------
+
+
+class TestKaimingInit:
+    def test_topk_std_matches_he_fan_in_k(self):
+        torch.manual_seed(0)
+        k = 5
+        layer = _make_layer(
+            output_dim=64,
+            excitatory_input_dim=40,
+            excitatory_synapses_per_branch=k,
+            dbl_init_method="kaiming",
+            weight_transform="softplus",
+            reactivate=False,
+        )
+        expected_std = (2.0 / k) ** 0.5
+        actual_std = float(layer.branch_excitation.pre_w.std(unbiased=False).item())
+        assert actual_std == pytest.approx(expected_std, rel=0.15)
+        assert layer.branch_excitation.K == k
+
+    def test_blocklinear_std_matches_he_fan_in_block_size(self):
+        torch.manual_seed(1)
+        layer = _make_layer(
+            output_dim=32,
+            excitatory_input_dim=40,
+            excitatory_synapses_per_branch=5,
+            input_branch_factor=4,
+            dbl_init_method="kaiming",
+            weight_transform="softplus",
+            reactivate=False,
+        )
+        block_size = layer.branches_to_output.block_size
+        expected_std = (2.0 / block_size) ** 0.5
+        actual_std = float(
+            layer.branches_to_output.log_weight.std(unbiased=False).item()
+        )
+        assert actual_std == pytest.approx(expected_std, rel=0.2)
+
+    def test_kaiming_wins_over_identity_weight_transform(self):
+        torch.manual_seed(2)
+        k = 8
+        layer = _make_layer(
+            output_dim=64,
+            excitatory_input_dim=40,
+            excitatory_synapses_per_branch=k,
+            dbl_init_method="kaiming",
+            weight_transform="identity",
+            reactivate=False,
+        )
+        expected_std = (2.0 / k) ** 0.5
+        actual_std = float(layer.branch_excitation.pre_w.std(unbiased=False).item())
+        assert actual_std == pytest.approx(expected_std, rel=0.15)
+
+    def test_with_inhibition_finite(self):
+        layer = _make_layer(
+            dbl_init_method="kaiming",
+            inhibitory_input_dim=10,
+            inhibitory_synapses_per_branch=3,
+        )
+        assert torch.isfinite(layer.branch_excitation.pre_w).all()
+        assert torch.isfinite(layer.branch_inhibition.pre_w).all()
+
+
+# ---------------------------------------------------------------------------
+# xavier init (Xavier normal with TopK K / BlockLinear block_size fan-in, fan-out=1)
+# ---------------------------------------------------------------------------
+
+
+class TestXavierInit:
+    def test_topk_std_matches_xavier_fan_in_k_fan_out_1(self):
+        torch.manual_seed(0)
+        k = 5
+        layer = _make_layer(
+            output_dim=64,
+            excitatory_input_dim=40,
+            excitatory_synapses_per_branch=k,
+            dbl_init_method="xavier",
+            weight_transform="softplus",
+            reactivate=False,
+        )
+        expected_std = (2.0 / (k + 1)) ** 0.5
+        actual_std = float(layer.branch_excitation.pre_w.std(unbiased=False).item())
+        assert actual_std == pytest.approx(expected_std, rel=0.15)
+        assert layer.branch_excitation.K == k
+
+    def test_blocklinear_std_matches_xavier_fan_in_block_size_fan_out_1(self):
+        torch.manual_seed(1)
+        layer = _make_layer(
+            output_dim=32,
+            excitatory_input_dim=40,
+            excitatory_synapses_per_branch=5,
+            input_branch_factor=4,
+            dbl_init_method="xavier",
+            weight_transform="softplus",
+            reactivate=False,
+        )
+        block_size = layer.branches_to_output.block_size
+        expected_std = (2.0 / (block_size + 1)) ** 0.5
+        actual_std = float(
+            layer.branches_to_output.log_weight.std(unbiased=False).item()
+        )
+        assert actual_std == pytest.approx(expected_std, rel=0.2)
+
+    def test_xavier_wins_over_identity_weight_transform(self):
+        torch.manual_seed(2)
+        k = 8
+        layer = _make_layer(
+            output_dim=64,
+            excitatory_input_dim=40,
+            excitatory_synapses_per_branch=k,
+            dbl_init_method="xavier",
+            weight_transform="identity",
+            reactivate=False,
+        )
+        expected_std = (2.0 / (k + 1)) ** 0.5
+        actual_std = float(layer.branch_excitation.pre_w.std(unbiased=False).item())
+        assert actual_std == pytest.approx(expected_std, rel=0.15)
+
+    def test_with_inhibition_finite(self):
+        layer = _make_layer(
+            dbl_init_method="xavier",
+            inhibitory_input_dim=10,
+            inhibitory_synapses_per_branch=3,
+        )
+        assert torch.isfinite(layer.branch_excitation.pre_w).all()
+        assert torch.isfinite(layer.branch_inhibition.pre_w).all()
+
+
+# ---------------------------------------------------------------------------
 # identity weight transform init
 # ---------------------------------------------------------------------------
 
@@ -816,7 +946,15 @@ class TestIdentityInit:
 
 class TestInitForwardPass:
     @pytest.mark.parametrize(
-        "method", ["analytical_expectation", "default", "naive", "ei_equivalence"]
+        "method",
+        [
+            "analytical_expectation",
+            "default",
+            "naive",
+            "ei_equivalence",
+            "kaiming",
+            "xavier",
+        ],
     )
     def test_forward_produces_finite_output(self, method):
         layer = _make_layer(dbl_init_method=method, reactivate=True)
@@ -1238,6 +1376,57 @@ class TestQuantileModeCalibration:
             expected_b, rel=1e-5
         )
 
+    def test_occupancy_quantile_param_relu_sets_b_to_default_quantile(self):
+        """ParametricReLU occupancy_quantile should set b to the default voltage quantile."""
+        from dendritic_modeling.networks.activations.parametric import ParametricReLU
+        from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize_reactivation import (
+            _PARAM_RELU_OCCUPANCY_QUANTILE,
+        )
+
+        model, layer, batches = _build_calibration_fixture(
+            reactivation_type="param_relu",
+            reactivation_init_policy="occupancy_quantile",
+            reactivation_init_b=0.0,
+        )
+        assert isinstance(layer.reactivation, ParametricReLU)
+
+        diag = calibrate_reactivation_from_data(model, batches, mode=None)
+        stats = next(iter(diag.values()))
+
+        with torch.no_grad():
+            samples = []
+            was_training = model.training
+            model.eval()
+            try:
+                handle = layer.reactivation.register_forward_pre_hook(
+                    lambda _mod, inputs: samples.append(inputs[0].detach().reshape(-1))
+                )
+                try:
+                    for x, inh in batches:
+                        _ = model(x, inh)
+                finally:
+                    handle.remove()
+            finally:
+                if was_training:
+                    model.train()
+
+        v = torch.cat(samples).double()
+        expected_b = float(
+            torch.quantile(
+                v, torch.tensor(_PARAM_RELU_OCCUPANCY_QUANTILE, dtype=v.dtype)
+            ).item()
+        )
+
+        assert stats["mode"] == "occupancy_quantile"
+        assert stats["calibration_reverted"] is False
+        assert stats["occupancy_q_low"] == pytest.approx(
+            _PARAM_RELU_OCCUPANCY_QUANTILE, rel=1e-8
+        )
+        assert float(layer.reactivation.b[0].item()) == pytest.approx(
+            expected_b, rel=1e-5
+        )
+        assert stats["b"] == pytest.approx(expected_b, rel=1e-5)
+
     def test_quantile_mode_subsamples_large_voltage_tensors(self, monkeypatch):
         """Large flattened voltage tensors should use a capped quantile sample."""
         model, _layer, batches = _build_calibration_fixture(seed=9)
@@ -1320,3 +1509,342 @@ class TestQuantileModeCalibration:
         assert (
             delta_23 <= delta_12 + 1e-8
         ), f"calibration did not converge: delta_12={delta_12}, delta_23={delta_23}"
+
+
+# ---------------------------------------------------------------------------
+# Additive ReLU occupancy current scaling
+# ---------------------------------------------------------------------------
+
+
+class TestAdditiveReLUOccupancyScale:
+    def test_solve_case_e_i_median_balance_and_unit_madstd(self):
+        from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize_additive_relu_scale import (
+            mad_std,
+            solve_additive_relu_scales,
+        )
+
+        torch.manual_seed(0)
+        E = torch.abs(torch.randn(20000)) * 3.0 + 1.5
+        I = torch.abs(torch.randn(20000)) * 5.0 + 4.0
+        result = solve_additive_relu_scales(
+            E, I, None, enforce_median_balance=True
+        )
+        assert result["reverted"] is False
+        assert result["case"] == "e_i"
+        s_e = float(result["s_e"])
+        s_i = float(result["s_i"])
+        assert torch.median(s_e * E).item() == pytest.approx(
+            torch.median(s_i * I).item(), rel=1e-5
+        )
+        assert mad_std(s_e * E - s_i * I) == pytest.approx(1.0, rel=1e-4)
+
+    def test_solve_case_e_only_unit_madstd(self):
+        from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize_additive_relu_scale import (
+            mad_std,
+            solve_additive_relu_scales,
+        )
+
+        torch.manual_seed(1)
+        E = torch.abs(torch.randn(15000)) * 7.0 + 0.5
+        result = solve_additive_relu_scales(
+            E, None, None, enforce_median_balance=True
+        )
+        assert result["reverted"] is False
+        assert result["case"] == "e"
+        assert result["s_i"] is None
+        assert result["s_u"] is None
+        assert mad_std(float(result["s_e"]) * E) == pytest.approx(1.0, rel=1e-4)
+
+    def test_identity_per_bank_scale_equalizes_madstd_budgets(self):
+        from math import sqrt
+
+        from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize_additive_relu_scale import (
+            mad_std,
+            solve_additive_relu_scales,
+        )
+
+        torch.manual_seed(2)
+        E = torch.abs(torch.randn(20000)) * 2.0 + 1.0
+        I = torch.abs(torch.randn(20000)) * 8.0 + 6.0
+        m_e = float(torch.median(E).item())
+        m_i = float(torch.median(I).item())
+        assert m_e != pytest.approx(m_i, rel=1e-2)
+
+        result = solve_additive_relu_scales(
+            E, I, None, enforce_median_balance=False
+        )
+        assert result["reverted"] is False
+        assert result["s_e"] != pytest.approx(result["s_i"], rel=1e-2)
+        s_e = float(result["s_e"])
+        s_i = float(result["s_i"])
+        target = 1.0 / sqrt(2.0)
+        assert mad_std(s_e * E) == pytest.approx(target, rel=1e-4)
+        assert mad_std(s_i * I) == pytest.approx(target, rel=1e-4)
+        assert torch.median(s_e * E).item() != pytest.approx(
+            torch.median(s_i * I).item(), rel=1e-2
+        )
+
+    def test_integration_softplus_relu_occupancy_scales_voltage(self):
+        model, layer, batches = _build_calibration_fixture(
+            use_shunting=False,
+            seed=11,
+            reactivation_type="relu",
+            reactivation_init_policy="occupancy_quantile",
+            dbl_init_method="kaiming",
+            weight_transform="softplus",
+        )
+        assert isinstance(layer.reactivation, torch.nn.ReLU)
+
+        diag = calibrate_reactivation_from_data(model, batches, mode=None)
+        stats = next(iter(diag.values()))
+        assert stats["mode"] == "occupancy_quantile"
+        assert stats["calibration_reverted"] is False
+        assert stats["additive_relu_case"] == "e_i"
+        assert stats["additive_relu_enforce_median_balance"] is True
+
+        with torch.no_grad():
+            samples = []
+            was_training = model.training
+            model.eval()
+            try:
+                handle = layer.reactivation.register_forward_pre_hook(
+                    lambda _mod, inputs: samples.append(
+                        inputs[0].detach().reshape(-1).double()
+                    )
+                )
+                try:
+                    for x, inh in batches:
+                        _ = model(x, inh)
+                finally:
+                    handle.remove()
+            finally:
+                if was_training:
+                    model.train()
+
+        from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize_additive_relu_scale import (
+            mad_std,
+        )
+
+        v = torch.cat(samples)
+        assert mad_std(v) == pytest.approx(1.0, abs=0.08)
+        assert float(torch.median(v).item()) == pytest.approx(0.0, abs=0.08)
+
+    def test_param_relu_occupancy_regression_still_sets_b(self):
+        """ParametricReLU occupancy path must remain quantile-b (not weight scaling)."""
+        from dendritic_modeling.networks.activations.parametric import ParametricReLU
+        from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize_reactivation import (
+            _PARAM_RELU_OCCUPANCY_QUANTILE,
+        )
+
+        model, layer, batches = _build_calibration_fixture(
+            use_shunting=False,
+            reactivation_type="param_relu",
+            reactivation_init_policy="occupancy_quantile",
+            dbl_init_method="kaiming",
+            weight_transform="softplus",
+        )
+        assert isinstance(layer.reactivation, ParametricReLU)
+        pre_w_exc = layer.branch_excitation.pre_w.detach().clone()
+
+        diag = calibrate_reactivation_from_data(model, batches, mode=None)
+        stats = next(iter(diag.values()))
+        assert "additive_relu_case" not in stats
+        assert stats["calibration_reverted"] is False
+        assert torch.equal(layer.branch_excitation.pre_w.detach(), pre_w_exc)
+
+        with torch.no_grad():
+            samples = []
+            handle = layer.reactivation.register_forward_pre_hook(
+                lambda _mod, inputs: samples.append(inputs[0].detach().reshape(-1))
+            )
+            try:
+                for x, inh in batches:
+                    _ = model(x, inh)
+            finally:
+                handle.remove()
+        v = torch.cat(samples).double()
+        expected_b = float(
+            torch.quantile(
+                v, torch.tensor(_PARAM_RELU_OCCUPANCY_QUANTILE, dtype=v.dtype)
+            ).item()
+        )
+        assert float(layer.reactivation.b[0].item()) == pytest.approx(
+            expected_b, rel=1e-5
+        )
+
+
+# ---------------------------------------------------------------------------
+# Shunting occupancy current calibration
+# ---------------------------------------------------------------------------
+
+
+class TestShuntingOccupancyScale:
+    def test_solve_scales_e_i_to_unit_median(self):
+        from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize_shunting_occupancy_scale import (
+            solve_shunting_occupancy_scales,
+        )
+
+        torch.manual_seed(0)
+        E = torch.abs(torch.randn(20000)) * 4.0 + 2.0
+        I = torch.abs(torch.randn(20000)) * 6.0 + 3.0
+        result = solve_shunting_occupancy_scales(E, I, block_size=4)
+        assert result["reverted"] is False
+        s_e = float(result["s_e"])
+        s_i = float(result["s_i"])
+        assert torch.median(s_e * E).item() == pytest.approx(1.0, rel=1e-5)
+        assert torch.median(s_i * I).item() == pytest.approx(1.0, rel=1e-5)
+        pool = s_e * E + s_i * I + 1.0
+        expected_g = float(torch.median(pool).item()) / 4.0
+        assert float(result["g_branch"]) == pytest.approx(expected_g, rel=1e-5)
+
+    def test_solve_e_only_branch_target(self):
+        from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize_shunting_occupancy_scale import (
+            solve_shunting_occupancy_scales,
+        )
+
+        torch.manual_seed(1)
+        E = torch.abs(torch.randn(15000)) * 5.0 + 1.0
+        result = solve_shunting_occupancy_scales(E, None, block_size=4)
+        assert result["reverted"] is False
+        assert result["s_i"] is None
+        s_e = float(result["s_e"])
+        assert torch.median(s_e * E).item() == pytest.approx(1.0, rel=1e-5)
+        expected_g = float(torch.median(s_e * E + 1.0).item()) / 4.0
+        assert float(result["g_branch"]) == pytest.approx(expected_g, rel=1e-5)
+
+    def test_solve_neither_e_nor_i_uses_g_leak_over_n(self):
+        from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize_shunting_occupancy_scale import (
+            solve_shunting_occupancy_scales,
+        )
+
+        result = solve_shunting_occupancy_scales(None, None, block_size=5)
+        assert result["reverted"] is False
+        assert result["s_e"] is None
+        assert result["s_i"] is None
+        assert float(result["g_branch"]) == pytest.approx(1.0 / 5.0, rel=1e-8)
+
+    def test_integration_shunting_relu_scales_e_i_medians(self):
+        from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize_additive_relu_scale import (
+            _median,
+        )
+
+        model, layer, batches = _build_calibration_fixture(
+            use_shunting=True,
+            seed=21,
+            reactivation_type="relu",
+            reactivation_init_policy="occupancy_quantile",
+            dbl_init_method="kaiming",
+            weight_transform="softplus",
+        )
+        assert isinstance(layer.reactivation, torch.nn.ReLU)
+
+        diag = calibrate_reactivation_from_data(model, batches, mode=None)
+        stats = next(iter(diag.values()))
+        assert stats["mode"] == "occupancy_quantile"
+        assert stats["calibration_reverted"] is False
+        assert stats["shunting_s_e"] is not None
+        assert stats["shunting_s_i"] is not None
+
+        with torch.no_grad():
+            layer._store_analysis_currents = True
+            e_chunks, i_chunks = [], []
+            try:
+                for x, inh in batches:
+                    _ = model(x, inh)
+                    currents = layer._last_analysis_currents
+                    e_chunks.append(currents["excitation"].detach().reshape(-1))
+                    i_chunks.append(currents["inhibition"].detach().reshape(-1))
+            finally:
+                layer._store_analysis_currents = False
+
+        E = torch.cat(e_chunks).double()
+        I = torch.cat(i_chunks).double()
+        assert _median(E) == pytest.approx(1.0, abs=0.08)
+        assert _median(I) == pytest.approx(1.0, abs=0.08)
+
+    def test_integration_shunting_identity_with_branches_sets_g_j(self):
+        from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize_additive_relu_scale import (
+            _median,
+        )
+
+        torch.manual_seed(22)
+        branch_factor = 4
+        output_dim = 16
+        layer = DendriticBranchLayer(
+            output_dim=output_dim,
+            excitatory_input_dim=50,
+            excitatory_synapses_per_branch=10,
+            inhibitory_input_dim=50,
+            inhibitory_synapses_per_branch=5,
+            input_branch_factor=branch_factor,
+            use_shunting=True,
+            reactivate=False,
+            reactivation_init_policy="occupancy_quantile",
+            dbl_init_method="kaiming",
+            weight_transform="softplus",
+        )
+        assert isinstance(layer.reactivation, torch.nn.Identity)
+
+        class Wrapper(torch.nn.Module):
+            def __init__(self, inner):
+                super().__init__()
+                self.inner = inner
+
+            def forward(self, x, inh, branch):
+                return self.inner(x, inh, branch)
+
+        model = Wrapper(layer)
+        batches = [
+            (
+                torch.rand(64, 50),
+                torch.rand(64, 50),
+                torch.rand(64, output_dim * branch_factor),
+            )
+            for _ in range(3)
+        ]
+
+        diag = calibrate_reactivation_from_data(model, batches, mode=None)
+        stats = next(iter(diag.values()))
+        assert stats["calibration_reverted"] is False
+        assert stats["shunting_g_branch"] is not None
+
+        with torch.no_grad():
+            layer._store_analysis_currents = True
+            e_chunks, i_chunks = [], []
+            try:
+                for x, inh, branch in batches:
+                    _ = model(x, inh, branch)
+                    currents = layer._last_analysis_currents
+                    e_chunks.append(currents["excitation"].detach().reshape(-1))
+                    i_chunks.append(currents["inhibition"].detach().reshape(-1))
+            finally:
+                layer._store_analysis_currents = False
+
+        E = torch.cat(e_chunks).double()
+        I = torch.cat(i_chunks).double()
+        assert _median(E) == pytest.approx(1.0, abs=0.1)
+        assert _median(I) == pytest.approx(1.0, abs=0.1)
+
+        g_weights = layer.branches_to_output.weight().detach()
+        expected_g = float(stats["shunting_g_branch"])
+        assert torch.allclose(
+            g_weights, torch.full_like(g_weights, expected_g), rtol=1e-5, atol=1e-5
+        )
+        # Bundle budget: n * G_j ≈ median(E+I+1) ≈ 3 when medians are 1.
+        assert expected_g * branch_factor == pytest.approx(
+            float(stats["shunting_median_pool"]), rel=1e-5
+        )
+
+    def test_additive_relu_path_unchanged_when_not_shunting(self):
+        model, layer, batches = _build_calibration_fixture(
+            use_shunting=False,
+            seed=11,
+            reactivation_type="relu",
+            reactivation_init_policy="occupancy_quantile",
+            dbl_init_method="kaiming",
+            weight_transform="softplus",
+        )
+        diag = calibrate_reactivation_from_data(model, batches, mode=None)
+        stats = next(iter(diag.values()))
+        assert "shunting_s_e" not in stats
+        assert stats["additive_relu_case"] == "e_i"

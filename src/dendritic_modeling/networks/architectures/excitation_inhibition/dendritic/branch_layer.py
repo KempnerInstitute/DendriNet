@@ -47,8 +47,10 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.i
     default_dbl_init,
     ei_equivalence_dbl_init,
     identity_weighttransform_dbl_init,
+    kaiming_dbl_init,
     naive_dbl_init,
     normalize_reactivation_init_policy,
+    xavier_dbl_init,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.synapse_config import (
     DendriticSynapseConfig,
@@ -635,9 +637,15 @@ class DendriticBranchLayer(nn.Module):
         )
 
     def initialize(self):
-        if (self.weight_transform or "").lower() == "identity":
+        # Kaiming/Xavier use explicit TopK/BlockLinear fans and must win even
+        # when weight_transform is identity (signed cores), which otherwise
+        # forces identity_weighttransform_dbl_init (dense-shape xavier).
+        if self.dbl_init_method == "kaiming":
+            kaiming_dbl_init(self)
+        elif self.dbl_init_method == "xavier":
+            xavier_dbl_init(self)
+        elif (self.weight_transform or "").lower() == "identity":
             identity_weighttransform_dbl_init(self)
-
         elif self.dbl_init_method == "analytical_expectation":
             analytical_expectation_dbl_init(
                 self,

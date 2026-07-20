@@ -10,6 +10,15 @@ from dendritic_modeling.config.reactivation import (
     normalize_reactivation_init_policy,
     reactivation_policy_to_calibration_mode,
 )
+from dendritic_modeling.networks.activations.parametric import ParametricReLU
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize_additive_relu_scale import (
+    calibrate_additive_relu_currents,
+    is_additive_relu_scale_eligible,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize_shunting_occupancy_scale import (
+    calibrate_shunting_occupancy_currents,
+    is_shunting_occupancy_scale_eligible,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize_expectations import (
     _aggregate_quantiles_from_chunks,
 )
@@ -17,6 +26,19 @@ from dendritic_modeling.utils.hooks import (
     iter_named_modules_of_type,
     remove_hook_handles,
 )
+
+
+def _concat_analysis_bank(chunks: list[torch.Tensor]) -> torch.Tensor | None:
+    """Concatenate finite samples from one analysis-current bank."""
+    flats: list[torch.Tensor] = []
+    for chunk in chunks:
+        flat = chunk.reshape(-1).double()
+        flat = flat[torch.isfinite(flat)]
+        if flat.numel() > 0:
+            flats.append(flat)
+    if not flats:
+        return None
+    return torch.cat(flats)
 
 
 def _apply_reactivation_init(
@@ -157,6 +179,69 @@ def _resolve_occupancy_spec(
     return q_low, q_high, r_low, r_high
 
 
+# Default voltage quantile used to set ParametricReLU shift b.
+# q=0.2 => ~80% occupancy (higher than the median), which keeps more units in
+# the linear regime when additive voltages are left-shifted.
+_PARAM_RELU_OCCUPANCY_QUANTILE = 0.2
+
+
+def _fit_occupancy_quantile_param_relu(
+    *,
+    layer,
+    layer_name: str,
+    flattened_chunks: list[torch.Tensor],
+    sigma_mad_std: float,
+    quantile_aggregation: str,
+) -> dict[str, float | bool | str]:
+    """Fit ParametricReLU occupancy by setting b to a voltage quantile."""
+    current_m, current_b = _current_reactivation_state(layer)
+    q_prob = _PARAM_RELU_OCCUPANCY_QUANTILE
+    q_vals = torch.tensor([q_prob], dtype=flattened_chunks[0].dtype, device="cpu")
+    occ_q_vals, _ = _aggregate_quantiles_from_chunks(
+        flattened_chunks, q_vals, aggregation=quantile_aggregation
+    )
+    q_v = float(occ_q_vals[0].item())
+
+    if not isfinite(q_v):
+        warnings.warn(
+            f"Reactivation occupancy calibration for layer {layer_name} produced "
+            "a non-finite quantile; reverting to the previous gate state.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        return {
+            "b": current_b,
+            "m": current_m,
+            "sigma": sigma_mad_std,
+            "q_low_prob": q_prob,
+            "q_high_prob": q_prob,
+            "r_low": float("nan"),
+            "r_high": float("nan"),
+            "delta_q_raw": 0.0,
+            "delta_q_used": 0.0,
+            "m_raw": float("nan"),
+            "m_clamped": False,
+            "reverted": True,
+            "revert_reason": "nonfinite_quantiles",
+        }
+
+    return {
+        "b": q_v,
+        "m": current_m,
+        "sigma": sigma_mad_std,
+        "q_low_prob": q_prob,
+        "q_high_prob": q_prob,
+        "r_low": float("nan"),
+        "r_high": float("nan"),
+        "delta_q_raw": 0.0,
+        "delta_q_used": 0.0,
+        "m_raw": float("nan"),
+        "m_clamped": False,
+        "reverted": False,
+        "revert_reason": "none",
+    }
+
+
 def _fit_occupancy_quantile(
     *,
     layer,
@@ -167,6 +252,15 @@ def _fit_occupancy_quantile(
     quantile_aggregation: str,
 ) -> dict[str, float | bool | str]:
     """Fit an occupancy-quantile reactivation gate for one layer."""
+    if isinstance(layer.reactivation, ParametricReLU):
+        return _fit_occupancy_quantile_param_relu(
+            layer=layer,
+            layer_name=layer_name,
+            flattened_chunks=flattened_chunks,
+            sigma_mad_std=sigma_mad_std,
+            quantile_aggregation=quantile_aggregation,
+        )
+
     q_low_p, q_high_p, r_low, r_high = _resolve_occupancy_spec(layer, layer_name)
     q_vals = torch.tensor([q_low_p, q_high_p], dtype=v.dtype, device=v.device)
     occ_q_vals, _ = _aggregate_quantiles_from_chunks(
@@ -386,7 +480,14 @@ def calibrate_reactivation_from_data(
     targets: dict[str, DendriticBranchLayer] = {}
     for name, mod in iter_named_modules_of_type(model, DendriticBranchLayer):
         initialize = getattr(mod.reactivation, "initialize", None)
-        if isinstance(mod.reactivation, torch.nn.Identity) or not callable(initialize):
+        has_gate_init = (
+            not isinstance(mod.reactivation, torch.nn.Identity)
+            and callable(initialize)
+        )
+        additive_relu_eligible = is_additive_relu_scale_eligible(mod)
+        shunting_eligible = is_shunting_occupancy_scale_eligible(mod)
+        current_scale_eligible = additive_relu_eligible or shunting_eligible
+        if not has_gate_init and not current_scale_eligible:
             continue
         if mode is None:
             layer_policy = normalize_reactivation_init_policy(
@@ -394,16 +495,43 @@ def calibrate_reactivation_from_data(
             )
             if not is_data_driven_reactivation_policy(layer_policy):
                 continue
+            # Weight-scaling paths only participate in occupancy_quantile.
+            if current_scale_eligible and not has_gate_init:
+                cal_mode = reactivation_policy_to_calibration_mode(layer_policy)
+                if cal_mode != "occupancy_quantile":
+                    continue
+        elif current_scale_eligible and not has_gate_init:
+            forced = (
+                reactivation_policy_to_calibration_mode(mode) or str(mode).lower()
+            )
+            if forced != "occupancy_quantile":
+                continue
         targets[name] = mod
 
     if not targets:
         return {}
+
+    additive_relu_targets = {
+        name: layer
+        for name, layer in targets.items()
+        if is_additive_relu_scale_eligible(layer)
+    }
+    shunting_occupancy_targets = {
+        name: layer
+        for name, layer in targets.items()
+        if is_shunting_occupancy_scale_eligible(layer)
+    }
+    current_scale_targets = {**additive_relu_targets, **shunting_occupancy_targets}
 
     # Accumulate voltage samples per layer (keep raw samples so we can compute
     # robust statistics like median and MAD; DendriticBranchLayers at init can
     # produce long-tailed voltage distributions that make naive mean/std a bad
     # choice).
     samples: dict[str, list[torch.Tensor]] = {}
+    current_samples: dict[str, dict[str, list[torch.Tensor]]] = {
+        name: {"excitation": [], "inhibition": [], "branch_input": []}
+        for name in current_scale_targets
+    }
 
     # Attach pre-hooks on each reactivation module. The hook's input is V.
     handles = []
@@ -421,6 +549,9 @@ def calibrate_reactivation_from_data(
             return hook
 
         handles.append(layer.reactivation.register_forward_pre_hook(_make_hook(name)))
+
+    for layer in current_scale_targets.values():
+        layer._store_analysis_currents = True
 
     # Forward passes in inference mode, no gradient, no autograd graph built.
     was_training = model.training
@@ -441,14 +572,143 @@ def calibrate_reactivation_from_data(
                 else:
                     x = batch.to(device) if device is not None else batch
                     model(x)
+                for layer_name, layer in current_scale_targets.items():
+                    currents = getattr(layer, "_last_analysis_currents", None)
+                    if not currents:
+                        continue
+                    for key in ("excitation", "inhibition", "branch_input"):
+                        tensor = currents.get(key)
+                        if torch.is_tensor(tensor):
+                            current_samples[layer_name][key].append(
+                                tensor.detach().float().cpu()
+                            )
     finally:
         remove_hook_handles(handles)
+        for layer in current_scale_targets.values():
+            layer._store_analysis_currents = False
         if was_training:
             model.train()
 
     # Compute empirical (m, b) per layer and apply it.
     diagnostics: dict[str, dict[str, float]] = {}
     for name, layer in targets.items():
+        if mode is None:
+            layer_policy = normalize_reactivation_init_policy(
+                getattr(layer, "reactivation_init_policy", "analytical")
+            )
+            active_mode = reactivation_policy_to_calibration_mode(layer_policy)
+            if active_mode is None:
+                continue
+        else:
+            # Back-compat: robust=False still selects mean/std mode.
+            active_mode = (
+                (reactivation_policy_to_calibration_mode(mode) or str(mode).lower())
+                if robust
+                else "mean_std"
+            )
+
+        shunting_occ = name in shunting_occupancy_targets
+        additive_relu = name in additive_relu_targets
+        if (
+            (shunting_occ or additive_relu)
+            and active_mode == "occupancy_quantile"
+        ):
+            banks = current_samples.get(name, {})
+            E = _concat_analysis_bank(banks.get("excitation", []))
+            I = _concat_analysis_bank(banks.get("inhibition", []))
+            U = _concat_analysis_bank(banks.get("branch_input", []))
+            if shunting_occ:
+                scale_fit = calibrate_shunting_occupancy_currents(
+                    layer, E=E, I=I
+                )
+                path_diag = {
+                    "shunting_s_e": scale_fit.get("s_e"),
+                    "shunting_s_i": scale_fit.get("s_i"),
+                    "shunting_g_branch": scale_fit.get("g_branch"),
+                    "shunting_median_pool": scale_fit.get("median_pool"),
+                }
+            else:
+                transform = str(getattr(layer, "weight_transform", "") or "").lower()
+                enforce_median_balance = transform in {"softplus", "exp"}
+                scale_fit = calibrate_additive_relu_currents(
+                    layer,
+                    E=E,
+                    I=I,
+                    U=U,
+                    enforce_median_balance=enforce_median_balance,
+                )
+                path_diag = {
+                    "additive_relu_case": scale_fit.get("case"),
+                    "additive_relu_s_e": scale_fit.get("s_e"),
+                    "additive_relu_s_i": scale_fit.get("s_i"),
+                    "additive_relu_s_u": scale_fit.get("s_u"),
+                    "additive_relu_enforce_median_balance": enforce_median_balance,
+                }
+            chunks = samples.get(name, [])
+            flattened_chunks = []
+            for chunk in chunks:
+                flat = chunk.reshape(-1).double()
+                flat = flat[torch.isfinite(flat)]
+                if flat.numel() > 0:
+                    flattened_chunks.append(flat)
+            if flattened_chunks:
+                v = torch.cat(flattened_chunks)
+                n = int(v.numel())
+                mean = float(v.mean().item())
+                variance = float(v.var(unbiased=False).item())
+                sigma_mean_std = sqrt(max(variance, 0.0))
+                vmin = float(v.min().item())
+                vmax = float(v.max().item())
+                q_probs = torch.tensor(
+                    [0.10, 0.50, 0.90], dtype=v.dtype, device=v.device
+                )
+                q_stats, quantile_sample_n = _aggregate_quantiles_from_chunks(
+                    flattened_chunks, q_probs, aggregation=quantile_aggregation
+                )
+                q10, q50, q90 = [float(x.item()) for x in q_stats]
+                median = float(torch.median(v).item())
+                mad = float(torch.median(torch.abs(v - median)).item())
+                sigma_mad_std = 1.4826 * mad
+            else:
+                n = 0
+                mean = sigma_mean_std = vmin = vmax = float("nan")
+                q10 = q50 = q90 = median = sigma_mad_std = float("nan")
+                quantile_sample_n = 0
+
+            current_m, current_b = _current_reactivation_state(layer)
+            diagnostics[name] = {
+                "m": current_m,
+                "b": current_b,
+                "m_applied": current_m,
+                "b_applied": current_b,
+                "ema_alpha": float(max(0.0, min(1.0, ema_alpha))),
+                "mode": active_mode,
+                "V_mean": mean,
+                "V_std": sigma_mean_std,
+                "V_median": median,
+                "V_mad_std": sigma_mad_std,
+                "V_q10": q10,
+                "V_q50": q50,
+                "V_q90": q90,
+                "occupancy_q_low": None,
+                "occupancy_q_high": None,
+                "occupancy_r_low": None,
+                "occupancy_r_high": None,
+                "occupancy_delta_q_raw": None,
+                "occupancy_delta_q_used": None,
+                "occupancy_m_raw": None,
+                "occupancy_m_was_clamped": False,
+                "calibration_reverted": bool(scale_fit["reverted"]),
+                "calibration_revert_reason": scale_fit.get("revert_reason", "none"),
+                **path_diag,
+                "V_min": vmin,
+                "V_max": vmax,
+                "n": n,
+                "n_quantile_sample": quantile_sample_n,
+                "quantile_aggregation": quantile_aggregation,
+            }
+            continue
+
         chunks = samples.get(name, [])
         if not chunks:
             continue
@@ -483,21 +743,6 @@ def calibrate_reactivation_from_data(
         mad = float(torch.median(torch.abs(v - median)).item())
         sigma_mad_std = 1.4826 * mad
 
-        if mode is None:
-            layer_policy = normalize_reactivation_init_policy(
-                getattr(layer, "reactivation_init_policy", "analytical")
-            )
-            active_mode = reactivation_policy_to_calibration_mode(layer_policy)
-            if active_mode is None:
-                continue
-        else:
-            # Back-compat: robust=False still selects mean/std mode.
-            active_mode = (
-                (reactivation_policy_to_calibration_mode(mode) or str(mode).lower())
-                if robust
-                else "mean_std"
-            )
-
         layer_k = (
             float(k)
             if k is not None
@@ -515,6 +760,7 @@ def calibrate_reactivation_from_data(
         occ_delta_q_raw = occ_delta_q_used = occ_m_raw = None
         occ_m_clamped = False
         calibration_reverted = False
+        occ_fit: dict = {}
 
         if active_mode == "occupancy_quantile":
             occ_fit = _fit_occupancy_quantile(
@@ -607,6 +853,7 @@ __all__ = [
     "_apply_reactivation_init",
     "_current_reactivation_state",
     "_fit_occupancy_quantile",
+    "_fit_occupancy_quantile_param_relu",
     "_reactivation_calibration_safeguards",
     "_resolve_occupancy_spec",
     "calibrate_reactivation_empirical",

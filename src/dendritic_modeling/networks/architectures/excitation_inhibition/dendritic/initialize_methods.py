@@ -19,6 +19,33 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.i
 )
 
 
+def he_normal_fan_in_(tensor: torch.Tensor, fan_in: int) -> None:
+    """Fill ``tensor`` with He-normal values using an explicit fan-in.
+
+    Uses ``N(0, sqrt(2 / fan_in))`` (ReLU gain). Unlike
+    ``torch.nn.init.kaiming_normal_``, fan-in is not inferred from the tensor
+    shape, so callers can pass TopK ``K`` or BlockLinear ``block_size``.
+    """
+    fan = max(int(fan_in), 1)
+    std = sqrt(2.0 / fan)
+    _no_grad_normal_(tensor, 0.0, std)
+
+
+def xavier_normal_fan_in_out_(
+    tensor: torch.Tensor, fan_in: int, fan_out: int = 1
+) -> None:
+    """Fill ``tensor`` with Xavier-normal values using explicit fans.
+
+    Uses ``N(0, sqrt(2 / (fan_in + fan_out)))`` (gain=1). Unlike
+    ``torch.nn.init.xavier_normal_``, fans are not inferred from the tensor
+    shape, so callers can pass TopK ``K`` (fan-in) with fan-out=1.
+    """
+    fan_i = max(int(fan_in), 1)
+    fan_o = max(int(fan_out), 1)
+    std = sqrt(2.0 / (fan_i + fan_o))
+    _no_grad_normal_(tensor, 0.0, std)
+
+
 def identity_weighttransform_dbl_init(dbl):
     """
     Initialize a dendritic branch layer.
@@ -531,10 +558,90 @@ def default_dbl_init(dbl):
         _apply_reactivation_init(dbl, m_auto=m_auto, b_auto=b_auto)
 
 
+def kaiming_dbl_init(dbl):
+    """Initialize synapse weights with He-normal using effective fan-in.
+
+    TopK / indexed banks use ``fan_in = module.K``. BlockLinear aggregation
+    uses ``fan_in = module.block_size``. Does not use
+    ``torch.nn.init.kaiming_normal_`` (which would infer fan-in from the dense
+    tensor shape / ``in_features``).
+    """
+    from .branch_layer import DendriticBranchLayer
+
+    assert isinstance(dbl, DendriticBranchLayer)
+
+    with torch.no_grad():
+        for attr in (
+            "branch_excitation",
+            "branch_inhibition",
+            "branch_recurrent",
+            "branch_rec_inhibition",
+        ):
+            mod = getattr(dbl, attr, None)
+            if mod is None:
+                continue
+            he_normal_fan_in_(mod.pre_w, getattr(mod, "K"))
+
+        if dbl.input_branches and hasattr(dbl, "branches_to_output"):
+            block = dbl.branches_to_output
+            he_normal_fan_in_(block.log_weight, getattr(block, "block_size"))
+
+        if dbl.use_shunting:
+            m_auto = 1.5
+            b_auto = 0.5
+        else:
+            m_auto = 0.1
+            b_auto = 0.0
+        _apply_reactivation_init(dbl, m_auto=m_auto, b_auto=b_auto)
+
+
+def xavier_dbl_init(dbl):
+    """Initialize synapse weights with Xavier-normal using effective fans.
+
+    TopK / indexed banks use ``fan_in = module.K`` and ``fan_out = 1``.
+    BlockLinear aggregation uses ``fan_in = module.block_size`` and
+    ``fan_out = 1``. Does not use ``torch.nn.init.xavier_normal_`` (which would
+    infer fans from the dense tensor shape).
+    """
+    from .branch_layer import DendriticBranchLayer
+
+    assert isinstance(dbl, DendriticBranchLayer)
+
+    with torch.no_grad():
+        for attr in (
+            "branch_excitation",
+            "branch_inhibition",
+            "branch_recurrent",
+            "branch_rec_inhibition",
+        ):
+            mod = getattr(dbl, attr, None)
+            if mod is None:
+                continue
+            xavier_normal_fan_in_out_(mod.pre_w, getattr(mod, "K"), fan_out=1)
+
+        if dbl.input_branches and hasattr(dbl, "branches_to_output"):
+            block = dbl.branches_to_output
+            xavier_normal_fan_in_out_(
+                block.log_weight, getattr(block, "block_size"), fan_out=1
+            )
+
+        if dbl.use_shunting:
+            m_auto = 1.5
+            b_auto = 0.5
+        else:
+            m_auto = 0.1
+            b_auto = 0.0
+        _apply_reactivation_init(dbl, m_auto=m_auto, b_auto=b_auto)
+
+
 __all__ = [
     "analytical_expectation_dbl_init",
     "default_dbl_init",
     "ei_equivalence_dbl_init",
+    "he_normal_fan_in_",
     "identity_weighttransform_dbl_init",
+    "kaiming_dbl_init",
     "naive_dbl_init",
+    "xavier_dbl_init",
+    "xavier_normal_fan_in_out_",
 ]
