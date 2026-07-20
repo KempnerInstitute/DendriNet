@@ -56,7 +56,7 @@ model:
           indexed_rewire_frequency: 100
           indexed_rewire_quantile: 0.05
           indexed_rewire_until_step: null
-          indexed_output_chunk_size: 2048
+          indexed_output_chunk_size: 16384
           blocklinear_strategy: none
           reactivation_strategy: none
           efficient_blocklinear: true
@@ -104,7 +104,7 @@ model:
           indexed_rewire_frequency: 100
           indexed_rewire_quantile: 0.05
           indexed_rewire_until_step: null
-          indexed_output_chunk_size: 2048
+          indexed_output_chunk_size: 16384
           blocklinear_strategy: none
           reactivation_strategy: none
           efficient_blocklinear: true
@@ -154,7 +154,7 @@ model:
           indexed_rewire_frequency: 100
           indexed_rewire_quantile: 0.05
           indexed_rewire_until_step: null
-          indexed_output_chunk_size: 2048
+          indexed_output_chunk_size: 16384
           blocklinear_strategy: none
           reactivation_strategy: none
           efficient_blocklinear: true
@@ -204,7 +204,7 @@ model:
           indexed_rewire_frequency: 100
           indexed_rewire_quantile: 0.05
           indexed_rewire_until_step: null
-          indexed_output_chunk_size: 2048
+          indexed_output_chunk_size: 16384
           blocklinear_strategy: none
           reactivation_strategy: none
           efficient_blocklinear: true
@@ -254,7 +254,7 @@ model:
           indexed_rewire_frequency: 100
           indexed_rewire_quantile: 0.05
           indexed_rewire_until_step: null
-          indexed_output_chunk_size: 2048
+          indexed_output_chunk_size: 16384
           blocklinear_strategy: none
           reactivation_strategy: none
           efficient_blocklinear: true
