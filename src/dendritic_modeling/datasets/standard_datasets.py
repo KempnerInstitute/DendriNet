@@ -54,6 +54,7 @@ from .paired import (
 )
 from .paths import get_data_directory, split_generator as _split_generator
 from .poisson import PoissonGeneratorDataset as PoissonGeneratorDataset
+from .poisson import _build_multiscale_group_components
 from .registry import build_registered_dataset
 from .synthetic_datasets import get_synthetic_datasets
 from .unified_options import (
@@ -749,6 +750,8 @@ def _wrap_poisson_generator_dataset(
     dataset: Dataset,
     *,
     multiplicative_gain: bool,
+    multiscale_gain: bool,
+    group_components: Optional[torch.Tensor],
     fixed_gain_factor: Optional[float],
     min_gain_factor: Optional[float],
     max_gain_factor: Optional[float],
@@ -762,6 +765,8 @@ def _wrap_poisson_generator_dataset(
     return PoissonGeneratorDataset(
         *dataset[:],
         multiplicative_gain=multiplicative_gain,
+        multiscale_gain=multiscale_gain,
+        group_components=group_components,
         fixed_gain_factor=fixed_gain_factor,
         min_gain_factor=min_gain_factor,
         max_gain_factor=max_gain_factor,
@@ -779,6 +784,8 @@ def _wrap_poisson_generator_triplet(
     test_ds: Dataset,
     *,
     multiplicative_gain: bool,
+    multiscale_gain: bool,
+    group_components: Optional[torch.Tensor],
     fixed_gain_factor: Optional[float],
     min_gain_factor: Optional[float],
     max_gain_factor: Optional[float],
@@ -791,6 +798,8 @@ def _wrap_poisson_generator_triplet(
     """Wrap train/validation/test datasets with identical Poisson settings."""
     kwargs = {
         "multiplicative_gain": multiplicative_gain,
+        "multiscale_gain": multiscale_gain,
+        "group_components": group_components,
         "fixed_gain_factor": fixed_gain_factor,
         "min_gain_factor": min_gain_factor,
         "max_gain_factor": max_gain_factor,
@@ -810,6 +819,8 @@ def _wrap_poisson_generator_triplet(
 def load_poisson_generator_datasets(
     base_dataset: str,
     multiplicative_gain: bool = True,
+    multiscale_gain: bool = False,
+    n_groups_per_scale: Optional[list[int]] = None,
     fixed_gain_factor: Optional[float] = None,
     min_gain_factor: Optional[float] = None,
     max_gain_factor: Optional[float] = None,
@@ -861,12 +872,31 @@ def load_poisson_generator_datasets(
         )
     else:
         raise ValueError(f"Unknown base dataset: {base_dataset}")
+    
+    if multiscale_gain:
+        if not n_groups_per_scale:
+            raise ValueError(
+                "n_groups_per_scale must be specified (non-empty) when "
+                "multiscale_gain=True"
+            )
+        # Soft group memberships are derived from the (unnormalized) training
+        # inputs so they are fixed across train/valid/test and independent of the
+        # gain draws.
+        train_inputs = train_ds[:][0]
+        group_components = _build_multiscale_group_components(
+            train_inputs,
+            n_groups_per_scale=list(n_groups_per_scale),
+        )
+    else:
+        group_components = None
 
     return _wrap_poisson_generator_triplet(
         train_ds,
         valid_ds,
         test_ds,
         multiplicative_gain=multiplicative_gain,
+        multiscale_gain=multiscale_gain,
+        group_components=group_components,
         fixed_gain_factor=fixed_gain_factor,
         min_gain_factor=min_gain_factor,
         max_gain_factor=max_gain_factor,
@@ -1033,6 +1063,8 @@ def _load_poisson_generator_from_options(
     return load_poisson_generator_datasets(
         base_dataset=options.base_dataset,
         multiplicative_gain=options.multiplicative_gain,
+        multiscale_gain=options.multiscale_gain,
+        n_groups_per_scale=options.n_groups_per_scale,
         fixed_gain_factor=options.fixed_gain_factor,
         min_gain_factor=options.min_gain_factor,
         max_gain_factor=options.max_gain_factor,

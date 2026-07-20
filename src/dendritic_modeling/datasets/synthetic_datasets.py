@@ -1428,6 +1428,223 @@ def create_contextual_stream_gain_shift_dataset(
     )
 
 
+def _soft_bits(x: torch.Tensor) -> torch.Tensor:
+    """Match nonlinear_separable xor bitization."""
+    return (x > 0.5).long()
+
+
+def _leaf_values(
+    leaf_latents: torch.Tensor,
+    leaf_op: str,
+    threshold: float,
+) -> torch.Tensor:
+    """Reduce each leaf latent group to a binary value ``[N, n_leaves]``.
+
+    ``leaf_latents`` has shape ``[N, n_leaves, latent_dims]`` and contains the
+    low-dimensional factors that define each leaf bit (before population embedding).
+    """
+    if leaf_op == "xor":
+        bits = _soft_bits(leaf_latents)
+        out = bits[..., 0]
+        for d in range(1, bits.shape[-1]):
+            out = out ^ bits[..., d]
+        return out
+    if leaf_op == "and":
+        # Reuse nonlinear_interaction idea: product threshold (soft conjunction).
+        prod = leaf_latents.prod(dim=-1)
+        return (prod > threshold).long()
+    raise ValueError(f"Unknown leaf_op: {leaf_op}")
+
+
+def _combine_binary(vals: torch.Tensor, op: str) -> torch.Tensor:
+    """Combine binary values along the last dimension -> ``[N, ...]``."""
+    out = vals[..., 0]
+    for i in range(1, vals.shape[-1]):
+        if op == "xor":
+            out = out ^ vals[..., i]
+        elif op == "and":
+            out = out & vals[..., i]
+        elif op == "or":
+            out = out | vals[..., i]
+        else:
+            raise ValueError(f"Unknown op: {op}")
+    return out
+
+
+def _normalize_branch_factors(
+    branch_factors: list[int] | tuple[int, ...],
+) -> tuple[int, ...]:
+    """Validate proximal→distal branch factors and return a normalized tuple."""
+    if not branch_factors:
+        raise ValueError("branch_factors must be a non-empty sequence of integers")
+    normalized = tuple(int(b) for b in branch_factors)
+    if any(b < 2 for b in normalized):
+        raise ValueError(
+            f"each branch factor must be >= 2 (proximal→distal), got {branch_factors}"
+        )
+    return normalized
+
+
+def _n_leaves_from_branch_factors(branch_factors: tuple[int, ...]) -> int:
+    n_leaves = 1
+    for b in branch_factors:
+        n_leaves *= b
+    return n_leaves
+
+
+def _nested_reduce_by_branch_factors(
+    leaf_bits: torch.Tensor,
+    branch_factors: tuple[int, ...],
+    internal_op: str,
+) -> torch.Tensor:
+    """
+    Reduce ``[N, n_leaves]`` with an explicit branching schedule.
+
+    ``branch_factors`` follow the EINet convention (proximal→distal). Reduction
+    walks distal→proximal by applying ``reversed(branch_factors)``.
+    Example: ``[2, 4]`` means 8 leaves grouped first into two distal groups of 4,
+    then those two results are combined at the proximal node.
+    """
+    values = leaf_bits
+    expected_leaves = _n_leaves_from_branch_factors(branch_factors)
+    if values.shape[-1] != expected_leaves:
+        raise ValueError(
+            f"leaf_bits trailing dim {values.shape[-1]} does not match "
+            f"prod(branch_factors)={expected_leaves} for {branch_factors}"
+        )
+
+    for b in reversed(branch_factors):
+        n = values.shape[-1]
+        if n % b != 0:
+            raise ValueError(
+                f"Cannot group {n} values with branch factor {b} "
+                f"(branch_factors={branch_factors})"
+            )
+        values = values.view(values.shape[0], n // b, b)
+        values = _combine_binary(values, internal_op)
+    return values.squeeze(-1)
+
+
+def _make_population_projection(
+    latent_dims: int,
+    dims_per_leaf: int,
+) -> torch.Tensor:
+    """Build a fixed nonnegative projection ``[latent_dims, dims_per_leaf]``.
+
+    Each observed block coordinate is a convex combination of the leaf latents, so
+    the latent is distributed across the block (population code) rather than sitting
+    in a few privileged coordinates.
+    """
+    weights = torch.rand(latent_dims, dims_per_leaf)
+    weights = weights / weights.sum(dim=0, keepdim=True).clamp_min(1e-8)
+    return weights
+
+
+def _population_embed_leaf_blocks(
+    latents: torch.Tensor,
+    projection: torch.Tensor,
+    distractor_scale: float,
+) -> torch.Tensor:
+    """Embed ``[N, n_leaves, latent_dims]`` into ``[N, n_leaves, dims_per_leaf]``.
+
+    ``projection`` has shape ``[latent_dims, dims_per_leaf]``. Distractors are
+    mixed in with weight ``distractor_scale`` in ``[0, 1]``.
+    """
+    if not 0.0 <= float(distractor_scale) <= 1.0:
+        raise ValueError(
+            f"distractor_scale must be in [0, 1], got {distractor_scale}"
+        )
+    signal = torch.einsum("nld,db->nlb", latents, projection)
+    scale = float(distractor_scale)
+    if scale <= 0.0:
+        return signal.clamp(0.0, 1.0)
+    distractors = torch.rand_like(signal)
+    blocks = (1.0 - scale) * signal + scale * distractors
+    return blocks.clamp(0.0, 1.0)
+
+
+def create_nested_multixor_dataset(
+    n_samples: int = 4000,
+    branch_factors: list[int] | tuple[int, ...] = (2, 2),
+    leaf_op: str = "and",
+    internal_op: str = "xor",
+    threshold: float = 0.25,
+    noise_std: float = 0.05,
+    shuffle_leaves: bool = False,
+    dims_per_leaf: int = 64,
+    latent_dims: int = 2,
+    distractor_scale: float = 0.25,
+    seed: Optional[int] = None,
+) -> tuple[TensorDataset, TensorDataset, TensorDataset]:
+    """
+    Nested MultiXOR / tree-composition task with population-coded leaf blocks.
+
+    ``branch_factors`` uses the EINet proximal→distal convention. Leaf count is
+    ``prod(branch_factors)``. Each leaf has a low-D latent in
+    ``[0, 1]^{latent_dims}`` that determines its bit via ``leaf_op``. That latent
+    is then **population-embedded** into a contiguous block of size
+    ``dims_per_leaf`` (shared nonnegative random projection + optional within-block
+    distractor mix), so ``input_dim = n_leaves * dims_per_leaf``. Leaf bits are
+    combined distal→proximal according to ``branch_factors`` with ``internal_op``.
+
+    Because each leaf signal is distributed across its block, sparse synapses
+    recover a leaf most reliably by sampling that leaf's subspace — favoring
+    morphology-aligned distal specialization — rather than latching onto a few
+    privileged global coordinates.
+
+    Default ``leaf_op='and'`` + ``internal_op='xor'`` does **not** collapse to flat
+    parity of the raw input dimensions. ``leaf_op='xor'`` + ``internal_op='xor'``
+    does (parity control over leaf bits).
+
+    Set ``shuffle_leaves=True`` to break topology-aligned leaf→tree assignment
+    (morphology control): input block ``i`` still embeds latent ``i``, but labels
+    use a permuted latent order. Match ``branch_factors`` to the model's
+    ``excitatory_branch_factors`` when testing morphology-aligned composition.
+    """
+    if seed is not None:
+        torch.manual_seed(seed)
+        np.random.seed(seed)
+
+    branch_factors = _normalize_branch_factors(branch_factors)
+    dims_per_leaf = int(dims_per_leaf)
+    latent_dims = int(latent_dims)
+    if latent_dims < 1:
+        raise ValueError(f"latent_dims must be >= 1, got {latent_dims}")
+    if dims_per_leaf < latent_dims:
+        raise ValueError(
+            f"dims_per_leaf ({dims_per_leaf}) must be >= latent_dims ({latent_dims})"
+        )
+
+    n_leaves = _n_leaves_from_branch_factors(branch_factors)
+    input_dim = n_leaves * dims_per_leaf
+    total_samples = int(n_samples) * 2
+
+    latents = torch.rand(total_samples, n_leaves, latent_dims)
+    label_latents = latents
+    if shuffle_leaves:
+        # Permute leaf→tree assignment for labels only; keep block i = embed(latent i)
+        # so contiguous input blocks no longer match the composition tree.
+        perm = torch.randperm(n_leaves)
+        label_latents = latents[:, perm, :]
+
+    leaves = _leaf_values(label_latents, leaf_op=leaf_op, threshold=threshold)
+    labels = _nested_reduce_by_branch_factors(
+        leaves, branch_factors, internal_op=internal_op
+    ).long()
+
+    projection = _make_population_projection(latent_dims, dims_per_leaf)
+    leaf_blocks = _population_embed_leaf_blocks(
+        latents, projection, distractor_scale=distractor_scale
+    )
+    data = leaf_blocks.reshape(total_samples, input_dim)
+    if noise_std > 0:
+        data = torch.clamp(data + torch.randn_like(data) * noise_std, 0, 1)
+
+    data, labels = _balance_classes(data, labels)
+    perm = torch.randperm(len(data))
+    return _split_dataset(data[perm], labels[perm])
+
+
 def create_mnist_information_sampled_dataset(
     subset_size: int = 100,
     sampling_strategy: str = "info_balanced",
@@ -1760,6 +1977,22 @@ _SYNTHETIC_DATASET_SPECS: dict[str, _SyntheticDatasetSpec] = {
             "ood_mode": "irrelevant",
             "valid_split_mode": "ood",
             "context_signal_scale": 1.0,
+            "seed": None,
+        },
+    ),
+    "nested_multixor": _SyntheticDatasetSpec(
+        factory=create_nested_multixor_dataset,
+        defaults={
+            "n_samples": 4000,
+            "branch_factors": [2, 2],
+            "leaf_op": "and",
+            "internal_op": "xor",
+            "threshold": 0.25,
+            "noise_std": 0.05,
+            "shuffle_leaves": False,
+            "dims_per_leaf": 64,
+            "latent_dims": 2,
+            "distractor_scale": 0.25,
             "seed": None,
         },
     ),

@@ -43,6 +43,7 @@ _THEORETICAL_SYNTHETIC_DATASET_NAMES = (
     "block_correlated",
     "balanced_information",
     "contextual_stream_gain_shift",
+    "nested_multixor",
 )
 
 _EXPERIMENTAL_DATASET_IMPORT_CANDIDATES = (
@@ -65,6 +66,8 @@ class _UnifiedDatasetOptions:
     poisson_sampling: bool
     stimulus_duration: float
     multiplicative_gain: bool
+    multiscale_gain: bool
+    n_groups_per_scale: Any
     fixed_gain_factor: Any
     min_gain_factor: Any
     max_gain_factor: Any
@@ -101,6 +104,8 @@ def _resolve_unified_dataset_options(task_cfg: Any) -> _UnifiedDatasetOptions:
         poisson_sampling=parameters.get("poisson_sampling", True),
         stimulus_duration=parameters.get("stimulus_duration", 1.0),
         multiplicative_gain=parameters.get("multiplicative_gain", True),
+        multiscale_gain=parameters.get("multiscale_gain", False),
+        n_groups_per_scale=parameters.get("n_groups_per_scale", None),
         fixed_gain_factor=parameters.get("fixed_gain_factor", None),
         min_gain_factor=parameters.get("min_gain_factor", None),
         max_gain_factor=parameters.get("max_gain_factor", None),

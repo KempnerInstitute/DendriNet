@@ -1,4 +1,5 @@
 import logging
+import math
 import os
 from collections.abc import Callable
 from math import log
@@ -104,7 +105,7 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
             )
 
         if isinstance(dataset, PoissonGeneratorDataset):
-            if self.uniform_gain:
+            if self.uniform_gain and not self.multiscale_gain:
                 dataset._set_gain_factor(gain_factor)
             else:
                 dataset._set_max_gain_factor(gain_factor)
@@ -163,6 +164,10 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
         data_dict = {"gain_factors": gain_factor_values}
         metric_funcs = self._metric_functions(data_dict)
         train_g_min, train_g_max = self._training_gain_bounds(test_dataset)
+
+        self.multiscale_gain = False
+        if isinstance(test_dataset, PoissonGeneratorDataset):
+            self.multiscale_gain = test_dataset.multiscale_gain
 
         id_dict, ood_lower_dict, ood_upper_dict = self._evaluate_gain_metrics(
             model,
@@ -228,6 +233,18 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
                 data_dict[key] = []
                 metric_funcs.append((key, func))
         return metric_funcs
+
+    def _make_weight_fn(
+        self,
+        test_dataset: torch.utils.data.Dataset,
+        train_g_min: float,
+        train_g_max: float,
+    ) -> Callable:
+        if self.logspace and self.gain_sampling == "linear_uniform":
+            return lambda g: g
+        if not self.logspace and self.gain_sampling == "log_uniform":
+            return lambda g: 1 / g
+        return lambda g: 1
 
     @staticmethod
     def _training_gain_bounds(
@@ -317,13 +334,8 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
                         dataset=scaled_test_dataset,
                     )
             
-            if self.logspace and self.gain_sampling == "linear_uniform":
-                weight_fn = lambda g: g
-            elif not self.logspace and self.gain_sampling == "log_uniform":
-                weight_fn = lambda g: 1/g
-            else:
-                weight_fn = lambda g: 1
-            
+            weight_fn = self._make_weight_fn(test_dataset, train_g_min, train_g_max)
+
             def _weighted_mean(
                 gain_factors: torch.Tensor, 
                 scores: torch.Tensor
@@ -332,7 +344,14 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
                 return float((scores * w).mean())
 
             id_dict: dict[str, float] = {}
-            if metric_funcs and (train_g_min == train_g_max or not self.uniform_gain):
+            if (
+                metric_funcs and 
+                (
+                    train_g_min == train_g_max 
+                    or not self.uniform_gain 
+                    or self.multiscale_gain
+                )
+            ):
                 scaled_test_dataset = _scaled_dataset_for_gain(train_g_max)
                 for metric_key, metric_func in metric_funcs:
                     id_dict[metric_key] = _score_metric(
@@ -361,11 +380,18 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
                 return scores_dict
 
             ood_lower_dict: dict[str, float] = {}
-            if self.uniform_gain and self.gain_min < train_g_min:
+            if (
+                self.uniform_gain 
+                and not self.multiscale_gain
+                and self.gain_min < train_g_min
+            ):
                 ood_lower_dict = _mean_scores_for_mask(
                     (gain_factors >= self.gain_min) & (gain_factors < train_g_min)
                 )
-            elif not self.uniform_gain and self.gain_min < train_g_max:
+            elif (
+                (not self.uniform_gain or self.multiscale_gain) 
+                and self.gain_min < train_g_max
+            ):
                 ood_lower_dict = _mean_scores_for_mask(
                     (gain_factors >= self.gain_min) & (gain_factors < train_g_max)
                 )

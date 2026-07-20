@@ -151,6 +151,8 @@ class DatasetParamsConfig(BaseConfig):
         default_factory=lambda: {
             "base_dataset": "mnist",
             "multiplicative_gain": True,
+            "multiscale_gain": False,
+            "n_groups_per_scale": None,
             "fixed_gain_factor": None,
             "min_gain_factor": None,
             "max_gain_factor": None,
@@ -193,6 +195,20 @@ class DatasetParamsConfig(BaseConfig):
             "ood_mode": "irrelevant",
             "valid_split_mode": "ood",
             "context_signal_scale": 1.0,
+        }
+    )
+    nested_multixor: dict[str, Any] = field(
+        default_factory=lambda: {
+            "n_samples": 4000,
+            "branch_factors": [2, 2],
+            "leaf_op": "and",
+            "internal_op": "xor",
+            "threshold": 0.25,
+            "noise_std": 0.05,
+            "shuffle_leaves": False,
+            "dims_per_leaf": 64,
+            "latent_dims": 2,
+            "distractor_scale": 0.25,
         }
     )
     imagenet: dict[str, Any] = field(
