@@ -139,6 +139,34 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
         else:
             target[last] = value
 
+    @classmethod
+    def _apply_sweep_value(cls, config: DictConfig, key: str, value) -> None:
+        """Apply a sweep value, merging mapping values as relative overrides.
+
+        Non-mapping values use normal replace semantics via ``_set_by_dot_path``.
+        Mapping values are treated as a bundle of relative overrides under
+        ``key`` so siblings in the existing subtree are preserved. Dotted
+        relative keys (e.g. ``reactivation.type``) and nested mappings both
+        expand to leaf paths under ``key``.
+        """
+        if isinstance(value, DictConfig):
+            value = OmegaConf.to_container(value, resolve=True)
+
+        if isinstance(value, dict):
+            for sub_key, sub_val in value.items():
+                sub_key_str = str(sub_key)
+                if not sub_key_str or any(
+                    part == "" for part in sub_key_str.split(".")
+                ):
+                    raise ValueError(
+                        f"Invalid empty component in sweep override "
+                        f"{key!r} -> {sub_key_str!r}"
+                    )
+                cls._apply_sweep_value(config, f"{key}.{sub_key_str}", sub_val)
+            return
+
+        cls._set_by_dot_path(config, key, value)
+
     def _warn_if_param_group_lr_axis_is_effectively_noop(
         self, sweep_params: DictConfig, base_train_config: DictConfig
     ) -> None:
@@ -709,7 +737,9 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
                             ]
                     else:
                         # Set nested params (e.g., model.core.layers.0.foo = val).
-                        self._set_by_dot_path(new_config, key, val)
+                        # Mapping values merge as relative overrides so siblings
+                        # under the parent path are preserved.
+                        self._apply_sweep_value(new_config, key, val)
 
             # Handle multiple seeds if specified
             if seeds_per_condition > 1:

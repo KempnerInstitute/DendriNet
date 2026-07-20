@@ -348,6 +348,176 @@ class TestUnifiedSweepGenerator:
             )
         assert len(learning_rates) > 0  # At least one learning rate should be present
 
+    def test_apply_sweep_value_merges_mapping_without_replacing_siblings(
+        self, generator
+    ):
+        """Mapping sweep values merge relative overrides into an existing subtree."""
+        config = OmegaConf.create(
+            {
+                "model": {
+                    "core": {
+                        "type": "dendritic_shunting",
+                        "connectivity": {"ee_synapses_per_branch_per_layer": [10]},
+                        "reactivation": {
+                            "enabled": True,
+                            "type": "param_tanh",
+                            "init_policy": "occupancy_quantile",
+                        },
+                    }
+                }
+            }
+        )
+
+        generator._apply_sweep_value(
+            config,
+            "model.core",
+            {
+                "type": "dendritic_additive",
+                "reactivation.type": "param_relu",
+            },
+        )
+
+        assert config.model.core.type == "dendritic_additive"
+        assert config.model.core.reactivation.type == "param_relu"
+        assert config.model.core.reactivation.enabled is True
+        assert config.model.core.reactivation.init_policy == "occupancy_quantile"
+        assert config.model.core.connectivity.ee_synapses_per_branch_per_layer == [10]
+
+    def test_apply_sweep_value_supports_nested_mapping_form(self, generator):
+        """Nested mapping form expands to the same leaf paths as dotted keys."""
+        config = OmegaConf.create(
+            {
+                "model": {
+                    "core": {
+                        "type": "dendritic_shunting",
+                        "connectivity": {"keep": True},
+                        "reactivation": {"type": "relu", "init_b": 0.5},
+                    }
+                }
+            }
+        )
+
+        generator._apply_sweep_value(
+            config,
+            "model.core",
+            {"type": "dendritic_signed", "reactivation": {"type": "param_relu"}},
+        )
+
+        assert config.model.core.type == "dendritic_signed"
+        assert config.model.core.reactivation.type == "param_relu"
+        assert config.model.core.reactivation.init_b == 0.5
+        assert config.model.core.connectivity.keep is True
+
+    def test_generate_configs_with_paired_dict_overrides(self, generator):
+        """Paired dict sweep entries set multiple leaves without wiping siblings."""
+        base_config = OmegaConf.create(
+            {
+                "model": {
+                    "core": {
+                        "type": "dendritic_shunting",
+                        "connectivity": {"ee_synapses_per_branch_per_layer": [8]},
+                        "reactivation": {
+                            "enabled": True,
+                            "type": "param_tanh",
+                            "init_policy": "occupancy_quantile",
+                        },
+                    }
+                },
+                "training": {"main": {"trainer": {"epochs": 1}}},
+                "data": {"dataset_name": "mnist"},
+                "experiment": {"seed": 0},
+            }
+        )
+        sweep_config = OmegaConf.create(
+            {
+                "sweep_config": {
+                    "model.core": [
+                        {
+                            "type": "dendritic_shunting",
+                            "reactivation.type": "relu",
+                        },
+                        {
+                            "type": "dendritic_additive",
+                            "reactivation": {"type": "param_relu"},
+                        },
+                    ]
+                },
+                "filter_config": {},
+                "experiment_settings": {
+                    "seeds_per_condition": 1,
+                    "base_seed": 7,
+                },
+            }
+        )
+
+        request_config = _build_sweep_request(sweep_config, base_config)
+        configs = generator.generate_configs(request_config)
+
+        assert len(configs) == 2
+        values = {
+            (
+                cfg.model.core.type,
+                cfg.model.core.reactivation.type,
+                tuple(cfg.model.core.connectivity.ee_synapses_per_branch_per_layer),
+                cfg.model.core.reactivation.enabled,
+                cfg.model.core.reactivation.init_policy,
+            )
+            for cfg in configs
+        }
+        assert values == {
+            (
+                "dendritic_shunting",
+                "relu",
+                (8,),
+                True,
+                "occupancy_quantile",
+            ),
+            (
+                "dendritic_additive",
+                "param_relu",
+                (8,),
+                True,
+                "occupancy_quantile",
+            ),
+        }
+
+    def test_generate_configs_scalar_core_type_unchanged(
+        self, generator, base_model_config
+    ):
+        """Non-mapping leaf sweeps continue to replace the targeted path only."""
+        base_model_config = OmegaConf.create(
+            {
+                "model": {
+                    "core": {
+                        "type": "dendritic_shunting",
+                        "connectivity": {"keep": True},
+                    }
+                },
+                "training": {"main": {"trainer": {"epochs": 1}}},
+                "experiment": {"seed": 0},
+            }
+        )
+        sweep_config = OmegaConf.create(
+            {
+                "sweep_config": {
+                    "model.core.type": ["dendritic_additive", "dendritic_signed"]
+                },
+                "filter_config": {},
+                "experiment_settings": {
+                    "seeds_per_condition": 1,
+                    "base_seed": 1,
+                },
+            }
+        )
+        request_config = _build_sweep_request(sweep_config, base_model_config)
+        configs = generator.generate_configs(request_config)
+
+        assert {cfg.model.core.type for cfg in configs} == {
+            "dendritic_additive",
+            "dendritic_signed",
+        }
+        assert all(cfg.model.core.connectivity.keep is True for cfg in configs)
+
     def test_generate_configs_with_population_network_list_paths(self, generator):
         """Population-network sweeps can address layers by numeric dot-path index."""
         base_config = OmegaConf.load(
