@@ -1016,7 +1016,13 @@ class PathMatchedInterventionAnalysisParams(BaseConfig):
 
     One complete soma-to-distal path is selected per soma and technical draw.
     Its prefixes give a fixed coordinate count at every depth.  Supports are
-    selected without data or labels and shared across E/I intervention targets.
+    selected without data or labels and shared across intervention targets.
+
+    Current targets act before the compartment transfer/reactivation.  The
+    optional ``post_gate_output`` target acts on the branch-layer output after
+    that transformation and before it enters the next more-proximal layer.
+    Depths are soma-relative and non-somatic: 1 is proximal, increasing values
+    are more distal, and 0 is intentionally rejected.
 
     ``module_name_prefix`` selects one dendritic tree in a multi-layer model;
     leaving it unset is valid only when exactly one branch module exists at
@@ -1054,6 +1060,7 @@ class PathMatchedInterventionAnalysisParams(BaseConfig):
             "excitation_current",
             "inhibition_current",
             "joint_EI_currents",
+            "post_gate_output",
         }
         allowed_methods = {"zero", "fixed_train_mean", "global_test_shuffle"}
         self.targets = [str(value) for value in self.targets]

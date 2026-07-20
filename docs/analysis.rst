@@ -423,11 +423,15 @@ sensitivity across dendritic depth. One complete path is selected per soma and
 technical draw without inspecting data, labels, activations, the trained
 mechanism, or the checkpoint. Prefixing the complete paths yields the same
 number of compartment coordinates at every depth. The analyzer changes only
-those coordinates; every other current coordinate remains exactly as produced
-by the model.
+those coordinates; every other coordinate in the targeted signal remains
+exactly as produced by the model.
 
-Targets are ``"excitation_current"``, ``"inhibition_current"``, and
-``"joint_EI_currents"``. Methods are ``"zero"``,
+Targets are ``"excitation_current"``, ``"inhibition_current"``,
+``"joint_EI_currents"``, and ``"post_gate_output"``. The first three act on
+currents before the compartment transfer/reactivation. ``"post_gate_output"``
+acts on the exact ``DendriticBranchLayer`` output after that transformation
+and before it is consumed by the next more-proximal branch layer. Methods are
+``"zero"``,
 ``"fixed_train_mean"``, and ``"global_test_shuffle"``. The fixed mean is
 estimated once on the training reference split. The global shuffle uses one
 dataset-wide test-donor permutation, shared across depth and across E/I in the
@@ -436,6 +440,11 @@ relative to above-chance baseline performance, exact available/replaced
 coordinate counts, and hashed anatomical supports. Coordinate draws are
 technical sensitivity draws, not additional trained-model replicates.
 
+Depths use the canonical soma-relative convention: depth 1 is the proximal
+dendritic layer and increasing values are more distal. Depth 0 is the soma and
+is deliberately excluded from this fixed-count dendritic intervention; use a
+population-level analyzer when the somatic population itself is the target.
+
 .. code-block:: yaml
 
    analysis:
@@ -443,7 +452,8 @@ technical sensitivity draws, not additional trained-model replicates.
        enabled: true
        training: false
        params:
-         targets: ["excitation_current", "inhibition_current", "joint_EI_currents"]
+         targets: ["excitation_current", "inhibition_current", "joint_EI_currents",
+                   "post_gate_output"]
          methods: ["zero", "fixed_train_mean", "global_test_shuffle"]
          support_draws: 5
          support_seed: 271828

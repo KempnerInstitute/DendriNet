@@ -1,0 +1,33 @@
+# Final-only fixed-count causal interventions on one selected dendritic tree.
+# Supports are one label-independent soma-to-distal path per soma and draw.
+analysis:
+  runtime:
+    final:
+      mode: stream
+      batch_size: 512
+      num_workers: 4
+      pin_memory: true
+      max_samples: null
+
+  path_matched_intervention:
+    enabled: true
+    training: false
+    params:
+      targets:
+        - excitation_current
+        - inhibition_current
+        - joint_EI_currents
+        - post_gate_output
+      methods: [zero, fixed_train_mean, global_test_shuffle]
+      # Soma-relative: 1 is proximal and increasing values are more distal.
+      # Depth 0 is the soma and is intentionally unavailable in this analyzer.
+      depths: [1, 2, 3, 4]
+      support_draws: 5
+      support_seed: 271828
+      support_namespace: fig3-v4
+      shuffle_seed: 314159
+      module_name_prefix: core_network.layers.0.populations.e0.branch_layers
+      expected_n_somas: 20
+      expected_branch_factors: [3, 3, 3, 3]
+      chance_accuracy: 0.1
+      max_samples: null

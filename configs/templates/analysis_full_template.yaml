@@ -136,12 +136,12 @@ analysis:
         clamp_statistic: "mean"       # str: "mean"; "median" is reserved/future.
 
   path_matched_intervention:
-    enabled: false                    # bool: Equal-coordinate E/I interventions across dendritic depth.
+    enabled: false                    # bool: Equal-coordinate current/output interventions across dendritic depth.
     training: false                   # bool: Final-only; training=true is rejected.
     params:
-      targets: ["excitation_current", "inhibition_current", "joint_EI_currents"] # list[str]: Local current stages to replace.
+      targets: ["excitation_current", "inhibition_current", "joint_EI_currents"] # list[str]: Pre-gate currents; optionally add "post_gate_output" for post-reactivation compartment outputs.
       methods: ["zero", "fixed_train_mean", "global_test_shuffle"] # list[str]: Causal replacement controls.
-      depths: []                      # list[int]: Soma-relative dendritic depths; empty selects every non-somatic depth.
+      depths: []                      # list[int]: Non-somatic soma-relative depths (1=proximal, increasing=distal); empty selects all.
       support_draws: 5                # int: Prespecified anatomical coordinate draws; technical draws are not model replicates.
       support_seed: 271828            # int: Label-independent complete-path selection seed.
       support_namespace: "path-matched-depth-intervention-v1" # str: Stable namespace included in support hashing.

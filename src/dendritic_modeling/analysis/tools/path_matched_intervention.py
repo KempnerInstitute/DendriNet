@@ -1,17 +1,19 @@
 """Path-matched, fixed-count interventions across dendritic depth.
 
 This analyzer measures the causal effect of local excitatory and inhibitory
-currents without confounding dendritic depth with the number of compartments
-replaced.  A label-independent support draw selects one complete
-soma-to-distal path for every soma.  Prefixes of those paths give the same
-number of compartment coordinates at every dendritic depth.
+currents, or post-reactivation compartment outputs, without confounding
+dendritic depth with the number of compartments replaced.  A label-independent
+support draw selects one complete soma-to-distal path for every soma.  Prefixes
+of those paths give the same number of compartment coordinates at every
+dendritic depth.
 
-The intervention acts on the output of the actual E/I current producer.  All
-unselected coordinates are copied unchanged.  Dataset-wide evaluation-signal
-shuffles use one donor permutation for every depth and, for joint E/I
-interventions, for both streams.  Fixed-reference interventions are calibrated
-on a separate reference split (normally training) and then held fixed on the
-evaluation split.
+Current interventions act on the output of the actual E/I current producer;
+post-gate interventions act on the branch-layer output after its configured
+reactivation.  All unselected coordinates are copied unchanged.  Dataset-wide
+evaluation-signal shuffles use one donor permutation for every depth and, for
+joint E/I interventions, for both streams.  Fixed-reference interventions are
+calibrated on a separate reference split (normally training) and then held
+fixed on the evaluation split.
 """
 
 from __future__ import annotations
@@ -48,6 +50,7 @@ _TARGET_SIGNALS: dict[str, tuple[str, ...]] = {
     "excitation_current": ("excitation_current",),
     "inhibition_current": ("inhibition_current",),
     "joint_EI_currents": ("excitation_current", "inhibition_current"),
+    "post_gate_output": ("post_gate_output",),
 }
 
 
@@ -317,6 +320,13 @@ def _signal_sites(
                 producer=producer,
                 coordinate_count=int(module.branch_config.output_dim),
             )
+        sites[(depth, "post_gate_output")] = _SignalSite(
+            depth=int(depth),
+            signal="post_gate_output",
+            module_name=module_name,
+            producer=module,
+            coordinate_count=int(module.branch_config.output_dim),
+        )
     return sites
 
 
@@ -364,7 +374,7 @@ def _capture_signal_values(
 
         def _capture(_module, _inputs, output, *, capture_key=key, selected=indices):
             if not isinstance(output, torch.Tensor):
-                raise TypeError(f"expected tensor current at {capture_key}")
+                raise TypeError(f"expected tensor signal at {capture_key}")
             flat = output.detach().reshape(output.shape[0], -1)
             chosen = selected.to(flat.device)
             chunks[capture_key].append(
@@ -447,7 +457,7 @@ def _replacement_hook(
     def _hook(_module, _inputs, output):
         nonlocal cursor
         if not isinstance(output, torch.Tensor):
-            raise TypeError("current intervention requires a tensor output")
+            raise TypeError("path-matched intervention requires a tensor output")
         flat = output.reshape(output.shape[0], -1)
         batch_size = int(flat.shape[0])
         indices = global_indices.to(flat.device)
@@ -519,7 +529,7 @@ def _evaluate_with_intervention(
 
 
 class PathMatchedInterventionAnalyzer:
-    """Run equal-coordinate E/I interventions at every dendritic depth."""
+    """Run equal-coordinate current or output interventions across depth."""
 
     def __init__(self, params: PathMatchedInterventionAnalysisParams):
         self.params = params
@@ -716,14 +726,24 @@ class PathMatchedInterventionAnalyzer:
                                 }
                             )
 
+        includes_post_gate_output = "post_gate_output" in self.params.targets
         result = {
             "schema_version": 1,
             "analysis_type": "path_matched_depth_intervention",
             "depth_reference": SOMA_RELATIVE_DEPTH_REFERENCE,
             "estimand": (
-                "accuracy and cross-entropy change after replacing the same "
-                "number of anatomically matched compartment-current coordinates "
-                "at each dendritic depth"
+                (
+                    "accuracy and cross-entropy change after replacing the same "
+                    "number of anatomically matched compartment-current or "
+                    "post-reactivation output coordinates at each non-somatic "
+                    "dendritic depth"
+                )
+                if includes_post_gate_output
+                else (
+                    "accuracy and cross-entropy change after replacing the same "
+                    "number of anatomically matched compartment-current coordinates "
+                    "at each dendritic depth"
+                )
             ),
             "interpretation": (
                 "support draws are prespecified technical coordinate draws, not "
@@ -752,6 +772,22 @@ class PathMatchedInterventionAnalyzer:
             "baseline": baseline,
             "records": records,
         }
+        if includes_post_gate_output:
+            result["post_gate_output_semantics"] = {
+                "stage": (
+                    "DendriticBranchLayer output after voltage computation and "
+                    "configured reactivation"
+                ),
+                "propagation": (
+                    "replacement occurs before the output is consumed by the next "
+                    "more-proximal branch layer"
+                ),
+                "depth_convention": (
+                    "soma-relative: depth 1 is the proximal dendritic layer and "
+                    "larger values are more distal; depth 0 is the soma and is not "
+                    "part of this intervention"
+                ),
+            }
         if save_path is not None:
             save_dict(result, save_path, f"{filename}.json")
         return result

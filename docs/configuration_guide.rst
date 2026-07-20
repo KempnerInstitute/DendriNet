@@ -469,6 +469,10 @@ donor. Joint E/I shuffles share the donor permutation and therefore preserve
 the donor pair's sample-wise E/I covariance. Technical coordinate draws are
 reported separately from independently trained model seeds. For multi-layer
 models, set ``module_name_prefix`` to select exactly one dendritic tree.
+The optional ``post_gate_output`` target instead replaces the compartment
+output after its configured transfer/reactivation and before propagation to
+the next more-proximal layer. Depths are soma-relative and non-somatic: 1 is
+proximal, larger values are more distal, and 0 is excluded.
 
 Use ``local_inhibitory_population_intervention`` for complete local-I
 population dependence across the positions of a feedforward population stack.
