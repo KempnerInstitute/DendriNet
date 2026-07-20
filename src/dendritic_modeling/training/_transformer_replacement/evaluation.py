@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import time
 from collections.abc import Sequence
 
 import torch
@@ -289,6 +290,17 @@ def _benchmark_hf_text_replacement(
         active_reduction_factor=teacher_dense / max(active, 1),
         initial_label="original_teacher_model",
         trained_label="trained_replacement_model",
+        initialization_diagnostics={
+            f"layer_{record.layer_index}": dict(diagnostics)
+            for record in records
+            if (
+                diagnostics := getattr(
+                    record.replacement,
+                    "teacher_topk_diagnostics",
+                    {},
+                )
+            )
+        },
     )
     _write_metrics_json(
         result, output_dir=checkpoint_dir, filename="benchmark_metrics.json"
@@ -319,15 +331,28 @@ def benchmark_saved_transformer_replacement(
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
+    if device.type == "cuda":
+        torch.cuda.reset_peak_memory_stats()
+    started = time.perf_counter()
 
     ckpt_dir = checkpoint_dir or train_cfg.save_dir
     source = str(train_cfg.teacher_source).lower()
     if source == "hf_text":
-        return _benchmark_hf_text_replacement(
+        result = _benchmark_hf_text_replacement(
             config,
             checkpoint_dir=ckpt_dir,
             device=device,
         )
+        result.wall_time_seconds = time.perf_counter() - started
+        if device.type == "cuda":
+            result.peak_cuda_allocated_bytes = torch.cuda.max_memory_allocated()
+            result.peak_cuda_reserved_bytes = torch.cuda.max_memory_reserved()
+        _write_metrics_json(
+            result,
+            output_dir=ckpt_dir,
+            filename="benchmark_metrics.json",
+        )
+        return result
 
     if source == "synthetic_mlp":
         units = _make_synthetic_units(config, device=device, dtype=dtype)
@@ -400,7 +425,23 @@ def benchmark_saved_transformer_replacement(
         active_reduction_factor=(
             None if teacher_dense is None else teacher_dense / max(active, 1)
         ),
+        initialization_diagnostics={
+            f"layer_{unit.layer_index}": dict(diagnostics)
+            for unit in units
+            if (
+                diagnostics := getattr(
+                    unit.replacement,
+                    "teacher_topk_diagnostics",
+                    {},
+                )
+            )
+        },
     )
+
+    result.wall_time_seconds = time.perf_counter() - started
+    if device.type == "cuda":
+        result.peak_cuda_allocated_bytes = torch.cuda.max_memory_allocated()
+        result.peak_cuda_reserved_bytes = torch.cuda.max_memory_reserved()
 
     _write_metrics_json(result, output_dir=ckpt_dir, filename="benchmark_metrics.json")
     return result

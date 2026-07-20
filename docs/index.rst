@@ -73,6 +73,7 @@ alias configs are supported for saved experiments and comparison runs.
    analysis
    engineering_architecture
    configuration_guide
+   transformer_llm_scaling
    initialization_comparison_policy
    sweeps
    fsdp_troubleshooting

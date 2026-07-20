@@ -30,6 +30,7 @@ _DTYPE_ALIASES = {
     "fp16": torch.float16,
 }
 _MSE_LOSS_NAMES = {"mse", "l2"}
+_RELATIVE_MSE_LOSS_NAMES = {"relative_mse", "normalized_mse", "nmse"}
 _SMOOTH_L1_LOSS_NAMES = {"smooth_l1", "huber"}
 
 
@@ -146,9 +147,14 @@ def _base_distillation_loss(
     normalized = str(loss_name).lower()
     if normalized in _MSE_LOSS_NAMES:
         return F.mse_loss(prediction, target)
+    if normalized in _RELATIVE_MSE_LOSS_NAMES:
+        mse = F.mse_loss(prediction, target)
+        target_power = target.detach().square().mean()
+        epsilon = torch.finfo(mse.dtype).eps
+        return mse / target_power.clamp_min(epsilon)
     if normalized in _SMOOTH_L1_LOSS_NAMES:
         return F.smooth_l1_loss(prediction, target)
-    raise ValueError(f"{error_context} loss must be mse or smooth_l1")
+    raise ValueError(f"{error_context} loss must be mse, relative_mse, or smooth_l1")
 
 
 def _flatten_for_cosine(

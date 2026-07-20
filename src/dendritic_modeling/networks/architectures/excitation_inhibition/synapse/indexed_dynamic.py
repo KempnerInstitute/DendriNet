@@ -376,7 +376,7 @@ class IndexedDynamicTopKLinear(nn.Module):
         flat_x = x.reshape(-1, self.in_features)
         out = flat_x.new_empty(flat_x.shape[0], self.out_features)
         active_weight = self._normalized_sparse_weight()
-        self._last_forward_param_tensor = active_weight
+        object.__setattr__(self, "_last_forward_param_tensor", active_weight)
         indices = self.connection_indices.to(flat_x.device)
 
         for start in range(0, self.out_features, self.output_chunk_size):

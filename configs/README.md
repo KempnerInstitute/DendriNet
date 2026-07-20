@@ -37,6 +37,7 @@ reference configs and reusable examples.
 | Local credit assignment | `examples/population_network_local_learning_mnist.yaml` |
 | Frozen-checkpoint representation analysis | `examples/representation_accessibility_analysis.yaml` |
 | Transformer FFN replacement | `examples/transformer_replacement_synthetic_distillation.yaml` |
+| OLMo single/multiple/all FFN replacement | `examples/transformer_replacement/README.md` |
 
 Population-network examples should use:
 

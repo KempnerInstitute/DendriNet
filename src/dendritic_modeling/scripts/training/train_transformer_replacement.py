@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 
 from dendritic_modeling.config import load_config
 from dendritic_modeling.training import run_transformer_replacement_training
@@ -33,7 +34,8 @@ def main() -> None:
     load_config.cache_clear()
     config = load_config(args.config_path)
     result = run_transformer_replacement_training(config)
-    print(json.dumps(result.asdict(), indent=2), flush=True)
+    if int(os.environ.get("RANK", 0)) == 0:
+        print(json.dumps(result.asdict(), indent=2), flush=True)
 
 
 if __name__ == "__main__":

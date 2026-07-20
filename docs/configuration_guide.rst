@@ -676,23 +676,51 @@ output.
        teacher_source: hf_text          # synthetic_mlp | hidden_cache | hf_text
        train_target: replacement_only
        layers: [0, 1, 2]
-       device: cuda
+       device: auto
        dtype: bfloat16
+       distributed_mode: ddp            # none | ddp (launch with torchrun)
        sequence_length: 128
        batch_size: 1
        max_steps: 1000
        eval_every: 100
-       loss: mse
+       loss: relative_mse                # stable across layer-output scales
+       cosine_weight: 0.1
+       reactivation_calibration_batches: 3
+       checkpoint_every: 100
+       replacement_checkpoint_encoding: bitmask
        save_dir: results/deepseek_v3_dendritic_mlp_distillation
        text:
-         text_path: /path/to/text_corpus.txt
+         dataset_name: json
+         data_files: /path/to/shards/*.json.gz
+         text_field: text
+         streaming: true
+         validation_documents: 64
          tokenizer_name: deepseek-ai/DeepSeek-V3
-         max_tokens: 1000000
+
+``checkpoint_every`` writes a common replacement/optimizer/scaler/history
+checkpoint plus rank-local RNG state and packed-stream progress. Resume
+layerwise training with ``resume_checkpoint`` pointing to
+``training_checkpoint.pt``. Joint/FSDP checkpointing is not yet provided by
+this dedicated runner.
+
+``replacement_checkpoint_encoding: bitmask`` applies only to final layer
+exports. It stores fixed row-wise topology compactly and is decoded
+transparently when benchmarking or assembling replacements. Restart and
+validation-best checkpoints retain slot-wise compact integers so optimizer
+state stays aligned.
 
 After layerwise distillation, ``joint_lm_distillation`` trains the patched
 causal LM on token windows from ``hf_text``.  Use
 ``train_target: replacement_only`` to keep the original backbone frozen, or
 ``train_target: full_model`` to fine-tune the entire patched student.
+``student_initialization: from_config`` constructs a randomly initialized
+student from the Hugging Face architecture config; the default
+``student_initialization: pretrained`` preserves the fine-tuning/distillation
+path. ``save_student_model: true`` additionally writes the full patched state
+dict and is intentionally opt-in for multi-billion-parameter models.
+
+For model-weight-free stored-parameter estimates and the all-layer OLMo
+checkpoint workflow, see :doc:`transformer_llm_scaling`.
 
 Run the distillation trainer with:
 

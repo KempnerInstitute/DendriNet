@@ -236,9 +236,11 @@ scripts_backup/
 drafts/
 review_round2/
 external/
-/scripts/
+/scripts/*
 !/scripts/ci/
 !/scripts/ci/**
+!/scripts/train_transformer_replacement_array.sh
+!/scripts/train_transformer_replacement_ddp.sh
 scratch/
 figures/
 outputs_smoke/

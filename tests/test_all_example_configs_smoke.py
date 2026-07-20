@@ -24,6 +24,11 @@ except Exception:  # pragma: no cover
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ALL_CONFIGS = sorted(glob.glob(os.path.join(REPO_ROOT, "configs/examples/*.yaml")))
+TRANSFORMER_REPLACEMENT_CONFIGS = sorted(
+    glob.glob(
+        os.path.join(REPO_ROOT, "configs/examples/transformer_replacement/*.yaml")
+    )
+)
 
 # Need a conv image tensor / pretrained backbone / teacher model — covered by
 # dedicated tests, not by this flat-input smoke harness.
@@ -84,6 +89,33 @@ def test_example_config_builds_and_forwards_finite(config_path):
     out = model(x)
     logits = out[0] if isinstance(out, (tuple, list)) else out
     assert torch.isfinite(logits).all(), f"{name}: non-finite forward output"
+
+
+@pytest.mark.parametrize(
+    "config_path",
+    TRANSFORMER_REPLACEMENT_CONFIGS,
+    ids=[os.path.basename(path) for path in TRANSFORMER_REPLACEMENT_CONFIGS],
+)
+def test_transformer_replacement_example_config_is_consistent(config_path):
+    load_config.cache_clear()
+    cfg = load_config(config_path)
+    model_cfg = cfg.model.transformer_replacement
+    train_cfg = cfg.training.transformer_replacement
+
+    assert model_cfg.enabled and train_cfg.enabled
+    assert model_cfg.layers == train_cfg.layers
+    assert len(model_cfg.layers) == len(set(model_cfg.layers))
+    assert all(layer >= 0 for layer in model_cfg.layers)
+    assert model_cfg.model_name == "allenai/OLMo-2-0425-1B"
+    assert model_cfg.replacement_kwargs["kind"] == "gated_dendritic_ffn"
+    expected_teacher_init = train_cfg.student_initialization != "from_config"
+    assert model_cfg.replacement_kwargs["teacher_topk_init"] is expected_teacher_init
+    assert model_cfg.replacement_kwargs["output_topk"] == 6144
+
+    population = cfg.model.core.population_network["layers"][0]
+    assert population["populations"][0]["n_neurons"] == 8192
+    assert population["populations"][0]["branch_factors"] == []
+    assert population["population_defaults"]["ff_excitatory_synapses"] == 1536
 
 
 @pytest.mark.parametrize(
