@@ -41,6 +41,24 @@ class ParametricActivation(nn.Module):
         raise NotImplementedError("Forward method must be implemented by child class")
 
 
+class ParametricReLU(ParametricActivation):
+    """
+    A parametric ReLU activation function with learnable parameter b.
+    """
+
+    def __init__(self, output_dim, init_b=0.0):
+        super().__init__()
+        self.b = nn.Parameter(torch.empty((output_dim,)), requires_grad=True)
+        nn.init.constant_(self.b, init_b)
+
+    def forward(self, x):
+        return torch.relu(x - self.b)
+
+    def initialize(self, slope_val, mid_val):
+        # slope_val is unused; ParametricReLU only has a shift parameter b.
+        _ = slope_val
+        self.b.data.fill_(mid_val)
+
 class ParametricTanh(ParametricActivation):
     """
     A parametric tanh reactivation function with learnable parameters m and b.
@@ -338,6 +356,7 @@ __all__ = [
     "ParametricLinearSigmoid",
     "ParametricLinearTanh",
     "ParametricLinearTanhTransition",
+    "ParametricReLU",
     "ParametricTanh",
     "ParametricTanhOnlyM",
 ]

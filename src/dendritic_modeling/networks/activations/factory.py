@@ -10,6 +10,7 @@ from typing import Any
 import torch.nn as nn
 
 from dendritic_modeling.networks.activations.parametric import (
+    ParametricReLU,
     ParametricLinearSigmoid,
     ParametricLinearTanh,
     ParametricLinearTanhTransition,
@@ -54,6 +55,15 @@ def _sigmoid_builder(**_: Any) -> nn.Module:
 
 def _tanh_builder(**_: Any) -> nn.Module:
     return nn.Tanh()
+
+
+def _param_relu_builder(
+    *, output_dim: int | None, init_b: float, **_: Any
+) -> nn.Module:
+    return ParametricReLU(
+        _require_output_dim(output_dim, "ParametricReLU"),
+        init_b=init_b,
+    )
 
 
 def _param_tanh_builder(
@@ -186,6 +196,7 @@ _ACTIVATION_REGISTRY: dict[str, ActivationBuilder] = {
     "param_linear_tanh_transition": _param_linear_tanh_transition_builder,
     "param_tanh": _param_tanh_builder,
     "param_tanh_only_m": _param_tanh_only_m_builder,
+    "param_relu": _param_relu_builder,
     "relu": _relu_builder,
     "sigmoid": _sigmoid_builder,
     "tanh": _tanh_builder,

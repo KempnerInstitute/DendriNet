@@ -17,6 +17,7 @@ from dendritic_modeling.networks.activations.parametric import (
     ParametricLinearSigmoid,
     ParametricLinearTanh,
     ParametricLinearTanhTransition,
+    ParametricReLU,
     ParametricTanh,
     ParametricTanhOnlyM,
 )
@@ -50,6 +51,20 @@ def test_create_param_tanh():
     act = ActivationFactory.create("param_tanh", output_dim=8)
     assert isinstance(act, ParametricTanh)
     assert act.log_m.shape == (8,)
+
+
+def test_create_param_relu():
+    act = ActivationFactory.create("param_relu", output_dim=8, init_b=0.25)
+    assert isinstance(act, ParametricReLU)
+    assert act.b.shape == (8,)
+    assert torch.allclose(act.b, torch.full((8,), 0.25))
+    act.initialize(1.5, 0.75)
+    assert torch.allclose(act.b, torch.full((8,), 0.75))
+
+
+def test_create_param_relu_no_dim_raises():
+    with pytest.raises(ValueError, match="requires output_dim"):
+        ActivationFactory.create("param_relu")
 
 
 def test_create_param_tanh_no_dim_raises():
