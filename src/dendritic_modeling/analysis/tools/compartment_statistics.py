@@ -156,7 +156,9 @@ class CompartmentStatisticsAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
     ):
         """Collect raw data from the model."""
         self.raw_dict = {}
-        self.class_labels = y if self.per_class_analysis and y is not None else None
+        self.class_labels = (
+            y.detach().cpu() if self.per_class_analysis and y is not None else None
+        )
 
         def _attach_hooks():
             return register_named_forward_hook_groups(
@@ -176,7 +178,7 @@ class CompartmentStatisticsAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
                     )[: self.n_samples]
                     batch_x = batch_x[indices]
                     if self.class_labels is not None:
-                        self.class_labels = self.class_labels[indices]
+                        self.class_labels = self.class_labels[indices.cpu()]
                 with torch.no_grad():
                     _ = model(batch_x)
 

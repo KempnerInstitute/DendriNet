@@ -230,6 +230,34 @@ def test_compartment_statistics_per_class_entropy_matches_current_estimator():
     )
 
 
+def test_compartment_statistics_per_class_capture_uses_cpu_labels():
+    analyzer = CompartmentStatisticsAnalyzer(
+        CompartmentStatisticsAnalysisParams(
+            compute_entropy=False,
+            per_class_analysis=True,
+        )
+    )
+    layer = DendriticBranchLayer(
+        output_dim=2,
+        excitatory_input_dim=3,
+        excitatory_synapses_per_branch=2,
+        inhibitory_input_dim=3,
+        inhibitory_synapses_per_branch=2,
+        reactivate=False,
+        topk_noise_level=0.0,
+    )
+    inputs = torch.randn(4, 3)
+    labels = torch.tensor([0, 0, 1, 1])
+
+    analyzer.collect_raw_data(layer, inputs, labels)
+
+    assert analyzer.class_labels is not None
+    assert analyzer.class_labels.device.type == "cpu"
+    branch = analyzer.raw_dict[""][0]
+    assert set(branch["exc_inputs_per_class"]) == {0, 1}
+    assert set(branch["exc_activations_per_class"]) == {0, 1}
+
+
 def test_compartment_statistics_synapse_capture_hooks_remove_partial_hooks(
     monkeypatch,
 ) -> None:
