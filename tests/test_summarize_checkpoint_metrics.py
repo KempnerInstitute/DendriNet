@@ -115,3 +115,46 @@ def test_checkpoint_metric_summary_rejects_modified_input(tmp_path: Path) -> Non
         handle.write("modified\n")
     with pytest.raises(ValueError, match="hash differs"):
         summarize_checkpoint_metrics(config_path=config)
+
+
+def test_paired_comparison_inherits_top_level_value_column(tmp_path: Path) -> None:
+    rows = []
+    for mechanism, offset in (("additive", 0.0), ("shunting", 0.1)):
+        for seed in range(3):
+            rows.append(
+                {
+                    "mechanism": mechanism,
+                    "seed": seed,
+                    "test_accuracy": 0.5 + offset + seed / 100,
+                }
+            )
+    source = tmp_path / "accuracy.csv"
+    pd.DataFrame(rows).to_csv(source, index=False)
+    payload = {
+        "schema_version": "checkpoint_metric_summary_v1",
+        "input": {"path": str(source)},
+        "group_by": ["mechanism"],
+        "unit_columns": ["seed"],
+        "value_column": "test_accuracy",
+        "expected_units_per_group": 3,
+        "bootstrap": {"draws": 200, "seed": 17},
+        "paired_comparisons": [
+            {
+                "name": "shunting_minus_additive",
+                "arm_column": "mechanism",
+                "reference": "additive",
+                "comparison": "shunting",
+                "pair_columns": ["seed"],
+                "expected_pairs_per_stratum": 3,
+            }
+        ],
+        "output_dir": str(tmp_path / "accuracy_summary"),
+    }
+    config = tmp_path / "accuracy.yaml"
+    config.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+
+    summarize_checkpoint_metrics(config_path=config)
+
+    paired = pd.read_csv(tmp_path / "accuracy_summary/paired_summary.csv")
+    assert paired.loc[0, "metric"] == "test_accuracy"
+    assert paired.loc[0, "mean"] == pytest.approx(0.1)

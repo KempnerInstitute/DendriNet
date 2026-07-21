@@ -128,6 +128,7 @@ def _paired_outputs(
     frame: pd.DataFrame,
     declarations: Sequence[Mapping[str, Any]],
     *,
+    default_value_column: str,
     default_draws: int,
     default_seed: int,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -145,7 +146,7 @@ def _paired_outputs(
             arm_column=str(declaration["arm_column"]),
             reference=str(declaration["reference"]),
             comparison=str(declaration["comparison"]),
-            metric=str(declaration.get("value_column", "value")),
+            metric=str(declaration.get("value_column", default_value_column)),
             pair_columns=[str(value) for value in declaration["pair_columns"]],
             stratum_columns=[
                 str(value) for value in declaration.get("stratum_columns", [])
@@ -224,6 +225,7 @@ def summarize_checkpoint_metrics(
     paired_units, paired_summary = _paired_outputs(
         selected,
         config.get("paired_comparisons", []),
+        default_value_column=value_column,
         default_draws=draws,
         default_seed=seed,
     )
