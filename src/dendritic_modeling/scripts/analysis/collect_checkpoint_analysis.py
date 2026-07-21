@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import fnmatch
 import hashlib
 import json
 import math
@@ -19,10 +20,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 from dendritic_modeling.analysis.registry import get_registered_analyzers
 from dendritic_modeling.scripts.sweeps.control_plane import discover_source_identity
 
 SCHEMA_VERSION = "checkpoint_analysis_collection_v1"
+CONFIG_SCHEMA_VERSION = "checkpoint_analysis_collection_config_v1"
 RUN_SCHEMA_VERSION = "checkpoint_analysis_run_v1"
 
 
@@ -96,10 +100,36 @@ def _json_path(parent: str, key: str | int) -> str:
     return f"{parent}.{key}" if parent else key
 
 
-def _numeric_leaves(value: Any, *, path: str = "") -> list[tuple[str, float]]:
+def _static_glob_prefix(pattern: str) -> str:
+    positions = [position for token in "*?[" if (position := pattern.find(token)) >= 0]
+    return pattern[: min(positions)] if positions else pattern
+
+
+def _path_can_match(path: str, patterns: Sequence[str]) -> bool:
+    if not path or not patterns:
+        return True
+    for pattern in patterns:
+        prefix = _static_glob_prefix(pattern)
+        if path.startswith(prefix) or prefix.startswith(f"{path}."):
+            return True
+    return False
+
+
+def _numeric_leaves(
+    value: Any,
+    *,
+    path: str = "",
+    patterns: Sequence[str] = (),
+) -> list[tuple[str, float]]:
+    if not _path_can_match(path, patterns):
+        return []
     if isinstance(value, bool) or value is None:
         return []
     if isinstance(value, (int, float)):
+        if patterns and not any(
+            fnmatch.fnmatchcase(path, pattern) for pattern in patterns
+        ):
+            return []
         number = float(value)
         if not math.isfinite(number):
             raise ValueError(f"non-finite numeric result at {path}")
@@ -107,12 +137,24 @@ def _numeric_leaves(value: Any, *, path: str = "") -> list[tuple[str, float]]:
     if isinstance(value, Mapping):
         leaves: list[tuple[str, float]] = []
         for key in sorted(value, key=str):
-            leaves.extend(_numeric_leaves(value[key], path=_json_path(path, str(key))))
+            leaves.extend(
+                _numeric_leaves(
+                    value[key],
+                    path=_json_path(path, str(key)),
+                    patterns=patterns,
+                )
+            )
         return leaves
     if isinstance(value, (list, tuple)):
         leaves = []
         for index, item in enumerate(value):
-            leaves.extend(_numeric_leaves(item, path=_json_path(path, index)))
+            leaves.extend(
+                _numeric_leaves(
+                    item,
+                    path=_json_path(path, index),
+                    patterns=patterns,
+                )
+            )
         return leaves
     return []
 
@@ -161,6 +203,8 @@ def collect_checkpoint_analysis(
     output_dir: Path,
     required_analyzers: Sequence[str] = (),
     expected_count: int | None = None,
+    metric_patterns: Sequence[str] = (),
+    include_full_results: bool = True,
 ) -> dict[str, Any]:
     """Validate and collect generic checkpoint-level analyzer results."""
     jobs = _read_jobs(jobs_paths)
@@ -169,6 +213,9 @@ def collect_checkpoint_analysis(
 
     registry = get_registered_analyzers()
     required = tuple(dict.fromkeys(str(name) for name in required_analyzers))
+    patterns = tuple(dict.fromkeys(str(pattern) for pattern in metric_patterns))
+    if any(not pattern for pattern in patterns):
+        raise ValueError("metric_patterns cannot contain blank patterns")
     unknown = sorted(set(required) - set(registry))
     if unknown:
         raise ValueError(f"unknown required analyzers: {unknown}")
@@ -205,18 +252,24 @@ def collect_checkpoint_analysis(
                 raise ValueError(f"analyzer result is not a mapping: {result_path}")
             digest = _sha256(result_path)
             base = _job_fields(job_index, job)
+            numeric_leaves = _numeric_leaves(result, patterns=patterns)
+            if patterns and not numeric_leaves:
+                raise ValueError(
+                    f"metric patterns selected no values for {analyzer_name}: {result_path}"
+                )
             file_rows.append(
                 {
                     **base,
                     "analyzer": analyzer_name,
                     "result_path": str(result_path),
                     "result_sha256": digest,
-                    "numeric_leaf_count": len(_numeric_leaves(result)),
+                    "numeric_leaf_count": len(numeric_leaves),
+                    "selected_numeric_leaf_count": len(numeric_leaves),
                     "provenance_path": str(provenance_path),
                     "provenance_sha256": _sha256(provenance_path),
                 }
             )
-            for metric_path, metric_value in _numeric_leaves(result):
+            for metric_path, metric_value in numeric_leaves:
                 scalar_rows.append(
                     {
                         **base,
@@ -227,17 +280,19 @@ def collect_checkpoint_analysis(
                         "independent_replicate": False,
                     }
                 )
-            jsonl_records.append(
-                {
-                    "schema_version": SCHEMA_VERSION,
-                    "job_index": job_index,
-                    "job": job,
-                    "analyzer": analyzer_name,
-                    "result_path": str(result_path),
-                    "result_sha256": digest,
-                    "result": result,
-                }
-            )
+            record = {
+                "schema_version": SCHEMA_VERSION,
+                "job_index": job_index,
+                "job": job,
+                "analyzer": analyzer_name,
+                "result_path": str(result_path),
+                "result_sha256": digest,
+            }
+            if include_full_results:
+                record["result"] = result
+            else:
+                record["selected_metrics"] = dict(numeric_leaves)
+            jsonl_records.append(record)
 
     _write_csv(output_dir / "checkpoint_analysis_files.csv", file_rows)
     _write_csv(output_dir / "checkpoint_scalar_metrics.csv", scalar_rows)
@@ -253,6 +308,8 @@ def collect_checkpoint_analysis(
         "collected_job_count": len(jobs),
         "collected_result_count": len(jsonl_records),
         "required_analyzers": list(required),
+        "metric_patterns": list(patterns),
+        "include_full_results": bool(include_full_results),
         "aggregation_policy": (
             "none; values are raw numeric leaves and are not independent replicates"
         ),
@@ -276,22 +333,74 @@ def collect_checkpoint_analysis(
     return release
 
 
+def _resolve_config_path(value: str | Path, *, base: Path) -> Path:
+    path = Path(value).expanduser()
+    return (base / path).resolve() if not path.is_absolute() else path.resolve()
+
+
+def _load_collection_config(path: Path) -> dict[str, Any]:
+    payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict) or payload.get("schema_version") != (
+        CONFIG_SCHEMA_VERSION
+    ):
+        raise ValueError(f"unsupported checkpoint-analysis collection config: {path}")
+    required = {"jobs", "output_dir"}
+    missing = required - set(payload)
+    if missing:
+        raise ValueError(f"collection config lacks required fields: {sorted(missing)}")
+    jobs = payload["jobs"]
+    if not isinstance(jobs, list) or not jobs:
+        raise ValueError("collection config jobs must be a nonempty list")
+    base = path.resolve().parent
+    return {
+        "jobs_paths": [_resolve_config_path(value, base=base) for value in jobs],
+        "output_dir": _resolve_config_path(payload["output_dir"], base=base),
+        "required_analyzers": list(payload.get("required_analyzers", [])),
+        "expected_count": payload.get("expected_count"),
+        "metric_patterns": list(payload.get("metric_patterns", [])),
+        "include_full_results": bool(payload.get("include_full_results", True)),
+    }
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--jobs", action="append", required=True, type=Path)
-    parser.add_argument("--output-dir", required=True, type=Path)
+    parser.add_argument("--config", type=Path)
+    parser.add_argument("--jobs", action="append", type=Path)
+    parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--require-analyzer", action="append", default=[])
     parser.add_argument("--expected-count", type=int, default=None)
+    parser.add_argument("--metric-pattern", action="append", default=[])
+    parser.add_argument("--omit-full-results", action="store_true")
     return parser
 
 
 def main(argv: list[str] | None = None) -> dict[str, Any]:
     args = _build_parser().parse_args(argv)
+    if args.config is not None:
+        explicit = any(
+            (
+                args.jobs,
+                args.output_dir,
+                args.require_analyzer,
+                args.expected_count is not None,
+                args.metric_pattern,
+                args.omit_full_results,
+            )
+        )
+        if explicit:
+            raise ValueError(
+                "--config cannot be combined with explicit collection options"
+            )
+        return collect_checkpoint_analysis(**_load_collection_config(args.config))
+    if not args.jobs or args.output_dir is None:
+        raise ValueError("--jobs and --output-dir are required without --config")
     return collect_checkpoint_analysis(
         jobs_paths=args.jobs,
         output_dir=args.output_dir,
         required_analyzers=args.require_analyzer,
         expected_count=args.expected_count,
+        metric_patterns=args.metric_pattern,
+        include_full_results=not args.omit_full_results,
     )
 
 

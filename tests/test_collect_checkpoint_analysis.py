@@ -10,6 +10,7 @@ import pandas as pd
 import pytest
 
 from dendritic_modeling.scripts.analysis.collect_checkpoint_analysis import (
+    _load_collection_config,
     _result_path,
     collect_checkpoint_analysis,
 )
@@ -140,3 +141,55 @@ def test_generic_collector_resolves_reactivation_final_snapshot(tmp_path: Path) 
     result.write_text("{}\n")
 
     assert _result_path(tmp_path, "reactivation_dynamics") == result
+
+
+def test_generic_collector_selects_declared_metrics_without_copying_results(
+    tmp_path: Path,
+) -> None:
+    job = _write_run(tmp_path, 0)
+    jobs_path = tmp_path / "jobs.jsonl"
+    jobs_path.write_text(json.dumps(job) + "\n")
+
+    collect_checkpoint_analysis(
+        jobs_paths=[jobs_path],
+        output_dir=tmp_path / "selected",
+        required_analyzers=["information"],
+        metric_patterns=["basic_mi.*"],
+        include_full_results=False,
+    )
+
+    metrics = pd.read_csv(tmp_path / "selected/checkpoint_scalar_metrics.csv")
+    assert metrics["metric_path"].tolist() == ["basic_mi.I(E;C)"]
+    record = json.loads(
+        (tmp_path / "selected/checkpoint_analysis_records.jsonl").read_text()
+    )
+    assert record["selected_metrics"] == {"basic_mi.I(E;C)": 0.25}
+    assert "result" not in record
+
+
+def test_generic_collector_loads_relative_yaml_config(tmp_path: Path) -> None:
+    jobs = tmp_path / "jobs.jsonl"
+    jobs.write_text("{}\n")
+    config = tmp_path / "collection.yaml"
+    config.write_text(
+        "\n".join(
+            [
+                "schema_version: checkpoint_analysis_collection_config_v1",
+                "jobs: [jobs.jsonl]",
+                "output_dir: collected",
+                "required_analyzers: [information]",
+                "expected_count: 1",
+                "metric_patterns: ['basic_mi.*']",
+                "include_full_results: false",
+            ]
+        )
+        + "\n"
+    )
+
+    loaded = _load_collection_config(config)
+
+    assert loaded["jobs_paths"] == [jobs.resolve()]
+    assert loaded["output_dir"] == (tmp_path / "collected").resolve()
+    assert loaded["required_analyzers"] == ["information"]
+    assert loaded["metric_patterns"] == ["basic_mi.*"]
+    assert loaded["include_full_results"] is False
