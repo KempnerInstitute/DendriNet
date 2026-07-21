@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from pathlib import Path
 
 import pytest
 import torch
@@ -287,7 +288,9 @@ def test_local_i_collector_is_fail_closed_and_averages_technical_draws(
     assert manifest["output_tables"]["intervention_records"]["row_count"] == 10
     assert manifest["output_tables"]["paired_donor_technical_summary"]["row_count"] == 2
     source_identity = manifest["collector_source_identity"]
-    assert source_identity["repository_name"] == "dendritic-modeling_empirical_controls"
+    assert (
+        source_identity["repository_name"] == Path(__file__).resolve().parents[1].name
+    )
     assert source_identity["files"][0]["path"] == (
         "repo:src/dendritic_modeling/scripts/analysis/"
         "collect_layer_population_interventions.py"
