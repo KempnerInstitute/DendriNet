@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -28,6 +29,16 @@ def _write_sweep(root: Path, *, offset: float = 0.0) -> pd.DataFrame:
             f'{{"test": {{"accuracy": {0.5 + offset + config_id / 100}}}}}\n',
             encoding="utf-8",
         )
+        (performance.parents[1] / "training_summary.json").write_text(
+            json.dumps(
+                {
+                    "train_losses": [1.0 + offset, 0.5 + offset],
+                    "valid_losses": [1.1 + offset, 0.6 + offset],
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
         rows.append(
             {
                 "config_id": config_id,
@@ -42,6 +53,10 @@ def _manifest(tmp_path: Path) -> Path:
     payload = {
         "schema_version": "sweep_metric_collection_v1",
         "required_columns": ["config_id", "seed", "test_accuracy"],
+        "training_history": {
+            "fields": {"train_losses": "train_loss", "valid_losses": "valid_loss"},
+            "require_equal_length_within_checkpoint": True,
+        },
         "sweeps": [
             {
                 "name": "additive",
@@ -84,7 +99,10 @@ def test_collect_sweep_metrics_is_complete_labeled_and_hash_recorded(
     units = pd.read_csv(tmp_path / "collected/checkpoint_units.csv")
     assert set(units["mechanism"]) == {"additive", "shunting"}
     assert not units.duplicated(["sweep_name", "config_id"]).any()
-    assert all(len(record["artifacts"]) == 4 for record in release["sweeps"])
+    assert all(len(record["artifacts"]) == 6 for record in release["sweeps"])
+    history = pd.read_csv(tmp_path / "collected/training_history.csv")
+    assert len(history) == 16
+    assert set(history["metric"]) == {"train_loss", "valid_loss"}
     assert (tmp_path / "collected/collection_provenance.json").is_file()
 
 

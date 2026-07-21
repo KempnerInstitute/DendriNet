@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 from collections.abc import Mapping, Sequence
 from datetime import datetime, timezone
 from pathlib import Path
@@ -52,7 +53,10 @@ def _load_manifest(path: Path) -> dict[str, Any]:
 
 
 def _artifact_inventory(
-    root: Path, frame: pd.DataFrame
+    root: Path,
+    frame: pd.DataFrame,
+    *,
+    include_training_summary: bool,
 ) -> tuple[list[dict[str, Any]], str]:
     if "config_id" not in frame.columns:
         raise ValueError(f"collected sweep lacks config_id: {root}")
@@ -69,10 +73,15 @@ def _artifact_inventory(
         )
         if not performance.is_file():
             raise FileNotFoundError(performance)
-        for role, path in (
-            ("config", config_candidates[0]),
-            ("performance", performance),
-        ):
+        paths = [("config", config_candidates[0]), ("performance", performance)]
+        if include_training_summary:
+            training_summary = (
+                root / "results" / f"config_{config_id}" / "training_summary.json"
+            )
+            if not training_summary.is_file():
+                raise FileNotFoundError(training_summary)
+            paths.append(("training_summary", training_summary))
+        for role, path in paths:
             records.append(
                 {
                     "config_id": config_id,
@@ -86,6 +95,59 @@ def _artifact_inventory(
         for record in records
     ).encode("utf-8")
     return records, hashlib.sha256(payload).hexdigest()
+
+
+def _training_history_rows(
+    *,
+    root: Path,
+    frame: pd.DataFrame,
+    sweep_name: str,
+    labels: Mapping[str, Any],
+    fields: Mapping[str, Any],
+    require_equal_length: bool,
+) -> list[dict[str, Any]]:
+    if not fields:
+        return []
+    rows: list[dict[str, Any]] = []
+    for record in frame[["config_id", "seed"]].to_dict("records"):
+        config_id = int(record["config_id"])
+        path = root / "results" / f"config_{config_id}" / "training_summary.json"
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        histories: dict[str, list[float]] = {}
+        for source, metric in fields.items():
+            values = payload.get(str(source))
+            if not isinstance(values, list) or not values:
+                raise ValueError(
+                    f"training history {source!r} is absent for {sweep_name} "
+                    f"config_id={config_id}"
+                )
+            numeric = [float(value) for value in values]
+            if not all(math.isfinite(value) for value in numeric):
+                raise ValueError(
+                    f"non-finite training history for {sweep_name} config_id={config_id}"
+                )
+            histories[str(metric)] = numeric
+        lengths = {len(values) for values in histories.values()}
+        if require_equal_length and len(lengths) != 1:
+            raise ValueError(
+                f"training-history lengths differ for {sweep_name} config_id={config_id}"
+            )
+        for metric, values in histories.items():
+            for epoch_index, value in enumerate(values):
+                rows.append(
+                    {
+                        "sweep_name": sweep_name,
+                        "sweep_root": str(root),
+                        "config_id": config_id,
+                        "seed": record["seed"],
+                        **labels,
+                        "metric": metric,
+                        "epoch_index": epoch_index,
+                        "epoch_number": epoch_index + 1,
+                        "value": value,
+                    }
+                )
+    return rows
 
 
 def _validate_labels(
@@ -118,7 +180,19 @@ def collect_sweep_metrics(
     if not required_columns:
         raise ValueError("required_columns must be declared explicitly")
 
+    history_config = manifest.get("training_history", {})
+    if not isinstance(history_config, dict):
+        raise TypeError("training_history must be a mapping")
+    history_fields = history_config.get("fields", {})
+    if not isinstance(history_fields, dict):
+        raise TypeError("training_history.fields must be a mapping")
+    history_fields = {str(key): str(value) for key, value in history_fields.items()}
+    require_equal_history_length = bool(
+        history_config.get("require_equal_length_within_checkpoint", True)
+    )
+
     frames: list[pd.DataFrame] = []
+    history_rows: list[dict[str, Any]] = []
     sweep_records: list[dict[str, Any]] = []
     names: set[str] = set()
     for index, declaration in enumerate(declarations):
@@ -144,7 +218,11 @@ def collect_sweep_metrics(
         if missing:
             raise ValueError(f"sweep {name} lacks required columns: {missing}")
         labels = _validate_labels(declaration.get("labels", {}), frame.columns)
-        artifacts, artifact_set_sha256 = _artifact_inventory(root, frame)
+        artifacts, artifact_set_sha256 = _artifact_inventory(
+            root,
+            frame,
+            include_training_summary=bool(history_fields),
+        )
         declared_hash = declaration.get("artifact_set_sha256")
         if declared_hash is not None and str(declared_hash) != artifact_set_sha256:
             raise ValueError(f"artifact set hash differs for sweep {name}")
@@ -156,6 +234,16 @@ def collect_sweep_metrics(
         selected["sweep_root"] = str(root)
         selected["sweep_artifact_set_sha256"] = artifact_set_sha256
         frames.append(selected)
+        history_rows.extend(
+            _training_history_rows(
+                root=root,
+                frame=frame,
+                sweep_name=name,
+                labels=labels,
+                fields=history_fields,
+                require_equal_length=require_equal_history_length,
+            )
+        )
         sweep_records.append(
             {
                 "name": name,
@@ -183,6 +271,11 @@ def collect_sweep_metrics(
     destination.mkdir(parents=True, exist_ok=True)
     units_path = destination / "checkpoint_units.csv"
     combined.to_csv(units_path, index=False)
+    output_paths = [units_path]
+    if history_fields:
+        history_path = destination / "training_history.csv"
+        pd.DataFrame(history_rows).to_csv(history_path, index=False)
+        output_paths.append(history_path)
     release = {
         "schema_version": RELEASE_SCHEMA_VERSION,
         "created_utc": datetime.now(timezone.utc).isoformat(),
@@ -196,7 +289,12 @@ def collect_sweep_metrics(
         "source_identity": discover_source_identity(
             _repo_root(), source_files=(Path(__file__),)
         ),
-        "outputs": {units_path.name: _sha256(units_path)},
+        "training_history": {
+            "fields": history_fields,
+            "require_equal_length_within_checkpoint": require_equal_history_length,
+            "row_count": len(history_rows),
+        },
+        "outputs": {path.name: _sha256(path) for path in output_paths},
     }
     (destination / "collection_provenance.json").write_text(
         json.dumps(release, indent=2, sort_keys=True) + "\n", encoding="utf-8"
