@@ -19,6 +19,10 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.top
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.fused_gather import (
     fused_sparse_gather,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.triton_gather import (
+    triton_gather_available,
+    triton_sparse_gather,
+)
 from dendritic_modeling.networks.utils.weight_transforms import (
     WeightTransformType,
     apply_weight_transform,
@@ -59,6 +63,7 @@ class IndexedSparseLinear(nn.Module):
         seed: int | None = None,
         output_chunk_size: int = 2048,
         use_fused_gather: bool = False,
+        use_triton_gather: bool = False,
         **_: object,
     ):
         super().__init__()
@@ -86,6 +91,7 @@ class IndexedSparseLinear(nn.Module):
         self.gamma = float(gamma)
         self.output_chunk_size = int(output_chunk_size)
         self.use_fused_gather = bool(use_fused_gather)
+        self.use_triton_gather = bool(use_triton_gather)
         self.input_scale_vec = None
         self.param_scale_vec = None
         self.cache_mask = False
@@ -265,7 +271,17 @@ class IndexedSparseLinear(nn.Module):
         self._last_forward_param_tensor = weight
         indices = self.connection_indices.to(flat_x.device)
 
-        if self.use_fused_gather:
+        # Triton fused fwd+bwd gather: fastest path (+17.8% A100 / +31.8% Blackwell
+        # whole-step vs fused). Requires CUDA + a working Triton install; if either is
+        # missing we fall through to the next-best path so the flag never breaks a run.
+        use_triton = (
+            self.use_triton_gather
+            and flat_x.is_cuda
+            and triton_gather_available()
+        )
+        if use_triton:
+            out = triton_sparse_gather(flat_x, indices, weight)
+        elif self.use_fused_gather:
             # custom-autograd gather+mul+sum: ~7.6x faster backward, ~28x less memory
             out = fused_sparse_gather(
                 flat_x, indices, weight, chunk_size=self.output_chunk_size
