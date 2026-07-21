@@ -82,29 +82,51 @@ def train_run(which):
     return losses, final, n
 
 
-l_fused, p_fused, n = train_run("fused")
+# CUDA index_add_ (the fused backward) and tl.atomic_add (the triton backward) are
+# BOTH nondeterministic -- atomic accumulation order varies run-to-run. Under bf16 +
+# Adam on random labels this ~1e-3 perturbation amplifies over many steps. So the
+# meaningful question is NOT "does triton match fused exactly" (fused doesn't even
+# match ITSELF), but "does the fused->triton gap stay within the fused->fused gap".
+l_fusedA, p_fusedA, n = train_run("fused")
+l_fusedB, p_fusedB, _ = train_run("fused")     # control: baseline's own nondeterminism
 l_tri, p_tri, _ = train_run("triton")
 print(f"toggled {n} indexed synapses per run\n")
 
-# loss trajectory divergence
-dloss = max(abs(a - b) for a, b in zip(l_fused, l_tri))
-print(f"loss[0]  fused={l_fused[0]:.6f}  triton={l_tri[0]:.6f}")
-print(f"loss[-1] fused={l_fused[-1]:.6f}  triton={l_tri[-1]:.6f}")
-print(f"max |loss_fused - loss_triton| over {args.steps} steps: {dloss:.3e}\n")
 
-# final-parameter divergence
-pmax, pname = 0.0, ""
-for k in p_fused:
-    if not torch.is_floating_point(p_fused[k]):
-        continue
-    e = (p_fused[k].float() - p_tri[k].float()).abs().max().item()
-    if e > pmax:
-        pmax, pname = e, k
-print(f"max final-param |fused - triton|: {pmax:.3e}  (@ {pname})")
+def max_loss_gap(a, b):
+    return max(abs(x - y) for x, y in zip(a, b))
 
-ok = dloss < 1e-2 and pmax < 1e-2
-print(f"\nVERDICT: {'EQUIVALENT' if ok else 'DIVERGED'} -- "
-      f"{'trajectories track, safe to ship the flag' if ok else 'investigate before shipping'}")
-print("read: expect tiny divergence (fp32-accum / atomic-reorder), NOT a different")
-print("      trajectory. If loss tracks and final params match to ~1e-3, the Triton path is")
-print("      training-equivalent to the fused path -> commit and (optionally) flip it on.")
+
+def max_param_gap(pa, pb):
+    m, name = 0.0, ""
+    for k in pa:
+        if not torch.is_floating_point(pa[k]) or pa[k].numel() == 0:
+            continue                               # skip empty buffers / int tensors
+        e = (pa[k].float() - pb[k].float()).abs().max().item()
+        if e > m:
+            m, name = e, k
+    return m, name
+
+
+floor_loss = max_loss_gap(l_fusedA, l_fusedB)      # fused vs fused (nondeterminism floor)
+test_loss = max_loss_gap(l_fusedA, l_tri)          # fused vs triton
+floor_p, floor_pn = max_param_gap(p_fusedA, p_fusedB)
+test_p, test_pn = max_param_gap(p_fusedA, p_tri)
+
+print(f"loss[0]  fusedA={l_fusedA[0]:.6f}  fusedB={l_fusedB[0]:.6f}  triton={l_tri[0]:.6f}")
+print(f"loss[-1] fusedA={l_fusedA[-1]:.6f}  fusedB={l_fusedB[-1]:.6f}  triton={l_tri[-1]:.6f}\n")
+print(f"{'':22} {'loss traj gap':>14}   {'final param gap':>16}")
+print(f"{'fused vs fused (floor)':22} {floor_loss:>14.3e}   {floor_p:>16.3e}  (@ {floor_pn})")
+print(f"{'fused vs triton (test)':22} {test_loss:>14.3e}   {test_p:>16.3e}  (@ {test_pn})")
+
+# triton is equivalent if its gap to fused is within the fused-vs-fused noise band
+# (allow 3x headroom + a small absolute floor for the tiny-signal random-data regime)
+loss_ok = test_loss <= max(3 * floor_loss, 1e-3)
+param_ok = test_p <= max(3 * floor_p, 1e-4)
+ok = loss_ok and param_ok
+print(f"\nVERDICT: {'EQUIVALENT' if ok else 'DIVERGED'} -- triton gap "
+      f"{'within' if ok else 'EXCEEDS'} the fused-vs-fused nondeterminism floor "
+      f"(loss {'ok' if loss_ok else 'FAIL'}, param {'ok' if param_ok else 'FAIL'})")
+print("read: if the two rows are the same ORDER OF MAGNITUDE, triton is no less")
+print("      reproducible than running the existing fused path twice -> training-")
+print("      equivalent, commit. If test >> floor, the kernel adds real error -> investigate.")
