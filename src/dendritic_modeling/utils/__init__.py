@@ -5,67 +5,77 @@ Common utility functions for data serialization, logging, seed management,
 and configuration validation.
 """
 
-# New validation modules
-from .config_validation import (
-    get_validation_summary,
-    validate_architecture_only,
-    validate_full_config,
-    validate_training_only,
-)
+from __future__ import annotations
 
-# Core utilities
-from .general import Shaper, convert_to_serializable, save_dict, set_seed
-from .hooks import (
-    ForwardHookRemovalMixin,
-    HookHandle,
-    iter_child_modules_of_type,
-    iter_modules_matching,
-    iter_modules_of_type,
-    iter_named_modules_matching,
-    iter_named_modules_of_type,
-    register_forward_hook_groups,
-    register_hook_groups,
-    register_named_forward_hook_groups,
-    register_named_forward_hooks,
-    remove_hook_handles,
-    run_with_forward_hooks,
-)
-from .lda import (
-    apply_nonnegative_lda,
-    apply_random_weights,
-    compute_lda_importance_scores,
-    fit_nonnegative_lda,
-    generate_random_nonnegative_weights,
-    select_topk_features_by_lda,
-)
-from .logging_config import get_logger, setup_logging
+import importlib
+from typing import Any
 
-# Math utilities
-from .math import roc_auc_score
-from .model_architecture_validator import (
-    ModelArchitectureValidator,
-    validate_model_architecture,
-)
-from .reproducibility import (
-    ResolvedExperimentSeeds,
-    isolated_random_seed,
-    preserved_random_state,
-    resolve_experiment_seeds,
-)
-from .sparse_ops import (
-    calculate_effective_sparsity,
-    count_active_parameters,
-    estimate_memory_usage,
-    get_available_sparse_types,
-    get_sparse_layer,
-    normalize_sparse_layer_type,
-    parallel_topk_selection,
-)
-from .training_stability_validator import (
-    apply_automatic_safeguards,
-    suggest_optimal_config_for_model_size,
-    validate_training_stability,
-)
+# Importing ``dendritic_modeling`` initializes logging through this package.
+# Keep the namespace lazy so that lightweight imports do not transitively load
+# configuration validation, network architectures, PyTorch, and torchvision.
+_ATTRIBUTE_MODULES = {
+    "ForwardHookRemovalMixin": "hooks",
+    "HookHandle": "hooks",
+    "ModelArchitectureValidator": "model_architecture_validator",
+    "ResolvedExperimentSeeds": "reproducibility",
+    "Shaper": "general",
+    "apply_automatic_safeguards": "training_stability_validator",
+    "apply_nonnegative_lda": "lda",
+    "apply_random_weights": "lda",
+    "calculate_effective_sparsity": "sparse_ops",
+    "compute_lda_importance_scores": "lda",
+    "convert_to_serializable": "general",
+    "count_active_parameters": "sparse_ops",
+    "estimate_memory_usage": "sparse_ops",
+    "fit_nonnegative_lda": "lda",
+    "generate_random_nonnegative_weights": "lda",
+    "get_available_sparse_types": "sparse_ops",
+    "get_logger": "logging_config",
+    "get_sparse_layer": "sparse_ops",
+    "get_validation_summary": "config_validation",
+    "isolated_random_seed": "reproducibility",
+    "iter_child_modules_of_type": "hooks",
+    "iter_modules_matching": "hooks",
+    "iter_modules_of_type": "hooks",
+    "iter_named_modules_matching": "hooks",
+    "iter_named_modules_of_type": "hooks",
+    "normalize_sparse_layer_type": "sparse_ops",
+    "parallel_topk_selection": "sparse_ops",
+    "preserved_random_state": "reproducibility",
+    "register_forward_hook_groups": "hooks",
+    "register_hook_groups": "hooks",
+    "register_named_forward_hook_groups": "hooks",
+    "register_named_forward_hooks": "hooks",
+    "remove_hook_handles": "hooks",
+    "resolve_experiment_seeds": "reproducibility",
+    "roc_auc_score": "math",
+    "run_with_forward_hooks": "hooks",
+    "save_dict": "general",
+    "select_topk_features_by_lda": "lda",
+    "set_seed": "general",
+    "setup_logging": "logging_config",
+    "suggest_optimal_config_for_model_size": "training_stability_validator",
+    "validate_architecture_only": "config_validation",
+    "validate_full_config": "config_validation",
+    "validate_model_architecture": "model_architecture_validator",
+    "validate_training_only": "config_validation",
+    "validate_training_stability": "training_stability_validator",
+}
+
+
+def __getattr__(name: str) -> Any:
+    """Import a public utility on first access."""
+    module_name = _ATTRIBUTE_MODULES.get(name)
+    if module_name is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    value = getattr(importlib.import_module(f"{__name__}.{module_name}"), name)
+    globals()[name] = value
+    return value
+
+
+def __dir__() -> list[str]:
+    return sorted(list(globals()) + list(_ATTRIBUTE_MODULES))
+
 
 __all__ = [
     "ForwardHookRemovalMixin",
