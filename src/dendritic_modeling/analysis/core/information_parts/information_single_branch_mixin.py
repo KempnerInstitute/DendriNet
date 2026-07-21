@@ -1,5 +1,6 @@
 """Single-branch information-analysis helpers."""
 
+import hashlib
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -36,6 +37,25 @@ class _SingleBranchLdaSignals:
 
 class InformationSingleBranchMixin:
     """Compute and aggregate single-branch information metrics."""
+
+    def _select_single_branch_indices(
+        self,
+        *,
+        layer_name: str,
+        n_branches: int,
+    ) -> np.ndarray:
+        """Select a deterministic, label-independent branch subset for one layer."""
+        requested = getattr(self, "branch_sample_count_per_layer", None)
+        if requested is None or requested >= n_branches:
+            return np.arange(n_branches, dtype=np.int64)
+
+        base_seed = int(getattr(self, "branch_sample_seed", 0))
+        digest = hashlib.sha256(f"{base_seed}:{layer_name}".encode()).digest()
+        layer_seed = int.from_bytes(digest[:8], byteorder="little", signed=False)
+        generator = np.random.default_rng(layer_seed)
+        return np.sort(
+            generator.choice(n_branches, size=int(requested), replace=False)
+        ).astype(np.int64)
 
     def _prepare_single_branch_layer_data(
         self,
@@ -175,6 +195,7 @@ class InformationSingleBranchMixin:
         all_results: list[dict[str, Any]],
         branch_names: list[str],
         layer_results: dict[str, Any],
+        branch_sampling: dict[str, Any] | None = None,
     ) -> dict[str, Any] | None:
         """Average branch metrics and attach single-branch analysis metadata."""
         if not all_results:
@@ -185,6 +206,8 @@ class InformationSingleBranchMixin:
         results["branch_names"] = branch_names
         results["num_branches"] = len(all_results)
         results["layer_statistics"] = layer_results
+        if branch_sampling is not None:
+            results["branch_sampling"] = branch_sampling
         layer_depths = self.collected_soma_relative_depths()
         if layer_depths:
             results["layer_soma_relative_depths"] = layer_depths
@@ -200,6 +223,7 @@ class InformationSingleBranchMixin:
         all_results = []
         branch_names = []
         layer_results = {}
+        branch_sampling_layers = {}
 
         total_layers = len(
             [name for name, data in self.data_dict.items() if "excitation" in data]
@@ -233,12 +257,26 @@ class InformationSingleBranchMixin:
             lda_signals = self._prepare_single_branch_lda_signals(layer_data, C)
 
             n_branches = prepared_layer.excitation.shape[1]
+            selected_branch_indices = self._select_single_branch_indices(
+                layer_name=layer_name,
+                n_branches=n_branches,
+            )
+            selected_indices_list = selected_branch_indices.tolist()
+            selected_indices_sha256 = hashlib.sha256(
+                np.asarray(selected_branch_indices, dtype=np.int64).tobytes()
+            ).hexdigest()
+            branch_sampling_layers[layer_name] = {
+                "total_branches": int(n_branches),
+                "selected_count": len(selected_indices_list),
+                "selected_indices": selected_indices_list,
+                "selected_indices_sha256": selected_indices_sha256,
+            }
             layer_branch_results = []
             layer_start_time = time.time()
 
             short_name = layer_name.split(".")[-1] if "." in layer_name else layer_name
             for branch_idx in tqdm(
-                range(n_branches),
+                selected_indices_list,
                 desc=f"  {short_name}",
                 leave=False,
                 ncols=100,
@@ -271,13 +309,27 @@ class InformationSingleBranchMixin:
                 layer_results[layer_name] = layer_stats
 
             self.logger.info(
-                f"Layer {layer_name} completed: {n_branches} branches processed in {time.time() - layer_start_time:.1f}s"
+                f"Layer {layer_name} completed: {len(selected_indices_list)}/{n_branches} branches processed in {time.time() - layer_start_time:.1f}s"
             )
 
+        branch_sampling = {
+            "mode": (
+                "all"
+                if getattr(self, "branch_sample_count_per_layer", None) is None
+                else "deterministic_subset_per_layer"
+            ),
+            "requested_count_per_layer": getattr(
+                self, "branch_sample_count_per_layer", None
+            ),
+            "seed": int(getattr(self, "branch_sample_seed", 0)),
+            "selection_depends_on_data_or_labels": False,
+            "layers": branch_sampling_layers,
+        }
         return self._finalize_single_branch_results(
             all_results=all_results,
             branch_names=branch_names,
             layer_results=layer_results,
+            branch_sampling=branch_sampling,
         )
 
     def _merge_lda_branch_metrics_in_place(

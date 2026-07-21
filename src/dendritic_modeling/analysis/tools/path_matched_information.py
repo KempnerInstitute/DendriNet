@@ -45,6 +45,7 @@ _SIGNAL_COMPONENTS: dict[str, tuple[str, ...]] = {
         "pre_gate_inhibition_current",
     ),
     "upstream_child_current": ("pre_gate_upstream_current",),
+    "pre_gate_voltage": ("pre_gate_voltage",),
     "post_gate_output": ("post_gate_output",),
 }
 _SIGNAL_ORDER = {name: index for index, name in enumerate(_SIGNAL_COMPONENTS)}

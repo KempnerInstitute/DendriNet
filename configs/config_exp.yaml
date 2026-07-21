@@ -726,9 +726,12 @@ analysis:
         include_vinf: true              # bool: Include soma activation
         normalize_mi: false             # bool: Normalize by H(C)
         output_units: "bits"            # str: "bits" | "nats"
+        analysis_split: "test"          # str: "validation" | "test"
         verbose: false                  # bool: Verbose output
         computation_level: "single_branch"  # str: "single_branch" | "layer_branch" | "all_branch"
         branch_aggregation: "mean"      # str: "mean" | "multivariate" | "sample"
+        branch_sample_count_per_layer: null  # int | null: Deterministic per-layer branch subset for single_branch (null = all)
+        branch_sample_seed: 0            # int: Seed for label-independent branch selection
         layer_total_topk: 10            # int: K for topK_sum metrics
         gaussian_fisher:
           aggregation: "sum"            # str: "sum" | "mean" | "max"
@@ -932,6 +935,10 @@ analysis:
       inh_rf_shape: null                # list[int] | null: Inhibitory RF shape [H, W]
       fig_save_format: png              # str: Figure extension, e.g. png or pdf
       compute_activation_tuning: false  # bool: Class-tuning summaries from branch E/I ratio and Vout activations
+      activation_sample_signals: []     # list[str]: Optional "exc" | "inh" | "vout" | "ei_ratio" sample records
+      activation_sample_depths: []      # list[int]: Soma-relative depths retained in activation sample records
+      activation_samples_per_class: 0   # int: Label-balanced records per class; 0 disables records
+      activation_sample_seed: 0         # int: Seed for label-only within-class sample selection
       compute_component_rfs: false      # bool: Compact soma-level E/I mean and conditioned component RF maps
       plot_component_rfs: true          # bool: Save compact component RF figure on final analysis
       compute_rf_tuning: false          # bool: Rich aggregate RF tuning, entropy, and discriminability analysis

@@ -69,6 +69,17 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         self.compute_activation_tuning = bool(
             getattr(params, "compute_activation_tuning", False)
         )
+        self.activation_sample_signals = tuple(
+            str(value) for value in getattr(params, "activation_sample_signals", [])
+        )
+        self.activation_sample_depths = tuple(
+            int(value) for value in getattr(params, "activation_sample_depths", [])
+        )
+        self.activation_samples_per_class = int(
+            getattr(params, "activation_samples_per_class", 0)
+        )
+        self.activation_sample_seed = int(getattr(params, "activation_sample_seed", 0))
+        self.activation_sample_records: list[dict[str, object]] = []
         self.compute_component_rfs = bool(
             getattr(params, "compute_component_rfs", False)
         )
@@ -486,6 +497,66 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
 
         return summary
 
+    def _sample_activation_tuning(
+        self, labels: torch.Tensor
+    ) -> list[dict[str, object]]:
+        """Return label-balanced scalar activation records for selected depths.
+
+        Dataset indices are selected once per class from labels alone, then
+        reused for every requested module, branch, and signal. This makes the
+        sampling independent of activation magnitude and preserves paired
+        comparisons among signals.
+        """
+
+        if not self.activation_sample_signals:
+            return []
+        labels = labels.detach().cpu().reshape(-1)
+        selected: list[tuple[int, int]] = []
+        for class_label in sorted(int(value) for value in torch.unique(labels)):
+            candidates = torch.nonzero(labels == class_label, as_tuple=False).reshape(
+                -1
+            )
+            count = min(self.activation_samples_per_class, int(candidates.numel()))
+            generator = torch.Generator(device="cpu")
+            generator.manual_seed(self.activation_sample_seed + class_label)
+            order = torch.randperm(int(candidates.numel()), generator=generator)[:count]
+            selected.extend(
+                (class_label, int(index)) for index in candidates[order].tolist()
+            )
+
+        records: list[dict[str, object]] = []
+        selected_depths = set(self.activation_sample_depths)
+        for module_name, layer_data in sorted(self.activation_raw.items()):
+            for branch_index, branch_data in sorted(layer_data.items()):
+                depth = int(branch_data["depth"])
+                if depth not in selected_depths:
+                    continue
+                for signal in self.activation_sample_signals:
+                    if signal == "ei_ratio":
+                        if "exc" not in branch_data or "inh" not in branch_data:
+                            continue
+                        values = branch_data["exc"] / (
+                            branch_data["inh"].abs() + self.epsilon
+                        )
+                    else:
+                        values = branch_data.get(signal)
+                        if values is None:
+                            continue
+                    scalar = values.reshape(values.shape[0], -1).mean(dim=-1)
+                    for class_label, dataset_index in selected:
+                        records.append(
+                            {
+                                "module": module_name,
+                                "depth": depth,
+                                "branch_index": int(branch_index),
+                                "signal": signal,
+                                "class_label": class_label,
+                                "dataset_index": dataset_index,
+                                "value": float(scalar[dataset_index].item()),
+                            }
+                        )
+        return records
+
     def _compute_activation_tuning(
         self,
         model: BaseModel,
@@ -502,6 +573,7 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
             x: torch.Tensor = items[0].to(analysis_device)
             labels: torch.Tensor = items[1].cpu()
             self._collect_activation_raw(model, x)
+            self.activation_sample_records = self._sample_activation_tuning(labels)
         return self._summarize_activation_tuning(labels)
 
     @staticmethod
@@ -1935,6 +2007,17 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
             device=device,
             runtime=runtime,
         )
+        if self.activation_sample_records:
+            results["activation_samples"] = {
+                "selection_depends_on_activations": False,
+                "selection_depends_on_labels": True,
+                "selection_rule": "uniform_without_replacement_within_class",
+                "signals": list(self.activation_sample_signals),
+                "depths": list(self.activation_sample_depths),
+                "requested_samples_per_class": self.activation_samples_per_class,
+                "seed": self.activation_sample_seed,
+                "records": self.activation_sample_records,
+            }
 
     def _maybe_add_component_rfs(
         self,
@@ -2025,6 +2108,12 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
                 results["activation_tuning"],
                 out_path,
                 f"{filename}_activation_tuning.json",
+            )
+        if "activation_samples" in results:
+            save_dict(
+                results["activation_samples"],
+                out_path,
+                f"{filename}_activation_samples.json",
             )
         if "rf_tuning" in results:
             rf_tuning = results["rf_tuning"]

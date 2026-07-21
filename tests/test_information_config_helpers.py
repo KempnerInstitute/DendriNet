@@ -564,6 +564,7 @@ def test_build_information_runtime_config_prefers_grouped_config():
         include_vinf=False,
         normalize_mi=False,
         output_units="bits",
+        analysis_split="test",
         verbose=False,
     )
 
@@ -573,6 +574,7 @@ def test_build_information_runtime_config_prefers_grouped_config():
             "include_vinf": True,
             "normalize_mi": True,
             "output_units": " Nat ",
+            "analysis_split": "validation",
             "verbose": True,
         },
     )
@@ -580,6 +582,7 @@ def test_build_information_runtime_config_prefers_grouped_config():
     assert runtime_config.include_vinf is True
     assert runtime_config.normalize_mi is True
     assert runtime_config.output_units == "nats"
+    assert runtime_config.analysis_split == "validation"
     assert runtime_config.verbose is True
     assert runtime_config.invalid_output_units is None
 
@@ -589,6 +592,7 @@ def test_build_information_runtime_config_uses_legacy_fallbacks():
         include_vinf=True,
         normalize_mi=True,
         output_units="bit",
+        analysis_split="valid",
         verbose=True,
     )
 
@@ -597,6 +601,7 @@ def test_build_information_runtime_config_uses_legacy_fallbacks():
     assert runtime_config.include_vinf is True
     assert runtime_config.normalize_mi is True
     assert runtime_config.output_units == "bits"
+    assert runtime_config.analysis_split == "validation"
     assert runtime_config.verbose is True
     assert runtime_config.invalid_output_units is None
 
@@ -608,6 +613,7 @@ def test_build_information_runtime_config_preserves_invalid_output_units_fallbac
     )
 
     assert runtime_config.output_units == "bits"
+    assert runtime_config.analysis_split == "test"
     assert runtime_config.invalid_output_units == "bad_units"
 
 
@@ -620,6 +626,7 @@ def test_build_information_runtime_config_preserves_defaults():
     assert runtime_config.include_vinf is False
     assert runtime_config.normalize_mi is False
     assert runtime_config.output_units == "bits"
+    assert runtime_config.analysis_split == "test"
     assert runtime_config.verbose is False
     assert runtime_config.invalid_output_units is None
 
@@ -628,6 +635,8 @@ def test_build_information_granularity_config_prefers_grouped_config():
     params = SimpleNamespace(
         computation_level="single_branch",
         branch_aggregation="mean",
+        branch_sample_count_per_layer=None,
+        branch_sample_seed=0,
         per_neuron_analysis=False,
         per_einet_analysis=False,
         per_layer_analysis=False,
@@ -638,6 +647,8 @@ def test_build_information_granularity_config_prefers_grouped_config():
         compute_cfg={
             "computation_level": "all_branch",
             "branch_aggregation": "sample",
+            "branch_sample_count_per_layer": 32,
+            "branch_sample_seed": 17,
             "per_neuron_analysis": True,
             "per_einet_analysis": True,
             "per_layer_analysis": True,
@@ -646,6 +657,8 @@ def test_build_information_granularity_config_prefers_grouped_config():
 
     assert granularity_config.computation_level == "all_branch"
     assert granularity_config.branch_aggregation == "sample"
+    assert granularity_config.branch_sample_count_per_layer == 32
+    assert granularity_config.branch_sample_seed == 17
     assert granularity_config.per_neuron_analysis is True
     assert granularity_config.per_einet_analysis is True
     assert granularity_config.per_layer_analysis is True
@@ -655,6 +668,8 @@ def test_build_information_granularity_config_uses_legacy_fallbacks():
     params = SimpleNamespace(
         computation_level="layer_branch",
         branch_aggregation="multivariate",
+        branch_sample_count_per_layer=24,
+        branch_sample_seed=9,
         per_neuron_analysis=True,
         per_einet_analysis=False,
         per_layer_analysis=True,
@@ -667,6 +682,8 @@ def test_build_information_granularity_config_uses_legacy_fallbacks():
 
     assert granularity_config.computation_level == "layer_branch"
     assert granularity_config.branch_aggregation == "multivariate"
+    assert granularity_config.branch_sample_count_per_layer == 24
+    assert granularity_config.branch_sample_seed == 9
     assert granularity_config.per_neuron_analysis is True
     assert granularity_config.per_einet_analysis is False
     assert granularity_config.per_layer_analysis is True
@@ -686,6 +703,8 @@ def test_build_information_granularity_config_preserves_mapping_behavior():
 
     assert granularity_config.computation_level == "all_branch"
     assert granularity_config.branch_aggregation == "sample"
+    assert granularity_config.branch_sample_count_per_layer is None
+    assert granularity_config.branch_sample_seed == 0
     assert granularity_config.per_neuron_analysis is True
     assert granularity_config.per_einet_analysis is True
     assert granularity_config.per_layer_analysis is False
@@ -699,6 +718,8 @@ def test_build_information_granularity_config_preserves_defaults():
 
     assert granularity_config.computation_level == "single_branch"
     assert granularity_config.branch_aggregation == "mean"
+    assert granularity_config.branch_sample_count_per_layer is None
+    assert granularity_config.branch_sample_seed == 0
     assert granularity_config.per_neuron_analysis is False
     assert granularity_config.per_einet_analysis is False
     assert granularity_config.per_layer_analysis is False

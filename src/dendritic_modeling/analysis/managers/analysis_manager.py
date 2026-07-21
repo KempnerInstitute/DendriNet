@@ -230,6 +230,7 @@ class AnalysisManager:
         runtime: object | None,
         pass_training: bool = False,
         require_analyzer: bool = False,
+        dataset_split: str = "test",
     ) -> None:
         """Run an analyzer with the common test-dataset call signature."""
         if not self._should_run_registered_analysis(
@@ -239,9 +240,13 @@ class AnalysisManager:
         ):
             return
 
+        dataset_key = "valid" if dataset_split == "validation" else dataset_split
+        if dataset_key not in self.data:
+            raise ValueError(f"Unknown analysis dataset split: {dataset_split!r}")
+
         kwargs = {
             "model": self.model,
-            "test_dataset": self.data["test"],
+            "test_dataset": self.data[dataset_key],
             "device": self.device,
             "save_path": self._analysis_save_path(registry_name),
             "filename": filename,
@@ -299,6 +304,7 @@ class AnalysisManager:
         start_message: str,
         complete_message: str,
         require_analyzer: bool = False,
+        dataset_split: str = "test",
     ) -> None:
         """Run a common test-dataset analyzer with start/complete logging."""
         if not self._should_run_registered_analysis(
@@ -317,6 +323,7 @@ class AnalysisManager:
                 training=training,
                 runtime=runtime,
                 require_analyzer=require_analyzer,
+                dataset_split=dataset_split,
             ),
         )
 
@@ -408,7 +415,15 @@ class AnalysisManager:
     ) -> None:
         """Run information analysis."""
 
+        if not self._should_run_registered_analysis(
+            "information", training=training, require_analyzer=True
+        ):
+            return
+
         def run() -> None:
+            analysis_split = str(
+                getattr(self.information_analyzer, "analysis_split", "test")
+            )
             self._run_logged_test_dataset_analysis(
                 registry_name="information",
                 filename=filename,
@@ -416,6 +431,7 @@ class AnalysisManager:
                 runtime=runtime,
                 start_message="Starting information analysis...",
                 complete_message="Information analysis completed successfully",
+                dataset_split=analysis_split,
             )
 
         if self.probe_seed is None:

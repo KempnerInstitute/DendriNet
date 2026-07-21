@@ -57,9 +57,12 @@ analysis:
         include_vinf: true            # bool: Include soma/pre-output activation where available.
         normalize_mi: false           # bool: Normalize by class entropy H(C).
         output_units: "bits"          # str: "bits" | "nats"; estimators run internally in nats.
+        analysis_split: "test"        # str: "validation" | "test"; use validation while selecting estimators/quantities.
         verbose: false                # bool: Emit detailed logging.
         computation_level: "single_branch"  # str: "single_branch" | "layer_branch" | "all_branch".
         branch_aggregation: "mean"    # str: "mean" | "multivariate" | "sample"; used for layer/all-branch levels.
+        branch_sample_count_per_layer: null  # int | null: Deterministic per-layer subset for single_branch; null analyzes every branch.
+        branch_sample_seed: 0          # int: Seed for label-independent branch selection.
         layer_total_topk: 10          # int: K for layer-total topK proxy metrics.
         gaussian_fisher:
           aggregation: "sum"          # str: "sum" | "mean" | "max"; how branch Fisher proxies combine.
@@ -351,6 +354,10 @@ analysis:
       inh_rf_shape: null              # list[int] | null: I-stream [H, W] shape; overrides rf_shape for I.
       fig_save_format: "png"          # str: Figure extension, e.g. "png" | "pdf" | "svg".
       compute_activation_tuning: false # bool: Add class tuning summaries for E, I, E/I ratio, and Vout branch activations.
+      activation_sample_signals: []   # list[str]: Optional "exc" | "inh" | "vout" | "ei_ratio" sample records.
+      activation_sample_depths: []    # list[int]: Soma-relative depths retained in activation sample records.
+      activation_samples_per_class: 0 # int: Label-balanced records per class; 0 disables records.
+      activation_sample_seed: 0       # int: Seed for label-only within-class sample selection.
       compute_component_rfs: false    # bool: Add compact soma-level E/I mean and conditioned component RF maps.
       plot_component_rfs: true        # bool: Save compact component RF figures when compute_component_rfs is true and training is false.
       compute_rf_tuning: false        # bool: Add aggregate RF tuning, entropy, discriminability, and E-vs-I plots.

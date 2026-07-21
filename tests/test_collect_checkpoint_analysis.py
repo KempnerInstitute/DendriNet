@@ -1,0 +1,133 @@
+"""Tests for the generic frozen-checkpoint analysis collector."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+from pathlib import Path
+
+import pandas as pd
+import pytest
+
+from dendritic_modeling.scripts.analysis.collect_checkpoint_analysis import (
+    collect_checkpoint_analysis,
+)
+
+
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _write_run(root: Path, config_id: int) -> dict[str, object]:
+    run_dir = root / f"run_{config_id}"
+    result_dir = run_dir / "information_analysis"
+    result_dir.mkdir(parents=True)
+    config = root / f"config_{config_id}.yaml"
+    checkpoint = root / f"model_{config_id}.pt"
+    analysis = root / "analysis.yaml"
+    config.write_text(f"seed: {config_id}\n")
+    checkpoint.write_bytes(f"checkpoint-{config_id}".encode())
+    analysis.write_text("analysis: {}\n")
+    (result_dir / "final.json").write_text(
+        json.dumps(
+            {
+                "analysis_split": "validation",
+                "basic_mi": {"I(E;C)": 0.25 + config_id},
+                "branch_sampling": {
+                    "seed": 17,
+                    "selected_indices": [1, 4],
+                    "selection_depends_on_data_or_labels": False,
+                },
+            }
+        )
+    )
+    provenance = {
+        "schema_version": "checkpoint_analysis_run_v1",
+        "training_performed": False,
+        "enabled_analyzers": ["information"],
+        "config_path": str(config.resolve()),
+        "config_sha256": _sha256(config),
+        "checkpoint_path": str(checkpoint.resolve()),
+        "checkpoint_sha256": _sha256(checkpoint),
+        "analysis_config_path": str(analysis.resolve()),
+        "analysis_config_sha256": _sha256(analysis),
+        "output_dir": str(run_dir.resolve()),
+        "strict_checkpoint_loading": True,
+        "missing_keys": [],
+        "unexpected_keys": [],
+    }
+    (run_dir / "checkpoint_analysis_provenance.json").write_text(json.dumps(provenance))
+    return {
+        "config_id": config_id,
+        "mechanism": "shunting",
+        "config": str(config),
+        "checkpoint": str(checkpoint),
+        "analysis_config": str(analysis),
+        "output_dir": str(run_dir),
+    }
+
+
+def test_generic_collector_preserves_results_and_numeric_leaves(tmp_path: Path) -> None:
+    jobs = [_write_run(tmp_path, config_id) for config_id in range(2)]
+    jobs_path = tmp_path / "jobs.jsonl"
+    jobs_path.write_text("".join(json.dumps(job) + "\n" for job in jobs))
+
+    release = collect_checkpoint_analysis(
+        jobs_paths=[jobs_path],
+        output_dir=tmp_path / "collection",
+        required_analyzers=["information"],
+        expected_count=2,
+    )
+
+    assert release["collected_job_count"] == 2
+    assert release["collected_result_count"] == 2
+    metrics = pd.read_csv(tmp_path / "collection/checkpoint_scalar_metrics.csv")
+    observed = metrics[metrics["metric_path"] == "basic_mi.I(E;C)"]
+    assert observed["value"].tolist() == pytest.approx([0.25, 1.25])
+    assert not metrics["independent_replicate"].any()
+    records = (tmp_path / "collection/checkpoint_analysis_records.jsonl").read_text()
+    assert len(records.strip().splitlines()) == 2
+
+
+def test_generic_collector_rejects_modified_checkpoint_and_missing_result(
+    tmp_path: Path,
+) -> None:
+    job = _write_run(tmp_path, 0)
+    jobs_path = tmp_path / "jobs.jsonl"
+    jobs_path.write_text(json.dumps(job) + "\n")
+    Path(str(job["checkpoint"])).write_bytes(b"modified")
+
+    with pytest.raises(ValueError, match="checkpoint hash"):
+        collect_checkpoint_analysis(
+            jobs_paths=[jobs_path],
+            output_dir=tmp_path / "modified",
+            required_analyzers=["information"],
+        )
+
+    job = _write_run(tmp_path / "fresh", 0)
+    jobs_path = tmp_path / "fresh_jobs.jsonl"
+    jobs_path.write_text(json.dumps(job) + "\n")
+    Path(str(job["output_dir"]), "information_analysis", "final.json").unlink()
+    with pytest.raises(FileNotFoundError):
+        collect_checkpoint_analysis(
+            jobs_paths=[jobs_path],
+            output_dir=tmp_path / "missing",
+            required_analyzers=["information"],
+        )
+
+
+def test_generic_collector_accepts_extensionless_standard_result(
+    tmp_path: Path,
+) -> None:
+    job = _write_run(tmp_path, 0)
+    result = Path(str(job["output_dir"]), "information_analysis", "final.json")
+    result.rename(result.with_suffix(""))
+    jobs_path = tmp_path / "jobs.jsonl"
+    jobs_path.write_text(json.dumps(job) + "\n")
+
+    release = collect_checkpoint_analysis(
+        jobs_paths=[jobs_path],
+        output_dir=tmp_path / "collected",
+        required_analyzers=["information"],
+    )
+    assert release["collected_result_count"] == 1

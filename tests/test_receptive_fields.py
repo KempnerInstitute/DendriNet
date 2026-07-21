@@ -376,6 +376,10 @@ def test_receptive_field_checkpoint_and_activation_tuning(tmp_path):
         n_rows=1,
         n_cols=2,
         compute_activation_tuning=True,
+        activation_sample_signals=["vout"],
+        activation_sample_depths=[0],
+        activation_samples_per_class=2,
+        activation_sample_seed=17,
     )
     analyzer = ReceptiveFieldAnalyzer(params)
 
@@ -390,6 +394,16 @@ def test_receptive_field_checkpoint_and_activation_tuning(tmp_path):
     assert results is not None
     assert results["n_receptive_fields"] > 0
     assert "activation_tuning" in results
+    assert "activation_samples" in results
+    samples = results["activation_samples"]
+    assert samples["selection_depends_on_activations"] is False
+    assert samples["selection_depends_on_labels"] is True
+    assert samples["signals"] == ["vout"]
+    assert samples["depths"] == [0]
+    assert samples["records"]
+    assert {record["class_label"] for record in samples["records"]} == {0, 1}
+    assert {record["depth"] for record in samples["records"]} == {0}
+    assert {record["signal"] for record in samples["records"]} == {"vout"}
     first_layer = analyzer.activation_raw[
         "core_network.layers.0.excitatory_cells.branch_layers.0"
     ]
@@ -406,6 +420,7 @@ def test_receptive_field_checkpoint_and_activation_tuning(tmp_path):
         assert branch_data["vout"].shape == (_x.shape[0],)
     assert (tmp_path / "rf_raw_receptive_fields.pt").exists()
     assert (tmp_path / "rf_activation_tuning.json").exists()
+    assert (tmp_path / "rf_activation_samples.json").exists()
 
     loaded = ReceptiveFieldAnalyzer(
         ReceptiveFieldAnalysisParams(load_raw_data=True, n_rows=1, n_cols=2)

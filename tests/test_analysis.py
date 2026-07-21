@@ -1096,6 +1096,39 @@ class TestInformationAnalyzer(unittest.TestCase):
         self.assertIsNone(results)
         mock_warning.assert_called_once_with("No branch results to average")
 
+    def test_single_branch_subsampling_is_reproducible_and_layer_specific(self):
+        """Branch subsampling should be fixed before seeing activations or labels."""
+        self.analyzer.branch_sample_count_per_layer = 4
+        self.analyzer.branch_sample_seed = 17
+
+        first = self.analyzer._select_single_branch_indices(
+            layer_name="core.layers.0.branch_layers.2",
+            n_branches=30,
+        )
+        repeated = self.analyzer._select_single_branch_indices(
+            layer_name="core.layers.0.branch_layers.2",
+            n_branches=30,
+        )
+        other_layer = self.analyzer._select_single_branch_indices(
+            layer_name="core.layers.0.branch_layers.3",
+            n_branches=30,
+        )
+
+        np.testing.assert_array_equal(first, repeated)
+        self.assertEqual(first.shape, (4,))
+        self.assertEqual(len(np.unique(first)), 4)
+        self.assertTrue(np.all(np.diff(first) > 0))
+        self.assertFalse(np.array_equal(first, other_layer))
+
+        self.analyzer.branch_sample_count_per_layer = None
+        np.testing.assert_array_equal(
+            self.analyzer._select_single_branch_indices(
+                layer_name="core.layers.0.branch_layers.2",
+                n_branches=5,
+            ),
+            np.arange(5),
+        )
+
     def test_finalize_single_branch_results_averages_and_attaches_metadata(self):
         """Single-branch finalization should preserve averaged results metadata."""
         all_results = [{"basic_mi": {"I(E;C)": 1.0}}, {"basic_mi": {"I(E;C)": 3.0}}]
@@ -2610,6 +2643,14 @@ class TestInformationAnalyzer(unittest.TestCase):
         self.assertEqual(results["num_branches"], 2)
         self.assertEqual(results["computation_level"], "single_branch")
         self.assertEqual(results["layer_statistics"]["layer0"]["stat"], 1.0)
+        self.assertEqual(results["branch_sampling"]["mode"], "all")
+        self.assertFalse(
+            results["branch_sampling"]["selection_depends_on_data_or_labels"]
+        )
+        self.assertEqual(
+            results["branch_sampling"]["layers"]["layer0"]["selected_indices"],
+            [0, 1],
+        )
         mock_average.assert_called_once_with(branch_metric_results)
         mock_stats.assert_called_once_with(
             branch_metric_results,
@@ -3256,6 +3297,31 @@ class TestAnalysisManager(unittest.TestCase):
                 )
 
             mock_analyzer.assert_not_called()
+
+    def test_information_analysis_can_use_validation_split(self):
+        """Generic information analysis should honor its declared dataset split."""
+        config = AnalysisConfig()
+        config.performance_analysis.enabled = False
+        config.information_analysis.enabled = True
+        config.information_analysis.params.compute.analysis_split = "validation"
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manager = AnalysisManager(
+                model=self.model,
+                data=self.data,
+                analysis_config=config,
+                save_root=tmpdir,
+            )
+            with patch.object(manager, "information_analyzer") as mock_analyzer:
+                mock_analyzer.analysis_split = "validation"
+                manager._run_information_analysis(
+                    filename="validation_information",
+                    training=False,
+                    runtime=manager.config.runtime.final,
+                )
+
+            call_kwargs = mock_analyzer.analyze.call_args.kwargs
+            self.assertIs(call_kwargs["test_dataset"], self.data["valid"])
 
     def test_logged_test_dataset_analysis_preserves_call_and_logs(self):
         """Logged test-dataset helper should preserve kwargs and message order."""

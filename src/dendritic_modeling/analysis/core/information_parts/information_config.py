@@ -81,6 +81,7 @@ class _InformationRuntimeConfig:
     include_vinf: bool
     normalize_mi: bool
     output_units: str
+    analysis_split: str
     verbose: bool
     invalid_output_units: str | None
 
@@ -91,6 +92,8 @@ class _InformationGranularityConfig:
 
     computation_level: str
     branch_aggregation: str
+    branch_sample_count_per_layer: int | None
+    branch_sample_seed: int
     per_neuron_analysis: bool
     per_einet_analysis: bool
     per_layer_analysis: bool
@@ -449,6 +452,20 @@ def _build_information_runtime_config(
         output_units = "bits"
     output_units = "bits" if output_units in {"bits", "bit"} else "nats"
 
+    analysis_split = _normalize_config_token(
+        _get_grouped_or_legacy_value(
+            grouped_cfg=compute_cfg,
+            grouped_key="analysis_split",
+            params=params,
+            legacy_key="analysis_split",
+            default="test",
+        )
+    )
+    if analysis_split == "valid":
+        analysis_split = "validation"
+    if analysis_split not in {"validation", "test"}:
+        raise ValueError("information analysis_split must be 'validation' or 'test'")
+
     return _InformationRuntimeConfig(
         include_vinf=bool(
             _get_grouped_or_legacy_value(
@@ -469,6 +486,7 @@ def _build_information_runtime_config(
             )
         ),
         output_units=output_units,
+        analysis_split=analysis_split,
         verbose=bool(
             _get_grouped_or_legacy_value(
                 grouped_cfg=compute_cfg,
@@ -506,6 +524,23 @@ def _build_information_granularity_config(
                 legacy_key="branch_aggregation",
                 default="mean",
             )
+        ),
+        branch_sample_count_per_layer=_get_grouped_or_legacy_value(
+            grouped_cfg=compute_cfg,
+            grouped_key="branch_sample_count_per_layer",
+            params=params,
+            legacy_key="branch_sample_count_per_layer",
+            default=None,
+        ),
+        branch_sample_seed=int(
+            _get_grouped_or_legacy_value(
+                grouped_cfg=compute_cfg,
+                grouped_key="branch_sample_seed",
+                params=params,
+                legacy_key="branch_sample_seed",
+                default=0,
+            )
+            or 0
         ),
         per_neuron_analysis=bool(
             _get_grouped_or_legacy_value(

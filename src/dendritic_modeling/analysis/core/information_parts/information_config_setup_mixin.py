@@ -174,6 +174,7 @@ class InformationConfigSetupMixin:
                 runtime_config.invalid_output_units,
             )
         self.output_units = runtime_config.output_units
+        self.analysis_split = runtime_config.analysis_split
         self.verbose = runtime_config.verbose
 
     def _configure_granularity_defaults(
@@ -189,6 +190,13 @@ class InformationConfigSetupMixin:
         )
         self.computation_level = granularity_config.computation_level
         self.branch_aggregation = granularity_config.branch_aggregation
+        sample_count = granularity_config.branch_sample_count_per_layer
+        if sample_count is not None:
+            sample_count = int(sample_count)
+            if sample_count < 1:
+                raise ValueError("branch_sample_count_per_layer must be at least 1")
+        self.branch_sample_count_per_layer = sample_count
+        self.branch_sample_seed = granularity_config.branch_sample_seed
         self.per_neuron_analysis = granularity_config.per_neuron_analysis
         self.per_einet_analysis = granularity_config.per_einet_analysis
         self.per_layer_analysis = granularity_config.per_layer_analysis

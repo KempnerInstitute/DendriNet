@@ -144,12 +144,20 @@ class InformationComputeParams(BaseConfig):
     # Output units for MI/CMI-like quantities reported by the analyzer/plots.
     # Estimators operate in nats internally; the analyzer can convert to bits for reporting.
     output_units: str = "bits"  # "bits"|"nats"
+    # Use validation while selecting estimators or quantities; the default keeps
+    # backward compatibility for existing final-analysis configurations.
+    analysis_split: str = "test"  # "validation"|"test"
     verbose: bool = False
 
     computation_level: str = (
         "single_branch"  # "single_branch", "layer_branch", "all_branch"
     )
     branch_aggregation: str = "mean"  # "mean", "multivariate", "sample"
+    # Optional, deterministic compute cap for ``single_branch`` analyses.
+    # Sampling is independent of activations and labels and is applied separately
+    # within each captured layer. ``None`` preserves the exhaustive legacy behavior.
+    branch_sample_count_per_layer: Optional[int] = None
+    branch_sample_seed: int = 0
 
     # Layer-total proxies derived from single-branch metrics
     layer_total_topk: int = 10  # K used for *_topK_sum metrics (int >= 1)
@@ -1207,6 +1215,7 @@ class PathMatchedInformationAnalysisParams(BaseConfig):
             "inhibition_current",
             "joint_EI_currents",
             "upstream_child_current",
+            "pre_gate_voltage",
             "post_gate_output",
         ]
     )
@@ -1229,6 +1238,7 @@ class PathMatchedInformationAnalysisParams(BaseConfig):
             "inhibition_current",
             "joint_EI_currents",
             "upstream_child_current",
+            "pre_gate_voltage",
             "post_gate_output",
         }
         self.signals = [str(value) for value in self.signals]
@@ -1606,6 +1616,9 @@ class ReceptiveFieldAnalysisParams(BaseConfig):
     - exc_rf_shape / inh_rf_shape: optional synapse-specific receptive-field
       shapes; fall back to rf_shape when omitted.
     - compute_activation_tuning: also summarize class tuning of branch signals.
+    - activation_sample_signals / activation_sample_depths: optionally retain a
+      deterministic, class-balanced sample of scalar branch signals for
+      distribution plots. Empty selections disable sample records.
     - compute_component_rfs: run compact E/I mean and conditioned component RF
       maps, matching the empirical paper's soma-level RF summary.
     - compute_rf_tuning: run the aggregate RF tuning,
@@ -1619,6 +1632,10 @@ class ReceptiveFieldAnalysisParams(BaseConfig):
     inh_rf_shape: Optional[tuple[int, int]] = None
     fig_save_format: str = "png"
     compute_activation_tuning: bool = False
+    activation_sample_signals: list[str] = field(default_factory=list)
+    activation_sample_depths: list[int] = field(default_factory=list)
+    activation_samples_per_class: int = 0
+    activation_sample_seed: int = 0
     compute_component_rfs: bool = False
     plot_component_rfs: bool = True
     compute_rf_tuning: bool = False
@@ -1629,6 +1646,44 @@ class ReceptiveFieldAnalysisParams(BaseConfig):
     load_raw_data: bool = False
     raw_filename: Optional[str] = None
     epsilon: float = 1e-8
+
+    def __post_init__(self) -> None:
+        allowed_signals = {"exc", "inh", "vout", "ei_ratio"}
+        self.activation_sample_signals = [
+            str(value) for value in self.activation_sample_signals
+        ]
+        self.activation_sample_depths = [
+            int(value) for value in self.activation_sample_depths
+        ]
+        if len(set(self.activation_sample_signals)) != len(
+            self.activation_sample_signals
+        ):
+            raise ValueError("activation_sample_signals must be unique")
+        if len(set(self.activation_sample_depths)) != len(
+            self.activation_sample_depths
+        ):
+            raise ValueError("activation_sample_depths must be unique")
+        unknown = sorted(set(self.activation_sample_signals) - allowed_signals)
+        if unknown:
+            raise ValueError(f"unknown activation sample signals: {unknown}")
+        if any(depth < 0 for depth in self.activation_sample_depths):
+            raise ValueError("activation sample depths must be non-negative")
+        self.activation_samples_per_class = int(self.activation_samples_per_class)
+        self.activation_sample_seed = int(self.activation_sample_seed)
+        if self.activation_samples_per_class < 0:
+            raise ValueError("activation_samples_per_class must be non-negative")
+        sampling_requested = bool(
+            self.activation_sample_signals or self.activation_sample_depths
+        )
+        if sampling_requested and (
+            not self.activation_sample_signals
+            or not self.activation_sample_depths
+            or self.activation_samples_per_class < 1
+        ):
+            raise ValueError(
+                "activation sampling requires signals, depths, and a positive "
+                "activation_samples_per_class"
+            )
 
 
 @dataclass

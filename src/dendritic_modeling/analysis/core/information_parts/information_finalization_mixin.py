@@ -58,6 +58,7 @@ class InformationFinalizationMixin:
         results["per_neuron_analysis_enabled"] = self.per_neuron_analysis
         results["per_einet_analysis_enabled"] = self.per_einet_analysis
         results["per_layer_analysis_enabled"] = self.per_layer_analysis
+        results["analysis_split"] = self.analysis_split
         results["has_inhibitory_data"] = self.has_inhibitory_data(self.data_dict)
         results["dendritic_depth_reference"] = SOMA_RELATIVE_DEPTH_REFERENCE
         results["signal_semantics"] = {

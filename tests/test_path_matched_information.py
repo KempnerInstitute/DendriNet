@@ -92,6 +92,7 @@ def test_path_information_captures_stage_explicit_signals_on_validation_only(
             signals=[
                 "joint_EI_currents",
                 "upstream_child_current",
+                "pre_gate_voltage",
                 "post_gate_output",
             ],
             depths=[0, 1, 2],
@@ -133,9 +134,10 @@ def test_path_information_captures_stage_explicit_signals_on_validation_only(
     assert result["available_depths_by_signal"] == {
         "joint_EI_currents": [1, 2],
         "upstream_child_current": [0, 1],
+        "pre_gate_voltage": [0, 1, 2],
         "post_gate_output": [0, 1, 2],
     }
-    assert len(result["records"]) == 12
+    assert len(result["records"]) == 17
     assert {
         record["selected_coordinate_count_per_component"]
         for record in result["records"]
