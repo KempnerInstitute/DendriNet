@@ -55,6 +55,8 @@
 <li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="engineering_architecture.html">Engineering Architecture</a></li>
 <li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="transformer_llm_scaling.html">Dendritic LLM Scaling Workflow</a></li>
+<li class="toctree-l1"><a class="reference internal" href="initialization_comparison_policy.html">Initialization Comparison Policy</a></li>
 <li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter Sweeps</a></li>
 <li class="toctree-l1"><a class="reference internal" href="fsdp_troubleshooting.html">Distributed Training Guide</a></li>
 </ul>
@@ -235,6 +237,7 @@ alias configs are supported for saved experiments and comparison runs.</p>
 <li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="analysis.html#performance-analysis">Performance Analysis</a></li>
 <li class="toctree-l2"><a class="reference internal" href="analysis.html#information-analysis">Information Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="analysis.html#representation-accessibility">Representation Accessibility</a></li>
 <li class="toctree-l2"><a class="reference internal" href="analysis.html#ablation-analysis">Ablation Analysis</a></li>
 <li class="toctree-l2"><a class="reference internal" href="analysis.html#correlation-analysis">Correlation Analysis</a></li>
 <li class="toctree-l2"><a class="reference internal" href="analysis.html#other-analysis-modules">Other Analysis Modules</a></li>
@@ -274,6 +277,25 @@ alias configs are supported for saved experiments and comparison runs.</p>
 <li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#multi-stage-training">Multi-Stage Training</a></li>
 <li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#distributed-training">Distributed Training</a></li>
 <li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#reference-config">Reference Config</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="transformer_llm_scaling.html">Dendritic LLM Scaling Workflow</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="transformer_llm_scaling.html#parameter-profiles">Parameter profiles</a></li>
+<li class="toctree-l2"><a class="reference internal" href="transformer_llm_scaling.html#replacement-scope-and-example-configs">Replacement scope and example configs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="transformer_llm_scaling.html#attention-embedding-and-lm-head-strategy">Attention, embedding, and LM-head strategy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="transformer_llm_scaling.html#olmo-all-layer-preparation">OLMo all-layer preparation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="transformer_llm_scaling.html#joint-training-and-scratch-initialization">Joint training and scratch initialization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="transformer_llm_scaling.html#gated-and-teacher-topk-replacements">Gated and teacher-TopK replacements</a></li>
+<li class="toctree-l2"><a class="reference internal" href="transformer_llm_scaling.html#streaming-text-and-ddp-distillation">Streaming text and DDP distillation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="transformer_llm_scaling.html#current-scale-boundary">Current scale boundary</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="initialization_comparison_policy.html">Initialization Comparison Policy</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="initialization_comparison_policy.html#comparison-estimands">Comparison estimands</a></li>
+<li class="toctree-l2"><a class="reference internal" href="initialization_comparison_policy.html#initializer-definitions">Initializer definitions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="initialization_comparison_policy.html#selection-and-confirmation-protocol">Selection and confirmation protocol</a></li>
+<li class="toctree-l2"><a class="reference internal" href="initialization_comparison_policy.html#current-project-decisions-2026-07-15">Current project decisions (2026-07-15)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="initialization_comparison_policy.html#reporting-language">Reporting language</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter Sweeps</a><ul>

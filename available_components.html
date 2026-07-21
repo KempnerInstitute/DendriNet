@@ -56,6 +56,8 @@
 <li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="engineering_architecture.html">Engineering Architecture</a></li>
 <li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="transformer_llm_scaling.html">Dendritic LLM Scaling Workflow</a></li>
+<li class="toctree-l1"><a class="reference internal" href="initialization_comparison_policy.html">Initialization Comparison Policy</a></li>
 <li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter Sweeps</a></li>
 <li class="toctree-l1"><a class="reference internal" href="fsdp_troubleshooting.html">Distributed Training Guide</a></li>
 </ul>
@@ -647,9 +649,10 @@ files for biophysical recurrent options.</p>
 <h2>Analysis Modules<a class="headerlink" href="#analysis-modules" title="Link to this heading"></a></h2>
 <p>Each enabled under <code class="docutils literal notranslate"><span class="pre">analysis.&lt;module_name&gt;.enabled</span></code>:</p>
 <p>Preferred short names in YAML are <code class="docutils literal notranslate"><span class="pre">performance</span></code>, <code class="docutils literal notranslate"><span class="pre">information</span></code>,
-<code class="docutils literal notranslate"><span class="pre">ablation</span></code>, and <code class="docutils literal notranslate"><span class="pre">correlation</span></code>. The longer <code class="docutils literal notranslate"><span class="pre">*_analysis</span></code> names are accepted
-as aliases.</p>
-<p>Available modules: <code class="docutils literal notranslate"><span class="pre">performance</span></code>, <code class="docutils literal notranslate"><span class="pre">information</span></code>, <code class="docutils literal notranslate"><span class="pre">ablation</span></code>,
+<code class="docutils literal notranslate"><span class="pre">representation_accessibility</span></code>, <code class="docutils literal notranslate"><span class="pre">ablation</span></code>, and <code class="docutils literal notranslate"><span class="pre">correlation</span></code>. The longer
+<code class="docutils literal notranslate"><span class="pre">*_analysis</span></code> names are accepted as aliases.</p>
+<p>Available modules: <code class="docutils literal notranslate"><span class="pre">performance</span></code>, <code class="docutils literal notranslate"><span class="pre">information</span></code>,
+<code class="docutils literal notranslate"><span class="pre">representation_accessibility</span></code>, <code class="docutils literal notranslate"><span class="pre">ablation</span></code>,
 <code class="docutils literal notranslate"><span class="pre">correlation</span></code>, <code class="docutils literal notranslate"><span class="pre">weight</span></code>, <code class="docutils literal notranslate"><span class="pre">synapse_turnover</span></code>, <code class="docutils literal notranslate"><span class="pre">noise_perturbation</span></code>,
 <code class="docutils literal notranslate"><span class="pre">compartment_statistics</span></code>, <code class="docutils literal notranslate"><span class="pre">compartment_snr</span></code>, <code class="docutils literal notranslate"><span class="pre">multiplicative_gain</span></code>,
 <code class="docutils literal notranslate"><span class="pre">routing</span></code>, <code class="docutils literal notranslate"><span class="pre">receptive_field</span></code>, <code class="docutils literal notranslate"><span class="pre">adversarial_robustness</span></code>,
@@ -657,6 +660,10 @@ as aliases.</p>
 <code class="docutils literal notranslate"><span class="pre">reactivation_dynamics</span></code>, <code class="docutils literal notranslate"><span class="pre">inhibitory_specialization</span></code>,
 <code class="docutils literal notranslate"><span class="pre">jacobian_spectrum</span></code>, <code class="docutils literal notranslate"><span class="pre">dendritic_timetraces</span></code>, <code class="docutils literal notranslate"><span class="pre">local_rule_components</span></code>,
 <code class="docutils literal notranslate"><span class="pre">spike_train</span></code>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">representation_accessibility</span></code> captures post-gate soma populations from
+stacked feedforward population networks. It provides validation-to-test Ridge
+and MLP probes, label-independent matched-width projections, joint population
+class information, and separate per-soma scalar information summaries.</p>
 </section>
 <section id="information-analysis-components">
 <h2>Information Analysis Components<a class="headerlink" href="#information-analysis-components" title="Link to this heading"></a></h2>
@@ -721,7 +728,10 @@ reserved or disabled</p></td>
 <section id="blocklinear-initialization">
 <h2>BlockLinear Initialization<a class="headerlink" href="#blocklinear-initialization" title="Link to this heading"></a></h2>
 <p>Set via <code class="docutils literal notranslate"><span class="pre">model.core.morphology.dbl_init_method</span></code>:</p>
-<p><code class="docutils literal notranslate"><span class="pre">analytical_expectation</span></code>, <code class="docutils literal notranslate"><span class="pre">ei_equivalence</span></code>, <code class="docutils literal notranslate"><span class="pre">naive</span></code>, <code class="docutils literal notranslate"><span class="pre">default</span></code>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">analytical_expectation</span></code>, <code class="docutils literal notranslate"><span class="pre">ei_equivalence</span></code>, <code class="docutils literal notranslate"><span class="pre">naive</span></code>, <code class="docutils literal notranslate"><span class="pre">default</span></code>,
+<code class="docutils literal notranslate"><span class="pre">mechanism_neutral</span></code>. The last option is reserved for paired causal controls:
+with a shared seed it initializes shunting and additive models identically and
+does not provide mechanism-specific operating-point optimization.</p>
 </section>
 </section>
 

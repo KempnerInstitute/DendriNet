@@ -55,6 +55,8 @@
 <li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="engineering_architecture.html">Engineering Architecture</a></li>
 <li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="transformer_llm_scaling.html">Dendritic LLM Scaling Workflow</a></li>
+<li class="toctree-l1"><a class="reference internal" href="initialization_comparison_policy.html">Initialization Comparison Policy</a></li>
 <li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter Sweeps</a></li>
 <li class="toctree-l1"><a class="reference internal" href="fsdp_troubleshooting.html">Distributed Training Guide</a></li>
 </ul>
@@ -119,6 +121,13 @@ issue instead (move imports, restructure code, etc.).</p>
 <section id="testing">
 <h2>Testing<a class="headerlink" href="#testing" title="Link to this heading"></a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> </span>tests/
+</pre></div>
+</div>
+<p>Coverage is collected explicitly in the primary Python CI job. To reproduce
+that check locally, run:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span>pytest<span class="w"> </span>tests/<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--cov<span class="o">=</span>src/dendritic_modeling<span class="w"> </span>--cov-branch<span class="w"> </span><span class="se">\</span>
+<span class="w">   </span>--cov-report<span class="o">=</span>xml<span class="w"> </span>--cov-fail-under<span class="o">=</span><span class="m">30</span>
 </pre></div>
 </div>
 <p>Test markers: <code class="docutils literal notranslate"><span class="pre">&#64;pytest.mark.unit</span></code>, <code class="docutils literal notranslate"><span class="pre">&#64;pytest.mark.integration</span></code>,

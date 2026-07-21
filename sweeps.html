@@ -20,7 +20,7 @@
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Distributed Training Guide" href="fsdp_troubleshooting.html" />
-    <link rel="prev" title="Configuration Guide" href="configuration_guide.html" /> 
+    <link rel="prev" title="Initialization Comparison Policy" href="initialization_comparison_policy.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -56,6 +56,8 @@
 <li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="engineering_architecture.html">Engineering Architecture</a></li>
 <li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="transformer_llm_scaling.html">Dendritic LLM Scaling Workflow</a></li>
+<li class="toctree-l1"><a class="reference internal" href="initialization_comparison_policy.html">Initialization Comparison Policy</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Parameter Sweeps</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#quick-start">Quick Start</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#configuration">Configuration</a></li>
@@ -162,6 +164,12 @@ are present. Model-level analyses requested in <code class="docutils literal not
 run inside each training job, so population-network sweeps can also collect
 routing, spike-train, synaptic-activation, and other configured analysis
 artifacts per condition.</p>
+<p>The shared <code class="docutils literal notranslate"><span class="pre">DataCollector</span></code> also exports compact convergence fields from
+<code class="docutils literal notranslate"><span class="pre">training_summary.json</span></code>: best validation epoch/loss, epochs completed, and
+the final train/validation losses. Full epoch histories are deliberately not
+copied into tabular sweep outputs. Compare <code class="docutils literal notranslate"><span class="pre">training_best_epoch</span></code> with the
+declared <code class="docutils literal notranslate"><span class="pre">epochs</span></code> horizon when auditing undertraining; do not select a
+mechanism or condition from test accuracy.</p>
 <p>Typical layout:</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>&lt;sweep_dir&gt;/
 |-- configs/
@@ -213,7 +221,7 @@ python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/result_analy
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="configuration_guide.html" class="btn btn-neutral float-left" title="Configuration Guide" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="initialization_comparison_policy.html" class="btn btn-neutral float-left" title="Initialization Comparison Policy" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
         <a href="fsdp_troubleshooting.html" class="btn btn-neutral float-right" title="Distributed Training Guide" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 

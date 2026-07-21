@@ -65,6 +65,10 @@
 <li class="toctree-l3"><a class="reference internal" href="#estimator-methods">Estimator Methods</a></li>
 </ul>
 </li>
+<li class="toctree-l2"><a class="reference internal" href="#representation-accessibility">Representation Accessibility</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#frozen-checkpoint-execution">Frozen checkpoint execution</a></li>
+</ul>
+</li>
 <li class="toctree-l2"><a class="reference internal" href="#ablation-analysis">Ablation Analysis</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#correlation-analysis">Correlation Analysis</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#other-analysis-modules">Other Analysis Modules</a></li>
@@ -73,6 +77,8 @@
 </li>
 <li class="toctree-l1"><a class="reference internal" href="engineering_architecture.html">Engineering Architecture</a></li>
 <li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="transformer_llm_scaling.html">Dendritic LLM Scaling Workflow</a></li>
+<li class="toctree-l1"><a class="reference internal" href="initialization_comparison_policy.html">Initialization Comparison Policy</a></li>
 <li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter Sweeps</a></li>
 <li class="toctree-l1"><a class="reference internal" href="fsdp_troubleshooting.html">Distributed Training Guide</a></li>
 </ul>
@@ -175,10 +181,15 @@ default.</p>
 <li><p><a class="reference internal" href="#estimator-methods" id="id9">Estimator Methods</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#ablation-analysis" id="id10">Ablation Analysis</a></p></li>
-<li><p><a class="reference internal" href="#correlation-analysis" id="id11">Correlation Analysis</a></p></li>
-<li><p><a class="reference internal" href="#other-analysis-modules" id="id12">Other Analysis Modules</a></p></li>
-<li><p><a class="reference internal" href="#compatibility-notes" id="id13">Compatibility Notes</a></p></li>
+<li><p><a class="reference internal" href="#representation-accessibility" id="id10">Representation Accessibility</a></p>
+<ul>
+<li><p><a class="reference internal" href="#frozen-checkpoint-execution" id="id11">Frozen checkpoint execution</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#ablation-analysis" id="id12">Ablation Analysis</a></p></li>
+<li><p><a class="reference internal" href="#correlation-analysis" id="id13">Correlation Analysis</a></p></li>
+<li><p><a class="reference internal" href="#other-analysis-modules" id="id14">Other Analysis Modules</a></p></li>
+<li><p><a class="reference internal" href="#compatibility-notes" id="id15">Compatibility Notes</a></p></li>
 </ul>
 </nav>
 <section id="performance-analysis">
@@ -305,8 +316,11 @@ class separation.</p>
 </section>
 <section id="scopes">
 <h3><a class="toc-backref" href="#id8" role="doc-backlink">Scopes</a><a class="headerlink" href="#scopes" title="Link to this heading"></a></h3>
-<p><code class="docutils literal notranslate"><span class="pre">&quot;layer&quot;</span></code> – per-layer breakdown. <code class="docutils literal notranslate"><span class="pre">&quot;einet&quot;</span></code> – separate E vs I summaries.
-<code class="docutils literal notranslate"><span class="pre">&quot;neuron&quot;</span></code> – per-neuron (expensive).</p>
+<p><code class="docutils literal notranslate"><span class="pre">&quot;layer&quot;</span></code> – within-tree dendritic branch-layer breakdown.
+<code class="docutils literal notranslate"><span class="pre">&quot;einet&quot;</span></code> – separate excitatory/inhibitory synaptic pathway summaries.
+<code class="docutils literal notranslate"><span class="pre">&quot;neuron&quot;</span></code> – per captured branch coordinate (expensive). This legacy name
+does not denote the joint soma population of a stacked network layer. Use
+<code class="docutils literal notranslate"><span class="pre">representation_accessibility</span></code> for soma-population analyses.</p>
 </section>
 <section id="estimator-methods">
 <h3><a class="toc-backref" href="#id9" role="doc-backlink">Estimator Methods</a><a class="headerlink" href="#estimator-methods" title="Link to this heading"></a></h3>
@@ -334,8 +348,112 @@ class separation.</p>
 </div>
 </section>
 </section>
+<section id="representation-accessibility">
+<h2><a class="toc-backref" href="#id10" role="doc-backlink">Representation Accessibility</a><a class="headerlink" href="#representation-accessibility" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">representation_accessibility</span></code> analyzes the post-gate soma outputs of every
+feedforward <code class="docutils literal notranslate"><span class="pre">PopulationNetwork</span></code> layer. It keeps three estimands separate:</p>
+<ul class="simple">
+<li><p>validation-fit/test-evaluated Ridge or MLP class accessibility;</p></li>
+<li><p>joint <code class="docutils literal notranslate"><span class="pre">I(X;</span> <span class="pre">C)</span></code> on a declared label-independent population projection;</p></li>
+<li><p>separately estimated scalar <code class="docutils literal notranslate"><span class="pre">I(x_i;</span> <span class="pre">C)</span></code> for individual somas.</p></li>
+</ul>
+<p>The MLP result is nonlinear class accessibility, not mutual information. The
+mean of per-soma scalar information is redundancy-sensitive and is not the
+joint information in the layer. Every probe is fit on <code class="docutils literal notranslate"><span class="pre">valid</span></code> and the
+untouched <code class="docutils literal notranslate"><span class="pre">test</span></code> split is used only for final evaluation. The analyzer is
+therefore final-only; <code class="docutils literal notranslate"><span class="pre">training:</span> <span class="pre">true</span></code> is rejected.</p>
+<p>Representations may be <code class="docutils literal notranslate"><span class="pre">excitatory</span></code>, <code class="docutils literal notranslate"><span class="pre">inhibitory</span></code>, <code class="docutils literal notranslate"><span class="pre">joint</span></code>, <code class="docutils literal notranslate"><span class="pre">readout</span></code>,
+or an exact name such as <code class="docutils literal notranslate"><span class="pre">population:e0</span></code>. Networks without an inhibitory soma
+population record that representation as missing rather than confusing raw
+inhibitory synaptic current with an I-population output.</p>
+<p><code class="docutils literal notranslate"><span class="pre">balanced_countsketch</span></code> provides a label-independent matched-width control.
+Use native width when comparing mechanisms with identical architectures, and a
+common projected width when comparing E, I, and joint populations of different
+sizes. Projection draws and MLP initializations are technical repeats; average
+them within a trained checkpoint before inference across training seeds.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">runtime</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">final</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;stream&quot;</span>
+<span class="w">      </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">256</span>
+<span class="w">      </span><span class="nt">num_workers</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<span class="w">      </span><span class="nt">max_samples</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span>
+<span class="w">  </span><span class="nt">representation_accessibility</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">training</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">representations</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;excitatory&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;inhibitory&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;joint&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">projections</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;matched16&quot;</span>
+<span class="w">          </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;balanced_countsketch&quot;</span>
+<span class="w">          </span><span class="nt">output_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">16</span>
+<span class="w">          </span><span class="nt">draws</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<span class="w">      </span><span class="nt">probes</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;linear&quot;</span>
+<span class="w">          </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;ridge&quot;</span>
+<span class="w">          </span><span class="nt">ridge_alpha</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
+<span class="w">          </span><span class="nt">n_label_shuffles</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;nonlinear&quot;</span>
+<span class="w">          </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;mlp&quot;</span>
+<span class="w">          </span><span class="nt">max_projection_draws</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">          </span><span class="nt">hidden_dims</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">32</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">16</span><span class="p p-Indicator">]</span>
+<span class="w">          </span><span class="nt">activation</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;relu&quot;</span>
+<span class="w">          </span><span class="nt">alpha</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0001</span>
+<span class="w">          </span><span class="nt">learning_rate_init</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.001</span>
+<span class="w">          </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">256</span>
+<span class="w">          </span><span class="nt">max_iter</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">300</span>
+<span class="w">          </span><span class="nt">early_stopping</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">          </span><span class="nt">validation_fraction</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.1</span>
+<span class="w">          </span><span class="nt">n_iter_no_change</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+<span class="w">          </span><span class="nt">draws</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+<span class="w">          </span><span class="nt">n_label_shuffles</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<span class="w">      </span><span class="nt">information</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="nt">compute_joint</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="nt">compute_per_soma</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="nt">projection_names</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;matched16&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">        </span><span class="nt">per_soma_representations</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;excitatory&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;inhibitory&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">        </span><span class="nt">n_neighbors</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<span class="w">        </span><span class="nt">n_label_shuffles</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+<span class="w">        </span><span class="nt">standardize</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">42</span>
+</pre></div>
+</div>
+<section id="frozen-checkpoint-execution">
+<h3><a class="toc-backref" href="#id11" role="doc-backlink">Frozen checkpoint execution</a><a class="headerlink" href="#frozen-checkpoint-execution" title="Link to this heading"></a></h3>
+<p>The same analysis profile can be applied to an existing checkpoint without
+rerunning training. Keep the original resolved training YAML immutable and put
+the measurement declaration in a standalone YAML with an <code class="docutils literal notranslate"><span class="pre">analysis:</span></code> root:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">dendritic</span><span class="o">-</span><span class="n">analyze</span><span class="o">-</span><span class="n">checkpoint</span> \
+  <span class="o">--</span><span class="n">config</span> <span class="o">/</span><span class="n">path</span><span class="o">/</span><span class="n">to</span><span class="o">/</span><span class="n">resolved_training_config</span><span class="o">.</span><span class="n">yaml</span> \
+  <span class="o">--</span><span class="n">checkpoint</span> <span class="o">/</span><span class="n">path</span><span class="o">/</span><span class="n">to</span><span class="o">/</span><span class="n">final_model</span><span class="o">.</span><span class="n">pt</span> \
+  <span class="o">--</span><span class="n">analysis</span><span class="o">-</span><span class="n">config</span> <span class="o">/</span><span class="n">path</span><span class="o">/</span><span class="n">to</span><span class="o">/</span><span class="n">representation_accessibility</span><span class="o">.</span><span class="n">yaml</span> \
+  <span class="o">--</span><span class="n">output</span><span class="o">-</span><span class="nb">dir</span> <span class="o">/</span><span class="n">path</span><span class="o">/</span><span class="n">to</span><span class="o">/</span><span class="n">posthoc</span><span class="o">/</span><span class="n">config_0</span>
+</pre></div>
+</div>
+<p>The runner reconstructs the canonical dataset splits and model from the
+training config, performs strict checkpoint loading, runs no optimization, and
+writes <code class="docutils literal notranslate"><span class="pre">checkpoint_analysis_provenance.json</span></code> with hashes of all three inputs,
+resolved random streams, dataset sizes, checkpoint compatibility records, and
+the source commit/dirty state when run from a Git checkout.</p>
+<p>After an array of checkpoint analyses finishes, collect the exact job
+declarations instead of discovering result directories by filename:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">dendritic</span><span class="o">-</span><span class="n">collect</span><span class="o">-</span><span class="n">representations</span> \
+  <span class="o">--</span><span class="n">jobs</span> <span class="o">/</span><span class="n">path</span><span class="o">/</span><span class="n">to</span><span class="o">/</span><span class="n">jobs_pilot</span><span class="o">.</span><span class="n">jsonl</span> \
+  <span class="o">--</span><span class="n">jobs</span> <span class="o">/</span><span class="n">path</span><span class="o">/</span><span class="n">to</span><span class="o">/</span><span class="n">jobs_full</span><span class="o">.</span><span class="n">jsonl</span> \
+  <span class="o">--</span><span class="n">expected</span><span class="o">-</span><span class="n">count</span> <span class="mi">100</span> \
+  <span class="o">--</span><span class="n">output</span><span class="o">-</span><span class="nb">dir</span> <span class="o">/</span><span class="n">path</span><span class="o">/</span><span class="n">to</span><span class="o">/</span><span class="n">collected</span>
+</pre></div>
+</div>
+<p>The collector verifies strict checkpoint loading and the config, checkpoint,
+and analysis hashes for every job. It writes long-form records plus
+within-checkpoint technical-draw summaries. Projection and MLP initialization
+draws remain technical repeats; biological inference should use one aggregated
+value per independently trained checkpoint.</p>
+</section>
+</section>
 <section id="ablation-analysis">
-<h2><a class="toc-backref" href="#id10" role="doc-backlink">Ablation Analysis</a><a class="headerlink" href="#ablation-analysis" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id12" role="doc-backlink">Ablation Analysis</a><a class="headerlink" href="#ablation-analysis" title="Link to this heading"></a></h2>
 <p>Evaluates the contribution of specific network components by disabling or
 disrupting them.</p>
 <p>Methods (<code class="docutils literal notranslate"><span class="pre">params.methods.ablation_methods</span></code>):</p>
@@ -369,7 +487,7 @@ removes trial-to-trial variability.</p>
 </div>
 </section>
 <section id="correlation-analysis">
-<h2><a class="toc-backref" href="#id11" role="doc-backlink">Correlation Analysis</a><a class="headerlink" href="#correlation-analysis" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id13" role="doc-backlink">Correlation Analysis</a><a class="headerlink" href="#correlation-analysis" title="Link to this heading"></a></h2>
 <p>Pearson correlations between excitatory, inhibitory, and output signals at
 configurable granularity.</p>
 <p><code class="docutils literal notranslate"><span class="pre">components</span></code>: <code class="docutils literal notranslate"><span class="pre">&quot;total&quot;</span></code> (all samples), <code class="docutils literal notranslate"><span class="pre">&quot;noise&quot;</span></code> (within-class),
@@ -391,7 +509,7 @@ configurable granularity.</p>
 </div>
 </section>
 <section id="other-analysis-modules">
-<h2><a class="toc-backref" href="#id12" role="doc-backlink">Other Analysis Modules</a><a class="headerlink" href="#other-analysis-modules" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id14" role="doc-backlink">Other Analysis Modules</a><a class="headerlink" href="#other-analysis-modules" title="Link to this heading"></a></h2>
 <p>Each module follows the same <code class="docutils literal notranslate"><span class="pre">enabled</span></code>/<code class="docutils literal notranslate"><span class="pre">training</span></code>/<code class="docutils literal notranslate"><span class="pre">params</span></code> pattern.</p>
 <dl>
 <dt><code class="docutils literal notranslate"><span class="pre">weight</span></code></dt><dd><p>Weight distribution statistics and parameter counts.</p>
@@ -532,7 +650,7 @@ factors, and ISI mean/CV.</p>
 </dl>
 </section>
 <section id="compatibility-notes">
-<h2><a class="toc-backref" href="#id13" role="doc-backlink">Compatibility Notes</a><a class="headerlink" href="#compatibility-notes" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id15" role="doc-backlink">Compatibility Notes</a><a class="headerlink" href="#compatibility-notes" title="Link to this heading"></a></h2>
 <p>Recurrent analysis helpers share a duck-typed introspection layer in
 <code class="docutils literal notranslate"><span class="pre">dendritic_modeling.analysis.utils.recurrent_introspection</span></code>. This keeps E/I
 analysis outputs stable while letting analyzers and scripts discover named

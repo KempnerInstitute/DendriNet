@@ -32,6 +32,15 @@ Testing
 
    PYTHONPATH=src:$PYTHONPATH python -m pytest tests/
 
+Coverage is collected explicitly in the primary Python CI job. To reproduce
+that check locally, run:
+
+.. code-block:: bash
+
+   PYTHONPATH=src:$PYTHONPATH python -m pytest tests/ \
+      --cov=src/dendritic_modeling --cov-branch \
+      --cov-report=xml --cov-fail-under=30
+
 Test markers: ``@pytest.mark.unit``, ``@pytest.mark.integration``,
 ``@pytest.mark.slow``, ``@pytest.mark.requires_gpu``,
 ``@pytest.mark.requires_data``.

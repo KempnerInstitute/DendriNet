@@ -64,6 +64,8 @@
 <li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="engineering_architecture.html">Engineering Architecture</a></li>
 <li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="transformer_llm_scaling.html">Dendritic LLM Scaling Workflow</a></li>
+<li class="toctree-l1"><a class="reference internal" href="initialization_comparison_policy.html">Initialization Comparison Policy</a></li>
 <li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter Sweeps</a></li>
 <li class="toctree-l1"><a class="reference internal" href="fsdp_troubleshooting.html">Distributed Training Guide</a></li>
 </ul>
@@ -272,7 +274,11 @@ Target: next-step state. Parameters: <code class="docutils literal notranslate">
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">stringer_v1</span></code></dt><dd><p>Real V1 calcium imaging data (Stringer et al., 2019). Drifting grating
 responses. Parameters: <code class="docutils literal notranslate"><span class="pre">n_neurons</span></code>, <code class="docutils literal notranslate"><span class="pre">n_classes</span></code> (orientation bins),
-<code class="docutils literal notranslate"><span class="pre">train_fraction</span></code>, <code class="docutils literal notranslate"><span class="pre">normalize</span></code>.</p>
+<code class="docutils literal notranslate"><span class="pre">train_fraction</span></code>, <code class="docutils literal notranslate"><span class="pre">normalize</span></code>, and <code class="docutils literal notranslate"><span class="pre">neuron_selection_scope</span></code>. Set
+<code class="docutils literal notranslate"><span class="pre">neuron_selection_scope:</span> <span class="pre">train_split</span></code> for prospective evaluation: neuron
+response variance is then ranked on the training partition only, and the
+same nested ranking is reused for the held-out test partition. The legacy
+default, <code class="docutils literal notranslate"><span class="pre">all_trials</span></code>, preserves earlier transductive experiments.</p>
 </dd>
 </dl>
 </section>

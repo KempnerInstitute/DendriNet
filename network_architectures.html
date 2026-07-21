@@ -83,7 +83,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#reactivation-gate-initialization">Reactivation Gate Initialization</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#strategy-specific-recommendations">Strategy-Specific Recommendations</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#init-diagnostics">Init diagnostics</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#recommended-defaults">Recommended defaults</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#operational-fallbacks">Operational fallbacks</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#training-time-gate-maintenance">Training-Time Gate Maintenance</a></li>
 </ul>
 </li>
@@ -134,6 +134,8 @@
 <li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="engineering_architecture.html">Engineering Architecture</a></li>
 <li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="transformer_llm_scaling.html">Dendritic LLM Scaling Workflow</a></li>
+<li class="toctree-l1"><a class="reference internal" href="initialization_comparison_policy.html">Initialization Comparison Policy</a></li>
 <li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter Sweeps</a></li>
 <li class="toctree-l1"><a class="reference internal" href="fsdp_troubleshooting.html">Distributed Training Guide</a></li>
 </ul>
@@ -385,10 +387,10 @@ morphology block contains a contradictory <code class="docutils literal notransl
 <code class="docutils literal notranslate"><span class="pre">use_additive_normalization</span></code>
 value, the builder emits a warning and the type alias wins. Use the generic
 <code class="docutils literal notranslate"><span class="pre">einet</span></code> type when you intentionally want <code class="docutils literal notranslate"><span class="pre">morphology.use_shunting</span></code> to be
-the selector. For additive modes, prefer
-<code class="docutils literal notranslate"><span class="pre">reactivation.init_policy:</span> <span class="pre">&quot;occupancy_quantile&quot;</span></code>; additive YAML configs that
-omit <code class="docutils literal notranslate"><span class="pre">init_policy</span></code> use this data-driven policy by default, while explicit
-policies remain reproducible.</p>
+the selector. For additive modes without validation tuning, prefer
+<code class="docutils literal notranslate"><span class="pre">reactivation.init_policy:</span> <span class="pre">&quot;occupancy_quantile&quot;</span></code> as a stability fallback;
+additive YAML configs that omit <code class="docutils literal notranslate"><span class="pre">init_policy</span></code> use this data-driven policy by
+default, while explicit policies remain reproducible.</p>
 <p>For recurrent unified E-I networks, plain <code class="docutils literal notranslate"><span class="pre">ei_unified</span></code> keeps the
 population-level fields as the source of truth. The convenience aliases
 <code class="docutils literal notranslate"><span class="pre">rnn_dendritic_shunting</span></code>, <code class="docutils literal notranslate"><span class="pre">rnn_dendritic_additive</span></code>,
@@ -737,7 +739,9 @@ terms directly in the denominator. Epsilon defaults to <code class="docutils lit
 output = reactivation(V)
 </pre></div>
 </div>
-<p>Optional additive normalization: <code class="docutils literal notranslate"><span class="pre">V</span> <span class="pre">=</span> <span class="pre">(V</span> <span class="pre">-</span> <span class="pre">mean)</span> <span class="pre">/</span> <span class="pre">(std</span> <span class="pre">+</span> <span class="pre">epsilon)</span></code>.</p>
+<p>Optional legacy additive normalization is a per-sample, across-output scale
+control: <code class="docutils literal notranslate"><span class="pre">V</span> <span class="pre">=</span> <span class="pre">(V</span> <span class="pre">-</span> <span class="pre">mean_output)</span> <span class="pre">/</span> <span class="pre">(std_output</span> <span class="pre">+</span> <span class="pre">epsilon)</span></code>. It is not
+conductance normalization and does not normalize each feature across a batch.</p>
 </section>
 <section id="components">
 <h3><a class="toc-backref" href="#id21" role="doc-backlink">Components</a><a class="headerlink" href="#components" title="Link to this heading"></a></h3>
@@ -1212,17 +1216,25 @@ back into a patched model with the same <code class="docutils literal notranslat
 <p>The reactivation gate <code class="docutils literal notranslate"><span class="pre">(tanh(m</span> <span class="pre">*</span> <span class="pre">(V</span> <span class="pre">-</span> <span class="pre">b))</span> <span class="pre">+</span> <span class="pre">1)</span> <span class="pre">/</span> <span class="pre">2</span></code> has two learnable
 parameters: the slope <code class="docutils literal notranslate"><span class="pre">m</span></code> and the midpoint <code class="docutils literal notranslate"><span class="pre">b</span></code>. How these are initialized
 determines the gate’s operating point at the start of training.</p>
-<p>Reactivation policies can initialize the gate either from analytical branch
-statistics or from sampled branch-voltage statistics. The data-driven
-policies place the gate using the observed voltage distribution <code class="docutils literal notranslate"><span class="pre">V</span></code>, which
-keeps the same interface usable across shunting and additive morphologies.</p>
+<p>Reactivation policies can initialize the gate from analytical branch
+statistics, sampled branch-voltage statistics, or deterministic center/slope
+combinations of the two. The data-driven policies place the gate using the observed voltage
+distribution <code class="docutils literal notranslate"><span class="pre">V</span></code>, which keeps the same interface usable across shunting and
+additive morphologies. This common interface does not imply that the two
+mechanisms should have identical numerical <code class="docutils literal notranslate"><span class="pre">(m,</span> <span class="pre">b)</span></code> values: their raw
+voltages have different scales.</p>
 <p><code class="docutils literal notranslate"><span class="pre">init_policy</span></code> selects the initialization strategy:</p>
 <dl>
-<dt><code class="docutils literal notranslate"><span class="pre">occupancy_quantile</span></code> <strong>(recommended data-driven default)</strong></dt><dd><p>Post-init calibration using quantile-occupancy. After the model is built,
-a few training batches are run through it. For each reactivation layer,
-the low/high percentiles of the pre-reactivation voltage <code class="docutils literal notranslate"><span class="pre">V</span></code> are
-measured, and <code class="docutils literal notranslate"><span class="pre">(m,</span> <span class="pre">b)</span></code> are set to pin those quantiles to target
-gate-output occupancies. By default this maps q10/q90 to [0.1, 0.9]:</p>
+<dt><code class="docutils literal notranslate"><span class="pre">occupancy_quantile</span></code> <strong>(recommended data-driven default)</strong></dt><dd><p>This is a two-stage analytical-weight/empirical-gate initializer, rather
+than an input-only alternative to analytical initialization. Synaptic
+weights are initialized first from the analytical morphology/contact prior.
+After the model is built, a few unlabeled training batches are run through
+those realized weights. For each reactivation layer, the low/high
+percentiles of the pre-reactivation voltage <code class="docutils literal notranslate"><span class="pre">V</span></code> are measured, and
+<code class="docutils literal notranslate"><span class="pre">(m,</span> <span class="pre">b)</span></code> are set to pin those quantiles to target gate-output occupancies.
+It therefore combines weight statistics, morphology, and input statistics
+without fitting a supervised parameter or mixing coefficient. By default
+this maps q10/q90 to [0.1, 0.9]:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">b</span> <span class="pre">=</span> <span class="pre">(q10</span> <span class="pre">+</span> <span class="pre">q90)</span> <span class="pre">/</span> <span class="pre">2</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">m</span> <span class="pre">=</span> <span class="pre">atanh(0.8)</span> <span class="pre">/</span> <span class="pre">((q90</span> <span class="pre">-</span> <span class="pre">q10)</span> <span class="pre">/</span> <span class="pre">2)</span></code></p></li>
@@ -1230,9 +1242,11 @@ gate-output occupancies. By default this maps q10/q90 to [0.1, 0.9]:</p>
 <p>This is morphology-invariant by construction: it places the gate’s active
 region around the observed voltage distribution regardless of whether the
 network uses shunting (V bounded in [0, 1]) or additive (V unbounded)
-morphology. All data-driven modes use iterative calibration
-(<code class="docutils literal notranslate"><span class="pre">n_iterations=3</span></code>) because updating upstream layers reshapes downstream
-voltage distributions.</p>
+morphology. Production data-driven initialization iterates until the
+layer-wise <code class="docutils literal notranslate"><span class="pre">(m,</span> <span class="pre">b)</span></code> chain changes by less than <code class="docutils literal notranslate"><span class="pre">1e-3</span></code> (with a 50-pass
+safety cap), because updating upstream layers reshapes downstream voltage
+distributions. An explicit iteration count is available only as a
+deterministic test/debug override.</p>
 <p>The outer tails are allowed to saturate on purpose. This policy is not
 trying to use the entire gate range uniformly; it is trying to place the
 bulk of the observed voltage mass into the gate’s sensitive region while
@@ -1247,10 +1261,11 @@ depths see different voltage statistics, so forcing one shared gate slope
 across depth is usually a worse calibration. For depth analysis, compare
 normalized gate coordinates or occupancy statistics rather than raw
 voltages across layers.</p>
-<p>Pair with a small <code class="docutils literal notranslate"><span class="pre">reactivation_lr</span></code> (<code class="docutils literal notranslate"><span class="pre">1e-4</span></code> or <code class="docutils literal notranslate"><span class="pre">1e-5</span></code>) to keep gate
-slope drift under control. For data-driven init policies, check the
-automatically written <code class="docutils literal notranslate"><span class="pre">init_gate_stats.json</span></code> artifact in the run
-directory before treating a run as healthy.</p>
+<p>Pair with a validation-tuned <code class="docutils literal notranslate"><span class="pre">reactivation_lr</span></code> to keep gate slope drift
+under control. For data-driven init policies, check the automatically
+written <code class="docutils literal notranslate"><span class="pre">reactivation_calibration.json</span></code> and
+<code class="docutils literal notranslate"><span class="pre">post_calibration_gate_stats.json</span></code> artifacts before treating a run as
+healthy.</p>
 <p><code class="docutils literal notranslate"><span class="pre">quantile</span></code> is accepted as an alias and is normalized to
 <code class="docutils literal notranslate"><span class="pre">occupancy_quantile</span></code>. Prefer <code class="docutils literal notranslate"><span class="pre">occupancy_quantile</span></code> in YAML configs.</p>
 <p>For local learning, use <code class="docutils literal notranslate"><span class="pre">q_low=0.05,</span> <span class="pre">q_high=0.95</span></code> mapping to gate outputs
@@ -1259,9 +1274,19 @@ room to self-organize under noisier local credit signals.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">empirical</span></code></dt><dd><p>Robust median/MAD calibration from sampled voltages.</p>
 </dd>
+<dt><code class="docutils literal notranslate"><span class="pre">analytical_slope_occupancy_center</span></code></dt><dd><p>A deterministic component policy with <code class="docutils literal notranslate"><span class="pre">m=m_a</span></code> and <code class="docutils literal notranslate"><span class="pre">b=b_o</span></code>. It retains
+the analytical mechanism-aware slope and uses the robust occupancy center
+measured on unlabeled training inputs. A finite center remains usable when
+the occupancy slope alone exceeds the configured slope safeguard.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">occupancy_slope_analytical_center</span></code></dt><dd><p>The complementary deterministic component policy with <code class="docutils literal notranslate"><span class="pre">m=m_o</span></code> and
+<code class="docutils literal notranslate"><span class="pre">b=b_a</span></code>. If the occupancy slope is invalid, the complete gate falls back
+to the analytical state. Neither component policy has a mixing coefficient.</p>
+</dd>
 <dt><code class="docutils literal notranslate"><span class="pre">analytical</span></code> (default)</dt><dd><p>Analytical initialization derived from the weight-init statistics by the
-chosen <code class="docutils literal notranslate"><span class="pre">dbl_init_method</span></code>. No data is required. Uses <code class="docutils literal notranslate"><span class="pre">init_m</span></code> and
-<code class="docutils literal notranslate"><span class="pre">init_b</span></code> as starting values.</p>
+chosen <code class="docutils literal notranslate"><span class="pre">dbl_init_method</span></code> and the branch morphology. No sampled data is
+required. The resulting values are generally different for additive and
+shunting voltage rules.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">fixed</span></code></dt><dd><p>Uses the YAML-supplied <code class="docutils literal notranslate"><span class="pre">init_m</span></code> and <code class="docutils literal notranslate"><span class="pre">init_b</span></code> verbatim, ignoring all
 calibration.</p>
@@ -1269,7 +1294,7 @@ calibration.</p>
 </dl>
 <section id="strategy-specific-recommendations">
 <h4>Strategy-Specific Recommendations<a class="headerlink" href="#strategy-specific-recommendations" title="Link to this heading"></a></h4>
-<p>Recommended default choices are:</p>
+<p>Operational fallback choices when no validation sweep is available are:</p>
 <table class="docutils align-default">
 <colgroup>
 <col style="width: 15.0%" />
@@ -1293,14 +1318,20 @@ calibration.</p>
 </tr>
 </tbody>
 </table>
-<p>No morphology-specific defaults are needed.</p>
+<p>These are stability defaults, not claims of universal optimality. For a
+best-attainable trained-system comparison, give each architecture the same
+validation budget over initializer and optimizer recipes. For a causal
+integration-rule swap, instead match the effective operating point or use a
+mechanism-neutral passive initializer.</p>
 </section>
 <section id="init-diagnostics">
 <h4>Init diagnostics<a class="headerlink" href="#init-diagnostics" title="Link to this heading"></a></h4>
 <p>When a model contains learnable reactivation gates, the training script writes
-<code class="docutils literal notranslate"><span class="pre">init_gate_stats.json</span></code> into the run directory immediately after model build.
-This summarizes the initial <code class="docutils literal notranslate"><span class="pre">m</span></code> and <code class="docutils literal notranslate"><span class="pre">b</span></code> distributions per reactivation
-module and flags suspicious patterns such as:</p>
+<code class="docutils literal notranslate"><span class="pre">init_gate_stats.json</span></code> immediately after model build. Data-driven policies
+also write <code class="docutils literal notranslate"><span class="pre">reactivation_calibration.json</span></code> and
+<code class="docutils literal notranslate"><span class="pre">post_calibration_gate_stats.json</span></code> after the executed calibration. These
+artifacts summarize the requested policy, convergence, fitted and applied
+<code class="docutils literal notranslate"><span class="pre">(m,b)</span></code>, and suspicious patterns such as:</p>
 <ul class="simple">
 <li><p>slopes near the calibration clip</p></li>
 <li><p>repeated identical values across a full layer combined with saturation</p></li>
@@ -1340,13 +1371,15 @@ unfamiliar datasets or recurrent settings.</p>
 training setup is desired, but it is separate from the default local-learning
 configuration shown above.</p>
 </section>
-<section id="recommended-defaults">
-<h4>Recommended defaults<a class="headerlink" href="#recommended-defaults" title="Link to this heading"></a></h4>
+<section id="operational-fallbacks">
+<h4>Operational fallbacks<a class="headerlink" href="#operational-fallbacks" title="Link to this heading"></a></h4>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">occupancy_quantile</span></code> for backprop, with a small <code class="docutils literal notranslate"><span class="pre">reactivation_lr</span></code></p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">occupancy_quantile</span></code> for local CA, using q05/q95 -&gt; 0.2/0.8</p></li>
 </ul>
-<p>These defaults apply across both shunting and additive settings.</p>
+<p>These fallbacks apply across both shunting and additive settings, but a
+validation-selected capacity comparison may choose different recipes under an
+equal search budget.</p>
 </section>
 <section id="training-time-gate-maintenance">
 <h4>Training-Time Gate Maintenance<a class="headerlink" href="#training-time-gate-maintenance" title="Link to this heading"></a></h4>
@@ -2543,7 +2576,7 @@ feedforward E, feedforward I, recurrent E, recurrent I, and branch aggregation.<
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">use_additive_normalization</span></code></p></td>
 <td><p>bool</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">False</span></code></p></td>
-<td><p>Normalize voltage in additive mode</p></td>
+<td><p>Legacy per-sample z-score across output units in raw additive mode</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">weight_transform</span></code></p></td>
 <td><p>str</p></td>
@@ -2645,6 +2678,11 @@ indexed_dynamic, indexed_rewire</p></td>
 <td><p>float</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">0.5</span></code></p></td>
 <td><p>Initial midpoint parameter</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">init_policy</span></code></p></td>
+<td><p>str</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&quot;analytical&quot;</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">analytical</span></code>, <code class="docutils literal notranslate"><span class="pre">occupancy_quantile</span></code>, the two center/slope component policies, <code class="docutils literal notranslate"><span class="pre">empirical</span></code>, or <code class="docutils literal notranslate"><span class="pre">fixed</span></code></p></td>
 </tr>
 </tbody>
 </table>

@@ -20,7 +20,7 @@
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Parameter Sweeps" href="sweeps.html" />
+    <link rel="next" title="Dendritic LLM Scaling Workflow" href="transformer_llm_scaling.html" />
     <link rel="prev" title="Engineering Architecture" href="engineering_architecture.html" /> 
 </head>
 
@@ -59,7 +59,10 @@
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Configuration Guide</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#quick-start">Quick Start</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#top-level-structure">Top-Level Structure</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#core-network-types">Core Network Types</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#core-network-types">Core Network Types</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#fair-additive-comparison-controls">Fair Additive Comparison Controls</a></li>
+</ul>
+</li>
 <li class="toctree-l2"><a class="reference internal" href="#population-network-config-choices">Population-Network Config Choices</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#training-strategies">Training Strategies</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#loss-functions">Loss Functions</a></li>
@@ -82,6 +85,8 @@
 <li class="toctree-l2"><a class="reference internal" href="#reference-config">Reference Config</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="transformer_llm_scaling.html">Dendritic LLM Scaling Workflow</a></li>
+<li class="toctree-l1"><a class="reference internal" href="initialization_comparison_policy.html">Initialization Comparison Policy</a></li>
 <li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter Sweeps</a></li>
 <li class="toctree-l1"><a class="reference internal" href="fsdp_troubleshooting.html">Distributed Training Guide</a></li>
 </ul>
@@ -236,15 +241,110 @@ Plain <code class="docutils literal notranslate"><span class="pre">ei_unified</s
 their source of truth. Transformer replacement builders follow the same
 <code class="docutils literal notranslate"><span class="pre">model.core.type</span></code> alias when one is present, otherwise they read
 <code class="docutils literal notranslate"><span class="pre">model.core.morphology.use_shunting</span></code>.</p>
-<p>For additive modes, prefer <code class="docutils literal notranslate"><span class="pre">reactivation.init_policy:</span> <span class="pre">&quot;occupancy_quantile&quot;</span></code>.
+<section id="fair-additive-comparison-controls">
+<h3>Fair Additive Comparison Controls<a class="headerlink" href="#fair-additive-comparison-controls" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">DendriticBranchLayer</span></code> and population configs expose an explicit
+<code class="docutils literal notranslate"><span class="pre">additive_mode</span></code> for mechanism-controlled comparisons. The default is
+<code class="docutils literal notranslate"><span class="pre">&quot;raw&quot;</span></code>, so existing configurations and checkpoints retain their historical
+behavior. <code class="docutils literal notranslate"><span class="pre">use_shunting:</span> <span class="pre">true</span></code> takes precedence; <code class="docutils literal notranslate"><span class="pre">additive_mode</span></code> is only
+evaluated when <code class="docutils literal notranslate"><span class="pre">use_shunting:</span> <span class="pre">false</span></code>.</p>
+<p>For the implemented branch decomposition, let <code class="docutils literal notranslate"><span class="pre">E</span></code> be the summed local
+feedforward and recurrent excitatory pathway output, <code class="docutils literal notranslate"><span class="pre">I</span></code> the corresponding
+inhibitory output, <code class="docutils literal notranslate"><span class="pre">C</span></code> the child-branch current, and <code class="docutils literal notranslate"><span class="pre">G</span></code> the child coupling
+conductance. Then <code class="docutils literal notranslate"><span class="pre">N</span> <span class="pre">=</span> <span class="pre">E</span> <span class="pre">+</span> <span class="pre">C</span></code> and <code class="docutils literal notranslate"><span class="pre">T</span> <span class="pre">=</span> <span class="pre">E</span> <span class="pre">+</span> <span class="pre">I</span> <span class="pre">+</span> <span class="pre">G</span></code>. The available modes are:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 24.0%" />
+<col style="width: 34.0%" />
+<col style="width: 42.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Configuration</p></th>
+<th class="head"><p>Pre-reactivation voltage</p></th>
+<th class="head"><p>Intended comparison</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">use_shunting:</span> <span class="pre">true</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">N</span> <span class="pre">/</span> <span class="pre">(1</span> <span class="pre">+</span> <span class="pre">T</span> <span class="pre">+</span> <span class="pre">epsilon)</span></code></p></td>
+<td><p>Implemented conductance-based shunting circuit.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">additive_mode:</span> <span class="pre">raw</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">E</span> <span class="pre">-</span> <span class="pre">I</span> <span class="pre">+</span> <span class="pre">C</span></code></p></td>
+<td><p>Historical subtractive additive baseline.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">additive_mode:</span> <span class="pre">conductance_normalized</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">(E</span> <span class="pre">-</span> <span class="pre">I</span> <span class="pre">+</span> <span class="pre">C)</span> <span class="pre">/</span> <span class="pre">(1</span> <span class="pre">+</span> <span class="pre">T</span> <span class="pre">+</span> <span class="pre">epsilon)</span></code></p></td>
+<td><p>Additive-sign numerator with the same total-conductance normalization.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">additive_mode:</span> <span class="pre">tangent_matched</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">V0</span> <span class="pre">+</span> <span class="pre">((N-N0)</span> <span class="pre">-</span> <span class="pre">V0*(T-T0))</span> <span class="pre">/</span> <span class="pre">D0</span></code>, where
+<code class="docutils literal notranslate"><span class="pre">D0=1+T0+epsilon</span></code> and <code class="docutils literal notranslate"><span class="pre">V0=N0/D0</span></code></p></td>
+<td><p>Affine first-order control matching the shunting value and Jacobian at a
+frozen operating point.</p></td>
+</tr>
+</tbody>
+</table>
+<p>The tangent anchor is never estimated or updated during <code class="docutils literal notranslate"><span class="pre">forward</span></code>. Supply a
+fixed scalar anchor with <code class="docutils literal notranslate"><span class="pre">additive_tangent_n0</span></code> and
+<code class="docutils literal notranslate"><span class="pre">additive_tangent_t0</span></code>, or calibrate explicitly from a shunting reference:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">reference_layer</span><span class="o">.</span><span class="n">set_branch_diagnostics</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">reference_layer</span><span class="p">(</span><span class="n">calibration_input</span><span class="p">,</span> <span class="n">inhibitory_input</span><span class="p">,</span> <span class="n">child_input</span><span class="p">)</span>
+<span class="n">diagnostics</span> <span class="o">=</span> <span class="n">reference_layer</span><span class="o">.</span><span class="n">get_branch_diagnostics</span><span class="p">()</span>
+
+<span class="n">tangent_layer</span><span class="o">.</span><span class="n">calibrate_additive_operating_point</span><span class="p">(</span><span class="n">diagnostics</span><span class="p">)</span>
+<span class="c1"># The resulting (N0, T0) is now frozen and is saved in state_dict().</span>
+</pre></div>
+</div>
+<p>For multi-level models, calibrate and copy the anchor for each corresponding
+<code class="docutils literal notranslate"><span class="pre">DendriticBranchLayer</span></code>. Use held-out calibration data or a predetermined
+analytical anchor, record the resulting values with the run metadata, and do
+not recalibrate one condition during training unless that adaptation is itself
+the experimental manipulation.</p>
+<p><code class="docutils literal notranslate"><span class="pre">use_additive_normalization</span></code> has a different legacy meaning: it z-scores the
+raw additive voltage across output features within each sample. It is not a
+conductance normalization. To prevent mislabeled controls, it can only be used
+with <code class="docutils literal notranslate"><span class="pre">additive_mode:</span> <span class="pre">raw</span></code>; the two new modes reject it. Typed
+reversal-potential synapses likewise currently support only <code class="docutils literal notranslate"><span class="pre">raw</span></code> when
+<code class="docutils literal notranslate"><span class="pre">use_shunting:</span> <span class="pre">false</span></code>, because their signed current equation does not share
+the legacy <code class="docutils literal notranslate"><span class="pre">N/T</span></code> decomposition.</p>
+<p>Calling <code class="docutils literal notranslate"><span class="pre">set_branch_diagnostics(True)</span></code> exposes detached <code class="docutils literal notranslate"><span class="pre">E</span></code>, <code class="docutils literal notranslate"><span class="pre">I</span></code>, <code class="docutils literal notranslate"><span class="pre">C</span></code>,
+<code class="docutils literal notranslate"><span class="pre">G</span></code>, <code class="docutils literal notranslate"><span class="pre">N</span></code>, <code class="docutils literal notranslate"><span class="pre">T</span></code>, and pre-reactivation <code class="docutils literal notranslate"><span class="pre">V</span></code> tensors through
+<code class="docutils literal notranslate"><span class="pre">get_branch_diagnostics()</span></code>. Its <code class="docutils literal notranslate"><span class="pre">realized_K</span></code> mapping reports the exact
+active synapse count per output for <code class="docutils literal notranslate"><span class="pre">E</span></code>, <code class="docutils literal notranslate"><span class="pre">I</span></code>, <code class="docutils literal notranslate"><span class="pre">E_rec</span></code>, and <code class="docutils literal notranslate"><span class="pre">I_rec</span></code> on
+the most recent forward. This is preferable to reporting only requested K when
+connection masks or dynamic sparsity can reduce the realized count.</p>
+<p>For additive modes without a validation sweep, prefer
+<code class="docutils literal notranslate"><span class="pre">reactivation.init_policy:</span> <span class="pre">&quot;occupancy_quantile&quot;</span></code> as a safe operating-point
+fallback.
 When an additive YAML config omits <code class="docutils literal notranslate"><span class="pre">reactivation.init_policy</span></code>, typed config
 loading chooses <code class="docutils literal notranslate"><span class="pre">occupancy_quantile</span></code> by default; explicit policies such as
 <code class="docutils literal notranslate"><span class="pre">analytical</span></code> or <code class="docutils literal notranslate"><span class="pre">fixed</span></code> are preserved for reproduction. The deprecated
 spelling <code class="docutils literal notranslate"><span class="pre">quantile</span></code> is accepted as an alias for <code class="docutils literal notranslate"><span class="pre">occupancy_quantile</span></code>.
 When you use a data-driven gate init policy
-(<code class="docutils literal notranslate"><span class="pre">occupancy_quantile</span></code> or <code class="docutils literal notranslate"><span class="pre">empirical</span></code>), each run also writes
-<code class="docutils literal notranslate"><span class="pre">init_gate_stats.json</span></code> into its run directory. Use that artifact to confirm
-that reactivation gates were initialized sensibly before trusting the run.</p>
+(<code class="docutils literal notranslate"><span class="pre">occupancy_quantile</span></code>, <code class="docutils literal notranslate"><span class="pre">analytical_slope_occupancy_center</span></code>,
+<code class="docutils literal notranslate"><span class="pre">occupancy_slope_analytical_center</span></code>, or <code class="docutils literal notranslate"><span class="pre">empirical</span></code>), each run
+writes both the post-build <code class="docutils literal notranslate"><span class="pre">init_gate_stats.json</span></code> and the executed
+<code class="docutils literal notranslate"><span class="pre">post_calibration_gate_stats.json</span></code> into its run directory, together with
+<code class="docutils literal notranslate"><span class="pre">reactivation_calibration.json</span></code>. Use these artifacts to verify convergence
+and the actual gate state before trusting the run. For an attainable-performance
+comparison, the initializer and learning rate may be selected separately for
+each architecture, but the validation information and search budget must be
+equal. A same-named initializer is a robustness control, not necessarily an
+effective-operating-point match when the mechanisms have different voltage
+scales.</p>
+<p>The two center/slope component policies require no fitted mixing coefficient.
+<code class="docutils literal notranslate"><span class="pre">analytical_slope_occupancy_center</span></code> keeps the mechanism-aware analytical
+slope and recenters the gate on the observed voltage quantiles.
+<code class="docutils literal notranslate"><span class="pre">occupancy_slope_analytical_center</span></code> uses the quantile-derived slope while
+retaining the analytical expected-voltage center. Together with the analytical
+and occupancy endpoints, these policies form a 2-by-2 diagnostic that separates
+center mismatch from scale mismatch.</p>
+<p>Note that <code class="docutils literal notranslate"><span class="pre">occupancy_quantile</span></code> already combines the two information sources:
+the code analytically initializes synaptic weights from morphology and contact
+statistics before it measures branch voltages on unlabeled training inputs.
+The empirical step calibrates only the gate operating point; it does not refit
+the weights or use validation/test labels.</p>
 <p>Config loading validates structural model contracts before model creation.
 For example, invalid <code class="docutils literal notranslate"><span class="pre">input_mode</span></code> values, impossible per-layer synapse-list
 lengths, duplicate population names, unknown connection endpoints, delayed
@@ -252,6 +352,7 @@ population edges without <code class="docutils literal notranslate"><span class=
 raise a clear <code class="docutils literal notranslate"><span class="pre">ConfigValidationError</span></code> from <code class="docutils literal notranslate"><span class="pre">load_config</span></code>. Training-stability
 and scientific plausibility checks remain in the training validators so existing
 experiments are not rejected for warning-level choices.</p>
+</section>
 </section>
 <section id="population-network-config-choices">
 <h2>Population-Network Config Choices<a class="headerlink" href="#population-network-config-choices" title="Link to this heading"></a></h2>
@@ -689,24 +790,49 @@ output.</p>
 <span class="w">    </span><span class="nt">teacher_source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">hf_text</span><span class="w">          </span><span class="c1"># synthetic_mlp | hidden_cache | hf_text</span>
 <span class="w">    </span><span class="nt">train_target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">replacement_only</span>
 <span class="w">    </span><span class="nt">layers</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">1</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">]</span>
-<span class="w">    </span><span class="nt">device</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cuda</span>
+<span class="w">    </span><span class="nt">device</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">auto</span>
 <span class="w">    </span><span class="nt">dtype</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bfloat16</span>
+<span class="w">    </span><span class="nt">distributed_mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ddp</span><span class="w">            </span><span class="c1"># none | ddp (launch with torchrun)</span>
 <span class="w">    </span><span class="nt">sequence_length</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">128</span>
 <span class="w">    </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
 <span class="w">    </span><span class="nt">max_steps</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span>
 <span class="w">    </span><span class="nt">eval_every</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
-<span class="w">    </span><span class="nt">loss</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mse</span>
+<span class="w">    </span><span class="nt">loss</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">relative_mse</span><span class="w">                </span><span class="c1"># stable across layer-output scales</span>
+<span class="w">    </span><span class="nt">cosine_weight</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.1</span>
+<span class="w">    </span><span class="nt">reactivation_calibration_batches</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+<span class="w">    </span><span class="nt">checkpoint_every</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
+<span class="w">    </span><span class="nt">replacement_checkpoint_encoding</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bitmask</span>
 <span class="w">    </span><span class="nt">save_dir</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">results/deepseek_v3_dendritic_mlp_distillation</span>
 <span class="w">    </span><span class="nt">text</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">text_path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/path/to/text_corpus.txt</span>
+<span class="w">      </span><span class="nt">dataset_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">json</span>
+<span class="w">      </span><span class="nt">data_files</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/path/to/shards/*.json.gz</span>
+<span class="w">      </span><span class="nt">text_field</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">text</span>
+<span class="w">      </span><span class="nt">streaming</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">validation_documents</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span>
 <span class="w">      </span><span class="nt">tokenizer_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">deepseek-ai/DeepSeek-V3</span>
-<span class="w">      </span><span class="nt">max_tokens</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000000</span>
 </pre></div>
 </div>
+<p><code class="docutils literal notranslate"><span class="pre">checkpoint_every</span></code> writes a common replacement/optimizer/scaler/history
+checkpoint plus rank-local RNG state and packed-stream progress. Resume
+layerwise training with <code class="docutils literal notranslate"><span class="pre">resume_checkpoint</span></code> pointing to
+<code class="docutils literal notranslate"><span class="pre">training_checkpoint.pt</span></code>. Joint/FSDP checkpointing is not yet provided by
+this dedicated runner.</p>
+<p><code class="docutils literal notranslate"><span class="pre">replacement_checkpoint_encoding:</span> <span class="pre">bitmask</span></code> applies only to final layer
+exports. It stores fixed row-wise topology compactly and is decoded
+transparently when benchmarking or assembling replacements. Restart and
+validation-best checkpoints retain slot-wise compact integers so optimizer
+state stays aligned.</p>
 <p>After layerwise distillation, <code class="docutils literal notranslate"><span class="pre">joint_lm_distillation</span></code> trains the patched
 causal LM on token windows from <code class="docutils literal notranslate"><span class="pre">hf_text</span></code>.  Use
 <code class="docutils literal notranslate"><span class="pre">train_target:</span> <span class="pre">replacement_only</span></code> to keep the original backbone frozen, or
-<code class="docutils literal notranslate"><span class="pre">train_target:</span> <span class="pre">full_model</span></code> to fine-tune the entire patched student.</p>
+<code class="docutils literal notranslate"><span class="pre">train_target:</span> <span class="pre">full_model</span></code> to fine-tune the entire patched student.
+<code class="docutils literal notranslate"><span class="pre">student_initialization:</span> <span class="pre">from_config</span></code> constructs a randomly initialized
+student from the Hugging Face architecture config; the default
+<code class="docutils literal notranslate"><span class="pre">student_initialization:</span> <span class="pre">pretrained</span></code> preserves the fine-tuning/distillation
+path. <code class="docutils literal notranslate"><span class="pre">save_student_model:</span> <span class="pre">true</span></code> additionally writes the full patched state
+dict and is intentionally opt-in for multi-billion-parameter models.</p>
+<p>For model-weight-free stored-parameter estimates and the all-layer OLMo
+checkpoint workflow, see <a class="reference internal" href="transformer_llm_scaling.html"><span class="doc">Dendritic LLM Scaling Workflow</span></a>.</p>
 <p>Run the distillation trainer with:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>dendritic_modeling.scripts.training.train_transformer_replacement<span class="w"> </span><span class="se">\</span>
@@ -1430,7 +1556,7 @@ python<span class="w"> </span>-m<span class="w"> </span>dendritic_modeling.scrip
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="engineering_architecture.html" class="btn btn-neutral float-left" title="Engineering Architecture" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="sweeps.html" class="btn btn-neutral float-right" title="Parameter Sweeps" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="transformer_llm_scaling.html" class="btn btn-neutral float-right" title="Dendritic LLM Scaling Workflow" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

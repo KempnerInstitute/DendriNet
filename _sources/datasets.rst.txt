@@ -206,7 +206,11 @@ compatibility import path.
 ``stringer_v1``
    Real V1 calcium imaging data (Stringer et al., 2019). Drifting grating
    responses. Parameters: ``n_neurons``, ``n_classes`` (orientation bins),
-   ``train_fraction``, ``normalize``.
+   ``train_fraction``, ``normalize``, and ``neuron_selection_scope``. Set
+   ``neuron_selection_scope: train_split`` for prospective evaluation: neuron
+   response variance is then ranked on the training partition only, and the
+   same nested ranking is reused for the held-out test partition. The legacy
+   default, ``all_trials``, preserves earlier transductive experiments.
 
 Poisson Generator
 -----------------
