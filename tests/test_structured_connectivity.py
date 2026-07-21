@@ -240,6 +240,7 @@ def test_structured_population_adaptive_init_kwargs_preserve_defaults_and_overri
         "adaptive_initialization": True,
         "adaptive_initialization_policy": "preserve_shunting_center",
         "adaptive_target_conductance": 5.0,
+        "initial_child_conductance": 1.0,
     }
 
     assert _structured_population_adaptive_init_kwargs(
@@ -247,11 +248,13 @@ def test_structured_population_adaptive_init_kwargs_preserve_defaults_and_overri
             "adaptive_initialization": True,
             "adaptive_initialization_policy": "preserve_branch_mass",
             "adaptive_target_conductance": 7,
+            "initial_child_conductance": 1.25,
         }
     ) == {
         "adaptive_initialization": True,
         "adaptive_initialization_policy": "preserve_branch_mass",
         "adaptive_target_conductance": 7.0,
+        "initial_child_conductance": 1.25,
     }
 
 
@@ -264,6 +267,9 @@ def test_structured_population_morphology_kwargs_preserve_defaults_and_overrides
         "weight_transform": "softplus",
         "use_shunting": True,
         "use_additive_normalization": False,
+        "additive_mode": "raw",
+        "additive_tangent_n0": None,
+        "additive_tangent_t0": None,
         "allow_self_recurrence": True,
         "somatic_synapses": False,
         "dbl_init_method": "analytical_expectation",
@@ -272,16 +278,25 @@ def test_structured_population_morphology_kwargs_preserve_defaults_and_overrides
     assert _structured_population_morphology_kwargs(
         morphology={
             "weight_transform": "exp",
+            "additive_mode": "tangent_matched",
+            "additive_tangent_n0": 0.4,
+            "additive_tangent_t0": 1.2,
+            # Cross-level control is intentionally a per-population surface;
+            # the shared legacy morphology translator must not propagate it.
+            "cross_level_mode": "parallel_readout",
             "allow_self_recurrence": False,
             "somatic_synapses": True,
             "dbl_init_method": "legacy",
         },
         use_shunting=False,
-        use_additive_normalization=True,
+        use_additive_normalization=False,
     ) == {
         "weight_transform": "exp",
         "use_shunting": False,
-        "use_additive_normalization": True,
+        "use_additive_normalization": False,
+        "additive_mode": "tangent_matched",
+        "additive_tangent_n0": 0.4,
+        "additive_tangent_t0": 1.2,
         "allow_self_recurrence": False,
         "somatic_synapses": True,
         "dbl_init_method": "legacy",

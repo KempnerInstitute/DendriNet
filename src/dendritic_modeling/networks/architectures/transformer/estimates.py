@@ -38,8 +38,16 @@ def estimate_dendritic_ffn_params(
     topk_type: str = "indexed",
     output_bias: bool = False,
     somatic_synapses: bool = True,
+    reactivation_parameters_per_unit: int = 2,
+    pre_norm: bool = False,
 ) -> dict[str, int]:
-    """Estimate stored and active parameters for a dendritic FFN replacement."""
+    """Estimate stored and active parameters for a dendritic FFN replacement.
+
+    ``reactivation_parameters_per_unit`` defaults to two for ``param_tanh``
+    (one slope and one midpoint per branch unit). Set it to zero for a fixed
+    activation, or one for ``param_tanh_only_m``. ``pre_norm`` accounts for
+    the weight and bias of the optional input LayerNorm.
+    """
     topk_type = _normalize_topk_type(topk_type)
     input_dim = int(hidden_size) * (2 if input_transform == "signed_split" else 1)
     layer_sizes = [int(dendritic_units)]
@@ -70,13 +78,77 @@ def estimate_dendritic_ffn_params(
     projection = int(dendritic_units) * int(hidden_size)
     if output_bias:
         projection += int(hidden_size)
+    reactivation = branch_units * max(int(reactivation_parameters_per_unit), 0)
+    pre_norm_params = 2 * int(hidden_size) if pre_norm else 0
+    stored_total = stored_synapses + blocklinear + projection + reactivation
+    active_total = active_synapses + blocklinear + projection + reactivation
+    stored_total += pre_norm_params
+    active_total += pre_norm_params
     return {
         "input_dim": input_dim,
         "branch_units": branch_units,
         "active_synapses": active_synapses,
         "stored_synapses": stored_synapses,
         "blocklinear": blocklinear,
+        "reactivation": reactivation,
+        "pre_norm": pre_norm_params,
         "output_projection": projection,
-        "stored_total": stored_synapses + blocklinear + projection,
-        "active_total": active_synapses + blocklinear + projection,
+        "stored_total": stored_total,
+        "active_total": active_total,
     }
+
+
+def estimate_gated_dendritic_ffn_params(**kwargs: Any) -> dict[str, int]:
+    """Estimate a two-core gated dendritic FFN with one shared projection.
+
+    The gate and value cores have identical dendritic shapes.  Their input
+    adapter has no learned parameters; optional pre-normalization and the
+    output projection are shared and therefore counted only once.
+    """
+    single_kwargs = dict(kwargs)
+    output_topk = single_kwargs.pop("output_topk", None)
+    single = estimate_dendritic_ffn_params(**single_kwargs)
+    hidden_size = int(single_kwargs["hidden_size"])
+    dendritic_units = int(single_kwargs["dendritic_units"])
+    if output_topk is not None:
+        output_topk = int(output_topk)
+        if output_topk < 1 or output_topk > dendritic_units:
+            raise ValueError("output_topk must be in [1, dendritic_units]")
+    projection = hidden_size * (dendritic_units if output_topk is None else output_topk)
+    if bool(single_kwargs.get("output_bias", False)):
+        projection += hidden_size
+    pre_norm = 2 * hidden_size if bool(single_kwargs.get("pre_norm", False)) else 0
+    doubled_fields = (
+        "branch_units",
+        "active_synapses",
+        "stored_synapses",
+        "blocklinear",
+        "reactivation",
+    )
+    estimate = {
+        "input_dim": int(single["input_dim"]),
+        **{field: 2 * int(single[field]) for field in doubled_fields},
+        "pre_norm": pre_norm,
+        "output_projection": projection,
+    }
+    estimate["stored_total"] = (
+        2
+        * (
+            int(single["stored_total"])
+            - int(single["output_projection"])
+            - int(single["pre_norm"])
+        )
+        + projection
+        + pre_norm
+    )
+    estimate["active_total"] = (
+        2
+        * (
+            int(single["active_total"])
+            - int(single["output_projection"])
+            - int(single["pre_norm"])
+        )
+        + projection
+        + pre_norm
+    )
+    return estimate

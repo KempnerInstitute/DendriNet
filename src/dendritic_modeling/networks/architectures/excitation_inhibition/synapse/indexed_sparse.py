@@ -115,8 +115,7 @@ class IndexedSparseLinear(nn.Module):
                 (connection_indices >= self.in_features).any()
             ):
                 raise ValueError(
-                    "connection_indices entries must be in "
-                    f"[0, {self.in_features - 1}]"
+                    f"connection_indices entries must be in [0, {self.in_features - 1}]"
                 )
             sorted_indices = connection_indices.sort(dim=1).values
             if bool((sorted_indices[:, 1:] == sorted_indices[:, :-1]).any()):
@@ -258,7 +257,10 @@ class IndexedSparseLinear(nn.Module):
         flat_x = x.reshape(-1, self.in_features)
         out = flat_x.new_empty(flat_x.shape[0], self.out_features)
         weight = self._normalized_sparse_weight()
-        self._last_forward_param_tensor = weight
+        # ``weight`` can be the Parameter itself for the identity transform.
+        # Bypass ``nn.Module.__setattr__`` so this diagnostic cache is not
+        # registered as a duplicate parameter/state-dict key.
+        object.__setattr__(self, "_last_forward_param_tensor", weight)
         indices = self.connection_indices.to(flat_x.device)
 
         for start in range(0, self.out_features, self.output_chunk_size):

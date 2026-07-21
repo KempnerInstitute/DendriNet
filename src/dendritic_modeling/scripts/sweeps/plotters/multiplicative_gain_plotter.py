@@ -324,18 +324,6 @@ class MultiplicativeGainPlotter(BasePlotter):
             )
             plot_paths.append(self.save_figure(fig, plot_path))
 
-        plot_paths.extend(
-            self._plot_gain_1d_sweep_generalization_scores(
-                data=data,
-                sweep_var=sweep_var,
-                var_name=var_name,
-                plots_dir=plots_dir,
-                metrics=metrics,
-                score_types=score_types,
-                logscale=logscale,
-            )
-        )
-
         return plot_paths
 
     def _plot_gain_1d_sweep_raw_scores_heatmap(
@@ -486,68 +474,6 @@ class MultiplicativeGainPlotter(BasePlotter):
             plot_path = plots_dir / f"gain_{metric}_vs_{sweep_var}_heatmap.png"
             plot_paths.append(self.save_figure(fig, plot_path))
 
-        return plot_paths
-
-    def _plot_gain_1d_sweep_generalization_scores(
-        self,
-        data: pd.DataFrame,
-        sweep_var: str,
-        var_name: str,
-        plots_dir: Path,
-        metrics: list[str],
-        score_types: list[str],
-        logscale: bool,
-    ) -> list[Path]:
-        """Create multiplicative gain generalization scores vs sweep_var plots"""
-        plot_paths = []
-
-        if not score_types:
-            return plot_paths
-
-        n_score_types = len(score_types)
-        for metric in metrics:
-            try:
-                fig, axes = plt.subplots(
-                    nrows=1, ncols=n_score_types, figsize=(8 * n_score_types, 8)
-                )
-
-                for i, score_type in enumerate(score_types):
-                    ax: plt.Axes = axes[i]
-                    self.plot_by_category(
-                        ax=ax,
-                        data=data,
-                        x_col=sweep_var,
-                        y_col=f"mult_gain_{metric}_{score_type}",
-                        category_col="network_category",
-                        show_error=True,
-                    )
-                    self.setup_axes_style(
-                        ax=ax,
-                        xlabel=var_name,
-                        ylabel=f"{METRIC_MAPPING[metric]} Expectation",
-                        title=f"{SCORE_MAPPING[score_type]}",
-                        use_log_x=logscale,
-                        grid=True,
-                    )
-                    ax.legend(fontsize=10)
-
-                fig.tight_layout()
-                plot_path = (
-                    plots_dir
-                    / f"gain_{metric}_vs_{sweep_var}_generalization_scores.png"
-                )
-                plot_paths.append(self.save_figure(fig, plot_path))
-
-            except Exception as e:
-                logger.error(
-                    f"Error generating {metric} generalization scores plot: {e}"
-                )
-                traceback.print_exc()
-                return plot_paths
-
-        logger.info(
-            f"Created {len(plot_paths)} multiplicative gain generalization scores plots"
-        )
         return plot_paths
 
     def _create_gain_plots_2d_sweep(

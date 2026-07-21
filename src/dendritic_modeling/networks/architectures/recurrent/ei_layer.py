@@ -19,6 +19,16 @@ class EILayer(nn.Module):
 
     def __init__(self, config: EILayerConfig):
         super().__init__()
+        for population_name in ("excitatory", "inhibitory"):
+            population = getattr(config, population_name, None)
+            if (
+                population is not None
+                and population.initialization_seed is not None
+                and not population.initialization_namespace
+            ):
+                population.initialization_namespace = (
+                    f"ei.layer.{population.structured_layer_idx}.{population_name}"
+                )
         self.config = config
         self.recurrent = config.recurrent
         self._last_routing_info: dict = {}

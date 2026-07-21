@@ -17,6 +17,7 @@ from dendritic_modeling.config.conversion import to_plain_dict as _to_plain_mapp
 from dendritic_modeling.training.dataloader_utils import (
     DataLoaderTuning,
     resolve_dataloader_tuning_from_config,
+    seeded_dataloader_kwargs,
 )
 
 _DTYPE_ALIASES = {
@@ -29,6 +30,7 @@ _DTYPE_ALIASES = {
     "fp16": torch.float16,
 }
 _MSE_LOSS_NAMES = {"mse", "l2"}
+_RELATIVE_MSE_LOSS_NAMES = {"relative_mse", "normalized_mse", "nmse"}
 _SMOOTH_L1_LOSS_NAMES = {"smooth_l1", "huber"}
 
 
@@ -145,9 +147,14 @@ def _base_distillation_loss(
     normalized = str(loss_name).lower()
     if normalized in _MSE_LOSS_NAMES:
         return F.mse_loss(prediction, target)
+    if normalized in _RELATIVE_MSE_LOSS_NAMES:
+        mse = F.mse_loss(prediction, target)
+        target_power = target.detach().square().mean()
+        epsilon = torch.finfo(mse.dtype).eps
+        return mse / target_power.clamp_min(epsilon)
     if normalized in _SMOOTH_L1_LOSS_NAMES:
         return F.smooth_l1_loss(prediction, target)
-    raise ValueError(f"{error_context} loss must be mse or smooth_l1")
+    raise ValueError(f"{error_context} loss must be mse, relative_mse, or smooth_l1")
 
 
 def _flatten_for_cosine(
@@ -304,11 +311,17 @@ def _make_replacement_loader(
             device=device,
         )
     loader_kwargs = tuning.as_kwargs() if tuning is not None else {}
+    configured_seed = (
+        getattr(train_cfg, "loader_seed", None) if train_cfg is not None else None
+    )
+    if configured_seed is None:
+        configured_seed = getattr(train_cfg, "seed", 0) if train_cfg is not None else 0
     return DataLoader(
         dataset,
         batch_size=batch_size,
         shuffle=shuffle,
         drop_last=False,
+        **seeded_dataloader_kwargs(int(configured_seed or 0)),
         **loader_kwargs,
     )
 

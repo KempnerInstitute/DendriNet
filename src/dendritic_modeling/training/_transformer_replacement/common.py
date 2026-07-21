@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
 import torch
@@ -22,6 +22,35 @@ from dendritic_modeling.training.replacement_common import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def resolve_configured_replacement_layers(
+    config: Any,
+    *,
+    default: Sequence[int] = (),
+) -> list[int]:
+    """Resolve one unambiguous ordered replacement-layer selection.
+
+    The model block is authoritative for patching, while the training block is
+    retained as a convenient explicit mirror. If both are populated they must
+    match exactly, including order, because shared stacks assign slots by that
+    order.
+    """
+    model_layers = [int(layer) for layer in config.model.transformer_replacement.layers]
+    training_layers = [
+        int(layer) for layer in config.training.transformer_replacement.layers
+    ]
+    if model_layers and training_layers and model_layers != training_layers:
+        raise ValueError(
+            "model.transformer_replacement.layers and "
+            "training.transformer_replacement.layers must match when both are set"
+        )
+    layers = training_layers or model_layers or [int(layer) for layer in default]
+    if len(layers) != len(set(layers)):
+        raise ValueError("Transformer replacement layers must not contain duplicates")
+    if any(layer < 0 for layer in layers):
+        raise ValueError("Transformer replacement layers must be non-negative")
+    return layers
 
 
 def _activation(name: str, x: torch.Tensor) -> torch.Tensor:
@@ -73,6 +102,15 @@ class SyntheticTransformerMLP(nn.Module):
             _activation(self.activation, self.gate_proj(x)) * self.up_proj(x)
         )
 
+    def parameter_estimate(self) -> dict[str, int]:
+        """Return the dense-control count in the replacement estimator shape."""
+        total = sum(param.numel() for param in self.parameters())
+        return {
+            "stored_total": int(total),
+            "active_total": int(total),
+            "dense_control": int(total),
+        }
+
 
 @dataclass
 class DistillationUnit:
@@ -90,6 +128,17 @@ def _replacement_forward_modules(
 ) -> list[nn.Module]:
     """Return modules used for forward passes, optionally DataParallel-wrapped."""
     replacements = [unit.replacement for unit in units]
+    distributed_mode = str(
+        getattr(train_cfg, "distributed_mode", "none") or "none"
+    ).lower()
+    if distributed_mode == "ddp":
+        if bool(getattr(train_cfg, "data_parallel", False)):
+            raise ValueError("data_parallel and distributed_mode='ddp' are exclusive")
+        from .distributed import wrap_transformer_ddp
+
+        return [
+            wrap_transformer_ddp(module, train_cfg, device) for module in replacements
+        ]
     if not bool(getattr(train_cfg, "data_parallel", False)):
         return replacements
     if device.type != "cuda":
@@ -131,6 +180,10 @@ class TransformerReplacementTrainingResult:
     best_step: int
     save_dir: str
     layer_indices: list[int]
+    layer_metrics: dict[str, dict[str, float]] = field(default_factory=dict)
+    wall_time_seconds: float | None = None
+    peak_cuda_allocated_bytes: int | None = None
+    peak_cuda_reserved_bytes: int | None = None
 
     def asdict(self) -> dict[str, Any]:
         return asdict(self)
@@ -152,6 +205,10 @@ class TransformerReplacementBenchmarkResult:
     active_reduction_factor: float | None
     initial_label: str = "initial"
     trained_label: str = "trained_replacement"
+    initialization_diagnostics: dict[str, Any] = field(default_factory=dict)
+    wall_time_seconds: float | None = None
+    peak_cuda_allocated_bytes: int | None = None
+    peak_cuda_reserved_bytes: int | None = None
 
     def asdict(self) -> dict[str, Any]:
         return asdict(self)
@@ -188,4 +245,5 @@ __all__ = [
     "_resolve_device",
     "_resolve_dtype",
     "_to_plain_mapping",
+    "resolve_configured_replacement_layers",
 ]

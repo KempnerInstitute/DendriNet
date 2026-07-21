@@ -14,12 +14,16 @@ from dendritic_modeling.config.analysis import JacobianSpectrumAnalysisParams
 
 
 class _FakeTopK(nn.Module):
-    def __init__(self, w: torch.Tensor) -> None:
+    def __init__(self, w: torch.Tensor, mask: torch.Tensor | None = None) -> None:
         super().__init__()
         self._w = w
+        self._mask = torch.ones_like(w) if mask is None else mask
 
     def weight(self) -> torch.Tensor:
         return self._w
+
+    def weight_mask(self) -> torch.Tensor:
+        return self._mask
 
 
 class _FakeBranchLayer(nn.Module):
@@ -82,6 +86,7 @@ class TestJacobianSpectrumAnalyzer(unittest.TestCase):
         entry = results["layers"]["layer_0"]["levels"][0]
 
         self.assertEqual(results["top_k"], 3)
+        self.assertFalse(results["is_state_transition_jacobian"])
         self.assertEqual(set(results["layers"].keys()), {"layer_0"})
         self.assertEqual(entry["level"], 0)
         self.assertAlmostEqual(entry["tau"], 5.0, places=4)
@@ -90,6 +95,23 @@ class TestJacobianSpectrumAnalyzer(unittest.TestCase):
         self.assertAlmostEqual(entry["sigma_rec"][2], 1.0, places=4)
         self.assertAlmostEqual(entry["spectral_radius_rec"], 3.0, places=4)
         self.assertNotIn("sigma_inh", entry)
+
+    def test_inactive_candidate_weights_do_not_enter_spectrum(self) -> None:
+        candidate = torch.diag(torch.tensor([1000.0, 2.0, 1.0]))
+        mask = torch.diag(torch.tensor([0.0, 1.0, 1.0]))
+        layer = _FakeLayer(
+            _FakePopulation(
+                [_FakeBranchLayer(rec=_FakeTopK(candidate, mask))],
+                log_tau=torch.log(torch.tensor([5.0])),
+            )
+        )
+
+        results = JacobianSpectrumAnalyzer(
+            JacobianSpectrumAnalysisParams(top_k=3, save_figures=False)
+        ).analyze(_FakeModel(_FakeCore([layer])))
+
+        spectrum = results["layers"]["layer_0"]["levels"][0]["sigma_rec"]
+        self.assertEqual(spectrum, [2.0, 1.0, 0.0])
 
     def test_multiple_levels_both_rec_and_inh(self) -> None:
         """Both rec and inh present at each level; per-level entries populated."""

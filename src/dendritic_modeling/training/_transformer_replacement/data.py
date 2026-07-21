@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+import os
+from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
 import torch
@@ -12,6 +13,7 @@ from torch.utils.data import TensorDataset
 from dendritic_modeling.config import Config
 from dendritic_modeling.networks.architectures.transformer import (
     DendriticFFNReplacement,
+    GatedDendriticFFNReplacement,
     build_dendritic_ffn_kwargs_from_core_config,
     resolve_transformer_layers,
 )
@@ -24,9 +26,12 @@ from dendritic_modeling.training._transformer_replacement.builders import (
 from dendritic_modeling.training._transformer_replacement.common import (
     DistillationUnit,
     _to_plain_mapping,
+    resolve_configured_replacement_layers,
 )
 from dendritic_modeling.training.replacement_common import _load_tensor_payload
 from dendritic_modeling.utils.hooks import ForwardHookRemovalMixin, register_hook_groups
+
+from .token_stream import StreamingTokenBatchSource, resolve_data_files
 
 
 def _sample_hidden_pairs(
@@ -149,9 +154,7 @@ def _build_hidden_cache_units_and_datasets(
     valid_inputs = _load_tensor(str(cache_cfg.get("valid_inputs", "")))
     valid_targets = _load_tensor(str(cache_cfg.get("valid_targets", "")))
 
-    layer_indices = (
-        train_cfg.layers or config.model.transformer_replacement.layers or [0]
-    )
+    layer_indices = resolve_configured_replacement_layers(config, default=[0])
     units = []
     train_datasets = []
     valid_datasets = []
@@ -251,7 +254,196 @@ class _MLPIOCapture(ForwardHookRemovalMixin):
         self.handles.clear()
 
 
-def _read_token_source(config: Config):
+def _flatten_tokenizer_input_ids(value: Any) -> list[int]:
+    if torch.is_tensor(value):
+        value = value.detach().cpu().reshape(-1).tolist()
+    elif isinstance(value, Sequence) and value and isinstance(value[0], Sequence):
+        value = value[0]
+    return [int(token_id) for token_id in value]
+
+
+def _tokenize_documents(
+    documents: Iterable[str],
+    tokenizer: Any,
+    *,
+    max_tokens: int | None,
+) -> torch.Tensor:
+    token_ids: list[int] = []
+    separator = getattr(tokenizer, "eos_token_id", None)
+    for text in documents:
+        encoded = tokenizer(str(text), add_special_tokens=False)
+        if not isinstance(encoded, Mapping) or "input_ids" not in encoded:
+            raise TypeError("Tokenizer output must contain an input_ids field")
+        current = _flatten_tokenizer_input_ids(encoded["input_ids"])
+        if current:
+            token_ids.extend(current)
+            if separator is not None:
+                token_ids.append(int(separator))
+        if max_tokens is not None and len(token_ids) >= int(max_tokens):
+            del token_ids[int(max_tokens) :]
+            break
+    return torch.tensor(token_ids, dtype=torch.long)
+
+
+def _load_text_dataset(
+    text_cfg: Mapping[str, Any],
+    *,
+    split: str,
+    data_files: Any,
+    streaming: bool,
+):
+    try:
+        from datasets import load_dataset
+    except ImportError as exc:
+        raise ImportError("datasets is required for hf_text dataset sources") from exc
+
+    dataset_name = str(text_cfg.get("dataset_name", "") or "")
+    normalized_files = resolve_data_files(data_files)
+    if not dataset_name:
+        if normalized_files is None:
+            raise ValueError(
+                "hf_text source requires text.text_path, text.dataset_name, "
+                "or text.data_files"
+            )
+        dataset_name = "json"
+    dataset_config = text_cfg.get("dataset_config") or None
+    args = [dataset_name]
+    if dataset_config is not None:
+        args.append(str(dataset_config))
+    kwargs: dict[str, Any] = {
+        "split": str(split),
+        "streaming": bool(streaming),
+    }
+    if normalized_files is not None:
+        kwargs["data_files"] = normalized_files
+    return load_dataset(*args, **kwargs)
+
+
+def _iter_text_field(
+    dataset: Iterable[Mapping[str, Any]],
+    *,
+    text_field: str,
+    max_documents: int | None,
+) -> Iterable[str]:
+    for index, row in enumerate(dataset):
+        if max_documents is not None and index >= int(max_documents):
+            break
+        value = str(row.get(text_field, ""))
+        if value.strip():
+            yield value
+
+
+def _build_streaming_token_source(
+    config: Config,
+    tokenizer: Any,
+    text_cfg: Mapping[str, Any],
+) -> tuple[StreamingTokenBatchSource, torch.Tensor]:
+    """Build a packed training stream and a bounded deterministic validation set."""
+    train_cfg = config.training.transformer_replacement
+    split = str(text_cfg.get("split", "train"))
+    text_field = str(text_cfg.get("text_field", "text"))
+    train_files = text_cfg.get("data_files")
+    validation_files = text_cfg.get("validation_data_files")
+    validation_split = str(text_cfg.get("validation_split", "") or "")
+    validation_documents = max(1, int(text_cfg.get("validation_documents", 64)))
+    separate_validation = validation_files not in (None, "", []) or bool(
+        validation_split
+    )
+
+    validation_dataset = _load_text_dataset(
+        text_cfg,
+        split=validation_split or split,
+        data_files=validation_files if separate_validation else train_files,
+        streaming=True,
+    )
+    validation_max_tokens_raw = text_cfg.get("validation_max_tokens")
+    if validation_max_tokens_raw is None:
+        validation_max_tokens_raw = max(
+            int(train_cfg.sequence_length) + 1,
+            int(train_cfg.valid_samples) * int(train_cfg.sequence_length),
+        )
+    validation_tokens = _tokenize_documents(
+        _iter_text_field(
+            validation_dataset,
+            text_field=text_field,
+            max_documents=validation_documents,
+        ),
+        tokenizer,
+        max_tokens=int(validation_max_tokens_raw),
+    )
+    min_tokens = max(4, int(train_cfg.sequence_length) + 1)
+    if validation_tokens.numel() < min_tokens:
+        raise ValueError(
+            f"Need at least {min_tokens} validation tokens for hf_text distillation"
+        )
+
+    base_seed = int(
+        text_cfg.get("shuffle_seed")
+        if text_cfg.get("shuffle_seed") is not None
+        else (train_cfg.seed or config.experiment.seed)
+    )
+    shuffle_buffer = int(text_cfg.get("shuffle_buffer_size", 10_000))
+    max_documents_raw = text_cfg.get("max_documents")
+    max_documents = None if max_documents_raw is None else int(max_documents_raw)
+    world_size = int(text_cfg.get("world_size") or os.environ.get("WORLD_SIZE", 1))
+    rank = int(text_cfg.get("rank") or os.environ.get("RANK", 0))
+    if world_size < 1 or rank < 0 or rank >= world_size:
+        raise ValueError(f"Invalid text-stream rank/world_size: {rank}/{world_size}")
+
+    def document_factory(epoch: int) -> Iterable[str]:
+        dataset = _load_text_dataset(
+            text_cfg,
+            split=split,
+            data_files=train_files,
+            streaming=True,
+        )
+        if not separate_validation and validation_documents:
+            dataset = dataset.skip(validation_documents)
+        if shuffle_buffer > 1:
+            dataset = dataset.shuffle(
+                seed=base_seed + int(epoch),
+                buffer_size=shuffle_buffer,
+            )
+        if world_size > 1:
+            dataset = dataset.shard(num_shards=world_size, index=rank)
+        return _iter_text_field(
+            dataset,
+            text_field=text_field,
+            max_documents=max_documents,
+        )
+
+    separator = getattr(tokenizer, "eos_token_id", None)
+    stream = StreamingTokenBatchSource(
+        document_factory,
+        tokenizer,
+        sequence_length=int(train_cfg.sequence_length),
+        separator_token_id=separator,
+        max_tokens_per_document=(
+            None
+            if text_cfg.get("max_tokens_per_document") is None
+            else int(text_cfg["max_tokens_per_document"])
+        ),
+    )
+    resume_stream_state = str(text_cfg.get("resume_stream_state", "") or "")
+    resume_checkpoint = str(getattr(train_cfg, "resume_checkpoint", "") or "")
+    if not resume_stream_state and resume_checkpoint:
+        state_name = (
+            "token_stream_checkpoint_state.json"
+            if world_size == 1
+            else f"token_stream_checkpoint_state.rank{rank}.json"
+        )
+        resume_stream_state = os.path.join(
+            os.path.dirname(resume_checkpoint) or str(train_cfg.save_dir),
+            state_name,
+        )
+    if resume_stream_state:
+        stream.load_state(resume_stream_state)
+    return stream, validation_tokens
+
+
+def _read_token_source(
+    config: Config,
+) -> tuple[torch.Tensor | StreamingTokenBatchSource, torch.Tensor]:
     train_cfg = config.training.transformer_replacement
     text_cfg = _to_plain_mapping(train_cfg.text)
     model_cfg = config.model.transformer_replacement
@@ -263,48 +455,46 @@ def _read_token_source(config: Config):
     except ImportError as exc:
         raise ImportError("transformers is required for hf_text distillation") from exc
 
+    tokenizer_kwargs = _to_plain_mapping(text_cfg.get("tokenizer_kwargs", {}))
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, **tokenizer_kwargs)
+
+    if bool(text_cfg.get("streaming", False)) and not text_path:
+        return _build_streaming_token_source(config, tokenizer, text_cfg)
+
     if text_path:
         with open(text_path, encoding="utf-8") as handle:
             text = handle.read()
     else:
-        dataset_name = str(text_cfg.get("dataset_name", ""))
-        if not dataset_name:
+        dataset_name = str(text_cfg.get("dataset_name", "") or "")
+        if not dataset_name and not text_cfg.get("data_files"):
             raise ValueError(
-                "hf_text source requires either text.text_path or text.dataset_name"
+                "hf_text source requires text.text_path, text.dataset_name, "
+                "or text.data_files"
             )
-        try:
-            from datasets import load_dataset
-        except ImportError as exc:
-            raise ImportError(
-                "datasets is required when hf_text uses text.dataset_name"
-            ) from exc
-
-        dataset_config = text_cfg.get("dataset_config") or None
         split = str(text_cfg.get("split", "train"))
         text_field = str(text_cfg.get("text_field", "text"))
-        dataset = load_dataset(
-            dataset_name,
-            dataset_config,
+        dataset = _load_text_dataset(
+            text_cfg,
             split=split,
-            streaming=bool(text_cfg.get("streaming", False)),
+            data_files=text_cfg.get("data_files"),
+            streaming=False,
         )
         max_documents = text_cfg.get("max_documents")
         max_documents = None if max_documents is None else int(max_documents)
-        docs = []
-        for idx, row in enumerate(dataset):
-            if max_documents is not None and idx >= max_documents:
-                break
-            value = str(row.get(text_field, ""))
-            if value.strip():
-                docs.append(value)
+        docs = list(
+            _iter_text_field(
+                dataset,
+                text_field=text_field,
+                max_documents=max_documents,
+            )
+        )
         if not docs:
             raise ValueError(
-                f"Dataset {dataset_name!r} produced no non-empty {text_field!r} text"
+                f"Dataset {dataset_name or 'json'!r} produced no non-empty "
+                f"{text_field!r} text"
             )
         text = "\n\n".join(docs)
 
-    tokenizer_kwargs = _to_plain_mapping(text_cfg.get("tokenizer_kwargs", {}))
-    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, **tokenizer_kwargs)
     tokenized = tokenizer(text, return_tensors="pt")
     input_ids = tokenized["input_ids"].squeeze(0).long()
     max_tokens = text_cfg.get("max_tokens")
@@ -318,12 +508,18 @@ def _read_token_source(config: Config):
 
 
 def _sample_token_batch(
-    tokens: torch.Tensor,
+    tokens: torch.Tensor | StreamingTokenBatchSource,
     *,
     batch_size: int,
     sequence_length: int,
     device: torch.device,
 ) -> torch.Tensor:
+    if isinstance(tokens, StreamingTokenBatchSource):
+        if int(sequence_length) != tokens.sequence_length:
+            raise ValueError(
+                "Requested sequence_length does not match the streaming source"
+            )
+        return tokens.next_batch(int(batch_size), device=device)
     max_start = tokens.numel() - int(sequence_length)
     if max_start <= 0:
         raise ValueError("Token source is shorter than sequence_length")
@@ -352,10 +548,7 @@ def _load_hf_teacher_and_units(
     for param in teacher.parameters():
         param.requires_grad_(False)
 
-    layer_indices = (
-        config.training.transformer_replacement.layers
-        or config.model.transformer_replacement.layers
-    )
+    layer_indices = resolve_configured_replacement_layers(config)
     if not layer_indices:
         raise ValueError("At least one transformer replacement layer is required")
     layers = resolve_transformer_layers(teacher, layers_attr=model_cfg.layers_attr)
@@ -368,7 +561,10 @@ def _load_hf_teacher_and_units(
                 f"layer {layer_index} target {model_cfg.target_module!r} "
                 "is not an nn.Module"
             )
-        if _replacement_kind(config) in {
+        kind = _replacement_kind(config)
+        if kind in {"dense_mlp_control", "dense_control", "dense_mlp"}:
+            raise ValueError("dense_mlp_control currently supports synthetic_mlp only")
+        if kind in {
             "ei_stack",
             "layerwise_ei_stack",
             "einet_stack",
@@ -391,7 +587,12 @@ def _load_hf_teacher_and_units(
                 config.model.core,
                 transformer_replacement=config.model.transformer_replacement,
             )
-            replacement = DendriticFFNReplacement.from_mlp(mlp, **kwargs).to(
+            replacement_cls = (
+                GatedDendriticFFNReplacement
+                if kind in {"gated_dendritic_ffn", "gated_dendritic", "dendritic_glu"}
+                else DendriticFFNReplacement
+            )
+            replacement = replacement_cls.from_mlp(mlp, **kwargs).to(
                 device=device,
                 dtype=dtype,
             )
@@ -410,10 +611,11 @@ def _load_hf_causal_lm_for_joint_training(
     *,
     device: torch.device,
     dtype: torch.dtype,
+    initialization: str = "pretrained",
 ) -> nn.Module:
-    """Load the configured causal LM onto one device/dtype for joint training."""
+    """Load or initialize the causal LM for single-device joint training."""
     try:
-        from transformers import AutoModelForCausalLM
+        from transformers import AutoConfig, AutoModelForCausalLM
     except ImportError as exc:
         raise ImportError("transformers is required for hf_text distillation") from exc
 
@@ -424,7 +626,25 @@ def _load_hf_causal_lm_for_joint_training(
             "joint_lm_distillation expects a single-device model; remove device_map "
             "from model.transformer_replacement.model_kwargs"
         )
-    model = AutoModelForCausalLM.from_pretrained(model_cfg.model_name, **model_kwargs)
+    normalized = str(initialization).lower()
+    if normalized in {"pretrained", "checkpoint"}:
+        model = AutoModelForCausalLM.from_pretrained(
+            model_cfg.model_name,
+            **model_kwargs,
+        )
+    elif normalized in {"from_config", "scratch", "random"}:
+        config_kwargs = dict(model_kwargs)
+        config_kwargs.pop("torch_dtype", None)
+        hf_config = AutoConfig.from_pretrained(
+            model_cfg.model_name,
+            **config_kwargs,
+        )
+        model = AutoModelForCausalLM.from_config(
+            hf_config,
+            trust_remote_code=bool(config_kwargs.get("trust_remote_code", False)),
+        )
+    else:
+        raise ValueError("student_initialization must be 'pretrained' or 'from_config'")
     model = model.to(device=device, dtype=dtype)
     if hasattr(model.config, "use_cache"):
         model.config.use_cache = False

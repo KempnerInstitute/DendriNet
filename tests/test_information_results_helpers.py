@@ -117,6 +117,11 @@ def test_compute_layer_statistics_adds_class_targeted_bounded_proxies():
     assert stats["I(E;C)_sum_clipped_mean"] == pytest.approx(0.5)
     assert stats["I(E;C)_union_mean"] == pytest.approx(1.0 * (1.0 - 0.8 * 0.7))
     assert stats["I(E;C)_top1_sum_mean"] == pytest.approx(0.3)
+    assert stats["I(E;C)_scalar_mi_sum_proxy_mean"] == pytest.approx(0.5)
+    assert stats["I(E;C)_top1_scalar_mi_sum_proxy_mean"] == pytest.approx(0.3)
+    assert stats["I(E;C)_independent_evidence_union_proxy_mean"] == pytest.approx(
+        1.0 * (1.0 - 0.8 * 0.7)
+    )
     assert "I(E;I)_sum_mean" not in stats
 
 

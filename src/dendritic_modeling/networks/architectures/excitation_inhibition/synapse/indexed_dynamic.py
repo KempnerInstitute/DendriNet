@@ -117,6 +117,7 @@ class IndexedDynamicTopKLinear(nn.Module):
         self.param_scale_vec = None
         self.cache_mask = False
         self._last_forward_weight_mask: torch.Tensor | None = None
+        self._last_forward_active_sparse_mask: torch.Tensor | None = None
         self._last_forward_param_tensor: torch.Tensor | None = None
 
         if connection_indices is None:
@@ -143,8 +144,7 @@ class IndexedDynamicTopKLinear(nn.Module):
                 (connection_indices >= self.in_features).any()
             ):
                 raise ValueError(
-                    "connection_indices entries must be in "
-                    f"[0, {self.in_features - 1}]"
+                    f"connection_indices entries must be in [0, {self.in_features - 1}]"
                 )
             sorted_indices = connection_indices.sort(dim=1).values
             if bool((sorted_indices[:, 1:] == sorted_indices[:, :-1]).any()):
@@ -252,7 +252,11 @@ class IndexedDynamicTopKLinear(nn.Module):
         return self._standard_candidate_mask(scores)
 
     def _normalized_sparse_weight(self) -> torch.Tensor:
-        active_weight = self.sparse_weight() * self.active_sparse_mask()
+        active_mask = self.active_sparse_mask()
+        self._last_forward_active_sparse_mask = (
+            active_mask.detach() if self.cache_mask else None
+        )
+        active_weight = self.sparse_weight() * active_mask
         if self.weight_norm_order is None:
             return active_weight
         norm = torch.norm(active_weight, p=self.weight_norm_order, dim=-1, keepdim=True)
@@ -372,7 +376,7 @@ class IndexedDynamicTopKLinear(nn.Module):
         flat_x = x.reshape(-1, self.in_features)
         out = flat_x.new_empty(flat_x.shape[0], self.out_features)
         active_weight = self._normalized_sparse_weight()
-        self._last_forward_param_tensor = active_weight
+        object.__setattr__(self, "_last_forward_param_tensor", active_weight)
         indices = self.connection_indices.to(flat_x.device)
 
         for start in range(0, self.out_features, self.output_chunk_size):
@@ -387,7 +391,18 @@ class IndexedDynamicTopKLinear(nn.Module):
 
         out = out.reshape(*original_shape[:-1], self.out_features)
         if self.cache_mask:
-            self._last_forward_weight_mask = self.weight_mask().detach()
+            sparse_mask = self._last_forward_active_sparse_mask
+            assert sparse_mask is not None
+            dense_mask = torch.zeros(
+                self.out_features,
+                self.in_features,
+                device=sparse_mask.device,
+                dtype=sparse_mask.dtype,
+            )
+            dense_mask.scatter_add_(
+                1, self.connection_indices.to(dense_mask.device), sparse_mask
+            )
+            self._last_forward_weight_mask = dense_mask.clamp_max(1)
         if squeezed:
             return out.squeeze(0)
         return out

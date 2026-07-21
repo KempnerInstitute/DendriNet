@@ -200,8 +200,11 @@ Branch Aggregation
 Scopes
 ~~~~~~
 
-``"layer"`` -- per-layer breakdown. ``"einet"`` -- separate E vs I summaries.
-``"neuron"`` -- per-neuron (expensive).
+``"layer"`` -- within-tree dendritic branch-layer breakdown.
+``"einet"`` -- separate excitatory/inhibitory synaptic pathway summaries.
+``"neuron"`` -- per captured branch coordinate (expensive). This legacy name
+does not denote the joint soma population of a stacked network layer. Use
+``representation_accessibility`` for soma-population analyses.
 
 Estimator Methods
 ~~~~~~~~~~~~~~~~~
@@ -229,6 +232,116 @@ Estimator Methods
            method: "kraskov"
            kraskov:
              n_neighbors: 10
+
+Representation Accessibility
+----------------------------
+
+``representation_accessibility`` analyzes the post-gate soma outputs of every
+feedforward ``PopulationNetwork`` layer. It keeps three estimands separate:
+
+- validation-fit/test-evaluated Ridge or MLP class accessibility;
+- joint ``I(X; C)`` on a declared label-independent population projection;
+- separately estimated scalar ``I(x_i; C)`` for individual somas.
+
+The MLP result is nonlinear class accessibility, not mutual information. The
+mean of per-soma scalar information is redundancy-sensitive and is not the
+joint information in the layer. Every probe is fit on ``valid`` and the
+untouched ``test`` split is used only for final evaluation. The analyzer is
+therefore final-only; ``training: true`` is rejected.
+
+Representations may be ``excitatory``, ``inhibitory``, ``joint``, ``readout``,
+or an exact name such as ``population:e0``. Networks without an inhibitory soma
+population record that representation as missing rather than confusing raw
+inhibitory synaptic current with an I-population output.
+
+``balanced_countsketch`` provides a label-independent matched-width control.
+Use native width when comparing mechanisms with identical architectures, and a
+common projected width when comparing E, I, and joint populations of different
+sizes. Projection draws and MLP initializations are technical repeats; average
+them within a trained checkpoint before inference across training seeds.
+
+.. code-block:: yaml
+
+   analysis:
+     runtime:
+       final:
+         mode: "stream"
+         batch_size: 256
+         num_workers: 4
+         max_samples: null
+     representation_accessibility:
+       enabled: true
+       training: false
+       params:
+         representations: ["excitatory", "inhibitory", "joint"]
+         projections:
+           - name: "matched16"
+             type: "balanced_countsketch"
+             output_dim: 16
+             draws: 5
+         probes:
+           - name: "linear"
+             type: "ridge"
+             ridge_alpha: 1.0
+             n_label_shuffles: 20
+           - name: "nonlinear"
+             type: "mlp"
+             max_projection_draws: 1
+             hidden_dims: [32, 16]
+             activation: "relu"
+             alpha: 0.0001
+             learning_rate_init: 0.001
+             batch_size: 256
+             max_iter: 300
+             early_stopping: true
+             validation_fraction: 0.1
+             n_iter_no_change: 20
+             draws: 3
+             n_label_shuffles: 5
+         information:
+           enabled: true
+           compute_joint: true
+           compute_per_soma: true
+           projection_names: ["matched16"]
+           per_soma_representations: ["excitatory", "inhibitory"]
+           n_neighbors: 5
+           n_label_shuffles: 20
+           standardize: true
+         seed: 42
+
+Frozen checkpoint execution
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The same analysis profile can be applied to an existing checkpoint without
+rerunning training. Keep the original resolved training YAML immutable and put
+the measurement declaration in a standalone YAML with an ``analysis:`` root::
+
+    dendritic-analyze-checkpoint \
+      --config /path/to/resolved_training_config.yaml \
+      --checkpoint /path/to/final_model.pt \
+      --analysis-config /path/to/representation_accessibility.yaml \
+      --output-dir /path/to/posthoc/config_0
+
+The runner reconstructs the canonical dataset splits and model from the
+training config, performs strict checkpoint loading, runs no optimization, and
+writes ``checkpoint_analysis_provenance.json`` with hashes of all three inputs,
+resolved random streams, dataset sizes, checkpoint compatibility records, and
+the source commit/dirty state when run from a Git checkout.
+
+After an array of checkpoint analyses finishes, collect the exact job
+declarations instead of discovering result directories by filename::
+
+    dendritic-collect-representations \
+      --jobs /path/to/jobs_pilot.jsonl \
+      --jobs /path/to/jobs_full.jsonl \
+      --expected-count 100 \
+      --output-dir /path/to/collected
+
+The collector verifies strict checkpoint loading and the config, checkpoint,
+and analysis hashes for every job. It writes long-form records plus
+within-checkpoint technical-draw summaries. Projection and MLP initialization
+draws remain technical repeats; biological inference should use one aggregated
+value per independently trained checkpoint.
 
 Ablation Analysis
 -----------------

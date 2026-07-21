@@ -215,8 +215,13 @@ class InformationMutualInformationMixin(InformationValidationMixin):
             ],
         )
 
-        if Vb is not None:
+        if Vb is not None and Vb.shape[0] == C.shape[0]:
             self._add_mi_metrics(metrics, [("I(Vb;C)", Vb, C)])
+        elif Vb is not None:
+            self.logger.debug(
+                f"Skipping I(Vb;C): branch-voltage samples ({Vb.shape[0]}) "
+                f"do not match labels ({C.shape[0]})."
+            )
 
         self._add_mi_metrics(metrics, [("I(Vout;C)", Vout, C)])
 

@@ -18,6 +18,7 @@ class IndexInputTransform(nn.Module):
         excitatory_dim: Optional[int] = None,
         inhibitory_dim: Optional[int] = None,
         split_seed: Optional[int] = None,
+        split_strategy: str = "random",
     ):
         super().__init__()
 
@@ -47,11 +48,20 @@ class IndexInputTransform(nn.Module):
                 f"got {excitatory_dim} + {inhibitory_dim} != {input_dim}"
             )
 
-        generator = None
-        if split_seed is not None:
-            generator = torch.Generator()
-            generator.manual_seed(int(split_seed) % ((1 << 63) - 1))
-        dims = torch.randperm(input_dim, generator=generator)
+        split_strategy = str(split_strategy or "random").lower()
+        if split_strategy in {"ordered", "contiguous", "first_half"}:
+            dims = torch.arange(input_dim)
+        elif split_strategy == "random":
+            generator = None
+            if split_seed is not None:
+                generator = torch.Generator()
+                generator.manual_seed(int(split_seed) % ((1 << 63) - 1))
+            dims = torch.randperm(input_dim, generator=generator)
+        else:
+            raise ValueError(
+                "split_strategy must be 'random' or 'ordered', "
+                f"got {split_strategy!r}"
+            )
         exc_dims = dims[:excitatory_dim]
         inh_dims = dims[excitatory_dim:]
 

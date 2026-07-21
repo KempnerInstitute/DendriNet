@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import torch
 import torch.nn as nn
 
@@ -142,6 +144,29 @@ class PopulationLayer(nn.Module):
             pop_cfg = _population_config_from_definition(
                 population, defaults, layer_idx=idx
             )
+            if pop_cfg.indexed_seed is not None:
+                pop_cfg = replace(
+                    pop_cfg,
+                    indexed_seed=(
+                        int(pop_cfg.indexed_seed)
+                        + stable_seed_offset(
+                            "population_network",
+                            config.name,
+                            population.name,
+                        )
+                    )
+                    % ((1 << 63) - 1),
+                )
+            if (
+                pop_cfg.initialization_seed is not None
+                and not pop_cfg.initialization_namespace
+            ):
+                pop_cfg = replace(
+                    pop_cfg,
+                    initialization_namespace=(
+                        f"population_network.{config.name}.{population.name}"
+                    ),
+                )
             self.population_configs[population.name] = pop_cfg
             self._has_temporal_population_state = (
                 self._has_temporal_population_state
@@ -400,6 +425,7 @@ class PopulationLayer(nn.Module):
                 timing=timing,
                 pathway=pathway,
                 level_dims=self._level_dims(population),
+                allow_self_recurrence=pop_cfg.allow_self_recurrence,
             )
             if masks is not None:
                 masks_by_pathway[pop_pathway] = masks
@@ -412,6 +438,7 @@ class PopulationLayer(nn.Module):
         timing: str,
         pathway: str,
         level_dims: list[int],
+        allow_self_recurrence: bool,
     ) -> list[torch.Tensor] | None:
         sources = self._stream_sources(target, timing, pathway)
         if not sources:
@@ -424,6 +451,7 @@ class PopulationLayer(nn.Module):
                 sources=sources,
                 out_dim=out_dim,
                 level_idx=level_idx,
+                allow_self_recurrence=allow_self_recurrence,
             )
             for level_idx, out_dim in enumerate(level_dims)
         ]
@@ -440,6 +468,7 @@ class PopulationLayer(nn.Module):
         sources: list[str],
         out_dim: int,
         level_idx: int,
+        allow_self_recurrence: bool,
     ) -> torch.Tensor:
         blocks = []
         for source in sources:
@@ -448,19 +477,28 @@ class PopulationLayer(nn.Module):
             ]
             probability = self._connection_probability(conn)
             source_dim = self._source_dim(source)
-            blocks.append(
-                self._sample_connection_block(
-                    source=source,
-                    target=target,
-                    timing=timing,
-                    pathway=pathway,
-                    probability=probability,
-                    out_dim=out_dim,
-                    source_dim=source_dim,
-                    level_idx=level_idx,
-                    seed=conn.seed,
-                )
+            block = self._sample_connection_block(
+                source=source,
+                target=target,
+                timing=timing,
+                pathway=pathway,
+                probability=probability,
+                out_dim=out_dim,
+                source_dim=source_dim,
+                level_idx=level_idx,
+                seed=conn.seed,
             )
+            if not allow_self_recurrence and timing == _DELAYED and source == target:
+                target_dim = self._population_dims[target]
+                if out_dim % target_dim != 0 or source_dim != target_dim:
+                    raise ValueError(
+                        "Cannot construct no-self mask for mismatched recurrent "
+                        f"shape out={out_dim}, source={source_dim}, target={target_dim}"
+                    )
+                repeats_per_target = out_dim // target_dim
+                owner = torch.arange(out_dim, dtype=torch.long) // repeats_per_target
+                block[torch.arange(out_dim), owner] = False
+            blocks.append(block)
         return torch.cat(blocks, dim=1)
 
     def _connection_probability(self, conn: PopulationProjectionConfig) -> float:

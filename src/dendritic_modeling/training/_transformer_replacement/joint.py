@@ -10,6 +10,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from dendritic_modeling.config import Config
+from dendritic_modeling.training._transformer_replacement.common import (
+    resolve_configured_replacement_layers,
+)
 from dendritic_modeling.training.replacement_common import (
     _capture_requires_grad_states,
     _restore_requires_grad_states,
@@ -58,8 +61,7 @@ def _select_joint_trainable_parameters(
             raise ValueError("No student parameters are trainable")
         return params
     raise ValueError(
-        "joint_lm_distillation train_target must be 'replacement_only' or "
-        "'full_model'"
+        "joint_lm_distillation train_target must be 'replacement_only' or 'full_model'"
     )
 
 
@@ -70,12 +72,7 @@ def _resolve_joint_hidden_layers(
     configured = list(getattr(train_cfg, "hidden_loss_layers", []) or [])
     if configured:
         return [int(layer) for layer in configured]
-    return [
-        int(layer)
-        for layer in (
-            train_cfg.layers or config.model.transformer_replacement.layers or []
-        )
-    ]
+    return resolve_configured_replacement_layers(config)
 
 
 def _joint_lm_distillation_loss(

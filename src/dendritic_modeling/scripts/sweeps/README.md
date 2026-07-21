@@ -8,6 +8,9 @@ This directory contains the CLI and support code for parameter sweeps.
   analyze a finished sweep directory.
 - `result_analyzer.py`: analyze an existing sweep results directory.
 - `rerun_missing_configs.py`: requeue missing or failed sweep configs.
+- `summarize_initializer_components.py`: validation-only selector and
+  center/slope contrasts for the analytical/occupancy 2-by-2 initializer
+  factorial. It deliberately never reads held-out test endpoints.
 
 ## Internal Structure
 
@@ -68,6 +71,29 @@ python src/dendritic_modeling/scripts/sweeps/result_analyzer.py \
 ```
 
 Each generated config writes its outputs under `results/config_<n>/`.
+
+Every successful generation also writes `frozen_sweep_manifest.json` at the
+sweep root. The manifest records the raw input-YAML hash, the fully resolved
+`original_config.yaml` hash, every generated-config hash, the expected config
+count, source/Git identity when available, and the scheduler profile. Declare
+the factorial size in publication sweeps so generation fails closed:
+
+```yaml
+sweep_contract:
+  expected_config_count: 120
+```
+
+The scheduler control plane accepts exactly these account/partition pairs:
+
+- `kempner_dev` / `kempner_priority`
+- `kempner_dev` / `kempner_eng`
+- `kempner_dev` / `kempner_requeue`
+- `kempner_bsabatini_lab` / `kempner_h100`
+- `kempner_bsabatini_lab` / `kempner_h100_priority`
+
+Missing scheduler values become `PLACEHOLDER` only with `--generate-only` or
+`--dry-run`. Explicit values are validated in every mode, and a placeholder
+manifest does not authorize later submission.
 
 ## Notes
 

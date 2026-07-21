@@ -97,6 +97,9 @@ def _structured_population_adaptive_init_kwargs(
         "adaptive_target_conductance": float(
             implementation.get("adaptive_target_conductance", 5.0)
         ),
+        "initial_child_conductance": float(
+            implementation.get("initial_child_conductance", 1.0)
+        ),
     }
 
 
@@ -263,6 +266,9 @@ def _structured_population_morphology_kwargs(
         "weight_transform": str(morphology.get("weight_transform", "softplus")),
         "use_shunting": use_shunting,
         "use_additive_normalization": use_additive_normalization,
+        "additive_mode": str(morphology.get("additive_mode", "raw")),
+        "additive_tangent_n0": morphology.get("additive_tangent_n0"),
+        "additive_tangent_t0": morphology.get("additive_tangent_t0"),
         "allow_self_recurrence": bool(morphology.get("allow_self_recurrence", True)),
         "somatic_synapses": bool(morphology.get("somatic_synapses", False)),
         "dbl_init_method": str(

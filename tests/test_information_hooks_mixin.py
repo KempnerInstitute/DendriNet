@@ -15,6 +15,7 @@ from dendritic_modeling.analysis.core.information_parts.information_hooks_mixin 
     _resolve_branch_input_current,
     _resolve_synaptic_branch_currents,
     _restore_analysis_current_capture,
+    _store_network_layer_hook_data,
 )
 from dendritic_modeling.networks import DendriticBranchLayer
 
@@ -293,6 +294,48 @@ def test_information_hook_stores_resolved_currents_and_flags():
     assert layer_data["has_exc_synapses"] is True
     assert layer_data["has_inh_synapses"] is False
     assert layer_data["has_branch_input"] is True
+
+
+def test_information_hook_exposes_explicit_pre_and_post_gate_aliases():
+    module = _branch_layer()
+    module._name = "layer0"
+    module._last_analysis_currents = {
+        "pre_gate_excitation_current": torch.ones(1, 2),
+        "pre_gate_inhibition_current": torch.full((1, 2), 2.0),
+        "pre_gate_upstream_current": None,
+        "pre_gate_voltage": torch.full((1, 2), 3.0),
+    }
+    hook = InformationHooksMixin()
+    hook.data_dict = {"layer0": {}}
+    output = torch.full((1, 2), 4.0)
+
+    hook.forward_hook(module, (torch.ones(1, 3), torch.ones(1, 3), None), output)
+
+    data = hook.data_dict["layer0"]
+    assert data["pre_gate_excitation_current"] is data["excitation"]
+    assert data["pre_gate_inhibition_current"] is data["inhibition"]
+    assert data["post_gate_output"] is data["output"] is output
+    assert torch.equal(data["pre_gate_voltage"], torch.full((1, 2), 3.0))
+    assert data["soma_relative_depth"] == 0
+
+
+def test_network_layer_hook_records_each_layers_soma_and_readout_outputs():
+    soma_outputs = {"e": torch.ones(3, 2), "i": torch.zeros(3, 1)}
+    module = SimpleNamespace(_last_outputs=soma_outputs)
+    records = {"core.layers.1": {"forward_call_count": 0}}
+    names = {id(module): "core.layers.1"}
+
+    _store_network_layer_hook_data(
+        records,
+        names,
+        module,
+        (soma_outputs["e"], None),
+    )
+
+    captured = records["core.layers.1"]
+    assert captured["post_gate_soma_outputs"] == soma_outputs
+    assert captured["post_gate_readout_output"] is soma_outputs["e"]
+    assert captured["capture_reduction"] == "single_forward_call"
 
 
 def test_information_hook_preserves_lda_raw_input_capture():

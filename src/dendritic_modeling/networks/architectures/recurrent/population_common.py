@@ -10,6 +10,9 @@ from dendritic_modeling.config.conversion import (
     deep_merge_dicts,
     has_enabled_synapse_types,
 )
+from dendritic_modeling.config.reactivation import (
+    DEFAULT_ADDITIVE_REACTIVATION_INIT_POLICY,
+)
 from dendritic_modeling.networks.architectures.recurrent.ei_config import (
     PopulationConfig,
 )
@@ -79,6 +82,11 @@ def population_config_from_definition(
     """Merge layer defaults with a population override and build config."""
 
     payload = deep_merge_dicts(defaults, dict(population.population))
+    if (
+        "reactivation_init_policy" not in payload
+        and payload.get("use_shunting") is False
+    ):
+        payload["reactivation_init_policy"] = DEFAULT_ADDITIVE_REACTIVATION_INIT_POLICY
     payload["n_neurons"] = int(population.n_neurons)
     payload["branch_factors"] = list(population.branch_factors)
     payload.setdefault("structured_layer_idx", layer_idx)

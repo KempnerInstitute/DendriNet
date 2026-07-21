@@ -217,6 +217,10 @@ _POST_REACTIVATION_TEST_DATASET_ANALYSES = (
 _ORDERED_ANALYSIS_SEQUENCE = (
     _AnalysisSequenceStep("_run_performance_analysis", pass_runtime=True),
     _AnalysisSequenceStep("_run_information_analysis", pass_runtime=True),
+    _AnalysisSequenceStep(
+        "_run_representation_accessibility_analysis",
+        pass_runtime=True,
+    ),
     _AnalysisSequenceStep("_run_synaptic_turnover_analysis"),
     _AnalysisSequenceStep(
         "_run_test_dataset_analysis_runners",

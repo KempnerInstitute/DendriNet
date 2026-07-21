@@ -10,6 +10,10 @@ from importlib import import_module
 from typing import Any
 
 _LAZY_IMPORTS = {
+    "BootstrapMeanInterval": (
+        "dendritic_modeling.analysis.statistics",
+        "BootstrapMeanInterval",
+    ),
     "AblationAnalyzer": ("dendritic_modeling.analysis.core", "AblationAnalyzer"),
     "AnalyzerSpec": ("dendritic_modeling.analysis.registry", "AnalyzerSpec"),
     "AnalysisManager": (
@@ -24,6 +28,10 @@ _LAZY_IMPORTS = {
         "dendritic_modeling.analysis.tools",
         "CorrelationAnalyzer",
     ),
+    "ClassAccessibilityProbeAnalyzer": (
+        "dendritic_modeling.analysis.tools",
+        "ClassAccessibilityProbeAnalyzer",
+    ),
     "DendriticTimetracesAnalyzer": (
         "dendritic_modeling.analysis.tools",
         "DendriticTimetracesAnalyzer",
@@ -33,9 +41,21 @@ _LAZY_IMPORTS = {
         "dendritic_modeling.analysis.tools",
         "InhibitorySpecializationAnalyzer",
     ),
+    "InhibitoryRoutingComparison": (
+        "dendritic_modeling.analysis.tools",
+        "InhibitoryRoutingComparison",
+    ),
     "JacobianSpectrumAnalyzer": (
         "dendritic_modeling.analysis.tools",
         "JacobianSpectrumAnalyzer",
+    ),
+    "LinearClassAccessibilityAnalyzer": (
+        "dendritic_modeling.analysis.tools",
+        "LinearClassAccessibilityAnalyzer",
+    ),
+    "MatchedClassInformationAnalyzer": (
+        "dendritic_modeling.analysis.tools",
+        "MatchedClassInformationAnalyzer",
     ),
     "LocalRuleComponentAnalyzer": (
         "dendritic_modeling.analysis.tools",
@@ -49,13 +69,29 @@ _LAZY_IMPORTS = {
         "dendritic_modeling.analysis.metrics",
         "PerformanceAnalyzer",
     ),
+    "PoissonExposureTransferAnalyzer": (
+        "dendritic_modeling.analysis.tools",
+        "PoissonExposureTransferAnalyzer",
+    ),
     "ReactivationDynamicsAnalyzer": (
         "dendritic_modeling.analysis.tools",
         "ReactivationDynamicsAnalyzer",
     ),
+    "RepresentationAccessibilityAnalyzer": (
+        "dendritic_modeling.analysis.tools",
+        "RepresentationAccessibilityAnalyzer",
+    ),
+    "SameCheckpointCausalInterventionAnalyzer": (
+        "dendritic_modeling.analysis.tools",
+        "SameCheckpointCausalInterventionAnalyzer",
+    ),
     "SingleLayerContributionAnalyzer": (
         "dendritic_modeling.analysis.metrics",
         "SingleLayerContributionAnalyzer",
+    ),
+    "StateTransitionJacobianAnalyzer": (
+        "dendritic_modeling.analysis.tools",
+        "StateTransitionJacobianAnalyzer",
     ),
     "SynapticActivationAnalyzer": (
         "dendritic_modeling.analysis.tools",
@@ -89,6 +125,18 @@ _LAZY_IMPORTS = {
     "unregister_analyzer": (
         "dendritic_modeling.analysis.registry",
         "unregister_analyzer",
+    ),
+    "bootstrap_mean_interval": (
+        "dendritic_modeling.analysis.statistics",
+        "bootstrap_mean_interval",
+    ),
+    "fixed_budget_inhibitory_routing_comparison": (
+        "dendritic_modeling.analysis.tools",
+        "fixed_budget_inhibitory_routing_comparison",
+    ),
+    "stable_seed": (
+        "dendritic_modeling.analysis.statistics",
+        "stable_seed",
     ),
     "direction_selectivity_index": (
         "dendritic_modeling.analysis.metrics",

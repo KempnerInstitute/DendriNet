@@ -55,6 +55,15 @@ class GeneralSweepAnalyzer(BaseSweepAnalyzer):
             "use_shunting",
             "network_category",
             "strategy",
+            "network_layer_count",
+            "blocklinear_strategy",
+            "topk_strategy",
+            "reactivation_strategy",
+            "reactivation_init_policy",
+            "optimizer_name",
+            "optimizer_weight_decay",
+            "sparse_weight_decay_rate",
+            "sparse_weight_boosting",
             "dataset",
         ]
 

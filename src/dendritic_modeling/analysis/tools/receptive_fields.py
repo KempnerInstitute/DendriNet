@@ -81,12 +81,15 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         self.load_raw_data = bool(getattr(params, "load_raw_data", False))
         self.raw_filename = getattr(params, "raw_filename", None)
         self.epsilon = float(getattr(params, "epsilon", 1e-8))
-    
+
     def _infer_inh_rf_shape(
-        self, 
-        core_network: ExcitationInhibitionNetwork
+        self, core_network: ExcitationInhibitionNetwork
     ) -> Optional[tuple[int, int]]:
         """Pixel-space inhibition -> image shape; population-space -> raw vector."""
+        if not isinstance(core_network, ExcitationInhibitionNetwork):
+            if self.inh_rf_shape is not None:
+                return self.inh_rf_shape
+            return self.exc_rf_shape
         if isinstance(core_network.layers[0].inhibitory_cells, DendriNet):
             return None
         if self.inh_rf_shape is not None:
@@ -1848,7 +1851,7 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
                 "for receptive field analysis"
             )
             return None
-        
+
         self.inh_rf_shape = self._infer_inh_rf_shape(model.core_network)
 
         loaded = self._prepare_raw_data(model, save_path, filename)
@@ -2681,8 +2684,13 @@ def _plot_pref_unpref_scatter_by_compartment(
             return
         try:
             sns.kdeplot(
-                x=xv, ax=ax_marg, color=color, fill=True, 
-                linewidth=2, alpha=0.35, warn_singular=False
+                x=xv,
+                ax=ax_marg,
+                color=color,
+                fill=True,
+                linewidth=2,
+                alpha=0.35,
+                warn_singular=False,
             )
         except Exception:
             sns.histplot(x=xv, ax=ax_marg, color=color, stat="density", alpha=0.35)

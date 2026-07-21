@@ -2,6 +2,7 @@ import pytest
 import torch
 from omegaconf import OmegaConf
 
+from dendritic_modeling.config import load_config
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer import (
     DendriticBranchLayer,
 )
@@ -26,6 +27,9 @@ from dendritic_modeling.networks.architectures.recurrent.stateful_dendrinet impo
     _resolve_stateful_level_taus,
     _resolve_stateful_soma_feedback_levels,
 )
+from dendritic_modeling.networks.architectures.recurrent.structured_recurrent_population_builders import (
+    _structured_branch_factors,
+)
 from dendritic_modeling.scripts.script_utils.setup_utils import (
     _is_recurrent_core_config,
 )
@@ -33,6 +37,82 @@ from dendritic_modeling.scripts.script_utils.setup_utils import (
 # ---------------------------------------------------------------------------
 # StatefulDendriNet tests
 # ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "field_name",
+    ["excitatory_branch_factors", "inhibitory_branch_factors"],
+)
+def test_structured_branch_factors_distinguish_point_from_default(field_name):
+    assert _structured_branch_factors({}, field_name) == [1]
+    assert _structured_branch_factors({field_name: None}, field_name) == [1]
+    assert _structured_branch_factors({field_name: []}, field_name) == []
+    assert _structured_branch_factors({field_name: (2, 3)}, field_name) == [2, 3]
+
+
+def test_structured_recurrent_yaml_builds_true_point_inhibitory_state(tmp_path):
+    config_path = tmp_path / "point_inhibitory.yaml"
+    config_path.write_text(
+        """
+model:
+  task: classification
+  core:
+    type: einet
+    architecture:
+      excitatory_layer_sizes: [4]
+      inhibitory_layer_sizes: [3]
+      excitatory_branch_factors: [2]
+      inhibitory_branch_factors: []
+    connectivity:
+      ee_synapses_per_branch_per_layer: [2]
+      ei_synapses_per_branch_per_layer: [2]
+      ie_synapses_per_branch_per_layer: [1]
+      ii_synapses_per_branch_per_layer: [1]
+      rec_ee_synapses_per_branch: [1]
+      rec_ei_synapses_per_branch: [1]
+      rec_ie_synapses_per_branch: [1]
+      rec_ii_synapses_per_branch: [1]
+    transfer:
+      input_mode: 0
+    morphology:
+      use_shunting: true
+      somatic_synapses: true
+    recurrent_ei:
+      dt: 1.0
+      tau_base: 7.0
+      tau_ratio: 3.0
+      output_mode: last
+""",
+        encoding="utf-8",
+    )
+
+    config = load_config(str(config_path))
+    assert config.model.core.architecture.inhibitory_branch_factors == []
+
+    network = get_architecture(
+        config.model.core.type,
+        config.model.core,
+        input_dim=5,
+    )
+    inhibitory = network.layers[0].i_population
+    assert inhibitory is not None
+    assert inhibitory.pop_config.branch_factors == []
+    assert inhibitory.n_levels == 1
+    assert inhibitory.level_dims == [3]
+    torch.testing.assert_close(inhibitory.current_taus, torch.tensor([7.0]))
+
+    state = network.init_state(batch_size=2, device=torch.device("cpu"))[0]
+    assert state.i_state is not None
+    for trace_name in (
+        "trace_E",
+        "trace_E_rec",
+        "trace_I",
+        "trace_I_rec",
+        "trace_branch",
+    ):
+        traces = getattr(state.i_state, trace_name)
+        assert len(traces) == 1
+        assert traces[0].shape == (2, 3)
 
 
 def test_stateful_dendrinet_feedforward_shape():
@@ -2034,8 +2114,10 @@ def test_routing_info_populated():
     # Excitatory has 2 levels (branch_factors=[2])
     exc_info = info_t0["layer_0"]["excitatory"]
     assert "level_contributions" in exc_info
+    assert "level_activity_rms" in exc_info
     assert "ff_rec_ratios" in exc_info
     assert exc_info["level_contributions"].shape == (4, 2)
+    assert exc_info["level_activity_rms"].shape == (4, 2)
     assert exc_info["ff_rec_ratios"].shape == (4, 2)
 
     # Inhibitory has 2 levels (branch_factors=[1])

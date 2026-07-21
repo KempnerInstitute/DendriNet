@@ -1,5 +1,34 @@
 """Analysis utility helpers."""
 
+from dendritic_modeling.analysis.utils.causal_interventions import (
+    ROMO_PHASE_ORDER,
+    CausalInterventionBatch,
+    FixedMeanCalibration,
+    InterventionAudit,
+    ManualCausalForwardResult,
+    PathwayInterventionTarget,
+    ResolvedPathwayTarget,
+    SameCheckpointInterventionResult,
+    calibrate_fixed_mean_pathways,
+    evaluate_same_checkpoint_intervention,
+    manual_population_classifier_forward,
+    resolve_pathway_targets,
+    romo_phase_mask,
+    romo_phase_masks,
+)
+from dendritic_modeling.analysis.utils.effective_synapses import (
+    EffectiveSynapseSnapshot,
+    effective_synapse_snapshot,
+)
+from dendritic_modeling.analysis.utils.model_resources import (
+    StaticDendriticResourceSummary,
+    SynapseResourceRecord,
+    dendritic_level_widths,
+    model_resource_summary,
+    persistent_state_scalars,
+    static_dendritic_resource_summary,
+    synapse_resource_records,
+)
 from dendritic_modeling.analysis.utils.recurrent_introspection import (
     PopulationRecord,
     is_recurrent_core,
@@ -7,11 +36,50 @@ from dendritic_modeling.analysis.utils.recurrent_introspection import (
     iter_routing_entries,
     recurrent_population_summary,
 )
+from dendritic_modeling.analysis.utils.state_transition import (
+    PopulationStateCodec,
+    SingularValueEstimate,
+    StateTensorSpec,
+    StateTransitionLinearization,
+    StateTransitionProduct,
+    UnsupportedPopulationStateError,
+    leading_state_transition_singular_value,
+)
 
 __all__ = [
+    "ROMO_PHASE_ORDER",
+    "CausalInterventionBatch",
+    "EffectiveSynapseSnapshot",
+    "FixedMeanCalibration",
+    "InterventionAudit",
+    "ManualCausalForwardResult",
+    "PathwayInterventionTarget",
     "PopulationRecord",
+    "PopulationStateCodec",
+    "ResolvedPathwayTarget",
+    "SameCheckpointInterventionResult",
+    "SingularValueEstimate",
+    "StateTensorSpec",
+    "StateTransitionLinearization",
+    "StateTransitionProduct",
+    "StaticDendriticResourceSummary",
+    "SynapseResourceRecord",
+    "UnsupportedPopulationStateError",
+    "calibrate_fixed_mean_pathways",
+    "dendritic_level_widths",
+    "effective_synapse_snapshot",
+    "evaluate_same_checkpoint_intervention",
     "is_recurrent_core",
     "iter_recurrent_populations",
     "iter_routing_entries",
+    "leading_state_transition_singular_value",
+    "manual_population_classifier_forward",
+    "model_resource_summary",
+    "persistent_state_scalars",
     "recurrent_population_summary",
+    "resolve_pathway_targets",
+    "romo_phase_mask",
+    "romo_phase_masks",
+    "static_dendritic_resource_summary",
+    "synapse_resource_records",
 ]

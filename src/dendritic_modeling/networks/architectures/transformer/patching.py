@@ -16,6 +16,7 @@ from dendritic_modeling.networks.architectures.transformer.config_translation im
 from dendritic_modeling.networks.architectures.transformer.modules import (
     DendriticFFNReplacement,
     EIStackMLPSlot,
+    GatedDendriticFFNReplacement,
     LayerwiseEIStackReplacement,
 )
 from dendritic_modeling.networks.architectures.transformer.utils import (
@@ -109,6 +110,18 @@ def _move_replacement_like_source(
     return replacement.to(device=param.device, dtype=dtype)
 
 
+def _validate_layer_indices(
+    layer_indices: Sequence[int],
+) -> list[int]:
+    """Return ordered unique layer indices or fail before mutating a model."""
+    ordered = [int(index) for index in layer_indices]
+    if not ordered:
+        raise ValueError("layer_indices must contain at least one layer")
+    if len(ordered) != len(set(ordered)):
+        raise ValueError("layer_indices must not contain duplicates")
+    return ordered
+
+
 def replace_transformer_mlp_layers(
     model: nn.Module,
     layer_indices: Sequence[int],
@@ -117,6 +130,7 @@ def replace_transformer_mlp_layers(
     layers_attr: str | None = None,
     mlp_attr: str = "mlp",
     preserve_device_dtype: bool = True,
+    replacement_class: type[nn.Module] = DendriticFFNReplacement,
 ) -> list[ReplacementRecord]:
     """Replace selected transformer layer target modules with dendritic FFNs.
 
@@ -126,17 +140,27 @@ def replace_transformer_mlp_layers(
     """
     replacement_kwargs = dict(replacement_kwargs or {})
     layers = resolve_transformer_layers(model, layers_attr=layers_attr)
-    records: list[ReplacementRecord] = []
+    ordered_indices = _validate_layer_indices(layer_indices)
 
-    for layer_index in layer_indices:
-        layer, original_mlp = _resolve_layer_target(layers, layer_index, mlp_attr)
-        replacement = DendriticFFNReplacement.from_mlp(
-            original_mlp, **replacement_kwargs
-        )
+    # Resolve and construct every replacement first. If any layer path, shape,
+    # or constructor is invalid, the source model remains completely untouched.
+    targets = [
+        (*_resolve_layer_target(layers, layer_index, mlp_attr), layer_index)
+        for layer_index in ordered_indices
+    ]
+    prepared: list[tuple[nn.Module, nn.Module, nn.Module, int]] = []
+    for layer, original_mlp, layer_index in targets:
+        from_mlp = getattr(replacement_class, "from_mlp", None)
+        if not callable(from_mlp):
+            raise TypeError("replacement_class must provide a callable from_mlp")
+        replacement = from_mlp(original_mlp, **replacement_kwargs)
 
         if preserve_device_dtype:
             replacement = _move_replacement_like_source(replacement, original_mlp)
+        prepared.append((layer, original_mlp, replacement, layer_index))
 
+    records: list[ReplacementRecord] = []
+    for layer, original_mlp, replacement, layer_index in prepared:
         _set_attr_path(layer, mlp_attr, replacement)
         records.append(
             ReplacementRecord(
@@ -162,9 +186,7 @@ def replace_transformer_mlp_layers_with_ei_stack(
     """Replace selected target modules with slots from one shared EI stack."""
     replacement_kwargs = dict(replacement_kwargs or {})
     layers = resolve_transformer_layers(model, layers_attr=layers_attr)
-    ordered_indices = [int(idx) for idx in layer_indices]
-    if not ordered_indices:
-        raise ValueError("layer_indices must contain at least one layer")
+    ordered_indices = _validate_layer_indices(layer_indices)
     for layer_index in ordered_indices:
         _resolve_layer_target(layers, layer_index, mlp_attr)
 
@@ -262,6 +284,12 @@ def apply_transformer_replacement_config(
         layers_attr=tr.get("layers_attr"),
         mlp_attr=tr.get("target_module", tr.get("mlp_attr", "mlp")),
         preserve_device_dtype=bool(tr.get("preserve_device_dtype", True)),
+        replacement_class=(
+            GatedDendriticFFNReplacement
+            if replacement_kind
+            in {"gated_dendritic_ffn", "gated_dendritic", "dendritic_glu"}
+            else DendriticFFNReplacement
+        ),
     )
 
 

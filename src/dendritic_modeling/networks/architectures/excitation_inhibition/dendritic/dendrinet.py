@@ -325,6 +325,7 @@ class DendriNet(nn.Module):
         adaptive_initialization=True,
         adaptive_initialization_policy="preserve_shunting_center",
         adaptive_target_conductance=5.0,
+        initial_child_conductance=1.0,
         structured_connectivity=None,
         structured_layer_idx: int = 0,
         structured_excitatory_pathway: str = "ee",

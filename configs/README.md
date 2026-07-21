@@ -35,7 +35,9 @@ reference configs and reusable examples.
 | Dense-to-sparse developmental pruning | `examples/population_network_dense_to_sparse_cifar10.yaml` |
 | Indexed adaptive rewiring | `examples/population_network_indexed_rewire_mnist.yaml` |
 | Local credit assignment | `examples/population_network_local_learning_mnist.yaml` |
+| Frozen-checkpoint representation analysis | `examples/representation_accessibility_analysis.yaml` |
 | Transformer FFN replacement | `examples/transformer_replacement_synthetic_distillation.yaml` |
+| OLMo single/multiple/all FFN replacement | `examples/transformer_replacement/README.md` |
 
 Population-network examples should use:
 

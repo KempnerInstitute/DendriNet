@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import torch
 
+from dendritic_modeling.analysis.utils.dendritic_depth import (
+    soma_relative_dendritic_depth,
+)
 from dendritic_modeling.models import BaseModel
-from dendritic_modeling.networks import DendriticBranchLayer
+from dendritic_modeling.networks import DendriticBranchLayer, PopulationLayer
 from dendritic_modeling.utils.hooks import (
     ForwardHookRemovalMixin,
     HookHandle,
     register_named_forward_hooks,
+    remove_hook_handles,
 )
 
 
@@ -40,8 +44,12 @@ def _resolve_synaptic_branch_currents(
         )
 
     if isinstance(cached_currents, dict):
-        excitation_per_branch = cached_currents.get("excitation")
-        inhibition_per_branch = cached_currents.get("inhibition")
+        excitation_per_branch = cached_currents.get(
+            "pre_gate_excitation_current", cached_currents.get("excitation")
+        )
+        inhibition_per_branch = cached_currents.get(
+            "pre_gate_inhibition_current", cached_currents.get("inhibition")
+        )
         if excitation_per_branch is None:
             excitation_per_branch = torch.zeros_like(output)
         if inhibition_per_branch is None:
@@ -67,10 +75,19 @@ def _resolve_branch_input_current(
     cached_currents: object,
 ) -> torch.Tensor | None:
     if isinstance(cached_currents, dict):
-        return cached_currents.get("branch_input")
+        return cached_currents.get(
+            "pre_gate_upstream_current", cached_currents.get("branch_input")
+        )
     if branch_input is not None and module.input_branches:
         return module.branches_to_output(branch_input)
     return None
+
+
+def _resolve_pre_gate_voltage(cached_currents: object) -> torch.Tensor | None:
+    """Return the voltage immediately before branch reactivation, if captured."""
+    if not isinstance(cached_currents, dict):
+        return None
+    return cached_currents.get("pre_gate_voltage")
 
 
 def _has_analyzable_branch_signals(module: DendriticBranchLayer) -> bool:
@@ -148,6 +165,7 @@ def _store_branch_hook_data(
     excitation_per_branch: torch.Tensor,
     inhibition_per_branch: torch.Tensor,
     branch_current: torch.Tensor | None,
+    pre_gate_voltage: torch.Tensor | None,
     output: torch.Tensor,
     has_no_synapses: bool,
     excitatory_input: torch.Tensor | None,
@@ -156,10 +174,22 @@ def _store_branch_hook_data(
     compute_lda_weights: bool,
 ) -> None:
     layer_data = data_dict[module._name]
+
+    # Canonical, stage-explicit names.  These distinguish currents/voltage
+    # entering the branch nonlinearity from its post-reactivation output.
+    layer_data["pre_gate_excitation_current"] = excitation_per_branch
+    layer_data["pre_gate_inhibition_current"] = inhibition_per_branch
+    layer_data["pre_gate_upstream_current"] = branch_current
+    layer_data["pre_gate_voltage"] = pre_gate_voltage
+    layer_data["post_gate_output"] = output
+
+    # Compatibility aliases used by existing estimators and saved analyses.
     layer_data["excitation"] = excitation_per_branch
     layer_data["inhibition"] = inhibition_per_branch
     layer_data["branch_input"] = branch_current
     layer_data["output"] = output
+    if hasattr(module, "layer_idx"):
+        layer_data["soma_relative_depth"] = soma_relative_dendritic_depth(module)
     layer_data["has_synapses"] = not has_no_synapses
     layer_data["has_exc_synapses"] = module.branch_excitation is not None
     layer_data["has_inh_synapses"] = (
@@ -174,6 +204,47 @@ def _store_branch_hook_data(
         layer_data["module"] = module
 
 
+def _prepare_network_layer_hook_capture(
+    data_dict: dict,
+    name_by_module_id: dict[int, str],
+    name: str,
+    module: PopulationLayer,
+) -> None:
+    """Initialize one population-network layer activation record."""
+    name_by_module_id[id(module)] = name
+    data_dict[name] = {
+        "network_layer_index": len(data_dict),
+        "network_layer_name": str(getattr(module.config, "name", name)),
+        "readout_population": str(module.readout_population),
+        "forward_call_count": 0,
+    }
+
+
+def _store_network_layer_hook_data(
+    data_dict: dict,
+    name_by_module_id: dict[int, str],
+    module: PopulationLayer,
+    output: object,
+) -> None:
+    """Store post-gate soma populations and the selected layer readout."""
+    name = name_by_module_id[id(module)]
+    layer_data = data_dict[name]
+    readout = output[0] if isinstance(output, tuple) else output
+    soma_outputs = {
+        population_name: value
+        for population_name, value in module._last_outputs.items()
+        if isinstance(value, torch.Tensor)
+    }
+    layer_data["forward_call_count"] += 1
+    layer_data["post_gate_soma_outputs"] = soma_outputs
+    layer_data["post_gate_readout_output"] = readout
+    layer_data["capture_reduction"] = (
+        "single_forward_call"
+        if layer_data["forward_call_count"] == 1
+        else "last_forward_call"
+    )
+
+
 class InformationHooksMixin(ForwardHookRemovalMixin):
     """Collects branch-layer currents and outputs during model evaluation."""
 
@@ -181,17 +252,36 @@ class InformationHooksMixin(ForwardHookRemovalMixin):
         """Attach forward hooks to the model."""
         # Initialize data_dict attribute and store somatic_synapses config
         self.data_dict = {}
+        self.network_layer_data = {}
+        self._network_layer_name_by_module_id = {}
         self._analysis_hook_modules = []
         self.somatic_synapses_enabled = getattr(
             model.core_network, "somatic_synapses", True
         )
 
-        return _attach_analyzable_branch_hooks(
+        branch_handles = _attach_analyzable_branch_hooks(
             model=model,
             data_dict=self.data_dict,
             hook_modules=self._analysis_hook_modules,
             hook=self.forward_hook,
         )
+        try:
+            network_layer_handles = register_named_forward_hooks(
+                model,
+                PopulationLayer,
+                self.network_layer_forward_hook,
+                prepare=lambda name, module: _prepare_network_layer_hook_capture(
+                    self.network_layer_data,
+                    self._network_layer_name_by_module_id,
+                    name,
+                    module,
+                ),
+            )
+        except Exception:
+            remove_hook_handles(branch_handles)
+            _restore_branch_hook_capture(self._analysis_hook_modules)
+            raise
+        return [*branch_handles, *network_layer_handles]
 
     def forward_hook(
         self,
@@ -232,6 +322,7 @@ class InformationHooksMixin(ForwardHookRemovalMixin):
             branch_input,
             cached_currents,
         )
+        pre_gate_voltage = _resolve_pre_gate_voltage(cached_currents)
 
         _store_branch_hook_data(
             self.data_dict,
@@ -239,6 +330,7 @@ class InformationHooksMixin(ForwardHookRemovalMixin):
             excitation_per_branch=excitation_per_branch,
             inhibition_per_branch=inhibition_per_branch,
             branch_current=branch_current,
+            pre_gate_voltage=pre_gate_voltage,
             output=output,
             has_no_synapses=has_no_synapses,
             excitatory_input=excitatory_input,
@@ -247,10 +339,33 @@ class InformationHooksMixin(ForwardHookRemovalMixin):
             compute_lda_weights=bool(getattr(self, "compute_lda_weights", False)),
         )
 
+    def network_layer_forward_hook(
+        self,
+        module: PopulationLayer,
+        _inputs,
+        output,
+    ) -> None:
+        """Collect actual soma/readout outputs for each population-network layer."""
+        _store_network_layer_hook_data(
+            self.network_layer_data,
+            self._network_layer_name_by_module_id,
+            module,
+            output,
+        )
+
+    def collected_soma_relative_depths(self) -> dict[str, int]:
+        """Return canonical depth metadata for captured dendritic layers."""
+        return {
+            name: int(layer_data["soma_relative_depth"])
+            for name, layer_data in getattr(self, "data_dict", {}).items()
+            if "soma_relative_depth" in layer_data
+        }
+
     def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
         """Remove forward hooks from the model."""
         super().remove_forward_hooks(handles)
         _restore_branch_hook_capture(getattr(self, "_analysis_hook_modules", []))
+        getattr(self, "_network_layer_name_by_module_id", {}).clear()
 
 
 __all__ = ["InformationHooksMixin"]

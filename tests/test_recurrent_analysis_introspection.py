@@ -33,6 +33,9 @@ from dendritic_modeling.networks.architectures.recurrent import (
     PopulationNetwork,
     PopulationNetworkConfig,
 )
+from dendritic_modeling.networks.architectures.recurrent.stateful_step import (
+    _build_stateful_routing_info,
+)
 
 
 def _population_network():
@@ -112,6 +115,11 @@ def test_routing_analyzer_collects_population_network_entries():
     assert results["microcircuit/pyr"]["n_levels"] == 2
     assert results["microcircuit/pyr"]["n_samples"] > 0
     assert "mean_raw_voltage_norm" in results["microcircuit/pyr"]
+    assert "mean_level_activity_share_rms" in results["microcircuit/pyr"]
+    assert (
+        results["microcircuit/pyr"]["activity_share_definition"]
+        == "level_l2_div_sqrt_width_then_normalized"
+    )
     assert not core.store_routing
 
 
@@ -158,6 +166,24 @@ def test_append_masked_routing_values_filters_detached_cpu_rows():
         torch.tensor([False, False]),
     )
     assert "empty" not in accumulator
+
+
+def test_rms_activity_is_invariant_to_level_width_duplication():
+    zeros_wide = torch.zeros(2, 4)
+    zeros_narrow = torch.zeros(2, 1)
+    info = _build_stateful_routing_info(
+        trace_E=[zeros_wide, zeros_narrow],
+        trace_E_rec=[zeros_wide, zeros_narrow],
+        trace_I=[zeros_wide, zeros_narrow],
+        trace_I_rec=[zeros_wide, zeros_narrow],
+        level_voltage_cache=[torch.ones(2, 4), torch.ones(2, 1)],
+        n_levels=2,
+    )
+
+    torch.testing.assert_close(info["level_activity_rms"], torch.ones(2, 2))
+    torch.testing.assert_close(
+        info["level_contributions"], torch.tensor([[2.0, 1.0], [2.0, 1.0]])
+    )
 
 
 def test_dendritic_timetraces_collects_population_network_excitatory_population():

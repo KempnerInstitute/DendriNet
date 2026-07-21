@@ -77,11 +77,18 @@ def test_collect_model_data_driven_reactivation_policies_reports_policy_presence
         PolicyLayer("fixed"),
         PolicyLayer("occupancy_quantile"),
         PolicyLayer("empirical"),
+        PolicyLayer("analytical_slope_occupancy_center"),
+        PolicyLayer("occupancy_slope_analytical_center"),
     )
 
     requested, saw_policy = collect_model_data_driven_reactivation_policies(model)
 
-    assert requested == {"occupancy_quantile", "empirical"}
+    assert requested == {
+        "occupancy_quantile",
+        "empirical",
+        "analytical_slope_occupancy_center",
+        "occupancy_slope_analytical_center",
+    }
     assert saw_policy is True
     assert collect_model_data_driven_reactivation_policies(torch.nn.Sequential()) == (
         set(),
@@ -1039,6 +1046,124 @@ def _build_calibration_fixture(use_shunting=True, seed=0, **layer_kwargs):
 
 
 class TestQuantileModeCalibration:
+    @pytest.mark.parametrize("use_shunting", [True, False])
+    @pytest.mark.parametrize(
+        "policy",
+        [
+            "analytical",
+            "analytical_slope_occupancy_center",
+            "occupancy_slope_analytical_center",
+            "occupancy_quantile",
+        ],
+    )
+    def test_initializer_factorial_has_finite_forward_and_backward(
+        self, use_shunting, policy
+    ):
+        """Every factorial cell must remain trainable for both voltage rules."""
+        model, layer, batches = _build_calibration_fixture(
+            use_shunting=use_shunting,
+            seed=41,
+            reactivation_init_policy=policy,
+        )
+        if policy != "analytical":
+            calibrate_reactivation_from_data(model, batches, mode=None)
+
+        output = model(*batches[0])
+        loss = output.square().mean()
+        loss.backward()
+
+        assert torch.isfinite(output).all()
+        assert torch.isfinite(loss)
+        gradients = [
+            parameter.grad
+            for parameter in layer.parameters()
+            if parameter.requires_grad and parameter.grad is not None
+        ]
+        assert gradients
+        assert all(torch.isfinite(gradient).all() for gradient in gradients)
+
+    @pytest.mark.parametrize(
+        ("policy", "m_source", "b_source"),
+        [
+            (
+                "analytical_slope_occupancy_center",
+                "analytical",
+                "occupancy",
+            ),
+            (
+                "occupancy_slope_analytical_center",
+                "occupancy",
+                "analytical",
+            ),
+        ],
+    )
+    def test_component_policies_select_center_and_slope_without_alpha(
+        self, policy, m_source, b_source
+    ):
+        model, layer, batches = _build_calibration_fixture(
+            seed=31,
+            reactivation_init_policy=policy,
+        )
+        prior_m = float(layer.reactivation_analytical_init_m)
+        prior_b = float(layer.reactivation_analytical_init_b)
+
+        diag = calibrate_reactivation_from_data(model, batches, mode=None)
+        stats = next(iter(diag.values()))
+        expected_m = (
+            stats["component_analytical_m"]
+            if m_source == "analytical"
+            else stats["component_occupancy_m"]
+        )
+        expected_b = (
+            stats["component_analytical_b"]
+            if b_source == "analytical"
+            else stats["component_occupancy_b"]
+        )
+
+        assert stats["mode"] == policy
+        assert stats["component_policy"] == policy
+        assert stats["component_analytical_m"] == pytest.approx(prior_m)
+        assert stats["component_analytical_b"] == pytest.approx(prior_b)
+        assert stats["m"] == pytest.approx(expected_m, rel=1e-6)
+        assert stats["b"] == pytest.approx(expected_b, rel=1e-6)
+        assert float(layer.reactivation.log_m.exp()[0].item()) == pytest.approx(
+            expected_m, rel=1e-5
+        )
+        assert float(layer.reactivation.b[0].item()) == pytest.approx(
+            expected_b, rel=1e-5
+        )
+
+    def test_occupancy_center_remains_valid_when_occupancy_slope_is_rejected(
+        self, monkeypatch
+    ):
+        model, layer, batches = _build_calibration_fixture(
+            seed=37,
+            reactivation_init_policy="analytical_slope_occupancy_center",
+            reactivation_calibration_max_m=1.0,
+            reactivation_calibration_revert_on_invalid=True,
+        )
+        prior_m = float(layer.reactivation_analytical_init_m)
+        original_aggregate = init_mod._aggregate_quantiles_from_chunks
+
+        def fake_aggregate(chunks, probs, aggregation="global"):
+            if probs.numel() == 2:
+                return torch.tensor([1.0, 1.01], dtype=torch.double), 2
+            return original_aggregate(chunks, probs, aggregation=aggregation)
+
+        monkeypatch.setattr(
+            init_mod, "_aggregate_quantiles_from_chunks", fake_aggregate
+        )
+
+        with pytest.warns(RuntimeWarning, match="would clamp slope"):
+            diag = calibrate_reactivation_from_data(model, batches, mode=None)
+
+        stats = next(iter(diag.values()))
+        assert stats["occupancy_fit_reverted"] is True
+        assert stats["occupancy_fit_revert_reason"] == "would_exceed_max_m"
+        assert stats["calibration_reverted"] is False
+        assert stats["m"] == pytest.approx(prior_m)
+        assert stats["b"] == pytest.approx(1.005, abs=1e-8)
+
     def test_quantile_mode_sets_m_from_interquartile_range(self):
         """m should equal atanh(0.8) / ((q90 - q10) / 2) for the quantile mode."""
         from math import atanh

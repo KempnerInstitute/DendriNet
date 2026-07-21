@@ -22,6 +22,10 @@ REACTIVATION_INIT_POLICY_ALIASES = {
     # reactivation occupancies.
     "quantile": "occupancy_quantile",
     "occupancy_quantile": "occupancy_quantile",
+    # Deterministic center/slope decomposition of the analytical and occupancy
+    # policies. These use no fitted mixing coefficient.
+    "analytical_slope_occupancy_center": "analytical_slope_occupancy_center",
+    "occupancy_slope_analytical_center": "occupancy_slope_analytical_center",
 }
 
 
@@ -46,6 +50,8 @@ def reactivation_policy_to_calibration_mode(policy: str | None) -> str | None:
     return {
         "empirical": "median_mad",
         "occupancy_quantile": "occupancy_quantile",
+        "analytical_slope_occupancy_center": ("analytical_slope_occupancy_center"),
+        "occupancy_slope_analytical_center": ("occupancy_slope_analytical_center"),
     }.get(canonical)
 
 

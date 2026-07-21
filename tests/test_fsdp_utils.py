@@ -304,6 +304,7 @@ def test_run_final_analysis_on_plain_model_reloads_checkpoint(monkeypatch):
 class _RunOutputsConfig:
     run_name: str
     results_dir: str
+    exact_run_dir: bool = False
 
 
 @dataclass
@@ -342,7 +343,11 @@ def test_save_fsdp_run_config_applies_canonicalizers(monkeypatch):
     assert saved == [
         {
             "payload": {
-                "outputs": {"run_name": "run", "results_dir": "/tmp/results"},
+                "outputs": {
+                    "run_name": "run",
+                    "results_dir": "/tmp/results",
+                    "exact_run_dir": False,
+                },
                 "marker": 7,
                 "model_canonicalized": True,
                 "rnn_saw_model": True,
@@ -392,6 +397,43 @@ def test_setup_rank0_run_directory_creates_log_dir_and_config(monkeypatch, tmp_p
     assert os.path.exists(os.path.join(expected_path, "train.log"))
     assert log_dirs == [expected_path]
     assert saved_configs == [(config, expected_path)]
+
+
+def test_setup_rank0_run_directory_can_use_exact_manifest_path(monkeypatch, tmp_path):
+    exact_path = tmp_path / "claimed-run"
+    exact_path.mkdir()
+    config = _RunConfigSnapshot(
+        outputs=_RunOutputsConfig(
+            "experiment",
+            str(exact_path),
+            exact_run_dir=True,
+        )
+    )
+    log_dirs = []
+    saved_configs = []
+    original_handlers = list(fsdp_script.logger.handlers)
+    monkeypatch.setattr(
+        fsdp_script.logger_manager,
+        "set_log_directory",
+        lambda path: log_dirs.append(path),
+    )
+    monkeypatch.setattr(
+        fsdp_script,
+        "_save_fsdp_run_config",
+        lambda received_config, path: saved_configs.append((received_config, path)),
+    )
+
+    try:
+        run_save_path = _setup_rank0_run_directory(config)
+    finally:
+        for handler in list(fsdp_script.logger.handlers):
+            if handler not in original_handlers:
+                fsdp_script.logger.removeHandler(handler)
+                handler.close()
+
+    assert run_save_path == str(exact_path)
+    assert log_dirs == [str(exact_path)]
+    assert saved_configs == [(config, str(exact_path))]
 
 
 def test_encode_rank0_analysis_datasets_delegates_to_encoder_loader(monkeypatch):

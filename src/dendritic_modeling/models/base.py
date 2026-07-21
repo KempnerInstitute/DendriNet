@@ -122,6 +122,9 @@ class BaseModel(nn.Module):
             if hasattr(self, "log_output_scale"):
                 self.log_output_scale: nn.Parameter
                 decoder_params.append([self.log_output_scale])
+            if hasattr(self, "log_global_output_scale"):
+                self.log_global_output_scale: nn.Parameter
+                decoder_params.append([self.log_global_output_scale])
 
             # Collect trainable encoder params (non-frozen pretrained prefix).
             encoder_params = []

@@ -367,8 +367,10 @@ class TopKLinear(nn.Module):
                 self._last_forward_weight_mask = mask.detach()
             pruned_weight = self._pruned_weight_from_mask(mask)
 
-        self._last_forward_param_tensor = (
-            pruned_weight if self._use_forward_dynamic_grad_scaling else None
+        object.__setattr__(
+            self,
+            "_last_forward_param_tensor",
+            pruned_weight if self._use_forward_dynamic_grad_scaling else None,
         )
 
         return torch.matmul(x, pruned_weight.t())

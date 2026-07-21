@@ -65,8 +65,18 @@ class EINetwork(BaseNetwork):
         prev_exc_dim = self.proj_output_dim
         prev_inh_dim = transfer_inh_dim if self._use_transfer else None
         self._is_recurrent = False
-        for base_cfg in config.layers:
+        for layer_idx, base_cfg in enumerate(config.layers):
             layer_cfg: EILayerConfig = copy.deepcopy(base_cfg)
+            for population_name in ("excitatory", "inhibitory"):
+                population = getattr(layer_cfg, population_name, None)
+                if (
+                    population is not None
+                    and population.initialization_seed is not None
+                    and not population.initialization_namespace
+                ):
+                    population.initialization_namespace = (
+                        f"unified.layer.{layer_idx}.{population_name}"
+                    )
             layer_cfg.excitatory_input_dim = prev_exc_dim
             if self._use_transfer and layer_cfg.direct_ff_inhibitory_to_excitatory:
                 layer_cfg.inhibitory_input_dim = transfer_inh_dim

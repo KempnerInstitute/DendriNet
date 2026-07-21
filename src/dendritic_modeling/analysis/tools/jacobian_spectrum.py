@@ -1,18 +1,17 @@
 """
-Per-level recurrent weight singular-value analyzer for E-I dendritic models.
+Per-level effective recurrent-weight singular-value analyzer.
 
 For every dendritic branch layer of the excitatory population, this
-analyzer reads the effective recurrent excitation matrix
-``W_rec_l = branch_recurrent.weight()`` and the recurrent inhibition
-matrix ``W_inh_l = branch_rec_inhibition.weight()``, computes their
+analyzer reads the realized sparse recurrent excitation and inhibition
+operators, computes their
 leading singular values, and reports the top singular value at each level.
 When the dendritic population also exposes a per-level time constant
 ``log_tau``, these operator-norm summaries are tabulated against τ so the
 gradient flow through long-τ compartments can be read off at a glance.
 
-The analyzer is a static readout of the trained weights — it does not
-run a forward pass. It returns an empty dict for baseline RNN cores or
-layers without recurrent compartments.
+This is a static operator summary, not the Jacobian of the recurrent state
+transition. It returns an empty dict for baseline RNN cores or layers without
+recurrent compartments.
 """
 
 from __future__ import annotations
@@ -24,6 +23,9 @@ from typing import Any
 import torch
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
+from dendritic_modeling.analysis.utils.effective_synapses import (
+    effective_synapse_snapshot,
+)
 from dendritic_modeling.analysis.utils.recurrent_introspection import (
     iter_recurrent_populations,
 )
@@ -75,23 +77,29 @@ def _spectra_for_population(
 
         if rec is not None:
             with torch.no_grad():
-                w_rec = rec.weight().detach().cpu()
+                rec_snapshot = effective_synapse_snapshot(rec)
+                w_rec = rec_snapshot.effective_weight.cpu()
             sigma_rec = _singular_values(w_rec, top_k)
             entry["sigma_rec"] = sigma_rec
             top_rec = float(sigma_rec[0]) if sigma_rec else 0.0
             entry["top_singular_value_rec"] = top_rec
             # Backward-compatible alias for existing consumers/tests.
             entry["spectral_radius_rec"] = top_rec
+            entry["realized_k_rec"] = rec_snapshot.realized_k.cpu().tolist()
+            entry["mask_source_rec"] = rec_snapshot.mask_source
             saw_any = True
         if inh is not None:
             with torch.no_grad():
-                w_inh = inh.weight().detach().cpu()
+                inh_snapshot = effective_synapse_snapshot(inh)
+                w_inh = inh_snapshot.effective_weight.cpu()
             sigma_inh = _singular_values(w_inh, top_k)
             entry["sigma_inh"] = sigma_inh
             top_inh = float(sigma_inh[0]) if sigma_inh else 0.0
             entry["top_singular_value_inh"] = top_inh
             # Backward-compatible alias for existing consumers/tests.
             entry["spectral_radius_inh"] = top_inh
+            entry["realized_k_inh"] = inh_snapshot.realized_k.cpu().tolist()
+            entry["mask_source_inh"] = inh_snapshot.mask_source
             saw_any = True
 
         levels.append(entry)
@@ -170,7 +178,12 @@ class JacobianSpectrumAnalyzer(AbstractAnalyzer):
     def _build_results(
         top_k: int, per_layer: dict[str, dict[str, Any]]
     ) -> dict[str, Any]:
-        return {"top_k": top_k, "layers": per_layer}
+        return {
+            "analysis_type": "effective_recurrent_weight_spectrum",
+            "is_state_transition_jacobian": False,
+            "top_k": top_k,
+            "layers": per_layer,
+        }
 
     def _save_results(
         self, results: dict[str, Any], save_path: str, filename: str

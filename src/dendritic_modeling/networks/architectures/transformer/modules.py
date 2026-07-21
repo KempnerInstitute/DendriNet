@@ -6,6 +6,7 @@ from collections.abc import Sequence
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic import (
     DendriNet,
@@ -15,6 +16,9 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic i
 from dendritic_modeling.networks.architectures.excitation_inhibition.ei_layer import (
     ExcitationInhibitionLayer,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse import (
+    IndexedSparseLinear,
+)
 from dendritic_modeling.networks.architectures.replacement import (
     LayerwiseTokenReplacementStack,
     TokenReplacementCell,
@@ -23,6 +27,7 @@ from dendritic_modeling.networks.architectures.replacement import (
 )
 from dendritic_modeling.networks.architectures.transformer.estimates import (
     estimate_dendritic_ffn_params,
+    estimate_gated_dendritic_ffn_params,
 )
 from dendritic_modeling.networks.architectures.transformer.utils import (
     _as_list,
@@ -201,6 +206,9 @@ class DendriticFFNReplacement(TokenReplacementCell):
         self.topk_ultrafast = bool(topk_ultrafast)
         self.somatic_synapses = bool(somatic_synapses)
         self.efficient_blocklinear = bool(efficient_blocklinear)
+        self.reactivate = bool(reactivate)
+        self.reactivation_type = str(reactivation_type)
+        self.uses_pre_norm = not isinstance(self.pre_norm, nn.Identity)
 
     @classmethod
     def from_mlp(cls, mlp: nn.Module, **kwargs: object) -> DendriticFFNReplacement:
@@ -216,6 +224,20 @@ class DendriticFFNReplacement(TokenReplacementCell):
 
     def parameter_estimate(self) -> dict[str, int]:
         """Return a parameter estimate matching this module's configuration."""
+        reactivation_params = sum(
+            param.numel()
+            for branch_layer in self.core.branch_layers
+            for param in branch_layer.reactivation.parameters()
+        )
+        reactivation_units = sum(
+            int(branch_layer.branch_config.output_dim)
+            for branch_layer in self.core.branch_layers
+        )
+        params_per_unit = (
+            reactivation_params // reactivation_units
+            if reactivation_units and reactivation_params % reactivation_units == 0
+            else 0
+        )
         return estimate_dendritic_ffn_params(
             hidden_size=self.hidden_size,
             dendritic_units=self.dendritic_units,
@@ -226,7 +248,332 @@ class DendriticFFNReplacement(TokenReplacementCell):
             topk_type=self.topk_type,
             output_bias=self.output_projection.bias is not None,
             somatic_synapses=self.somatic_synapses,
+            reactivation_parameters_per_unit=params_per_unit,
+            pre_norm=self.uses_pre_norm,
         )
+
+
+class GatedDendriticFFNReplacement(nn.Module):
+    """Two-path dendritic FFN with a SwiGLU-style multiplicative bottleneck.
+
+    A conventional Llama/OLMo MLP learns separate gate and value projections,
+    multiplies them after the gate activation, and projects the result back to
+    the residual stream.  The original :class:`DendriticFFNReplacement` has a
+    single dendritic path, so it cannot express that factorization directly.
+    This variant uses two independently wired DendriNet cores while sharing the
+    input adapter and the final output projection::
+
+        y = output_projection(activation(gate_core(x)) * value_core(x))
+
+    It intentionally reuses the same dendritic configuration for both paths so
+    TopK, reactivation calibration, and rewiring infrastructure work unchanged.
+    """
+
+    def __init__(
+        self,
+        *,
+        hidden_size: int,
+        dendritic_units: int,
+        gate_activation: str = "silu",
+        value_seed_offset: int = 1,
+        teacher_topk_init: bool = False,
+        output_topk: int | None = None,
+        **dendritic_kwargs: object,
+    ):
+        super().__init__()
+        hidden_size = int(hidden_size)
+        dendritic_units = int(dendritic_units)
+        gate_activation = str(gate_activation).lower()
+        if gate_activation not in {
+            "silu",
+            "swish",
+            "gelu",
+            "relu",
+            "identity",
+            "linear",
+            "none",
+        }:
+            raise ValueError(
+                f"Unsupported gated dendritic activation {gate_activation!r}"
+            )
+
+        gate_kwargs = dict(dendritic_kwargs)
+        value_kwargs = dict(dendritic_kwargs)
+        indexed_seed = value_kwargs.get("indexed_seed")
+        if indexed_seed is not None:
+            value_kwargs["indexed_seed"] = int(indexed_seed) + int(value_seed_offset)
+
+        gate_path = DendriticFFNReplacement(
+            hidden_size=hidden_size,
+            dendritic_units=dendritic_units,
+            **gate_kwargs,
+        )
+        value_path = DendriticFFNReplacement(
+            hidden_size=hidden_size,
+            dendritic_units=dendritic_units,
+            **value_kwargs,
+        )
+        # Keep only the modules used by this factorization.  The temporary path
+        # projections are deliberately discarded rather than left as unused
+        # parameters (which would also break strict DDP configurations).
+        self.pre_norm = gate_path.pre_norm
+        self.input_adapter = gate_path.input_adapter
+        self.gate_core = gate_path.core
+        self.value_core = value_path.core
+        output_bias = bool(dendritic_kwargs.get("output_bias", False))
+        if output_topk is None:
+            self.output_projection = make_linear_output_projection(
+                dendritic_units,
+                hidden_size,
+                bias=output_bias,
+                init_std=float(dendritic_kwargs.get("output_init_std", 0.02)),
+            )
+        else:
+            output_topk = int(output_topk)
+            if output_topk < 1 or output_topk > dendritic_units:
+                raise ValueError("output_topk must be in [1, dendritic_units]")
+            if output_bias:
+                raise ValueError("output_topk currently requires output_bias=false")
+            output_seed = dendritic_kwargs.get("indexed_seed")
+            if output_seed is not None:
+                output_seed = int(output_seed) + 2 * int(value_seed_offset)
+            self.output_projection = IndexedSparseLinear(
+                in_features=dendritic_units,
+                out_features=hidden_size,
+                K=output_topk,
+                init_method=str(
+                    dendritic_kwargs.get("topk_init_method", "xavier_normal")
+                ),
+                weight_transform="identity",
+                seed=output_seed,
+                output_chunk_size=int(
+                    dendritic_kwargs.get("indexed_output_chunk_size", 2048)
+                ),
+            )
+
+        self.hidden_size = hidden_size
+        self.dendritic_units = dendritic_units
+        self.input_transform = gate_path.input_transform
+        self.output_scale = float(dendritic_kwargs.get("output_scale", 1.0))
+        self.gate_activation = gate_activation
+        self.value_seed_offset = int(value_seed_offset)
+        self.teacher_topk_init = bool(teacher_topk_init)
+        self.output_topk = output_topk
+        self.teacher_topk_diagnostics: dict[str, float | int] = {}
+        self.uses_pre_norm = not isinstance(self.pre_norm, nn.Identity)
+        self.reference_intermediate_size: int | None = None
+        self._estimate_kwargs = {
+            "hidden_size": hidden_size,
+            "dendritic_units": dendritic_units,
+            "branch_factors": list(gate_path.branch_factors),
+            "synapses_per_branch": gate_path.synapses_per_branch,
+            "candidate_size": gate_path.indexed_candidate_size,
+            "input_transform": gate_path.input_transform,
+            "topk_type": gate_path.topk_type,
+            "output_bias": (
+                isinstance(self.output_projection, nn.Linear)
+                and self.output_projection.bias is not None
+            ),
+            "output_topk": self.output_topk,
+            "somatic_synapses": gate_path.somatic_synapses,
+            "reactivation_parameters_per_unit": self._reactivation_params_per_unit(),
+            "pre_norm": self.uses_pre_norm,
+        }
+
+    @classmethod
+    def from_mlp(
+        cls,
+        mlp: nn.Module,
+        **kwargs: object,
+    ) -> GatedDendriticFFNReplacement:
+        """Construct a gated replacement by inferring the source hidden size."""
+        hidden_size, intermediate_size = _infer_mlp_dims(mlp)
+        replacement = cls(hidden_size=hidden_size, **kwargs)
+        replacement.reference_intermediate_size = intermediate_size
+        if replacement.teacher_topk_init:
+            replacement.initialize_from_mlp(mlp)
+        return replacement
+
+    def _single_synapse_layer(self, core: DendriNet, *, path: str) -> nn.Module:
+        if len(core.branch_layers) != 1:
+            raise ValueError(
+                "teacher_topk_init requires branch_factors=[] so each gated "
+                f"{path} path has exactly one somatic synapse layer"
+            )
+        branch = core.branch_layers[0]
+        synapse = branch.branch_excitation
+        if synapse is None or not all(
+            hasattr(synapse, name)
+            for name in ("connection_indices", "pre_w", "K", "weight_transform")
+        ):
+            raise TypeError(
+                "teacher_topk_init requires an indexed or indexed_rewire "
+                f"synapse in the {path} path"
+            )
+        if not isinstance(branch.reactivation, nn.Identity):
+            raise ValueError("teacher_topk_init requires reactivate=false")
+        if str(synapse.weight_transform).lower() != "identity":
+            raise ValueError("teacher_topk_init requires weight_transform='identity'")
+        return synapse
+
+    @staticmethod
+    def _copy_topk_projection(
+        source: nn.Linear,
+        target: nn.Module,
+        *,
+        path: str,
+    ) -> float:
+        if source.bias is not None:
+            raise ValueError(
+                f"teacher_topk_init cannot represent a bias in teacher {path}"
+            )
+        weight = source.weight.detach()
+        expected = (int(target.out_features), int(target.in_features))
+        if tuple(weight.shape) != expected:
+            raise ValueError(
+                f"Teacher {path} weight has shape {tuple(weight.shape)}, "
+                f"expected {expected}"
+            )
+        k = int(target.K)
+        # Canonical input-index order makes fixed-topology bitmask export
+        # numerically stable: serialization no longer changes BF16 reduction
+        # order when reconstructing the same sparse row.
+        indices = torch.topk(weight.abs(), k=k, dim=1, sorted=False).indices
+        indices = indices.sort(dim=1).values
+        selected = weight.gather(1, indices)
+        with torch.no_grad():
+            target.connection_indices.copy_(
+                indices.to(device=target.connection_indices.device)
+            )
+            target.pre_w.copy_(
+                selected.to(device=target.pre_w.device, dtype=target.pre_w.dtype)
+            )
+        total_energy = weight.float().square().sum().clamp_min(1e-30)
+        retained_energy = selected.float().square().sum() / total_energy
+        return float(retained_energy.item())
+
+    def initialize_from_mlp(self, mlp: nn.Module) -> dict[str, float | int]:
+        """Magnitude-TopK initialize a one-level gated cell from a dense MLP.
+
+        This is exact when ``K == hidden_size`` and otherwise initializes each
+        gate/value row from its largest-magnitude teacher weights.  The dense
+        down projection is copied without pruning.
+        """
+        if self.input_transform != "identity":
+            raise ValueError("teacher_topk_init requires input_transform='identity'")
+        if self.output_scale != 1.0:
+            raise ValueError("teacher_topk_init requires output_scale=1.0")
+        required = ("gate_proj", "up_proj", "down_proj")
+        if not all(
+            isinstance(getattr(mlp, name, None), nn.Linear) for name in required
+        ):
+            raise TypeError(
+                "teacher_topk_init expects gate_proj, up_proj, and down_proj "
+                "nn.Linear modules"
+            )
+        gate_synapse = self._single_synapse_layer(self.gate_core, path="gate")
+        value_synapse = self._single_synapse_layer(self.value_core, path="value")
+        gate_proj = mlp.gate_proj
+        up_proj = mlp.up_proj
+        down_proj = mlp.down_proj
+        if self.dendritic_units != int(gate_proj.out_features):
+            raise ValueError(
+                "teacher_topk_init requires dendritic_units to equal the "
+                f"teacher intermediate size ({gate_proj.out_features})"
+            )
+        gate_energy = self._copy_topk_projection(
+            gate_proj,
+            gate_synapse,
+            path="gate_proj",
+        )
+        value_energy = self._copy_topk_projection(
+            up_proj,
+            value_synapse,
+            path="up_proj",
+        )
+        if isinstance(self.output_projection, IndexedSparseLinear):
+            down_energy = self._copy_topk_projection(
+                down_proj,
+                self.output_projection,
+                path="down_proj",
+            )
+        else:
+            if tuple(down_proj.weight.shape) != tuple(
+                self.output_projection.weight.shape
+            ):
+                raise ValueError(
+                    "Teacher down_proj weight shape does not match the gated "
+                    "dendritic output projection"
+                )
+            with torch.no_grad():
+                self.output_projection.weight.copy_(
+                    down_proj.weight.to(
+                        device=self.output_projection.weight.device,
+                        dtype=self.output_projection.weight.dtype,
+                    )
+                )
+                if down_proj.bias is not None:
+                    if self.output_projection.bias is None:
+                        raise ValueError(
+                            "Teacher down_proj has a bias but output_bias is disabled"
+                        )
+                    self.output_projection.bias.copy_(
+                        down_proj.bias.to(
+                            device=self.output_projection.bias.device,
+                            dtype=self.output_projection.bias.dtype,
+                        )
+                    )
+                elif self.output_projection.bias is not None:
+                    self.output_projection.bias.zero_()
+            down_energy = 1.0
+        diagnostics: dict[str, float | int] = {
+            "k": int(gate_synapse.K),
+            "hidden_size": self.hidden_size,
+            "intermediate_size": self.dendritic_units,
+            "gate_weight_energy_retained": gate_energy,
+            "value_weight_energy_retained": value_energy,
+            "down_weight_energy_retained": down_energy,
+        }
+        self.teacher_topk_diagnostics = diagnostics
+        return diagnostics
+
+    def _activate_gate(self, x: torch.Tensor) -> torch.Tensor:
+        if self.gate_activation in {"silu", "swish"}:
+            return F.silu(x)
+        if self.gate_activation == "gelu":
+            return F.gelu(x)
+        if self.gate_activation == "relu":
+            return F.relu(x)
+        return x
+
+    def _reactivation_params_per_unit(self) -> int:
+        parameters = sum(
+            param.numel()
+            for branch_layer in self.gate_core.branch_layers
+            for param in branch_layer.reactivation.parameters()
+        )
+        units = sum(
+            int(branch_layer.branch_config.output_dim)
+            for branch_layer in self.gate_core.branch_layers
+        )
+        return parameters // units if units and parameters % units == 0 else 0
+
+    def forward(self, hidden_states: torch.Tensor, *args: object, **kwargs: object):
+        """Run both dendritic paths on every leading token/batch dimension."""
+        del args, kwargs
+        if hidden_states.shape[-1] != self.hidden_size:
+            raise ValueError(
+                f"Expected hidden size {self.hidden_size}, "
+                f"got {hidden_states.shape[-1]}"
+            )
+        adapted = self.input_adapter(self.pre_norm(hidden_states))
+        gated = self._activate_gate(self.gate_core(adapted))
+        value = self.value_core(adapted)
+        return self.output_projection(gated * value) * self.output_scale
+
+    def parameter_estimate(self) -> dict[str, int]:
+        """Estimate stored/active parameters across both dendritic paths."""
+        return estimate_gated_dendritic_ffn_params(**self._estimate_kwargs)
 
 
 def _effective_params_for_dendrinet(module: nn.Module | None) -> int:

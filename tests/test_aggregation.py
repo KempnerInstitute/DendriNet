@@ -151,6 +151,28 @@ class TestAggregation(unittest.TestCase):
         )
         self.assertEqual(result.iloc[2]["network_category"], "flat_normalized_additive")
 
+    def test_extract_network_category_population_network(self):
+        """Population-network rows should map to scientific model categories."""
+        data = pd.DataFrame(
+            {
+                "network_type": [
+                    "population_network",
+                    "population_network",
+                    "population_network",
+                ],
+                "use_shunting": [True, False, False],
+                "use_additive_normalization": [False, False, True],
+            }
+        )
+
+        result = extract_network_category(data)
+
+        self.assertEqual(result.iloc[0]["network_category"], "dendritic_shunting")
+        self.assertEqual(result.iloc[1]["network_category"], "dendritic_additive")
+        self.assertEqual(
+            result.iloc[2]["network_category"], "dendritic_normalized_additive"
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

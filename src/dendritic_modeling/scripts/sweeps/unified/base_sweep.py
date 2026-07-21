@@ -440,9 +440,11 @@ class SweepJobManager:
             else:
                 f.write(f"#SBATCH --array=0-{num_configs-1}\n")
 
-            # Individual output directories for each array task
-            f.write(f"#SBATCH --output={output_dir}/jobs/%A_%a/output_%A_%a.out\n")
-            f.write(f"#SBATCH --error={output_dir}/jobs/%A_%a/error_%A_%a.err\n\n")
+            # Use the existing jobs directory directly.  Some Slurm site
+            # wrappers create `%A_%a` directories automatically, but vanilla
+            # Slurm opens output files before the job script can create them.
+            f.write(f"#SBATCH --output={output_dir}/jobs/output_%A_%a.out\n")
+            f.write(f"#SBATCH --error={output_dir}/jobs/error_%A_%a.err\n\n")
 
             # IMPORTANT: SBATCH directives must appear before any shell commands.
             f.write("set -euo pipefail\n\n")

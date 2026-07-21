@@ -66,6 +66,7 @@ def _parse_structured_recurrent_sections(
     )
     indexed = _to_plain_mapping(sparsity.get("indexed", {}))
     return _StructuredRecurrentSections(
+        initialization_seed=raw_params.get("initialization_seed"),
         recurrent_cfg=recurrent_cfg,
         architecture=architecture,
         connectivity=connectivity,

@@ -31,6 +31,15 @@ OLMO_VARIANTS = {
         "layerwise_lr": 0.0005,
         "seed_base": 611,
     },
+    "13b": {
+        "model_name": "allenai/OLMo-2-1124-13B",
+        "num_layers": 40,
+        "width": 2560,
+        "output_chunk_size": 4096,
+        "layerwise_batch_size": 1,
+        "layerwise_lr": 0.0003,
+        "seed_base": 612,
+    },
 }
 
 
@@ -233,6 +242,7 @@ def generate_all_layer_configs(
     config_dir.mkdir(parents=True, exist_ok=True)
 
     layer_configs = []
+    layer_runs = []
     for layer in all_layers:
         seed = int(info["seed_base"]) + layer
         path = config_dir / f"olmo2_{variant}_dolmino_layer{layer:02d}.yaml"
@@ -251,6 +261,16 @@ def generate_all_layer_configs(
             ),
         )
         layer_configs.append(str(path))
+        layer_runs.append(
+            {
+                "layer": layer,
+                "config": str(path),
+                "save_dir": str(result_dir / f"layer_{layer:02d}"),
+                "checkpoint": str(
+                    result_dir / f"layer_{layer:02d}" / f"layer_{layer}_replacement.pt"
+                ),
+            }
+        )
 
     all_layers_config = config_dir / f"olmo2_{variant}_dolmino_all_layers.yaml"
     _save_yaml(
@@ -275,6 +295,8 @@ def generate_all_layer_configs(
         "config_dir": str(config_dir),
         "results_root": str(result_dir),
         "layer_configs": layer_configs,
+        "layer_runs": layer_runs,
+        "assembled_checkpoint_dir": str(result_dir / "all_layer_checkpoints"),
         "all_layers_config": str(all_layers_config),
     }
     _save_json(config_dir / "manifest.json", manifest)
@@ -338,7 +360,7 @@ def _joint_config(
                 "kl_loss_weight": 0.2,
                 "kl_temperature": 2.0,
                 "hidden_loss_weight": 0.05,
-                "hidden_loss_layers": [4, 8, 15],
+                "hidden_loss_layers": _hidden_supervision_layers(layers),
                 "max_grad_norm": 1.0,
                 "warm_start_dir": warm_start_dir,
                 "loss": "mse",
@@ -352,6 +374,19 @@ def _joint_config(
             },
         },
     }
+
+
+def _hidden_supervision_layers(layers: list[int]) -> list[int]:
+    """Choose roughly quarter-, half-, and full-depth supervision sites."""
+    if not layers:
+        return []
+    ordered = sorted({int(layer) for layer in layers})
+    indices = {
+        max(0, len(ordered) // 4 - 1),
+        max(0, len(ordered) // 2 - 1),
+        len(ordered) - 1,
+    }
+    return [ordered[index] for index in sorted(indices)]
 
 
 def generate_joint_configs(
@@ -535,7 +570,7 @@ def _ei_stack_config(
                 "kl_loss_weight": 0.2,
                 "kl_temperature": 2.0,
                 "hidden_loss_weight": 0.05,
-                "hidden_loss_layers": [4, 8, 15],
+                "hidden_loss_layers": _hidden_supervision_layers(layers),
                 "max_grad_norm": 1.0,
                 "warm_start_dir": "",
                 "loss": "mse",

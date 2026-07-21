@@ -8,6 +8,7 @@ from typing import Any
 
 @dataclass(frozen=True)
 class _StructuredRecurrentSections:
+    initialization_seed: int | None
     recurrent_cfg: dict[str, Any]
     architecture: dict[str, Any]
     connectivity: dict[str, Any]

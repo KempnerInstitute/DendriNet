@@ -270,6 +270,9 @@ class InformationBranchAnalysisMixin:
             layer_statistics[layer_name] = layer_stats
 
         results["layer_statistics"] = layer_statistics
+        layer_depths = self.collected_soma_relative_depths()
+        if layer_depths:
+            results["layer_soma_relative_depths"] = layer_depths
         self.logger.info(
             f"Generated layer statistics for {len(layer_statistics)} layers for plotting"
         )

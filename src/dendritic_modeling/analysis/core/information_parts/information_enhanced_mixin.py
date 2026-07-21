@@ -37,6 +37,11 @@ class InformationEnhancedAnalysisMixin:
         self, results: dict[str, Any], C: np.ndarray
     ) -> None:
         """Add optional per-layer, per-neuron, and EI-specific analysis results."""
+        if getattr(self, "network_population_information", False):
+            network_layer_results = self._compute_network_layer_information(C)
+            if network_layer_results:
+                results["network_layer_information"] = network_layer_results
+
         if not self._enhanced_analysis_requested():
             return
 
@@ -62,6 +67,58 @@ class InformationEnhancedAnalysisMixin:
         if self.per_einet_analysis:
             ei_specific_results = self.compute_ei_specific_mi(E_all, I_all, Vout_all, C)
             results["per_einet_analysis"] = ei_specific_results
+
+    def _compute_network_layer_information(
+        self, C: np.ndarray
+    ) -> dict[str, dict[str, Any]]:
+        """Compute class information from each population-network layer readout."""
+        layer_results: dict[str, dict[str, Any]] = {}
+        labels = np.asarray(C).reshape(-1)
+        for module_name, captured in getattr(self, "network_layer_data", {}).items():
+            readout = captured.get("post_gate_readout_output")
+            if readout is None or int(readout.shape[0]) != int(labels.shape[0]):
+                continue
+
+            payload: dict[str, Any] = {
+                key: captured[key]
+                for key in (
+                    "network_layer_index",
+                    "network_layer_name",
+                    "readout_population",
+                    "forward_call_count",
+                    "capture_reduction",
+                )
+                if key in captured
+            }
+            try:
+                payload["readout_class_information"] = {
+                    "I(post_gate_readout;C)": float(
+                        self.compute_class_mi(readout.detach().cpu().numpy(), labels)
+                    )
+                }
+                population_information = {}
+                for population_name, soma_output in captured.get(
+                    "post_gate_soma_outputs", {}
+                ).items():
+                    if int(soma_output.shape[0]) != int(labels.shape[0]):
+                        continue
+                    population_information[population_name] = {
+                        "I(post_gate_soma;C)": float(
+                            self.compute_class_mi(
+                                soma_output.detach().cpu().numpy(), labels
+                            )
+                        )
+                    }
+                payload["population_soma_class_information"] = population_information
+            except Exception as exc:
+                self.logger.warning(
+                    "Network-layer information failed for %s: %s",
+                    module_name,
+                    exc,
+                )
+                continue
+            layer_results[module_name] = payload
+        return layer_results
 
     def _enhanced_analysis_requested(self) -> bool:
         return (

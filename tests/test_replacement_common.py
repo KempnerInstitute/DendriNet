@@ -133,6 +133,20 @@ def test_transformer_and_vision_cosine_flattening_remain_domain_specific():
     assert transformer_loss.item() != vision_loss.item()
 
 
+def test_relative_mse_normalizes_for_target_power():
+    prediction = torch.tensor([[2.0, 0.0], [4.0, 2.0]])
+    target = torch.tensor([[1.0, 1.0], [3.0, 1.0]])
+
+    actual = _compute_transformer_distillation_loss(
+        prediction,
+        target,
+        loss_name="relative_mse",
+    )
+    expected = F.mse_loss(prediction, target) / target.square().mean()
+
+    torch.testing.assert_close(actual, expected)
+
+
 def test_distillation_loss_error_messages_preserve_domain_context():
     prediction = torch.zeros(2, 3)
     target = torch.ones(2, 3)

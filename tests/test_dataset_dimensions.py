@@ -14,7 +14,11 @@ def test_dataset_input_shape_preserves_builtin_flat_shapes():
     assert dataset_input_shape("imagenet", flatten=True) == (150528,)
 
 
-def test_dataset_input_shape_preserves_imagenet_image_shape():
+def test_dataset_input_shape_preserves_builtin_image_shapes():
+    assert dataset_input_shape("mnist", flatten=False) == (1, 28, 28)
+    assert dataset_input_shape("fashion_mnist", flatten=False) == (1, 28, 28)
+    assert dataset_input_shape("cifar10", flatten=False) == (3, 32, 32)
+    assert dataset_input_shape("cifar100", flatten=False) == (3, 32, 32)
     assert dataset_input_shape("imagenet", flatten=False) == (3, 224, 224)
 
 

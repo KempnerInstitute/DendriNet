@@ -14,6 +14,8 @@ class TransferFunctionConfig(BaseConfig):
     independent_pathways: bool = False
     excitatory_dim: Optional[int] = None
     inhibitory_dim: Optional[int] = None
+    split_strategy: str = "random"
+    split_seed: Optional[int] = None
     output_activation: Optional[str] = None
     inhibitory_mode: str = "first"  # "none", "first", "all"
     allow_direct_inhibitory_stream: bool = False
@@ -77,7 +79,13 @@ class MorphologyConfig(BaseConfig):
 
     somatic_synapses: bool = False
     use_shunting: bool = True  # Legacy fallback for core.type == "einet"
-    use_additive_normalization: bool = False  # Normalize voltage in additive mode
+    # Legacy per-sample, across-output z-score for raw additive voltage.
+    use_additive_normalization: bool = False
+    # Explicit fair-comparison controls. ``raw`` preserves the historical
+    # additive equation; the other modes are active only when use_shunting=false.
+    additive_mode: str = "raw"
+    additive_tangent_n0: Optional[float] = None
+    additive_tangent_t0: Optional[float] = None
     # Only used when an EINet-style config is translated into the recurrent
     # unified E-I path. Feedforward models ignore this flag.
     allow_self_recurrence: bool = True
@@ -159,6 +167,8 @@ class ReactivationConfig(BaseConfig):
     # - "fixed": use init_m and init_b exactly as provided.
     # - "empirical": robust median/MAD calibration from sampled voltages.
     # - "occupancy_quantile": generalized q_low/q_high -> r_low/r_high rule.
+    # - "analytical_slope_occupancy_center": keep analytical m, use empirical b.
+    # - "occupancy_slope_analytical_center": use empirical m, keep analytical b.
     # Legacy alias: "quantile" is accepted and normalized to "occupancy_quantile".
     init_policy: str = "analytical"
     init_m: float = 1.5
@@ -194,6 +204,7 @@ class ImplementationConfig(BaseConfig):
     adaptive_initialization: bool = True
     adaptive_initialization_policy: str = "preserve_shunting_center"
     adaptive_target_conductance: float = 5.0
+    initial_child_conductance: float = 1.0
     print_hooks: bool = False
     store_routing: bool = False
     compile_forward: bool = False
@@ -250,6 +261,10 @@ class CoreConfig(BaseConfig):
     """Core network configuration."""
 
     type: str = "einet"
+    # Optional base seed for component-keyed parameter initialization. Training
+    # setup fills this from experiment.model_seed; ``None`` preserves direct
+    # construction through the historical global RNG stream.
+    initialization_seed: Optional[int] = None
 
     architecture: ArchitectureConfig = field(default_factory=ArchitectureConfig)
     connectivity: ConnectivityConfig = field(default_factory=ConnectivityConfig)
@@ -399,6 +414,18 @@ class ModelConfig(BaseConfig):
     """Complete model configuration."""
 
     task: str = "classification"
+    # Identity decoders historically received a learned positive scale for each
+    # output. Keep that behavior by default, while allowing experiments whose
+    # somatic outputs must be the literal class logits to disable it.
+    learned_output_scale: bool = True
+    # Fixed positive global temperature applied after the decoder. Unlike the
+    # historical learned per-output scale, this cannot mix classes or change
+    # the argmax. The default preserves all existing behavior.
+    fixed_output_scale: float = 1.0
+    # Explicit calibration mode for identity/class-aligned readouts:
+    # ``per_class`` (legacy vector), ``global`` (one positive scalar), or
+    # ``fixed`` (no learned calibration). None preserves learned_output_scale.
+    output_scale_mode: Optional[str] = None
 
     encoder: EncoderConfig = field(default_factory=EncoderConfig)
     core: CoreConfig = field(default_factory=CoreConfig)

@@ -1,8 +1,8 @@
 """
 RecurrentTrainer: training strategy for recurrent dendritic networks.
 
-Overrides both _epoch_train() and _epoch_valid() from the standard Trainer
-to handle sequence data with proper temporal loss computation.
+Overrides the standard training and validation-stat collection paths to handle
+sequence data with proper temporal loss computation.
 
 Supports:
 - AMP (automatic mixed precision) via ``use_amp=True``
@@ -24,7 +24,10 @@ from dendritic_modeling.models import BaseModel
 from dendritic_modeling.training.distributed_samplers import (
     PaddedDistributedEvalSampler,
 )
-from dendritic_modeling.training.strategies.standard import Trainer
+from dendritic_modeling.training.strategies.standard import (
+    Trainer,
+    _ValidationLossStats,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -224,13 +227,15 @@ class RecurrentTrainer(Trainer):
         self._build_scheduler(self.epochs)
         return super().train(model, train_data, valid_data)
 
-    def _epoch_valid(
+    def _epoch_valid_stats(
         self, model: BaseModel, valid_loader: DataLoader
-    ) -> tuple[float, int]:
-        """Override parent -- return loss sum and batch count like Trainer."""
+    ) -> _ValidationLossStats:
+        """Collect sequence-aware batch- and sample-level loss aggregates."""
         model.eval()
-        total_loss = 0.0
+        batch_loss_sum = 0.0
         n_batches = 0
+        sample_weighted_loss_sum = 0.0
+        n_samples = 0
 
         with torch.no_grad():
             for batch in valid_loader:
@@ -243,10 +248,24 @@ class RecurrentTrainer(Trainer):
                 x_batch = x_batch.to(self.device)
                 y_batch = y_batch.to(self.device)
                 loss = self._compute_sequence_loss(model, x_batch, y_batch, seq_lengths)
-                total_loss += loss.item()
+                loss_value = loss.item()
+                batch_size = y_batch.size(0)
+                batch_loss_sum += loss_value
                 n_batches += 1
+                sample_weighted_loss_sum += loss_value * batch_size
+                n_samples += batch_size
 
-        return total_loss, n_batches
+        return _ValidationLossStats(
+            batch_loss_sum=batch_loss_sum,
+            batch_count=n_batches,
+            sample_weighted_loss_sum=sample_weighted_loss_sum,
+            sample_count=n_samples,
+        )
+
+    def _validation_loss_reduction(self) -> str | None:
+        """Use the recurrent task loss as the aggregation contract."""
+        reduction = getattr(self.task_loss, "reduction", None)
+        return str(reduction) if reduction is not None else None
 
     def _epoch_valid_distributed(
         self, model: BaseModel, valid_loader: DataLoader

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import inspect
 import logging
+import math
 from collections.abc import Callable
 
 import torch
@@ -106,6 +107,7 @@ def _make_eval_loader(
     persistent_workers: bool = False,
     prefetch_factor: int | None = 2,
     in_order: bool | None = None,
+    seed: int = 0,
     **_extra,
 ) -> DataLoader:
     """Build a DataLoader suitable for evaluation (no shuffle, no drop_last)."""
@@ -117,6 +119,7 @@ def _make_eval_loader(
         persistent_workers=persistent_workers,
         prefetch_factor=prefetch_factor,
         in_order=in_order,
+        seed=seed,
     )
     return make_analysis_loader(
         dataset=dataset,
@@ -173,6 +176,17 @@ def _scalarize_metric_result(result):
     if hasattr(result, "numel") and result.numel() == 1:
         return result.item()
     return result
+
+
+def _is_nan_metric_result(result) -> bool:
+    """Return True when a scalar metric result is NaN."""
+    if result is None:
+        return False
+    if torch.is_tensor(result):
+        return result.numel() == 1 and bool(torch.isnan(result).item())
+    if isinstance(result, float):
+        return math.isnan(result)
+    return False
 
 
 def _metric_call_kwargs(
@@ -239,6 +253,7 @@ def _evaluate_streamed_metric(
     eval_in_order: bool | None,
     eval_max_batches: int | None,
     eval_materialize_threshold_mb: float,
+    eval_seed: int,
     eval_loader_factory: Callable[..., DataLoader] | None,
     metric_kwargs: dict,
 ):
@@ -262,6 +277,7 @@ def _evaluate_streamed_metric(
         persistent_workers=eval_persistent_workers,
         prefetch_factor=eval_prefetch_factor,
         in_order=eval_in_order,
+        seed=eval_seed,
     )
     cat_outputs, cat_labels, cat_seq_lengths = _stream_model_outputs(
         model=model,
@@ -317,6 +333,7 @@ def _evaluate_metric_generic(
     eval_in_order: bool | None = None,
     eval_max_batches: int | None = None,
     eval_materialize_threshold_mb: float = 1024,
+    eval_seed: int = 0,
     eval_loader_factory: Callable[..., DataLoader] | None = None,
     **metric_kwargs,
 ) -> tuple[
@@ -383,19 +400,25 @@ def _evaluate_metric_generic(
                 # Some wrappers don't support slicing; fall back to streaming.
                 pass
             else:
-                results.append(
-                    _evaluate_materialized_metric(
-                        metric_func=metric_func,
-                        model=model,
-                        items=items,
-                        reduce_dim=reduce_dim,
-                        move_device=move_device,
-                        device=device,
-                        metric_accepts_seq_lengths=metric_accepts_seq_lengths,
-                        metric_kwargs=metric_kwargs,
-                    )
+                materialized_result = _evaluate_materialized_metric(
+                    metric_func=metric_func,
+                    model=model,
+                    items=items,
+                    reduce_dim=reduce_dim,
+                    move_device=move_device,
+                    device=device,
+                    metric_accepts_seq_lengths=metric_accepts_seq_lengths,
+                    metric_kwargs=metric_kwargs,
                 )
-                continue
+                if not _is_nan_metric_result(materialized_result):
+                    results.append(materialized_result)
+                    continue
+                logger.warning(
+                    "Materialized evaluation for %s returned NaN; retrying with "
+                    "streaming evaluation. This usually indicates a recoverable "
+                    "device-memory failure during full-dataset scoring.",
+                    metric_name,
+                )
 
         results.append(
             _evaluate_streamed_metric(
@@ -414,6 +437,7 @@ def _evaluate_metric_generic(
                 eval_in_order=eval_in_order,
                 eval_max_batches=eval_max_batches,
                 eval_materialize_threshold_mb=eval_materialize_threshold_mb,
+                eval_seed=eval_seed,
                 eval_loader_factory=eval_loader_factory,
                 metric_kwargs=metric_kwargs,
             )

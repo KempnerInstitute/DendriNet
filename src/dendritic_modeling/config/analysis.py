@@ -1,3 +1,5 @@
+import math
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -38,6 +40,7 @@ class EvaluationRuntimeConfig(BaseConfig):
     max_batches: Optional[int] = None
     max_samples: Optional[int] = None
     materialize_threshold_mb: int = 1024
+    seed: int = 0
 
 
 @dataclass
@@ -135,6 +138,9 @@ class InformationComputeParams(BaseConfig):
     max_samples: Optional[int] = None
     include_vinf: bool = True  # Include soma activation (Vinf)
     normalize_mi: bool = False  # Normalize by H(C)
+    # Raw high-dimensional soma-population MI is opt-in. Prefer the dedicated
+    # representation accessibility analyzer for matched projections and nulls.
+    network_population_information: bool = False
     # Output units for MI/CMI-like quantities reported by the analyzer/plots.
     # Estimators operate in nats internally; the analyzer can convert to bits for reporting.
     output_units: str = "bits"  # "bits"|"nats"
@@ -541,6 +547,162 @@ class InformationAnalysisConfig(BaseConfig):
 
 
 @dataclass
+class RepresentationProjectionConfig(BaseConfig):
+    """Label-independent feature projection for population analyses."""
+
+    name: str = "native"
+    type: str = "identity"  # identity | balanced_countsketch
+    output_dim: Optional[int] = None
+    draws: int = 1
+
+    def __post_init__(self) -> None:
+        self.name = str(self.name)
+        self.type = str(self.type).lower()
+        if not self.name:
+            raise ValueError("representation projection name cannot be empty")
+        if self.type not in {"identity", "balanced_countsketch"}:
+            raise ValueError(f"unsupported representation projection: {self.type}")
+        if self.type == "balanced_countsketch":
+            if self.output_dim is None or int(self.output_dim) < 1:
+                raise ValueError("balanced_countsketch requires a positive output_dim")
+            self.output_dim = int(self.output_dim)
+        if int(self.draws) < 1:
+            raise ValueError("representation projection draws must be positive")
+        self.draws = int(self.draws)
+
+
+@dataclass
+class RepresentationProbeConfig(BaseConfig):
+    """One fixed-capacity held-out representation probe."""
+
+    name: str = "linear"
+    type: str = "ridge"  # ridge | mlp
+    draws: int = 1
+    max_projection_draws: Optional[int] = None
+    n_label_shuffles: int = 20
+    ridge_alpha: float = 1.0
+    hidden_dims: list[int] = field(default_factory=lambda: [32, 16])
+    activation: str = "relu"
+    alpha: float = 1e-4
+    learning_rate_init: float = 1e-3
+    batch_size: int = 256
+    max_iter: int = 300
+    early_stopping: bool = True
+    validation_fraction: float = 0.1
+    n_iter_no_change: int = 20
+
+    def __post_init__(self) -> None:
+        self.name = str(self.name)
+        self.type = str(self.type).lower()
+        if self.type == "linear":
+            self.type = "ridge"
+        if not self.name or self.type not in {"ridge", "mlp"}:
+            raise ValueError(f"unsupported representation probe: {self.type}")
+        if int(self.draws) < 1 or int(self.n_label_shuffles) < 0:
+            raise ValueError("probe draws must be positive and shuffles non-negative")
+        self.draws = int(self.draws)
+        self.n_label_shuffles = int(self.n_label_shuffles)
+        if self.max_projection_draws is not None:
+            if int(self.max_projection_draws) < 1:
+                raise ValueError("max_projection_draws must be positive")
+            self.max_projection_draws = int(self.max_projection_draws)
+        self.hidden_dims = [int(width) for width in self.hidden_dims]
+
+
+@dataclass
+class RepresentationInformationConfig(BaseConfig):
+    """Joint and per-soma class-information sensitivity analyses."""
+
+    enabled: bool = False
+    compute_joint: bool = True
+    compute_per_soma: bool = False
+    projection_names: list[str] = field(default_factory=lambda: ["matched16"])
+    per_soma_representations: list[str] = field(
+        default_factory=lambda: ["excitatory", "inhibitory"]
+    )
+    n_neighbors: int = 5
+    n_label_shuffles: int = 20
+    standardize: bool = True
+
+    def __post_init__(self) -> None:
+        if int(self.n_neighbors) < 1 or int(self.n_label_shuffles) < 1:
+            raise ValueError(
+                "information neighbors and label shuffles must be positive"
+            )
+        self.n_neighbors = int(self.n_neighbors)
+        self.n_label_shuffles = int(self.n_label_shuffles)
+        self.projection_names = [str(name) for name in self.projection_names]
+        self.per_soma_representations = [
+            str(name) for name in self.per_soma_representations
+        ]
+
+
+@dataclass
+class RepresentationAccessibilityAnalysisParams(BaseConfig):
+    """Config-driven analysis of stacked soma-population representations."""
+
+    representations: list[str] = field(
+        default_factory=lambda: ["excitatory", "inhibitory", "joint"]
+    )
+    projections: list[RepresentationProjectionConfig] = field(
+        default_factory=lambda: [RepresentationProjectionConfig()]
+    )
+    probes: list[RepresentationProbeConfig] = field(
+        default_factory=lambda: [RepresentationProbeConfig()]
+    )
+    information: RepresentationInformationConfig = field(
+        default_factory=RepresentationInformationConfig
+    )
+    max_samples: Optional[int] = None
+    seed: int = 0
+
+    def __post_init__(self) -> None:
+        self.representations = [str(name) for name in self.representations]
+        normalized_projections = []
+        for value in self.projections:
+            if isinstance(value, RepresentationProjectionConfig):
+                normalized_projections.append(value)
+            elif isinstance(value, Mapping):
+                normalized_projections.append(
+                    RepresentationProjectionConfig(**dict(value))
+                )
+            else:
+                raise TypeError("representation projections must be mappings")
+        self.projections = normalized_projections
+        normalized_probes = []
+        for value in self.probes:
+            if isinstance(value, RepresentationProbeConfig):
+                normalized_probes.append(value)
+            elif isinstance(value, Mapping):
+                normalized_probes.append(RepresentationProbeConfig(**dict(value)))
+            else:
+                raise TypeError("representation probes must be mappings")
+        self.probes = normalized_probes
+        if isinstance(self.information, Mapping):
+            self.information = RepresentationInformationConfig(**dict(self.information))
+        elif not isinstance(self.information, RepresentationInformationConfig):
+            raise TypeError("representation information must be a mapping")
+        if not self.representations or not self.projections or not self.probes:
+            raise ValueError(
+                "representation analysis requires representations, projections, and probes"
+            )
+        if self.max_samples is not None and int(self.max_samples) < 1:
+            raise ValueError("representation max_samples must be positive")
+        self.seed = int(self.seed)
+
+
+@dataclass
+class RepresentationAccessibilityAnalysisConfig(BaseConfig):
+    """Enable held-out linear/nonlinear and population-information analyses."""
+
+    enabled: bool = False
+    training: bool = False
+    params: RepresentationAccessibilityAnalysisParams = field(
+        default_factory=RepresentationAccessibilityAnalysisParams
+    )
+
+
+@dataclass
 class SynapseTurnoverAnalysisParams(BaseConfig):
     """Parameters for synapse turnover analysis.
 
@@ -563,6 +725,75 @@ class SynapseTurnoverAnalysisConfig(BaseConfig):
     params: SynapseTurnoverAnalysisParams = field(
         default_factory=SynapseTurnoverAnalysisParams
     )
+
+
+@dataclass
+class PoissonExposureTransferParams(BaseConfig):
+    """Reproducible parameters for posthoc Poisson exposure transfer.
+
+    This standalone parameter block is intentionally not an ``AnalysisConfig``
+    field. Exposure transfer rebuilds multiple stochastic test datasets and
+    coordinates draws across independently trained checkpoints, while
+    ``AnalysisManager`` analyzes one fixed test split within one run. The
+    posthoc analyzer accepts this dataclass directly and it can be saved to or
+    loaded from YAML through :class:`BaseConfig`.
+    """
+
+    test_durations: list[float] = field(
+        default_factory=lambda: [0.05, 0.1, 0.3162, 1.0, 3.1623]
+    )
+    draws_per_duration: int = 5
+    base_draw_seed: int = 73000
+    batch_size: int = 256
+    max_samples: Optional[int] = None
+    fingerprint_realized_datasets: bool = False
+
+    def __post_init__(self) -> None:
+        if isinstance(self.test_durations, (str, bytes)):
+            raise TypeError("test_durations must be a sequence of positive values")
+        self.test_durations = [float(value) for value in self.test_durations]
+        if not self.test_durations:
+            raise ValueError("At least one test duration is required")
+        keys = []
+        for duration in self.test_durations:
+            if not math.isfinite(duration) or duration <= 0:
+                raise ValueError(
+                    "Test durations must be finite and positive, " f"got {duration!r}"
+                )
+            key = round(duration * 1_000_000)
+            if key <= 0:
+                raise ValueError(
+                    "Test duration is below micro-duration resolution: " f"{duration}"
+                )
+            keys.append(key)
+        if len(set(keys)) != len(keys):
+            raise ValueError(
+                "Test durations collide at micro-duration precision: "
+                f"{tuple(self.test_durations)}"
+            )
+
+        for name in ("draws_per_duration", "base_draw_seed", "batch_size"):
+            value = getattr(self, name)
+            if isinstance(value, bool) or int(value) != value:
+                raise ValueError(f"{name} must be an integer, got {value!r}")
+            setattr(self, name, int(value))
+        if not 1 <= self.draws_per_duration <= 100:
+            raise ValueError("draws_per_duration must be in [1, 100]")
+        if self.batch_size <= 0:
+            raise ValueError("batch_size must be positive")
+        if self.max_samples is not None:
+            if (
+                isinstance(self.max_samples, bool)
+                or int(self.max_samples) != self.max_samples
+            ):
+                raise ValueError(
+                    f"max_samples must be an integer, got {self.max_samples!r}"
+                )
+            self.max_samples = int(self.max_samples)
+            if self.max_samples <= 0:
+                raise ValueError("max_samples must be positive")
+        if not isinstance(self.fingerprint_realized_datasets, bool):
+            raise TypeError("fingerprint_realized_datasets must be a bool")
 
 
 @dataclass
@@ -659,7 +890,9 @@ class AblationAnalysisParams(BaseConfig):
     - "shuffle": signal intervention that permutes the targeted signal across samples
       (destroys label-alignment while preserving marginal distribution).
     - "mean_clamp": signal intervention that replaces the targeted signal with its
-      batch mean (preserves operating point; removes trial-to-trial variability).
+      fixed training-dataset mean (preserves a fixed operating-point reference while
+      removing trial-to-trial variability). Direct low-level hook use retains the
+      legacy batch-mean fallback for compatibility.
 
     Core string options:
     - clamp_statistic: "mean" (supported), "median" (reserved)
@@ -1414,6 +1647,9 @@ class AnalysisConfig(BaseConfig):
     )
     information_analysis: InformationAnalysisConfig = field(
         default_factory=InformationAnalysisConfig
+    )
+    representation_accessibility_analysis: RepresentationAccessibilityAnalysisConfig = (
+        field(default_factory=RepresentationAccessibilityAnalysisConfig)
     )
     receptive_field_analysis: ReceptiveFieldAnalysisConfig = field(
         default_factory=ReceptiveFieldAnalysisConfig

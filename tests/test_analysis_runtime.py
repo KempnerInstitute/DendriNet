@@ -1,4 +1,5 @@
 import json
+import logging
 import warnings
 
 import pytest
@@ -110,6 +111,7 @@ def test_evaluation_kwargs_preserve_worker_runtime_options():
         "eval_in_order": False,
         "eval_max_batches": 3,
         "eval_materialize_threshold_mb": 128,
+        "eval_seed": 0,
     }
 
 
@@ -525,6 +527,48 @@ def test_evaluate_metric_generic_materialize_falls_back_to_stream_without_slice(
     torch.testing.assert_close(calls[0][2], y)
     assert calls[0][3] is False
     assert calls[0][4] == "cpu"
+
+
+def test_evaluate_metric_generic_materialized_nan_retries_stream(caplog):
+    x = torch.arange(12, dtype=torch.float32).reshape(4, 3)
+    y = torch.arange(4, dtype=torch.long)
+    dataset = TensorDataset(x, y)
+    model = nn.Identity()
+    calls = []
+
+    def flaky_metric(
+        model,
+        inputs,
+        labels,
+        reduce_dim=0,
+        move_device=True,
+        device="cpu",
+    ):
+        calls.append(type(model).__name__)
+        if len(calls) == 1:
+            return torch.tensor(float("nan"))
+        return labels.float().sum()
+
+    with caplog.at_level(
+        logging.WARNING,
+        logger="dendritic_modeling.training.utils.evaluation",
+    ):
+        result = evaluation_utils._evaluate_metric_generic(
+            metric_func=flaky_metric,
+            metric_name="flaky",
+            model=model,
+            test_ds=dataset,
+            move_device=False,
+            device="cpu",
+            eval_mode="materialize",
+            eval_batch_size=2,
+            eval_num_workers=0,
+            eval_pin_memory=False,
+        )
+
+    assert result == (None, None, float(y.sum()))
+    assert calls == ["Identity", "_CachedOutputModel"]
+    assert "Materialized evaluation for flaky returned NaN" in caplog.text
 
 
 def test_stream_model_outputs_forwards_seq_lengths_to_compatible_model():

@@ -412,6 +412,9 @@ class TestSweepJobManager:
                 content = f.read()
                 assert "#SBATCH --array=" in content
                 assert "CONFIG_FILES=" in content
+                assert f"#SBATCH --output={tmp_dir}/jobs/output_%A_%a.out" in content
+                assert f"#SBATCH --error={tmp_dir}/jobs/error_%A_%a.err" in content
+                assert "/jobs/%A_%a/" not in content
 
     def test_create_main_submission_script(self, slurm_config):
         """Test creation of main submission script."""
