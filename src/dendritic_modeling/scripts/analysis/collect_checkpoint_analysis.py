@@ -141,8 +141,12 @@ def _write_csv(path: Path, rows: Sequence[Mapping[str, Any]]) -> None:
 
 
 def _result_path(run_dir: Path, save_subdir: str) -> Path:
-    """Resolve the two legacy filename conventions without guessing further."""
-    candidates = [run_dir / save_subdir / "final.json", run_dir / save_subdir / "final"]
+    """Resolve supported final-result layouts without guessing further."""
+    candidates = [
+        run_dir / save_subdir / "final.json",
+        run_dir / save_subdir / "final",
+        run_dir / save_subdir / "epochs" / "final.json",
+    ]
     existing = [path for path in candidates if path.is_file()]
     if len(existing) != 1:
         if not existing:

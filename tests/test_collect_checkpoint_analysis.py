@@ -10,6 +10,7 @@ import pandas as pd
 import pytest
 
 from dendritic_modeling.scripts.analysis.collect_checkpoint_analysis import (
+    _result_path,
     collect_checkpoint_analysis,
 )
 
@@ -131,3 +132,11 @@ def test_generic_collector_accepts_extensionless_standard_result(
         required_analyzers=["information"],
     )
     assert release["collected_result_count"] == 1
+
+
+def test_generic_collector_resolves_reactivation_final_snapshot(tmp_path: Path) -> None:
+    result = tmp_path / "reactivation_dynamics/epochs/final.json"
+    result.parent.mkdir(parents=True)
+    result.write_text("{}\n")
+
+    assert _result_path(tmp_path, "reactivation_dynamics") == result
