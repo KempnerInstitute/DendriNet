@@ -20,8 +20,10 @@
 \section*{Context}
 This document logs a profile-driven optimization pass on the DendriNet codebase, targeting
 the sparse ``indexed'' synapse used by the excitation--inhibition population network
-(config \texttt{sglimit5\_h100\_cifar10\_ei\_1layer\_bf33\_10000e1250i}). All work is at
-the \emph{Python / PyTorch} level---no CUDA or Triton kernels were written. The guiding
+(config \texttt{sglimit5\_h100\_cifar10\_ei\_1layer\_bf33\_10000e1250i}). It proceeds in two
+phases: \textbf{Phase~1} at the \emph{Python / PyTorch} level (a custom-autograd fused
+backward, \S1--3), and \textbf{Phase~2} descending to \emph{hand-written Triton GPU kernels}
+for both the forward and backward gather (\S4). The guiding
 discipline: every change must be \emph{explicitly visible}, \emph{reversible}, and a
 \emph{strict improvement with no behavior change by default} (safe to merge into
 \texttt{develop}).
@@ -140,6 +142,74 @@ measurement.}
 
 \end{enumerate}
 
+\section{Phase 2: Hand-Written Triton Kernels (Forward + Backward)}
+
+With the Python-level backward fixed, the forward gather (and the residual backward cost)
+became the next target. Phase~2 replaces PyTorch's \texttt{index\_select}/\texttt{index\_add\_}
+with two hand-written Triton kernels wrapped in a single \texttt{autograd.Function}
+(FlashAttention-style: one kernel each direction), gated behind a \emph{second} default-off flag
+\texttt{use\_triton\_gather}.
+
+\begin{center}
+\fbox{\parbox{0.92\textwidth}{\centering
+\textbf{Phase 2 headline.} A custom Triton forward (batch-tiled gather) $+$ backward
+(fused one-pass atomic scatter) cut whole-training-step wall-clock by
+\textbf{$+$17.8\% (A100)} and \textbf{$+$31.8\% (RTX PRO 6000 Blackwell)}, proven
+\emph{unbiased} against a double-precision ground-truth gradient across \emph{all 25}
+synapses. Gated behind a second default-off flag.
+}}
+\end{center}
+
+\begin{enumerate}[leftmargin=*, resume]
+
+\item \textbf{Forward kernel: batch-tiled gather.}\\
+\what{A Triton kernel computing \texttt{out[m,o]=$\sum_k$x[m,idx[o,k]]$\cdot$w[o,k]} directly,
+tiling \texttt{B\_M} batch rows per program so the index/weight rows are loaded \emph{once} and
+reused across the batch (v1 re-read them per row---5.5\,GB of redundant traffic; v2 amortizes it).}\\
+\impact{\textbf{2.08$\times$ (A100) / 1.56$\times$ (Blackwell)} isolated vs.\ eager; \textbf{$+$12\%
+(A100) / $+$14--16\% (Blackwell)} whole-step forward-only. Best tile \texttt{B\_M=16, B\_O=64}.}
+
+\item \textbf{Backward kernel: fused one-pass atomic scatter.}\\
+\what{The hard direction---many outputs scatter into one input (the transpose of the gather).
+A single kernel computes both gradients: \texttt{grad\_x} via \texttt{tl.atomic\_add} (scatter) and
+\texttt{grad\_w} via a batch reduction.}\\
+\impact{The open risk was atomic \emph{contention} choking the scatter---it did \emph{not}:
+\textbf{1.24$\times$ (A100) / 1.35$\times$ (Blackwell)} vs.\ \texttt{index\_add\_}. This is what
+removed the motivation for an immediate CUDA rewrite.}
+
+\item \textbf{Combined forward $+$ backward; whole-model impact.}\\
+\what{Both kernels in one \texttt{autograd.Function}, measured on the real model end-to-end.}\\
+\impact{\textbf{$+$17.8\% (A100) / $+$31.8\% (Blackwell)} whole training step---the backward
+roughly \emph{doubles} the forward-only win on Blackwell.}
+
+\item \textbf{AMP safety, established empirically.}\\
+\what{Checked the actual dtype entering every indexed synapse under \texttt{autocast(bf16)}.}\\
+\impact{All \textbf{25/25} synapses receive \emph{fp32} (their input is a non-autocast op on fp32
+params), so the fp32 correctness proof \emph{is} the AMP proof. The kernel upcasts internally
+(atomics stay fp32) and is \emph{strictly more robust} than the Phase~1 baseline, whose
+\texttt{index\_add\_} actually crashes on a bf16 activation.}
+
+\item \textbf{Correctness: the right gate is fp64 truth, not trajectory matching.}\\
+\what{A 50-step bf16 training run diverged $\sim$10$^{-2}$ from the fused path---alarming until we
+saw \emph{why} the na\"ive test was wrong. It measured \emph{determinism} (bit-matching fused),
+not \emph{correctness}; and the reference floor is an unstable, sometimes-zero random quantity.
+The correct gate compares each fp32 path to a fixed \emph{double-precision} ground-truth gradient.}\\
+\impact{Swept \emph{all 25} synapses on both GPUs: worst \texttt{triton/fused} error ratio
+\textbf{1.36} (bar: 5$\times$), and the \emph{highest-contention} synapse (fan-in 1295) sits at
+ratio \textbf{$\approx$1.00}---triton is most accurate exactly where the scatter works hardest.
+Both paths land at fp32 $\varepsilon$ ($\sim$$10^{-7}$); the $\sim$10$^{-2}$ bf16 divergence was
+benign chaos amplification of a fit-random-labels problem, \emph{not} a kernel defect.
+\textbf{No contention cliff for scaling.}}
+
+\item \textbf{Integrated behind a second default-off flag, plumbed to YAML.}\\
+\what{\texttt{use\_triton\_gather} (default \texttt{False}); forward precedence
+triton~$\rightarrow$~fused~$\rightarrow$~loop with \emph{graceful fallback} (no CUDA / no Triton
+$\Rightarrow$ falls through, so the flag can never break a run). Plumbed
+\texttt{indexed\_use\_triton\_gather} through 4 config sites.}\\
+\impact{Merge-safe and orthogonal to the Phase~1 flag; both remain off until scaling begins.}
+
+\end{enumerate}
+
 \section{Deliverables}
 
 \begin{table}[h]
@@ -149,22 +219,24 @@ measurement.}
 \toprule
 \textbf{File} & \textbf{Type} & \textbf{Purpose} \\
 \midrule
-\texttt{synapse/fused\_gather.py} & new source & the optimized kernel (custom autograd Function) \\
-\texttt{synapse/indexed\_sparse.py} & modified & flag + forward branch (only real logic change) \\
-\texttt{recurrent/ei\_config.py} & modified & config schema field \\
+\texttt{synapse/fused\_gather.py} & new source & Phase 1 kernel (custom autograd Function) \\
+\texttt{synapse/triton\_gather.py} & new source & Phase 2 Triton fwd$+$bwd kernels (soft import, AMP-safe) \\
+\texttt{synapse/indexed\_sparse.py} & modified & both flags + forward branch (triton$\to$fused$\to$loop) \\
+\texttt{recurrent/ei\_config.py} & modified & config schema fields \\
 \texttt{dendritic/synapse\_config.py} & modified & YAML$\leftrightarrow$kwargs mapping \\
-\texttt{dendritic/branch\_layer.py} & modified & reads flag onto branch layer \\
-\texttt{dendritic/branch\_synapses.py} & modified & passes flag to constructor \\
+\texttt{dendritic/branch\_layer.py} & modified & reads flags onto branch layer \\
+\texttt{dendritic/branch\_synapses.py} & modified & passes flags to constructor \\
 \midrule
-\texttt{profile\_weight\_transform.py} & tool & full-model profiler (find hotspots) \\
-\texttt{bench\_kernel.py} & tool & isolated baseline microbenchmark \\
-\texttt{bench\_kernel-rzw-optimized.py} & tool & optimized-kernel microbench + correctness \\
-\texttt{verify\_fused\_gather.py} & tool & full-model training-equivalence gate \\
-\texttt{profile\_postfix.py} & tool & re-profile after fix (find next candidate) \\
-\texttt{compile\_ab.py} & tool & torch.compile A/B + faithfulness check \\
+\texttt{triton\_gather\_v1/v2.py} & tool & forward-kernel prototypes + tile sweeps \\
+\texttt{triton\_gather\_bwd\_v1.py} & tool & backward-kernel microbench vs \texttt{index\_add\_} \\
+\texttt{measure\_triton\_fwdbwd\_wholemodel.py} & tool & whole-step A/B (orig / fwd / fwd$+$bwd) \\
+\texttt{verify\_triton\_gather\_module.py} & tool & production-module correctness (fp32 $+$ bf16) \\
+\texttt{verify\_grad\_vs\_fp64.py} & tool & \textbf{fp64 unbiasedness stress sweep (all synapses)} \\
+\texttt{train\_equivalence\_triton.py} & tool & multi-step training-equivalence (fp32/bf16) \\
 \bottomrule
 \end{tabular}
-\caption{Six source edits (24 insertions, 7 deletions; all default-off) plus six dev tools.}
+\caption{Phase 1: six edits $+$ one new module. Phase 2: one new module, two flags, plus the
+Triton dev/verification tools. All flags default-off.}
 \end{table}
 
 \section{Results Summary}
@@ -185,7 +257,24 @@ Training correctness & --- & bit-identical (AMP) & no behavior change \\
 \multicolumn{4}{@{}l}{\emph{torch.compile (evaluated, not merged as default):} 1.55$\times$ faster but $+$memory, not bit-exact} \\
 \bottomrule
 \end{tabular}
-\caption{Measured on NVIDIA A100 MIG 3g.20gb, dominant shape (out=90000, K=40, batch=128).}
+\caption{Phase 1, measured on NVIDIA A100 MIG 3g.20gb, dominant shape (out=90000, K=40, batch=128).}
+\end{table}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}lrrl@{}}
+\toprule
+\textbf{Phase 2 metric} & \textbf{A100} & \textbf{Blackwell} & \textbf{Notes} \\
+\midrule
+Forward kernel (isolated) & 2.08$\times$ & 1.56$\times$ & vs eager, best tile B\_M=16 \\
+Backward kernel (isolated) & 1.24$\times$ & 1.35$\times$ & vs \texttt{index\_add\_}; atomics did not choke \\
+Whole step, forward only & $+$12\% & $+$14--16\% & Triton fwd $+$ \texttt{index\_add\_} bwd \\
+\textbf{Whole step, fwd $+$ bwd} & \textbf{$+$17.8\%} & \textbf{$+$31.8\%} & both kernels, one autograd Function \\
+Correctness (vs fp64 truth) & \multicolumn{2}{c}{ratio $\le$1.36 (all 25 synapses)} & UNBIASED; no contention cliff \\
+\bottomrule
+\end{tabular}
+\caption{Phase 2, measured on A100-SXM4-40GB and RTX PRO 6000 Blackwell, fp32, batch=128.}
 \end{table}
 
 \section*{Method (reusable playbook)}
@@ -197,8 +286,9 @@ Training correctness & --- & bit-identical (AMP) & no behavior change \\
 \item Re-profile---the ranking reshuffles---and repeat on the new top candidate.
 \end{enumerate}
 
-\noindent \emph{Status: sparse-gather optimization complete and merge-ready.
-\texttt{torch.compile} logged as an opt-in for memory-rich hardware. Next: Kempner pulse
-ingestion.}
+\noindent \emph{Status: Phase 1 (Python fused backward) and Phase 2 (Triton forward $+$ backward)
+both complete, verified, and merge-ready behind default-off flags. This is the first stable
+checkpoint. Next: Phase 3---a hand-written CUDA/C++ extension for the scatter (deep dive), and
+eventually the recurrent-config gather.}
 
 \end{document}
