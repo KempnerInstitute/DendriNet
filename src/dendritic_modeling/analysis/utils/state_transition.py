@@ -648,8 +648,6 @@ def _power_iteration(
 
     previous_sigma: float | None = None
     converged = False
-    left = torch.zeros_like(right)
-    sigma_tensor = torch.zeros((), device=device, dtype=dtype)
     iterations = 0
     with torch.enable_grad():
         for iteration in range(1, max_iterations + 1):
