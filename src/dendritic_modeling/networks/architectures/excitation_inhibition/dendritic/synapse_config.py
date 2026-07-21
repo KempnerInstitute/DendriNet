@@ -45,6 +45,7 @@ class IndexedSynapseConfig:
     seed: int | None = None
     output_chunk_size: int = 2048
     use_fused_gather: bool = False
+    use_triton_gather: bool = False
     candidate_size: int | None = None
     selection: str = "standard"
     rewire_frequency: int = 100
@@ -150,6 +151,7 @@ def _indexed_config_from_kwargs(source: Mapping[str, Any]) -> IndexedSynapseConf
         seed=source.get("indexed_seed", None),
         output_chunk_size=source.get("indexed_output_chunk_size", 2048),
         use_fused_gather=source.get("indexed_use_fused_gather", False),
+        use_triton_gather=source.get("indexed_use_triton_gather", False),
         candidate_size=source.get("indexed_candidate_size", None),
         selection=source.get("indexed_selection", "standard"),
         rewire_frequency=source.get("indexed_rewire_frequency", 100),
@@ -270,6 +272,7 @@ def _indexed_kwargs(config: IndexedSynapseConfig) -> dict[str, Any]:
         "indexed_seed": config.seed,
         "indexed_output_chunk_size": config.output_chunk_size,
         "indexed_use_fused_gather": config.use_fused_gather,
+        "indexed_use_triton_gather": config.use_triton_gather,
         "indexed_candidate_size": config.candidate_size,
         "indexed_selection": config.selection,
         "indexed_rewire_frequency": config.rewire_frequency,
