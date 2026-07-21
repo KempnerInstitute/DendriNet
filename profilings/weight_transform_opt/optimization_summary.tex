@@ -1,0 +1,204 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{amsmath}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true, linkcolor=blue, urlcolor=blue}
+
+\title{DendriNet Kernel Optimization: Work Log and Results}
+\author{Ryan Whalen}
+\date{July 2026}
+
+\newcommand{\what}[1]{\textbf{What it is:} #1}
+\newcommand{\impact}[1]{\textbf{Impact:} #1}
+
+\begin{document}
+\maketitle
+
+\section*{Context}
+This document logs a profile-driven optimization pass on the DendriNet codebase, targeting
+the sparse ``indexed'' synapse used by the excitation--inhibition population network
+(config \texttt{sglimit5\_h100\_cifar10\_ei\_1layer\_bf33\_10000e1250i}). All work is at
+the \emph{Python / PyTorch} level---no CUDA or Triton kernels were written. The guiding
+discipline: every change must be \emph{explicitly visible}, \emph{reversible}, and a
+\emph{strict improvement with no behavior change by default} (safe to merge into
+\texttt{develop}).
+
+\begin{center}
+\fbox{\parbox{0.92\textwidth}{\centering
+\textbf{Headline result.} A single custom-autograd kernel made the sparse-synapse
+\emph{backward} pass \textbf{7.6$\times$ faster} and \textbf{28$\times$ lighter on memory},
+cutting whole-step wall-clock \textbf{$\sim$5$\times$} (2796\,ms $\to$ 554\,ms), with
+\textbf{bit-identical training} under mixed precision. Gated behind a default-off flag.
+}}
+\end{center}
+
+\section{Investigation \& Diagnosis}
+
+\begin{enumerate}[leftmargin=*]
+
+\item \textbf{Traced the mystery profiling report.}\\
+\what{Figured out which model produced an \texttt{.nsys-rep} file whose name we were handed.}\\
+\impact{Found it came from a separate profiling harness (``ProfilePilot,'' another user's
+setup), and that the config---despite the name saying ``1layer''---is actually a
+\emph{5-layer feedforward} EI network on CIFAR-10. Prevented us from optimizing the wrong thing.}
+
+\item \textbf{Mapped what the model actually computes.}\\
+\what{Traced every PyTorch operation the model runs in its forward/backward pass.}\\
+\impact{Confirmed there are \emph{no} CUDA/Triton kernels and \emph{no} attention---just
+gather, multiply, sum, matmul, and elementwise ops. Established the ``menu'' of things that
+could be optimized.}
+
+\item \textbf{Built a shared-primitive leverage table.}\\
+\what{Ranked operations by how many models use them (breadth), so one fix could help many configs.}\\
+\impact{Identified the high-leverage shared ops (weight transform, sparse gather, block-linear
+aggregation) and the principle: target code that is \emph{both} widely-shared \emph{and}
+inefficient.}
+
+\item \textbf{Profiled first---and killed our initial hypothesis.}\\
+\what{Put a stopwatch on every GPU operation to see where time \emph{actually} goes.}\\
+\impact{Our first idea (caching the weight transform) turned out to be \textbf{$<$0.3\%} of
+runtime---invisible. Profiling redirected us to the real cost before we wasted effort. Key
+lesson: the slow part is usually not the code you can see.}
+
+\item \textbf{Located the true bottleneck.}\\
+\what{The 84\% hotspot was the \emph{backward} (gradient) pass of a sparse gather---a step
+PyTorch auto-generates, not code anyone wrote.}\\
+\impact{Intuition: thousands of outputs read the same input, so during learning every
+correction has to be ``added back'' onto shared inputs. PyTorch's default did this by making
+them queue one-at-a-time---running at only 3\% of the GPU's memory-bandwidth ceiling.}
+
+\end{enumerate}
+
+\section{The Fix}
+
+\begin{enumerate}[leftmargin=*, resume]
+
+\item \textbf{Isolated microbenchmark with proper metrics.}\\
+\what{A standalone script timing just the gather op, measuring achieved memory bandwidth vs.\
+the GPU's peak (the ``roofline'' test).}\\
+\impact{Proved the op was memory-bound and stalling---quantified headroom without the noise of
+a full model run.}
+
+\item \textbf{Prototyped the optimized kernel.}\\
+\what{A custom \texttt{autograd.Function} that overrides the slow default backward with an
+explicit grouped scatter (\texttt{index\_add\_}), and recomputes a large temporary instead of
+storing it.}\\
+\impact{\textbf{7.6$\times$ faster backward} (303.7\,ms $\to$ 39.8\,ms) and \textbf{28$\times$
+less memory} (5.64\,GB $\to$ 0.20\,GB) at production scale.}
+
+\item \textbf{Verified correctness rigorously.}\\
+\what{Compared the new kernel against the original in single (fp32) and double (fp64) precision.}\\
+\impact{Outputs and weight-gradients \emph{bit-identical}; the input-gradient differs only by
+floating-point rounding (exact in fp64), far below the precision training uses. Confirmed
+\emph{not a bug}.}
+
+\item \textbf{Shipped a production, memory-safe module.}\\
+\what{Turned the prototype into a real module (\texttt{fused\_gather.py}), chunked internally so
+it never allocates the huge intermediate tensor.}\\
+\impact{Runs at the real \texttt{out=90000} scale that previously caused out-of-memory errors.}
+
+\item \textbf{Integrated behind a default-off flag.}\\
+\what{Added \texttt{use\_fused\_gather} (default \texttt{False}) to the synapse; when off, the
+original code path runs unchanged.}\\
+\impact{Merge-safe: nothing changes for existing runs unless explicitly enabled. One-line,
+greppable, reversible.}
+
+\item \textbf{Proved whole-model training-equivalence.}\\
+\what{Trained the real model twice from an identical start---original vs.\ fused kernel---and
+compared the loss trajectory.}\\
+\impact{\textbf{Bit-identical} loss every step (\texttt{max diff = 0.0}); final weights matched
+to $\sim$$10^{-6}$. The strongest possible correctness guarantee.}
+
+\item \textbf{Plumbed the flag through to YAML.}\\
+\what{Wired \texttt{indexed\_use\_fused\_gather: true} from config files down to the synapse
+(6 small edits, all defaulting off).}\\
+\impact{The optimization can be toggled per-experiment from a config, with zero effect when unset.}
+
+\end{enumerate}
+
+\section{Re-measurement \& Next-Candidate Search}
+
+\begin{enumerate}[leftmargin=*, resume]
+
+\item \textbf{Re-profiled with the fix enabled.}\\
+\what{Measured the model \emph{after} the fix to find the new bottleneck (the ranking shifts once
+the biggest cost is removed).}\\
+\impact{Confirmed \textbf{$\sim$5$\times$ whole-step speedup} (2796\,ms $\to$ 554\,ms). The
+remaining work is now \emph{diffuse} (many $\sim$20\% ops) and mildly \emph{launch-bound}
+(CPU dispatch $>$ GPU compute).}
+
+\item \textbf{A/B tested \texttt{torch.compile}.}\\
+\what{A whole-graph tool that fuses many small ops into fewer, larger kernels.}\\
+\impact{\textbf{1.55$\times$ faster} (555\,ms $\to$ 355\,ms) with numerically-faithful gradients
+---\emph{but} it uses \emph{more} memory (re-materializing the tensor our kernel removed, causing
+OOM on the small GPU) and is not bit-identical. \textbf{Conclusion:} an opt-in speedup for
+memory-rich hardware, \emph{not} a strict default. Correctly \emph{rejected} as a default by
+measurement.}
+
+\end{enumerate}
+
+\section{Deliverables}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{File} & \textbf{Type} & \textbf{Purpose} \\
+\midrule
+\texttt{synapse/fused\_gather.py} & new source & the optimized kernel (custom autograd Function) \\
+\texttt{synapse/indexed\_sparse.py} & modified & flag + forward branch (only real logic change) \\
+\texttt{recurrent/ei\_config.py} & modified & config schema field \\
+\texttt{dendritic/synapse\_config.py} & modified & YAML$\leftrightarrow$kwargs mapping \\
+\texttt{dendritic/branch\_layer.py} & modified & reads flag onto branch layer \\
+\texttt{dendritic/branch\_synapses.py} & modified & passes flag to constructor \\
+\midrule
+\texttt{profile\_weight\_transform.py} & tool & full-model profiler (find hotspots) \\
+\texttt{bench\_kernel.py} & tool & isolated baseline microbenchmark \\
+\texttt{bench\_kernel-rzw-optimized.py} & tool & optimized-kernel microbench + correctness \\
+\texttt{verify\_fused\_gather.py} & tool & full-model training-equivalence gate \\
+\texttt{profile\_postfix.py} & tool & re-profile after fix (find next candidate) \\
+\texttt{compile\_ab.py} & tool & torch.compile A/B + faithfulness check \\
+\bottomrule
+\end{tabular}
+\caption{Six source edits (24 insertions, 7 deletions; all default-off) plus six dev tools.}
+\end{table}
+
+\section{Results Summary}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+\textbf{Metric} & \textbf{Before} & \textbf{After} & \textbf{Change} \\
+\midrule
+Sparse backward latency & 303.7\,ms & 39.8\,ms & \textbf{7.6$\times$ faster} \\
+Backward bandwidth utilization & 3\% of peak & 20\% of peak & 7$\times$ better \\
+Peak memory (the op) & 5.64\,GB & 0.20\,GB & \textbf{28$\times$ less} \\
+Whole-step wall-clock & 2796\,ms & 554\,ms & \textbf{$\sim$5$\times$ faster} \\
+Training correctness & --- & bit-identical (AMP) & no behavior change \\
+\midrule
+\multicolumn{4}{@{}l}{\emph{torch.compile (evaluated, not merged as default):} 1.55$\times$ faster but $+$memory, not bit-exact} \\
+\bottomrule
+\end{tabular}
+\caption{Measured on NVIDIA A100 MIG 3g.20gb, dominant shape (out=90000, K=40, batch=128).}
+\end{table}
+
+\section*{Method (reusable playbook)}
+\begin{enumerate}[leftmargin=*, itemsep=1pt]
+\item Pick a candidate op that is shared across many configs (breadth---checked statically first).
+\item Profile a representative config to confirm it is actually a large fraction of time.
+\item Isolate it in a microbenchmark; write a faster equivalent; prove identical output + gradients.
+\item Gate behind a default-off flag; verify whole-model training-equivalence.
+\item Re-profile---the ranking reshuffles---and repeat on the new top candidate.
+\end{enumerate}
+
+\noindent \emph{Status: sparse-gather optimization complete and merge-ready.
+\texttt{torch.compile} logged as an opt-in for memory-rich hardware. Next: Kempner pulse
+ingestion.}
+
+\end{document}
