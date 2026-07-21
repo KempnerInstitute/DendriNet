@@ -70,6 +70,7 @@ dendritic-collect-checkpoint-analysis = "dendritic_modeling.scripts.analysis.col
 dendritic-summarize-checkpoint-metrics = "dendritic_modeling.scripts.analysis.summarize_checkpoint_metrics:main"
 dendritic-poisson-exposure-transfer = "dendritic_modeling.scripts.analysis.run_poisson_exposure_transfer:main"
 dendritic-collect-poisson-transfer = "dendritic_modeling.scripts.analysis.collect_poisson_exposure_transfer:main"
+dendritic-collect-sweep-metrics = "dendritic_modeling.scripts.sweeps.collect_sweep_metrics:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

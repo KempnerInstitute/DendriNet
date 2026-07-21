@@ -11,6 +11,9 @@ This directory contains the CLI and support code for parameter sweeps.
 - `summarize_initializer_components.py`: validation-only selector and
   center/slope contrasts for the analytical/occupancy 2-by-2 initializer
   factorial. It deliberately never reads held-out test endpoints.
+- `collect_sweep_metrics.py`: manifest-driven, hash-recorded collection of
+  multiple complete sweep arms into one checkpoint-level table. It performs no
+  aggregation across trained seeds.
 
 ## Internal Structure
 
@@ -52,6 +55,18 @@ Analyze a completed sweep:
 python src/dendritic_modeling/scripts/sweeps/sweep_manager.py \
     --analyze --results-dir /path/to/sweep/results
 ```
+
+Collect several explicitly labeled, complete sweep arms for a reproducible
+seed-level summary:
+
+```bash
+dendritic-collect-sweep-metrics --manifest path/to/collection.yaml
+```
+
+The collection manifest declares each sweep root, its expected config count,
+scalar design labels, required output columns, and an output directory. The
+release records hashes of every consumed generated config and held-out
+performance file.
 
 Use the analyzer directly:
 

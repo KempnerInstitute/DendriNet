@@ -1,0 +1,113 @@
+"""Tests for manifest-driven collection of completed sweep metrics."""
+
+from __future__ import annotations
+
+import hashlib
+from pathlib import Path
+
+import pandas as pd
+import pytest
+import yaml
+
+from dendritic_modeling.scripts.sweeps.collect_sweep_metrics import (
+    collect_sweep_metrics,
+)
+
+
+def _write_sweep(root: Path, *, offset: float = 0.0) -> pd.DataFrame:
+    rows = []
+    for config_id in range(2):
+        config = root / "configs" / f"unified_config_{config_id}.yaml"
+        performance = (
+            root / "results" / f"config_{config_id}" / "performance" / "final.json"
+        )
+        config.parent.mkdir(parents=True, exist_ok=True)
+        performance.parent.mkdir(parents=True, exist_ok=True)
+        config.write_text(f"seed: {config_id}\n", encoding="utf-8")
+        performance.write_text(
+            f'{{"test": {{"accuracy": {0.5 + offset + config_id / 100}}}}}\n',
+            encoding="utf-8",
+        )
+        rows.append(
+            {
+                "config_id": config_id,
+                "seed": config_id,
+                "test_accuracy": 0.5 + offset + config_id / 100,
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def _manifest(tmp_path: Path) -> Path:
+    payload = {
+        "schema_version": "sweep_metric_collection_v1",
+        "required_columns": ["config_id", "seed", "test_accuracy"],
+        "sweeps": [
+            {
+                "name": "additive",
+                "root": str(tmp_path / "additive"),
+                "expected_config_count": 2,
+                "labels": {"mechanism": "additive"},
+            },
+            {
+                "name": "shunting",
+                "root": str(tmp_path / "shunting"),
+                "expected_config_count": 2,
+                "labels": {"mechanism": "shunting"},
+            },
+        ],
+        "output_dir": str(tmp_path / "collected"),
+    }
+    path = tmp_path / "collection.yaml"
+    path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+    return path
+
+
+def test_collect_sweep_metrics_is_complete_labeled_and_hash_recorded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    frames = {
+        str((tmp_path / "additive").resolve()): _write_sweep(tmp_path / "additive"),
+        str((tmp_path / "shunting").resolve()): _write_sweep(
+            tmp_path / "shunting", offset=0.1
+        ),
+    }
+    monkeypatch.setattr(
+        "dendritic_modeling.scripts.sweeps.collect_sweep_metrics.DataCollector.collect_all",
+        lambda collector: frames[str(Path(collector.results_dir).resolve())].copy(),
+    )
+    manifest = _manifest(tmp_path)
+
+    release = collect_sweep_metrics(manifest_path=manifest)
+
+    assert release["collected_checkpoint_count"] == 4
+    units = pd.read_csv(tmp_path / "collected/checkpoint_units.csv")
+    assert set(units["mechanism"]) == {"additive", "shunting"}
+    assert not units.duplicated(["sweep_name", "config_id"]).any()
+    assert all(len(record["artifacts"]) == 4 for record in release["sweeps"])
+    assert (tmp_path / "collected/collection_provenance.json").is_file()
+
+
+def test_collect_sweep_metrics_rejects_incomplete_or_changed_artifacts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    frame = _write_sweep(tmp_path / "additive")
+    _write_sweep(tmp_path / "shunting")
+    monkeypatch.setattr(
+        "dendritic_modeling.scripts.sweeps.collect_sweep_metrics.DataCollector.collect_all",
+        lambda collector: frame.iloc[:1].copy(),
+    )
+    manifest = _manifest(tmp_path)
+    with pytest.raises(RuntimeError, match="incomplete sweep"):
+        collect_sweep_metrics(manifest_path=manifest)
+
+    payload = yaml.safe_load(manifest.read_text(encoding="utf-8"))
+    payload["sweeps"] = [payload["sweeps"][0]]
+    payload["sweeps"][0]["artifact_set_sha256"] = hashlib.sha256(b"wrong").hexdigest()
+    manifest.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+    monkeypatch.setattr(
+        "dendritic_modeling.scripts.sweeps.collect_sweep_metrics.DataCollector.collect_all",
+        lambda collector: frame.copy(),
+    )
+    with pytest.raises(ValueError, match="artifact set hash differs"):
+        collect_sweep_metrics(manifest_path=manifest)
