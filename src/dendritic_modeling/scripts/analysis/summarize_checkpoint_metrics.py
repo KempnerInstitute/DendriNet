@@ -103,6 +103,7 @@ def _apply_filters(
     *,
     filters: Mapping[str, Any] | None = None,
     regex_filters: Mapping[str, str] | None = None,
+    any_of_filters: Sequence[Mapping[str, Any]] | None = None,
 ) -> pd.DataFrame:
     selected = frame.copy()
     for column, expected in (filters or {}).items():
@@ -114,6 +115,18 @@ def _apply_filters(
         selected = selected.loc[
             selected[str(column)].astype(str).str.fullmatch(str(pattern), na=False)
         ]
+    if any_of_filters:
+        union_mask = pd.Series(False, index=selected.index)
+        for index, clause in enumerate(any_of_filters):
+            if not isinstance(clause, Mapping) or not clause:
+                raise ValueError(f"any_of_filters[{index}] must be a non-empty mapping")
+            clause_mask = pd.Series(True, index=selected.index)
+            for column, expected in clause.items():
+                _require_columns(selected, [str(column)])
+                values = expected if isinstance(expected, list) else [expected]
+                clause_mask &= selected[str(column)].isin(values)
+            union_mask |= clause_mask
+        selected = selected.loc[union_mask]
     if selected.empty:
         raise ValueError("metric selection produced no rows")
     return selected.reset_index(drop=True)
@@ -180,6 +193,7 @@ def _paired_outputs(
             frame,
             filters=declaration.get("filters"),
             regex_filters=declaration.get("regex_filters"),
+            any_of_filters=declaration.get("any_of_filters"),
         )
         paired, summaries = paired_arm_comparison(
             selected,
@@ -241,6 +255,7 @@ def summarize_checkpoint_metrics(
         with_derived,
         filters=config.get("filters"),
         regex_filters=config.get("regex_filters"),
+        any_of_filters=config.get("any_of_filters"),
     )
     group_by = [str(value) for value in config.get("group_by", [])]
     unit_columns = [str(value) for value in config.get("unit_columns", [])]

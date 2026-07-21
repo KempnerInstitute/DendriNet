@@ -171,3 +171,73 @@ def test_paired_comparison_inherits_top_level_value_column(tmp_path: Path) -> No
     paired = pd.read_csv(tmp_path / "accuracy_summary/paired_summary.csv")
     assert paired.loc[0, "metric"] == "test_accuracy"
     assert paired.loc[0, "mean"] == pytest.approx(0.1)
+
+
+def test_any_of_filters_define_mixed_architecture_reference(tmp_path: Path) -> None:
+    rows = []
+    for lineage in ("additive", "shunting"):
+        for seed in range(3):
+            rows.extend(
+                [
+                    {
+                        "lineage": lineage,
+                        "architecture": "point",
+                        "ee": 3000,
+                        "ie": 3000,
+                        "seed": seed,
+                        "test_accuracy": 0.4,
+                    },
+                    {
+                        "lineage": lineage,
+                        "architecture": "tree",
+                        "ee": 40,
+                        "ie": 10,
+                        "seed": seed,
+                        "test_accuracy": 0.5,
+                    },
+                    {
+                        "lineage": lineage,
+                        "architecture": "tree",
+                        "ee": 25,
+                        "ie": 25,
+                        "seed": seed,
+                        "test_accuracy": 0.6,
+                    },
+                ]
+            )
+    source = tmp_path / "architectures.csv"
+    pd.DataFrame(rows).to_csv(source, index=False)
+    payload = {
+        "schema_version": "checkpoint_metric_summary_v1",
+        "input": {"path": str(source)},
+        "any_of_filters": [
+            {"architecture": "point"},
+            {"architecture": "tree", "ee": 40, "ie": 10},
+        ],
+        "group_by": ["lineage", "architecture"],
+        "unit_columns": ["seed"],
+        "value_column": "test_accuracy",
+        "expected_units_per_group": 3,
+        "bootstrap": {"draws": 200, "seed": 17},
+        "paired_comparisons": [
+            {
+                "name": "tree_minus_point",
+                "arm_column": "architecture",
+                "reference": "point",
+                "comparison": "tree",
+                "pair_columns": ["seed"],
+                "stratum_columns": ["lineage"],
+                "expected_pairs_per_stratum": 3,
+            }
+        ],
+        "output_dir": str(tmp_path / "architecture_summary"),
+    }
+    config = tmp_path / "architecture.yaml"
+    config.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+
+    summarize_checkpoint_metrics(config_path=config)
+
+    units = pd.read_csv(tmp_path / "architecture_summary/checkpoint_units.csv")
+    assert len(units) == 12
+    paired = pd.read_csv(tmp_path / "architecture_summary/paired_summary.csv")
+    assert paired["mean"].tolist() == pytest.approx([0.1, 0.1])
