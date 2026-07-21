@@ -38,6 +38,30 @@ class TestAggregation(unittest.TestCase):
         group1 = result[result["ee_value"] == 40].iloc[0]
         self.assertAlmostEqual(group1["test_accuracy_mean"], 0.90, places=2)
 
+    def test_aggregate_over_seeds_accepts_list_valued_group_keys(self):
+        """Architecture lists should form stable groups without mutating input."""
+        data = pd.DataFrame(
+            {
+                "excitatory_layers": [[64], [64], [32, 64], [32, 64]],
+                "branch_factors": ["3-3", "3-3", "2-4", "2-4"],
+                "seed": [0, 1, 0, 1],
+                "test_accuracy": [0.50, 0.52, 0.40, 0.44],
+            }
+        )
+
+        result = aggregate_over_seeds(
+            data,
+            group_by_cols=["excitatory_layers", "branch_factors"],
+        )
+
+        self.assertEqual(len(result), 2)
+        self.assertEqual(set(result["excitatory_layers"]), {(64,), (32, 64)})
+        self.assertAlmostEqual(
+            result.loc[result["branch_factors"] == "3-3", "test_accuracy_mean"].iloc[0],
+            0.51,
+        )
+        self.assertIsInstance(data.loc[0, "excitatory_layers"], list)
+
     def test_compute_ei_ratio(self):
         """Test E/I ratio computation."""
         data = pd.DataFrame(

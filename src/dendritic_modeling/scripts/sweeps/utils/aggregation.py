@@ -6,6 +6,28 @@ import numpy as np
 import pandas as pd
 
 
+def _make_group_value_hashable(value):
+    """Return a stable, hashable representation for a group key value.
+
+    Configuration extraction intentionally preserves layer-size fields as
+    lists. Pandas cannot group by those values directly, so normalize only the
+    grouping view while leaving the caller's input frame unchanged.
+    """
+    if isinstance(value, np.ndarray):
+        value = value.tolist()
+    if isinstance(value, list | tuple):
+        return tuple(_make_group_value_hashable(item) for item in value)
+    if isinstance(value, dict):
+        return tuple(
+            sorted(
+                (key, _make_group_value_hashable(item)) for key, item in value.items()
+            )
+        )
+    if isinstance(value, set):
+        return tuple(sorted(_make_group_value_hashable(item) for item in value))
+    return value
+
+
 def aggregate_over_seeds(
     data: pd.DataFrame,
     group_by_cols: list[str],
@@ -44,9 +66,13 @@ def aggregate_over_seeds(
     if not group_by_cols:
         return data
 
+    grouping_data = data.copy()
+    for column in group_by_cols:
+        grouping_data[column] = grouping_data[column].map(_make_group_value_hashable)
+
     # Group and aggregate
     results = []
-    for group_vals, group_data in data.groupby(group_by_cols, dropna=False):
+    for group_vals, group_data in grouping_data.groupby(group_by_cols, dropna=False):
         # Create row with group values
         if isinstance(group_vals, tuple):
             row = dict(zip(group_by_cols, group_vals))

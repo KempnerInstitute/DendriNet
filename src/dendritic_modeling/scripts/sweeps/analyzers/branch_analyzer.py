@@ -75,6 +75,7 @@ class BranchSweepAnalyzer(BaseSweepAnalyzer):
             "inhibitory_layers",
             "branch_factors",
             "use_shunting",
+            "reactivation_init_policy",
             "network_category",
             "nparams",
         ]
