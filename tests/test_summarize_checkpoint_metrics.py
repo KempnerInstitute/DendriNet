@@ -125,6 +125,8 @@ def test_paired_comparison_inherits_top_level_value_column(tmp_path: Path) -> No
                 {
                     "mechanism": mechanism,
                     "seed": seed,
+                    "excitatory_contacts": 40,
+                    "inhibitory_contacts": 10,
                     "test_accuracy": 0.5 + offset + seed / 100,
                 }
             )
@@ -133,6 +135,17 @@ def test_paired_comparison_inherits_top_level_value_column(tmp_path: Path) -> No
     payload = {
         "schema_version": "checkpoint_metric_summary_v1",
         "input": {"path": str(source)},
+        "derived_columns": {
+            "total_contacts": {
+                "operation": "sum",
+                "columns": ["excitatory_contacts", "inhibitory_contacts"],
+            },
+            "balanced": {
+                "operation": "equal",
+                "columns": ["excitatory_contacts", "inhibitory_contacts"],
+            },
+        },
+        "filters": {"total_contacts": 50, "balanced": False},
         "group_by": ["mechanism"],
         "unit_columns": ["seed"],
         "value_column": "test_accuracy",

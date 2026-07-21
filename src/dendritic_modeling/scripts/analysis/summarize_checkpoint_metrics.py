@@ -58,6 +58,46 @@ def _require_columns(frame: pd.DataFrame, columns: Sequence[str]) -> None:
         raise ValueError(f"input table is missing required columns: {missing}")
 
 
+def _apply_derived_columns(
+    frame: pd.DataFrame,
+    declarations: Mapping[str, Any] | None,
+) -> pd.DataFrame:
+    selected = frame.copy()
+    for name, declaration in (declarations or {}).items():
+        column_name = str(name)
+        if not column_name or column_name in selected.columns:
+            raise ValueError(f"invalid or colliding derived column: {column_name!r}")
+        if not isinstance(declaration, Mapping):
+            raise TypeError(f"derived column {column_name!r} must be a mapping")
+        operation = str(declaration.get("operation", ""))
+        columns = [str(value) for value in declaration.get("columns", [])]
+        _require_columns(selected, columns)
+        if operation == "sum":
+            if not columns:
+                raise ValueError("sum-derived columns require at least one input")
+            values = selected[columns].apply(pd.to_numeric, errors="raise")
+            selected[column_name] = values.sum(axis=1)
+        elif operation in {"difference", "ratio", "equal"}:
+            if len(columns) != 2:
+                raise ValueError(f"{operation} requires exactly two columns")
+            if operation == "equal":
+                selected[column_name] = selected[columns[0]].eq(selected[columns[1]])
+                continue
+            left = pd.to_numeric(selected[columns[0]], errors="raise")
+            right = pd.to_numeric(selected[columns[1]], errors="raise")
+            if operation == "difference":
+                selected[column_name] = left - right
+            else:
+                if right.eq(0).any():
+                    raise ValueError(
+                        f"ratio-derived column {column_name!r} divides by zero"
+                    )
+                selected[column_name] = left / right
+        else:
+            raise ValueError(f"unsupported derived-column operation: {operation!r}")
+    return selected
+
+
 def _apply_filters(
     frame: pd.DataFrame,
     *,
@@ -193,8 +233,12 @@ def summarize_checkpoint_metrics(
         raise ValueError("input table hash differs from summary config")
 
     frame = pd.read_csv(input_path)
+    derived = config.get("derived_columns", {})
+    if not isinstance(derived, dict):
+        raise TypeError("derived_columns must be a mapping")
+    with_derived = _apply_derived_columns(frame, derived)
     selected = _apply_filters(
-        frame,
+        with_derived,
         filters=config.get("filters"),
         regex_filters=config.get("regex_filters"),
     )
@@ -257,6 +301,7 @@ def summarize_checkpoint_metrics(
         "inferential_unit": "independently_trained_checkpoint",
         "unit_columns": unit_columns,
         "group_by": group_by,
+        "derived_columns": derived,
         "expected_units_per_group": expected_units,
         "bootstrap": {"draws": draws, "seed": seed, "confidence": confidence},
         "source_identity": discover_source_identity(
