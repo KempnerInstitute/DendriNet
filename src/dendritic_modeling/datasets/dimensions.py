@@ -18,6 +18,10 @@ DATASET_FLAT_INPUT_SHAPES: dict[str, tuple[int, ...]] = {
     "imagenet": (150528,),
 }
 DATASET_IMAGE_INPUT_SHAPES: dict[str, tuple[int, ...]] = {
+    "mnist": (1, 28, 28),
+    "fashion_mnist": (1, 28, 28),
+    "cifar10": (3, 32, 32),
+    "cifar100": (3, 32, 32),
     "imagenet": (3, 224, 224),
 }
 

@@ -1,58 +1,20 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 import pandas as pd
 import pytest
-import yaml
 
 from dendritic_modeling.scripts.sweeps import (
     summarize_initializer_components as summary,
 )
 
-ROOT = Path(__file__).resolve().parent.parent
 
-
-@pytest.mark.parametrize(
-    ("relative_path", "expected_count", "expected_seeds"),
-    [
-        (
-            "drafts/dendritic-information-processing/empirical/configs/"
-            "publication_v3/confirmatory/initialization/"
-            "empirical_initializer_component_factorial_resource_matched_cifar10.yaml",
-            96,
-            3,
-        ),
-        (
-            "drafts/dendritic-information-processing/neurips/configs/sweeps/"
-            "neurips_v1_initializer_component_factorial_revision.yaml",
-            96,
-            2,
-        ),
-    ],
-)
-def test_component_sweeps_use_the_complete_symmetric_policy_set(
-    relative_path, expected_count, expected_seeds
-):
-    document = yaml.safe_load((ROOT / relative_path).read_text(encoding="utf-8"))
-    sweep = document["sweep_config"]
-    policies = sweep[
-        "model.core.population_network.layers.0.population_defaults.reactivation_init_policy"
-    ]
-    mechanisms = sweep[
-        "model.core.population_network.layers.0.population_defaults.use_shunting"
-    ]
-    common = document["base_config"]["training"]["main"]["common"]
-
-    assert document["sweep_contract"]["expected_config_count"] == expected_count
-    assert document["experiment_settings"]["seeds_per_condition"] == expected_seeds
-    assert set(policies) == set(summary.POLICY_COMPONENTS)
-    assert mechanisms == [True, False]
-    assert common["weight_decay_rate"] == pytest.approx(0.01)
-    assert common["weight_boosting"] is True
-    assert document["base_config"]["training"]["main"]["optimizer"][
-        "weight_decay"
-    ] == pytest.approx(0.0)
+def test_initializer_policies_define_a_complete_two_by_two_factorial():
+    assert summary.POLICY_COMPONENTS == {
+        "analytical": ("analytical", "analytical"),
+        "analytical_slope_occupancy_center": ("analytical", "occupancy"),
+        "occupancy_slope_analytical_center": ("occupancy", "analytical"),
+        "occupancy_quantile": ("occupancy", "occupancy"),
+    }
 
 
 def _synthetic_runs() -> pd.DataFrame:

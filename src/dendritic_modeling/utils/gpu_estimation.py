@@ -233,7 +233,26 @@ def _resolve_estimation_input_shape(
     task_cfg: Any,
     task_params: dict[str, Any],
 ) -> tuple[int, ...] | torch.Size:
-    """Resolve input shape from data, falling back to canonical dataset dimensions."""
+    """Resolve input shape without downloading built-in datasets.
+
+    Canonical metadata is sufficient for built-in datasets.  Custom datasets
+    still use one real sample so temporal and structured input shapes remain
+    accurate.
+    """
+    task_params = to_plain_dict(task_params)
+    dataset_name = getattr(task_cfg, "dataset", "cifar10")
+    canonical_shape = dataset_input_shape(
+        dataset_name,
+        flatten=task_params.get("flatten", False),
+    )
+    if canonical_shape is not None:
+        logger.info(
+            "Using canonical input shape for %s: %s",
+            dataset_name,
+            canonical_shape,
+        )
+        return canonical_shape
+
     from dendritic_modeling.datasets import get_unified_datasets
 
     try:
@@ -283,7 +302,7 @@ def _build_estimation_core(model_config: Any, encoder: torch.nn.Module):
 
     core_config = getattr(model_config, "core_network", None) or model_config.core
     core_type = core_config.type.lower()
-    if core_type in {
+    structured_core_types = {
         "einet",
         "ei_unified",
         "unified_ei",
@@ -295,7 +314,13 @@ def _build_estimation_core(model_config: Any, encoder: torch.nn.Module):
         "rnn_flat_shunting",
         "rnn_flat_additive",
         "rnn_flat_normalized_additive",
-    } and hasattr(core_config, "architecture"):
+    }
+    is_structured_core = hasattr(core_config, "architecture") or (
+        core_type == "population_network" and hasattr(core_config, "population_network")
+    )
+    if (core_type in structured_core_types or core_type == "population_network") and (
+        is_structured_core
+    ):
         return get_architecture(core_config.type, core_config, encoder.output_dim)
 
     core_params = _core_params_from_config(core_config)
@@ -987,7 +1012,9 @@ class GPUMemoryEstimator:
 def estimate_from_config(config_path: str, batch_size: Optional[int] = None):
     """
     Estimate GPU requirements from a configuration file.
-    Uses real dataset samples for accurate shape inference, similar to train_experiments.py.
+
+    Uses canonical metadata for built-in datasets and one real sample for
+    custom datasets that may have temporal or structured inputs.
 
     Args:
         config_path: Path to configuration file
