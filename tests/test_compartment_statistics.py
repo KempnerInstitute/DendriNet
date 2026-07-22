@@ -171,7 +171,8 @@ def test_compartment_statistics_generic_entropy_matches_current_estimator():
         }
     }
 
-    branch_stats = analyzer._compute_branch_statistics()["layer0"][0]
+    branch_statistics = analyzer._compute_branch_statistics()
+    branch_stats = branch_statistics["layer0"][0]
 
     expected = float(differential_entropy(samples.numpy(), method="vasicek"))
     assert np.isclose(branch_stats["exc_activations_entropy"], expected)
@@ -190,7 +191,8 @@ def test_compartment_statistics_generic_entropy_zeroes_degenerate_samples():
         }
     }
 
-    branch_stats = analyzer._compute_branch_statistics()["layer0"][0]
+    branch_statistics = analyzer._compute_branch_statistics()
+    branch_stats = branch_statistics["layer0"][0]
 
     assert branch_stats["exc_activations_entropy"] == 0.0
 
@@ -216,7 +218,8 @@ def test_compartment_statistics_per_class_entropy_matches_current_estimator():
         }
     }
 
-    branch_stats = analyzer._compute_branch_statistics()["layer0"][0]
+    branch_statistics = analyzer._compute_branch_statistics()
+    branch_stats = branch_statistics["layer0"][0]
 
     expected_zero = differential_entropy(class_zero.flatten().numpy(), method="vasicek")
     expected_one = differential_entropy(class_one.flatten().numpy(), method="vasicek")
@@ -227,6 +230,13 @@ def test_compartment_statistics_per_class_entropy_matches_current_estimator():
     assert np.isclose(
         branch_stats["exc_activations_per_class_class_1_entropy"],
         expected_one,
+    )
+    assert "exc_activations_per_class" not in branch_stats
+    layer_stats = analyzer._compute_layer_statistics(branch_statistics)
+    global_stats = analyzer._compute_global_statistics(branch_statistics)
+    assert layer_stats["layer0"]["depth"] == 0
+    assert global_stats["exc_activations_per_class_class_0_mean_mean"] == pytest.approx(
+        class_zero.mean().item()
     )
 
 
