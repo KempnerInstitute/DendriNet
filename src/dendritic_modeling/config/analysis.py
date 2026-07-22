@@ -1618,7 +1618,8 @@ class ReceptiveFieldAnalysisParams(BaseConfig):
     - compute_activation_tuning: also summarize class tuning of branch signals.
     - activation_sample_signals / activation_sample_depths: optionally retain a
       deterministic, class-balanced sample of scalar branch signals for
-      distribution plots. Empty selections disable sample records.
+      distribution plots. ``activation_sample_branch_indices`` can restrict
+      records to predeclared branch indices; an empty list retains all branches.
     - compute_component_rfs: run compact E/I mean and conditioned component RF
       maps, matching the empirical paper's soma-level RF summary.
     - compute_rf_tuning: run the aggregate RF tuning,
@@ -1634,6 +1635,7 @@ class ReceptiveFieldAnalysisParams(BaseConfig):
     compute_activation_tuning: bool = False
     activation_sample_signals: list[str] = field(default_factory=list)
     activation_sample_depths: list[int] = field(default_factory=list)
+    activation_sample_branch_indices: list[int] = field(default_factory=list)
     activation_samples_per_class: int = 0
     activation_sample_seed: int = 0
     compute_component_rfs: bool = False
@@ -1655,6 +1657,9 @@ class ReceptiveFieldAnalysisParams(BaseConfig):
         self.activation_sample_depths = [
             int(value) for value in self.activation_sample_depths
         ]
+        self.activation_sample_branch_indices = [
+            int(value) for value in self.activation_sample_branch_indices
+        ]
         if len(set(self.activation_sample_signals)) != len(
             self.activation_sample_signals
         ):
@@ -1663,11 +1668,17 @@ class ReceptiveFieldAnalysisParams(BaseConfig):
             self.activation_sample_depths
         ):
             raise ValueError("activation_sample_depths must be unique")
+        if len(set(self.activation_sample_branch_indices)) != len(
+            self.activation_sample_branch_indices
+        ):
+            raise ValueError("activation_sample_branch_indices must be unique")
         unknown = sorted(set(self.activation_sample_signals) - allowed_signals)
         if unknown:
             raise ValueError(f"unknown activation sample signals: {unknown}")
         if any(depth < 0 for depth in self.activation_sample_depths):
             raise ValueError("activation sample depths must be non-negative")
+        if any(index < 0 for index in self.activation_sample_branch_indices):
+            raise ValueError("activation sample branch indices must be non-negative")
         self.activation_samples_per_class = int(self.activation_samples_per_class)
         self.activation_sample_seed = int(self.activation_sample_seed)
         if self.activation_samples_per_class < 0:

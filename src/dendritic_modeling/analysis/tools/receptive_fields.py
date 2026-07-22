@@ -77,6 +77,10 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         self.activation_sample_depths = tuple(
             int(value) for value in getattr(params, "activation_sample_depths", [])
         )
+        self.activation_sample_branch_indices = tuple(
+            int(value)
+            for value in getattr(params, "activation_sample_branch_indices", [])
+        )
         self.activation_samples_per_class = int(
             getattr(params, "activation_samples_per_class", 0)
         )
@@ -528,10 +532,13 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
 
         records: list[dict[str, object]] = []
         selected_depths = set(self.activation_sample_depths)
+        selected_branches = set(self.activation_sample_branch_indices)
         for module_name, layer_data in sorted(self.activation_raw.items()):
             for branch_index, branch_data in sorted(layer_data.items()):
                 depth = int(branch_data["depth"])
                 if depth not in selected_depths:
+                    continue
+                if selected_branches and branch_index not in selected_branches:
                     continue
                 for signal in self.activation_sample_signals:
                     if signal == "ei_ratio":
@@ -2061,6 +2068,7 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
                 "selection_rule": "uniform_without_replacement_within_class",
                 "signals": list(self.activation_sample_signals),
                 "depths": list(self.activation_sample_depths),
+                "branch_indices": list(self.activation_sample_branch_indices),
                 "requested_samples_per_class": self.activation_samples_per_class,
                 "seed": self.activation_sample_seed,
                 "records": self.activation_sample_records,
