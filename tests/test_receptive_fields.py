@@ -425,6 +425,7 @@ def test_receptive_field_checkpoint_and_activation_tuning(tmp_path):
         activation_sample_signals=["vout"],
         activation_sample_depths=[0],
         activation_sample_branch_indices=[0],
+        activation_sample_branch_indices_by_depth={0: [1]},
         activation_samples_per_class=2,
         activation_sample_seed=17,
     )
@@ -448,10 +449,11 @@ def test_receptive_field_checkpoint_and_activation_tuning(tmp_path):
     assert samples["signals"] == ["vout"]
     assert samples["depths"] == [0]
     assert samples["branch_indices"] == [0]
+    assert samples["branch_indices_by_depth"] == {"0": [1]}
     assert samples["records"]
     assert {record["class_label"] for record in samples["records"]} == {0, 1}
     assert {record["depth"] for record in samples["records"]} == {0}
-    assert {record["branch_index"] for record in samples["records"]} == {0}
+    assert {record["branch_index"] for record in samples["records"]} == {1}
     assert {record["signal"] for record in samples["records"]} == {"vout"}
     first_layer = analyzer.activation_raw[
         "core_network.layers.0.excitatory_cells.branch_layers.0"

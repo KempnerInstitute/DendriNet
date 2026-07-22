@@ -1619,7 +1619,9 @@ class ReceptiveFieldAnalysisParams(BaseConfig):
     - activation_sample_signals / activation_sample_depths: optionally retain a
       deterministic, class-balanced sample of scalar branch signals for
       distribution plots. ``activation_sample_branch_indices`` can restrict
-      records to predeclared branch indices; an empty list retains all branches.
+      records globally, while ``activation_sample_branch_indices_by_depth``
+      supports a predeclared depth-specific selection. Empty selections retain
+      all branches.
     - compute_component_rfs: run compact E/I mean and conditioned component RF
       maps, matching the empirical paper's soma-level RF summary.
     - compute_rf_tuning: run the aggregate RF tuning,
@@ -1636,6 +1638,9 @@ class ReceptiveFieldAnalysisParams(BaseConfig):
     activation_sample_signals: list[str] = field(default_factory=list)
     activation_sample_depths: list[int] = field(default_factory=list)
     activation_sample_branch_indices: list[int] = field(default_factory=list)
+    activation_sample_branch_indices_by_depth: dict[int, list[int]] = field(
+        default_factory=dict
+    )
     activation_samples_per_class: int = 0
     activation_sample_seed: int = 0
     compute_component_rfs: bool = False
@@ -1660,6 +1665,10 @@ class ReceptiveFieldAnalysisParams(BaseConfig):
         self.activation_sample_branch_indices = [
             int(value) for value in self.activation_sample_branch_indices
         ]
+        self.activation_sample_branch_indices_by_depth = {
+            int(depth): [int(value) for value in indices]
+            for depth, indices in self.activation_sample_branch_indices_by_depth.items()
+        }
         if len(set(self.activation_sample_signals)) != len(
             self.activation_sample_signals
         ):
@@ -1679,6 +1688,17 @@ class ReceptiveFieldAnalysisParams(BaseConfig):
             raise ValueError("activation sample depths must be non-negative")
         if any(index < 0 for index in self.activation_sample_branch_indices):
             raise ValueError("activation sample branch indices must be non-negative")
+        for depth, indices in self.activation_sample_branch_indices_by_depth.items():
+            if depth < 0:
+                raise ValueError("activation sample branch depths must be non-negative")
+            if len(indices) != len(set(indices)):
+                raise ValueError(
+                    "activation sample branch indices must be unique within depth"
+                )
+            if any(index < 0 for index in indices):
+                raise ValueError(
+                    "activation sample branch indices must be non-negative"
+                )
         self.activation_samples_per_class = int(self.activation_samples_per_class)
         self.activation_sample_seed = int(self.activation_sample_seed)
         if self.activation_samples_per_class < 0:

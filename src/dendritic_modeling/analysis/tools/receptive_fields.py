@@ -81,6 +81,14 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
             int(value)
             for value in getattr(params, "activation_sample_branch_indices", [])
         )
+        self.activation_sample_branch_indices_by_depth = {
+            int(depth): tuple(int(value) for value in indices)
+            for depth, indices in getattr(
+                params,
+                "activation_sample_branch_indices_by_depth",
+                {},
+            ).items()
+        }
         self.activation_samples_per_class = int(
             getattr(params, "activation_samples_per_class", 0)
         )
@@ -538,7 +546,16 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
                 depth = int(branch_data["depth"])
                 if depth not in selected_depths:
                     continue
-                if selected_branches and branch_index not in selected_branches:
+                depth_branches = set(
+                    self.activation_sample_branch_indices_by_depth.get(depth, ())
+                )
+                if depth_branches and branch_index not in depth_branches:
+                    continue
+                if (
+                    not depth_branches
+                    and selected_branches
+                    and branch_index not in selected_branches
+                ):
                     continue
                 for signal in self.activation_sample_signals:
                     if signal == "ei_ratio":
@@ -2069,6 +2086,12 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
                 "signals": list(self.activation_sample_signals),
                 "depths": list(self.activation_sample_depths),
                 "branch_indices": list(self.activation_sample_branch_indices),
+                "branch_indices_by_depth": {
+                    str(depth): list(indices)
+                    for depth, indices in sorted(
+                        self.activation_sample_branch_indices_by_depth.items()
+                    )
+                },
                 "requested_samples_per_class": self.activation_samples_per_class,
                 "seed": self.activation_sample_seed,
                 "records": self.activation_sample_records,
