@@ -22,10 +22,12 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import yaml
 
 from dendritic_modeling.scripts.sweeps.control_plane import discover_source_identity
 
 SCHEMA_VERSION = "path_matched_intervention_collection_v1"
+CONFIG_SCHEMA_VERSION = "path_matched_intervention_collection_config_v1"
 RESULT_SUBDIRECTORY = "path_matched_intervention"
 RESULT_ANALYSIS_TYPE = "path_matched_depth_intervention"
 METRIC_FIELDS = (
@@ -523,15 +525,42 @@ def collect_path_matched_interventions(
     return collection
 
 
+def _resolve_config_path(value: str | Path, *, base: Path) -> Path:
+    path = Path(value).expanduser()
+    return (base / path).resolve() if not path.is_absolute() else path.resolve()
+
+
+def _load_collection_config(path: Path) -> dict[str, Any]:
+    payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict) or payload.get("schema_version") != (
+        CONFIG_SCHEMA_VERSION
+    ):
+        raise ValueError(f"unsupported path-intervention collection config: {path}")
+    missing = {"jobs", "output_dir"} - set(payload)
+    if missing:
+        raise ValueError(f"collection config lacks required fields: {sorted(missing)}")
+    jobs = payload["jobs"]
+    if not isinstance(jobs, list) or not jobs:
+        raise ValueError("collection config jobs must be a nonempty list")
+    base = path.resolve().parent
+    return {
+        "jobs_paths": [_resolve_config_path(value, base=base) for value in jobs],
+        "output_dir": _resolve_config_path(payload["output_dir"], base=base),
+        "expected_count": payload.get("expected_count"),
+        "expected_support_hash": payload.get("expected_support_hash"),
+        "allow_incomplete": bool(payload.get("allow_incomplete", False)),
+    }
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--config", type=Path)
     parser.add_argument(
         "--jobs",
         action="append",
-        required=True,
         help="JSONL job declaration; repeat for pilot and production files",
     )
-    parser.add_argument("--output-dir", required=True)
+    parser.add_argument("--output-dir")
     parser.add_argument("--expected-count", type=int)
     parser.add_argument("--expected-support-hash")
     parser.add_argument(
@@ -544,6 +573,23 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> dict[str, Any]:
     args = _build_parser().parse_args(argv)
+    if args.config is not None:
+        explicit = any(
+            (
+                args.jobs,
+                args.output_dir,
+                args.expected_count is not None,
+                args.expected_support_hash,
+                args.allow_incomplete,
+            )
+        )
+        if explicit:
+            raise ValueError("--config cannot be combined with explicit options")
+        return collect_path_matched_interventions(
+            **_load_collection_config(args.config)
+        )
+    if not args.jobs or args.output_dir is None:
+        raise ValueError("--jobs and --output-dir are required without --config")
     return collect_path_matched_interventions(
         jobs_paths=args.jobs,
         output_dir=args.output_dir,

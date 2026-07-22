@@ -363,11 +363,12 @@ the source commit/dirty state when run from a Git checkout.
 After an array of checkpoint analyses finishes, collect the exact job
 declarations instead of discovering result directories by filename::
 
-    dendritic-collect-representations \
-      --jobs /path/to/jobs_pilot.jsonl \
-      --jobs /path/to/jobs_full.jsonl \
-      --expected-count 100 \
-      --output-dir /path/to/collected
+    dendritic-collect-representations --config representation_collection.yaml
+
+where ``representation_collection.yaml`` declares ``jobs``, ``output_dir``,
+``expected_count``, and optionally ``allow_incomplete`` under schema
+``representation_accessibility_collection_config_v1``. Explicit CLI arguments
+remain available for exploratory collections.
 
 The collector verifies strict checkpoint loading and the config, checkpoint,
 and analysis hashes for every job. It writes long-form records plus
@@ -473,7 +474,14 @@ hashes, checks the complete intervention grid, and writes both an auditable
 ``support_draw_records.csv`` and an inference-ready
 ``checkpoint_records.csv``. The latter averages technical coordinate draws
 within each checkpoint. For a frozen publication collection, pass both
-``--expected-count`` and ``--expected-support-hash``.
+``expected_count`` and ``expected_support_hash`` in a declarative collection
+file and run::
+
+    dendritic-collect-path-interventions --config intervention_collection.yaml
+
+The collection schema is
+``path_matched_intervention_collection_config_v1`` and also accepts
+``allow_incomplete`` for explicitly labelled pilot diagnostics.
 
 Local Inhibitory Population Interventions
 -----------------------------------------
@@ -563,6 +571,14 @@ The frozen Figure 3 path selection is obtained with 20 somas, morphology
 With ``add_probe_seed_offset: true``, the standalone checkpoint runner adds
 the checkpoint's resolved experiment/probe seed to ``information_seed``;
 this reproduces the frozen per-checkpoint label-null seed rule.
+
+Use ``dendritic-collect-path-information --config
+information_collection.yaml`` after a frozen array completes. The
+``path_matched_information_collection_config_v1`` declaration contains the
+same ``jobs``, ``output_dir``, ``expected_count``, ``expected_support_hash``,
+and optional ``allow_incomplete`` fields as the intervention collection. The
+collector preserves support draws in an audit table and reduces them within
+checkpoint for model-level inference.
 
 Correlation Analysis
 --------------------

@@ -10,6 +10,7 @@ import pandas as pd
 import pytest
 
 from dendritic_modeling.scripts.analysis.collect_representation_accessibility import (
+    _load_collection_config,
     collect_representation_accessibility,
 )
 
@@ -211,3 +212,28 @@ def test_collection_requires_registered_analyzer_and_run_schema(tmp_path: Path) 
             output_dir=tmp_path / "old_schema",
             expected_count=1,
         )
+
+
+def test_representation_collection_config_resolves_paths(tmp_path: Path) -> None:
+    jobs = tmp_path / "jobs.jsonl"
+    jobs.write_text("{}\n")
+    config = tmp_path / "collection.yaml"
+    config.write_text(
+        "\n".join(
+            [
+                "schema_version: representation_accessibility_collection_config_v1",
+                "jobs: [jobs.jsonl]",
+                "output_dir: collected",
+                "expected_count: 7",
+                "allow_incomplete: false",
+            ]
+        )
+        + "\n"
+    )
+
+    loaded = _load_collection_config(config)
+
+    assert loaded["jobs_paths"] == [jobs.resolve()]
+    assert loaded["output_dir"] == (tmp_path / "collected").resolve()
+    assert loaded["expected_count"] == 7
+    assert loaded["allow_incomplete"] is False

@@ -11,6 +11,7 @@ from dendritic_modeling.analysis.tools.path_matched_intervention import (
     build_nested_path_supports,
 )
 from dendritic_modeling.scripts.analysis.collect_path_matched_intervention import (
+    _load_collection_config,
     collect_path_matched_interventions,
 )
 
@@ -182,3 +183,28 @@ def test_collector_accepts_a_declared_subset_of_support_depths(tmp_path):
         rows = list(csv.DictReader(handle))
     assert len(rows) == 4
     assert {row["soma_relative_depth"] for row in rows} == {"2"}
+
+
+def test_path_intervention_collection_config_resolves_paths(tmp_path: Path) -> None:
+    jobs = tmp_path / "jobs.jsonl"
+    jobs.write_text("{}\n")
+    config = tmp_path / "collection.yaml"
+    config.write_text(
+        "\n".join(
+            [
+                "schema_version: path_matched_intervention_collection_config_v1",
+                "jobs: [jobs.jsonl]",
+                "output_dir: collected",
+                "expected_count: 10",
+                "expected_support_hash: abc123",
+            ]
+        )
+        + "\n"
+    )
+
+    loaded = _load_collection_config(config)
+
+    assert loaded["jobs_paths"] == [jobs.resolve()]
+    assert loaded["output_dir"] == (tmp_path / "collected").resolve()
+    assert loaded["expected_count"] == 10
+    assert loaded["expected_support_hash"] == "abc123"
