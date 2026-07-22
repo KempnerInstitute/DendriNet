@@ -4,6 +4,7 @@ import numpy as np
 
 from dendritic_modeling.utils.information.estimators import (
     BaseInformationEstimator,
+    BinnedEstimator,
     EstimationMethod,
     EstimatorConfig,
 )
@@ -48,3 +49,30 @@ def test_chain_rule_cmi_preserves_nonnegative_clamp():
     estimator = _ChainRuleEstimator([0.25, 0.75])
 
     assert estimator.conditional_mutual_information(x, y, z) == 0.0
+
+
+def test_binned_cmi_applies_miller_madow_sampling_bias_correction():
+    x = np.array([0, 0, 1, 1, 0, 0, 1, 1]).reshape(-1, 1)
+    y = x.copy()
+    z = np.array([0, 0, 0, 0, 1, 1, 1, 1]).reshape(-1, 1)
+    uncorrected = BinnedEstimator(
+        EstimatorConfig(
+            method=EstimationMethod.BINNED,
+            n_bins=10,
+            method_params={"bias_correction": "none"},
+        )
+    )
+    corrected = BinnedEstimator(
+        EstimatorConfig(
+            method=EstimationMethod.BINNED,
+            n_bins=10,
+            method_params={"bias_correction": "miller_madow"},
+        )
+    )
+
+    uncorrected_cmi = uncorrected.conditional_mutual_information(x, y, z)
+    corrected_cmi = corrected.conditional_mutual_information(x, y, z)
+
+    # k_xz=4, k_yz=4, k_z=2, k_xyz=4, N=8.
+    expected_correction = (4 + 4 - 2 - 4) / (2 * 8)
+    assert np.isclose(corrected_cmi - uncorrected_cmi, expected_correction)
