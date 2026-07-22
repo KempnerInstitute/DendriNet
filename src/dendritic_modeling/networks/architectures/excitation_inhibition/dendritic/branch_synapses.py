@@ -131,8 +131,23 @@ def create_branch_sparse_layer(
             prune_metric=owner.dense_to_sparse_prune_metric,
         )
 
-    if layer_type == "deepst":
+    if layer_type in {"deepst", "credit_deepst"}:
         owner.step_counter = 0
+        credit_kwargs = {}
+        if layer_type == "credit_deepst":
+            credit_kwargs = {
+                "credit_trace_decay": owner.credit_trace_decay,
+                "credit_candidate_pool_size": owner.credit_candidate_pool_size,
+                "credit_turnover_fraction": owner.credit_turnover_fraction,
+                "credit_weak_active_pool_fraction": (
+                    owner.credit_weak_active_pool_fraction
+                ),
+                "credit_min_observations": owner.credit_min_observations,
+                "credit_swap_margin": owner.credit_swap_margin,
+                "credit_force_turnover": owner.credit_force_turnover,
+                "credit_selection": owner.credit_selection,
+                "credit_warmup_steps": owner.credit_warmup_steps,
+            }
         return get_sparse_layer(
             layer_type,
             in_features,
@@ -158,6 +173,7 @@ def create_branch_sparse_layer(
             weight_transform=owner.weight_transform,
             forbidden_input_index_per_output=forbidden_input_index_per_output,
             connection_mask=connection_mask,
+            **credit_kwargs,
         )
 
     if layer_type in {"indexed", "indexed_rewire"}:

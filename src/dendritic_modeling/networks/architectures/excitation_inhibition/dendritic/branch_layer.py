@@ -399,6 +399,17 @@ class DendriticBranchLayer(nn.Module):
         ]
         self.init_method = synapse_options["init_method"]
         self.weight_threshold = synapse_options["weight_threshold"]
+        self.credit_trace_decay = synapse_options["credit_trace_decay"]
+        self.credit_candidate_pool_size = synapse_options["credit_candidate_pool_size"]
+        self.credit_turnover_fraction = synapse_options["credit_turnover_fraction"]
+        self.credit_weak_active_pool_fraction = synapse_options[
+            "credit_weak_active_pool_fraction"
+        ]
+        self.credit_min_observations = synapse_options["credit_min_observations"]
+        self.credit_swap_margin = synapse_options["credit_swap_margin"]
+        self.credit_force_turnover = synapse_options["credit_force_turnover"]
+        self.credit_selection = synapse_options["credit_selection"]
+        self.credit_warmup_steps = synapse_options["credit_warmup_steps"]
         self.adaptive_initialization = synapse_options["adaptive_initialization"]
         self.adaptive_initialization_policy = synapse_options[
             "adaptive_initialization_policy"

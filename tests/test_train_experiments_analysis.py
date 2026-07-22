@@ -139,6 +139,75 @@ def test_apply_cli_overrides_ignores_missing_args_object():
     assert config.experiment.seed == 1
 
 
+def test_main_validate_only_stops_before_training(monkeypatch):
+    config = SimpleNamespace(
+        experiment=object(),
+        data=object(),
+        model=object(),
+        training=object(),
+        analysis=object(),
+        wandb=object(),
+        outputs=object(),
+    )
+    prepared = train_experiments._PreparedTrainingConfig(
+        config=config,
+        experiment_config=config.experiment,
+        data_config=config.data,
+        model_config=config.model,
+        training_config=config.training,
+        analysis_config=config.analysis,
+        wandb_config=config.wandb,
+        outputs_config=config.outputs,
+    )
+    model = object()
+    environment = train_experiments._TrainingEnvironment(
+        run_save_path="/tmp/preflight",
+        train_ds=object(),
+        valid_ds=object(),
+        test_ds=object(),
+        model=model,
+        unwrapped_model=model,
+        encoder_network=object(),
+    )
+
+    monkeypatch.setattr(train_experiments, "setup_distributed", lambda: (0, 0, 1))
+    monkeypatch.setattr(
+        train_experiments,
+        "_load_and_prepare_training_config",
+        lambda *args, **kwargs: prepared,
+    )
+    monkeypatch.setattr(
+        train_experiments, "_validate_sealed_test_analysis", lambda *args: None
+    )
+    monkeypatch.setattr(
+        train_experiments,
+        "_setup_training_environment",
+        lambda **kwargs: environment,
+    )
+    recorded = []
+    cleaned = []
+    monkeypatch.setattr(
+        train_experiments,
+        "_record_model_size_summary",
+        lambda *args: recorded.append(args),
+    )
+    monkeypatch.setattr(
+        train_experiments,
+        "_cleanup_training_runtime",
+        lambda *args, **kwargs: cleaned.append((args, kwargs)),
+    )
+    monkeypatch.setattr(
+        train_experiments,
+        "_prepare_encoded_training_state",
+        lambda **kwargs: (_ for _ in ()).throw(AssertionError("training started")),
+    )
+
+    train_experiments.main("config.yaml", args=SimpleNamespace(validate_only=True))
+
+    assert len(recorded) == 1
+    assert len(cleaned) == 1
+
+
 def test_load_and_prepare_training_config_returns_sections_and_disables_worker_wandb(
     monkeypatch,
 ):

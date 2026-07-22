@@ -1,0 +1,55 @@
+schema_version: dendritic-rnn-mechanism-pilot-evaluation-v1
+
+study:
+  status: post_outcome_descriptive_pilot
+  inference: no_null_tests_three_seed_go_no_go
+  training_manifest: configs/dendritic_rnn/mechanism_identification_pilot_v1/generated/manifest.json
+  training_receipt: results/dendritic_rnn/mechanism_identification_pilot_src_v1/_launch/training_submission_recovered_20260722T160354Z.json
+  bank_root: results/dendritic_rnn/mechanism_identification_pilot_src_v1/evaluation_banks_v1
+  output_root: results/dendritic_rnn/mechanism_identification_pilot_src_v1/evaluation_v1
+  primary_contrast: (slow_distal_rec_distal - slow_distal_rec_proximal) - (fast_distal_rec_distal - fast_distal_rec_proximal)
+
+bank:
+  task: romo_delay_comparison_positive
+  split: pilot_ood
+  n_trials: 4096
+  frequency_values: [2.0, 2.8, 3.6, 4.4, 5.2, 6.0]
+  stimulus_duration: 20
+  response_duration: 8
+  noise_std: 0.15
+  positive_input_encoding: true
+  tuning_dim: 8
+  pair_sampling: balanced_second_stimulus_v1
+  min_delay: 240
+  max_delay: 320
+
+evaluation:
+  batch_size: 128
+  metrics: [accuracy, target_log_score, target_margin]
+  conditions:
+    - tau_distal_slow__rec_proximal_concentrated
+    - tau_distal_slow__rec_distal_concentrated
+    - tau_distal_fast__rec_proximal_concentrated
+    - tau_distal_fast__rec_distal_concentrated
+
+go_no_go:
+  descriptive_only: true
+  require_positive_mean_for_all_metrics: true
+  require_positive_accuracy_contrast_seeds: 2
+  minimum_mean_accuracy_contrast: 0.01
+  maximum_cell_mean_accuracy: 0.995
+  minimum_cell_mean_accuracy: 0.55
+
+runtime:
+  python: /n/holylabs/kempner_dev/Users/hsafaai/dendrinet_revision_2026/environments/main_rc7_balanced_selfcontained_v1/bin/python
+  source_root: src
+
+resources:
+  partition: kempner_h100_priority
+  account: kempner_bsabatini_lab
+  gpu_type: nvidia_h100_80gb_hbm3
+  gpus: 1
+  cpus_per_task: 1
+  memory: 4G
+  walltime: "01:00:00"
+  checkpoints_per_job: 4

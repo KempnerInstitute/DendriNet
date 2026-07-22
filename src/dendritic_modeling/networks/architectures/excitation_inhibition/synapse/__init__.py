@@ -6,6 +6,9 @@ stochastic selection, variance-based selection, dynamic sparse training,
 and block linear layers.
 """
 
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.credit_deepst import (
+    CreditGatedDeepstLinear,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.deepst import (
     DeepstLinear,
 )
@@ -48,6 +51,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.var
 __all__ = [
     "SPARSE_LAYER_REGISTRY",
     "TOPK_INIT_METHODS",
+    "CreditGatedDeepstLinear",
     "DeepstLinear",
     "DenseToSparseLinear",
     "IndexedDynamicTopKLinear",

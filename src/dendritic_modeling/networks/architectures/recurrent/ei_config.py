@@ -97,6 +97,15 @@ class PopulationConfig(BaseConfig):
     freeze_inhibitory_connectivity: bool = False
     init_method: str = "xavier_normal"
     weight_threshold: float = 1e-6
+    credit_trace_decay: float = 0.95
+    credit_candidate_pool_size: int = 8
+    credit_turnover_fraction: float = 0.1
+    credit_weak_active_pool_fraction: float = 0.5
+    credit_min_observations: int = 5
+    credit_swap_margin: float = 0.0
+    credit_force_turnover: bool = False
+    credit_selection: str = "credit"
+    credit_warmup_steps: int = 5
     adaptive_initialization: bool = True
     adaptive_initialization_policy: str = "preserve_shunting_center"
     adaptive_target_conductance: float = 5.0

@@ -1,0 +1,12 @@
+schema_version: dendritic-rnn-causal-current-analysis-v1
+
+sources:
+  study_config: configs/dendritic_rnn/causal_current_pilot_v1.yaml
+  result_root: results/dendritic_rnn/causal_current_pilot_src_v1
+
+analysis:
+  output_root: results/dendritic_rnn/causal_current_pilot_src_v1/analysis_v1
+  bootstrap_draws: 10000
+  analysis_seed: 20260722
+  confidence_level: 0.95
+  inferential_status: descriptive_no_null_tests

@@ -77,6 +77,17 @@ def _structured_population_deepst_kwargs(deepst: dict[str, Any]) -> dict[str, An
         ),
         "init_method": str(deepst.get("init_method", "xavier_normal")),
         "weight_threshold": float(deepst.get("weight_threshold", 1e-6)),
+        "credit_trace_decay": float(deepst.get("credit_trace_decay", 0.95)),
+        "credit_candidate_pool_size": int(deepst.get("credit_candidate_pool_size", 8)),
+        "credit_turnover_fraction": float(deepst.get("credit_turnover_fraction", 0.1)),
+        "credit_weak_active_pool_fraction": float(
+            deepst.get("credit_weak_active_pool_fraction", 0.5)
+        ),
+        "credit_min_observations": int(deepst.get("credit_min_observations", 5)),
+        "credit_swap_margin": float(deepst.get("credit_swap_margin", 0.0)),
+        "credit_force_turnover": bool(deepst.get("credit_force_turnover", False)),
+        "credit_selection": str(deepst.get("credit_selection", "credit")),
+        "credit_warmup_steps": int(deepst.get("credit_warmup_steps", 5)),
     }
 
 

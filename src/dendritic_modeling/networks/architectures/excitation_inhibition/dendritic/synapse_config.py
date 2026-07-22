@@ -116,6 +116,15 @@ class DeepSTConfig:
     freeze_inhibitory_connectivity: bool = False
     init_method: str | None = None
     weight_threshold: float = 1e-6
+    credit_trace_decay: float = 0.95
+    credit_candidate_pool_size: int = 8
+    credit_turnover_fraction: float = 0.1
+    credit_weak_active_pool_fraction: float = 0.5
+    credit_min_observations: int = 5
+    credit_swap_margin: float = 0.0
+    credit_force_turnover: bool = False
+    credit_selection: str = "credit"
+    credit_warmup_steps: int = 5
 
 
 def _topk_config_from_kwargs(source: Mapping[str, Any]) -> TopKConfig:
@@ -242,6 +251,17 @@ def _deepst_config_from_kwargs(source: Mapping[str, Any]) -> DeepSTConfig:
         ),
         init_method=source.get("init_method", None),
         weight_threshold=source.get("weight_threshold", 1e-6),
+        credit_trace_decay=source.get("credit_trace_decay", 0.95),
+        credit_candidate_pool_size=source.get("credit_candidate_pool_size", 8),
+        credit_turnover_fraction=source.get("credit_turnover_fraction", 0.1),
+        credit_weak_active_pool_fraction=source.get(
+            "credit_weak_active_pool_fraction", 0.5
+        ),
+        credit_min_observations=source.get("credit_min_observations", 5),
+        credit_swap_margin=source.get("credit_swap_margin", 0.0),
+        credit_force_turnover=source.get("credit_force_turnover", False),
+        credit_selection=source.get("credit_selection", "credit"),
+        credit_warmup_steps=source.get("credit_warmup_steps", 5),
     )
 
 
@@ -357,6 +377,15 @@ def _deepst_kwargs(config: DeepSTConfig) -> dict[str, Any]:
         "freeze_inhibitory_connectivity": config.freeze_inhibitory_connectivity,
         "init_method": config.init_method,
         "weight_threshold": config.weight_threshold,
+        "credit_trace_decay": config.credit_trace_decay,
+        "credit_candidate_pool_size": config.credit_candidate_pool_size,
+        "credit_turnover_fraction": config.credit_turnover_fraction,
+        "credit_weak_active_pool_fraction": config.credit_weak_active_pool_fraction,
+        "credit_min_observations": config.credit_min_observations,
+        "credit_swap_margin": config.credit_swap_margin,
+        "credit_force_turnover": config.credit_force_turnover,
+        "credit_selection": config.credit_selection,
+        "credit_warmup_steps": config.credit_warmup_steps,
     }
 
 

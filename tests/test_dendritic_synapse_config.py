@@ -156,6 +156,15 @@ def test_dendritic_synapse_config_round_trips_every_legacy_key():
         "freeze_inhibitory_connectivity": True,
         "init_method": "xavier_uniform",
         "weight_threshold": 1e-4,
+        "credit_trace_decay": 0.8,
+        "credit_candidate_pool_size": 12,
+        "credit_turnover_fraction": 0.2,
+        "credit_weak_active_pool_fraction": 0.75,
+        "credit_min_observations": 3,
+        "credit_swap_margin": 0.01,
+        "credit_force_turnover": True,
+        "credit_selection": "shuffled_credit",
+        "credit_warmup_steps": 9,
         "print_hooks": True,
     }
 

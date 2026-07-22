@@ -1,0 +1,266 @@
+# Canonical training config for the NeurIPS dendritic-RNN extreme-placement cube.
+# Per-replicate RNG streams, placement arrays, run names, and output paths are
+# materialized from matrix.yaml by the repository-owned experiment launcher.
+experiment:
+  seed: 2200
+  dataset_seed: 153236249
+  split_seed: 477227869
+  model_seed: 1096054969
+  topology_seed: 1645361516
+  loader_seed: 658402726
+  evaluation_seed: 17522084
+  probe_seed: 772364823
+  train_valid_split: 1.0
+  fast_mode: false
+  deterministic: true
+  strict_deterministic: true
+  cudnn_benchmark: false
+  allow_tf32: false
+  float32_matmul_precision: highest
+  enable_amp: true
+  enable_profiling: false
+  enable_hooks: false
+  sealed_test: true
+  allow_test_data: false
+  max_test_samples: 4
+  record_dataset_fingerprints: true
+  checkpointing:
+    enabled: true
+    save_every_n_epochs: 50
+    checkpoint_dir: results/dendritic_rnn/extreme_placement_cube_src_v1/TEMPLATE/main_network/checkpoints
+data:
+  dataset_name: romo_delay_comparison_positive
+  base_dir: ''
+  processing:
+    flatten: false
+    normalize: false
+  dataset_params:
+    romo_delay_comparison_positive:
+      train:
+        frequency_values: &frequency_values
+        - 2.0
+        - 2.8
+        - 3.6
+        - 4.4
+        - 5.2
+        - 6.0
+        stimulus_duration: 20
+        response_duration: 8
+        noise_std: 0.1
+        positive_input_encoding: true
+        tuning_dim: 8
+        pair_sampling: balanced_second_stimulus_v1
+        n_samples: 30000
+        min_delay: 10
+        max_delay: 50
+      valid:
+        frequency_values: *frequency_values
+        stimulus_duration: 20
+        response_duration: 8
+        noise_std: 0.1
+        positive_input_encoding: true
+        tuning_dim: 8
+        pair_sampling: balanced_second_stimulus_v1
+        n_samples: 6000
+        min_delay: 60
+        max_delay: 100
+      test:
+        frequency_values: *frequency_values
+        stimulus_duration: 20
+        response_duration: 8
+        noise_std: 0.1
+        positive_input_encoding: true
+        tuning_dim: 8
+        pair_sampling: balanced_second_stimulus_v1
+        n_samples: 4
+        min_delay: 120
+        max_delay: 220
+model:
+  task: classification
+  learned_output_scale: false
+  fixed_output_scale: 1.0
+  output_scale_mode: fixed
+  encoder:
+    type: identity
+    params:
+      input_dim: 11
+      input_shape: null
+  core:
+    type: population_network
+    population_network:
+      input_dim: 11
+      use_transfer: false
+      transfer_params: {}
+      output_mode: last
+      input_projection_dims:
+      - 64
+      store_routing: false
+      readout_layer: layer0
+      readout_population: pyr
+      layers:
+      - name: layer0
+        recurrent: true
+        readout_population: pyr
+        dt: 1.0
+        connection_seed: 1645361516
+        population_defaults:
+          ff_excitatory_synapses: 0
+          ff_inhibitory_synapses: 0
+          rec_excitatory_synapses: 0
+          rec_inhibitory_synapses: 0
+          somatic_synapses: true
+          use_shunting: true
+          use_additive_normalization: false
+          additive_mode: raw
+          reactivate: true
+          reactivation_type: param_tanh
+          reactivation_init_policy: fixed
+          reactivation_init_m: 1.5
+          reactivation_init_b: 0.5
+          dbl_init_method: mechanism_neutral
+          adaptive_initialization: false
+          weight_transform: exp
+          topk_type: standard
+          topk_init_method: xavier_normal
+          topk_noise_level: 0.0
+          topk_strategy: none
+          blocklinear_strategy: none
+          indexed_seed: 1645361516
+          initialization_seed: 1096054969
+          learnable_tau: false
+          allow_self_recurrence: false
+          efficient_blocklinear: true
+          use_noise: false
+          dynamics_mode: rate
+          dendritic_spikes_enabled: false
+          soma_feedback_enabled: false
+          synapse_types: {}
+        populations:
+        - name: pyr
+          polarity: excitatory
+          n_neurons: 64
+          branch_factors:
+          - 3
+          - 3
+          population:
+            initialization_namespace: population_network.layer0.pyr
+            ff_excitatory_synapses_by_level:
+            - 3
+            - 9
+            - 50
+            ff_inhibitory_synapses_by_level:
+            - 0
+            - 0
+            - 0
+            rec_excitatory_synapses_by_level:
+            - 3
+            - 7
+            - 30
+            rec_inhibitory_synapses_by_level:
+            - 3
+            - 3
+            - 3
+            level_taus:
+            - 5.0
+            - 25.0
+            - 125.0
+        - name: pv
+          polarity: inhibitory
+          n_neurons: 16
+          branch_factors: []
+          population:
+            initialization_namespace: population_network.layer0.pv
+            ff_excitatory_synapses_by_level:
+            - 8
+            ff_inhibitory_synapses_by_level:
+            - 0
+            rec_excitatory_synapses_by_level:
+            - 4
+            rec_inhibitory_synapses_by_level:
+            - 2
+            level_taus:
+            - 5.0
+        connections:
+        - source: input
+          target: pyr
+          pathway: ff_excitatory
+          timing: same_step
+        - source: input
+          target: pv
+          pathway: ff_excitatory
+          timing: same_step
+        - source: pyr
+          target: pyr
+          pathway: rec_excitatory
+          timing: delayed
+        - source: pyr
+          target: pv
+          pathway: rec_excitatory
+          timing: delayed
+        - source: pv
+          target: pyr
+          pathway: rec_inhibitory
+          timing: delayed
+        - source: pv
+          target: pv
+          pathway: rec_inhibitory
+          timing: delayed
+  decoder:
+    type: MLP
+    params:
+      hidden_dims:
+      - 32
+      activation: relu
+      output_dim: 2
+training:
+  encoder:
+    strategy: standard
+    common:
+      epochs: 0
+  main:
+    strategy: recurrent
+    pruning:
+      enabled: false
+    optimizer:
+      name: adam
+      lr: 0.0003
+      weight_decay: 0.0
+      betas:
+      - 0.9
+      - 0.999
+      eps: 1.0e-08
+    common:
+      epochs: 400
+      batch_size: 128
+      shuffle: true
+      grad_clip_value: 1.0
+      loss_function: ce
+      early_stopping: true
+      patience: 60
+      load_best_state_dict: true
+      plot_losses: false
+      suppress_prints: false
+      print_every: 10
+      num_workers: 4
+      pin_memory: true
+      persistent_workers: true
+      in_order: true
+      use_amp: true
+      lr_schedule: cosine
+      lr_warmup_epochs: 10
+      weight_decay_rate: 0.0
+      weight_boosting: false
+      recalibrate_reactivation_every: 0
+      reactivation_update_mode: backprop
+      param_groups:
+        lr: 0.0003
+        split_params: false
+analysis: {}
+wandb:
+  use_wandb: false
+outputs:
+  run_name: TEMPLATE
+  results_dir: results/dendritic_rnn/extreme_placement_cube_src_v1/TEMPLATE
+  exact_run_dir: true
+distributed:
+  mode: none

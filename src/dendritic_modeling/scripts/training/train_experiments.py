@@ -1413,6 +1413,15 @@ def main(config_path: str, args=None):
     unwrapped_model = environment.unwrapped_model
     encoder_network = environment.encoder_network
 
+    if bool(getattr(args, "validate_only", False)):
+        if is_main:
+            _record_model_size_summary(unwrapped_model, config, run_save_path)
+            logger.info(
+                "Validation-only preflight completed successfully; training was not run"
+            )
+        _cleanup_training_runtime(wandb_config, world_size=world_size)
+        return
+
     encoded_state = _prepare_encoded_training_state(
         config=config,
         unwrapped_model=unwrapped_model,
@@ -1500,6 +1509,14 @@ def _parse_cli_args():
         type=int,
         default=None,
         help="Override experiment seed (for running multiple seeds per config).",
+    )
+    parser.add_argument(
+        "--validate-only",
+        action="store_true",
+        help=(
+            "Load and validate the config, construct datasets and the model, write "
+            "construction diagnostics, then exit without training."
+        ),
     )
 
     return parser.parse_args()

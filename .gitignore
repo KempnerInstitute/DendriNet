@@ -233,6 +233,12 @@ scripts_backup/
 # Ignore experiments folder completely (managed as separate repo)
 /experiments/
 
+# uv lockfile — this project pins deps via requirements/pyproject, and the
+# check-added-large-files hook rejects it (>500 KB).
+uv.lock
+# Stray pytest cache-file directories occasionally created in the repo root.
+pytest-cache-files-*/
+
 # Local scratch + external dependencies (kept untracked in this repo).
 drafts/
 review_round2/

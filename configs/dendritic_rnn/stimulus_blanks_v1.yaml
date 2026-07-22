@@ -1,0 +1,35 @@
+schema_version: dendritic-rnn-stimulus-blank-study-v1
+
+study:
+  collection: results/dendritic_rnn/extreme_placement_cube_src_v1/analysis_routeaware_v2_publication/collection.json
+  counterfactual_ledger: /n/holylabs/kempner_dev/Users/hsafaai/dendrinet_revision_2026/banks/balanced_v5/counterfactual_comparison_v1/counterfactual_psychometric_banks_v1.ledger.json
+  output_root: results/dendritic_rnn/stimulus_blanks_src_v1
+  replicates: 10
+  roles:
+    hierarchical_aligned: [hierarchical, proximal, distal]
+    hierarchical_reverse: [hierarchical, distal, proximal]
+    reversed_aligned: [reversed, proximal, distal]
+    reversed_reverse: [reversed, distal, proximal]
+
+evaluation:
+  device: cuda:0
+  batch_size: 128
+  policies: [first_stimulus_signal_zero, second_stimulus_signal_zero]
+  signal_channels: [0, 8]
+  stimulus_duration: 20
+  first_blank_pair_audit: bitwise_equal_logits_and_exact_half_accuracy
+
+runtime:
+  python: /n/holylabs/kempner_dev/Users/hsafaai/dendrinet_revision_2026/environments/main_rc7_balanced_selfcontained_v1/bin/python
+  pythonpath: src
+  torch: 2.9.1+cu128
+  cuda: "12.8"
+
+resources:
+  partition: kempner_h100_priority
+  account: kempner_bsabatini_lab
+  gpus: 1
+  cpus_per_task: 1
+  memory: 3G
+  walltime: "00:10:00"
+  checkpoints_per_job: 4

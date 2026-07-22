@@ -232,6 +232,15 @@ def test_structured_population_deepst_kwargs_preserve_all_rewiring_fields():
         "freeze_inhibitory_connectivity": True,
         "init_method": "kaiming_uniform",
         "weight_threshold": 1e-4,
+        "credit_trace_decay": 0.95,
+        "credit_candidate_pool_size": 8,
+        "credit_turnover_fraction": 0.1,
+        "credit_weak_active_pool_fraction": 0.5,
+        "credit_min_observations": 5,
+        "credit_swap_margin": 0.0,
+        "credit_force_turnover": False,
+        "credit_selection": "credit",
+        "credit_warmup_steps": 5,
     }
 
 

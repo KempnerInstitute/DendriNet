@@ -19,6 +19,7 @@ from dendritic_modeling.networks.architectures.classical import (
 from dendritic_modeling.networks.architectures.excitation_inhibition import (
     AdaptiveInitConfig,
     BlockLinear,
+    CreditGatedDeepstLinear,
     DeepSTConfig,
     DeepstLinear,
     DendriNet,
@@ -121,6 +122,7 @@ __all__ = [
     "BlockLinear",
     "CNNDownsample",
     "CNNUpsample",
+    "CreditGatedDeepstLinear",
     "DeepSTConfig",
     "DeepstLinear",
     "DendriNet",
