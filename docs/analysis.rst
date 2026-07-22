@@ -681,6 +681,22 @@ Each module follows the same ``enabled``/``training``/``params`` pattern.
           params:
             max_samples: 1024
 
+   For frozen checkpoint arrays, the dedicated collector validates strict
+   checkpoint loading and emits explicit network-layer, population, and
+   soma-relative dendritic-depth coordinates rather than leaving those fields
+   embedded in module-name strings::
+
+      dendritic-collect-reactivation \
+        --jobs /path/to/jobs_all.jsonl \
+        --output-dir /path/to/reactivation_collection \
+        --expected-count 30 \
+        --require-structured-coordinates
+
+   ``checkpoint_modules.csv`` is one wide row per reactivation module and
+   checkpoint. ``checkpoint_metric_records.csv`` is the corresponding tidy
+   source table for the standard checkpoint-level summarizer. The collector
+   performs no across-checkpoint aggregation.
+
 ``inhibitory_specialization``
    Structural targeting analysis for recurrent inhibitory populations. For each
    local recurrent I->E route, computes soma-vs-distal targeting indices per
