@@ -17,6 +17,10 @@ reference configs and reusable examples.
   preferred `analysis:` block, including SNR/RF options and inline comments.
 - `examples/`: small, documented examples for common model families and features.
 - `vision/`: AlexNet / vision-backbone replacement examples.
+- `<project>/`: project-owned, versioned experiment contracts. Generated
+  expansions belong under that project's ignored `generated/` directory.
+- `local/`: optional untracked private configurations; never place experiment
+  YAMLs under editor, log, output, or repository-root directories.
 
 ## Recommended examples
 
@@ -67,9 +71,9 @@ Keep these outside `configs/examples/`:
 - training packs that belong under job- or project-owned directories
 
 Transformer replacement benchmark configs are under
-`configs/transformer_replacement_benchmarks/`. Project-specific sweep packs and
-cluster job scripts should live outside the source tree or under ignored local
-directories.
+`configs/transformer_replacement_benchmarks/`. Project-specific sweep packs
+belong under a named `configs/<project>/` directory. Cluster job scripts and
+generated sweep expansions remain ignored artifacts rather than source
+configurations.
 
-Ignored local/private config archives may live under `.vscode/archived_configs/`
-or `projects/private_configs/`.
+Ignored local/private configuration files may live only under `configs/local/`.

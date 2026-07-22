@@ -21,6 +21,7 @@ configs/*.txt
 # Private merge/runtime comparison configs belong under ignored projects/ or
 # external review folders, not in the public configs/ namespace.
 configs/branch_comparison/
+configs/local/
 configs/examples/*_multi_population_ei.yaml
 configs/examples/recurrent_synapse_types_ampa_nmda_gaba.yaml
 configs/examples/recurrent_soma_feedback.yaml
