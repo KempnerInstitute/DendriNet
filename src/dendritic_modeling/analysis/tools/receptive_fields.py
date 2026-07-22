@@ -30,6 +30,8 @@ from dendritic_modeling.networks import (
     DendriticBranchLayer,
     ExcitationInhibitionLayer,
     ExcitationInhibitionNetwork,
+    PopulationNetwork,
+    StatefulDendriNet,
 )
 from dendritic_modeling.utils import save_dict
 from dendritic_modeling.utils.hooks import (
@@ -403,8 +405,8 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         activation_type: str,
     ) -> torch.utils.hooks.RemovableHandle:
         return module.register_forward_hook(
-            lambda module, inputs, output, key=layer_key: (
-                self._activation_hook(output, key, activation_type)
+            lambda module, inputs, output, key=layer_key: self._activation_hook(
+                output, key, activation_type
             )
         )
 
@@ -603,6 +605,31 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
                 self.rf_tuning_layer_index,
             )
             return None
+
+    def _get_component_dendrinet(
+        self, model: BaseModel
+    ) -> Optional[DendriNet | StatefulDendriNet]:
+        """Select the dendritic readout population configured for one layer."""
+        layer = self._get_rf_tuning_layer(model)
+        if layer is not None and isinstance(layer.excitatory_cells, DendriNet):
+            return layer.excitatory_cells
+
+        core = getattr(model, "core_network", None)
+        if not isinstance(core, PopulationNetwork):
+            return None
+        try:
+            population_layer = core.layers[self.rf_tuning_layer_index]
+        except IndexError:
+            self.logger.warning(
+                "Component RF layer index %s is out of range",
+                self.rf_tuning_layer_index,
+            )
+            return None
+        population_name = str(population_layer.readout_population)
+        if population_name not in population_layer.populations:
+            return None
+        population = population_layer.populations[population_name]
+        return population if isinstance(population, StatefulDendriNet) else None
 
     def _rf_tuning_forward_hook(
         self,
@@ -1083,12 +1110,21 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         self,
         module: DendriticBranchLayer,
         inputs: tuple[torch.Tensor, ...],
+        input_kwargs: dict[str, object],
         output: torch.Tensor,
         records: dict[int, dict[str, torch.Tensor]],
         branch_layer_idx: int,
     ) -> None:
-        excitatory_input = inputs[0]
-        inhibitory_input = inputs[1] if len(inputs) > 1 else None
+        excitatory_input = input_kwargs.get("x", inputs[0] if len(inputs) > 0 else None)
+        inhibitory_input = input_kwargs.get(
+            "inhibitory_input", inputs[1] if len(inputs) > 1 else None
+        )
+        if not isinstance(excitatory_input, torch.Tensor):
+            return
+        if inhibitory_input is not None and not isinstance(
+            inhibitory_input, torch.Tensor
+        ):
+            return
 
         excitation = torch.zeros_like(output)
         inhibition = torch.zeros_like(output)
@@ -1107,7 +1143,7 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
     def _collect_component_branch_records(
         self,
         model: BaseModel,
-        dendrinet: DendriNet,
+        dendrinet: DendriNet | StatefulDendriNet,
         x: torch.Tensor,
     ) -> list[dict[str, torch.Tensor]]:
         records: dict[int, dict[str, torch.Tensor]] = {}
@@ -1119,15 +1155,17 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         ) -> list[torch.utils.hooks.RemovableHandle]:
             branch_layer_idx, branch_layer = spec
             handle = branch_layer.register_forward_hook(
-                lambda module, inputs, output, branch_layer_idx=branch_layer_idx: (
+                lambda module, inputs, kwargs, output, branch_layer_idx=branch_layer_idx: (
                     self._component_branch_hook(
                         module,
                         inputs,
+                        kwargs,
                         output,
                         records=records,
                         branch_layer_idx=branch_layer_idx,
                     )
-                )
+                ),
+                with_kwargs=True,
             )
             return [handle]
 
@@ -1147,7 +1185,7 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
 
     def _conditioned_soma_from_records(
         self,
-        dendrinet: DendriNet,
+        dendrinet: DendriNet | StatefulDendriNet,
         records: list[dict[str, torch.Tensor]],
         *,
         vary: str,
@@ -1246,15 +1284,20 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
 
     def _structural_component_maps(
         self,
-        layer: ExcitationInhibitionLayer,
+        dendrinet: DendriNet | StatefulDendriNet,
         n_soma: int,
         shape: tuple[int, int],
+        inhibitory_dendrinet: Optional[DendriNet] = None,
     ) -> tuple[np.ndarray, np.ndarray]:
-        exc_rfs_dict, inh_rfs_dict = self.collect_receptive_fields(layer)
+        exc_rfs_dict = self._rfs_from_dendrinet(dendrinet, cell_type="exc")
         exc_agg_rfs_dict = self._aggregate_rfs_by_soma(exc_rfs_dict)
 
         agg_prod_rfs_dict = None
-        if inh_rfs_dict is not None:
+        if inhibitory_dendrinet is not None:
+            inh_rfs_dict = self._rfs_from_dendrinet(
+                inhibitory_dendrinet,
+                cell_type="inh",
+            )
             inh_agg_rfs_dict = self._aggregate_rfs_by_soma(inh_rfs_dict)
             agg_prod_rfs_dict = self._project_inhibitory_component_rfs_by_soma(
                 exc_rfs_dict=exc_rfs_dict,
@@ -1350,16 +1393,16 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
             return None
 
         layer = self._get_rf_tuning_layer(model)
-        if layer is None or not isinstance(layer.excitatory_cells, DendriNet):
+        dendrinet = self._get_component_dendrinet(model)
+        if dendrinet is None:
             self.logger.warning(
-                "Component RFs require a selectable E/I layer with excitatory "
-                "DendriNet cells"
+                "Component RFs require a selectable dendritic readout population"
             )
             return None
         if any(
             getattr(branch_layer, "input_recurrent", False)
             or getattr(branch_layer, "input_rec_inhibitory", False)
-            for branch_layer in layer.excitatory_cells.branch_layers
+            for branch_layer in dendrinet.branch_layers
         ):
             self.logger.warning(
                 "Skipping component RFs: recurrent dendritic branches are not supported"
@@ -1368,7 +1411,7 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
 
         records = self._collect_component_branch_records(
             model,
-            layer.excitatory_cells,
+            dendrinet,
             x,
         )
         if not records:
@@ -1386,17 +1429,17 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         observed_soma = records[-1]["out"]
         preferred = self._preferred_classes(observed_soma, labels)
         e_conditioned = self._conditioned_soma_from_records(
-            layer.excitatory_cells,
+            dendrinet,
             records,
             vary="exc",
         )
         i_conditioned = self._conditioned_soma_from_records(
-            layer.excitatory_cells,
+            dendrinet,
             records,
             vary="inh",
         )
         mean_conditioned = self._conditioned_soma_from_records(
-            layer.excitatory_cells,
+            dendrinet,
             records,
             vary="mean",
         )
@@ -1423,10 +1466,14 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
             e_component_maps.append(self._smooth_map(e_map, n_iter=1))
             i_component_maps.append(self._smooth_map(i_map, n_iter=1))
 
+        inhibitory_dendrinet = None
+        if layer is not None and isinstance(layer.inhibitory_cells, DendriNet):
+            inhibitory_dendrinet = layer.inhibitory_cells
         e_mean, i_mean = self._structural_component_maps(
-            layer,
+            dendrinet,
             n_soma=n_soma,
             shape=self.exc_rf_shape,
+            inhibitory_dendrinet=inhibitory_dendrinet,
         )
         maps = {
             "e_mean": e_mean,
@@ -1456,7 +1503,7 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
             summary["data_file"] = f"{filename}_component_receptive_fields.npz"
             if self.plot_component_rfs and not training:
                 summary["figure_file"] = (
-                    f"{filename}_component_receptive_fields." f"{self.fig_save_format}"
+                    f"{filename}_component_receptive_fields.{self.fig_save_format}"
                 )
         return summary
 

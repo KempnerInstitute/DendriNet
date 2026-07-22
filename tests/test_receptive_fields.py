@@ -72,6 +72,52 @@ def _direct_inhibitory_model() -> Classifier:
     return Classifier(Identity(6), core, Identity(4))
 
 
+def _direct_inhibitory_population_model() -> Classifier:
+    config = {
+        "population_network": {
+            "use_transfer": True,
+            "transfer_params": {
+                "input_mode": 1,
+                "independent_pathways": True,
+                "excitatory_dim": 3,
+                "inhibitory_dim": 3,
+            },
+            "layers": [
+                {
+                    "name": "layer0",
+                    "readout_population": "e0",
+                    "population_defaults": {
+                        "ff_excitatory_synapses": 2,
+                        "ff_inhibitory_synapses": 2,
+                        "rec_excitatory_synapses": 0,
+                        "rec_inhibitory_synapses": 0,
+                        "somatic_synapses": False,
+                        "use_shunting": True,
+                        "reactivate": True,
+                        "reactivation_type": "param_tanh",
+                        "dbl_init_method": "default",
+                        "weight_transform": "softplus",
+                    },
+                    "populations": [
+                        {
+                            "name": "e0",
+                            "polarity": "excitatory",
+                            "n_neurons": 4,
+                            "branch_factors": [2],
+                        }
+                    ],
+                    "connections": [
+                        {"source": "input_e", "target": "e0"},
+                        {"source": "input_i", "target": "e0"},
+                    ],
+                }
+            ],
+        }
+    }
+    core = get_architecture("population_network", config, input_dim=6)
+    return Classifier(Identity(6), core, Identity(4))
+
+
 class _BranchOnlyCore(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -533,6 +579,35 @@ def test_receptive_field_component_rfs_outputs(tmp_path):
     assert data["i_mean"].shape == (4, 1, 3)
     assert data["i_comp"].shape == (4, 1, 3)
     assert data["preferred"].shape == (4,)
+
+
+def test_receptive_field_component_rfs_support_population_network(tmp_path):
+    model = _direct_inhibitory_population_model()
+    _x, _labels, dataset = _toy_dataset()
+    analyzer = ReceptiveFieldAnalyzer(
+        ReceptiveFieldAnalysisParams(
+            rf_shape=(1, 3),
+            inh_rf_shape=(1, 3),
+            compute_component_rfs=True,
+            plot_component_rfs=False,
+        )
+    )
+
+    results = analyzer.analyze(
+        model=model,
+        test_dataset=dataset,
+        device="cpu",
+        save_path=str(tmp_path),
+        filename="rf",
+    )
+
+    assert results is not None
+    assert results["component_receptive_fields"]["n_soma"] == 4
+    data = np.load(tmp_path / "rf_component_receptive_fields.npz")
+    assert data["e_mean"].shape == (4, 1, 3)
+    assert data["e_comp"].shape == (4, 1, 3)
+    assert data["i_mean"].shape == (4, 1, 3)
+    assert data["i_comp"].shape == (4, 1, 3)
 
 
 def test_receptive_field_component_rfs_skip_recurrent_branches(tmp_path):
