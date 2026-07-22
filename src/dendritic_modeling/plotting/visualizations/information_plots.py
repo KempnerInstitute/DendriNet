@@ -1161,11 +1161,10 @@ def plot_network_wise_aggregated_analysis(
             groups["inhibitory_cells"][layer_name] = stats
             continue
 
-        lname = str(layer_name)
-        if "excitatory_cells" in lname:
-            groups["excitatory_cells"][layer_name] = stats
-        elif "inhibitory_cells" in lname:
-            groups["inhibitory_cells"][layer_name] = stats
+        parsed = _parse_information_layer_path(str(layer_name))
+        if parsed is not None:
+            _, cell_type, _ = parsed
+            groups[cell_type][layer_name] = stats
 
     out_root = os.path.join(save_path, "network_wise_aggregated")
     os.makedirs(out_root, exist_ok=True)
@@ -1186,11 +1185,52 @@ def plot_network_wise_aggregated_analysis(
     logger.info(f"Saved network-wise aggregated plots under: {out_root}")
 
 
+def _parse_information_layer_path(
+    layer_name: str,
+) -> tuple[int, str, int | None] | None:
+    """Parse current and legacy information-statistic module paths."""
+    parts = layer_name.split(".")
+    if "layers" not in parts:
+        return None
+
+    try:
+        layer_position = parts.index("layers")
+        network_layer = int(parts[layer_position + 1])
+    except (ValueError, IndexError):
+        return None
+
+    population_name = parts[layer_position + 2]
+    if population_name == "populations":
+        try:
+            population_name = parts[layer_position + 3]
+        except IndexError:
+            return None
+
+    normalized = population_name.lower()
+    if normalized == "excitatory_cells" or normalized.startswith(("e", "exc")):
+        cell_type = "excitatory_cells"
+    elif normalized == "inhibitory_cells" or normalized.startswith(("i", "inh")):
+        cell_type = "inhibitory_cells"
+    else:
+        return None
+
+    branch_layer = None
+    if "branch_layers" in parts:
+        try:
+            branch_position = parts.index("branch_layers")
+            branch_layer = int(parts[branch_position + 1])
+        except (ValueError, IndexError):
+            return None
+
+    return network_layer, cell_type, branch_layer
+
+
 def plot_info_vs_ei_depth_per_dendritic_layer(
     layer_statistics: dict[str, Any],
     save_path: str,
     logger: Optional[logging.Logger] = None,
     somatic_synapses: bool = True,
+    layer_soma_relative_depths: Optional[dict[str, int]] = None,
 ) -> None:
     """Plot information vs EI layer depth for each dendritic branch layer.
 
@@ -1229,48 +1269,25 @@ def plot_info_vs_ei_depth_per_dendritic_layer(
                 logger.debug(f"Processing layer: {layer_name}")
 
             try:
-                # Try to parse layer name - handle different formats
-                parts = layer_name.split(".")
-                if logger:
-                    logger.debug(f"Layer parts: {parts}")
-
-                # Determine EI layer index and cell type
-                ei_layer_idx = None
-                cell_type = None
-                branch_layer_idx = 0  # Default to 0 for single branch layer
-
-                # Format 1: "core_network.layers.0.excitatory_cells.branch_layers.1"
-                if "layers" in parts and "branch_layers" in parts:
-                    idx = parts.index("layers")
-                    ei_layer_idx = int(parts[idx + 1])
-                    cell_type = parts[idx + 2]
-                    branch_idx = parts.index("branch_layers")
-                    branch_layer_idx = int(parts[branch_idx + 1])
-
-                # Format 2: "core_network.layers.0.excitatory_cells" (without branch_layers)
-                elif "layers" in parts:
-                    idx = parts.index("layers")
-                    ei_layer_idx = int(parts[idx + 1])
-                    cell_type = parts[idx + 2]
-                    # Assume this is the main output layer (branch_layer 2)
-                    branch_layer_idx = 2
-
-                else:
-                    # Skip if we can't parse the format
+                parsed = _parse_information_layer_path(str(layer_name))
+                if parsed is None:
                     if logger:
                         logger.debug(f"Skipping unparseable layer: {layer_name}")
                     continue
+                ei_layer_idx, cell_type, branch_layer_idx = parsed
 
-                # Normalize cell type
-                if "excitatory" in cell_type.lower():
-                    cell_type = "excitatory_cells"
-                elif "inhibitory" in cell_type.lower():
-                    cell_type = "inhibitory_cells"
+                if layer_soma_relative_depths is not None:
+                    dendritic_depth = layer_soma_relative_depths.get(layer_name)
                 else:
-                    continue
+                    dendritic_depth = None
+                if dendritic_depth is None:
+                    if branch_layer_idx is None:
+                        dendritic_depth = 0
+                    else:
+                        dendritic_depth = max_branch_idx - branch_layer_idx
 
                 # Create key for dendritic layer
-                dendritic_key = f"branch_layer_{branch_layer_idx}_{cell_type}"
+                dendritic_key = f"dendritic_depth_{dendritic_depth}_{cell_type}"
 
                 if dendritic_key not in dendritic_layers_data:
                     dendritic_layers_data[dendritic_key] = {}
@@ -1335,12 +1352,17 @@ def plot_info_vs_ei_depth_per_dendritic_layer(
             ),
         ]
 
-        # Define colors for different branch layers
-        branch_colors = {
-            0: "#1f77b4",  # Blue for Soma/Branch Layer 0
-            1: "#ff7f0e",  # Orange for Branch Layer 1
-            2: "#2ca02c",  # Green for Branch Layer 2
-        }
+        dendritic_depths = sorted(
+            {
+                int(key.split("_")[2])
+                for key in dendritic_layers_data
+                if key.startswith("dendritic_depth_")
+            }
+        )
+        color_values = plt.cm.viridis(
+            np.linspace(0.15, 0.85, max(len(dendritic_depths), 1))
+        )
+        branch_colors = dict(zip(dendritic_depths, color_values))
 
         if logger:
             logger.info(
@@ -1378,8 +1400,8 @@ def plot_info_vs_ei_depth_per_dendritic_layer(
                     data_plotted = False
 
                     # Plot each dendritic branch layer as a different colored line
-                    for branch_idx in range(3):  # Assuming 3 dendritic layers (0, 1, 2)
-                        dendritic_key = f"branch_layer_{branch_idx}_{cell_type}"
+                    for dendritic_depth in dendritic_depths:
+                        dendritic_key = f"dendritic_depth_{dendritic_depth}_{cell_type}"
 
                         if dendritic_key not in dendritic_layers_data:
                             continue
@@ -1415,28 +1437,11 @@ def plot_info_vs_ei_depth_per_dendritic_layer(
 
                         # Only plot if we have non-zero values
                         if any(v != 0 for v in values):
-                            color = branch_colors.get(branch_idx, "#808080")
-                            # Determine branch label using has_synapses flag
-                            # Get has_synapses from any layer for this branch_idx
-                            has_synapses = True
-                            for lname, ldata in layer_statistics.items():
-                                if f"branch_layers.{branch_idx}" in lname:
-                                    has_synapses = ldata.get("has_synapses", True)
-                                    break
-
-                            if not has_synapses:
-                                # This is the soma layer
+                            color = branch_colors[dendritic_depth]
+                            if dendritic_depth == 0:
                                 branch_label = "Soma"
-                            elif max_branch_idx >= 0:
-                                # Map branch index to distal depth
-                                distal_number = max_branch_idx - branch_idx
-                                if distal_number == 0:
-                                    branch_label = "Distal Layer 1"
-                                else:
-                                    branch_label = f"Distal Layer {distal_number}"
                             else:
-                                # Fallback
-                                branch_label = f"Distal Layer {branch_idx + 1}"
+                                branch_label = f"Dendritic depth {dendritic_depth}"
 
                             # Plot line with error bars
                             ax.errorbar(
