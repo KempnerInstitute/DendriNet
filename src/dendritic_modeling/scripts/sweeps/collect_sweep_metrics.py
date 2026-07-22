@@ -13,6 +13,7 @@ import argparse
 import hashlib
 import json
 import math
+import re
 from collections.abc import Mapping, Sequence
 from datetime import datetime, timezone
 from pathlib import Path
@@ -57,6 +58,7 @@ def _artifact_inventory(
     frame: pd.DataFrame,
     *,
     include_training_summary: bool,
+    include_performance_epochs: bool,
 ) -> tuple[list[dict[str, Any]], str]:
     if "config_id" not in frame.columns:
         raise ValueError(f"collected sweep lacks config_id: {root}")
@@ -81,6 +83,15 @@ def _artifact_inventory(
             if not training_summary.is_file():
                 raise FileNotFoundError(training_summary)
             paths.append(("training_summary", training_summary))
+        if include_performance_epochs:
+            epoch_dir = performance.parent / "epochs"
+            epoch_paths = sorted(
+                epoch_dir.glob("epoch*.json"),
+                key=_performance_epoch_number,
+            )
+            if not epoch_paths:
+                raise FileNotFoundError(f"no performance epochs under {epoch_dir}")
+            paths.extend(("performance_epoch", path) for path in epoch_paths)
         for role, path in paths:
             records.append(
                 {
@@ -95,6 +106,77 @@ def _artifact_inventory(
         for record in records
     ).encode("utf-8")
     return records, hashlib.sha256(payload).hexdigest()
+
+
+def _performance_epoch_number(path: Path) -> int:
+    match = re.fullmatch(r"epoch(\d+)", path.stem)
+    if match is None:
+        raise ValueError(f"invalid performance epoch filename: {path}")
+    return int(match.group(1))
+
+
+def _nested_metric(payload: Mapping[str, Any], path: str) -> float:
+    value: Any = payload
+    for part in path.split("."):
+        if not isinstance(value, Mapping) or part not in value:
+            raise KeyError(path)
+        value = value[part]
+    numeric = float(value)
+    if not math.isfinite(numeric):
+        raise ValueError(f"non-finite performance epoch metric {path!r}")
+    return numeric
+
+
+def _performance_epoch_history_rows(
+    *,
+    root: Path,
+    frame: pd.DataFrame,
+    sweep_name: str,
+    labels: Mapping[str, Any],
+    fields: Mapping[str, str],
+) -> list[dict[str, Any]]:
+    """Collect declared metrics from standard ``performance/epochs`` outputs."""
+    if not fields:
+        return []
+    rows: list[dict[str, Any]] = []
+    for record in frame[["config_id", "seed"]].to_dict("records"):
+        config_id = int(record["config_id"])
+        epoch_dir = root / "results" / f"config_{config_id}" / "performance" / "epochs"
+        epoch_paths = sorted(
+            epoch_dir.glob("epoch*.json"), key=_performance_epoch_number
+        )
+        if not epoch_paths:
+            raise FileNotFoundError(f"no performance epochs under {epoch_dir}")
+        epoch_numbers = [_performance_epoch_number(path) for path in epoch_paths]
+        if len(epoch_numbers) != len(set(epoch_numbers)):
+            raise ValueError(
+                f"duplicate performance epoch numbers for {sweep_name} "
+                f"config_id={config_id}"
+            )
+        for path, epoch_number in zip(epoch_paths, epoch_numbers, strict=True):
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            for source, metric in fields.items():
+                try:
+                    value = _nested_metric(payload, source)
+                except KeyError as error:
+                    raise ValueError(
+                        f"performance epoch metric {source!r} is absent for "
+                        f"{sweep_name} config_id={config_id} epoch={epoch_number}"
+                    ) from error
+                rows.append(
+                    {
+                        "sweep_name": sweep_name,
+                        "sweep_root": str(root),
+                        "config_id": config_id,
+                        "seed": record["seed"],
+                        **labels,
+                        "metric": metric,
+                        "epoch_index": epoch_number - 1,
+                        "epoch_number": epoch_number,
+                        "value": value,
+                    }
+                )
+    return rows
 
 
 def _training_history_rows(
@@ -187,6 +269,12 @@ def collect_sweep_metrics(
     if not isinstance(history_fields, dict):
         raise TypeError("training_history.fields must be a mapping")
     history_fields = {str(key): str(value) for key, value in history_fields.items()}
+    performance_epoch_fields = history_config.get("performance_epoch_fields", {})
+    if not isinstance(performance_epoch_fields, dict):
+        raise TypeError("training_history.performance_epoch_fields must be a mapping")
+    performance_epoch_fields = {
+        str(key): str(value) for key, value in performance_epoch_fields.items()
+    }
     require_equal_history_length = bool(
         history_config.get("require_equal_length_within_checkpoint", True)
     )
@@ -222,6 +310,7 @@ def collect_sweep_metrics(
             root,
             frame,
             include_training_summary=bool(history_fields),
+            include_performance_epochs=bool(performance_epoch_fields),
         )
         declared_hash = declaration.get("artifact_set_sha256")
         if declared_hash is not None and str(declared_hash) != artifact_set_sha256:
@@ -242,6 +331,15 @@ def collect_sweep_metrics(
                 labels=labels,
                 fields=history_fields,
                 require_equal_length=require_equal_history_length,
+            )
+        )
+        history_rows.extend(
+            _performance_epoch_history_rows(
+                root=root,
+                frame=frame,
+                sweep_name=name,
+                labels=labels,
+                fields=performance_epoch_fields,
             )
         )
         sweep_records.append(
@@ -291,6 +389,7 @@ def collect_sweep_metrics(
         ),
         "training_history": {
             "fields": history_fields,
+            "performance_epoch_fields": performance_epoch_fields,
             "require_equal_length_within_checkpoint": require_equal_history_length,
             "row_count": len(history_rows),
         },

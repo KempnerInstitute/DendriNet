@@ -39,6 +39,14 @@ def _write_sweep(root: Path, *, offset: float = 0.0) -> pd.DataFrame:
             + "\n",
             encoding="utf-8",
         )
+        epoch_dir = performance.parent / "epochs"
+        epoch_dir.mkdir()
+        for epoch, accuracy in ((1, 0.4), (2, 0.6)):
+            (epoch_dir / f"epoch{epoch}.json").write_text(
+                json.dumps({"accuracy": {"valid": accuracy + offset + config_id / 100}})
+                + "\n",
+                encoding="utf-8",
+            )
         rows.append(
             {
                 "config_id": config_id,
@@ -129,3 +137,42 @@ def test_collect_sweep_metrics_rejects_incomplete_or_changed_artifacts(
     )
     with pytest.raises(ValueError, match="artifact set hash differs"):
         collect_sweep_metrics(manifest_path=manifest)
+
+
+def test_collect_sweep_metrics_reads_declared_performance_epoch_metrics(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    frames = {
+        str((tmp_path / "additive").resolve()): _write_sweep(tmp_path / "additive"),
+        str((tmp_path / "shunting").resolve()): _write_sweep(
+            tmp_path / "shunting", offset=0.1
+        ),
+    }
+    monkeypatch.setattr(
+        "dendritic_modeling.scripts.sweeps.collect_sweep_metrics.DataCollector.collect_all",
+        lambda collector: frames[str(Path(collector.results_dir).resolve())].copy(),
+    )
+    manifest = _manifest(tmp_path)
+    payload = yaml.safe_load(manifest.read_text(encoding="utf-8"))
+    payload["training_history"]["performance_epoch_fields"] = {
+        "accuracy.valid": "valid_accuracy"
+    }
+    manifest.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+
+    release = collect_sweep_metrics(manifest_path=manifest)
+
+    history = pd.read_csv(tmp_path / "collected/training_history.csv")
+    accuracy = history.loc[history["metric"] == "valid_accuracy"]
+    assert len(accuracy) == 8
+    assert set(accuracy["epoch_number"]) == {1, 2}
+    assert set(accuracy["value"].round(2)) == {
+        0.4,
+        0.41,
+        0.5,
+        0.51,
+        0.6,
+        0.61,
+        0.7,
+        0.71,
+    }
+    assert all(len(record["artifacts"]) == 10 for record in release["sweeps"])
