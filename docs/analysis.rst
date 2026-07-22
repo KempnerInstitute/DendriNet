@@ -686,11 +686,15 @@ Each module follows the same ``enabled``/``training``/``params`` pattern.
    soma-relative dendritic-depth coordinates rather than leaving those fields
    embedded in module-name strings::
 
-      dendritic-collect-reactivation \
-        --jobs /path/to/jobs_all.jsonl \
-        --output-dir /path/to/reactivation_collection \
-        --expected-count 30 \
-        --require-structured-coordinates
+      dendritic-collect-reactivation --config reactivation_collection.yaml
+
+   where the source collection is itself declarative::
+
+      schema_version: reactivation_dynamics_collection_config_v1
+      jobs: [/path/to/jobs_all.jsonl]
+      output_dir: /path/to/reactivation_collection
+      expected_count: 30
+      require_structured_coordinates: true
 
    ``checkpoint_modules.csv`` is one wide row per reactivation module and
    checkpoint. ``checkpoint_metric_records.csv`` is the corresponding tidy

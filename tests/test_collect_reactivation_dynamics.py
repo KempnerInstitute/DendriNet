@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from dendritic_modeling.scripts.analysis.collect_reactivation_dynamics import (
+    _load_collection_config,
     _module_coordinates,
     collect_reactivation_dynamics,
 )
@@ -185,3 +186,28 @@ def test_collector_rejects_invalid_occupancy_partition(tmp_path: Path) -> None:
             output_dir=tmp_path / "collection",
             expected_count=1,
         )
+
+
+def test_collection_config_resolves_relative_paths(tmp_path: Path) -> None:
+    jobs = tmp_path / "jobs.jsonl"
+    jobs.write_text("{}\n")
+    config = tmp_path / "collection.yaml"
+    config.write_text(
+        "\n".join(
+            [
+                "schema_version: reactivation_dynamics_collection_config_v1",
+                "jobs: [jobs.jsonl]",
+                "output_dir: collected",
+                "expected_count: 3",
+                "require_structured_coordinates: true",
+            ]
+        )
+        + "\n"
+    )
+
+    loaded = _load_collection_config(config)
+
+    assert loaded["jobs_paths"] == [jobs.resolve()]
+    assert loaded["output_dir"] == (tmp_path / "collected").resolve()
+    assert loaded["expected_count"] == 3
+    assert loaded["require_structured_coordinates"] is True
