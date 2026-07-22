@@ -241,3 +241,52 @@ def test_any_of_filters_define_mixed_architecture_reference(tmp_path: Path) -> N
     assert len(units) == 12
     paired = pd.read_csv(tmp_path / "architecture_summary/paired_summary.csv")
     assert paired["mean"].tolist() == pytest.approx([0.1, 0.1])
+
+
+def test_scientific_method_column_survives_bootstrap_metadata(tmp_path: Path) -> None:
+    rows = []
+    for method in ("fixed_train_mean", "zero"):
+        for mechanism, offset in (("additive", 0.0), ("shunting", 0.1)):
+            for seed in range(3):
+                rows.append(
+                    {
+                        "method": method,
+                        "mechanism": mechanism,
+                        "seed": seed,
+                        "accuracy_drop": 0.2 + offset + seed / 100,
+                    }
+                )
+    source = tmp_path / "interventions.csv"
+    pd.DataFrame(rows).to_csv(source, index=False)
+    payload = {
+        "schema_version": "checkpoint_metric_summary_v1",
+        "input": {"path": str(source)},
+        "group_by": ["method", "mechanism"],
+        "unit_columns": ["seed"],
+        "value_column": "accuracy_drop",
+        "expected_units_per_group": 3,
+        "bootstrap": {"draws": 200, "seed": 17},
+        "paired_comparisons": [
+            {
+                "name": "shunting_minus_additive",
+                "arm_column": "mechanism",
+                "reference": "additive",
+                "comparison": "shunting",
+                "pair_columns": ["seed"],
+                "stratum_columns": ["method"],
+                "expected_pairs_per_stratum": 3,
+            }
+        ],
+        "output_dir": str(tmp_path / "summary"),
+    }
+    config = tmp_path / "summary.yaml"
+    config.write_text(yaml.safe_dump(payload, sort_keys=False))
+
+    summarize_checkpoint_metrics(config_path=config)
+
+    grouped = pd.read_csv(tmp_path / "summary/group_summary.csv")
+    paired = pd.read_csv(tmp_path / "summary/paired_summary.csv")
+    assert set(grouped["method"]) == {"fixed_train_mean", "zero"}
+    assert set(paired["method"]) == {"fixed_train_mean", "zero"}
+    assert set(grouped["interval_method"]) == {"experimental_unit_percentile"}
+    assert set(paired["interval_method"]) == {"experimental_unit_percentile"}

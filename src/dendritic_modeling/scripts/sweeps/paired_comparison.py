@@ -175,14 +175,22 @@ def paired_arm_comparison(
             ),
             require_n=require_pairs,
         )
+        interval_fields = interval.to_dict()
+        interval_fields["interval_method"] = interval_fields.pop("method")
+        stratum_fields = dict(zip(strata, key_tuple))
+        collisions = sorted(set(stratum_fields) & set(interval_fields))
+        if collisions:
+            raise ValueError(
+                f"stratum columns collide with bootstrap summary fields: {collisions}"
+            )
         record = {
-            **dict(zip(strata, key_tuple)),
+            **stratum_fields,
             "arm_column": arm_column,
             "reference": reference,
             "comparison": comparison,
             "metric": metric,
             "delta_definition": f"{comparison} - {reference}",
-            **interval.to_dict(),
+            **interval_fields,
         }
         summaries.append(record)
 

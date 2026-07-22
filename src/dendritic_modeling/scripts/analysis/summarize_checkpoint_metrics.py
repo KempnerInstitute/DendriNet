@@ -166,12 +166,20 @@ def _summary_rows(
             confidence=confidence,
             require_n=expected_units_per_group,
         )
+        interval_fields = interval.to_dict()
+        interval_fields["interval_method"] = interval_fields.pop("method")
+        group_fields = dict(zip(group_by, key_tuple))
+        collisions = sorted(set(group_fields) & set(interval_fields))
+        if collisions:
+            raise ValueError(
+                f"group columns collide with bootstrap summary fields: {collisions}"
+            )
         rows.append(
             {
-                **dict(zip(group_by, key_tuple)),
+                **group_fields,
                 "value_column": value_column,
                 "experimental_unit_columns": json.dumps(unit_columns),
-                **interval.to_dict(),
+                **interval_fields,
             }
         )
     return rows
