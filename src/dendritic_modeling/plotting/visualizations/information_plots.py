@@ -1469,44 +1469,33 @@ def plot_info_vs_ei_depth_per_dendritic_layer(
 
                     # Customize subplot if data was plotted
                     if data_plotted:
-                        ax.set_xlabel("EI Network Layer")
+                        ax.set_xlabel("Network position")
                         ax.set_ylabel(f"{metric_name} (bits)")
                         ax.set_title(f"{metric_name}")
                         ax.set_xticks(ei_layers)
 
-                        # Create custom labels for layers
-                        layer_labels = []
-                        for idx, layer_idx in enumerate(ei_layers):
-                            if idx == 0:
-                                layer_labels.append("Input")
-                            elif idx == len(ei_layers) - 1:
-                                layer_labels.append("Output")
-                            else:
-                                layer_labels.append(f"Layer {layer_idx}")
+                        layer_labels = [
+                            f"Layer {layer_idx + 1}" for layer_idx in ei_layers
+                        ]
 
                         ax.set_xticklabels(layer_labels, rotation=0)
                         ax.grid(True, alpha=0.3)
                         ax.legend(loc="best")
                         plots_created.append(i)
                     else:
-                        ax.text(
-                            0.5,
-                            0.5,
-                            f"No data for {metric_name}",
-                            ha="center",
-                            va="center",
-                            transform=ax.transAxes,
-                        )
+                        ax.set_visible(False)
 
                 # Remove empty subplots and finalize the figure
                 if plots_created:
-                    # Remove unused subplots
-                    for j in range(len(metric_names), len(axes)):
-                        fig.delaxes(axes[j])
+                    # Remove metrics absent from this population instead of
+                    # publishing large placeholder panels.
+                    for axis_index, axis in enumerate(axes):
+                        if axis_index not in plots_created:
+                            fig.delaxes(axis)
 
                     cell_type_name = cell_type.replace("_cells", "").title()
                     fig.suptitle(
-                        f'{cell_type_name} Networks: {metric_category.replace("_", " ").title()} vs EI Network Layer',
+                        f'{cell_type_name} Networks: {metric_category.replace("_", " ").title()} vs Network Position',
                         fontsize=16,
                     )
                     plt.tight_layout()
