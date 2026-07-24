@@ -416,6 +416,76 @@ per-op table (\% fwd / \% bwd, memory traffic, measured-vs-FLOP gap) and the com
 memory- vs launch-bound verdict at each shape. Those numbers are \emph{not yet collected} and
 are intentionally omitted here rather than estimated.
 
+\section{Next Candidate: The RBF HSIC Auxiliary Gradient}
+
+The next target is a different subsystem: the \textbf{HSIC} (Hilbert--Schmidt Independence
+Criterion) auxiliary gradient used for local credit assignment
+(\texttt{training/strategies/local\_learning\_parts/local\_learning\_hsic.py}). This section is a
+\emph{diagnosis and plan}---no measurements yet---following the same playbook that drove Phases~1--2.
+
+\subsection*{What it is (intuition)}
+HSIC is a dependence measure: given two views of a batch---layer activations $z$ and a target $y$---it
+answers \emph{``do these carry information about each other?''}, and unlike ordinary correlation it
+captures \emph{nonlinear} dependence. It does so by comparing points through a kernel. The
+\textbf{RBF (Gaussian) kernel} scores pairwise similarity,
+$K_{ij}=\exp(-\gamma\lVert z_i-z_j\rVert^2)$ with $\gamma=1/(2\sigma^2)$, producing an $n\times n$
+matrix over the batch. In DendriNet this drives two auxiliary gradients: a \emph{self} term
+(decorrelate a layer's own units) and a \emph{target} term (keep the representation informative
+about $y$, weighted by the centered label kernel $L^c$). Both are dense pairwise operations over
+the batch---the classic shape that is either GPU-friendly or memory-explosive depending on how it
+is written.
+
+\subsection*{The diagnosed bottleneck}
+The current RBF gradient (\texttt{compute\_hsic\_gradient}, ``self'' and ``target'' branches) forms
+the pairwise-difference tensor explicitly:
+\begin{verbatim}
+z_diff = z.unsqueeze(1) - z.unsqueeze(0)          # shape (n, n, d)  <- the killer
+grad_z = -2*gamma * (K.unsqueeze(-1) * z_diff).sum(dim=1)
+\end{verbatim}
+That \texttt{z\_diff} is an $n\times n\times d$ intermediate materialized (and destroyed) every layer,
+every step. At a modest $n{=}256$, $d{=}512$ it is $33.5$\,M fp32 elements $\approx$
+\textbf{134\,MB}; it grows \emph{linearly in width} and \emph{quadratically in batch}. This is a
+memory-bandwidth wall analogous to the Phase~1 diagnosis---the cost is in an intermediate nobody
+needed to store.
+
+\subsection*{The proposed fix: distribute the sum (no kernel required)}
+The pairwise sum factors exactly by the distributive law. Writing $W$ for the pairwise weight
+matrix ($W=K$ for the self term; $W=K\odot L^c$ for the target term),
+\[
+\sum_j W_{ij}\,(z_i - z_j)
+\;=\; z_i \underbrace{\textstyle\sum_j W_{ij}}_{\text{row sum}}
+\;-\; \underbrace{\textstyle\sum_j W_{ij} z_j}_{(Wz)_i},
+\]
+so the entire $n\times n\times d$ tensor collapses into a row-sum and a matmul:
+\begin{verbatim}
+row    = W.sum(dim=1, keepdim=True)      # (n, 1)
+grad_z = scale * (z * row - W @ z)       # (n, d)  -- no (n,n,d) tensor ever built
+\end{verbatim}
+This is \textbf{numerically identical} (it is algebra, valid whether or not $W$ is symmetric), drops
+the intermediate from $O(n^2 d)$ to $O(n^2)$, and routes the heavy work through \texttt{W @ z}---a
+cuBLAS matmul that is \emph{already} a hand-tuned GPU kernel.
+
+\subsection*{Why this likely \emph{defers} the CUDA work}
+The Phase~1/2 lesson was that a hand-written kernel is only worth it once cheaper equivalent
+rewrites are exhausted. Here the algebraic form hands the hot loop to cuBLAS for free, so the
+projected outcome is that HSIC leaves the hot path \emph{without} any custom kernel. A Triton/CUDA
+fusion (kernel-matrix $\to$ centered-weight $\to$ gradient in one pass) remains a well-scoped
+\emph{fallback}, to be justified by re-profiling---not assumed.
+
+\subsection*{Planned validation (same bar as Phases 1--2)}
+\begin{enumerate}[leftmargin=*, itemsep=1pt]
+\item \textbf{Microbenchmark first}---time \texttt{compute\_hsic\_gradient} (RBF, self $+$ target)
+across realistic $(n,d)$ on CPU and CUDA via the existing \texttt{profiling.py} harness, to confirm
+the \texttt{z\_diff} tensor is the cost and establish a baseline.
+\item \textbf{\texttt{torch.allclose}} of the rewritten gradient against the current implementation
+(fp64 for an exact check), plus the existing helper tests
+(\texttt{tests/test\_local\_learning\_hsic\_helpers.py}).
+\item \textbf{Gate + re-profile}---land behind a default-off flag, confirm the win, and only then
+decide whether a fused kernel buys anything further.
+\end{enumerate}
+\noindent \emph{Status: diagnosed, not yet implemented. Projected win is large (the matmul form
+removes a $O(n^2 d)$ intermediate) but unmeasured until step~1 runs.}
+
 \section*{Method (reusable playbook)}
 \begin{enumerate}[leftmargin=*, itemsep=1pt]
 \item Pick a candidate op that is shared across many configs (breadth---checked statically first).
@@ -426,8 +496,11 @@ are intentionally omitted here rather than estimated.
 \end{enumerate}
 
 \noindent \emph{Status: Phase 1 (Python fused backward) and Phase 2 (Triton forward $+$ backward)
-both complete, verified, and merge-ready behind default-off flags. This is the first stable
-checkpoint. Next: Phase 3---a hand-written CUDA/C++ extension for the scatter (deep dive), and
-eventually the recurrent-config gather.}
+both complete, verified, and merge-ready behind default-off flags. Phase-3 groundwork (\S6) is in
+place: a general profiling harness and a full-model op audit establishing that the whole custom
+stack is eager. The pending step is the harness's GPU evidence run, which will rank the next
+target across the entire model rather than a single remembered hotspot. Downstream candidates
+remain the RBF HSIC auxiliary gradient (\S7---diagnosed, algebraic fix identified, unmeasured), a
+hand-written CUDA/C++ scatter extension, and the recurrent-config gather.}
 
 \end{document}

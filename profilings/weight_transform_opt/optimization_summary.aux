@@ -24,4 +24,9 @@
 \@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Phase 1, measured on NVIDIA A100 MIG 3g.20gb, dominant shape (out=90000, K=40, batch=128).}}{5}{table.2}}
 \@writefile{toc}{\contentsline {section}{\numberline {5}Deliverables}{5}{section.5}}
 \@writefile{toc}{\contentsline {section}{\numberline {6}Results Summary}{5}{section.6}}
+\@writefile{toc}{\contentsline {section}{\numberline {7}Phase 3 Groundwork: Whole-Model Profiling Harness \& Pre-Optimization Audit}{5}{section.7}}
 \@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Phase 2, measured on A100-SXM4-40GB and RTX PRO 6000 Blackwell, fp32, batch=128.}}{6}{table.3}}
+\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Phase-0 static op audit: the whole custom stack is plain eager PyTorch.}}{7}{table.4}}
+\newlabel{tab:opaudit}{{4}{7}{Phase-0 static op audit: the whole custom stack is plain eager PyTorch}{table.4}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces Profiling config matrix (all verified build $+$ fwd $+$ bwd on CPU). Batch is swept inside the harness; the recurrent config's tiny size makes it a launch-overhead probe.}}{7}{table.5}}
+\newlabel{tab:cfgmatrix}{{5}{7}{Profiling config matrix (all verified build $+$ fwd $+$ bwd on CPU). Batch is swept inside the harness; the recurrent config's tiny size makes it a launch-overhead probe}{table.5}{}}
