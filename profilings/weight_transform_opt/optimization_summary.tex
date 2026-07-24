@@ -121,6 +121,36 @@ to $\sim$$10^{-6}$. The strongest possible correctness guarantee.}
 
 \end{enumerate}
 
+\subsection*{Kernel anatomy: the three levers (\texttt{synapse/fused\_gather.py}, 77 lines)}
+
+The whole $\sim$5$\times$ whole-step win (2796\,ms\,$\to$\,554\,ms) comes from a single small
+custom-autograd \texttt{Function} (\texttt{fused\_sparse\_gather}, computing
+\texttt{out[m,o]=$\sum_k$x[m,idx[o,k]]$\cdot$w[o,k]}) built on three ideas:
+
+\begin{enumerate}[leftmargin=*, itemsep=2pt]
+\item \textbf{Speed --- a custom backward (grouped scatter).} PyTorch's autograd differentiated
+the gather with its generic \texttt{indexing\_backward\_kernel}, which serialized the scattered
+writes at $\sim$3\% of memory bandwidth ($\sim$84\% of GPU time). We override \texttt{backward} with
+one batched \texttt{grad\_x.index\_add\_(1, idx\_chunk, grad\_sel)} --- identical math, a single
+grouped scatter instead of element-by-element. \emph{This is the 7.6$\times$ backward.}
+
+\item \textbf{Memory --- recompute instead of save.} The na\"ive path saves
+\texttt{selected\,=\,[M, out\_features, K]} for the backward (5.6\,GB at production scale
+$\to$ OOM). Instead \texttt{forward} saves only the small inputs (\texttt{x}, \texttt{idx},
+\texttt{weight}) and \texttt{backward} \emph{recomputes} \texttt{selected} via
+\texttt{index\_select}. \emph{This is the 28$\times$ memory drop}, and why it runs at
+\texttt{out=90000} where the original could not.
+
+\item \textbf{Chunking --- a locality knob.} Both directions loop over outputs in blocks of
+\texttt{chunk\_size} (tuned to 16384) so the \texttt{[M, chunk, K]} intermediate never
+materializes all at once --- a launch-count vs.\ cache-locality tradeoff (U-shaped; the sweet
+spot gave a further $+$1.1\%).
+\end{enumerate}
+
+\noindent (``Fused'' refers to fusing gather$\to$multiply$\to$sum$\to$scatter into one hand-written
+forward/backward rather than letting autograd trace each op. The \texttt{index\_add\_} on lever~1
+is exactly the global-atomic scatter Phase~3 will try to stage through shared memory.)
+
 \section{Re-measurement \& Next-Candidate Search}
 
 \begin{enumerate}[leftmargin=*, resume]
@@ -276,6 +306,115 @@ Correctness (vs fp64 truth) & \multicolumn{2}{c}{ratio $\le$1.36 (all 25 synapse
 \end{tabular}
 \caption{Phase 2, measured on A100-SXM4-40GB and RTX PRO 6000 Blackwell, fp32, batch=128.}
 \end{table}
+
+\section{Phase 3 Groundwork: Whole-Model Profiling Harness \& Pre-Optimization Audit}
+
+Phases~1--2 optimized a \emph{single} op (the indexed sparse gather) on a \emph{single}
+config. Before opening a third optimization front, we re-baselined the \emph{entire}
+population-network core: a standalone, config-driven harness plus a static audit that
+classifies \emph{every} custom op by how it is implemented. The discipline is
+deliberately conservative---\textbf{measurement only}: no kernel was refactored, no
+precision changed, no library call swapped in. The goal is to choose the next target
+from evidence across the whole model rather than from a single remembered hotspot.
+
+\begin{center}
+\fbox{\parbox{0.92\textwidth}{\centering
+\textbf{Audit headline.} The \emph{entire} custom dendritic stack---top-k synapse gather,
+branch shunting/additive divisor, axial \texttt{BlockLinear} coupling, and E/I population
+pooling---is \textbf{plain eager PyTorch}. There are \emph{zero} hand-written CUDA/Triton/CuTe
+kernels and no \texttt{cpp\_extension} on the population-network path; the \emph{only}
+\texttt{torch.compile} in the tree is an opt-in wrapper on the \emph{feedforward} EI network
+(\texttt{ei\_network.py:599}), a different core. \textbf{No GPU timings yet}---the harness is
+validated (builds $+$ fwd $+$ bwd) but the timed run must execute on a GPU node.
+}}
+\end{center}
+
+\begin{enumerate}[leftmargin=*]
+
+\item \textbf{Mapped the execution environment.}\\
+\what{Determined what hardware and software the profiling run will actually use.}\\
+\impact{The login node has \emph{no} GPU; profiling must go through SLURM (partition
+\texttt{kempner\_requeue}, account \texttt{kempner\_undergrads}), which exposes H100-80GB,
+A100-SXM4-40GB, A100 MIG 3g.20gb, and H200 nodes. Software: \texttt{torch 2.11.0+cu128},
+CUDA~12.8, Python~3.11. The harness \emph{refuses to run on CPU} and exits rather than
+report fake GPU numbers.}
+
+\item \textbf{Built a standalone, config-driven profiling harness (\texttt{profile\_dendrinet.py}).}\\
+\what{Instantiates the \emph{core} network directly from a real repo config
+(\texttt{load\_config}\,$\rightarrow$\,\texttt{get\_architecture}), feeds synthetic input of the
+correct shape, and measures forward and backward \emph{separately} with three cross-checked
+mechanisms: (1)~whole-step \texttt{cuda.Event} wall-clock with per-iter coefficient of variation;
+(2)~per-module \texttt{cuda.Event} fwd$+$bwd hooks, each module classified into one of the four
+op families for direct \%-of-step attribution; (3)~a \texttt{torch.profiler} pass
+(\texttt{profile\_memory}, \texttt{with\_flops}, \texttt{record\_shapes}) plus a clean
+forward-only / backward-only two-pass split.}\\
+\impact{$\geq$12 warmup $+$ $\geq$50 timed iters; flags any op with CV~$>$~5\%; reports OOM /
+shape errors verbatim and \emph{never} shrinks the model silently; handles the torch~2.8$+$
+profiler attribute rename (\texttt{self\_cuda\_time\_total}\,$\rightarrow$\,%
+\texttt{self\_device\_time\_total}), required on the 2.11 stack.}
+
+\item \textbf{Statically classified all four op families (Phase-0 audit).}\\
+\what{Traced each custom operation to its source and labeled its implementation.}\\
+\impact{All eager (Table~\ref{tab:opaudit}). The concrete eager hotspots flagged for the timed
+run: \texttt{torch.topk}$+$\texttt{scatter\_add\_} synapse selection
+(\texttt{synapse/topk.py}, \texttt{indexed\_dynamic.py}); a per-output-chunk Python gather loop
+(\texttt{indexed\_sparse.py:264}); the per-timestep recurrent unroll
+(\texttt{population\_network.py:509}); and the dense block-diagonal materialization in
+\texttt{BlockLinear.forward} (\texttt{blocklinear.py:227}, vs.\ the temp-free
+\texttt{EfficientBlockLinear}).}
+
+\item \textbf{Selected a realistic config matrix spanning the four shape knobs.}\\
+\what{Picked configs from the repo that vary unit count, branch depth, synapse count, and
+divisor type; batch is swept inside the harness (Table~\ref{tab:cfgmatrix}). All four were
+verified to build $+$ forward $+$ backward on CPU.}\\
+\impact{Covers both branches of op~(b) (shunting \emph{and} normalized-additive), the active
+top-k gather path (\texttt{indexed\_rewire}), a deeper two-layer \texttt{BlockLinear} stack, and
+a recurrent config whose tiny parameter count makes it a clean \emph{launch-overhead} probe.}
+
+\end{enumerate}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}llll@{}}
+\toprule
+\textbf{Op family} & \textbf{Representative module} & \textbf{Impl} & \textbf{Source} \\
+\midrule
+(a) top-k synapse gather & \texttt{IndexedSparseLinear}, \texttt{TopKLinear} & eager & \texttt{synapse/*.py} \\
+(b) branch shunting / additive divisor & \texttt{forward\_branch\_dynamics} & eager & \texttt{dendritic/branch\_dynamics.py} \\
+(c) axial child$\rightarrow$parent coupling & \texttt{BlockLinear} / \texttt{EfficientBlockLinear} & eager & \texttt{dendritic/blocklinear.py} \\
+(d) E/I population pooling & \texttt{PopulationLayer} (\texttt{cat}/\texttt{sum}) & eager & \texttt{recurrent/population\_layer.py} \\
+\midrule
+\multicolumn{4}{@{}l}{\emph{Only compile hook in tree:} \texttt{torch.compile} on the feedforward EI net (\texttt{ei\_network.py:599}), off by default, \emph{not} on this path.} \\
+\bottomrule
+\end{tabular}
+\caption{Phase-0 static op audit: the whole custom stack is plain eager PyTorch.}
+\label{tab:opaudit}
+\end{table}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}lllr@{}}
+\toprule
+\textbf{Config} & \textbf{Core / divisor} & \textbf{Top-k path} & \textbf{Params} \\
+\midrule
+\texttt{population\_network\_local\_learning\_mnist} & shunting & \texttt{indexed\_rewire} (ff\_exc\,40) & 90{,}784 \\
+\texttt{population\_network\_two\_layer} & shunting $+$ transfer & dense/topk (2 layers) & 410{,}928 \\
+\texttt{population\_network\_normalized\_additive\_mnist} & normalized-additive & --- & 123{,}136 \\
+\texttt{population\_network\_recurrent\_pyr\_pv\_sst} & shunting, recurrent & --- (seq unroll) & 2{,}160 \\
+\bottomrule
+\end{tabular}
+\caption{Profiling config matrix (all verified build $+$ fwd $+$ bwd on CPU). Batch is swept
+inside the harness; the recurrent config's tiny size makes it a launch-overhead probe.}
+\label{tab:cfgmatrix}
+\end{table}
+
+\noindent\textbf{Pending (the actual evidence pass).} With the harness validated, the remaining
+step is the GPU run (via \texttt{sbatch} on an H100/A100 node), which will produce the ranked
+per-op table (\% fwd / \% bwd, memory traffic, measured-vs-FLOP gap) and the compute- vs
+memory- vs launch-bound verdict at each shape. Those numbers are \emph{not yet collected} and
+are intentionally omitted here rather than estimated.
 
 \section*{Method (reusable playbook)}
 \begin{enumerate}[leftmargin=*, itemsep=1pt]
