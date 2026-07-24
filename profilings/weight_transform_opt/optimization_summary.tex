@@ -496,11 +496,11 @@ removes a $O(n^2 d)$ intermediate) but unmeasured until step~1 runs.}
 \end{enumerate}
 
 \noindent \emph{Status: Phase 1 (Python fused backward) and Phase 2 (Triton forward $+$ backward)
-both complete, verified, and merge-ready behind default-off flags. Phase-3 groundwork (\S6) is in
+both complete, verified, and merge-ready behind default-off flags. Phase-3 groundwork (\S7) is in
 place: a general profiling harness and a full-model op audit establishing that the whole custom
 stack is eager. The pending step is the harness's GPU evidence run, which will rank the next
 target across the entire model rather than a single remembered hotspot. Downstream candidates
-remain the RBF HSIC auxiliary gradient (\S7---diagnosed, algebraic fix identified, unmeasured), a
+remain the RBF HSIC auxiliary gradient (\S8---diagnosed, algebraic fix identified, unmeasured), a
 hand-written CUDA/C++ scatter extension, and the recurrent-config gather.}
 
 \end{document}
