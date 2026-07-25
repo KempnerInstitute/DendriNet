@@ -542,4 +542,34 @@ target across the entire model rather than a single remembered hotspot. Downstre
 remain the RBF HSIC auxiliary gradient (\S8---diagnosed, algebraic fix identified, unmeasured), a
 hand-written CUDA/C++ scatter extension, and the recurrent-config gather.}
 
+\appendix
+\section{Environment setup (reproducible)}
+
+All Phase~2--3 GPU work runs on a FASRC GPU node with the CUDA toolkit (\texttt{nvcc},
+needed to \emph{build} the extensions) and the \texttt{dendritic\_env} conda environment.
+\textbf{Get a node, then set everything up with one sourced command:}
+
+\begin{verbatim}
+# 1. request a GPU node
+salloc -p gpu --gres=gpu:1 -t 4:00:00 --mem=32G
+
+# 2. on the node, set up CUDA + Python env in one go (SOURCE it, don't execute):
+source profilings/weight_transform_opt/setup_cuda_env.sh
+\end{verbatim}
+
+\noindent The script is the three manual steps rolled into one, with verification:
+
+\begin{verbatim}
+module load cuda/12.9.1-fasrc01                        # nvcc (matches torch cu128)
+export CUDA_HOME="$(dirname "$(dirname "$(which nvcc)")")"  # torch's default guess is wrong
+conda activate dendritic_env                           # Python + torch
+\end{verbatim}
+
+\noindent It must be \emph{sourced} (\texttt{source ...}), not executed, so the module and
+conda changes persist in the current shell; a guard stops you if you run it directly. It then
+prints \texttt{nvcc}, \texttt{CUDA\_HOME}, \texttt{python}, and torch's CUDA availability so you
+can confirm the toolchain before building. Available FASRC CUDA modules:
+\texttt{cuda/\{11.3.1, 11.8.0, 12.0.1, 12.2.0, 12.4.1, 12.9.1\}-fasrc01}; use a \texttt{12.x}
+to match torch's \texttt{cu128} runtime.
+
 \end{document}

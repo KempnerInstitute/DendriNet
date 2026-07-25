@@ -32,3 +32,4 @@
 \newlabel{tab:cfgmatrix}{{5}{7}{Profiling config matrix (all verified build $+$ fwd $+$ bwd on CPU). Batch is swept inside the harness; the recurrent config's tiny size makes it a launch-overhead probe}{table.5}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {8}Next Candidate: The RBF HSIC Auxiliary Gradient}{7}{section.8}}
 \@writefile{lot}{\contentsline {table}{\numberline {6}{\ignorespaces RBF HSIC gradient, isolated microbenchmark (CPU, fp32; median of 50 iters, 10 warmup; target dim $d_y{=}10$, $\sigma {=}1$). The matmul form is \textbf  {23--70$\times $} faster and \emph  {bit-exact in fp64} across all shapes; the speedup widens with size exactly as the $O(n^2 d)$ intermediate predicts (linear in $d$, quadratic in $n$). \texttt  {z\_diff} is the $n\times n\times d$ tensor the current path builds and the rewrite never allocates.}}{9}{table.6}}
+\@writefile{toc}{\contentsline {section}{\numberline {A}Environment setup (reproducible)}{10}{appendix.A}}
