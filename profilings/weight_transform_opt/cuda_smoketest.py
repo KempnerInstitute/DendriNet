@@ -57,7 +57,7 @@ torch::Tensor add_cuda(torch::Tensor a, torch::Tensor b) {
     int blocks = (n + threads - 1) / threads;
     add_kernel<<<blocks, threads>>>(a.data_ptr<float>(), b.data_ptr<float>(),
                                     out.data_ptr<float>(), n);
-    C10_CUDA_CHECK(cudaGetLastError());
+    TORCH_CHECK(cudaGetLastError() == cudaSuccess, "add_kernel launch failed");
     return out;
 }
 """

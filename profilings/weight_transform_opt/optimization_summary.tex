@@ -240,6 +240,110 @@ $\Rightarrow$ falls through, so the flag can never break a run). Plumbed
 
 \end{enumerate}
 
+\section{Phase 3: CUDA/C++ Kernels (kickoff)}
+
+Phase~3 descends one level below Triton to a hand-written CUDA/C++ extension, for the one lever
+Triton structurally lacks: \emph{explicit shared-memory staging} of the gather/scatter. The bar is
+honest and high---Triton already beat \texttt{index\_add\_} and held at high contention, so CUDA
+must \emph{earn} any further gain (or prove Triton was already at the memory-bandwidth ceiling).
+
+\begin{center}
+\fbox{\parbox{0.92\textwidth}{\centering
+\textbf{Phase 3 result.} Hand-written CUDA \textbf{beats Triton on both directions.} Forward
+(shared-memory tiling): \textbf{2.65$\times$ (A100)} / \textbf{1.74$\times$ (Blackwell)} vs eager
+(Triton 2.08/1.56). Backward (shared-memory \texttt{grad\_w} privatization): \textbf{1.54$\times$
+(A100)} / \textbf{1.82$\times$ (Blackwell)} vs \texttt{index\_add\_} (Triton 1.24/1.35). A fourth
+idea---turning the \texttt{grad\_x} scatter into an atomic-free gather via the fixed
+connectivity---was \emph{tested and rejected}: it ran 2.2$\times$ \emph{slower} because
+\texttt{grad\_x} was never the bottleneck. Measurement, not intuition, picked the winner.
+}}
+\end{center}
+
+\begin{enumerate}[leftmargin=*, resume]
+
+\item \textbf{Stood up the CUDA build toolchain (FASRC).}\\
+\what{JIT-compiled extensions via \texttt{torch.utils.cpp\_extension.load\_inline}; resolved the
+cluster plumbing---a real \texttt{CUDA\_HOME} (\texttt{module load cuda/12.9.1}), a host compiler
+new enough for torch~2.11 (\texttt{module load gcc/12.2.0}; Rocky8's default GCC~8 is rejected),
+and \texttt{-ccbin} wiring so nvcc uses it.}\\
+\impact{One sourced script (\texttt{setup\_cuda\_env.sh}, Appendix~A) reproduces the whole
+environment; a smoke-test kernel compiles and runs on both \texttt{sm\_80} (A100) and
+\texttt{sm\_120} (Blackwell).}
+
+\item \textbf{v1 forward gather (naive, thread-per-output).}\\
+\what{One thread per \texttt{(m,o)}; each loops \texttt{K}, gathering
+\texttt{x[m,idx[o,k]]$\cdot$w[o,k]}. Establishes the kernel $+$ build $+$ timing harness on the
+easy direction (the forward gather has no scatter contention).}\\
+\impact{Correct (\texttt{max\_err}$\approx$$10^{-5}$) and \textbf{2.01$\times$ (A100) /
+1.21$\times$ (Blackwell)} vs eager. Notably the \emph{naive} kernel already matches Triton on the
+A100 ($\sim$2.08$\times$) but trails it on Blackwell (1.56$\times$)---the speedup is strongly
+architecture-dependent, and Blackwell's faster eager path leaves the naive kernel more to prove.}
+
+\item \textbf{v2 forward: shared-memory staging --- beats Triton.}\\
+\what{v1 re-reads \texttt{idx}/\texttt{w} from global memory once per batch row ($\sim$M-fold
+redundant). v2 tiles \texttt{B\_O} outputs $\times$ \texttt{B\_M} rows, cooperatively loads the
+tile's \texttt{idx}/\texttt{w} into on-chip shared memory once (\texttt{\_\_syncthreads}), and
+reuses it across all \texttt{B\_M} rows (shared tile is \texttt{B\_O$\cdot$K}, independent of
+\texttt{B\_M}, so bigger \texttt{B\_M} amortizes for free up to the 1024-thread cap).}\\
+\impact{Tuned (\texttt{B\_M=16}): \textbf{2.65$\times$ (A100) / 1.74$\times$ (Blackwell)} vs eager
+---\emph{past} Triton's 2.08/1.56 by $+$27\%/$+$11\%. Shared-memory control buys real headroom over
+Triton even on the easy direction. (The random \texttt{x[m,idx]} gather itself is inherent and
+untouched.)}
+
+\item \textbf{v1 backward: naive global atomics (baseline).}\\
+\what{One thread per \texttt{(m,o)}; both gradients via global \texttt{atomicAdd}
+---$\sim$460M atomics \emph{each} for \texttt{grad\_x} (scatter) and \texttt{grad\_w} (batch
+reduce). The maximally-naive scatter, matching what \texttt{index\_add\_}/Triton do at the
+global-memory level.}\\
+\impact{Correct (\texttt{grad\_x}$\approx$$10^{-4}$, \texttt{grad\_w}$\approx$$10^{-5}$) but
+\textbf{0.86$\times$ (Blackwell) / 1.01$\times$ (A100)} vs \texttt{index\_add\_}---i.e.\ it
+\emph{loses}, as expected: no aggregation. Triton's backward won (1.24--1.35$\times$) precisely
+because it aggregates \texttt{grad\_w} first. This is the floor to build from.}
+
+\item \textbf{v2 backward: shared-memory privatization of \texttt{grad\_w} --- the winner.}\\
+\what{Each block accumulates its output tile's \texttt{grad\_w} in a \texttt{\_\_shared\_\_} buffer
+(fast on-chip atomics), then flushes \emph{one} global atomic per \texttt{[o,k]} per block---cutting
+global \texttt{grad\_w} atomics $\sim$\texttt{B\_M}-fold. \texttt{grad\_x} left as naive global
+atomics on purpose, isolating the \texttt{grad\_w} effect.}\\
+\impact{\textbf{1.54$\times$ (A100) / 1.82$\times$ (Blackwell)} vs \texttt{index\_add\_}---up from
+v1's 1.01/0.86 and \emph{past Triton's} 1.24/1.35. The surprise: \texttt{grad\_w} was the
+\emph{dominant} cost (its $O{\cdot}K$ locations each hit by all $M$ rows---deep, concentrated
+contention), \emph{not} the \texttt{grad\_x} scatter as intuition suggested. Privatizing it alone
+won the backward.}
+
+\item \textbf{v3 backward: scatter $\to$ gather via the fixed topology --- TESTED AND REJECTED.}\\
+\what{The plausible ``thesis'': since \texttt{connection\_indices} is fixed, precompute the
+\emph{transpose} once (for each input $c$, its contribution list) and compute
+\texttt{grad\_x[m,c]=$\sum_{(o,k):idx=c}$grad\_out[m,o]$\cdot$w[o,k]} as an atomic-\emph{free}
+gather. Correct (\texttt{grad\_x} matched), so the transpose logic is right.}\\
+\impact{\textbf{0.82$\times$ (Blackwell)}---\emph{2.2$\times$ slower than v2}. Rejected. The premise
+was wrong: v2 already showed \texttt{grad\_x}'s atomics were \emph{cheap} (contention spread over
+$M{\cdot}IN$), so the gather ``fixed'' a non-bottleneck while introducing \emph{uncoalesced} reads
+(random \texttt{grad\_out}/\texttt{w}) and \emph{load imbalance} (fan-in 15--1295 per input, warps
+stall on the longest). A textbook optimization killed by measurement---the value of testing
+before shipping: v3 would have made the backward 2$\times$ slower.}
+
+\end{enumerate}
+
+\begin{center}
+\fbox{\parbox{0.92\textwidth}{
+\textbf{Plain-English: what the backward is doing.} Computing gradients means adding up a huge pile
+of tiny contributions; the whole game is \emph{where the additions land and who waits for whom}.
+Picture $\sim$460M people each adding a number to one of a few thousand shared whiteboards (an
+``atomic'' is a locked, one-at-a-time write---a queue).
+\textbf{(v1)} everyone writes straight to the crowded global boards $\to$ slow (it lost).
+\textbf{(v2, the winner)} each team tallies on its own scratch pad first, then one person carries
+the total to the global board $\to$ far fewer trips to the crowded boards. This alone won: it
+turned out the \emph{weight} boards (few boards, everyone piling on) were the jam, not the input
+boards.
+\textbf{(v3, rejected)} the tempting idea---have each input board hold a pre-written list of its
+own contributions and pull them in (a ``gather,'' no collisions)---was actually \emph{slower},
+because the input boards were never the jam, and pulling from a scattered list is itself expensive.
+\emph{The lesson}: we let measurement, not a clever story, pick the winner---and it saved us from
+shipping a change that would have doubled the backward's cost.
+}}
+\end{center}
+
 \section{Deliverables}
 
 \begin{table}[h]

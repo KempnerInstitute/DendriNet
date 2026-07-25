@@ -79,7 +79,7 @@ torch::Tensor gather_fwd_cuda(torch::Tensor x, torch::Tensor idx, torch::Tensor 
     gather_fwd_kernel<<<grid, threads>>>(
         x.data_ptr<float>(), idx.data_ptr<long>(), w.data_ptr<float>(),
         out.data_ptr<float>(), M, O, IN, K);
-    C10_CUDA_CHECK(cudaGetLastError());
+    TORCH_CHECK(cudaGetLastError() == cudaSuccess, "gather_fwd_kernel launch failed");
     return out;
 }
 """
