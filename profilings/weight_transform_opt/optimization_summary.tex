@@ -678,4 +678,33 @@ can confirm the toolchain before building. Available FASRC CUDA modules:
 \texttt{cuda/\{11.3.1, 11.8.0, 12.0.1, 12.2.0, 12.4.1, 12.9.1\}-fasrc01}; use a \texttt{12.x}
 to match torch's \texttt{cu128} runtime.
 
+\section{Scaling toggles (turn these on when scaling)}
+
+Three flags, all \textbf{default OFF}, one per optimization phase. Set them per
+\texttt{population\_defaults} block in the config YAML (5 blocks in the sglimit config).
+
+\begin{center}
+\small
+\begin{tabular}{@{}clll@{}}
+\toprule
+\textbf{\#} & \textbf{YAML key (\texttt{population\_defaults})} & \textbf{Enables} & \textbf{Status} \\
+\midrule
+1 & \texttt{indexed\_use\_fused\_gather: true}  & Phase 1 fused backward ($\sim$5$\times$)         & proven \\
+2 & \texttt{indexed\_use\_triton\_gather: true} & Phase 2 Triton fwd$+$bwd ($+$18--32\%)           & proven \\
+3 & \texttt{indexed\_use\_cuda\_gather: true}   & Phase 3 CUDA fwd$+$bwd (beats Triton)            & gate first \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent \textbf{Precedence, not additive:} \texttt{cuda $\to$ triton $\to$ fused $\to$ loop} in
+\texttt{IndexedSparseLinear.forward}. The highest \emph{available} enabled path wins; a missing
+toolchain \emph{falls through} to the next, so a flag can never break a run. Turning all three on
+$=$ ``use CUDA where possible, else Triton, else fused'' (robust across heterogeneous nodes).
+\texttt{indexed\_output\_chunk\_size: 16384} is a tuned \emph{value}, already set, not a toggle.
+
+\noindent \textbf{Before enabling CUDA (\#3) at scale:} \texttt{source setup\_cuda\_env.sh} (needs
+\texttt{nvcc}; lazy-compiles once, cached), then run \texttt{verify\_cuda\_gather.py} (expect
+\texttt{VERDICT: UNBIASED}) $+$ a training-equivalence check. Fused (\#1) and Triton (\#2) are
+already gate-passed. Full checklist: \texttt{profilings/weight\_transform\_opt/SCALING\_TOGGLES.md}.
+
 \end{document}

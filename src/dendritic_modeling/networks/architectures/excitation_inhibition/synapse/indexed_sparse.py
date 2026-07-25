@@ -23,6 +23,10 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.tri
     triton_gather_available,
     triton_sparse_gather,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.cuda_gather import (
+    cuda_gather_available,
+    cuda_sparse_gather,
+)
 from dendritic_modeling.networks.utils.weight_transforms import (
     WeightTransformType,
     apply_weight_transform,
@@ -64,6 +68,7 @@ class IndexedSparseLinear(nn.Module):
         output_chunk_size: int = 2048,
         use_fused_gather: bool = False,
         use_triton_gather: bool = False,
+        use_cuda_gather: bool = False,
         **_: object,
     ):
         super().__init__()
@@ -92,6 +97,7 @@ class IndexedSparseLinear(nn.Module):
         self.output_chunk_size = int(output_chunk_size)
         self.use_fused_gather = bool(use_fused_gather)
         self.use_triton_gather = bool(use_triton_gather)
+        self.use_cuda_gather = bool(use_cuda_gather)
         self.input_scale_vec = None
         self.param_scale_vec = None
         self.cache_mask = False
@@ -271,15 +277,24 @@ class IndexedSparseLinear(nn.Module):
         self._last_forward_param_tensor = weight
         indices = self.connection_indices.to(flat_x.device)
 
-        # Triton fused fwd+bwd gather: fastest path (+17.8% A100 / +31.8% Blackwell
-        # whole-step vs fused). Requires CUDA + a working Triton install; if either is
-        # missing we fall through to the next-best path so the flag never breaks a run.
+        # Fastest-first precedence: cuda -> triton -> fused -> original loop. Each perf
+        # path is guarded (CUDA tensor + toolchain/lib available); if a selected path is
+        # unavailable we fall through to the next-best, so a flag can never break a run.
+        # cuda_gather_available() lazily compiles the CUDA extension on first use only --
+        # never reached when use_cuda_gather is off, so the default path compiles nothing.
+        use_cuda = (
+            self.use_cuda_gather
+            and flat_x.is_cuda
+            and cuda_gather_available()
+        )
         use_triton = (
             self.use_triton_gather
             and flat_x.is_cuda
             and triton_gather_available()
         )
-        if use_triton:
+        if use_cuda:
+            out = cuda_sparse_gather(flat_x, indices, weight)
+        elif use_triton:
             out = triton_sparse_gather(flat_x, indices, weight)
         elif self.use_fused_gather:
             # custom-autograd gather+mul+sum: ~7.6x faster backward, ~28x less memory
