@@ -263,6 +263,7 @@ $\Rightarrow$ falls through, so the flag can never break a run). Plumbed
 \texttt{verify\_triton\_gather\_module.py} & tool & production-module correctness (fp32 $+$ bf16) \\
 \texttt{verify\_grad\_vs\_fp64.py} & tool & \textbf{fp64 unbiasedness stress sweep (all synapses)} \\
 \texttt{train\_equivalence\_triton.py} & tool & multi-step training-equivalence (fp32/bf16) \\
+\texttt{bench\_hsic\_rbf.py} & tool & \textbf{RBF HSIC gradient microbench (\S8): current vs matmul-form, fp64 equiv} \\
 \bottomrule
 \end{tabular}
 \caption{Phase 1: six edits $+$ one new module. Phase 2: one new module, two flags, plus the
@@ -421,7 +422,9 @@ are intentionally omitted here rather than estimated.
 The next target is a different subsystem: the \textbf{HSIC} (Hilbert--Schmidt Independence
 Criterion) auxiliary gradient used for local credit assignment
 (\texttt{training/strategies/local\_learning\_parts/local\_learning\_hsic.py}). This section is a
-\emph{diagnosis and plan}---no measurements yet---following the same playbook that drove Phases~1--2.
+\emph{diagnosis, an isolated microbenchmark, and a plan}---following the same playbook that drove
+Phases~1--2. Step~1 (the microbenchmark) is done and reported below; the rewrite has not yet been
+landed in the trainer.
 
 \subsection*{What it is (intuition)}
 HSIC is a dependence measure: given two views of a batch---layer activations $z$ and a target $y$---it
@@ -472,19 +475,55 @@ projected outcome is that HSIC leaves the hot path \emph{without} any custom ker
 fusion (kernel-matrix $\to$ centered-weight $\to$ gradient in one pass) remains a well-scoped
 \emph{fallback}, to be justified by re-profiling---not assumed.
 
-\subsection*{Planned validation (same bar as Phases 1--2)}
+\subsection*{Microbenchmark results (step~1, measured)}
+An isolated microbenchmark (\texttt{bench\_hsic\_rbf.py}) times the \emph{real}, imported
+\texttt{compute\_hsic\_gradient} (``Kernel~A'') against the matmul-form rewrite (``Kernel~B''),
+and checks numerical equivalence in \emph{double precision}. Because the HSIC gradient is returned
+\emph{analytically} (not via \texttt{autograd}), there is no backward to time---the number is the
+gradient call itself. Results below are \textbf{CPU} (login node); the CUDA peak-memory sweep is
+pending an \texttt{sbatch} run and is deliberately not estimated here.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{@{}llrrrrc@{}}
+\toprule
+\textbf{shape $(n,d)$} & \textbf{grad} & \textbf{current ms} & \textbf{matmul ms} &
+\textbf{speedup} & \textbf{\texttt{z\_diff} MB} & \textbf{fp64 equiv} \\
+\midrule
+$(128,256)$  & self   & 12.30  & 0.48 & 25.8$\times$ & 16.8  & OK \\
+$(128,256)$  & target & 12.42  & 0.55 & 22.7$\times$ & 16.8  & OK \\
+$(256,512)$  & self   & 100.18 & 1.93 & 51.8$\times$ & 134.2 & OK \\
+$(256,512)$  & target & 103.03 & 2.17 & 47.5$\times$ & 134.2 & OK \\
+$(512,512)$  & self   & 413.18 & 7.49 & 55.2$\times$ & 536.9 & OK \\
+$(512,512)$  & target & 438.53 & 8.30 & 52.9$\times$ & 536.9 & OK \\
+$(256,1024)$ & self   & 225.99 & 3.21 & 70.4$\times$ & 268.4 & OK \\
+$(256,1024)$ & target & 226.79 & 3.43 & 66.2$\times$ & 268.4 & OK \\
+\bottomrule
+\end{tabular}
+\caption{RBF HSIC gradient, isolated microbenchmark (CPU, fp32; median of 50 iters, 10 warmup;
+target dim $d_y{=}10$, $\sigma{=}1$). The matmul form is \textbf{23--70$\times$} faster and
+\emph{bit-exact in fp64} across all shapes; the speedup widens with size exactly as the
+$O(n^2 d)$ intermediate predicts (linear in $d$, quadratic in $n$). \texttt{z\_diff} is the
+$n\times n\times d$ tensor the current path builds and the rewrite never allocates.}
+\end{table}
+
+\noindent This confirms the diagnosis: the \texttt{z\_diff} intermediate \emph{is} the cost, and
+distributing the sum removes it with no loss of precision.
+
+\subsection*{Remaining steps (same bar as Phases 1--2)}
 \begin{enumerate}[leftmargin=*, itemsep=1pt]
-\item \textbf{Microbenchmark first}---time \texttt{compute\_hsic\_gradient} (RBF, self $+$ target)
-across realistic $(n,d)$ on CPU and CUDA via the existing \texttt{profiling.py} harness, to confirm
-the \texttt{z\_diff} tensor is the cost and establish a baseline.
-\item \textbf{\texttt{torch.allclose}} of the rewritten gradient against the current implementation
-(fp64 for an exact check), plus the existing helper tests
-(\texttt{tests/test\_local\_learning\_hsic\_helpers.py}).
-\item \textbf{Gate + re-profile}---land behind a default-off flag, confirm the win, and only then
-decide whether a fused kernel buys anything further.
+\item \textbf{GPU sweep}---run \texttt{bench\_hsic\_rbf.py} via \texttt{sbatch} on an A100/H100 to
+capture CUDA latency \emph{and} peak memory (the memory win is only visible with the CUDA
+allocator counter, \texttt{nan} on CPU).
+\item \textbf{Land + gate}---move the rewrite into \texttt{compute\_hsic\_gradient} behind a
+default-off flag, guarded by the existing helper tests
+(\texttt{tests/test\_local\_learning\_hsic\_helpers.py}) plus the fp64 equivalence check.
+\item \textbf{Re-profile in a real run}---confirm the win at the model level and only then decide
+whether a fused Triton/CUDA kernel buys anything further.
 \end{enumerate}
-\noindent \emph{Status: diagnosed, not yet implemented. Projected win is large (the matmul form
-removes a $O(n^2 d)$ intermediate) but unmeasured until step~1 runs.}
+\noindent \emph{Status: diagnosed and microbenchmarked (23--70$\times$ on CPU, fp64-exact); not yet
+landed in the trainer. GPU numbers and the flagged integration are the open items.}
 
 \section*{Method (reusable playbook)}
 \begin{enumerate}[leftmargin=*, itemsep=1pt]
