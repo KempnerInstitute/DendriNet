@@ -316,12 +316,14 @@ won the backward.}
 \emph{transpose} once (for each input $c$, its contribution list) and compute
 \texttt{grad\_x[m,c]=$\sum_{(o,k):idx=c}$grad\_out[m,o]$\cdot$w[o,k]} as an atomic-\emph{free}
 gather. Correct (\texttt{grad\_x} matched), so the transpose logic is right.}\\
-\impact{\textbf{0.82$\times$ (Blackwell)}---\emph{2.2$\times$ slower than v2}. Rejected. The premise
-was wrong: v2 already showed \texttt{grad\_x}'s atomics were \emph{cheap} (contention spread over
-$M{\cdot}IN$), so the gather ``fixed'' a non-bottleneck while introducing \emph{uncoalesced} reads
-(random \texttt{grad\_out}/\texttt{w}) and \emph{load imbalance} (fan-in 15--1295 per input, warps
-stall on the longest). A textbook optimization killed by measurement---the value of testing
-before shipping: v3 would have made the backward 2$\times$ slower.}
+\impact{\textbf{0.82$\times$ (Blackwell) / 0.63$\times$ (A100 MIG)}---\emph{2.2--2.4$\times$ slower
+than v2}. Rejected on both. The premise was wrong: v2 already showed \texttt{grad\_x}'s atomics
+were \emph{cheap} (contention spread over $M{\cdot}IN$), so the gather ``fixed'' a non-bottleneck
+while introducing \emph{uncoalesced} reads (random \texttt{grad\_out}/\texttt{w}) and \emph{load
+imbalance} (fan-in 15--1295 per input, warps stall on the longest). Confirming detail: it fails
+\emph{worse} on the bandwidth-limited A100 MIG slice---consistent with a memory-bandwidth failure
+mode, not a contention one. A textbook optimization killed by measurement on two architectures---the
+value of testing before shipping: v3 would have made the backward $\sim$2$\times$ slower.}
 
 \end{enumerate}
 
