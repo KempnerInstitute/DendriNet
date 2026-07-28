@@ -444,6 +444,103 @@ real wall was and whether we had actually moved it.
 }}
 \end{center}
 
+\section{Phase 4 (backward): CUDA backward --- split by gradient (2.6$\times$)}
+
+The wpo forward dropped the forward to $\sim$0.76\,ms, so by Amdahl the backward ($\sim$7.2\,ms)
+became $\sim$90\% of the gather cost---the clear next target. ncu confirmed the backward is L2-bound
+too, but with a twist that forced a \emph{different} shape than the forward.
+
+\begin{center}
+\fbox{\parbox{0.92\textwidth}{\centering
+\textbf{Phase 4 backward result.} The v2 backward is L2-bound with \emph{two} $\sim$equal costs:
+467M uncoalesced \texttt{x[m,idx]}-gather load sectors (recomputed for \texttt{grad\_w}) and 460M
+\texttt{grad\_x} global-atomic sectors. They want \emph{opposite} tilings, so the fix is to
+\textbf{split by gradient}: \textbf{2.607$\times$ over v2} (7.24\,ms $\to$ 2.78\,ms), with
+\texttt{grad\_w} bit-identical to v2 and \texttt{grad\_x} slightly more accurate. Combined with the
+wpo forward, the whole gather is $\sim$3$\times$ (10.7\,ms $\to$ 3.5\,ms).
+}}
+\end{center}
+
+\begin{enumerate}[leftmargin=*, resume]
+
+\item \textbf{Diagnosis: two $\sim$equal L2 costs, and a tiling conflict.}\\
+\what{ncu on the v2 backward: L2 SOL 95.4\%, L1 hit 0.78\%. Load sectors 467M (the same
+uncoalesced \texttt{x}-gather, recomputed for \texttt{grad\_w}) $\approx$ atomic-reduction sectors
+460M (the \texttt{grad\_x} scatter). \texttt{grad\_w} is already cheap (v2's shared privatization).}\\
+\impact{The two fixes fight: staging \texttt{x}/privatizing \texttt{grad\_x} wants \emph{few}
+m-rows per block; \texttt{grad\_w} privatization wants \emph{many}. You cannot cheaply satisfy both
+in one kernel on a 99\,KB card---so stop forcing one kernel to do everything.}
+
+\item \textbf{Step 1: \texttt{grad\_x} via shared staging --- 1.5$\times$.}\\
+\what{\texttt{grad\_x[m,c]} $+\!=$ \texttt{go$\cdot$w}, scattered by \texttt{idx}---and it needs
+\emph{no} \texttt{x}. One m-row per block, stage \texttt{grad\_x[m,:]} in shared, accumulate with
+fast \emph{shared} atomics, flush once. Converts 460M global atomics into on-chip atomics $+$ a
+coalesced flush. No tiling conflict (grad\_x touches neither \texttt{x} nor \texttt{grad\_w}).}\\
+\impact{\textbf{1.5$\times$} with \texttt{grad\_w} left as v2. Fixes the \emph{atomic} half; the
+\texttt{x}-gather \emph{load} half is still there and now dominates.}
+
+\item \textbf{Step 2: \texttt{grad\_w} via transpose --- 2.6$\times$.}\\
+\what{\texttt{grad\_w[o,k]} $= \sum_m$ \texttt{go[m,o]$\cdot$x[m,ix]}---the scattered
+\texttt{x[m,ix]} is the last cost. Transpose \texttt{x}$\to$\texttt{xT[IN,M]} and
+\texttt{grad\_out}$\to$\texttt{goT[O,M]}; then the m-reduction is a \emph{coalesced} dot product
+\texttt{xT[ix,:]$\cdot$goT[o,:]}. The random access is now ``which \emph{row}''---each row read is
+fully coalesced (M contiguous floats), $\sim$8$\times$ fewer sectors. Each \texttt{grad\_w[o,k]} is
+one warp's \texttt{\_\_shfl\_down} reduction---\emph{no atomics}.}\\
+\impact{\textbf{2.607$\times$} over v2, \emph{including} the \texttt{grad\_out} transpose (charged
+each call; the \texttt{x} transpose is cheap/precomputable). The coalescing win ($\sim$8$\times$)
+crushed the transpose overhead.}
+
+\item \textbf{Productionized (default OFF).}\\
+\what{\texttt{cuda\_gather.py} backward now runs \texttt{grad\_x}-stage $+$ \texttt{grad\_w}-transpose
+when the \texttt{grad\_x} row fits shared, else falls back to the v2 one-kernel backward. The
+\texttt{grad\_w} kernel register-stages \texttt{goT[o,:]} for M$\le$128 (the batch case) and
+re-reads it coalesced for M$>$128, so it is correct for \emph{any} batch (a silent-wrong-answer trap
+avoided).}\\
+\impact{Re-gated: \texttt{verify\_cuda\_gather.py} $\to$ \textbf{UNBIASED} (worst 1.25), and
+notably \texttt{grad\_x} is \textbf{2--5$\times$ \emph{more} accurate} than fused at high fan-in
+(ratio 0.20 at fan-in 1295) --- the shared staging accumulates \emph{hierarchically} (shared
+atomics $\to$ a few partial flushes) instead of fused's \emph{flat} global atomics, so the
+fan-in-proportional rounding shrinks, best exactly where fused was worst.
+\texttt{train\_equivalence\_cuda.py} $\to$ fp32 \textbf{EQUIVALENT}. Faster \emph{and} more
+accurate; still default off per branch discipline.}
+
+\end{enumerate}
+
+\begin{center}
+\fbox{\parbox{0.92\textwidth}{
+\textbf{Plain-English: what the backward split did.} The backward has two ledgers to fill:
+\texttt{grad\_x} (how each \emph{input} should change) and \texttt{grad\_w} (how each \emph{weight}
+should change). v2 filled both in one pass and got stuck on two jams: writing \texttt{grad\_x}
+meant millions of locked one-at-a-time writes to the crowded shared boards, and filling
+\texttt{grad\_w} meant the same scattered ``fetch one random number at a time'' problem as the
+forward. The trick: \emph{do them separately, because they want opposite seating}. For
+\texttt{grad\_x}, each worker tallies on their own scratch pad first, then makes one trip to the
+board---no more lock jam. For \texttt{grad\_w}, we first \emph{re-file the numbers} so each needed
+list sits contiguously (the transpose), turning ``fetch one scattered number 40 times'' into
+``grab one neat row''---and the sum becomes a tidy team handoff with no locked writes at all.
+Two jams gone $\to$ 2.6$\times$. And once more the profiler, not a guess, said which two jams
+existed and that they needed different fixes.
+}}
+\end{center}
+
+\begin{center}
+\fbox{\parbox{0.92\textwidth}{
+\textbf{Portability: verified on A100 (not just Blackwell).} All tuning was on an RTX PRO 6000
+Blackwell; production targets H100/H200. Since ``runs on Blackwell'' implies nothing about other
+GPUs, the production module (wpo fwd $+$ split bwd) was run through the fp64 gate on an
+\textbf{A100-SXM4-40GB (Ampere, sm\_80)}: \textbf{UNBIASED, worst ratio 1.33} across all 25 synapses.
+So \texttt{\_\_shfl\_down}, the 40\,KB dynamic shared, and the runtime opt-in query all work on
+Ampere---the \emph{weakest} datacenter target. Nuance: the standalone \emph{benchmark} scripts
+hardcode the v2 tile \texttt{B\_O=64} and \emph{fail to launch} on A100---a benchmark-only artifact
+(production uses wpo, and the v2 fallback uses \texttt{B\_O=32} on Ampere), so a benchmark failing on
+A100 says nothing about production; always verify with the gate. \textbf{Correctness ports; tuning
+does not.} A100 passing makes the H100 \emph{correctness} port low-risk, but H100's 50\,MB L2 (vs
+this card's larger L2) may shift the wall L2$\to$DRAM, so \texttt{P}/\texttt{T} must be re-swept and
+the gate re-run on an actual H100 before scaling. Launch checks now print
+\texttt{cudaGetErrorString} $+$ config, so any future arch failure is legible, not silent.
+}}
+\end{center}
+
 \section{Deliverables}
 
 \begin{table}[h]
@@ -472,8 +569,10 @@ real wall was and whether we had actually moved it.
 \texttt{synapse/cuda\_gather.py} & new source & Phase 3 v2 $+$ Phase 4 wpo forward (lazy-compile, AMP-safe, default off) \\
 \texttt{cuda\_gather\_fwd\_stagex\_wpo.py} & tool & \textbf{Phase 4 wpo forward bench (the 4.5$\times$ winner)} \\
 \texttt{cuda\_gather\_fwd\_int32.py, \_stagex.py} & tool & Phase 4 dead-ends (int32 flat; tpo staging $-$18\%) \\
+\texttt{cuda\_gather\_bwd\_stagex.py} & tool & \textbf{Phase 4 backward: grad\_x-stage $+$ grad\_w-transpose (2.6$\times$)} \\
 \texttt{ncu\_full.sh, ncu\_metrics.sh} & tool & NSight Compute L2 profiling (deep capture $+$ fast metric loop) \\
-\texttt{verify\_cuda\_gather.py} & tool & \textbf{CUDA fp64 unbiasedness gate (all 25 synapses)} \\
+\texttt{verify\_cuda\_gather.py} & tool & \textbf{CUDA fp64 unbiasedness gate (all 25 synapses; A100 $+$ Blackwell)} \\
+\texttt{train\_equivalence\_cuda.py} & tool & CUDA training-equivalence gate (fp32/bf16, fused-floor method) \\
 \bottomrule
 \end{tabular}
 \caption{Phase 1: six edits $+$ one new module. Phase 2: one new module, two flags, plus the

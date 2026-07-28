@@ -5,11 +5,16 @@ Production form of the winning kernels:
                on Blackwell (v2 was L2-throughput-bound; wpo drops L2 SOL 93%->67% and restores
                occupancy). Falls back to the Phase-3 v2 shared-tiled forward when the x-row does
                not fit shared (IN*4 > opt-in max).
-  * backward : shared-memory privatization of grad_w + cheap global-atomic grad_x (v2)
-               -- 1.54x / 1.82x vs index_add_
-Both beat the Triton path on both GPUs. (A v3 grad_x scatter->gather transpose was tested and
-rejected: 2.2-2.4x slower, grad_x was never the bottleneck. The wpo backward is future work --
-the backward is still the v2 kernel.)
+  * backward : Phase-4 SPLIT backward -- ~2.6x over v2 on Blackwell. v2 was L2-bound with two
+               ~equal costs (467M uncoalesced x-gather loads + 460M grad_x global atomics), which
+               want opposite tilings, so we split by gradient: grad_x stages grad_x[m,:] in shared
+               with fast atomics + coalesced flush (kills the global atomics); grad_w transposes
+               x->xT, grad_out->goT so its m-reduction is a coalesced dot product (kills the
+               scattered gather, and no atomics). Falls back to the v2 one-kernel backward when the
+               grad_x row does not fit shared. (An earlier v3 grad_x scatter->gather transpose was
+               tested and rejected: 2.2-2.4x slower -- that targeted grad_x's atomics, which were
+               never the bottleneck; the win came from grad_w's gather + grad_x's atomic *venue*.)
+Both beat the Triton path on both GPUs.
 
 Drop-in for :func:`fused_sparse_gather` / :func:`triton_sparse_gather` (same signature).
 
@@ -35,6 +40,8 @@ _CPP_SRC = (
     "torch::Tensor gather_fwd_wpo_cuda(torch::Tensor x, torch::Tensor idx, torch::Tensor w, int P, int T);\n"
     "std::vector<torch::Tensor> gather_bwd_cuda(torch::Tensor grad_out, torch::Tensor x, "
     "torch::Tensor idx, torch::Tensor w, int B_O, int B_M);\n"
+    "std::vector<torch::Tensor> gather_bwd_wpo_cuda(torch::Tensor grad_out, torch::Tensor goT, "
+    "torch::Tensor xT, torch::Tensor idx, torch::Tensor w, int P, int T);\n"
     "int cuda_gather_max_optin_shared();"
 )
 
@@ -76,7 +83,9 @@ torch::Tensor gather_fwd_cuda(torch::Tensor x, torch::Tensor idx, torch::Tensor 
     gather_fwd_v2_kernel<<<grid, block, shmem>>>(
         x.data_ptr<float>(), idx.data_ptr<long>(), w.data_ptr<float>(),
         out.data_ptr<float>(), M, O, IN, K, B_O, B_M);
-    TORCH_CHECK(cudaGetLastError() == cudaSuccess, "gather_fwd_v2 launch failed");
+    { cudaError_t e = cudaGetLastError();
+      TORCH_CHECK(e == cudaSuccess, "gather_fwd_v2 launch failed: ", cudaGetErrorString(e),
+                  " (B_O=", B_O, " B_M=", B_M, " shmem=", shmem, ")"); }
     return out;
 }
 
@@ -127,7 +136,9 @@ std::vector<torch::Tensor> gather_bwd_cuda(
     gather_bwd_v2_kernel<<<grid, block, shmem>>>(
         grad_out.data_ptr<float>(), x.data_ptr<float>(), idx.data_ptr<long>(), w.data_ptr<float>(),
         grad_x.data_ptr<float>(), grad_w.data_ptr<float>(), M, O, IN, K, B_O, B_M);
-    TORCH_CHECK(cudaGetLastError() == cudaSuccess, "gather_bwd_v2 launch failed");
+    { cudaError_t e = cudaGetLastError();
+      TORCH_CHECK(e == cudaSuccess, "gather_bwd_v2 launch failed: ", cudaGetErrorString(e),
+                  " (B_O=", B_O, " B_M=", B_M, " shmem=", shmem, ")"); }
     return {grad_x, grad_w};
 }
 
@@ -173,7 +184,9 @@ torch::Tensor gather_fwd_wpo_cuda(torch::Tensor x, torch::Tensor idx, torch::Ten
     gather_fwd_wpo_kernel<<<grid, block, shmem>>>(
         x.data_ptr<float>(), idx.data_ptr<int>(), w.data_ptr<float>(),
         out.data_ptr<float>(), M, O, IN, K, P);
-    TORCH_CHECK(cudaGetLastError() == cudaSuccess, "gather_fwd_wpo launch failed");
+    { cudaError_t e = cudaGetLastError();
+      TORCH_CHECK(e == cudaSuccess, "gather_fwd_wpo launch failed: ", cudaGetErrorString(e),
+                  " (P=", P, " T=", T, " shmem=", shmem, ")"); }
     return out;
 }
 
@@ -181,6 +194,109 @@ int cuda_gather_max_optin_shared() {
     int dev = 0; cudaGetDevice(&dev);
     int m = 0; cudaDeviceGetAttribute(&m, cudaDevAttrMaxSharedMemoryPerBlockOptin, dev);
     return m;
+}
+
+// ---- backward wpo: split by gradient (Phase-4 backward, ~2.6x over v2) ---------------
+// v2 backward was L2-bound with TWO ~equal costs: 467M uncoalesced x-gather loads and 460M
+// grad_x global atomics. They want opposite tilings, so we SPLIT into two kernels:
+//   (a) grad_x: scatter go*w into grad_x[m,ix]; needs NO x. Stage grad_x[m,:] in shared,
+//       accumulate with fast SHARED atomics, flush once -> kills the global atomics.
+//   (b) grad_w: sum_m go*x[m,ix]. Transpose x->xT[IN,M], grad_out->goT[O,M] so the m-reduction
+//       becomes a COALESCED dot product xT[ix,:].goT[o,:] -> the scattered gather is gone, and
+//       each grad_w[o,k] is one warp's reduction (no atomics).
+
+// (a) grad_x via shared staging + warp-per-output.
+__global__ void gather_gradx_stage_kernel(
+        const float* __restrict__ grad_out, const int* __restrict__ idx,
+        const float* __restrict__ w, float* __restrict__ grad_x,
+        int M, int O, int IN, int K, int P) {
+    extern __shared__ float s_gx[];                 // IN floats = staged grad_x row
+    int o_base = blockIdx.x * P, m = blockIdx.y;
+    int T = blockDim.x, t = threadIdx.x;
+    for (int c = t; c < IN; c += T) s_gx[c] = 0.0f;
+    __syncthreads();
+    int warp = t >> 5, lane = t & 31, W = T >> 5;
+    const float* go_m = grad_out + (long)m * O;
+    for (int po = warp; po < P; po += W) {
+        int o = o_base + po;
+        if (o >= O) continue;
+        float go = go_m[o];
+        long base = (long)o * K;
+        for (int k = lane; k < K; k += 32) {
+            int ix = idx[base + k];
+            atomicAdd(&s_gx[ix], go * w[base + k]);  // SHARED atomic
+        }
+    }
+    __syncthreads();
+    float* gx_m = grad_x + (long)m * IN;             // O/P blocks share this row -> atomic flush
+    for (int c = t; c < IN; c += T) atomicAdd(&gx_m[c], s_gx[c]);
+}
+
+// (b) grad_w via transpose. Warp-per-output. For M<=128 goT[o,:] is register-staged (the
+// benchmarked fast path); for M>128 it is re-read coalesced from global (correct for any batch).
+__global__ void gather_gradw_transpose_kernel(
+        const float* __restrict__ goT, const float* __restrict__ xT,
+        const int* __restrict__ idx, float* __restrict__ grad_w,
+        int M, int O, int IN, int K, int P) {
+    int o_base = blockIdx.x * P;
+    int T = blockDim.x, t = threadIdx.x;
+    int warp = t >> 5, lane = t & 31, W = T >> 5;
+    for (int po = warp; po < P; po += W) {
+        int o = o_base + po;
+        if (o >= O) continue;
+        const float* go_o = goT + (long)o * M;
+        long base = (long)o * K;
+        if (M <= 128) {                              // register-staged fast path (batch<=128)
+            float g0 = (lane      < M) ? go_o[lane]      : 0.0f;
+            float g1 = (lane + 32 < M) ? go_o[lane + 32] : 0.0f;
+            float g2 = (lane + 64 < M) ? go_o[lane + 64] : 0.0f;
+            float g3 = (lane + 96 < M) ? go_o[lane + 96] : 0.0f;
+            for (int k = 0; k < K; ++k) {
+                const float* xt = xT + (long)idx[base + k] * M;   // COALESCED row read
+                float p = 0.0f;
+                if (lane      < M) p += g0 * xt[lane];
+                if (lane + 32 < M) p += g1 * xt[lane + 32];
+                if (lane + 64 < M) p += g2 * xt[lane + 64];
+                if (lane + 96 < M) p += g3 * xt[lane + 96];
+                #pragma unroll
+                for (int off = 16; off > 0; off >>= 1) p += __shfl_down_sync(0xffffffffu, p, off);
+                if (lane == 0) grad_w[base + k] = p;
+            }
+        } else {                                     // general path (batch>128): re-read goT
+            for (int k = 0; k < K; ++k) {
+                const float* xt = xT + (long)idx[base + k] * M;
+                float p = 0.0f;
+                for (int mm = lane; mm < M; mm += 32) p += go_o[mm] * xt[mm];
+                #pragma unroll
+                for (int off = 16; off > 0; off >>= 1) p += __shfl_down_sync(0xffffffffu, p, off);
+                if (lane == 0) grad_w[base + k] = p;
+            }
+        }
+    }
+}
+
+std::vector<torch::Tensor> gather_bwd_wpo_cuda(
+        torch::Tensor grad_out, torch::Tensor goT, torch::Tensor xT,
+        torch::Tensor idx, torch::Tensor w, int P, int T) {
+    int M = grad_out.size(0), O = grad_out.size(1), IN = xT.size(0), K = idx.size(1);
+    auto grad_x = torch::zeros({M, IN}, grad_out.options());
+    auto grad_w = torch::empty({O, K}, grad_out.options());
+    { dim3 grid((O + P - 1) / P, M), block(T);
+      size_t sh = (size_t)IN * sizeof(float);
+      if (sh > 48 * 1024)
+          cudaFuncSetAttribute(gather_gradx_stage_kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, (int)sh);
+      gather_gradx_stage_kernel<<<grid, block, sh>>>(
+          grad_out.data_ptr<float>(), idx.data_ptr<int>(), w.data_ptr<float>(),
+          grad_x.data_ptr<float>(), M, O, IN, K, P);
+      cudaError_t e = cudaGetLastError();
+      TORCH_CHECK(e == cudaSuccess, "gather_gradx_stage launch failed: ", cudaGetErrorString(e)); }
+    { dim3 grid((O + P - 1) / P), block(T);
+      gather_gradw_transpose_kernel<<<grid, block>>>(
+          goT.data_ptr<float>(), xT.data_ptr<float>(), idx.data_ptr<int>(),
+          grad_w.data_ptr<float>(), M, O, IN, K, P);
+      cudaError_t e = cudaGetLastError();
+      TORCH_CHECK(e == cudaSuccess, "gather_gradw_transpose launch failed: ", cudaGetErrorString(e)); }
+    return {grad_x, grad_w};
 }
 """
 
@@ -200,7 +316,7 @@ def _load_ext():
             cpp_sources=_CPP_SRC,
             cuda_sources=_CUDA_SRC,
             functions=["gather_fwd_cuda", "gather_fwd_wpo_cuda", "gather_bwd_cuda",
-                       "cuda_gather_max_optin_shared"],
+                       "gather_bwd_wpo_cuda", "cuda_gather_max_optin_shared"],
             verbose=False,
         )
     except Exception:  # noqa: BLE001  (missing nvcc, compile error, arch mismatch, ...)
@@ -246,6 +362,19 @@ def _pick_wpo_params() -> tuple[int, int]:
     return 2048, 512
 
 
+def _bwd_wpo_ok(IN: int) -> bool:
+    """Whether the Phase-4 split backward applies: the grad_x row must fit shared
+    (IN*4 <= optin max). The grad_w-transpose kernel uses no dynamic shared (register/loop),
+    so only grad_x constrains it. Otherwise fall back to the v2 backward (no IN limit)."""
+    return IN * 4 <= _optin_shared()
+
+
+def _pick_bwd_wpo_params() -> tuple[int, int]:
+    """(P outputs/block, T threads) for the split backward. Tuned on Blackwell
+    (P=2048, T=512 -> ~2.6x over v2, matching the forward's sweet spot)."""
+    return 2048, 512
+
+
 class _CudaSparseGather(torch.autograd.Function):
     @staticmethod
     def forward(ctx, x, idx, weight, B_O, B_M):
@@ -270,7 +399,14 @@ class _CudaSparseGather(torch.autograd.Function):
         xf, idx, wf = ctx.saved_tensors
         B_O, B_M, in_dtype, w_dtype = ctx.cfg
         gof = grad_out.contiguous().to(torch.float32)
-        grad_x, grad_w = ext.gather_bwd_cuda(gof, xf, idx, wf, B_O, B_M)
+        IN = xf.size(1)
+        if _bwd_wpo_ok(IN):                    # Phase-4 split backward (~2.6x over v2)
+            P, T = _pick_bwd_wpo_params()
+            xT = xf.t().contiguous()           # [IN, M]  (x is small; transpose is cheap)
+            goT = gof.t().contiguous()         # [O, M]   (grad_out transpose, charged per call)
+            grad_x, grad_w = ext.gather_bwd_wpo_cuda(gof, goT, xT, idx.to(torch.int32), wf, P, T)
+        else:                                  # fall back to v2 (grad_x row too large for shared)
+            grad_x, grad_w = ext.gather_bwd_cuda(gof, xf, idx, wf, B_O, B_M)
         needs_x, _, needs_w = ctx.needs_input_grad[:3]
         return (
             grad_x.to(in_dtype) if needs_x else None,
