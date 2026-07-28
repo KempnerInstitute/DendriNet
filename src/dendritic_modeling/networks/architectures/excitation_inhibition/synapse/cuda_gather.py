@@ -1,11 +1,15 @@
 """CUDA fused sparse gather-multiply-sum: forward + backward in one Function.
 
-Production form of the Phase-3 winning kernels:
-  * forward  : shared-memory tiling of idx/w (v2) -- 2.65x (A100) / 1.74x (Blackwell) vs eager
+Production form of the winning kernels:
+  * forward  : Phase-4 warp-per-output with the x-row staged in shared (wpo) -- ~4.5x over v2
+               on Blackwell (v2 was L2-throughput-bound; wpo drops L2 SOL 93%->67% and restores
+               occupancy). Falls back to the Phase-3 v2 shared-tiled forward when the x-row does
+               not fit shared (IN*4 > opt-in max).
   * backward : shared-memory privatization of grad_w + cheap global-atomic grad_x (v2)
                -- 1.54x / 1.82x vs index_add_
 Both beat the Triton path on both GPUs. (A v3 grad_x scatter->gather transpose was tested and
-rejected: 2.2-2.4x slower, grad_x was never the bottleneck.)
+rejected: 2.2-2.4x slower, grad_x was never the bottleneck. The wpo backward is future work --
+the backward is still the v2 kernel.)
 
 Drop-in for :func:`fused_sparse_gather` / :func:`triton_sparse_gather` (same signature).
 
@@ -28,8 +32,10 @@ _COMPILE_TRIED = False  # so we attempt the (slow) compile at most once per proc
 
 _CPP_SRC = (
     "torch::Tensor gather_fwd_cuda(torch::Tensor x, torch::Tensor idx, torch::Tensor w, int B_O, int B_M);\n"
+    "torch::Tensor gather_fwd_wpo_cuda(torch::Tensor x, torch::Tensor idx, torch::Tensor w, int P, int T);\n"
     "std::vector<torch::Tensor> gather_bwd_cuda(torch::Tensor grad_out, torch::Tensor x, "
-    "torch::Tensor idx, torch::Tensor w, int B_O, int B_M);"
+    "torch::Tensor idx, torch::Tensor w, int B_O, int B_M);\n"
+    "int cuda_gather_max_optin_shared();"
 )
 
 _CUDA_SRC = r"""
@@ -124,6 +130,58 @@ std::vector<torch::Tensor> gather_bwd_cuda(
     TORCH_CHECK(cudaGetLastError() == cudaSuccess, "gather_bwd_v2 launch failed");
     return {grad_x, grad_w};
 }
+
+// ---- forward wpo: stage the x-row in shared, warp-per-output, coalesced idx/w --------
+// Profile-driven Phase-4 forward. v2 was L2-throughput-bound (L2 SOL 93%, ~29 sectors/req
+// uncoalesced gather, L1 hit 5%). wpo stages x[m,:] into shared ONCE per block (coalesced),
+// then each WARP owns one output: its 32 lanes read idx/w coalesced from global, gather from
+// the on-chip x-row, and __shfl_down-reduce over K. Result on Blackwell: L2 SOL 93%->67%,
+// occupancy back to ~64%, ~4.5x over v2 (and slightly better accuracy from the tree reduce).
+// Requires only that the x-row fit shared (IN*4 <= optin max); caller falls back to v2 else.
+__global__ void gather_fwd_wpo_kernel(
+        const float* __restrict__ x, const int* __restrict__ idx,
+        const float* __restrict__ w, float* __restrict__ out,
+        int M, int O, int IN, int K, int P) {
+    extern __shared__ float s_x[];                 // IN floats = the staged x-row
+    int o_base = blockIdx.x * P, m = blockIdx.y;
+    int T = blockDim.x, t = threadIdx.x;
+    const float* x_m = x + (long)m * IN;
+    for (int c = t; c < IN; c += T) s_x[c] = x_m[c];   // stage row (coalesced)
+    __syncthreads();
+    int warp = t >> 5, lane = t & 31, W = T >> 5;
+    for (int po = warp; po < P; po += W) {
+        int o = o_base + po;
+        if (o >= O) continue;
+        long base = (long)o * K;
+        float p = 0.0f;
+        // strided lane loop: each iteration reads idx[base+i*32 .. +31] coalesced. Handles any K.
+        for (int k = lane; k < K; k += 32) { int ix = idx[base + k]; p += s_x[ix] * w[base + k]; }
+        #pragma unroll
+        for (int off = 16; off > 0; off >>= 1) p += __shfl_down_sync(0xffffffffu, p, off);
+        if (lane == 0) out[(long)m * O + o] = p;
+    }
+}
+
+torch::Tensor gather_fwd_wpo_cuda(torch::Tensor x, torch::Tensor idx, torch::Tensor w, int P, int T) {
+    int M = x.size(0), IN = x.size(1), O = idx.size(0), K = idx.size(1);
+    auto out = torch::empty({M, O}, x.options());
+    dim3 grid((O + P - 1) / P, M), block(T);
+    size_t shmem = (size_t)IN * sizeof(float);
+    if (shmem > 48 * 1024)   // opt into >48KB dynamic shared when the row is large
+        cudaFuncSetAttribute(gather_fwd_wpo_kernel,
+                             cudaFuncAttributeMaxDynamicSharedMemorySize, (int)shmem);
+    gather_fwd_wpo_kernel<<<grid, block, shmem>>>(
+        x.data_ptr<float>(), idx.data_ptr<int>(), w.data_ptr<float>(),
+        out.data_ptr<float>(), M, O, IN, K, P);
+    TORCH_CHECK(cudaGetLastError() == cudaSuccess, "gather_fwd_wpo launch failed");
+    return out;
+}
+
+int cuda_gather_max_optin_shared() {
+    int dev = 0; cudaGetDevice(&dev);
+    int m = 0; cudaDeviceGetAttribute(&m, cudaDevAttrMaxSharedMemoryPerBlockOptin, dev);
+    return m;
+}
 """
 
 
@@ -141,7 +199,8 @@ def _load_ext():
             name="dendrinet_cuda_gather",
             cpp_sources=_CPP_SRC,
             cuda_sources=_CUDA_SRC,
-            functions=["gather_fwd_cuda", "gather_bwd_cuda"],
+            functions=["gather_fwd_cuda", "gather_fwd_wpo_cuda", "gather_bwd_cuda",
+                       "cuda_gather_max_optin_shared"],
             verbose=False,
         )
     except Exception:  # noqa: BLE001  (missing nvcc, compile error, arch mismatch, ...)
@@ -155,10 +214,36 @@ def cuda_gather_available() -> bool:
 
 
 def _pick_tile() -> tuple[int, int]:
-    """Per-arch tile: B_M=16 is the sweet spot on both A100 and Blackwell; B_O by arch."""
+    """Per-arch tile for the v2 fallback forward/backward: B_M=16 is the sweet spot on both
+    A100 and Blackwell; B_O by arch."""
     cc = torch.cuda.get_device_capability()
     b_o = 64 if cc[0] >= 9 else 32     # Hopper/Blackwell like wider tiles; Ampere prefers 32
     return b_o, 16
+
+
+_OPTIN_SHARED = None  # device max opt-in dynamic shared mem per block (bytes), queried once
+
+
+def _optin_shared() -> int:
+    global _OPTIN_SHARED
+    if _OPTIN_SHARED is None:
+        ext = _load_ext()
+        _OPTIN_SHARED = ext.cuda_gather_max_optin_shared() if ext is not None else 0
+    return _OPTIN_SHARED
+
+
+def _wpo_ok(IN: int, K: int) -> bool:
+    """Whether the Phase-4 warp-per-output forward applies: the x-row must fit shared memory
+    (IN*4 <= device opt-in max). The strided lane loop handles any K, so K is unrestricted.
+    Otherwise the caller falls back to the v2 shared-tiled forward, which has no IN limit."""
+    return IN * 4 <= _optin_shared()
+
+
+def _pick_wpo_params() -> tuple[int, int]:
+    """(P outputs/block, T threads). Tuned on Blackwell (P=2048, T=512 -> ~4.5x over v2);
+    T=512 (16 warps) is the occupancy sweet spot and 40KB-class rows leave ~2 blocks/SM.
+    Safe on Ampere (row still < 48KB there)."""
+    return 2048, 512
 
 
 class _CudaSparseGather(torch.autograd.Function):
@@ -169,8 +254,13 @@ class _CudaSparseGather(torch.autograd.Function):
         xf = x.contiguous().to(torch.float32)
         wf = weight.contiguous().to(torch.float32)
         idx = idx.contiguous().to(torch.int64)
-        out = ext.gather_fwd_cuda(xf, idx, wf, B_O, B_M)
-        ctx.save_for_backward(xf, idx, wf)
+        IN, K = xf.size(1), idx.size(1)
+        if _wpo_ok(IN, K):                     # Phase-4 warp-per-output forward (~4.5x over v2)
+            P, T = _pick_wpo_params()
+            out = ext.gather_fwd_wpo_cuda(xf, idx.to(torch.int32), wf, P, T)
+        else:                                  # fall back to v2 (x-row too large for shared)
+            out = ext.gather_fwd_cuda(xf, idx, wf, B_O, B_M)
+        ctx.save_for_backward(xf, idx, wf)     # int64 idx kept for the v2 backward
         ctx.cfg = (B_O, B_M, in_dtype, w_dtype)
         return out.to(in_dtype)
 

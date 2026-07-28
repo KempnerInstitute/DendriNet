@@ -48,7 +48,8 @@ from torch.utils.cpp_extension import load_inline
 
 _CPP_SRC = (
     "torch::Tensor fwd_v2(torch::Tensor x, torch::Tensor idx, torch::Tensor w, int B_O, int B_M);\n"
-    "torch::Tensor fwd_stagex(torch::Tensor x, torch::Tensor idx, torch::Tensor w, int P, int BM, int T);"
+    "torch::Tensor fwd_stagex(torch::Tensor x, torch::Tensor idx, torch::Tensor w, int P, int BM, int T);\n"
+    "int max_optin_shared();"
 )
 
 _CUDA_SRC = r"""
@@ -166,6 +167,12 @@ torch::Tensor fwd_stagex(torch::Tensor x, torch::Tensor idx, torch::Tensor w, in
     TORCH_CHECK(cudaGetLastError() == cudaSuccess, "fwd_stagex launch failed");
     return out;
 }
+
+int max_optin_shared() {
+    int dev = 0; cudaGetDevice(&dev);
+    int m = 0; cudaDeviceGetAttribute(&m, cudaDevAttrMaxSharedMemoryPerBlockOptin, dev);
+    return m;
+}
 """
 
 
@@ -210,7 +217,18 @@ def main() -> None:
     print(f"stagex: P={args.P} BM={args.BM} T={args.T}  shared/block={shmem_kb:.1f}KB")
     print("compiling (first run ~90s)...", flush=True)
     ext = load_inline(name="fwd_stagex_bench", cpp_sources=_CPP_SRC, cuda_sources=_CUDA_SRC,
-                      functions=["fwd_v2", "fwd_stagex"], verbose=False)
+                      functions=["fwd_v2", "fwd_stagex", "max_optin_shared"], verbose=False)
+
+    # clamp P so (x rows + idx/w staging) fits this device's opt-in shared limit
+    maxsh = ext.max_optin_shared()
+    x_bytes = args.BM * IN * 4
+    assert x_bytes < maxsh, f"BM={args.BM} needs {x_bytes/1024:.0f}KB for x alone > {maxsh/1024:.0f}KB optin; lower BM"
+    max_P = (maxsh - x_bytes) // (K * 8)
+    if args.P > max_P:
+        print(f"NOTE: P={args.P} won't fit {maxsh/1024:.0f}KB optin shared; clamping to P={max_P}")
+        args.P = int(max_P)
+    shmem_kb = (args.BM * IN * 4 + args.P * K * 8) / 1024
+    print(f"effective: P={args.P} BM={args.BM}  shared/block={shmem_kb:.1f}KB  (optin max {maxsh/1024:.0f}KB)")
 
     # --- correctness vs eager ---
     ref = (x[:, idx64] * w.unsqueeze(0)).sum(-1)
