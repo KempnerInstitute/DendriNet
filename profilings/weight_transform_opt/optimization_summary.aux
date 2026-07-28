@@ -21,17 +21,18 @@
 \@writefile{toc}{\contentsline {section}{\numberline {3}Re-measurement \& Next-Candidate Search}{3}{section.3}}
 \@writefile{toc}{\contentsline {section}{\numberline {4}Phase 2: Hand-Written Triton Kernels (Forward + Backward)}{3}{section.4}}
 \@writefile{toc}{\contentsline {section}{\numberline {5}Phase 3: CUDA/C++ Kernels (kickoff)}{4}{section.5}}
-\@writefile{toc}{\contentsline {section}{\numberline {6}Deliverables}{6}{section.6}}
-\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Phase 1: six edits $+$ one new module. Phase 2: one new module, two flags, plus the Triton dev/verification tools. All flags default-off.}}{6}{table.1}}
-\@writefile{toc}{\contentsline {section}{\numberline {7}Results Summary}{7}{section.7}}
-\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Phase 1, measured on NVIDIA A100 MIG 3g.20gb, dominant shape (out=90000, K=40, batch=128).}}{7}{table.2}}
-\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Phase 2, measured on A100-SXM4-40GB and RTX PRO 6000 Blackwell, fp32, batch=128.}}{7}{table.3}}
-\@writefile{toc}{\contentsline {section}{\numberline {8}Phase 3 Groundwork: Whole-Model Profiling Harness \& Pre-Optimization Audit}{7}{section.8}}
-\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Phase-0 static op audit: the whole custom stack is plain eager PyTorch.}}{8}{table.4}}
-\newlabel{tab:opaudit}{{4}{8}{Phase-0 static op audit: the whole custom stack is plain eager PyTorch}{table.4}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces Profiling config matrix (all verified build $+$ fwd $+$ bwd on CPU). Batch is swept inside the harness; the recurrent config's tiny size makes it a launch-overhead probe.}}{8}{table.5}}
-\newlabel{tab:cfgmatrix}{{5}{8}{Profiling config matrix (all verified build $+$ fwd $+$ bwd on CPU). Batch is swept inside the harness; the recurrent config's tiny size makes it a launch-overhead probe}{table.5}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {9}Next Candidate: The RBF HSIC Auxiliary Gradient}{9}{section.9}}
-\@writefile{lot}{\contentsline {table}{\numberline {6}{\ignorespaces RBF HSIC gradient, isolated microbenchmark (CPU, fp32; median of 50 iters, 10 warmup; target dim $d_y{=}10$, $\sigma {=}1$). The matmul form is \textbf  {23--70$\times $} faster and \emph  {bit-exact in fp64} across all shapes; the speedup widens with size exactly as the $O(n^2 d)$ intermediate predicts (linear in $d$, quadratic in $n$). \texttt  {z\_diff} is the $n\times n\times d$ tensor the current path builds and the rewrite never allocates.}}{10}{table.6}}
-\@writefile{toc}{\contentsline {section}{\numberline {A}Environment setup (reproducible)}{11}{appendix.A}}
-\@writefile{toc}{\contentsline {section}{\numberline {B}Scaling toggles (turn these on when scaling)}{11}{appendix.B}}
+\@writefile{toc}{\contentsline {section}{\numberline {6}Phase 4: CUDA forward v2 $\to $ ``wpo'' (profile-driven, L2-bound)}{6}{section.6}}
+\@writefile{toc}{\contentsline {section}{\numberline {7}Deliverables}{8}{section.7}}
+\@writefile{lot}{\contentsline {table}{\numberline {1}{\ignorespaces Phase 1: six edits $+$ one new module. Phase 2: one new module, two flags, plus the Triton dev/verification tools. All flags default-off.}}{8}{table.1}}
+\@writefile{toc}{\contentsline {section}{\numberline {8}Results Summary}{9}{section.8}}
+\@writefile{lot}{\contentsline {table}{\numberline {2}{\ignorespaces Phase 1, measured on NVIDIA A100 MIG 3g.20gb, dominant shape (out=90000, K=40, batch=128).}}{9}{table.2}}
+\@writefile{lot}{\contentsline {table}{\numberline {3}{\ignorespaces Phase 2, measured on A100-SXM4-40GB and RTX PRO 6000 Blackwell, fp32, batch=128.}}{9}{table.3}}
+\@writefile{toc}{\contentsline {section}{\numberline {9}Phase 3 Groundwork: Whole-Model Profiling Harness \& Pre-Optimization Audit}{9}{section.9}}
+\@writefile{lot}{\contentsline {table}{\numberline {4}{\ignorespaces Phase-0 static op audit: the whole custom stack is plain eager PyTorch.}}{10}{table.4}}
+\newlabel{tab:opaudit}{{4}{10}{Phase-0 static op audit: the whole custom stack is plain eager PyTorch}{table.4}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {5}{\ignorespaces Profiling config matrix (all verified build $+$ fwd $+$ bwd on CPU). Batch is swept inside the harness; the recurrent config's tiny size makes it a launch-overhead probe.}}{10}{table.5}}
+\newlabel{tab:cfgmatrix}{{5}{10}{Profiling config matrix (all verified build $+$ fwd $+$ bwd on CPU). Batch is swept inside the harness; the recurrent config's tiny size makes it a launch-overhead probe}{table.5}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {10}Next Candidate: The RBF HSIC Auxiliary Gradient}{11}{section.10}}
+\@writefile{lot}{\contentsline {table}{\numberline {6}{\ignorespaces RBF HSIC gradient, isolated microbenchmark (CPU, fp32; median of 50 iters, 10 warmup; target dim $d_y{=}10$, $\sigma {=}1$). The matmul form is \textbf  {23--70$\times $} faster and \emph  {bit-exact in fp64} across all shapes; the speedup widens with size exactly as the $O(n^2 d)$ intermediate predicts (linear in $d$, quadratic in $n$). \texttt  {z\_diff} is the $n\times n\times d$ tensor the current path builds and the rewrite never allocates.}}{12}{table.6}}
+\@writefile{toc}{\contentsline {section}{\numberline {A}Environment setup (reproducible)}{13}{appendix.A}}
+\@writefile{toc}{\contentsline {section}{\numberline {B}Scaling toggles (turn these on when scaling)}{13}{appendix.B}}

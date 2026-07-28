@@ -346,6 +346,104 @@ shipping a change that would have doubled the backward's cost.
 }}
 \end{center}
 
+\section{Phase 4: CUDA forward v2 $\to$ ``wpo'' (profile-driven, L2-bound)}
+
+Phase~4 puts the \emph{winning} v2 forward under NSight Compute and asks the only honest question
+left: what wall is it actually against? The answer rewrote the plan---and the two ideas that
+\emph{sound} right were killed by the profiler before we built on them.
+
+\begin{center}
+\fbox{\parbox{0.92\textwidth}{\centering
+\textbf{Phase 4 result.} NSight Compute showed the v2 forward is \textbf{L2-cache-throughput-bound}
+---not DRAM- or compute-bound (L2 SOL 93\%, DRAM 0.78\%, compute 6.5\%; L1 hit 5\%,
+$\sim$29 sectors/request). The fix (\textbf{wpo}: stage the \texttt{x}-row in shared memory,
+warp-per-output, coalesced \texttt{idx}/\texttt{w}) is \textbf{$\sim$4.5$\times$ faster than v2}
+on Blackwell ($\sim$8$\times$ over eager), with \emph{better} accuracy. Two ``obvious'' ideas were
+\emph{tested and rejected first}: \texttt{int32} indices (flat) and thread-per-output staging
+($-$18\%). Correctness-gated UNBIASED across all 25 synapses.
+}}
+\end{center}
+
+\begin{enumerate}[leftmargin=*, resume]
+
+\item \textbf{Diagnosis: the v2 forward is L2-throughput-bound.}\\
+\what{NSight Compute (\texttt{ncu\_full.sh}, Memory Workload Analysis). The ``93\% memory'' the
+summary screen shows is \emph{not} DRAM---DRAM is at 0.78\%, idle. It is \textbf{L2 cache} at 93\%.
+L1 hit rate is 5\%; the scattered \texttt{x[m,idx]} gather moves $\sim$28.8 sectors/request (max 32,
+coalesced floor 4)---essentially fully uncoalesced. Each \texttt{x[m,c]} is reused $\sim$360$\times$
+per row, but L1 catches only 5\% of that reuse, so the \emph{same} L2-resident value is re-fetched
+hundreds of times.}\\
+\impact{Reframes the target entirely: the win is not more bandwidth or faster math---it is
+\emph{fewer requests to L2}. Since L2 hit is already 99.5\%, that means either raise the 5\% L1 hit
+or move the data on-chip. Everything below follows from this one reading.}
+
+\item \textbf{Dead-end 1: \texttt{int32} indices --- flat.}\\
+\what{Halve the \texttt{idx} footprint (int64$\to$int32) to free shared for L1 and cut \texttt{idx}
+traffic. Bit-identical output.}\\
+\impact{\textbf{$-$0.2\% (flat).} \texttt{idx} staging is only $\sim$1--2\% of L2 traffic (the
+\texttt{x}-gather is 98\%), and \texttt{x} (5\,MB) can never fit a $\sim$128\,KB L1 no matter how it
+is carved. Cleanly rules out ``L1 capacity'' as the lever---for the cost of one compile.}
+
+\item \textbf{Dead-end 2: thread-per-output \texttt{x}-staging --- $-$18\%, but diagnostic gold.}\\
+\what{Stage the needed \texttt{x}-row \emph{and} \texttt{idx}/\texttt{w} in shared, gather on-chip.
+One thread per output.}\\
+\impact{\textbf{18\% slower}---yet ncu proved the \emph{mechanism works}: staging drops \textbf{L2
+SOL 93\%$\to$17\%} and bank conflicts were \emph{fine} (239M, below v2's 302M). The loss was
+\emph{pure occupancy}: 99\,KB of shared (x$+$idx$+$w) forces 1 block/SM $\to$ \textbf{15.8\%}
+occupancy---the wall moved from L2 to latency-hiding. A fixable diagnosis, not a wrong thesis.}
+
+\item \textbf{The winner: ``wpo'' --- stage \texttt{x} in shared, warp-per-output.}\\
+\what{Remove all three v2 bottlenecks at once. \textbf{(a)} stage \texttt{x[m,:]} into shared
+\emph{once} per block (coalesced; 40\,KB for \texttt{IN=10000}, under the 48\,KB default $\to$ no
+opt-in). \textbf{(b)} \emph{drop} \texttt{idx}/\texttt{w} from shared---the 56\,KB that killed
+occupancy---and read them \emph{coalesced} from global via a \textbf{warp-per-output} layout: each
+warp owns one output, its 32 lanes read consecutive \texttt{idx[o$\cdot$K$+$lane]} (a strided lane
+loop handles any \texttt{K}), gather from the on-chip \texttt{x}-row, and \texttt{\_\_shfl\_down}
+reduce over \texttt{K}.}\\
+\impact{\textbf{4.5$\times$ over v2} (Blackwell; \texttt{P=2048} outputs/block, \texttt{T=512}
+threads $=$ the occupancy sweet spot; plateaus at \texttt{P=2048}). ncu confirms all three walls
+handled: occupancy 15.8\%$\to$\textbf{64.5\%}, L2 SOL 93\%$\to$\textbf{67\%}, bank conflicts
+$\to$36.8M. Bonus: the tree reduce is \emph{more} accurate than v2's sequential sum
+($3.8\times10^{-6}$ vs $1.1\times10^{-5}$ vs eager).}
+
+\item \textbf{Productionized (default OFF) $+$ correctness-gated.}\\
+\what{\texttt{cuda\_gather.py} forward now routes to wpo when the \texttt{x}-row fits shared
+(\texttt{IN$\cdot$4 $\le$} device opt-in max, $\sim$99\,KB $\to$ \texttt{IN}$\le$24576), else
+falls back to the v2 tiled forward---no \texttt{IN} limit, never breaks a run. Backward stays v2.}\\
+\impact{\texttt{verify\_cuda\_gather.py}: fp64-unbiasedness across \emph{all 25} real synapse shapes
+$\to$ \textbf{UNBIASED, worst ratio 1.25} (bar 5); the highest-contention synapse
+(\texttt{out=90000}, \texttt{max\_fanin=1295}) sits at $\sim$1.0. Still pending before flip-on: a
+training-equivalence run, and a wpo \emph{backward} (still v2, and likely L2-bound too).}
+
+\end{enumerate}
+
+\begin{center}
+\fbox{\parbox{0.92\textwidth}{
+\textbf{Plain-English: what Phase 4 actually did.} Picture the input \texttt{x} as a big reference
+book, and the work as $\sim$460M tiny lookups (each output needs 40 numbers from random pages).
+Memory is a hierarchy of \emph{how far you walk} for a number: your hand (registers) $<$ your desk
+(shared) $<$ a shelf by the desk (L1) $<$ the library's one central desk (L2) $<$ the basement
+archive (DRAM).
+\textbf{The v2 problem:} every lookup was a trip to the \emph{one central desk}. The books already
+sat on that desk (the basement was idle---DRAM 0.8\%), but 460M people queuing at a single desk is a
+jam (L2 at 93\%). Worse, each trip grabbed a whole shelf-load to read one number, and the same number
+got re-fetched $\sim$360 times because nobody kept it nearby.
+\textbf{Idea 1 (bigger shelf / L1):} make the shelf by the desk hold more---but the book is far too
+big for the shelf, so nothing changes (flat).
+\textbf{Idea 2 (copy the book to your desk):} each worker photocopies the \emph{whole book} onto
+their desk, then never walks to the central desk again. The jam \emph{vanished} (L2 93\%$\to$17\%!)
+---but the desk got so cluttered only one worker fit per room, and everyone else stood idle
+(occupancy 16\%). Net slower.
+\textbf{The fix (wpo):} copy \emph{only the book} onto the desk (leave the other papers off it, and
+fetch those in one orderly trip), so desks stay light and \emph{rooms fill with workers} again. Then
+put workers in small teams---each team handles one output, splits its 40 lookups, and combines with a
+quick handoff. Now: no central-desk jam, desks busy, orderly trips. \textbf{4.5$\times$ faster.}
+\emph{The throughline of Phases 3--4}: three times an ``obvious'' idea (v3 gather, int32, naive
+staging) was wrong or incomplete---and each time \emph{the profiler, not the story} told us what the
+real wall was and whether we had actually moved it.
+}}
+\end{center}
+
 \section{Deliverables}
 
 \begin{table}[h]
@@ -370,6 +468,12 @@ shipping a change that would have doubled the backward's cost.
 \texttt{verify\_grad\_vs\_fp64.py} & tool & \textbf{fp64 unbiasedness stress sweep (all synapses)} \\
 \texttt{train\_equivalence\_triton.py} & tool & multi-step training-equivalence (fp32/bf16) \\
 \texttt{bench\_hsic\_rbf.py} & tool & \textbf{RBF HSIC gradient microbench (\S8): current vs matmul-form, fp64 equiv} \\
+\midrule
+\texttt{synapse/cuda\_gather.py} & new source & Phase 3 v2 $+$ Phase 4 wpo forward (lazy-compile, AMP-safe, default off) \\
+\texttt{cuda\_gather\_fwd\_stagex\_wpo.py} & tool & \textbf{Phase 4 wpo forward bench (the 4.5$\times$ winner)} \\
+\texttt{cuda\_gather\_fwd\_int32.py, \_stagex.py} & tool & Phase 4 dead-ends (int32 flat; tpo staging $-$18\%) \\
+\texttt{ncu\_full.sh, ncu\_metrics.sh} & tool & NSight Compute L2 profiling (deep capture $+$ fast metric loop) \\
+\texttt{verify\_cuda\_gather.py} & tool & \textbf{CUDA fp64 unbiasedness gate (all 25 synapses)} \\
 \bottomrule
 \end{tabular}
 \caption{Phase 1: six edits $+$ one new module. Phase 2: one new module, two flags, plus the
