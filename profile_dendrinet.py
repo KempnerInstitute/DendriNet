@@ -42,6 +42,12 @@ from contextlib import nullcontext
 
 import torch
 
+# Dynamo config for the optional --compile pass (mirrors ei_network.py's guard).
+try:
+    import torch._dynamo.config as _dynamo_config
+except ImportError:
+    _dynamo_config = None
+
 # --------------------------------------------------------------------------- #
 # Repo imports (require PYTHONPATH=src)                                        #
 # --------------------------------------------------------------------------- #
@@ -164,6 +170,48 @@ def build_core_from_config(config_path: str):
         "n_params": int(sum(p.numel() for p in core.parameters())),
     }
     return core, int(input_dim), meta
+
+
+# --------------------------------------------------------------------------- #
+# Kernel toggle (MEASUREMENT-ONLY, default OFF).                               #
+# The shipped default is every gather flag False (original advanced-index      #
+# loop). Passing --kernels on flips the three sparse-gather flags to True on   #
+# every layer that has them, so the profiler measures the OPTIMIZED path       #
+# (precedence cuda -> triton -> fused). Detected by attribute presence, not by #
+# importing the layer class, so it is robust to subclasses/renames. Returns    #
+# the number of layers toggled, for visibility.                                #
+# --------------------------------------------------------------------------- #
+_GATHER_FLAGS = ("use_cuda_gather", "use_triton_gather", "use_fused_gather")
+
+
+def apply_kernels(core, mode: str) -> int:
+    if mode != "on":
+        return 0
+    n = 0
+    for m in core.modules():
+        if all(hasattr(m, f) for f in _GATHER_FLAGS):
+            for f in _GATHER_FLAGS:
+                setattr(m, f, True)
+            n += 1
+    return n
+
+
+# --------------------------------------------------------------------------- #
+# torch.compile toggle (MEASUREMENT-ONLY, default OFF).                        #
+# Wraps core.forward in torch.compile AFTER the gather flags are set, so the   #
+# compiled graph observes the optimized path and Inductor can fuse the         #
+# elementwise/reduction tail (shunting divisor, E/I pooling) between the       #
+# custom gather kernels (which dynamo treats as opaque graph breaks). Mirrors  #
+# the opt-in wrap in ei_network.py. Returns True if compilation was applied.   #
+# --------------------------------------------------------------------------- #
+def apply_compile(core, mode: str) -> bool:
+    if mode != "on":
+        return False
+    if _dynamo_config is not None:
+        _dynamo_config.recompile_limit = 100
+        _dynamo_config.force_parameter_static_shapes = False
+    core.forward = torch.compile(core.forward, dynamic=True)
+    return True
 
 
 # --------------------------------------------------------------------------- #
@@ -312,7 +360,8 @@ def cv(xs):
 # --------------------------------------------------------------------------- #
 # One profiling run for a single (config, batch) shape.                        #
 # --------------------------------------------------------------------------- #
-def run_one(config_path, batch, warmup, iters, outdir, device):
+def run_one(config_path, batch, warmup, iters, outdir, device, kernels="off",
+            compile_mode="off"):
     result = {"config": config_path, "batch": batch}
     try:
         core, input_dim, meta = build_core_from_config(config_path)
@@ -324,6 +373,9 @@ def run_one(config_path, batch, warmup, iters, outdir, device):
 
     result.update(meta)
     core = core.to(device).train()
+    result["kernels"] = kernels
+    result["kernels_layers_on"] = apply_kernels(core, kernels)
+    result["compile"] = compile_mode
 
     # Synthetic input: standard-normal, realistic magnitude. Non-negative input
     # is enforced by some EI networks; population cores accept signed input, but
@@ -336,6 +388,29 @@ def run_one(config_path, batch, warmup, iters, outdir, device):
             out = out[0]
         loss = out.float().pow(2).mean()
         return out, loss
+
+    # ---- optional torch.compile + inline correctness check ----
+    # Capture an eager reference BEFORE compiling, then compare the first
+    # compiled output so a compile that silently changes numerics is caught
+    # (not just a speedup measurement). The compile-triggering call happens
+    # here, outside the timed loop.
+    if compile_mode == "on":
+        try:
+            with torch.no_grad():
+                ref_out = step()[0].detach().float().clone()
+            apply_compile(core, compile_mode)
+            with torch.no_grad():
+                cmp_out = step()[0].detach().float()
+            result["compile_equiv_max_abs"] = (ref_out - cmp_out).abs().max().item()
+            del ref_out, cmp_out
+        except Exception as e:
+            result["status"] = "COMPILE_FAILED"
+            result["error"] = f"{type(e).__name__}: {str(e).splitlines()[0]}"
+            result["traceback"] = traceback.format_exc()
+            del core, x
+            gc.collect()
+            torch.cuda.empty_cache()
+            return result
 
     # ---- warmup (also catches shape/OOM before timing) ----
     try:
@@ -575,6 +650,16 @@ def main():
     ap.add_argument("--batches", nargs="+", type=int, default=[128, 512])
     ap.add_argument("--warmup", type=int, default=12)
     ap.add_argument("--iters", type=int, default=50)
+    ap.add_argument("--kernels", choices=["off", "on"], default="off",
+                    help="off (default) = shipped advanced-index gather; "
+                         "on = enable sparse-gather kernels (cuda->triton->fused) "
+                         "on every IndexedSparseLinear before profiling.")
+    ap.add_argument("--compile", dest="compile_mode", choices=["off", "on"],
+                    default="off",
+                    help="off (default) = eager; on = wrap core.forward in "
+                         "torch.compile AFTER kernels are set, to fuse the "
+                         "elementwise/reduction tail. Reports output equivalence "
+                         "vs eager.")
     ap.add_argument("--outdir", default="profilings/dendrinet_harness")
     ap.add_argument("--cpu-smoke", action="store_true",
                     help="Build + 1 fwd/bwd on CPU with tiny batch; no timing. "
@@ -621,13 +706,16 @@ def main():
     p = torch.cuda.get_device_properties(0)
     print(f"# GPU: {p.name} | {p.total_memory/1e9:.1f} GB | sm_{p.major}{p.minor}")
     print(f"# torch {torch.__version__} cuda {torch.version.cuda}")
-    print(f"# warmup={args.warmup} iters={args.iters} batches={args.batches}\n")
+    print(f"# warmup={args.warmup} iters={args.iters} batches={args.batches} "
+          f"kernels={args.kernels.upper()} compile={args.compile_mode.upper()}\n")
 
     all_results = []
     for cfg in args.configs:
         for b in args.batches:
-            print(f"=== {os.path.basename(cfg)}  batch={b} ===")
-            r = run_one(cfg, b, args.warmup, args.iters, args.outdir, device)
+            print(f"=== {os.path.basename(cfg)}  batch={b}  "
+                  f"[kernels {args.kernels}, compile {args.compile_mode}] ===")
+            r = run_one(cfg, b, args.warmup, args.iters, args.outdir, device,
+                        kernels=args.kernels, compile_mode=args.compile_mode)
             all_results.append(r)
             print_result(r)
             print()
@@ -646,6 +734,12 @@ def print_result(r):
             print(f"  {r['error']}")
         return
     ws = r["whole_step"]
+    kn = r.get("kernels", "off")
+    cm = r.get("compile", "off")
+    line = f"  kernels={kn.upper()} ({r.get('kernels_layers_on', 0)} gather layers on)  compile={cm.upper()}"
+    if "compile_equiv_max_abs" in r:
+        line += f"  [compile vs eager max|Δ|={r['compile_equiv_max_abs']:.2e}]"
+    print(line)
     print(f"  params={r['n_params']:,} out={r['output_shape']} recurrent={r['is_recurrent']}")
     print(f"  whole-step: fwd {ws['fwd_ms_mean']:.3f} ms (CV {ws['fwd_ms_cv']*100:.1f}%)  "
           f"bwd {ws['bwd_ms_mean']:.3f} ms (CV {ws['bwd_ms_cv']*100:.1f}%)  "
