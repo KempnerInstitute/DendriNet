@@ -10,17 +10,20 @@ from typing import Optional
 import torch
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
+from dendritic_modeling.analysis.core.information_parts.information_hooks_mixin import (
+    _enable_analysis_current_capture,
+    _resolve_synaptic_branch_currents,
+    _restore_analysis_current_capture,
+)
 from dendritic_modeling.analysis.utils.runtime import run_model_over_analysis_batches
 from dendritic_modeling.config import BranchActivationAnalysisParams
 from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.models import BaseModel
-from dendritic_modeling.networks import (
-    DendriticBranchLayer,
-    ExcitationInhibitionNetwork,
-)
+from dendritic_modeling.networks import DendriticBranchLayer
 from dendritic_modeling.utils import save_dict
 from dendritic_modeling.utils.hooks import (
     ForwardHookRemovalMixin,
+    iter_modules_of_type,
     register_named_forward_hooks,
 )
 
@@ -69,13 +72,19 @@ class BranchActivationAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         Returns:
             List of hook handles for later removal
         """
-        return register_named_forward_hooks(
-            model,
-            DendriticBranchLayer,
-            self.forward_hook,
-            predicate=self._should_hook_branch_layer,
-            prepare=self._prepare_branch_layer_hook,
-        )
+        self._analysis_hook_modules = []
+        try:
+            return register_named_forward_hooks(
+                model,
+                DendriticBranchLayer,
+                self.forward_hook,
+                predicate=self._should_hook_branch_layer,
+                prepare=self._prepare_branch_layer_hook,
+                with_kwargs=True,
+            )
+        except Exception:
+            self._restore_current_capture()
+            raise
 
     def _should_hook_branch_layer(
         self,
@@ -91,11 +100,24 @@ class BranchActivationAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
     ) -> None:
         self.data_dict[layer_name] = {}
         module._name = layer_name
+        previous_store = _enable_analysis_current_capture(module)
+        self._analysis_hook_modules.append((module, previous_store))
+
+    def _restore_current_capture(self) -> None:
+        for module, previous_store in getattr(self, "_analysis_hook_modules", []):
+            _restore_analysis_current_capture(module, previous_store)
+        self._analysis_hook_modules = []
+
+    def remove_forward_hooks(self, handles) -> None:
+        """Remove hooks and restore each branch layer's capture state."""
+        super().remove_forward_hooks(handles)
+        self._restore_current_capture()
 
     def forward_hook(
         self,
         module: DendriticBranchLayer,
-        input: tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]],
+        input_args: tuple[torch.Tensor, ...],
+        input_kwargs: dict,
         output: torch.Tensor,
     ):
         """
@@ -106,20 +128,32 @@ class BranchActivationAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
             input: Input tuple (excitatory, inhibitory, optional)
             output: Module output
         """
-        excitatory_input, inhibitory_input, _ = input
+        excitatory_input = input_kwargs.get(
+            "x", input_args[0] if len(input_args) > 0 else None
+        )
+        inhibitory_input = input_kwargs.get(
+            "inhibitory_input", input_args[1] if len(input_args) > 1 else None
+        )
         key = module._name
+        excitation, inhibition, _has_no_synapses = _resolve_synaptic_branch_currents(
+            module,
+            excitatory_input,
+            inhibitory_input,
+            output,
+            getattr(module, "_last_analysis_currents", None),
+        )
 
         # Collect excitatory synapse activations
         if self.synapse_activations and module.branch_excitation is not None:
-            self.data_dict[key].setdefault("exc", []).append(
-                module.branch_excitation(excitatory_input).detach().cpu()
-            )
+            self.data_dict[key].setdefault("exc", []).append(excitation.detach().cpu())
 
         # Collect inhibitory synapse activations
-        if self.synapse_activations and module.branch_inhibition is not None:
-            self.data_dict[key].setdefault("inh", []).append(
-                module.branch_inhibition(inhibitory_input).detach().cpu()
-            )
+        if (
+            self.synapse_activations
+            and module.branch_inhibition is not None
+            and inhibitory_input is not None
+        ):
+            self.data_dict[key].setdefault("inh", []).append(inhibition.detach().cpu())
 
         # Collect branch output activations
         if self.branch_activations:
@@ -147,9 +181,8 @@ class BranchActivationAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         Returns:
             Dictionary containing branch activation analysis if save_path is None, otherwise None
         """
-        try:
-            assert isinstance(model.core_network, ExcitationInhibitionNetwork)
-        except AssertionError:
+        core = getattr(model, "core_network", model)
+        if not any(iter_modules_of_type(core, DendriticBranchLayer)):
             return
 
         self.data_dict = {}
@@ -276,18 +309,19 @@ class BranchActivationAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         if self.network_summary:
             network_summary = {}
 
-            if self.synapse_activations:
+            if self.synapse_activations and exc_net:
                 exc_net = torch.cat(exc_net, dim=0)
                 network_summary["exc"] = {}
                 network_summary["exc"]["mean"] = torch.mean(exc_net).item()
                 network_summary["exc"]["std"] = torch.std(exc_net).item()
 
+            if self.synapse_activations and inh_net:
                 inh_net = torch.cat(inh_net, dim=0)
                 network_summary["inh"] = {}
                 network_summary["inh"]["mean"] = torch.mean(inh_net).item()
                 network_summary["inh"]["std"] = torch.std(inh_net).item()
 
-            if self.branch_activations:
+            if self.branch_activations and Vout_net:
                 Vout_net = torch.cat(Vout_net, dim=0)
                 network_summary["Vout"] = {}
                 network_summary["Vout"]["mean"] = torch.mean(Vout_net).item()

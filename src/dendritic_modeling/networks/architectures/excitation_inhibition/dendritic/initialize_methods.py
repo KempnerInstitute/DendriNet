@@ -19,6 +19,12 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.i
 )
 
 
+def _seeded_parameter_init(dbl, component: str, initializer, *args, **kwargs):
+    """Apply a random initializer in the branch layer's keyed RNG scope."""
+    with dbl.initialization_seed_scope(f"final.{component}"):
+        return initializer(*args, **kwargs)
+
+
 def identity_weighttransform_dbl_init(dbl):
     """
     Initialize a dendritic branch layer.
@@ -32,22 +38,101 @@ def identity_weighttransform_dbl_init(dbl):
 
     with torch.no_grad():
         if dbl.branch_excitation is not None:
-            torch.nn.init.xavier_normal_(dbl.branch_excitation.pre_w)
+            _seeded_parameter_init(
+                dbl,
+                "ff_excitatory",
+                torch.nn.init.xavier_normal_,
+                dbl.branch_excitation.pre_w,
+            )
 
         if dbl.branch_recurrent is not None:
-            torch.nn.init.xavier_normal_(dbl.branch_recurrent.pre_w)
+            _seeded_parameter_init(
+                dbl,
+                "rec_excitatory",
+                torch.nn.init.xavier_normal_,
+                dbl.branch_recurrent.pre_w,
+            )
 
         if dbl.branch_inhibition is not None:
-            torch.nn.init.xavier_normal_(dbl.branch_inhibition.pre_w)
+            _seeded_parameter_init(
+                dbl,
+                "ff_inhibitory",
+                torch.nn.init.xavier_normal_,
+                dbl.branch_inhibition.pre_w,
+            )
 
         if dbl.branch_rec_inhibition is not None:
-            torch.nn.init.xavier_normal_(dbl.branch_rec_inhibition.pre_w)
+            _seeded_parameter_init(
+                dbl,
+                "rec_inhibitory",
+                torch.nn.init.xavier_normal_,
+                dbl.branch_rec_inhibition.pre_w,
+            )
 
         if hasattr(dbl, "branches_to_output"):
-            torch.nn.init.xavier_normal_(dbl.branches_to_output.log_weight)
+            _seeded_parameter_init(
+                dbl,
+                "branch_aggregation",
+                torch.nn.init.xavier_normal_,
+                dbl.branches_to_output.log_weight,
+            )
 
         if dbl.reactivate:
             _apply_reactivation_init(dbl, m_auto=1.0, b_auto=0.0)
+
+
+def mechanism_neutral_dbl_init(dbl):
+    """Initialize paired shunting/additive controls identically.
+
+    This initializer is intentionally mechanism agnostic: it never branches on
+    ``use_shunting``.  With the same model seed and architecture, synaptic
+    parameters, child-branch couplings, and reactivation parameters therefore
+    start bit-identically in a shunting/additive pair.  It is intended for
+    causal rule-only controls; mechanism-specific initializers remain the right
+    choice for best-tuned system comparisons.
+    """
+    from .branch_layer import DendriticBranchLayer
+
+    assert isinstance(dbl, DendriticBranchLayer)
+
+    with torch.no_grad():
+        synapse_specs = (
+            ("branch_excitation", "excitatory_input_dim"),
+            ("branch_inhibition", "inhibitory_input_dim"),
+            ("branch_recurrent", "recurrent_input_dim"),
+            ("branch_rec_inhibition", "rec_inhibitory_input_dim"),
+        )
+        for module_attr, input_dim_attr in synapse_specs:
+            synapse = getattr(dbl, module_attr, None)
+            if synapse is None:
+                continue
+            input_dim = int(getattr(dbl, input_dim_attr))
+            component = {
+                "branch_excitation": "ff_excitatory",
+                "branch_inhibition": "ff_inhibitory",
+                "branch_recurrent": "rec_excitatory",
+                "branch_rec_inhibition": "rec_inhibitory",
+            }[module_attr]
+            _seeded_parameter_init(
+                dbl,
+                component,
+                _no_grad_normal_,
+                synapse.pre_w,
+                0.0,
+                sqrt(2 / (input_dim + 1)),
+            )
+
+        if dbl.input_branches:
+            # A fixed positive child coupling is shared by both mechanisms.
+            # The default remains exactly the historical value of 1.0.
+            dbl.branches_to_output.initialize(
+                g_branch=float(getattr(dbl, "initial_child_conductance", 1.0))
+            )
+
+        if dbl.reactivate:
+            # ``fixed`` policy uses the explicit configured values; the
+            # fallback is also shared if a caller selects another policy.
+            _apply_reactivation_init(dbl, m_auto=1.5, b_auto=0.5)
 
 
 def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
@@ -211,19 +296,38 @@ def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
                 )
             else:
                 exc_mean_adjusted = exc_mean
-            _no_grad_normal_(dbl.branch_excitation.pre_w, exc_mean_adjusted, exc_std)
+            _seeded_parameter_init(
+                dbl,
+                "ff_excitatory",
+                _no_grad_normal_,
+                dbl.branch_excitation.pre_w,
+                exc_mean_adjusted,
+                exc_std,
+            )
             E_g_exc = E_g_exc_target
 
         if dbl.branch_recurrent is not None:
             rec_std = sqrt(2 / (dbl.recurrent_input_dim + 1))
             rec_mean_adjusted = -network_scale_factor if adaptive else 0.0
-            _no_grad_normal_(dbl.branch_recurrent.pre_w, rec_mean_adjusted, rec_std)
+            _seeded_parameter_init(
+                dbl,
+                "rec_excitatory",
+                _no_grad_normal_,
+                dbl.branch_recurrent.pre_w,
+                rec_mean_adjusted,
+                rec_std,
+            )
 
         if dbl.branch_rec_inhibition is not None:
             rec_inh_std = sqrt(2 / (dbl.rec_inhibitory_input_dim + 1))
             rec_inh_mean_adjusted = -network_scale_factor if adaptive else 0.0
-            _no_grad_normal_(
-                dbl.branch_rec_inhibition.pre_w, rec_inh_mean_adjusted, rec_inh_std
+            _seeded_parameter_init(
+                dbl,
+                "rec_inhibitory",
+                _no_grad_normal_,
+                dbl.branch_rec_inhibition.pre_w,
+                rec_inh_mean_adjusted,
+                rec_inh_std,
             )
 
         if dbl.input_inhibitory:
@@ -244,7 +348,14 @@ def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
                 )
             else:
                 inh_mean_adjusted = inh_mean
-            _no_grad_normal_(dbl.branch_inhibition.pre_w, inh_mean_adjusted, inh_std)
+            _seeded_parameter_init(
+                dbl,
+                "ff_inhibitory",
+                _no_grad_normal_,
+                dbl.branch_inhibition.pre_w,
+                inh_mean_adjusted,
+                inh_std,
+            )
             E_g_inh = E_g_inh_target
 
         if dbl.input_branches:
@@ -354,18 +465,46 @@ def ei_equivalence_dbl_init(dbl):
                     done = True
 
         if dbl.branch_excitation is not None:
-            _no_grad_normal_(dbl.branch_excitation.pre_w, 0, exc_std)
+            _seeded_parameter_init(
+                dbl,
+                "ff_excitatory",
+                _no_grad_normal_,
+                dbl.branch_excitation.pre_w,
+                0,
+                exc_std,
+            )
 
         if dbl.branch_recurrent is not None:
             rec_std = sqrt(2 / (dbl.recurrent_input_dim + 1))
-            _no_grad_normal_(dbl.branch_recurrent.pre_w, 0, rec_std)
+            _seeded_parameter_init(
+                dbl,
+                "rec_excitatory",
+                _no_grad_normal_,
+                dbl.branch_recurrent.pre_w,
+                0,
+                rec_std,
+            )
 
         if dbl.branch_inhibition is not None:
-            _no_grad_normal_(dbl.branch_inhibition.pre_w, 0, inh_std)
+            _seeded_parameter_init(
+                dbl,
+                "ff_inhibitory",
+                _no_grad_normal_,
+                dbl.branch_inhibition.pre_w,
+                0,
+                inh_std,
+            )
 
         if dbl.branch_rec_inhibition is not None:
             rec_inh_std = sqrt(2 / (dbl.rec_inhibitory_input_dim + 1))
-            _no_grad_normal_(dbl.branch_rec_inhibition.pre_w, 0, rec_inh_std)
+            _seeded_parameter_init(
+                dbl,
+                "rec_inhibitory",
+                _no_grad_normal_,
+                dbl.branch_rec_inhibition.pre_w,
+                0,
+                rec_inh_std,
+            )
 
         if dbl.input_branches:
             if dbl.use_shunting:
@@ -412,7 +551,14 @@ def naive_dbl_init(dbl):
         if dbl.branch_excitation is not None:
             exc_upper_quantile = dbl.branch_excitation.K / dbl.excitatory_input_dim
             exc_std = sqrt(2 / (dbl.excitatory_input_dim + 1))
-            _no_grad_normal_(dbl.branch_excitation.pre_w, 0, exc_std)
+            _seeded_parameter_init(
+                dbl,
+                "ff_excitatory",
+                _no_grad_normal_,
+                dbl.branch_excitation.pre_w,
+                0,
+                exc_std,
+            )
 
             E_w_exc = _expected_weight_for_transform(
                 transform=weight_transform,
@@ -424,16 +570,37 @@ def naive_dbl_init(dbl):
 
         if dbl.branch_recurrent is not None:
             rec_std = sqrt(2 / (dbl.recurrent_input_dim + 1))
-            _no_grad_normal_(dbl.branch_recurrent.pre_w, 0, rec_std)
+            _seeded_parameter_init(
+                dbl,
+                "rec_excitatory",
+                _no_grad_normal_,
+                dbl.branch_recurrent.pre_w,
+                0,
+                rec_std,
+            )
 
         if dbl.branch_rec_inhibition is not None:
             rec_inh_std = sqrt(2 / (dbl.rec_inhibitory_input_dim + 1))
-            _no_grad_normal_(dbl.branch_rec_inhibition.pre_w, 0, rec_inh_std)
+            _seeded_parameter_init(
+                dbl,
+                "rec_inhibitory",
+                _no_grad_normal_,
+                dbl.branch_rec_inhibition.pre_w,
+                0,
+                rec_inh_std,
+            )
 
         if dbl.branch_inhibition is not None:
             inh_upper_quantile = dbl.branch_inhibition.K / dbl.inhibitory_input_dim
             inh_std = sqrt(2 / (dbl.inhibitory_input_dim + 1))
-            _no_grad_normal_(dbl.branch_inhibition.pre_w, 0, inh_std)
+            _seeded_parameter_init(
+                dbl,
+                "ff_inhibitory",
+                _no_grad_normal_,
+                dbl.branch_inhibition.pre_w,
+                0,
+                inh_std,
+            )
 
             E_w_inh = _expected_weight_for_transform(
                 transform=weight_transform,
@@ -483,7 +650,14 @@ def default_dbl_init(dbl):
         if dbl.branch_excitation is not None:
             exc_upper_quantile = dbl.branch_excitation.K / dbl.excitatory_input_dim
             exc_std = sqrt(2 / (dbl.excitatory_input_dim + 1))
-            _no_grad_normal_(dbl.branch_excitation.pre_w, 0, exc_std)
+            _seeded_parameter_init(
+                dbl,
+                "ff_excitatory",
+                _no_grad_normal_,
+                dbl.branch_excitation.pre_w,
+                0,
+                exc_std,
+            )
 
             E_w_exc = _expected_weight_for_transform(
                 transform=weight_transform,
@@ -495,16 +669,37 @@ def default_dbl_init(dbl):
 
         if dbl.branch_recurrent is not None:
             rec_std = sqrt(2 / (dbl.recurrent_input_dim + 1))
-            _no_grad_normal_(dbl.branch_recurrent.pre_w, 0, rec_std)
+            _seeded_parameter_init(
+                dbl,
+                "rec_excitatory",
+                _no_grad_normal_,
+                dbl.branch_recurrent.pre_w,
+                0,
+                rec_std,
+            )
 
         if dbl.branch_rec_inhibition is not None:
             rec_inh_std = sqrt(2 / (dbl.rec_inhibitory_input_dim + 1))
-            _no_grad_normal_(dbl.branch_rec_inhibition.pre_w, 0, rec_inh_std)
+            _seeded_parameter_init(
+                dbl,
+                "rec_inhibitory",
+                _no_grad_normal_,
+                dbl.branch_rec_inhibition.pre_w,
+                0,
+                rec_inh_std,
+            )
 
         if dbl.branch_inhibition is not None:
             inh_upper_quantile = dbl.branch_inhibition.K / dbl.inhibitory_input_dim
             inh_std = sqrt(2 / (dbl.inhibitory_input_dim + 1))
-            _no_grad_normal_(dbl.branch_inhibition.pre_w, 0, inh_std)
+            _seeded_parameter_init(
+                dbl,
+                "ff_inhibitory",
+                _no_grad_normal_,
+                dbl.branch_inhibition.pre_w,
+                0,
+                inh_std,
+            )
 
             E_w_inh = _expected_weight_for_transform(
                 transform=weight_transform,
@@ -536,5 +731,6 @@ __all__ = [
     "default_dbl_init",
     "ei_equivalence_dbl_init",
     "identity_weighttransform_dbl_init",
+    "mechanism_neutral_dbl_init",
     "naive_dbl_init",
 ]

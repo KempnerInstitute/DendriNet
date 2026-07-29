@@ -60,7 +60,7 @@ jobs:
   test:
     needs: quality
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
+    timeout-minutes: 75
     strategy:
       fail-fast: false
       matrix:
@@ -100,13 +100,36 @@ jobs:
         python -m pip install --upgrade pip
         pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
         pip install -e .[dev]
-        pip install pytest pytest-cov pytest-xdist
+        pip install \
+          "coverage[toml]==7.13.4" \
+          "pytest==9.0.2" \
+          "pytest-cov==7.0.0" \
+          "pytest-timeout==2.4.0" \
+          "pytest-xdist==3.8.0"
 
     - name: Verify installation
       run: |
         python -c "import dendritic_modeling; print('Package installed successfully')"
 
-    - name: Run tests
+    - name: Run compatibility tests
+      if: matrix.python-version != '3.11'
+      env:
+        PYTHONPATH: ${{ github.workspace }}/src
+        MPLBACKEND: Agg
+        CUDA_VISIBLE_DEVICES: ""
+      run: |
+        python -m pytest tests/ \
+          -n 2 \
+          --dist loadfile \
+          --no-cov \
+          --timeout=300 \
+          --durations=25 \
+          --junitxml=pytest-results.xml \
+          --maxfail=5 \
+          -v
+
+    - name: Run tests with coverage
+      if: matrix.python-version == '3.11'
       env:
         PYTHONPATH: ${{ github.workspace }}/src
         MPLBACKEND: Agg
@@ -117,9 +140,11 @@ jobs:
           -n 2 \
           --dist loadfile \
           --cov=src/dendritic_modeling \
+          --cov-branch \
           --cov-report=xml \
-          --cov-report=term-missing \
           --cov-fail-under=${COV_FAIL_UNDER} \
+          --timeout=300 \
+          --durations=25 \
           --junitxml=pytest-results.xml \
           --maxfail=5 \
           -v
@@ -183,9 +208,14 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: test-results-${{ matrix.os }}-${{ matrix.python-version }}
-        path: |
-          pytest-results.xml
-          coverage.xml
+        path: pytest-results.xml
+
+    - name: Upload coverage report
+      if: always() && matrix.python-version == '3.11'
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-${{ matrix.os }}-${{ matrix.python-version }}
+        path: coverage.xml
 
   # Security and documentation - only on PRs to save resources
   extras:

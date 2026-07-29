@@ -1,0 +1,105 @@
+# Teacher-free full-model training reference. It constructs random OLMo-2 1B
+# weights, patches all FFNs, and trains every remaining and replacement weight.
+# This is not the 7B+ launch path: the existing FSDP stack must first be wired
+# into this runner, with sharded distributed checkpoint/restart.
+experiment:
+  seed: 4104
+
+model:
+  task: language_modeling
+  transformer_replacement:
+    enabled: true
+    model_name: allenai/OLMo-2-0425-1B
+    layers: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    target_module: mlp
+    layers_attr: model.layers
+    input_transform: identity
+    preserve_device_dtype: true
+    model_kwargs:
+      trust_remote_code: true
+      torch_dtype: auto
+    replacement_kwargs:
+      kind: gated_dendritic_ffn
+      gate_activation: silu
+      teacher_topk_init: false
+      output_topk: 6144
+      output_init_std: 0.02
+      pre_norm: false
+  core:
+    type: dendritic_ffn
+    population_network:
+      input_transform: identity
+      layers:
+        - name: transformer_mlp
+          readout_population: ffn
+          population_defaults:
+            ff_excitatory_synapses: 1536
+            ff_inhibitory_synapses: 0
+            rec_excitatory_synapses: 0
+            rec_inhibitory_synapses: 0
+            somatic_synapses: true
+            use_shunting: false
+            reactivate: false
+            weight_transform: identity
+            topk_type: indexed_rewire
+            topk_init_method: xavier_normal
+            indexed_seed: 4104
+            indexed_rewire_frequency: 100
+            indexed_rewire_quantile: 0.05
+            indexed_rewire_until_step: 1000
+            indexed_output_chunk_size: 256
+            efficient_blocklinear: true
+          populations:
+            - name: ffn
+              polarity: excitatory
+              n_neurons: 8192
+              branch_factors: []
+          connections:
+            - source: input
+              target: ffn
+
+training:
+  main:
+    optimizer:
+      name: adamw
+      lr: 0.0001
+      weight_decay: 0.01
+  transformer_replacement:
+    enabled: true
+    mode: joint_lm_distillation
+    teacher_source: hf_text
+    train_target: full_model
+    student_initialization: from_config
+    layers: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    distributed_mode: none
+    device: auto
+    dtype: bfloat16
+    use_amp: false
+    gradient_checkpointing: true
+    sequence_length: 512
+    train_samples: 131072
+    valid_samples: 16
+    batch_size: 1
+    max_steps: 1000
+    eval_every: 100
+    log_every: 10
+    lm_loss_weight: 1.0
+    kl_loss_weight: 0.0
+    hidden_loss_weight: 0.0
+    max_grad_norm: 1.0
+    reactivation_calibration_enabled: false
+    replacement_checkpoint_encoding: bitmask
+    save_dir: results/examples/olmo2_1b_all_ffn_from_scratch
+    save_replacements: true
+    save_student_model: true
+    text:
+      dataset_name: allenai/dolmino-mix-1124
+      dataset_config: default
+      split: train
+      text_field: text
+      streaming: true
+      shuffle_seed: 4104
+      shuffle_buffer_size: 10000
+      validation_documents: 64
+      tokenizer_name: allenai/OLMo-2-0425-1B
+      max_documents: 32000

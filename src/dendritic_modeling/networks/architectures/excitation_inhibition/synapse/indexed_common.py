@@ -16,11 +16,57 @@ def _sample_indices_from_mask(
     K: int,
     connection_mask: torch.Tensor | None,
     generator: torch.Generator | None,
+    row_chunk_size: int = 2048,
 ) -> torch.Tensor:
     """Sample exactly ``K`` unique allowed input indices for each output."""
     allowed = validate_connection_mask(connection_mask, out_features, in_features)
     indices = torch.empty(out_features, K, dtype=torch.long)
     full_arange = torch.arange(in_features, dtype=torch.long) if allowed is None else None
+
+    # The common unmasked sparse case must not construct one full randperm of
+    # all inputs for every output row. At large neuronal scales that makes
+    # initialization proportional to out_features * in_features even though
+    # only out_features * K indices are retained. Rejection sampling is exact
+    # and efficient while K is sparse relative to in_features.
+    if allowed is None and K * 4 <= in_features:
+        max_chunk_entries = 8_000_000
+        rows_per_chunk = max(
+            1,
+            min(
+                int(row_chunk_size),
+                max_chunk_entries // max(K, 1),
+            ),
+        )
+        for start in range(0, out_features, rows_per_chunk):
+            end = min(start + rows_per_chunk, out_features)
+            values = torch.randint(
+                in_features,
+                (end - start, K),
+                dtype=torch.long,
+                generator=generator,
+            )
+            for _ in range(128):
+                sorted_values, order = values.sort(dim=1)
+                duplicate_sorted = torch.zeros_like(values, dtype=torch.bool)
+                duplicate_sorted[:, 1:] = sorted_values[:, 1:] == sorted_values[:, :-1]
+                if not bool(duplicate_sorted.any()):
+                    break
+                duplicate = torch.zeros_like(duplicate_sorted)
+                duplicate.scatter_(1, order, duplicate_sorted)
+                duplicate_count = int(duplicate.sum().item())
+                values[duplicate] = torch.randint(
+                    in_features,
+                    (duplicate_count,),
+                    dtype=torch.long,
+                    generator=generator,
+                )
+            else:
+                raise RuntimeError(
+                    "Unable to sample unique indexed connections after 128 "
+                    "rejection rounds."
+                )
+            indices[start:end] = values
+        return indices
 
     for out_idx in range(out_features):
         if allowed is None:

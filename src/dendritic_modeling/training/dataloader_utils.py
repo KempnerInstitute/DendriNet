@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import inspect
+import random
 from dataclasses import dataclass
 from typing import Any
 
+import numpy as np
 import torch
 from torch.utils.data import DataLoader, Dataset
 
@@ -24,6 +26,33 @@ _IMAGE_DATASET_PREFETCH_FACTOR = 4
 _CUDA_WORKER_CAP = 16
 _CPU_WORKER_CAP = 8
 _CPU_RESERVED_MAIN_PROCESS_WORKERS = 1
+_DATALOADER_SEED_MODULUS = (1 << 63) - 1
+_DATALOADER_STREAM_STRIDE = 1_000_003
+
+
+def seed_dataloader_worker(_worker_id: int) -> None:
+    """Seed Python and NumPy from PyTorch's deterministic worker seed."""
+    worker_seed = int(torch.initial_seed() % (2**32))
+    random.seed(worker_seed)
+    np.random.seed(worker_seed)
+
+
+def seeded_dataloader_kwargs(
+    seed: int,
+    *,
+    stream: int = 0,
+    rank: int = 0,
+) -> dict[str, Any]:
+    """Return an independent generator plus a picklable worker seed hook."""
+    resolved_seed = (
+        int(seed) + int(stream) * _DATALOADER_STREAM_STRIDE + int(rank)
+    ) % _DATALOADER_SEED_MODULUS
+    generator = torch.Generator(device="cpu")
+    generator.manual_seed(resolved_seed)
+    return {
+        "generator": generator,
+        "worker_init_fn": seed_dataloader_worker,
+    }
 
 
 def dataloader_supports_kwarg(name: str) -> bool:
@@ -284,5 +313,7 @@ __all__ = [
     "prefers_main_process_loading",
     "resolve_dataloader_tuning",
     "resolve_dataloader_tuning_from_config",
+    "seed_dataloader_worker",
+    "seeded_dataloader_kwargs",
     "visible_cpu_count",
 ]

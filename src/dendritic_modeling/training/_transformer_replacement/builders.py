@@ -12,6 +12,7 @@ from dendritic_modeling.config import Config
 from dendritic_modeling.networks.architectures.transformer import (
     DendriticFFNReplacement,
     EIStackMLPSlot,
+    GatedDendriticFFNReplacement,
     LayerwiseEIStackReplacement,
     build_dendritic_ffn_kwargs_from_core_config,
     build_ei_stack_kwargs_from_core_config,
@@ -20,6 +21,7 @@ from dendritic_modeling.training._transformer_replacement.common import (
     DistillationUnit,
     SyntheticTransformerMLP,
     _to_plain_mapping,
+    resolve_configured_replacement_layers,
 )
 
 
@@ -56,7 +58,13 @@ def _make_replacement(
     dtype: torch.dtype,
     device: torch.device,
 ) -> nn.Module:
-    if _replacement_kind(config) in {"ei_stack", "layerwise_ei_stack", "einet_stack"}:
+    kind = _replacement_kind(config)
+    if kind in {"dense_mlp_control", "dense_control", "dense_mlp"}:
+        raise ValueError(
+            "dense_mlp_control is a synthetic training baseline; construct it "
+            "through _make_synthetic_units"
+        )
+    if kind in {"ei_stack", "layerwise_ei_stack", "einet_stack"}:
         return _make_single_layer_ei_stack_replacement(
             hidden_size=hidden_size,
             config=config,
@@ -68,7 +76,12 @@ def _make_replacement(
         config.model.core,
         transformer_replacement=config.model.transformer_replacement,
     )
-    replacement = DendriticFFNReplacement(hidden_size=hidden_size, **kwargs)
+    replacement_cls = (
+        GatedDendriticFFNReplacement
+        if kind in {"gated_dendritic_ffn", "gated_dendritic", "dendritic_glu"}
+        else DendriticFFNReplacement
+    )
+    replacement = replacement_cls(hidden_size=hidden_size, **kwargs)
     return replacement.to(device=device, dtype=dtype)
 
 
@@ -82,9 +95,7 @@ def _make_synthetic_units(
     teacher_cfg = _to_plain_mapping(train_cfg.synthetic_teacher)
     hidden_size = int(train_cfg.hidden_size or 32)
     intermediate_size = int(train_cfg.intermediate_size or hidden_size * 4)
-    layer_indices = (
-        train_cfg.layers or config.model.transformer_replacement.layers or [0]
-    )
+    layer_indices = resolve_configured_replacement_layers(config, default=[0])
 
     units: list[DistillationUnit] = []
     for layer_index in layer_indices:
@@ -99,12 +110,30 @@ def _make_synthetic_units(
         for param in teacher.parameters():
             param.requires_grad_(False)
 
-        replacement = _make_replacement(
-            hidden_size=hidden_size,
-            config=config,
-            dtype=dtype,
-            device=device,
-        )
+        if _replacement_kind(config) in {
+            "dense_mlp_control",
+            "dense_control",
+            "dense_mlp",
+        }:
+            replacement = SyntheticTransformerMLP(
+                hidden_size,
+                intermediate_size,
+                kind=str(teacher_cfg.get("kind", "gated_mlp")),
+                activation=str(teacher_cfg.get("activation", "silu")),
+                bias=bool(teacher_cfg.get("bias", False)),
+            ).to(device=device, dtype=dtype)
+        else:
+            replacement = _make_replacement(
+                hidden_size=hidden_size,
+                config=config,
+                dtype=dtype,
+                device=device,
+            )
+            if (
+                isinstance(replacement, GatedDendriticFFNReplacement)
+                and replacement.teacher_topk_init
+            ):
+                replacement.initialize_from_mlp(teacher)
         units.append(
             DistillationUnit(
                 layer_index=int(layer_index),

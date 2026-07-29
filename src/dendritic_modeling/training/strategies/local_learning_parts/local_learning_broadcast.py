@@ -81,6 +81,30 @@ def reduce_error_to_scalar(delta: torch.Tensor, eps: float = 1e-6) -> torch.Tens
     return delta_scalar
 
 
+def expand_soma_error_to_compartments(
+    delta: torch.Tensor,
+    out_features: int,
+) -> torch.Tensor | None:
+    """Repeat each soma error over the compartments owned by that soma.
+
+    Dendritic branch tensors are ordered soma-major: all descendants of soma
+    ``u`` occupy one contiguous block. When the compartment width is an integer
+    multiple of the soma-error width, repeating each coordinate preserves that
+    ancestry. A non-divisible width is ambiguous and returns ``None`` so callers
+    can use an explicit fallback rather than silently tile unrelated neurons.
+    """
+    if delta.dim() == 1:
+        delta = delta.unsqueeze(-1)
+    elif delta.dim() != 2:
+        delta = delta.reshape(delta.size(0), -1)
+
+    n_soma = int(delta.size(1))
+    if n_soma <= 0 or out_features <= 0 or out_features % n_soma != 0:
+        return None
+    compartments_per_soma = out_features // n_soma
+    return delta.repeat_interleave(compartments_per_soma, dim=1)
+
+
 def compute_local_mismatch_broadcast(
     *,
     delta_scalar: torch.Tensor,

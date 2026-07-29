@@ -29,6 +29,19 @@ from dendritic_modeling.networks.architectures.recurrent.structured_recurrent_ty
 )
 
 
+def _structured_branch_factors(
+    architecture: dict[str, Any], field_name: str
+) -> list[int]:
+    """Resolve structured morphology without conflating ``[]`` with missing.
+
+    An explicit empty list represents a true one-level point population.  The
+    historical ``[1]`` fallback remains only for configs that omit the field or
+    set it to ``None``.
+    """
+    configured = architecture.get(field_name)
+    return [1] if configured is None else list(configured)
+
+
 def _build_structured_inhibitory_population_config(
     *,
     excitatory_config: Any,
@@ -38,20 +51,26 @@ def _build_structured_inhibitory_population_config(
     synapses: _LayerPopulationSynapseCounts,
 ) -> Any:
     """Create inhibitory PopulationConfig by replacing pathway-specific fields."""
-    return replace(
-        excitatory_config,
-        n_neurons=n_inh,
-        branch_factors=list(architecture.get("inhibitory_branch_factors", [1]) or [1]),
-        ff_excitatory_synapses=synapses.ff_excitatory,
-        ff_inhibitory_synapses=synapses.ff_inhibitory,
-        rec_excitatory_synapses=synapses.rec_excitatory,
-        rec_inhibitory_synapses=synapses.rec_inhibitory,
-        structured_layer_idx=layer_idx,
-        ff_excitatory_pathway="ei",
-        ff_inhibitory_pathway="ii",
-        rec_excitatory_pathway="rec_ei",
-        rec_inhibitory_pathway="rec_ii",
-    )
+    replacements = {
+        "n_neurons": n_inh,
+        "branch_factors": _structured_branch_factors(
+            architecture, "inhibitory_branch_factors"
+        ),
+        "ff_excitatory_synapses": synapses.ff_excitatory,
+        "ff_inhibitory_synapses": synapses.ff_inhibitory,
+        "rec_excitatory_synapses": synapses.rec_excitatory,
+        "rec_inhibitory_synapses": synapses.rec_inhibitory,
+        "structured_layer_idx": layer_idx,
+        "ff_excitatory_pathway": "ei",
+        "ff_inhibitory_pathway": "ii",
+        "rec_excitatory_pathway": "rec_ei",
+        "rec_inhibitory_pathway": "rec_ii",
+    }
+    if hasattr(excitatory_config, "initialization_namespace"):
+        replacements["initialization_namespace"] = (
+            f"structured.layer.{layer_idx}.inhibitory"
+        )
+    return replace(excitatory_config, **replacements)
 
 
 def _build_structured_excitatory_population_config(
@@ -89,7 +108,9 @@ def _build_structured_excitatory_population_config(
 
     return population_config_cls(
         n_neurons=int(n_exc),
-        branch_factors=list(architecture.get("excitatory_branch_factors", [1]) or [1]),
+        branch_factors=_structured_branch_factors(
+            architecture, "excitatory_branch_factors"
+        ),
         ff_excitatory_synapses=synapses.ff_excitatory,
         ff_inhibitory_synapses=synapses.ff_inhibitory,
         rec_excitatory_synapses=synapses.rec_excitatory,
@@ -121,6 +142,8 @@ def _build_structured_excitatory_population_config(
         **_structured_population_adaptive_init_kwargs(implementation),
         structured_connectivity=to_plain_dict(sections.structured_connectivity),
         structured_layer_idx=layer_idx,
+        initialization_seed=sections.initialization_seed,
+        initialization_namespace=f"structured.layer.{layer_idx}.excitatory",
         ff_excitatory_pathway="ee",
         ff_inhibitory_pathway="ie",
         rec_excitatory_pathway="rec_ee",
@@ -141,4 +164,5 @@ def _build_structured_excitatory_population_config(
 __all__ = [
     "_build_structured_excitatory_population_config",
     "_build_structured_inhibitory_population_config",
+    "_structured_branch_factors",
 ]

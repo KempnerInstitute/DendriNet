@@ -272,12 +272,11 @@ class KraskovEstimator(BaseInformationEstimator):
             for val in np.unique(z_labels):
                 mask = z_labels == val
                 n = int(np.sum(mask))
-                # kNN MI/CMI estimators query the training set itself, so they require
-                # n_neighbors < n_samples_fit. For a subgroup of size n, this implies
-                # k+1 < n => k <= n-2.
-                if n <= 2:
+                # ``kneighbors(X=None)`` excludes each fitted sample itself, so
+                # a subgroup only needs one other sample and k <= n - 1.
+                if n <= 1:
                     continue
-                k_sub = min(k, n - 2)
+                k_sub = min(k, n - 1)
                 if k_sub < 1:
                     continue
                 try:
@@ -375,6 +374,26 @@ class BinnedEstimator(BaseInformationEstimator):
         kxy = int(np.unique(inv_xy).size)
         return float((kx + ky - kxy - 1) / (2.0 * n))
 
+    @staticmethod
+    def _miller_madow_cmi_correction(
+        n_samples: int,
+        x_states: np.ndarray,
+        y_states: np.ndarray,
+        z_states: np.ndarray,
+    ) -> float:
+        """Return the entropy-expansion correction for ``I(X;Y|Z)``."""
+        n = float(max(1, int(n_samples)))
+
+        def state_count(*columns: np.ndarray) -> int:
+            states = np.column_stack(columns)
+            return int(np.unique(states, axis=0).shape[0])
+
+        kxz = state_count(x_states, z_states)
+        kyz = state_count(y_states, z_states)
+        kz = int(np.unique(z_states).size)
+        kxyz = state_count(x_states, y_states, z_states)
+        return float((kxz + kyz - kz - kxyz) / (2.0 * n))
+
     def mutual_information(self, x: np.ndarray, y: np.ndarray) -> float:
         x = self._ensure_2d(x)
         y = self._ensure_2d(y)
@@ -406,7 +425,10 @@ class BinnedEstimator(BaseInformationEstimator):
 
         mi_x_yz = float(mutual_info_score(xs, yz_states))
         mi_x_z = float(mutual_info_score(xs, zs))
-        return float(max(0.0, mi_x_yz - mi_x_z))
+        cmi = mi_x_yz - mi_x_z
+        if self.bias_correction in {"miller_madow", "mm"}:
+            cmi += self._miller_madow_cmi_correction(xs.size, xs, ys, zs)
+        return float(max(0.0, cmi))
 
 
 class DecoderEstimator(BaseInformationEstimator):

@@ -53,6 +53,9 @@ from typing import Any
 import torch
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
+from dendritic_modeling.analysis.utils.effective_synapses import (
+    effective_synapse_snapshot,
+)
 from dendritic_modeling.analysis.utils.recurrent_introspection import (
     iter_recurrent_populations,
 )
@@ -68,6 +71,7 @@ CLASS_ORDER = [
     "mixed-conditional",
     "diffuse",
     "context-specialist",
+    "disconnected",
 ]
 
 
@@ -87,13 +91,21 @@ def _reshape_weight_matrix_by_compartment(
 def _compartment_mean_level_weights(
     compartment_weights: list[torch.Tensor | None],
 ) -> list[torch.Tensor | None]:
-    """Average per-compartment weights into comparable per-level weights."""
+    """Aggregate realized inhibitory weight mass for each target level.
+
+    The previous implementation divided by the number of compartments at a
+    level.  That measured density-normalized candidate magnitude, not the
+    fraction of effective inhibitory strength delivered to the target.  The
+    mass view is the quantity used by the targeting fractions below; degree-
+    normalized summaries should be reported separately as an architectural
+    control.
+    """
     per_level: list[torch.Tensor | None] = []
     for w in compartment_weights:
         if w is None:
             per_level.append(None)
             continue
-        per_level.append(w.sum(dim=1) / float(w.shape[1]))
+        per_level.append(w.abs().sum(dim=1))
     return per_level
 
 
@@ -112,12 +124,20 @@ def _apply_weight_transform(pre_w: torch.Tensor, weight_transform: str) -> torch
 
 def _population_fraction_summary(
     level_fracs: list[torch.Tensor],
+    connected: torch.Tensor | None = None,
 ) -> dict[str, float]:
+    if connected is None:
+        connected = torch.ones_like(level_fracs[0], dtype=torch.bool)
+
+    def _connected_mean(values: torch.Tensor) -> float:
+        selected = values[connected]
+        return float(selected.mean().item()) if selected.numel() else 0.0
+
     return {
-        "frac_distal_pop": float(level_fracs[0].mean().item()),
-        "frac_soma_pop": float(level_fracs[-1].mean().item()),
+        "frac_distal_pop": _connected_mean(level_fracs[0]),
+        "frac_soma_pop": _connected_mean(level_fracs[-1]),
         "frac_middle_pop": (
-            float(torch.stack(level_fracs[1:-1], dim=0).mean().item())
+            _connected_mean(torch.stack(level_fracs[1:-1], dim=0).mean(dim=0))
             if len(level_fracs) > 2
             else 0.0
         ),
@@ -153,7 +173,8 @@ def _fractions_per_level(
             per_level.append(None)
             continue
         with torch.no_grad():
-            w = rec_inh.weight().detach().cpu()
+            snapshot = effective_synapse_snapshot(rec_inh)
+            w = snapshot.effective_weight.cpu()
         compartment_w = _reshape_weight_matrix_by_compartment(w, n_E=n_E)
         if compartment_w is None:
             return None
@@ -164,7 +185,7 @@ def _fractions_per_level(
 def _compute_gate_index(
     per_level: list[torch.Tensor | None],
     eps: float = 1e-12,
-) -> tuple[torch.Tensor, list[torch.Tensor]] | None:
+) -> tuple[torch.Tensor, list[torch.Tensor], torch.Tensor] | None:
     """Turn per-level ``f_l`` tensors into ``G(i, e)`` and level fractions.
 
     ``G`` is returned in the ``(n_I, n_E)`` convention used by the
@@ -176,24 +197,40 @@ def _compute_gate_index(
     if len(present) < 2:
         return None
     stacked = torch.stack(present, dim=0)  # (L, n_E, n_I)
-    total = stacked.sum(dim=0).clamp(min=eps)
-    level_fracs = [stacked[i] / total for i in range(stacked.shape[0])]
+    total = stacked.sum(dim=0)
+    connected = total > eps
+    safe_total = total.clamp(min=eps)
+    level_fracs = [
+        torch.where(connected, stacked[i] / safe_total, torch.zeros_like(total))
+        for i in range(stacked.shape[0])
+    ]
     f_distal = level_fracs[0]
     f_soma = level_fracs[-1]
     G = (f_soma - f_distal).T  # (n_I, n_E)
-    return G, level_fracs
+    return G, level_fracs, connected.T
 
 
 def _classify_i_neurons(
     G: torch.Tensor,
     hi: float,
     sigma: float,
+    connected: torch.Tensor | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor, list[str]]:
     """Compute ``mean_G_i``, ``std_G_i``, and the per-I class label."""
-    mean_G = G.mean(dim=1)
-    std_G = G.std(dim=1, unbiased=False)
+    if connected is None:
+        connected = torch.ones_like(G, dtype=torch.bool)
+    mean_G = torch.full((G.shape[0],), torch.nan, dtype=G.dtype, device=G.device)
+    std_G = torch.full_like(mean_G, torch.nan)
     classes: list[str] = []
-    for m, s in zip(mean_G.tolist(), std_G.tolist()):
+    for i_idx in range(G.shape[0]):
+        values = G[i_idx][connected[i_idx]]
+        if values.numel() == 0:
+            classes.append("disconnected")
+            continue
+        mean_G[i_idx] = values.mean()
+        std_G[i_idx] = values.std(unbiased=False)
+        m = float(mean_G[i_idx].item())
+        s = float(std_G[i_idx].item())
         if s > sigma:
             classes.append("mixed-conditional")
         elif m > hi:
@@ -205,14 +242,22 @@ def _classify_i_neurons(
     return mean_G, std_G, classes
 
 
-def _pair_level_stats(G: torch.Tensor, hi: float) -> dict[str, float]:
+def _pair_level_stats(
+    G: torch.Tensor,
+    hi: float,
+    connected: torch.Tensor | None = None,
+) -> dict[str, float]:
     """Classify each (i, e) pair by its per-pair gate index directly.
 
     Returns percentages for: strong-soma (``G >= hi``), strong-distal
     (``G <= -hi``), balanced (``|G| < hi``), and the raw any-soma-bias
     tally (``G > 0``) that ignores the margin.
     """
-    n = G.numel()
+    if connected is None:
+        connected = torch.ones_like(G, dtype=torch.bool)
+    values = G[connected]
+    n = values.numel()
+    n_possible = G.numel()
     if n == 0:
         return {
             "strong_soma_pct": 0.0,
@@ -220,13 +265,19 @@ def _pair_level_stats(G: torch.Tensor, hi: float) -> dict[str, float]:
             "balanced_pct": 0.0,
             "any_soma_bias_pct": 0.0,
             "n_pairs": 0,
+            "n_possible_pairs": int(n_possible),
+            "n_disconnected_pairs": int(n_possible),
         }
     return {
-        "strong_soma_pct": float((G >= hi).float().mean().item() * 100.0),
-        "strong_distal_pct": float((G <= -hi).float().mean().item() * 100.0),
-        "balanced_pct": float(((G > -hi) & (G < hi)).float().mean().item() * 100.0),
-        "any_soma_bias_pct": float((G > 0).float().mean().item() * 100.0),
+        "strong_soma_pct": float((values >= hi).float().mean().item() * 100.0),
+        "strong_distal_pct": float((values <= -hi).float().mean().item() * 100.0),
+        "balanced_pct": float(
+            ((values > -hi) & (values < hi)).float().mean().item() * 100.0
+        ),
+        "any_soma_bias_pct": float((values > 0).float().mean().item() * 100.0),
         "n_pairs": int(n),
+        "n_possible_pairs": int(n_possible),
+        "n_disconnected_pairs": int(n_possible - n),
     }
 
 
@@ -243,8 +294,10 @@ def _analyze_layer(
     out = _compute_gate_index(per_level)
     if out is None:
         return None
-    G, level_fracs = out
-    mean_G, std_G, classes = _classify_i_neurons(G, hi=hi, sigma=sigma)
+    G, level_fracs, connected = out
+    mean_G, std_G, classes = _classify_i_neurons(
+        G, hi=hi, sigma=sigma, connected=connected
+    )
     class_counts = {c: int(classes.count(c)) for c in CLASS_ORDER}
 
     return {
@@ -252,12 +305,13 @@ def _analyze_layer(
         "n_I": int(n_I),
         "n_levels": len(level_fracs),
         "G": G.tolist(),
+        "connected_pairs": connected.tolist(),
         "mean_G": mean_G.tolist(),
         "std_G": std_G.tolist(),
         "classes": classes,
         "class_counts": class_counts,
-        "pair_level": _pair_level_stats(G, hi=hi),
-        **_population_fraction_summary(level_fracs),
+        "pair_level": _pair_level_stats(G, hi=hi, connected=connected),
+        **_population_fraction_summary(level_fracs, connected=connected.T),
     }
 
 
@@ -310,6 +364,7 @@ def extract_recurrent_inhibitory_compartment_weights_from_state_dict(
     prefix: str,
     n_E: int,
     weight_transform: str = "exp",
+    active_masks: list[torch.Tensor] | None = None,
 ) -> list[torch.Tensor]:
     """Extract recurrent I→E weights as ``(n_E, K_l, n_I)`` tensors per level.
 
@@ -325,7 +380,17 @@ def extract_recurrent_inhibitory_compartment_weights_from_state_dict(
     weight_transform:
         Effective transform applied to ``pre_w``. Supported values are
         ``"exp"``, ``"softplus"``, ``"relu"``, and ``"identity"``.
+    active_masks:
+        Exact dense masks used by the analyzed forward, one per level. A raw
+        state dict contains candidate parameters but not enough information to
+        recover every structured/dynamic/stochastic realization. The masks are
+        therefore required rather than silently treating candidates as active.
     """
+    if active_masks is None:
+        raise ValueError(
+            "active_masks are required: checkpoint pre_w tensors are dense "
+            "candidate parameters, not realized synapses"
+        )
     level_tensors: list[torch.Tensor] = []
     level = 0
     while True:
@@ -333,7 +398,15 @@ def extract_recurrent_inhibitory_compartment_weights_from_state_dict(
         if key not in state_dict:
             break
         pre_w = state_dict[key].detach().cpu().float()
-        w = _apply_weight_transform(pre_w, weight_transform)
+        if level >= len(active_masks):
+            raise ValueError(f"Missing active mask for inhibitory level {level}")
+        mask = active_masks[level].detach().cpu().to(dtype=pre_w.dtype)
+        if mask.shape != pre_w.shape:
+            raise ValueError(
+                f"Mask shape at level {level} is {tuple(mask.shape)}, expected "
+                f"{tuple(pre_w.shape)}"
+            )
+        w = _apply_weight_transform(pre_w, weight_transform) * mask
         compartment_w = _reshape_weight_matrix_by_compartment(w, n_E=n_E)
         if compartment_w is None:
             raise ValueError(
@@ -367,8 +440,10 @@ def summarize_inhibitory_specialization_from_compartment_weights(
     out = _compute_gate_index(per_level)
     if out is None:
         raise ValueError("Need at least two valid inhibitory levels to compute G")
-    G, level_fracs = out
-    mean_G, std_G, classes = _classify_i_neurons(G, hi=hi, sigma=sigma)
+    G, level_fracs, connected = out
+    mean_G, std_G, classes = _classify_i_neurons(
+        G, hi=hi, sigma=sigma, connected=connected
+    )
     class_counts = {c: int(classes.count(c)) for c in CLASS_ORDER}
     frac_by_level = [lvl.T for lvl in level_fracs]
     return {
@@ -376,11 +451,12 @@ def summarize_inhibitory_specialization_from_compartment_weights(
         "n_I": n_I,
         "n_levels": len(level_fracs),
         "G": G,
+        "connected_pairs": connected,
         "mean_G": mean_G,
         "std_G": std_G,
         "classes": classes,
         "class_counts": class_counts,
-        "pair_level": _pair_level_stats(G, hi=hi),
+        "pair_level": _pair_level_stats(G, hi=hi, connected=connected),
         "level_fracs": level_fracs,
         "frac_by_level_ie": frac_by_level,
         "frac_distal": frac_by_level[0],
@@ -390,7 +466,7 @@ def summarize_inhibitory_specialization_from_compartment_weights(
             else torch.zeros_like(frac_by_level[0])
         ),
         "frac_soma": frac_by_level[-1],
-        **_population_fraction_summary(level_fracs),
+        **_population_fraction_summary(level_fracs, connected=connected.T),
     }
 
 
@@ -398,6 +474,7 @@ def pair_stats_by_class(
     G: torch.Tensor,
     classes: list[str],
     hi: float = 0.1,
+    connected: torch.Tensor | None = None,
 ) -> dict[str, dict[str, float]]:
     """Per-class summary of the pair-level gate-index distribution."""
     out: dict[str, dict[str, float]] = {}
@@ -406,7 +483,14 @@ def pair_stats_by_class(
         if not idx:
             out[cname] = {"n_I": 0, "n_pairs": 0}
             continue
-        vals = G[idx].reshape(-1)
+        class_values = G[idx]
+        if connected is None:
+            vals = class_values.reshape(-1)
+        else:
+            vals = class_values[connected[idx]]
+        if vals.numel() == 0:
+            out[cname] = {"n_I": len(idx), "n_pairs": 0}
+            continue
         out[cname] = {
             "n_I": len(idx),
             "n_pairs": int(vals.numel()),
@@ -596,6 +680,7 @@ class InhibitorySpecializationAnalyzer(AbstractAnalyzer):
             "mixed-conditional": "#E8943A",
             "diffuse": "#888888",
             "context-specialist": "#1F77B4",
+            "disconnected": "#D9D9D9",
         }
 
         layers = results["layers"]
@@ -670,7 +755,7 @@ class InhibitorySpecializationAnalyzer(AbstractAnalyzer):
                 linewidth=0.4,
             )
             ax_c.set_yticks(range(len(CLASS_ORDER)))
-            ax_c.set_yticklabels(["gate", "mixed", "diff", "ctx"], fontsize=6)
+            ax_c.set_yticklabels(["gate", "mixed", "diff", "ctx", "none"], fontsize=6)
             ax_c.invert_yaxis()
             ax_c.set_xlabel("# I", fontsize=7)
             for i, v in enumerate(counts):

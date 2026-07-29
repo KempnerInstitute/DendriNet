@@ -15,9 +15,33 @@ _AVERAGED_METRIC_CATEGORIES = (
     "basic_mi",
     "pairwise_mi",
     "conditional_mi",
+    "soma_coupling_mi",
     "gaussian_fisher",
 )
-_LAYER_STATISTIC_CATEGORIES = ("basic_mi", "pairwise_mi", "conditional_mi")
+_LAYER_STATISTIC_CATEGORIES = (
+    "basic_mi",
+    "pairwise_mi",
+    "conditional_mi",
+    "soma_coupling_mi",
+)
+
+LAYER_INFORMATION_PROXY_SEMANTICS = {
+    "scalar_mi_sum_proxy": (
+        "Sum of separately estimated scalar branch mutual informations; "
+        "this is not joint mutual information."
+    ),
+    "entropy_clipped_scalar_mi_sum_proxy": (
+        "Scalar-MI sum clipped at class entropy; this is not joint mutual information."
+    ),
+    "independent_evidence_union_proxy": (
+        "Heuristic union under an independence assumption; this is not measured union "
+        "or joint mutual information."
+    ),
+    "topk_scalar_mi_sum_proxy": (
+        "Sum of the K largest separately estimated scalar branch MIs; this is not "
+        "joint mutual information."
+    ),
+}
 
 
 def average_mi_results(
@@ -270,6 +294,9 @@ def _add_class_targeted_layer_proxies(
 ) -> None:
     n = float(values.size)
     total = float(np.sum(values))
+    layer_stats[f"{key}_scalar_mi_sum_proxy_mean"] = total
+    layer_stats[f"{key}_scalar_mi_sum_proxy_std"] = float(np.sqrt(n) * base_std)
+    # Deprecated compatibility aliases retained for existing sweep collectors.
     layer_stats[f"{key}_sum_mean"] = total
     layer_stats[f"{key}_sum_std"] = float(np.sqrt(n) * base_std)
 
@@ -277,12 +304,21 @@ def _add_class_targeted_layer_proxies(
     layer_stats[f"{key}_sum_clipped_std"] = (
         layer_stats[f"{key}_sum_std"] if total < entropy_C else 0.0
     )
+    layer_stats[f"{key}_entropy_clipped_scalar_mi_sum_proxy_mean"] = layer_stats[
+        f"{key}_sum_clipped_mean"
+    ]
+    layer_stats[f"{key}_entropy_clipped_scalar_mi_sum_proxy_std"] = layer_stats[
+        f"{key}_sum_clipped_std"
+    ]
 
     frac = np.clip(values / entropy_C, 0.0, 1.0)
     one_minus = 1.0 - frac
     prod_one_minus = float(np.prod(one_minus))
     union_frac = 1.0 - prod_one_minus
     layer_stats[f"{key}_union_mean"] = float(entropy_C * union_frac)
+    layer_stats[f"{key}_independent_evidence_union_proxy_mean"] = layer_stats[
+        f"{key}_union_mean"
+    ]
 
     if base_std > 0 and values.size > 0:
         g = np.zeros_like(one_minus)
@@ -295,6 +331,9 @@ def _add_class_targeted_layer_proxies(
             layer_stats[f"{key}_union_std"] = 0.0
     else:
         layer_stats[f"{key}_union_std"] = 0.0
+    layer_stats[f"{key}_independent_evidence_union_proxy_std"] = layer_stats[
+        f"{key}_union_std"
+    ]
 
     layer_stats[f"{key}_max_mean"] = float(np.max(values))
     layer_stats[f"{key}_max_std"] = base_std
@@ -304,9 +343,14 @@ def _add_class_targeted_layer_proxies(
     topk_sum = float(np.sum(np.sort(values)[-k:]))
     layer_stats[f"{key}_top{topk}_sum_mean"] = topk_sum
     layer_stats[f"{key}_top{topk}_sum_std"] = float(np.sqrt(k) * base_std)
+    layer_stats[f"{key}_top{topk}_scalar_mi_sum_proxy_mean"] = topk_sum
+    layer_stats[f"{key}_top{topk}_scalar_mi_sum_proxy_std"] = float(
+        np.sqrt(k) * base_std
+    )
 
 
 __all__ = [
+    "LAYER_INFORMATION_PROXY_SEMANTICS",
     "average_mi_results",
     "compute_layer_statistics",
     "compute_variance_analysis",

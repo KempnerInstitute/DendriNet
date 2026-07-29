@@ -28,6 +28,13 @@ from dendritic_modeling.training.strategies.local_learning_parts.local_learning_
 T = TypeVar("T")
 
 
+def _record_structural_credit(layer: Any, gradient: torch.Tensor) -> None:
+    """Offer the LocalCA conductance gradient to an optional structural rule."""
+    record = getattr(layer, "record_local_credit", None)
+    if callable(record):
+        record(gradient.detach())
+
+
 def _apply_output_modulator(
     factor: torch.Tensor,
     modulator: torch.Tensor | float,
@@ -218,6 +225,10 @@ class LocalLearningTopKGradientMixin:
             normalize_by_batch=self.local_cfg.normalize_by_batch,
             batch_size=batch_size,
         )
+        _record_structural_credit(
+            layer,
+            _apply_optional_alignment(grad_g, role_synaptic_alignment),
+        )
 
         grad_homeo = self._compute_topk_voltage_homeostasis_grad(
             v_n=v_n,
@@ -279,6 +290,7 @@ class LocalLearningTopKGradientMixin:
         )
 
         grad_g = _apply_optional_alignment(grad_g, role_synaptic_alignment)
+        _record_structural_credit(layer, grad_g)
 
         grad_homeo = self._compute_topk_voltage_homeostasis_grad(
             v_n=v_n,

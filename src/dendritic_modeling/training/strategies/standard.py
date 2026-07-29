@@ -9,6 +9,7 @@ import logging
 import os
 import time
 from copy import deepcopy
+from dataclasses import dataclass
 from typing import Optional
 
 import torch
@@ -29,6 +30,7 @@ from dendritic_modeling.networks import ParametricActivation
 from dendritic_modeling.plotting import plot_loss_curves
 from dendritic_modeling.training.dataloader_utils import (
     resolve_dataloader_tuning_from_config,
+    seeded_dataloader_kwargs,
 )
 from dendritic_modeling.training.distributed_samplers import (
     PaddedDistributedEvalSampler,
@@ -41,6 +43,30 @@ from dendritic_modeling.training.regularization import (
 from dendritic_modeling.utils.hooks import iter_modules_of_type
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class _ValidationLossStats:
+    """Explicit validation aggregates for the non-distributed path.
+
+    ``_epoch_valid`` historically returns the first two fields as a tuple.
+    Keeping both batch and sample aggregates here lets checkpoint selection use
+    an exact sample-weighted mean without silently changing that tuple's
+    second value from a batch count to a sample count.
+    """
+
+    batch_loss_sum: float
+    batch_count: int
+    sample_weighted_loss_sum: float
+    sample_count: int
+
+    @property
+    def batch_mean(self) -> float:
+        return self.batch_loss_sum / max(self.batch_count, 1)
+
+    @property
+    def sample_mean(self) -> float:
+        return self.sample_weighted_loss_sum / max(self.sample_count, 1)
 
 
 class Trainer:
@@ -81,6 +107,10 @@ class Trainer:
         self.print_every = print_every
         self.analysis_manager = analysis_manager
         self.seed = int(kwargs.get("seed", 0) or 0)
+        configured_loader_seed = kwargs.get("loader_seed", None)
+        self.loader_seed = int(
+            self.seed if configured_loader_seed is None else configured_loader_seed
+        )
 
         regularization_config = kwargs.get("regularization_config")
         pruning_config = kwargs.get("pruning_config")
@@ -235,7 +265,7 @@ class Trainer:
                 num_replicas=world_size,
                 rank=rank,
                 shuffle=self.shuffle,
-                seed=self.seed,
+                seed=self.loader_seed,
             )
             self._valid_sampler = PaddedDistributedEvalSampler(
                 valid_data,
@@ -248,11 +278,24 @@ class Trainer:
             self._valid_sampler = None
             train_shuffle = self.shuffle
 
+        loader_rank = dist.get_rank() if self._is_distributed else 0
+        train_seed_kwargs = seeded_dataloader_kwargs(
+            self.loader_seed,
+            stream=0,
+            rank=loader_rank,
+        )
+        valid_seed_kwargs = seeded_dataloader_kwargs(
+            self.loader_seed,
+            stream=1,
+            rank=loader_rank,
+        )
+
         train_loader = DataLoader(
             train_data,
             batch_size=self.batch_size,
             shuffle=train_shuffle,
             sampler=self._train_sampler,
+            **train_seed_kwargs,
             **tuning.as_kwargs(),
         )
         valid_loader = DataLoader(
@@ -260,6 +303,7 @@ class Trainer:
             batch_size=self.batch_size,
             shuffle=False,
             sampler=self._valid_sampler,
+            **valid_seed_kwargs,
             **tuning.as_kwargs(),
         )
         return train_loader, valid_loader
@@ -454,7 +498,7 @@ class Trainer:
 
         if self._is_main_process:
             logger.info(
-                f"Best epoch: {self.best_epoch}, " f"Best loss: {self.best_loss:.4f}"
+                f"Best epoch: {self.best_epoch}, Best loss: {self.best_loss:.4f}"
             )
         if self.load_best_state_dict:
             self._unwrap_model(model).load_state_dict(self.best_state_dict)
@@ -560,8 +604,7 @@ class Trainer:
             unwrapped = self._unwrap_model(model)
             valid_loss = self._epoch_valid_distributed(unwrapped, valid_loader)
         else:
-            valid_loss_sum, valid_n_batches = self._epoch_valid(model, valid_loader)
-            valid_loss = valid_loss_sum / max(valid_n_batches, 1)
+            valid_loss = self._non_distributed_validation_loss(model, valid_loader)
 
         valid_losses.append(valid_loss)
 
@@ -828,13 +871,15 @@ class Trainer:
             1000.0 * max_data_wait,
         )
 
-    def _epoch_valid(
+    def _epoch_valid_stats(
         self, model: BaseModel, valid_loader: DataLoader
-    ) -> tuple[float, int]:
-        """Return (loss_sum, batch_count) for non-distributed validation."""
+    ) -> _ValidationLossStats:
+        """Collect explicit batch- and sample-level validation aggregates."""
         model.eval()
-        valid_loss = 0.0
+        batch_loss_sum = 0.0
         n_batches = 0
+        sample_weighted_loss_sum = 0.0
+        n_samples = 0
         with torch.no_grad():
             for batch in valid_loader:
                 x_batch, y_batch = self._move_training_batch_to_device(
@@ -842,9 +887,45 @@ class Trainer:
                     valid_loader,
                 )
                 loss: torch.Tensor = self.loss_function(model, x_batch, y_batch)
-                valid_loss += loss.item()
+                loss_value = loss.item()
+                batch_size = y_batch.size(0)
+                batch_loss_sum += loss_value
                 n_batches += 1
-        return valid_loss, n_batches
+                sample_weighted_loss_sum += loss_value * batch_size
+                n_samples += batch_size
+        return _ValidationLossStats(
+            batch_loss_sum=batch_loss_sum,
+            batch_count=n_batches,
+            sample_weighted_loss_sum=sample_weighted_loss_sum,
+            sample_count=n_samples,
+        )
+
+    def _epoch_valid(
+        self, model: BaseModel, valid_loader: DataLoader
+    ) -> tuple[float, int]:
+        """Return the legacy ``(batch_loss_sum, batch_count)`` tuple."""
+        stats = self._epoch_valid_stats(model, valid_loader)
+        return stats.batch_loss_sum, stats.batch_count
+
+    def _validation_loss_reduction(self) -> str | None:
+        """Return the configured scalar-loss reduction, when declared."""
+        reduction = getattr(self.loss_function, "reduction", None)
+        return str(reduction) if reduction is not None else None
+
+    def _non_distributed_validation_loss(
+        self, model: BaseModel, valid_loader: DataLoader
+    ) -> float:
+        """Return the checkpoint metric for non-distributed validation.
+
+        Mean-reduced losses are weighted by the number of examples in each
+        batch, matching evaluation of the complete dataset when the final
+        batch is smaller. Other or undeclared reductions retain the historical
+        mean-over-batches behavior.
+        """
+        stats = self._epoch_valid_stats(model, valid_loader)
+        if self._validation_loss_reduction() == "mean":
+            return stats.sample_mean
+        return stats.batch_mean
 
     def _epoch_valid_distributed(
         self, model: BaseModel, valid_loader: DataLoader
@@ -896,8 +977,7 @@ class Trainer:
     def _evaluate_loader_loss(self, model: BaseModel, loader: DataLoader) -> float:
         if self._is_distributed:
             return self._epoch_valid_distributed(self._unwrap_model(model), loader)
-        loss_sum, n_batches = self._epoch_valid(model, loader)
-        return loss_sum / max(n_batches, 1)
+        return self._non_distributed_validation_loss(model, loader)
 
     def _apply_pruning_and_evaluate(
         self,
@@ -1022,7 +1102,7 @@ class Trainer:
         if self.early_stopping and self.patience_counter >= self.patience:
             if not self.suppress_prints:
                 logger.info(
-                    f"Early stopping triggered " f"after {self.epoch_counter} epochs."
+                    f"Early stopping triggered after {self.epoch_counter} epochs."
                 )
             return True
         else:

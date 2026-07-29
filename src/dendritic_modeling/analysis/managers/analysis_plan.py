@@ -189,6 +189,16 @@ _PRE_WEIGHT_TEST_DATASET_ANALYSES = (
         "ablation",
         pass_training=True,
     ),
+    _TestDatasetAnalysisRunner(
+        "path_matched_intervention",
+        pass_training=True,
+        require_analyzer=True,
+    ),
+    _TestDatasetAnalysisRunner(
+        "local_inhibitory_population_intervention",
+        pass_training=True,
+        require_analyzer=True,
+    ),
 )
 
 
@@ -217,6 +227,14 @@ _POST_REACTIVATION_TEST_DATASET_ANALYSES = (
 _ORDERED_ANALYSIS_SEQUENCE = (
     _AnalysisSequenceStep("_run_performance_analysis", pass_runtime=True),
     _AnalysisSequenceStep("_run_information_analysis", pass_runtime=True),
+    _AnalysisSequenceStep(
+        "_run_path_matched_information_analysis",
+        pass_runtime=True,
+    ),
+    _AnalysisSequenceStep(
+        "_run_representation_accessibility_analysis",
+        pass_runtime=True,
+    ),
     _AnalysisSequenceStep("_run_synaptic_turnover_analysis"),
     _AnalysisSequenceStep(
         "_run_test_dataset_analysis_runners",

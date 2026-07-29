@@ -130,6 +130,8 @@ class DataCollector:
         params.update(self._load_gain(config_dir))
         params.update(self._load_noise(config_dir))
         params.update(self._load_nparams(config_dir))
+        params.update(self._load_model_resources(config_dir))
+        params.update(self._load_training_summary(config_dir))
 
         return params
 
@@ -192,7 +194,7 @@ class DataCollector:
             if isinstance(value, dict):
                 # Nested metrics (e.g., {'accuracy': ..., 'auc': ...})
                 for metric, val in value.items():
-                    result[f"{metric}_{key}"] = val  # e.g., accuracy_test
+                    result[f"{metric}_{key}"] = val  # e.g., test_accuracy
             else:
                 result[key] = value
 
@@ -219,6 +221,7 @@ class DataCollector:
             return {}
 
         result = {}
+        ablation_depth_map = self._load_ablation_depth_map(config_dir)
 
         # Basic MI
         if "basic_mi" in data and isinstance(data["basic_mi"], dict):
@@ -272,9 +275,7 @@ class DataCollector:
             for i, layer_name in enumerate(layer_names):
                 layer_data: dict[str, float] = data["layer_statistics"][layer_name]
                 if isinstance(layer_data, dict):
-                    # Extract depth from layer name
-                    # depth = self._extract_depth(layer_name)
-                    depth = depths[i]
+                    depth = ablation_depth_map.get(layer_name, depths[i])
                     for mi_key, mi_value in layer_data.items():
                         if isinstance(mi_value, (int, float)):
                             base_key = (
@@ -289,6 +290,43 @@ class DataCollector:
                             result[f"{base_key}_depth{depth}"] = mi_value
 
         return result
+
+    def _load_ablation_depth_map(self, config_dir: Path) -> dict[str, int]:
+        """Map module names to analyzer-provided ablation depths when available."""
+        ablation_files = list(config_dir.rglob("ablation_analysis/final.json"))
+        if not ablation_files:
+            ablation_files = list(config_dir.rglob("ablation_analysis/final"))
+        if ablation_files:
+            ablation_file = ablation_files[0]
+        else:
+            ablation_file = config_dir / "ablation_analysis" / "final"
+
+        data = self._load_json_file(ablation_file)
+        if not data:
+            return {}
+
+        depth_map: dict[str, int] = {}
+        layer_data = data.get("layer")
+        if not isinstance(layer_data, dict):
+            return depth_map
+
+        for targets in layer_data.values():
+            if not isinstance(targets, dict):
+                continue
+            for modules in targets.values():
+                if not isinstance(modules, dict):
+                    continue
+                for module_name, metrics in modules.items():
+                    if (
+                        isinstance(metrics, dict)
+                        and "depth" in metrics
+                        and module_name not in depth_map
+                    ):
+                        try:
+                            depth_map[module_name] = int(metrics["depth"])
+                        except (TypeError, ValueError):
+                            continue
+        return depth_map
 
     def _load_weights(self, config_dir: Path) -> dict:
         """Load weight analysis metrics."""
@@ -526,6 +564,45 @@ class DataCollector:
 
         return result
 
+    def _load_training_summary(self, config_dir: Path) -> dict:
+        """Load compact convergence fields without exporting epoch histories."""
+
+        files = list(config_dir.rglob("training_summary.json"))
+        if not files:
+            files = list(config_dir.rglob("training_summary"))
+        if not files:
+            return {}
+        data = self._load_json_file(files[0])
+        if not isinstance(data, dict):
+            return {}
+
+        result = {}
+        best_epoch = data.get("best_epoch")
+        best_loss = data.get("best_loss")
+        if isinstance(best_epoch, int) and not isinstance(best_epoch, bool):
+            result["training_best_epoch"] = best_epoch
+        if isinstance(best_loss, (int, float)) and not isinstance(best_loss, bool):
+            result["training_best_valid_loss"] = best_loss
+
+        history_fields = {
+            "train_losses": "training_final_train_loss",
+            "valid_losses": "training_final_valid_loss",
+        }
+        history_lengths = []
+        for source, destination in history_fields.items():
+            history = data.get(source)
+            if not isinstance(history, list) or not history:
+                continue
+            history_lengths.append(len(history))
+            final_value = history[-1]
+            if isinstance(final_value, (int, float)) and not isinstance(
+                final_value, bool
+            ):
+                result[destination] = final_value
+        if history_lengths:
+            result["training_epochs_completed"] = max(history_lengths)
+        return result
+
     def _load_nparams(self, config_dir: Path) -> dict:
         """Load parameter count."""
         # nparams_file = config_dir / "nparams"
@@ -548,6 +625,58 @@ class DataCollector:
             return {"nparams": data["nparams"]}
 
         return {}
+
+    def _load_model_resources(self, config_dir: Path) -> dict:
+        """Load exact model-resource accounting saved by the trainer."""
+        resource_files = list(config_dir.rglob("model_resources.json"))
+        if not resource_files:
+            resource_files = list(config_dir.rglob("model_resources"))
+        if not resource_files:
+            return {}
+
+        data = self._load_json_file(resource_files[0])
+        if not isinstance(data, dict):
+            return {}
+
+        result = {}
+        for key in (
+            "total_parameters",
+            "trainable_parameters",
+            "synapse_candidate_parameters",
+            "non_synaptic_parameters",
+            "candidate_synapse_slots",
+            "active_synapses",
+            "persistent_state_scalars_per_sample",
+        ):
+            value = data.get(key)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                result[f"resource_{key}"] = value
+
+        pathway_totals: dict[str, dict[str, float]] = {}
+        synapses = data.get("synapses", [])
+        if isinstance(synapses, list):
+            for record in synapses:
+                if not isinstance(record, dict):
+                    continue
+                pathway = str(record.get("pathway", "unknown"))
+                totals = pathway_totals.setdefault(
+                    pathway,
+                    {
+                        "active_synapses": 0.0,
+                        "candidate_slots": 0.0,
+                        "candidate_parameters": 0.0,
+                    },
+                )
+                for key in tuple(totals):
+                    value = record.get(key)
+                    if isinstance(value, (int, float)) and not isinstance(value, bool):
+                        totals[key] += float(value)
+        for pathway, totals in pathway_totals.items():
+            safe_pathway = re.sub(r"[^a-zA-Z0-9]+", "_", pathway).strip("_")
+            for key, value in totals.items():
+                result[f"resource_{safe_pathway}_{key}"] = int(value)
+
+        return result
 
     def _extract_depth(self, layer_name: str) -> int:
         """Extract depth/layer index from layer name."""

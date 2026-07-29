@@ -3,6 +3,7 @@
 import torch
 from torch.utils.data import TensorDataset
 
+from dendritic_modeling.analysis.core.branch_activation import BranchActivationAnalyzer
 from dendritic_modeling.analysis.tools.dendritic_timetraces import (
     DendriticTimetracesAnalyzer,
 )
@@ -22,6 +23,7 @@ from dendritic_modeling.analysis.utils.recurrent_introspection import (
     recurrent_population_summary,
 )
 from dendritic_modeling.config.analysis import (
+    BranchActivationAnalysisParams,
     DendriticTimetracesAnalysisParams,
     InhibitorySpecializationAnalysisParams,
     SynapticActivationAnalysisParams,
@@ -32,6 +34,9 @@ from dendritic_modeling.networks.architectures.recurrent import (
     PopulationLayerConfig,
     PopulationNetwork,
     PopulationNetworkConfig,
+)
+from dendritic_modeling.networks.architectures.recurrent.stateful_step import (
+    _build_stateful_routing_info,
 )
 
 
@@ -112,6 +117,11 @@ def test_routing_analyzer_collects_population_network_entries():
     assert results["microcircuit/pyr"]["n_levels"] == 2
     assert results["microcircuit/pyr"]["n_samples"] > 0
     assert "mean_raw_voltage_norm" in results["microcircuit/pyr"]
+    assert "mean_level_activity_share_rms" in results["microcircuit/pyr"]
+    assert (
+        results["microcircuit/pyr"]["activity_share_definition"]
+        == "level_l2_div_sqrt_width_then_normalized"
+    )
     assert not core.store_routing
 
 
@@ -158,6 +168,24 @@ def test_append_masked_routing_values_filters_detached_cpu_rows():
         torch.tensor([False, False]),
     )
     assert "empty" not in accumulator
+
+
+def test_rms_activity_is_invariant_to_level_width_duplication():
+    zeros_wide = torch.zeros(2, 4)
+    zeros_narrow = torch.zeros(2, 1)
+    info = _build_stateful_routing_info(
+        trace_E=[zeros_wide, zeros_narrow],
+        trace_E_rec=[zeros_wide, zeros_narrow],
+        trace_I=[zeros_wide, zeros_narrow],
+        trace_I_rec=[zeros_wide, zeros_narrow],
+        level_voltage_cache=[torch.ones(2, 4), torch.ones(2, 1)],
+        n_levels=2,
+    )
+
+    torch.testing.assert_close(info["level_activity_rms"], torch.ones(2, 2))
+    torch.testing.assert_close(
+        info["level_contributions"], torch.tensor([[2.0, 1.0], [2.0, 1.0]])
+    )
 
 
 def test_dendritic_timetraces_collects_population_network_excitatory_population():
@@ -212,3 +240,56 @@ def test_synaptic_activation_supports_population_network_topk_hooks():
         for synapse_type in layer_data
     }
     assert {"exc", "rec_inh"}.issubset(raw_synapse_types)
+
+
+def test_branch_activation_supports_population_network_currents_and_outputs():
+    core = PopulationNetwork(
+        PopulationNetworkConfig(
+            input_dim=5,
+            layers=[
+                PopulationLayerConfig(
+                    name="feedforward",
+                    recurrent=False,
+                    readout_population="e0",
+                    population_defaults={
+                        "ff_excitatory_synapses": 2,
+                        "ff_inhibitory_synapses": 0,
+                        "rec_excitatory_synapses": 0,
+                        "rec_inhibitory_synapses": 0,
+                        "somatic_synapses": True,
+                        "reactivate": True,
+                        "dbl_init_method": "default",
+                        "weight_transform": "exp",
+                    },
+                    populations=[
+                        {
+                            "name": "e0",
+                            "polarity": "excitatory",
+                            "n_neurons": 4,
+                            "branch_factors": [2],
+                        }
+                    ],
+                    connections=[{"source": "input", "target": "e0"}],
+                )
+            ],
+        )
+    )
+    dataset = TensorDataset(torch.ones(4, 5), torch.zeros(4, dtype=torch.long))
+    analyzer = BranchActivationAnalyzer(
+        BranchActivationAnalysisParams(
+            raw_summary=False,
+            branch_summary=False,
+            downsample=True,
+            samples=4,
+        )
+    )
+
+    results = analyzer.analyze(core, dataset, device="cpu")
+
+    assert results is not None
+    assert "exc" in results["network_summary"]
+    assert "Vout" in results["network_summary"]
+    assert results["layer_summary"]
+    for module in core.modules():
+        if hasattr(module, "_store_analysis_currents"):
+            assert not module._store_analysis_currents

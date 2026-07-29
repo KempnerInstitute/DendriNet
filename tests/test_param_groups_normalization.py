@@ -136,3 +136,29 @@ def test_prepare_trainer_config_includes_recurrent_strategy_block():
     assert trainer_cfg["recurrent_config"]["grad_clip"] == 0.5
     assert trainer_cfg["recurrent_config"]["use_amp"] is True
     assert trainer_cfg["recurrent_config"]["lr_schedule"] == "cosine"
+
+
+def test_prepare_trainer_config_enables_standard_and_fsdp_checkpoint_keys():
+    main_train_config = {
+        "strategy": "standard",
+        "common": {
+            "epochs": 3,
+            "batch_size": 4,
+            "param_groups": {"lr": 0.001},
+        },
+    }
+    experiment_config = {
+        "checkpointing": {
+            "enabled": True,
+            "save_every_n_epochs": 7,
+            "checkpoint_dir": "/tmp/explicit-checkpoints",
+        },
+        "enable_profiling": False,
+        "enable_hooks": False,
+    }
+
+    trainer_cfg = prepare_trainer_config(main_train_config, experiment_config, "/tmp")
+    assert trainer_cfg["checkpointing"] is True
+    assert trainer_cfg["checkpoint_interval"] == 7
+    assert trainer_cfg["save_every_n_epochs"] == 7
+    assert trainer_cfg["checkpoint_dir"] == "/tmp/explicit-checkpoints"

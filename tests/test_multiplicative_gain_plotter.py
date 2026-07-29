@@ -25,4 +25,5 @@ def test_multiplicative_gain_plotter_handles_generalization_scores(tmp_path: Pat
     paths = MultiplicativeGainPlotter().generate_all(data, tmp_path)
     names = {path.name for path in paths}
 
+    assert len(paths) == len(names)
     assert "gain_accuracy_vs_ei_ratio_generalization_scores.png" in names

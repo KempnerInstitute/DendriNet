@@ -200,9 +200,6 @@ class DeepstLinear(nn.Module):
             in_features,
         )
 
-        # Compatibility with dendritic branch-layer initialization.
-        self.K = int(target_density * in_features) if in_features else None
-
         self.weight_init_range = _resolve_weight_init_range(
             param_space,
             weight_init_range,
@@ -217,6 +214,14 @@ class DeepstLinear(nn.Module):
         )
         if rewiring_mode == "constant_branch":
             self.synapses_per_branch = synapses_per_branch
+
+        # Compatibility with dendritic branch-layer initialization.  Constant
+        # branch mode is governed by its explicit budget, not target_density.
+        self.K = (
+            int(synapses_per_branch)
+            if rewiring_mode == "constant_branch"
+            else (int(target_density * in_features) if in_features else None)
+        )
 
         # Total number of possible connections
         self.total_connections = out_features * in_features
@@ -264,6 +269,9 @@ class DeepstLinear(nn.Module):
         )
         self.register_buffer(
             "_forbidden_connection_mask", forbidden_connection_mask, persistent=False
+        )
+        self.register_buffer(
+            "_last_rewired_mask", torch.zeros_like(mask), persistent=False
         )
 
         # Initialize connectivity
@@ -332,6 +340,7 @@ class DeepstLinear(nn.Module):
         Modified to support freezing connectivity while maintaining stability.
         """
         with torch.no_grad():
+            self._last_rewired_mask.zero_()
             # Get current weights
             current_weights = self.weight()
 
@@ -366,6 +375,7 @@ class DeepstLinear(nn.Module):
 
             # Update mask (remove pruned connections)
             self.mask[to_prune] = False
+            self._last_rewired_mask[to_prune] = True
 
             # Create new random connections
             if num_pruned > 0:
@@ -454,6 +464,19 @@ class DeepstLinear(nn.Module):
     def _activate_new_connection(self, output_idx, input_idx):
         self.mask[output_idx, input_idx] = True
         self.pre_w.data[output_idx, input_idx] = self._initialize_new_weight()
+        self._last_rewired_mask[output_idx, input_idx] = True
+
+    def consume_rewired_mask(self):
+        """Return slots changed by the last rewiring event and clear the record."""
+        if not bool(self._last_rewired_mask.any()):
+            return None
+        rewired = self._last_rewired_mask.clone()
+        self._last_rewired_mask.zero_()
+        return rewired
+
+    def apply_rewiring(self):
+        """Expose the common leaf-module rewiring API used by direct optimizers."""
+        self.apply_noise_and_enforce_constraints()
 
     def _initialize_new_weight(self):
         """Initialize a newly activated synapse."""

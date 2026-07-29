@@ -219,7 +219,7 @@ class BlockLinear(nn.Module):
         )
         row_ix, col_ix = self._block_indices()
         weights = self.weight() * 1.0
-        self._last_forward_param_tensor = weights
+        object.__setattr__(self, "_last_forward_param_tensor", weights)
         block[row_ix, col_ix] = weights
         output = torch.matmul(x, block.t())
 
@@ -309,7 +309,7 @@ class EfficientBlockLinear(BlockLinear):
             apply_weight_transform(self.log_weight, self.weight_transform) * 1.0
         )  # (out_features, block_size)
         self._last_forward_input_tensor = x
-        self._last_forward_param_tensor = weights
+        object.__setattr__(self, "_last_forward_param_tensor", weights)
         output = (x_reshaped * weights).sum(dim=-1)  # (B, out_features)
 
         # Reshape output to match input shape structure if needed

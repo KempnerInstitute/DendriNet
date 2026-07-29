@@ -1,0 +1,27 @@
+# Exact sparse synaptic support and effective-conductance profiles.
+#
+# This is a model-only extension of the registered weight analyzer. It keeps
+# structural allocation separate from realized activity and information:
+#   contact_frequency[s, p]
+#     = mean_b 1[source coordinate p is selected by branch b of soma s]
+#   mean_effective_conductance[s, p]
+#     = mean_b effective_weight[b, p], including zero for unselected contacts.
+#
+# Records are emitted for each dendritic depth and for all depths pooled. The
+# NPZ profiles and CSV scalar records are suitable for sweep collection or
+# publication-specific rendering without recomputing the analysis locally.
+analysis:
+  weight:
+    enabled: true
+    training: false
+    params:
+      synapse_weights: true
+      branch_weights: true
+      compute_source_support: true
+      source_support_target_polarities: [excitatory]
+      source_support_pathways: [ff_excitatory, ff_inhibitory]
+      # Set only when source coordinates are image pixels (for example MNIST).
+      source_support_image_shape: [28, 28]
+      # Empty means all somas. A short subset makes a compact native audit plot.
+      source_support_plot_soma_indices: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+      source_support_fig_save_format: pdf

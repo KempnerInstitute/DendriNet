@@ -1,0 +1,51 @@
+schema_version: dendritic-rnn-causal-current-pilot-v1
+
+study:
+  collection: results/dendritic_rnn/extreme_placement_cube_src_v1/analysis_routeaware_v2_publication/collection.json
+  counterfactual_ledger: /n/holylabs/kempner_dev/Users/hsafaai/dendrinet_revision_2026/banks/balanced_v5/counterfactual_comparison_v1/counterfactual_psychometric_banks_v1.ledger.json
+  counterfactual_results: results/dendritic_rnn/counterfactual_psychometric_src_v1
+  output_root: results/dendritic_rnn/causal_current_pilot_src_v1
+  replicates: 10
+  roles:
+    hierarchical_aligned: [hierarchical, proximal, distal]
+    hierarchical_reverse: [hierarchical, distal, proximal]
+    reversed_aligned: [reversed, proximal, distal]
+    reversed_reverse: [reversed, distal, proximal]
+
+interventions:
+  mode: fixed_mean
+  calibration_bank: identity_receivers
+  evaluation_bank: counterfactual_psychometric
+  layer: layer0
+  population: pyr
+  soma_relative_depths: [0, 1, 2]
+  endpoints:
+    ff_write:
+      pathway: ff_excitatory
+      phase: first_stimulus
+    rec_late_delay:
+      pathway: rec_excitatory
+      phase: late_delay
+  stimulus_duration: 20
+  response_duration: 8
+  late_delay_steps: 20
+  no_op_bridge:
+    direct_manual_same_batch: bitwise_equal
+    prior_logits_max_abs_tolerance: 2.0e-5
+    prior_predictions: bitwise_equal
+
+runtime:
+  device: cuda:0
+  python: /n/holylabs/kempner_dev/Users/hsafaai/dendrinet_revision_2026/environments/main_rc7_balanced_selfcontained_v1/bin/python
+  pythonpath: src
+  torch: 2.9.1+cu128
+  cuda: "12.8"
+
+resources:
+  partition: kempner_h100_priority
+  account: kempner_bsabatini_lab
+  gpus: 1
+  cpus_per_task: 1
+  memory: 4G
+  walltime: "00:15:00"
+  checkpoints_per_job: 4

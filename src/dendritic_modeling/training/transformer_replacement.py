@@ -63,9 +63,13 @@ from dendritic_modeling.training._transformer_replacement.loops import (
     _train_tensor_dataset_source,
     run_transformer_replacement_training,
 )
+from dendritic_modeling.training._transformer_replacement.token_stream import (
+    StreamingTokenBatchSource,
+)
 
 __all__ = [
     "DistillationUnit",
+    "StreamingTokenBatchSource",
     "SyntheticTransformerMLP",
     "TransformerReplacementBenchmarkResult",
     "TransformerReplacementTrainingResult",

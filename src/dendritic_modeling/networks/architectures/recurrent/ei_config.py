@@ -2,6 +2,7 @@
 Configuration dataclasses for unified E-I layers/networks with optional recurrence.
 """
 
+import math
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
@@ -54,6 +55,9 @@ class PopulationConfig(BaseConfig):
     weight_transform: str = "exp"
     use_shunting: bool = True
     use_additive_normalization: bool = False
+    additive_mode: str = "raw"
+    additive_tangent_n0: Optional[float] = None
+    additive_tangent_t0: Optional[float] = None
     reactivate: bool = True
     reactivation_type: str = "param_tanh"
     reactivation_init_m: float = 1.0
@@ -96,9 +100,23 @@ class PopulationConfig(BaseConfig):
     freeze_inhibitory_connectivity: bool = False
     init_method: str = "xavier_normal"
     weight_threshold: float = 1e-6
+    credit_trace_decay: float = 0.95
+    credit_candidate_pool_size: int = 8
+    credit_turnover_fraction: float = 0.1
+    credit_weak_active_pool_fraction: float = 0.5
+    credit_min_observations: int = 5
+    credit_swap_margin: float = 0.0
+    credit_force_turnover: bool = False
+    credit_selection: str = "credit"
+    credit_warmup_steps: int = 5
     adaptive_initialization: bool = True
     adaptive_initialization_policy: str = "preserve_shunting_center"
     adaptive_target_conductance: float = 5.0
+    initial_child_conductance: float = 1.0
+    # When configured, every population/path/depth receives a stable keyed RNG
+    # substream so changing an unrelated path does not perturb matched weights.
+    initialization_seed: Optional[int] = None
+    initialization_namespace: str = ""
 
     # Optional structured topology constraints. Pathway names are interpreted
     # from the target population's point of view (ee/ie for E targets,
@@ -150,9 +168,21 @@ class PopulationConfig(BaseConfig):
     soma_feedback_init_std: float = 0.0
     soma_feedback_reversal: float = 1.0
 
+    # Appended to retain the positional constructor order of all legacy fields.
+    # ``parallel_readout`` removes serial child-to-parent drive and pools every
+    # non-soma level directly into the soma readout while retaining the same
+    # per-level state banks.
+    cross_level_mode: str = "hierarchical"  # hierarchical | parallel_readout
+
     def __post_init__(self):
         if self.n_neurons <= 0:
             raise ValueError(f"n_neurons must be > 0, got {self.n_neurons}")
+        self.cross_level_mode = str(self.cross_level_mode).lower()
+        if self.cross_level_mode not in {"hierarchical", "parallel_readout"}:
+            raise ValueError(
+                "cross_level_mode must be 'hierarchical' or 'parallel_readout', "
+                f"got {self.cross_level_mode!r}"
+            )
         if any(b < 1 for b in self.branch_factors):
             raise ValueError(
                 f"branch_factors must all be >= 1, got {self.branch_factors}"
@@ -180,6 +210,14 @@ class PopulationConfig(BaseConfig):
             raise ValueError(f"tau_ratio must be > 0, got {self.tau_ratio}")
         if self.level_taus and any(t <= 0 for t in self.level_taus):
             raise ValueError(f"level_taus must all be > 0, got {self.level_taus}")
+        if (
+            not math.isfinite(self.initial_child_conductance)
+            or self.initial_child_conductance <= 0
+        ):
+            raise ValueError(
+                "initial_child_conductance must be finite and positive, got "
+                f"{self.initial_child_conductance}"
+            )
         self.dynamics_mode = str(self.dynamics_mode).lower()
         if self.dynamics_mode not in {"rate", "spike"}:
             raise ValueError(

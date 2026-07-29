@@ -1,0 +1,137 @@
+schema_version: dendritic-rnn-mechanism-identification-pilot-matrix-v1
+experiment_id: mechanism_identification_pilot_src_v1
+base_config: configs/dendritic_rnn/extreme_placement_cube_v1/base.yaml
+base_config_sha256: 1e1e743e2519802c26950a5844664965dbcb0c7f690f431a84d144b46fbf21a5
+output_root: results/dendritic_rnn/mechanism_identification_pilot_src_v1
+
+design:
+  status: post_outcome_descriptive_pilot
+  question: Does slow distal integration selectively improve a contact-matched, distally concentrated recurrent pathway when soma tau is fixed fast?
+  primary_pilot_contrast: (slow_distal_rec_distal - slow_distal_rec_proximal) - (fast_distal_rec_distal - fast_distal_rec_proximal)
+  inference: no_null_tests_three_seed_go_no_go
+  level_order: distal_to_soma
+  level_sizes: [576, 192, 64]
+  fixed_soma_tau: 5.0
+  fixed_middle_tau: 25.0
+  fixed_feedforward_profile: [1, 1, 50]
+  recurrent_profiles:
+    proximal_concentrated: [1, 1, 55]
+    distal_concentrated: [7, 1, 1]
+  recurrent_active_contacts_per_profile: 4288
+  candidate_tensor_shapes_matched: true
+  inhibitory_population_held_fixed: true
+
+base_overrides:
+  experiment:
+    checkpointing:
+      enabled: true
+      save_every_n_epochs: 25
+  data:
+    dataset_params:
+      romo_delay_comparison_positive:
+        train:
+          stimulus_duration: 20
+          response_duration: 8
+          noise_std: 0.15
+          n_samples: 12000
+          min_delay: 20
+          max_delay: 80
+        valid:
+          stimulus_duration: 20
+          response_duration: 8
+          noise_std: 0.15
+          n_samples: 3000
+          min_delay: 120
+          max_delay: 220
+        test:
+          stimulus_duration: 20
+          response_duration: 8
+          noise_std: 0.15
+          n_samples: 4
+          min_delay: 240
+          max_delay: 320
+  training:
+    main:
+      common:
+        epochs: 200
+        batch_size: 128
+        early_stopping: true
+        patience: 35
+        print_every: 10
+        num_workers: 2
+        pin_memory: true
+        persistent_workers: true
+        use_amp: true
+
+conditions:
+  - name: tau_distal_slow__rec_proximal_concentrated
+    level_taus: [125.0, 25.0, 5.0]
+    ff_excitatory_synapses_by_level: [1, 1, 50]
+    rec_excitatory_synapses_by_level: [1, 1, 55]
+  - name: tau_distal_slow__rec_distal_concentrated
+    level_taus: [125.0, 25.0, 5.0]
+    ff_excitatory_synapses_by_level: [1, 1, 50]
+    rec_excitatory_synapses_by_level: [7, 1, 1]
+  - name: tau_distal_fast__rec_proximal_concentrated
+    level_taus: [5.0, 25.0, 5.0]
+    ff_excitatory_synapses_by_level: [1, 1, 50]
+    rec_excitatory_synapses_by_level: [1, 1, 55]
+  - name: tau_distal_fast__rec_distal_concentrated
+    level_taus: [5.0, 25.0, 5.0]
+    ff_excitatory_synapses_by_level: [1, 1, 50]
+    rec_excitatory_synapses_by_level: [7, 1, 1]
+
+replicates:
+  - replicate: r000
+    seed: 3300
+    dataset_seed: 1509192288
+    split_seed: 969283694
+    model_seed: 1027359344
+    topology_seed: 1897943795
+    loader_seed: 1603807574
+    evaluation_seed: 1426552948
+    probe_seed: 686079516
+  - replicate: r001
+    seed: 3301
+    dataset_seed: 944277460
+    split_seed: 1300878484
+    model_seed: 2137727058
+    topology_seed: 1378999431
+    loader_seed: 399554321
+    evaluation_seed: 872066355
+    probe_seed: 1426508573
+  - replicate: r002
+    seed: 3302
+    dataset_seed: 1678806992
+    split_seed: 1378834501
+    model_seed: 704925436
+    topology_seed: 1420226760
+    loader_seed: 1403014343
+    evaluation_seed: 1205605790
+    probe_seed: 1087459479
+
+runtime:
+  python: /n/holylabs/kempner_dev/Users/hsafaai/dendrinet_revision_2026/environments/main_rc7_balanced_selfcontained_v1/bin/python
+  source_root: src
+  training_entrypoint: dendritic_modeling.scripts.training.train_experiments
+
+scheduler:
+  primary:
+    partition: kempner_h100_priority
+    account: kempner_bsabatini_lab
+    gpu_type: nvidia_h100_80gb_hbm3
+  h100_fallback:
+    partition: kempner_h100
+    account: kempner_bsabatini_lab
+    gpu_type: nvidia_h100_80gb_hbm3
+  h200_opt_in:
+    partition: kempner_eng
+    account: kempner_dev
+    gpu_type: nvidia_h200
+  resources:
+    gpus: 1
+    cpus: 3
+    memory: 6G
+    walltime: "12:00:00"
+    preflight_walltime: "00:30:00"
+    dataloader_workers: 2

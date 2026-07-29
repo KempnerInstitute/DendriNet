@@ -1,15 +1,12 @@
-"""
-Tests for utils gpu_estimation module to improve coverage.
-"""
+"""Tests for the GPU-memory estimator."""
 
-import json
-import os
-import tempfile
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 import torch
 import torch.nn as nn
+from yaml.parser import ParserError
 
 from dendritic_modeling.utils.gpu_estimation import (
     BLOCKLINEAR_ACTIVATION_FACTOR,
@@ -530,15 +527,15 @@ class TestGPUMemoryEstimator:
 
         assert shape == torch.Size([2, 5])
 
-    def test_resolve_estimation_input_shape_falls_back_to_canonical_shape(
+    def test_resolve_estimation_input_shape_uses_builtin_metadata_without_loading(
         self, monkeypatch
     ):
-        def missing_dataset(*, task_cfg):
-            raise RuntimeError(f"missing {task_cfg.dataset}")
+        def unexpected_dataset_load(*, task_cfg):
+            raise AssertionError(f"unexpected dataset load for {task_cfg.dataset}")
 
         monkeypatch.setattr(
             "dendritic_modeling.datasets.get_unified_datasets",
-            missing_dataset,
+            unexpected_dataset_load,
         )
 
         shape = _resolve_estimation_input_shape(
@@ -679,79 +676,120 @@ class TestGPUMemoryEstimator:
 class TestEstimateFromConfig:
     """Test estimate_from_config function."""
 
-    def test_estimate_from_config_basic(self):
-        """Test basic config-based estimation."""
-        config_data = {
-            "model": {
-                "hidden_size": 768,
-                "num_layers": 12,
-                "num_attention_heads": 12,
-            },
-            "training": {
-                "batch_size": 16,
-                "input_shape": 512,
-            },
+    @pytest.mark.parametrize(
+        ("batch_size_override", "expected_batch_size"),
+        [(None, 512), (32, 32)],
+    )
+    def test_estimate_from_config_uses_tracked_builtin_example_without_download(
+        self,
+        monkeypatch,
+        batch_size_override,
+        expected_batch_size,
+    ):
+        """Built-in shape metadata should make resource estimation network-free."""
+        config_path = (
+            Path(__file__).resolve().parents[1]
+            / "configs"
+            / "examples"
+            / "population_network_cifar10.yaml"
+        )
+        captured = {}
+
+        def unexpected_dataset_load(*, task_cfg):
+            raise AssertionError(f"unexpected dataset load for {task_cfg.dataset}")
+
+        def capture_report(estimator, model, batch_size, input_shape, config=None):
+            captured["batch_size"] = batch_size
+            captured["input_shape"] = input_shape
+
+        monkeypatch.setattr(
+            "dendritic_modeling.datasets.get_unified_datasets",
+            unexpected_dataset_load,
+        )
+        monkeypatch.setattr(
+            GPUMemoryEstimator,
+            "print_estimation_report",
+            capture_report,
+        )
+
+        estimator, model = estimate_from_config(
+            str(config_path),
+            batch_size=batch_size_override,
+        )
+
+        assert isinstance(estimator, GPUMemoryEstimator)
+        assert model.core_network.config.input_dim == 3072
+        assert model.decoder_network.output_dim == 10
+        assert captured == {
+            "batch_size": expected_batch_size,
+            "input_shape": (3072,),
         }
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-            json.dump(config_data, f)
-            config_path = f.name
-
-        try:
-            # This function requires a complex real config file structure
-            # For now we test that it handles invalid configs
-            try:
-                estimate_from_config(config_path)
-            except Exception:
-                # Expected to fail with invalid simple config
-                pass
-
-        finally:
-            os.unlink(config_path)
-
-    def test_estimate_from_config_with_batch_size_override(self):
-        """Test config estimation with batch size override."""
-        config_data = {
-            "model": {"hidden_size": 512},
-            "training": {"batch_size": 8},
-        }
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-            json.dump(config_data, f)
-            config_path = f.name
-
-        try:
-            # This function requires a complex real config file structure
-            # For now we test that it handles invalid configs with batch size override
-            try:
-                estimate_from_config(config_path, batch_size=32)
-            except Exception:
-                # Expected to fail with invalid simple config
-                pass
-
-        finally:
-            os.unlink(config_path)
 
     def test_estimate_from_config_missing_file(self):
         """Test config estimation with missing file."""
         with pytest.raises(FileNotFoundError):
             estimate_from_config("/nonexistent/config.json")
 
-    def test_estimate_from_config_invalid_json(self):
-        """Test config estimation with invalid JSON."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-            f.write("invalid json {")
-            config_path = f.name
+    def test_estimate_from_config_rejects_malformed_yaml(self, tmp_path):
+        """Malformed configuration should fail before model or dataset setup."""
+        config_path = tmp_path / "invalid.yaml"
+        config_path.write_text("model: [unclosed", encoding="utf-8")
 
-        try:
-            # The function has complex error handling, so we'll just test it doesn't crash catastrophically
-            try:
-                estimate_from_config(config_path)
-            except Exception:
-                # Expected to fail with various possible exceptions
-                pass
-        finally:
-            os.unlink(config_path)
+        with pytest.raises(ParserError):
+            estimate_from_config(str(config_path))
+
+    def test_tracked_recurrent_example_reaches_resource_estimation(self, monkeypatch):
+        """A tracked current config should build a recurrent model and estimate."""
+        config_path = (
+            Path(__file__).resolve().parents[1]
+            / "configs"
+            / "examples"
+            / "population_network_recurrent_pyr_pv_sst.yaml"
+        )
+        captured = {}
+
+        class TinySequenceDataset:
+            def __len__(self):
+                return 1
+
+            def __getitem__(self, _index):
+                return torch.zeros(7, 10), torch.tensor(0)
+
+        def tiny_dataset_loader(*, task_cfg):
+            from dendritic_modeling.datasets.unified_options import (
+                _resolve_unified_dataset_options,
+            )
+
+            options = _resolve_unified_dataset_options(task_cfg)
+            captured["task_params"] = options.parameters
+            dataset = TinySequenceDataset()
+            return dataset, dataset, dataset
+
+        def capture_report(estimator, model, batch_size, input_shape, config=None):
+            captured["breakdown"] = estimator.estimate_memory_breakdown(
+                model,
+                batch_size,
+                input_shape,
+            )
+
+        monkeypatch.setattr(
+            "dendritic_modeling.datasets.get_unified_datasets",
+            tiny_dataset_loader,
+        )
+        monkeypatch.setattr(
+            GPUMemoryEstimator,
+            "print_estimation_report",
+            capture_report,
+        )
+
+        estimator, model = estimate_from_config(str(config_path), batch_size=2)
+
+        assert isinstance(estimator, GPUMemoryEstimator)
+        assert model.core_network.config.input_dim == 10
+        assert model.decoder_network.output_dim == 2
+        assert captured["task_params"]["flatten"] is False
+        assert captured["task_params"]["n_samples"] == 512
+        assert captured["breakdown"].total > 0
 
 
 class TestGPUEstimationEdgeCases:

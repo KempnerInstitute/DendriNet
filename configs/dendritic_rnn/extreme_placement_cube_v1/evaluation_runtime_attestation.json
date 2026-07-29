@@ -1,0 +1,22 @@
+{
+  "schema_version": "dendritic-rnn-evaluation-runtime-attestation-v1",
+  "created_utc": "2026-07-21T21:55:00Z",
+  "training_runtime_source_sha256": "fd9dbfa3f4c0ea62642fdbe20154b44c4fcc6c673e4140680708644dd93ee4fd",
+  "evaluation_runtime_source_sha256": "9170a8ea731147e94b97e5326e07736294e8b7bc1bc6412efa3ca6fede6afdfb",
+  "status": "AUDITED_ANALYSIS_CONFIGURATION_ONLY_DRIFT",
+  "changed_paths_observed_after_all_training_jobs_started": [
+    "src/dendritic_modeling/config/analysis.py"
+  ],
+  "audit_basis": [
+    "All 20 training jobs had passed the frozen training-source guard and written RUNNING.json before the later filesystem writes.",
+    "A timestamp audit over every Python file included in the training runtime hash identified config/analysis.py as the only path written after training submission and startup.",
+    "The repository diff for that path adds defaults and validation for disabled information, path-matched-information, and receptive-field analyses; it does not modify model, network, dataset, optimizer, trainer, checkpoint, or forward code.",
+    "The exact extension base YAML contains analysis: {}, so the added analysis fields are not enabled during training or frozen-bank evaluation.",
+    "Evaluation additionally reconstructs the standard model, strictly loads the checkpoint, requires final and best state dictionaries to be identical, and runs a bitwise population no-op forward audit."
+  ],
+  "scientific_interpretation": "The observed source-hash difference is analysis-configuration-only drift and is not expected to change model construction or predictions. It is disclosed because byte-for-byte identity of the broad package hash is not claimed.",
+  "limitations": [
+    "This attestation is a scoped filesystem/diff audit, not a proof of platform invariance.",
+    "The extension remains a paired completion of the cube and is not an independent replication."
+  ]
+}

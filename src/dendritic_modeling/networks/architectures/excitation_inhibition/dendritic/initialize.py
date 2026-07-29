@@ -34,6 +34,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.i
     default_dbl_init,
     ei_equivalence_dbl_init,
     identity_weighttransform_dbl_init,
+    mechanism_neutral_dbl_init,
     naive_dbl_init,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize_reactivation import (
@@ -98,6 +99,7 @@ __all__ = [
     "ei_equivalence_dbl_init",
     "identity_weighttransform_dbl_init",
     "is_data_driven_reactivation_policy",
+    "mechanism_neutral_dbl_init",
     "naive_dbl_init",
     "normalize_adaptive_initialization_policy",
     "normalize_reactivation_init_policy",

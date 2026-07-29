@@ -41,6 +41,7 @@ from omegaconf import DictConfig, OmegaConf
 from torch.utils.data import DataLoader
 
 from dendritic_modeling.analysis import AnalysisManager
+from dendritic_modeling.analysis.utils.model_resources import model_resource_summary
 from dendritic_modeling.config import load_config
 from dendritic_modeling.config.training import OptimizerConfig, ParamGroupsConfig
 from dendritic_modeling.networks import Identity
@@ -59,9 +60,12 @@ from dendritic_modeling.scripts.training.train_encoder_network import (
     load_train_encoder_network,
 )
 from dendritic_modeling.training import CustomWeightDecayOptimizer, get_trainer
-from dendritic_modeling.training.dataloader_utils import dataloader_kwargs_from_config
+from dendritic_modeling.training.dataloader_utils import (
+    dataloader_kwargs_from_config,
+    seeded_dataloader_kwargs,
+)
 from dendritic_modeling.training.optimizers import create_optimizer
-from dendritic_modeling.utils import save_dict
+from dendritic_modeling.utils import resolve_experiment_seeds, save_dict
 from dendritic_modeling.utils.training_stability_validator import (
     apply_automatic_safeguards,
     suggest_optimal_config_for_model_size,
@@ -172,9 +176,9 @@ def _maybe_calibrate_data_driven_reactivation(
     is_main: bool = True,
     n_batches: int = 3,
     batch_size: int = 256,
-    n_iterations: int = 3,
+    n_iterations: int | None = None,
 ):
-    """Run data-driven reactivation calibration when requested by init_policy."""
+    """Run and report data-driven reactivation calibration when requested."""
     from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize import (
         calibrate_reactivation_from_data,
         collect_model_data_driven_reactivation_policies,
@@ -209,7 +213,7 @@ def _maybe_calibrate_data_driven_reactivation(
         layer_requested_policies if saw_layer_policy else config_requested_policies
     )
     if not requested_policies:
-        return
+        return None
 
     if saw_layer_policy:
         mode = None
@@ -232,11 +236,22 @@ def _maybe_calibrate_data_driven_reactivation(
     common_config = getattr(
         getattr(getattr(config, "training", None), "main", None), "common", None
     )
+    experiment_config = getattr(config, "experiment", None)
+    configured_loader_seed = getattr(experiment_config, "loader_seed", None)
+    calibration_loader_seed = int(
+        getattr(experiment_config, "seed", 0)
+        if configured_loader_seed is None
+        else configured_loader_seed
+    )
     loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
         drop_last=True,
+        **seeded_dataloader_kwargs(
+            calibration_loader_seed,
+            stream=2,
+        ),
         **dataloader_kwargs_from_config(train_dataset, common_config, device=device),
     )
     is_recurrent = getattr(model, "_is_recurrent_core", False)
@@ -264,11 +279,10 @@ def _maybe_calibrate_data_driven_reactivation(
             batches.append(sample.to(device))
 
     if not batches:
-        if is_main:
-            logger.warning(
-                "reactivation calibration skipped: no training batches available"
-            )
-        return
+        raise RuntimeError(
+            "Data-driven reactivation initialization was requested, but no "
+            "training batches were available for calibration."
+        )
 
     # Recurrent models expect [B, T, D]. Preserve full sequence inputs when the
     # dataset already provides them, and only synthesize a length-1 time axis
@@ -305,7 +319,22 @@ def _maybe_calibrate_data_driven_reactivation(
     # diverges without this iteration.
     diag = None
     quantile_aggregation = "chunk_median" if is_recurrent else "global"
-    for iteration in range(max(1, int(n_iterations))):
+    # The correction propagates ~one layer per iteration, so a fixed small
+    # iteration count leaves the deepest layers of a many-layer stack calibrated
+    # on the still-uncalibrated upstream distribution (the reactivation then
+    # saturates and the stack collapses to chance).  Iterate until the (m, b)
+    # chain converges, with a generous cap; shallow models still break after
+    # ~2-3 iterations, so converged runs are unchanged.
+    # Production calls iterate to convergence with a generous cap. An explicit
+    # value remains a deterministic test/debug override.
+    convergence_max_iterations = (
+        50 if n_iterations is None else max(1, int(n_iterations))
+    )
+    convergence_tol = 1e-3
+    previous_mb: dict[str, tuple[float, float]] | None = None
+    converged = False
+    iterations_completed = 0
+    for iteration in range(convergence_max_iterations):
         diag = calibrate_reactivation_from_data(
             model,
             batches,
@@ -314,12 +343,25 @@ def _maybe_calibrate_data_driven_reactivation(
             mode=mode,
             quantile_aggregation=quantile_aggregation,
         )
-        if is_main:
-            if not diag:
-                logger.warning(
-                    "[reactivation-calibration] found no DendriticBranchLayers with a non-Identity reactivation",
+        if not diag:
+            raise RuntimeError(
+                "Data-driven reactivation initialization was requested, but "
+                "calibration found no eligible DendriticBranchLayers."
+            )
+        iterations_completed = iteration + 1
+        current_mb = {name: (d["m"], d["b"]) for name, d in diag.items()}
+        converged = False
+        if previous_mb is not None and set(previous_mb) == set(current_mb):
+            max_mb_change = max(
+                max(
+                    abs(current_mb[name][0] - previous_mb[name][0]),
+                    abs(current_mb[name][1] - previous_mb[name][1]),
                 )
-                break
+                for name in current_mb
+            )
+            converged = max_mb_change < convergence_tol
+        previous_mb = current_mb
+        if is_main:
             m_values = [d["m"] for d in diag.values()]
             b_values = [d["b"] for d in diag.values()]
             sig_values = [d["V_std"] for d in diag.values()]
@@ -329,7 +371,7 @@ def _maybe_calibrate_data_driven_reactivation(
                 "| sigma range [%.4f, %.4f] | aggregation=%s | k=per-layer "
                 "n_batches=%s",
                 iteration + 1,
-                n_iterations,
+                convergence_max_iterations,
                 mode if mode is not None else "per-layer",
                 len(diag),
                 min(m_values),
@@ -341,6 +383,20 @@ def _maybe_calibrate_data_driven_reactivation(
                 quantile_aggregation,
                 n_batches,
             )
+        if converged:
+            if is_main:
+                logger.info(
+                    "[reactivation-calibration] converged after %s iterations",
+                    iteration + 1,
+                )
+            break
+    if not converged and is_main:
+        logger.warning(
+            "[reactivation-calibration] reached %s iterations without meeting "
+            "the %.1e (m, b) convergence tolerance",
+            convergence_max_iterations,
+            convergence_tol,
+        )
     if is_main and diag:
         for name, d in diag.items():
             extra = ""
@@ -369,6 +425,17 @@ def _maybe_calibrate_data_driven_reactivation(
                 d["n"],
                 extra,
             )
+    return {
+        "requested": True,
+        "policies": sorted(requested_policies),
+        "mode": mode if mode is not None else "per-layer",
+        "n_batches": len(batches),
+        "batch_size": int(batch_size),
+        "iterations_completed": int(iterations_completed),
+        "converged": bool(converged),
+        "convergence_tolerance": float(convergence_tol),
+        "layers": diag,
+    }
 
 
 def setup_distributed() -> tuple[int, int, int]:
@@ -629,6 +696,11 @@ def _record_model_size_summary(unwrapped_model, config, run_save_path: str) -> i
     if wandb.run is not None:
         wandb.log({"nparams": nparams})
     save_dict({"nparams": nparams}, run_save_path, "nparams")
+    save_dict(
+        model_resource_summary(unwrapped_model),
+        run_save_path,
+        "model_resources.json",
+    )
 
     suggestions = suggest_optimal_config_for_model_size(nparams)
     if suggestions:
@@ -642,6 +714,39 @@ def _record_model_size_summary(unwrapped_model, config, run_save_path: str) -> i
         logger.info("=" * 50)
 
     return nparams
+
+
+def _compact_training_results(value: Any) -> Any:
+    """Remove checkpoint-sized state dictionaries from a result tree.
+
+    Trainer return values mix small scalar/curve metadata with complete model
+    states.  Checkpoints already preserve those states in PyTorch format; JSON
+    artifacts should remain compact enough to hash, inspect, and collect.
+    """
+
+    if isinstance(value, dict):
+        return {
+            key: _compact_training_results(item)
+            for key, item in value.items()
+            if not str(key).endswith("state_dict")
+        }
+    if isinstance(value, tuple):
+        return [_compact_training_results(item) for item in value]
+    if isinstance(value, list):
+        return [_compact_training_results(item) for item in value]
+    return value
+
+
+def _save_training_summary(
+    training_results: dict[str, Any], run_save_path: str
+) -> None:
+    """Persist state-free training curves and best-epoch metadata."""
+
+    save_dict(
+        _compact_training_results(training_results),
+        run_save_path,
+        "training_summary.json",
+    )
 
 
 def _save_run_config(config, run_save_path: str) -> None:
@@ -698,6 +803,8 @@ def _create_analysis_manager(
     encoded_test_ds,
     analysis_config,
     run_save_path: str,
+    evaluation_seed: int | None = None,
+    probe_seed: int | None = None,
 ):
     """Create the analysis manager from encoded train/valid/test datasets."""
     encoded_data = {
@@ -705,13 +812,44 @@ def _create_analysis_manager(
         "valid": encoded_valid_ds,
         "test": encoded_test_ds,
     }
-    return AnalysisManager(
-        model=unwrapped_model,
-        data=encoded_data,
-        analysis_config=analysis_config,
-        save_root=run_save_path,
-        device="cuda" if torch.cuda.is_available() else "cpu",
+    manager_kwargs = {
+        "model": unwrapped_model,
+        "data": encoded_data,
+        "analysis_config": analysis_config,
+        "save_root": run_save_path,
+        "device": "cuda" if torch.cuda.is_available() else "cpu",
+    }
+    if evaluation_seed is not None:
+        manager_kwargs["evaluation_seed"] = int(evaluation_seed)
+    if probe_seed is not None:
+        manager_kwargs["probe_seed"] = int(probe_seed)
+    return AnalysisManager(**manager_kwargs)
+
+
+def _validate_sealed_test_analysis(experiment_config, analysis_config) -> None:
+    """Reject analysis pipelines that could inspect a sealed test audit set."""
+    if experiment_config is None or not bool(
+        getattr(experiment_config, "sealed_test", False)
+    ):
+        return
+    if isinstance(analysis_config, dict) or OmegaConf.is_config(analysis_config):
+        entries = analysis_config.items()
+    else:
+        entries = vars(analysis_config).items()
+    enabled = sorted(
+        name
+        for name, value in entries
+        if bool(
+            value.get("enabled", False)
+            if isinstance(value, dict) or OmegaConf.is_config(value)
+            else getattr(value, "enabled", False)
+        )
     )
+    if enabled:
+        raise ValueError(
+            "experiment.sealed_test=true forbids enabled analyses; disable: "
+            + ", ".join(enabled)
+        )
 
 
 def _prepare_encoded_training_state(
@@ -731,6 +869,10 @@ def _prepare_encoded_training_state(
     is_main: bool,
 ) -> _EncodedTrainingState:
     """Prepare encoded datasets, analysis manager, and post-encoder calibration."""
+    _validate_sealed_test_analysis(
+        getattr(config, "experiment", None),
+        analysis_config,
+    )
     encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds = (
         _load_or_train_encoder_datasets(
             encoder_network=encoder_network,
@@ -745,6 +887,15 @@ def _prepare_encoded_training_state(
         )
     )
 
+    analysis_seed_kwargs = {}
+    experiment_config = getattr(config, "experiment", None)
+    if experiment_config is not None:
+        resolved_seeds = resolve_experiment_seeds(experiment_config)
+        analysis_seed_kwargs = {
+            "evaluation_seed": resolved_seeds.evaluation_seed,
+            "probe_seed": resolved_seeds.probe_seed,
+        }
+
     analysis_manager = _create_analysis_manager(
         unwrapped_model=unwrapped_model,
         encoded_train_ds=encoded_train_ds,
@@ -752,15 +903,26 @@ def _prepare_encoded_training_state(
         encoded_test_ds=encoded_test_ds,
         analysis_config=analysis_config,
         run_save_path=run_save_path,
+        **analysis_seed_kwargs,
     )
 
     _install_encoder_network(unwrapped_model, encoder_network)
-    _maybe_calibrate_data_driven_reactivation(
+    calibration_summary = _maybe_calibrate_data_driven_reactivation(
         config=config,
         model=unwrapped_model,
         train_dataset=encoded_train_ds,
         is_main=is_main,
     )
+    if is_main and calibration_summary is not None:
+        save_dict(
+            calibration_summary,
+            run_save_path,
+            "reactivation_calibration.json",
+        )
+        _dump_post_calibration_gate_stats_diagnostic(
+            unwrapped_model,
+            run_save_path,
+        )
 
     return _EncodedTrainingState(
         encoder_network=encoder_network,
@@ -827,7 +989,12 @@ def _run_main_training_phase(
         experiment_config=experiment_config,
         save_path=main_net_save_path,
     )
-    main_trainer_config_dict["seed"] = int(getattr(experiment_config, "seed", 0) or 0)
+    base_seed = int(getattr(experiment_config, "seed", 0) or 0)
+    main_trainer_config_dict["seed"] = base_seed
+    configured_loader_seed = getattr(experiment_config, "loader_seed", None)
+    main_trainer_config_dict["loader_seed"] = int(
+        base_seed if configured_loader_seed is None else configured_loader_seed
+    )
 
     settings = _resolve_main_training_settings(main_train_config)
     strategy = settings.strategy
@@ -998,6 +1165,7 @@ def _finalize_main_training_phase(
     )
 
     if is_main:
+        _save_training_summary(training_results, run_save_path)
         _save_final_model_and_analysis(
             unwrapped_model=unwrapped_model,
             run_save_path=run_save_path,
@@ -1059,6 +1227,23 @@ def _dump_init_gate_stats_diagnostic(unwrapped_model, run_save_path: str) -> Non
         dump_init_gate_stats(unwrapped_model, run_save_path)
     except Exception as exc:  # diagnostic must not break training
         logger.warning("init_gate_stats diagnostic failed: %s", exc)
+
+
+def _dump_post_calibration_gate_stats_diagnostic(
+    unwrapped_model, run_save_path: str
+) -> None:
+    """Persist the executed data-driven gate state; failure is fatal."""
+    try:
+        dump_init_gate_stats(
+            unwrapped_model,
+            run_save_path,
+            name="post_calibration_gate_stats.json",
+        )
+    except Exception as exc:
+        raise RuntimeError(
+            "Data-driven reactivation calibration completed, but its post-"
+            "calibration gate state could not be persisted."
+        ) from exc
 
 
 def _cleanup_training_runtime(wandb_config, *, world_size: int) -> None:
@@ -1207,6 +1392,7 @@ def main(config_path: str, args=None):
     wandb_config = prepared_config.wandb_config
     outputs_config = prepared_config.outputs_config
 
+    _validate_sealed_test_analysis(experiment_config, analysis_config)
     environment = _setup_training_environment(
         config=config,
         model_config=model_config,
@@ -1226,6 +1412,15 @@ def main(config_path: str, args=None):
     model = environment.model
     unwrapped_model = environment.unwrapped_model
     encoder_network = environment.encoder_network
+
+    if bool(getattr(args, "validate_only", False)):
+        if is_main:
+            _record_model_size_summary(unwrapped_model, config, run_save_path)
+            logger.info(
+                "Validation-only preflight completed successfully; training was not run"
+            )
+        _cleanup_training_runtime(wandb_config, world_size=world_size)
+        return
 
     encoded_state = _prepare_encoded_training_state(
         config=config,
@@ -1314,6 +1509,14 @@ def _parse_cli_args():
         type=int,
         default=None,
         help="Override experiment seed (for running multiple seeds per config).",
+    )
+    parser.add_argument(
+        "--validate-only",
+        action="store_true",
+        help=(
+            "Load and validate the config, construct datasets and the model, write "
+            "construction diagnostics, then exit without training."
+        ),
     )
 
     return parser.parse_args()

@@ -261,14 +261,11 @@ def plot_layer_ablation(
         if not depths:
             continue
 
-        # Create depth labels - correct soma/distal ordering
-        depth_labels = []
-        for depth in depths:
-            if depth == min(depths):
-                depth_labels.append("Soma")
-            else:
-                distal_layer = depth - min(depths)
-                depth_labels.append(f"Distal {distal_layer}")
+        # Analyzer results use soma-relative depths: zero is the soma and
+        # positive values are dendritic stages moving distally.  Do not infer
+        # the soma from the minimum *observed* depth because synapse ablations
+        # legitimately omit depth zero when somatic synapses are disabled.
+        depth_labels = ["Soma" if depth == 0 else f"Distal {depth}" for depth in depths]
 
         width = 0.8 / max(len(bases_present), 1)
 
@@ -362,12 +359,10 @@ def plot_per_layer_ablation(layer_results: dict[str, dict[str, dict]], **kwargs)
 
             # Create a consistent structure for all depths
             layers_info = []
-            for i, depth in enumerate(all_depths):
-                # Use consistent naming: lowest depth = Soma, higher depths = Distal layers
-                if i == 0:
-                    display_name = "Soma"
-                else:
-                    display_name = f"Distal Layer {i}"
+            for depth in all_depths:
+                # Depth values are soma-relative, so a missing zero must not
+                # cause the first dendritic stage to be displayed as soma.
+                display_name = "Soma" if depth == 0 else f"Distal Layer {depth}"
 
                 # Find the layer data for this depth
                 layer_metrics = None

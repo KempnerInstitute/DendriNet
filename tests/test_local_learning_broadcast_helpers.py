@@ -13,6 +13,7 @@ from dendritic_modeling.training.strategies.local_learning_parts.local_learning_
     compute_local_mismatch_broadcast,
     compute_role_selectivity,
     expand_parent_signal_to_children,
+    expand_soma_error_to_compartments,
     normalize_role_mass,
     reduce_error_to_scalar,
     resolve_recent_role_profile,
@@ -116,6 +117,29 @@ def test_expand_parent_signal_to_children_repeat_and_truncate():
         expand_parent_signal_to_children(sig, 1, 6),
         torch.tensor([[1.0, 2.0, 1.0, 2.0, 1.0, 2.0]]),
     )
+
+
+def test_expand_soma_error_to_compartments_preserves_ancestry_blocks():
+    delta = torch.tensor([[1.0, 2.0], [-1.0, 0.5]])
+
+    expanded = expand_soma_error_to_compartments(delta, out_features=6)
+
+    assert expanded is not None
+    torch.testing.assert_close(
+        expanded,
+        torch.tensor(
+            [
+                [1.0, 1.0, 1.0, 2.0, 2.0, 2.0],
+                [-1.0, -1.0, -1.0, 0.5, 0.5, 0.5],
+            ]
+        ),
+    )
+
+
+def test_expand_soma_error_to_compartments_rejects_ambiguous_width():
+    delta = torch.ones(2, 3)
+
+    assert expand_soma_error_to_compartments(delta, out_features=8) is None
 
 
 def test_soma_seed_from_delta_preserves_vector_and_scalar_paths():

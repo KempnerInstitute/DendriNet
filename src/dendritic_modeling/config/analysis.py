@@ -1,3 +1,5 @@
+import math
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -38,6 +40,7 @@ class EvaluationRuntimeConfig(BaseConfig):
     max_batches: Optional[int] = None
     max_samples: Optional[int] = None
     materialize_threshold_mb: int = 1024
+    seed: int = 0
 
 
 @dataclass
@@ -100,6 +103,8 @@ class InformationSelectionParams(BaseConfig):
         such as I(Vout;C|E), I(Vout;C|I), or I(Vout;C|E,I)
       - "layer_proxies": layer-total proxies derived from single-branch metrics
       - "upstream_unique_cmi": adds I(Vb;C|E,I) (can be expensive)
+      - "soma_coupling": branch-current and branch-output information about the
+        corresponding soma output
     - scopes: extra summaries/breakdowns to run
       - "layer": per-layer breakdown
       - "einet": separate excitatory vs inhibitory pathway summaries
@@ -135,15 +140,29 @@ class InformationComputeParams(BaseConfig):
     max_samples: Optional[int] = None
     include_vinf: bool = True  # Include soma activation (Vinf)
     normalize_mi: bool = False  # Normalize by H(C)
+    # Raw high-dimensional soma-population MI is opt-in. Prefer the dedicated
+    # representation accessibility analyzer for matched projections and nulls.
+    network_population_information: bool = False
     # Output units for MI/CMI-like quantities reported by the analyzer/plots.
     # Estimators operate in nats internally; the analyzer can convert to bits for reporting.
     output_units: str = "bits"  # "bits"|"nats"
+    # Use validation while selecting estimators or quantities; the default keeps
+    # backward compatibility for existing final-analysis configurations.
+    analysis_split: str = "test"  # "validation"|"test"
     verbose: bool = False
 
     computation_level: str = (
         "single_branch"  # "single_branch", "layer_branch", "all_branch"
     )
     branch_aggregation: str = "mean"  # "mean", "multivariate", "sample"
+    # Optional, deterministic compute cap for ``single_branch`` analyses.
+    # Sampling is independent of activations and labels and is applied separately
+    # within each captured layer. ``None`` preserves the exhaustive legacy behavior.
+    branch_sample_count_per_layer: Optional[int] = None
+    branch_sample_seed: int = 0
+    # ``parent_soma_balanced`` cycles across parent somas before selecting a
+    # second branch from any soma. ``uniform`` preserves legacy behavior.
+    branch_sample_strategy: str = "uniform"
 
     # Layer-total proxies derived from single-branch metrics
     layer_total_topk: int = 10  # K used for *_topK_sum metrics (int >= 1)
@@ -352,6 +371,8 @@ class InformationAnalysisParams(BaseConfig):
         such as I(Vout;C|E), I(Vout;C|I), or I(Vout;C|E,I)
       - "layer_proxies": layer-total proxies derived from single-branch metrics
       - "upstream_unique_cmi": adds I(Vb;C|E,I) (can be expensive)
+      - "soma_coupling": branch-current and branch-output information about the
+        corresponding soma output
     - selection.scopes: which additional breakdowns to run
       - "layer": per-layer breakdown
       - "einet": separate excitatory vs inhibitory pathway summaries
@@ -458,6 +479,7 @@ class InformationAnalysisParams(BaseConfig):
     # - "ablation_aligned"
     # - "layer_proxies" / "layer_total_proxies"
     # - "upstream_unique_cmi"
+    # - "soma_coupling" / "branch_soma" / "parent_soma"
     components: list[str] = field(default_factory=list)
 
     # Ablation-aligned information components (cheap extra CMI terms)
@@ -541,6 +563,247 @@ class InformationAnalysisConfig(BaseConfig):
 
 
 @dataclass
+class RepresentationProjectionConfig(BaseConfig):
+    """Label-independent feature projection for population analyses."""
+
+    name: str = "native"
+    type: str = "identity"  # identity | balanced_countsketch
+    output_dim: Optional[int] = None
+    draws: int = 1
+
+    def __post_init__(self) -> None:
+        self.name = str(self.name)
+        self.type = str(self.type).lower()
+        if not self.name:
+            raise ValueError("representation projection name cannot be empty")
+        if self.type not in {"identity", "balanced_countsketch"}:
+            raise ValueError(f"unsupported representation projection: {self.type}")
+        if self.type == "balanced_countsketch":
+            if self.output_dim is None or int(self.output_dim) < 1:
+                raise ValueError("balanced_countsketch requires a positive output_dim")
+            self.output_dim = int(self.output_dim)
+        if int(self.draws) < 1:
+            raise ValueError("representation projection draws must be positive")
+        self.draws = int(self.draws)
+
+
+@dataclass
+class RepresentationProbeConfig(BaseConfig):
+    """One fixed-capacity held-out representation probe."""
+
+    name: str = "linear"
+    type: str = "ridge"  # ridge | mlp
+    draws: int = 1
+    max_projection_draws: Optional[int] = None
+    n_label_shuffles: int = 20
+    ridge_alpha: float = 1.0
+    hidden_dims: list[int] = field(default_factory=lambda: [32, 16])
+    activation: str = "relu"
+    alpha: float = 1e-4
+    learning_rate_init: float = 1e-3
+    batch_size: int = 256
+    max_iter: int = 300
+    early_stopping: bool = True
+    validation_fraction: float = 0.1
+    n_iter_no_change: int = 20
+
+    def __post_init__(self) -> None:
+        self.name = str(self.name)
+        self.type = str(self.type).lower()
+        if self.type == "linear":
+            self.type = "ridge"
+        if not self.name or self.type not in {"ridge", "mlp"}:
+            raise ValueError(f"unsupported representation probe: {self.type}")
+        if int(self.draws) < 1 or int(self.n_label_shuffles) < 0:
+            raise ValueError("probe draws must be positive and shuffles non-negative")
+        self.draws = int(self.draws)
+        self.n_label_shuffles = int(self.n_label_shuffles)
+        if self.max_projection_draws is not None:
+            if int(self.max_projection_draws) < 1:
+                raise ValueError("max_projection_draws must be positive")
+            self.max_projection_draws = int(self.max_projection_draws)
+        self.hidden_dims = [int(width) for width in self.hidden_dims]
+
+
+@dataclass
+class RepresentationInformationConfig(BaseConfig):
+    """Joint and per-soma class-information sensitivity analyses."""
+
+    enabled: bool = False
+    compute_joint: bool = True
+    compute_per_soma: bool = False
+    projection_names: list[str] = field(default_factory=lambda: ["matched16"])
+    per_soma_representations: list[str] = field(
+        default_factory=lambda: ["excitatory", "inhibitory"]
+    )
+    n_neighbors: int = 5
+    n_label_shuffles: int = 20
+    standardize: bool = True
+
+    def __post_init__(self) -> None:
+        if int(self.n_neighbors) < 1 or int(self.n_label_shuffles) < 1:
+            raise ValueError(
+                "information neighbors and label shuffles must be positive"
+            )
+        self.n_neighbors = int(self.n_neighbors)
+        self.n_label_shuffles = int(self.n_label_shuffles)
+        self.projection_names = [str(name) for name in self.projection_names]
+        self.per_soma_representations = [
+            str(name) for name in self.per_soma_representations
+        ]
+
+
+@dataclass
+class RepresentationSubsetProbeConfig(BaseConfig):
+    """Label-independent population-coordinate subset decoding.
+
+    Each draw samples one permutation of the native representation coordinates
+    without
+    replacement.  Requested subset sizes are nested prefixes of that
+    permutation, which pairs the capacity curve within a checkpoint while
+    keeping coordinate selection independent of labels.  Coordinates are
+    individual somas for a single E or I population; concatenated joint
+    representations contain coordinates from both populations.
+    """
+
+    enabled: bool = False
+    representations: list[str] = field(default_factory=lambda: ["excitatory"])
+    subset_sizes: list[int] = field(default_factory=lambda: [1, 2, 4, 8, 16, 32, 64])
+    draws: int = 10
+    probe: RepresentationProbeConfig = field(
+        default_factory=lambda: RepresentationProbeConfig(
+            name="subset_linear",
+            type="ridge",
+            n_label_shuffles=5,
+        )
+    )
+
+    def __post_init__(self) -> None:
+        self.representations = [str(name) for name in self.representations]
+        if not self.representations:
+            raise ValueError("subset decoding requires at least one representation")
+        sizes = sorted({int(size) for size in self.subset_sizes})
+        if not sizes or sizes[0] < 1:
+            raise ValueError("subset sizes must contain positive integers")
+        self.subset_sizes = sizes
+        if int(self.draws) < 1:
+            raise ValueError("subset decoding draws must be positive")
+        self.draws = int(self.draws)
+        if isinstance(self.probe, Mapping):
+            self.probe = RepresentationProbeConfig(**dict(self.probe))
+        elif not isinstance(self.probe, RepresentationProbeConfig):
+            raise TypeError("subset probe must be a mapping")
+        if self.probe.type != "ridge":
+            raise ValueError("subset decoding currently requires a ridge probe")
+        if self.probe.draws != 1:
+            raise ValueError("subset ridge decoding requires exactly one probe draw")
+
+
+@dataclass
+class RepresentationGeometryConfig(BaseConfig):
+    """Unsupervised population dimensionality diagnostics.
+
+    The analyzer reports participation-ratio and entropy effective ranks for
+    both the centered covariance spectrum and a correlation spectrum obtained
+    after per-coordinate standardization.  Geometry is measured on validation
+    representations only and never uses class labels.
+    """
+
+    enabled: bool = False
+    representations: list[str] = field(default_factory=lambda: ["excitatory"])
+    variance_epsilon: float = 1e-12
+
+    def __post_init__(self) -> None:
+        self.representations = [str(name) for name in self.representations]
+        if not self.representations:
+            raise ValueError("population geometry requires a representation")
+        self.variance_epsilon = float(self.variance_epsilon)
+        if self.variance_epsilon <= 0:
+            raise ValueError("population geometry variance_epsilon must be positive")
+
+
+@dataclass
+class RepresentationAccessibilityAnalysisParams(BaseConfig):
+    """Config-driven analysis of stacked soma-population representations."""
+
+    representations: list[str] = field(
+        default_factory=lambda: ["excitatory", "inhibitory", "joint"]
+    )
+    projections: list[RepresentationProjectionConfig] = field(
+        default_factory=lambda: [RepresentationProjectionConfig()]
+    )
+    probes: list[RepresentationProbeConfig] = field(
+        default_factory=lambda: [RepresentationProbeConfig()]
+    )
+    information: RepresentationInformationConfig = field(
+        default_factory=RepresentationInformationConfig
+    )
+    subset_decoding: RepresentationSubsetProbeConfig = field(
+        default_factory=RepresentationSubsetProbeConfig
+    )
+    geometry: RepresentationGeometryConfig = field(
+        default_factory=RepresentationGeometryConfig
+    )
+    max_samples: Optional[int] = None
+    seed: int = 0
+
+    def __post_init__(self) -> None:
+        self.representations = [str(name) for name in self.representations]
+        normalized_projections = []
+        for value in self.projections:
+            if isinstance(value, RepresentationProjectionConfig):
+                normalized_projections.append(value)
+            elif isinstance(value, Mapping):
+                normalized_projections.append(
+                    RepresentationProjectionConfig(**dict(value))
+                )
+            else:
+                raise TypeError("representation projections must be mappings")
+        self.projections = normalized_projections
+        normalized_probes = []
+        for value in self.probes:
+            if isinstance(value, RepresentationProbeConfig):
+                normalized_probes.append(value)
+            elif isinstance(value, Mapping):
+                normalized_probes.append(RepresentationProbeConfig(**dict(value)))
+            else:
+                raise TypeError("representation probes must be mappings")
+        self.probes = normalized_probes
+        if isinstance(self.information, Mapping):
+            self.information = RepresentationInformationConfig(**dict(self.information))
+        elif not isinstance(self.information, RepresentationInformationConfig):
+            raise TypeError("representation information must be a mapping")
+        if isinstance(self.subset_decoding, Mapping):
+            self.subset_decoding = RepresentationSubsetProbeConfig(
+                **dict(self.subset_decoding)
+            )
+        elif not isinstance(self.subset_decoding, RepresentationSubsetProbeConfig):
+            raise TypeError("representation subset decoding must be a mapping")
+        if isinstance(self.geometry, Mapping):
+            self.geometry = RepresentationGeometryConfig(**dict(self.geometry))
+        elif not isinstance(self.geometry, RepresentationGeometryConfig):
+            raise TypeError("representation geometry must be a mapping")
+        if not self.representations or not self.projections or not self.probes:
+            raise ValueError(
+                "representation analysis requires representations, projections, and probes"
+            )
+        if self.max_samples is not None and int(self.max_samples) < 1:
+            raise ValueError("representation max_samples must be positive")
+        self.seed = int(self.seed)
+
+
+@dataclass
+class RepresentationAccessibilityAnalysisConfig(BaseConfig):
+    """Enable held-out linear/nonlinear and population-information analyses."""
+
+    enabled: bool = False
+    training: bool = False
+    params: RepresentationAccessibilityAnalysisParams = field(
+        default_factory=RepresentationAccessibilityAnalysisParams
+    )
+
+
+@dataclass
 class SynapseTurnoverAnalysisParams(BaseConfig):
     """Parameters for synapse turnover analysis.
 
@@ -563,6 +826,75 @@ class SynapseTurnoverAnalysisConfig(BaseConfig):
     params: SynapseTurnoverAnalysisParams = field(
         default_factory=SynapseTurnoverAnalysisParams
     )
+
+
+@dataclass
+class PoissonExposureTransferParams(BaseConfig):
+    """Reproducible parameters for posthoc Poisson exposure transfer.
+
+    This standalone parameter block is intentionally not an ``AnalysisConfig``
+    field. Exposure transfer rebuilds multiple stochastic test datasets and
+    coordinates draws across independently trained checkpoints, while
+    ``AnalysisManager`` analyzes one fixed test split within one run. The
+    posthoc analyzer accepts this dataclass directly and it can be saved to or
+    loaded from YAML through :class:`BaseConfig`.
+    """
+
+    test_durations: list[float] = field(
+        default_factory=lambda: [0.05, 0.1, 0.3162, 1.0, 3.1623]
+    )
+    draws_per_duration: int = 5
+    base_draw_seed: int = 73000
+    batch_size: int = 256
+    max_samples: Optional[int] = None
+    fingerprint_realized_datasets: bool = False
+
+    def __post_init__(self) -> None:
+        if isinstance(self.test_durations, (str, bytes)):
+            raise TypeError("test_durations must be a sequence of positive values")
+        self.test_durations = [float(value) for value in self.test_durations]
+        if not self.test_durations:
+            raise ValueError("At least one test duration is required")
+        keys = []
+        for duration in self.test_durations:
+            if not math.isfinite(duration) or duration <= 0:
+                raise ValueError(
+                    f"Test durations must be finite and positive, got {duration!r}"
+                )
+            key = round(duration * 1_000_000)
+            if key <= 0:
+                raise ValueError(
+                    f"Test duration is below micro-duration resolution: {duration}"
+                )
+            keys.append(key)
+        if len(set(keys)) != len(keys):
+            raise ValueError(
+                "Test durations collide at micro-duration precision: "
+                f"{tuple(self.test_durations)}"
+            )
+
+        for name in ("draws_per_duration", "base_draw_seed", "batch_size"):
+            value = getattr(self, name)
+            if isinstance(value, bool) or int(value) != value:
+                raise ValueError(f"{name} must be an integer, got {value!r}")
+            setattr(self, name, int(value))
+        if not 1 <= self.draws_per_duration <= 100:
+            raise ValueError("draws_per_duration must be in [1, 100]")
+        if self.batch_size <= 0:
+            raise ValueError("batch_size must be positive")
+        if self.max_samples is not None:
+            if (
+                isinstance(self.max_samples, bool)
+                or int(self.max_samples) != self.max_samples
+            ):
+                raise ValueError(
+                    f"max_samples must be an integer, got {self.max_samples!r}"
+                )
+            self.max_samples = int(self.max_samples)
+            if self.max_samples <= 0:
+                raise ValueError("max_samples must be positive")
+        if not isinstance(self.fingerprint_realized_datasets, bool):
+            raise TypeError("fingerprint_realized_datasets must be a bool")
 
 
 @dataclass
@@ -659,7 +991,9 @@ class AblationAnalysisParams(BaseConfig):
     - "shuffle": signal intervention that permutes the targeted signal across samples
       (destroys label-alignment while preserving marginal distribution).
     - "mean_clamp": signal intervention that replaces the targeted signal with its
-      batch mean (preserves operating point; removes trial-to-trial variability).
+      fixed training-dataset mean (preserves a fixed operating-point reference while
+      removing trial-to-trial variability). Direct low-level hook use retains the
+      legacy batch-mean fallback for compatibility.
 
     Core string options:
     - clamp_statistic: "mean" (supported), "median" (reserved)
@@ -693,6 +1027,285 @@ class AblationAnalysisConfig(BaseConfig):
 
 
 @dataclass
+class PathMatchedInterventionAnalysisParams(BaseConfig):
+    """Equal-coordinate causal interventions across dendritic depth.
+
+    One complete soma-to-distal path is selected per soma and technical draw.
+    Its prefixes give a fixed coordinate count at every depth.  Supports are
+    selected without data or labels and shared across intervention targets.
+
+    Current targets act before the compartment transfer/reactivation.  The
+    optional ``post_gate_output`` target acts on the branch-layer output after
+    that transformation and before it enters the next more-proximal layer.
+    Depths are soma-relative and non-somatic: 1 is proximal, increasing values
+    are more distal, and 0 is intentionally rejected.
+
+    ``module_name_prefix`` selects one dendritic tree in a multi-layer model;
+    leaving it unset is valid only when exactly one branch module exists at
+    each soma-relative depth.  Optional expected morphology fields make
+    publication analyses fail closed if checkpoint architecture drifts.
+    """
+
+    targets: list[str] = field(
+        default_factory=lambda: [
+            "excitation_current",
+            "inhibition_current",
+            "joint_EI_currents",
+        ]
+    )
+    methods: list[str] = field(
+        default_factory=lambda: [
+            "zero",
+            "fixed_train_mean",
+            "global_test_shuffle",
+        ]
+    )
+    depths: list[int] = field(default_factory=list)
+    support_draws: int = 5
+    support_seed: int = 271828
+    support_namespace: str = "path-matched-depth-intervention-v1"
+    shuffle_seed: int = 314159
+    module_name_prefix: Optional[str] = None
+    expected_n_somas: Optional[int] = None
+    expected_branch_factors: list[int] = field(default_factory=list)
+    chance_accuracy: Optional[float] = None
+    max_samples: Optional[int] = None
+
+    def __post_init__(self) -> None:
+        allowed_targets = {
+            "excitation_current",
+            "inhibition_current",
+            "joint_EI_currents",
+            "post_gate_output",
+        }
+        allowed_methods = {"zero", "fixed_train_mean", "global_test_shuffle"}
+        self.targets = [str(value) for value in self.targets]
+        self.methods = [str(value) for value in self.methods]
+        if not self.targets or len(set(self.targets)) != len(self.targets):
+            raise ValueError("path-matched intervention targets must be unique")
+        if not self.methods or len(set(self.methods)) != len(self.methods):
+            raise ValueError("path-matched intervention methods must be unique")
+        unknown_targets = sorted(set(self.targets) - allowed_targets)
+        unknown_methods = sorted(set(self.methods) - allowed_methods)
+        if unknown_targets:
+            raise ValueError(f"unknown path-matched targets: {unknown_targets}")
+        if unknown_methods:
+            raise ValueError(f"unknown path-matched methods: {unknown_methods}")
+        self.depths = sorted({int(value) for value in self.depths})
+        if any(value < 1 for value in self.depths):
+            raise ValueError("path-matched intervention depths must be dendritic (>=1)")
+        self.support_draws = int(self.support_draws)
+        if self.support_draws < 1:
+            raise ValueError("support_draws must be positive")
+        self.support_seed = int(self.support_seed)
+        self.shuffle_seed = int(self.shuffle_seed)
+        self.support_namespace = str(self.support_namespace)
+        if not self.support_namespace:
+            raise ValueError("support_namespace must be non-empty")
+        if self.module_name_prefix is not None:
+            self.module_name_prefix = str(self.module_name_prefix)
+            if not self.module_name_prefix:
+                self.module_name_prefix = None
+        if self.expected_n_somas is not None:
+            self.expected_n_somas = int(self.expected_n_somas)
+            if self.expected_n_somas < 1:
+                raise ValueError("expected_n_somas must be positive")
+        self.expected_branch_factors = [
+            int(value) for value in self.expected_branch_factors
+        ]
+        if any(value < 1 for value in self.expected_branch_factors):
+            raise ValueError("expected_branch_factors must be positive")
+        if self.chance_accuracy is not None:
+            self.chance_accuracy = float(self.chance_accuracy)
+            if not 0.0 <= self.chance_accuracy < 1.0:
+                raise ValueError("chance_accuracy must lie in [0, 1)")
+        if self.max_samples is not None:
+            self.max_samples = int(self.max_samples)
+            if self.max_samples < 1:
+                raise ValueError("max_samples must be positive")
+
+
+@dataclass
+class PathMatchedInterventionAnalysisConfig(BaseConfig):
+    """Enable the final-only path-matched dendritic intervention analyzer."""
+
+    enabled: bool = False
+    training: bool = False
+    params: PathMatchedInterventionAnalysisParams = field(
+        default_factory=PathMatchedInterventionAnalysisParams
+    )
+
+
+@dataclass
+class LocalInhibitoryPopulationInterventionAnalysisParams(BaseConfig):
+    """Whole-population local-I interventions across feedforward layers.
+
+    Each analyzed layer must contain exactly one inhibitory population whose
+    only outgoing route is one same-step ``ff_inhibitory`` projection to a
+    local excitatory population. Replacing that population output therefore
+    has the unambiguous semantics of replacing the complete local I-to-E
+    signal, rather than a compartment current or a recurrent/lateral route.
+    """
+
+    methods: list[str] = field(
+        default_factory=lambda: [
+            "global_test_shuffle",
+            "within_class_test_shuffle",
+            "zero",
+        ]
+    )
+    permutation_draws: int = 3
+    shuffle_seed: int = 20260712
+    expected_network_layers: Optional[int] = None
+    expected_inhibitory_width: Optional[int] = None
+    max_samples: Optional[int] = None
+
+    def __post_init__(self) -> None:
+        allowed = {
+            "global_test_shuffle",
+            "within_class_test_shuffle",
+            "zero",
+        }
+        self.methods = [str(value) for value in self.methods]
+        if not self.methods or len(set(self.methods)) != len(self.methods):
+            raise ValueError("local-I intervention methods must be unique")
+        unknown = sorted(set(self.methods) - allowed)
+        if unknown:
+            raise ValueError(f"unknown local-I intervention methods: {unknown}")
+        self.permutation_draws = int(self.permutation_draws)
+        if self.permutation_draws < 1:
+            raise ValueError("permutation_draws must be positive")
+        self.shuffle_seed = int(self.shuffle_seed)
+        if self.expected_network_layers is not None:
+            self.expected_network_layers = int(self.expected_network_layers)
+            if self.expected_network_layers < 1:
+                raise ValueError("expected_network_layers must be positive")
+        if self.expected_inhibitory_width is not None:
+            self.expected_inhibitory_width = int(self.expected_inhibitory_width)
+            if self.expected_inhibitory_width < 1:
+                raise ValueError("expected_inhibitory_width must be positive")
+        if self.max_samples is not None:
+            self.max_samples = int(self.max_samples)
+            if self.max_samples < 1:
+                raise ValueError("max_samples must be positive")
+
+
+@dataclass
+class LocalInhibitoryPopulationInterventionAnalysisConfig(BaseConfig):
+    """Enable the final-only feedforward local-I population analyzer."""
+
+    enabled: bool = False
+    training: bool = False
+    params: LocalInhibitoryPopulationInterventionAnalysisParams = field(
+        default_factory=LocalInhibitoryPopulationInterventionAnalysisParams
+    )
+
+
+@dataclass
+class PathMatchedInformationAnalysisParams(BaseConfig):
+    """Matched-width class information along one selected dendritic tree.
+
+    Complete soma-to-distal paths are selected without inspecting examples,
+    labels, activations, mechanisms, or checkpoints.  Prefixes of each path
+    provide the same number of compartment coordinates at every non-somatic
+    depth.  The soma has one full-population support; non-somatic path draws
+    are technical support-sensitivity draws and are never model replicates.
+
+    The analyzer estimates joint-vector continuous--discrete mutual
+    information after label-free, per-coordinate standardization.  It is a
+    final-only validation-split analysis; test examples are not accepted by
+    its manager route.
+    """
+
+    signals: list[str] = field(
+        default_factory=lambda: [
+            "excitation_current",
+            "inhibition_current",
+            "joint_EI_currents",
+            "upstream_child_current",
+            "pre_gate_voltage",
+            "post_gate_output",
+        ]
+    )
+    depths: list[int] = field(default_factory=list)
+    support_draws: int = 5
+    support_seed: int = 271828
+    support_namespace: str = "path-matched-depth-intervention-v1"
+    information_seed: int = 314159
+    add_probe_seed_offset: bool = True
+    n_neighbors: int = 10
+    n_label_shuffles: int = 20
+    module_name_prefix: Optional[str] = None
+    expected_n_somas: Optional[int] = None
+    expected_branch_factors: list[int] = field(default_factory=list)
+    max_samples: Optional[int] = None
+
+    def __post_init__(self) -> None:
+        allowed_signals = {
+            "excitation_current",
+            "inhibition_current",
+            "joint_EI_currents",
+            "upstream_child_current",
+            "pre_gate_voltage",
+            "post_gate_output",
+        }
+        self.signals = [str(value) for value in self.signals]
+        if not self.signals or len(set(self.signals)) != len(self.signals):
+            raise ValueError("path-matched information signals must be unique")
+        unknown_signals = sorted(set(self.signals) - allowed_signals)
+        if unknown_signals:
+            raise ValueError(
+                f"unknown path-matched information signals: {unknown_signals}"
+            )
+        self.depths = sorted({int(value) for value in self.depths})
+        if any(value < 0 for value in self.depths):
+            raise ValueError("path-matched information depths must be non-negative")
+        self.support_draws = int(self.support_draws)
+        if self.support_draws < 1:
+            raise ValueError("support_draws must be positive")
+        self.support_seed = int(self.support_seed)
+        self.information_seed = int(self.information_seed)
+        self.add_probe_seed_offset = bool(self.add_probe_seed_offset)
+        self.support_namespace = str(self.support_namespace)
+        if not self.support_namespace:
+            raise ValueError("support_namespace must be non-empty")
+        self.n_neighbors = int(self.n_neighbors)
+        if self.n_neighbors < 1:
+            raise ValueError("n_neighbors must be positive")
+        self.n_label_shuffles = int(self.n_label_shuffles)
+        if self.n_label_shuffles < 1:
+            raise ValueError("n_label_shuffles must be positive")
+        if self.module_name_prefix is not None:
+            self.module_name_prefix = str(self.module_name_prefix)
+            if not self.module_name_prefix:
+                self.module_name_prefix = None
+        if self.expected_n_somas is not None:
+            self.expected_n_somas = int(self.expected_n_somas)
+            if self.expected_n_somas < 1:
+                raise ValueError("expected_n_somas must be positive")
+        self.expected_branch_factors = [
+            int(value) for value in self.expected_branch_factors
+        ]
+        if any(value < 1 for value in self.expected_branch_factors):
+            raise ValueError("expected_branch_factors must be positive")
+        if self.max_samples is not None:
+            self.max_samples = int(self.max_samples)
+            if self.max_samples < 1:
+                raise ValueError("max_samples must be positive")
+
+
+@dataclass
+class PathMatchedInformationAnalysisConfig(BaseConfig):
+    """Enable final-only, validation-set path-matched class information."""
+
+    enabled: bool = False
+    training: bool = False
+    params: PathMatchedInformationAnalysisParams = field(
+        default_factory=PathMatchedInformationAnalysisParams
+    )
+
+
+@dataclass
 class WeightAnalysisParams(BaseConfig):
     """Parameters for weight analysis.
 
@@ -710,6 +1323,16 @@ class WeightAnalysisParams(BaseConfig):
     Summary statistic toggles:
     - compute_mean, compute_variance, compute_percentiles, compute_min_max,
       compute_dendritic_strength
+
+    Source-support analysis:
+    - compute_source_support: emit exact sparse contact-frequency and effective
+      conductance profiles by network layer, target population, soma, dendritic
+      depth, and synaptic pathway.
+    - source_support_target_polarities / source_support_pathways: restrict the
+      target populations and pathways included in that analysis.
+    - source_support_image_shape: optional image-space shape used only for the
+      package-native audit plot; the saved profiles remain one-dimensional.
+    - source_support_plot_soma_indices: optional soma subset for that plot.
     """
 
     synapse_weights: bool = True  # Analyze excitatory and inhibitory synapse weights
@@ -740,6 +1363,63 @@ class WeightAnalysisParams(BaseConfig):
     )
 
     weight_threshold: float = 1e-6  # Minimum weight to consider as "active"
+    compute_source_support: bool = False
+    source_support_target_polarities: list[str] = field(
+        default_factory=lambda: ["excitatory"]
+    )
+    source_support_pathways: list[str] = field(
+        default_factory=lambda: ["ff_excitatory", "ff_inhibitory"]
+    )
+    source_support_image_shape: Optional[tuple[int, int]] = None
+    source_support_plot_soma_indices: list[int] = field(default_factory=list)
+    source_support_fig_save_format: str = "pdf"
+
+    def __post_init__(self) -> None:
+        allowed_polarities = {"excitatory", "inhibitory"}
+        allowed_pathways = {
+            "ff_excitatory",
+            "ff_inhibitory",
+            "rec_excitatory",
+            "rec_inhibitory",
+        }
+        self.source_support_target_polarities = [
+            str(value).lower() for value in self.source_support_target_polarities
+        ]
+        self.source_support_pathways = [
+            str(value).lower() for value in self.source_support_pathways
+        ]
+        unknown_polarities = sorted(
+            set(self.source_support_target_polarities) - allowed_polarities
+        )
+        if unknown_polarities:
+            raise ValueError(
+                "unknown source-support target polarities: " f"{unknown_polarities}"
+            )
+        unknown_pathways = sorted(set(self.source_support_pathways) - allowed_pathways)
+        if unknown_pathways:
+            raise ValueError(f"unknown source-support pathways: {unknown_pathways}")
+        if len(set(self.source_support_pathways)) != len(self.source_support_pathways):
+            raise ValueError("source_support_pathways must be unique")
+        self.source_support_plot_soma_indices = [
+            int(value) for value in self.source_support_plot_soma_indices
+        ]
+        if any(value < 0 for value in self.source_support_plot_soma_indices):
+            raise ValueError("source_support_plot_soma_indices must be non-negative")
+        if self.source_support_image_shape is not None:
+            self.source_support_image_shape = tuple(
+                int(value) for value in self.source_support_image_shape
+            )
+            if len(self.source_support_image_shape) != 2 or any(
+                value < 1 for value in self.source_support_image_shape
+            ):
+                raise ValueError(
+                    "source_support_image_shape must contain two positive integers"
+                )
+        self.source_support_fig_save_format = str(
+            self.source_support_fig_save_format
+        ).lstrip(".")
+        if not self.source_support_fig_save_format:
+            raise ValueError("source_support_fig_save_format cannot be empty")
 
 
 @dataclass
@@ -1011,6 +1691,14 @@ class ReceptiveFieldAnalysisParams(BaseConfig):
     - exc_rf_shape / inh_rf_shape: optional synapse-specific receptive-field
       shapes; fall back to rf_shape when omitted.
     - compute_activation_tuning: also summarize class tuning of branch signals.
+    - activation_sample_signals / activation_sample_depths: optionally retain a
+      deterministic, class-balanced sample of scalar branch signals for
+      distribution plots. In addition to E, I, and post-gate output, ``upstream``
+      records the aggregated child-branch current and ``depolarizing_drive``
+      records E plus that upstream current. ``activation_sample_branch_indices``
+      can restrict records globally, while
+      ``activation_sample_branch_indices_by_depth`` supports a predeclared
+      depth-specific selection. Empty selections retain all branches.
     - compute_component_rfs: run compact E/I mean and conditioned component RF
       maps, matching the empirical paper's soma-level RF summary.
     - compute_rf_tuning: run the aggregate RF tuning,
@@ -1024,6 +1712,14 @@ class ReceptiveFieldAnalysisParams(BaseConfig):
     inh_rf_shape: Optional[tuple[int, int]] = None
     fig_save_format: str = "png"
     compute_activation_tuning: bool = False
+    activation_sample_signals: list[str] = field(default_factory=list)
+    activation_sample_depths: list[int] = field(default_factory=list)
+    activation_sample_branch_indices: list[int] = field(default_factory=list)
+    activation_sample_branch_indices_by_depth: dict[int, list[int]] = field(
+        default_factory=dict
+    )
+    activation_samples_per_class: int = 0
+    activation_sample_seed: int = 0
     compute_component_rfs: bool = False
     plot_component_rfs: bool = True
     compute_rf_tuning: bool = False
@@ -1034,6 +1730,75 @@ class ReceptiveFieldAnalysisParams(BaseConfig):
     load_raw_data: bool = False
     raw_filename: Optional[str] = None
     epsilon: float = 1e-8
+
+    def __post_init__(self) -> None:
+        allowed_signals = {
+            "exc",
+            "inh",
+            "upstream",
+            "depolarizing_drive",
+            "vout",
+            "ei_ratio",
+        }
+        self.activation_sample_signals = [
+            str(value) for value in self.activation_sample_signals
+        ]
+        self.activation_sample_depths = [
+            int(value) for value in self.activation_sample_depths
+        ]
+        self.activation_sample_branch_indices = [
+            int(value) for value in self.activation_sample_branch_indices
+        ]
+        self.activation_sample_branch_indices_by_depth = {
+            int(depth): [int(value) for value in indices]
+            for depth, indices in self.activation_sample_branch_indices_by_depth.items()
+        }
+        if len(set(self.activation_sample_signals)) != len(
+            self.activation_sample_signals
+        ):
+            raise ValueError("activation_sample_signals must be unique")
+        if len(set(self.activation_sample_depths)) != len(
+            self.activation_sample_depths
+        ):
+            raise ValueError("activation_sample_depths must be unique")
+        if len(set(self.activation_sample_branch_indices)) != len(
+            self.activation_sample_branch_indices
+        ):
+            raise ValueError("activation_sample_branch_indices must be unique")
+        unknown = sorted(set(self.activation_sample_signals) - allowed_signals)
+        if unknown:
+            raise ValueError(f"unknown activation sample signals: {unknown}")
+        if any(depth < 0 for depth in self.activation_sample_depths):
+            raise ValueError("activation sample depths must be non-negative")
+        if any(index < 0 for index in self.activation_sample_branch_indices):
+            raise ValueError("activation sample branch indices must be non-negative")
+        for depth, indices in self.activation_sample_branch_indices_by_depth.items():
+            if depth < 0:
+                raise ValueError("activation sample branch depths must be non-negative")
+            if len(indices) != len(set(indices)):
+                raise ValueError(
+                    "activation sample branch indices must be unique within depth"
+                )
+            if any(index < 0 for index in indices):
+                raise ValueError(
+                    "activation sample branch indices must be non-negative"
+                )
+        self.activation_samples_per_class = int(self.activation_samples_per_class)
+        self.activation_sample_seed = int(self.activation_sample_seed)
+        if self.activation_samples_per_class < 0:
+            raise ValueError("activation_samples_per_class must be non-negative")
+        sampling_requested = bool(
+            self.activation_sample_signals or self.activation_sample_depths
+        )
+        if sampling_requested and (
+            not self.activation_sample_signals
+            or not self.activation_sample_depths
+            or self.activation_samples_per_class < 1
+        ):
+            raise ValueError(
+                "activation sampling requires signals, depths, and a positive "
+                "activation_samples_per_class"
+            )
 
 
 @dataclass
@@ -1391,6 +2156,15 @@ class AnalysisConfig(BaseConfig):
     ablation_analysis: AblationAnalysisConfig = field(
         default_factory=AblationAnalysisConfig
     )
+    path_matched_intervention_analysis: PathMatchedInterventionAnalysisConfig = field(
+        default_factory=PathMatchedInterventionAnalysisConfig
+    )
+    local_inhibitory_population_intervention_analysis: (
+        LocalInhibitoryPopulationInterventionAnalysisConfig
+    ) = field(default_factory=LocalInhibitoryPopulationInterventionAnalysisConfig)
+    path_matched_information_analysis: PathMatchedInformationAnalysisConfig = field(
+        default_factory=PathMatchedInformationAnalysisConfig
+    )
     weight_analysis: WeightAnalysisConfig = field(default_factory=WeightAnalysisConfig)
 
     compartment_statistics_analysis: CompartmentStatisticsAnalysisConfig = field(
@@ -1414,6 +2188,9 @@ class AnalysisConfig(BaseConfig):
     )
     information_analysis: InformationAnalysisConfig = field(
         default_factory=InformationAnalysisConfig
+    )
+    representation_accessibility_analysis: RepresentationAccessibilityAnalysisConfig = (
+        field(default_factory=RepresentationAccessibilityAnalysisConfig)
     )
     receptive_field_analysis: ReceptiveFieldAnalysisConfig = field(
         default_factory=ReceptiveFieldAnalysisConfig

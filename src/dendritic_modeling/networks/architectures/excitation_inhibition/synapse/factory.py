@@ -5,6 +5,9 @@ from __future__ import annotations
 import torch.nn as nn
 
 from dendritic_modeling.config.conversion import normalize_sparsity_type
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.credit_deepst import (
+    CreditGatedDeepstLinear,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.deepst import (
     DeepstLinear,
 )
@@ -31,6 +34,7 @@ SPARSE_LAYER_REGISTRY: dict[str, type[nn.Module]] = {
     "stochastic": StochasticTopKLinear,
     "variance": VarianceTopKLinear,
     "deepst": DeepstLinear,
+    "credit_deepst": CreditGatedDeepstLinear,
     "dense_to_sparse": DenseToSparseLinear,
     "annealed_topk": DenseToSparseLinear,
     "indexed": IndexedSparseLinear,
@@ -60,7 +64,7 @@ def get_sparse_layer(
         )
 
     layer_class = SPARSE_LAYER_REGISTRY[layer_type]
-    if layer_type == "deepst":
+    if layer_type in {"deepst", "credit_deepst"}:
         return layer_class(in_features=in_features, out_features=out_features, **kwargs)
     return layer_class(
         in_features=in_features,

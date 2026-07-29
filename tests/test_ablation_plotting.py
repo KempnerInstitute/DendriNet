@@ -4,10 +4,32 @@ from pathlib import Path
 
 import pandas as pd
 
+from dendritic_modeling.plotting.visualizations.general_analysis_plots import (
+    plot_layer_ablation,
+)
 from dendritic_modeling.scripts.sweeps.analyzers.ablation_analyzer import (
     AblationSweepAnalyzer,
 )
 from dendritic_modeling.scripts.sweeps.plotters.ablation_plotter import AblationPlotter
+
+
+def test_layer_ablation_plot_does_not_relabel_depth_one_as_soma() -> None:
+    figures = plot_layer_ablation(
+        layer_results={
+            "lesion": {
+                "excitation": {
+                    "branch_layers.0": {"depth": 2, "accuracy_drop": 0.2},
+                    "branch_layers.1": {"depth": 1, "accuracy_drop": 0.1},
+                }
+            }
+        },
+        baselines={"accuracy": 0.5},
+        somatic_synapses=False,
+    )
+
+    assert figures is not None
+    labels = [tick.get_text() for tick in figures[0].axes[0].get_xticklabels()]
+    assert labels == ["Distal 1", "Distal 2"]
 
 
 def test_ablation_plotter_generates_canonical_multiword_plot(tmp_path: Path):

@@ -16,6 +16,7 @@ Key features:
 import logging
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from itertools import pairwise
 from typing import Any, Optional
 
 import numpy as np
@@ -1428,6 +1429,618 @@ def create_contextual_stream_gain_shift_dataset(
     )
 
 
+def create_branch_local_gain_load_dataset(
+    n_samples: int = 6000,
+    stream_dim: int = 64,
+    signal_fraction: float = 0.5,
+    n_gain_groups: int = 8,
+    n_classes: int = 2,
+    e_baseline: float = 5.0,
+    i_baseline: float = 2.0,
+    e_signal_delta: float = 1.0,
+    i_signal_delta: float = 0.0,
+    signal_mode: str = "e_only",
+    support_mode: str = "prefix",
+    train_gain_support_mode: str = "signal",
+    gain_fraction: Optional[float] = None,
+    load_fraction: float = 1.0,
+    load_alignment_alpha: float = 1.0,
+    independent_noise_std: float = 0.05,
+    train_gain_sigma: float = 0.8,
+    test_gain_sigma: float = 0.8,
+    gain_alignment_alpha: float = 1.0,
+    load_mean: float = 0.0,
+    load_noise_sigma: float = 0.0,
+    valid_split_mode: str = "test",
+    seed: Optional[int] = None,
+) -> tuple[TensorDataset, TensorDataset, TensorDataset]:
+    r"""Create a branch-local gain/load task with explicit positive E/I streams.
+
+    The input is ordered as ``[E_stream | I_stream]`` and is intended for
+    ``TransferLayer(independent_pathways=true, split_strategy=ordered)``.
+
+    Class information lives in a subset of signal dimensions.  ``support_mode``
+    controls whether these dimensions are the deterministic prefix used by the
+    original Fig. 4 control or a seed-sampled sparse support.  In the legacy
+    ``e_only`` mode, class 1 increases the excitatory stream.  In
+    ``balanced_ratio`` mode, the total local E+I drive is approximately fixed
+    while class identity changes the E/I split; this is the stricter
+    shunting-favorable regime because branch-local gain changes additive
+    amplitude but mostly preserves the local divisive ratio.
+
+    At test time, a positive lognormal gain multiplies local E/I groups.  In
+    sampled-support mode, ``train_gain_support_mode="signal"`` keeps training
+    gain on the class-support dimensions and uses ``gain_alignment_alpha`` to
+    control the test gain support, producing a sparse-support generalization
+    task.  ``train_gain_support_mode="matched"`` uses the same sampled gain
+    support for train/validation/test, so the same alpha becomes an
+    in-distribution signal-gain overlap axis.  Despite the legacy argument
+    name, ``load_mean`` adds positive background to the I input stream after
+    gain modulation.  It therefore changes both raw additive subtraction and
+    the shunting denominator; it is not an external denominator-only
+    conductance and is not the paper's residual-variance coordinate
+    :math:`\Lambda`.
+    """
+
+    if seed is not None:
+        torch.manual_seed(seed)
+        np.random.seed(seed)
+    if n_classes != 2:
+        raise ValueError("branch_local_gain_load supports binary classification only.")
+    if stream_dim < 4:
+        raise ValueError("stream_dim must be at least 4.")
+    if n_gain_groups <= 0:
+        raise ValueError("n_gain_groups must be positive.")
+    if valid_split_mode not in {"train", "test"}:
+        raise ValueError("valid_split_mode must be 'train' or 'test'.")
+    if signal_mode not in {"e_only", "balanced_ratio"}:
+        raise ValueError("signal_mode must be 'e_only' or 'balanced_ratio'.")
+    if support_mode not in {"prefix", "sampled"}:
+        raise ValueError("support_mode must be 'prefix' or 'sampled'.")
+    if train_gain_support_mode not in {"signal", "matched"}:
+        raise ValueError("train_gain_support_mode must be 'signal' or 'matched'.")
+
+    total_samples = int(n_samples)
+    stream_dim = int(stream_dim)
+    base_seed = int(seed or 0)
+    n_signal = round(stream_dim * float(signal_fraction))
+    n_signal = max(1, min(stream_dim - 1, n_signal))
+    support_generator = torch.Generator().manual_seed(base_seed + 7919)
+
+    def _fraction_to_count(
+        value: Optional[float],
+        *,
+        fallback_fraction: float,
+        default_to_signal: bool = False,
+    ) -> int:
+        if value is None or float(value) < 0.0:
+            frac = (
+                float(signal_fraction)
+                if default_to_signal
+                else float(fallback_fraction)
+            )
+        else:
+            frac = float(value)
+        frac = float(np.clip(frac, 0.0, 1.0))
+        return max(0, min(stream_dim, round(stream_dim * frac)))
+
+    def _sample_mask(
+        count: int,
+        *,
+        allowed_mask: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        mask = torch.zeros(stream_dim, dtype=torch.bool)
+        count = int(max(0, min(stream_dim, count)))
+        if count == 0:
+            return mask
+        allowed = (
+            torch.arange(stream_dim)
+            if allowed_mask is None
+            else torch.nonzero(allowed_mask, as_tuple=False).flatten()
+        )
+        if allowed.numel() == 0:
+            return mask
+        chosen = allowed[
+            torch.randperm(allowed.numel(), generator=support_generator)[
+                : min(count, allowed.numel())
+            ]
+        ]
+        mask[chosen] = True
+        return mask
+
+    def _aligned_sparse_mask(
+        count: int,
+        *,
+        alpha: float,
+        primary_mask: torch.Tensor,
+        fallback_mask: torch.Tensor,
+    ) -> torch.Tensor:
+        count = int(max(0, min(stream_dim, count)))
+        alpha = float(np.clip(alpha, 0.0, 1.0))
+        n_primary = round(count * alpha)
+        primary = _sample_mask(n_primary, allowed_mask=primary_mask)
+        remaining = count - int(primary.sum().item())
+        fallback = _sample_mask(remaining, allowed_mask=fallback_mask)
+        missing = count - int(primary.sum().item()) - int(fallback.sum().item())
+        if missing > 0:
+            fill_mask = ~(primary | fallback)
+            fallback = fallback | _sample_mask(missing, allowed_mask=fill_mask)
+        return primary | fallback
+
+    if support_mode == "sampled":
+        signal_mask = _sample_mask(n_signal)
+    else:
+        signal_mask = torch.zeros(stream_dim, dtype=torch.bool)
+        signal_mask[:n_signal] = True
+    nuisance_mask = ~signal_mask
+    gain_count = _fraction_to_count(
+        gain_fraction,
+        fallback_fraction=float(signal_fraction),
+        default_to_signal=True,
+    )
+    load_count = _fraction_to_count(
+        load_fraction,
+        fallback_fraction=1.0,
+        default_to_signal=False,
+    )
+    train_gain_mask = signal_mask.clone()
+    if support_mode == "sampled":
+        test_gain_mask = _aligned_sparse_mask(
+            gain_count,
+            alpha=float(gain_alignment_alpha),
+            primary_mask=signal_mask,
+            fallback_mask=nuisance_mask,
+        )
+        if train_gain_support_mode == "matched":
+            train_gain_mask = test_gain_mask.clone()
+        load_mask = _aligned_sparse_mask(
+            load_count,
+            alpha=float(load_alignment_alpha),
+            primary_mask=signal_mask,
+            fallback_mask=nuisance_mask,
+        )
+    else:
+        test_gain_mask = signal_mask.clone()
+        load_mask = torch.ones(stream_dim, dtype=torch.bool)
+        if load_count < stream_dim:
+            load_mask = torch.zeros(stream_dim, dtype=torch.bool)
+            load_mask[:load_count] = True
+
+    # Assign nearby features to the same gain group so gain is branch-local
+    # rather than a single global scalar.
+    group_ids = torch.arange(stream_dim) * int(n_gain_groups) // stream_dim
+
+    def _lognormal_gain(
+        *,
+        sigma: float,
+        generator: torch.Generator,
+        active_mask: torch.Tensor,
+    ) -> torch.Tensor:
+        if sigma <= 0 or not bool(active_mask.any()):
+            return torch.ones(total_samples, stream_dim)
+        group_z = torch.randn(total_samples, int(n_gain_groups), generator=generator)
+        z = group_z[:, group_ids]
+        gain = torch.exp(float(sigma) * z - 0.5 * float(sigma) ** 2)
+        return torch.where(active_mask.unsqueeze(0), gain, torch.ones_like(gain))
+
+    def _make_split(split_seed: int, split: str) -> tuple[torch.Tensor, torch.Tensor]:
+        generator = torch.Generator().manual_seed(split_seed)
+        labels = torch.randint(0, 2, (total_samples,), generator=generator)
+        y = labels.to(torch.float32).unsqueeze(1)
+        y_signed = (2.0 * y) - 1.0
+
+        e = torch.full((total_samples, stream_dim), float(e_baseline))
+        i = torch.full((total_samples, stream_dim), float(i_baseline))
+        if signal_mode == "balanced_ratio":
+            i_delta = (
+                float(i_signal_delta) if i_signal_delta > 0 else float(e_signal_delta)
+            )
+            e[:, signal_mask] = e[:, signal_mask] + y_signed * float(e_signal_delta)
+            i[:, signal_mask] = i[:, signal_mask] - y_signed * i_delta
+        else:
+            e[:, signal_mask] = e[:, signal_mask] + y * float(e_signal_delta)
+            i[:, signal_mask] = i[:, signal_mask] + y * float(i_signal_delta)
+
+        if independent_noise_std > 0:
+            e = e + float(independent_noise_std) * torch.randn(
+                e.shape, generator=generator
+            )
+            i = i + float(independent_noise_std) * torch.randn(
+                i.shape, generator=generator
+            )
+        e = torch.clamp(e, min=1e-4)
+        i = torch.clamp(i, min=1e-4)
+
+        if support_mode == "sampled":
+            active_gain_mask = train_gain_mask if split == "train" else test_gain_mask
+            sigma = float(train_gain_sigma if split == "train" else test_gain_sigma)
+            gain = _lognormal_gain(
+                sigma=sigma,
+                generator=generator,
+                active_mask=active_gain_mask,
+            )
+        else:
+            if split == "train":
+                sigma_signal = float(train_gain_sigma)
+                sigma_nuisance = 0.0
+            else:
+                alpha = float(np.clip(gain_alignment_alpha, 0.0, 1.0))
+                sigma_signal = float(test_gain_sigma) * alpha
+                sigma_nuisance = float(test_gain_sigma) * float(
+                    np.sqrt(max(1.0 - alpha**2, 0.0))
+                )
+
+            gain_signal = _lognormal_gain(
+                sigma=sigma_signal,
+                generator=generator,
+                active_mask=signal_mask,
+            )
+            gain_nuisance = _lognormal_gain(
+                sigma=sigma_nuisance,
+                generator=generator,
+                active_mask=nuisance_mask,
+            )
+            gain = gain_signal * gain_nuisance
+        e = e * gain
+        i = i * gain
+
+        if load_mean > 0:
+            load = torch.full_like(i, float(load_mean))
+            if load_noise_sigma > 0:
+                z = torch.randn(i.shape, generator=generator)
+                load = load * torch.exp(
+                    float(load_noise_sigma) * z - 0.5 * float(load_noise_sigma) ** 2
+                )
+            load = torch.where(load_mask.unsqueeze(0), load, torch.zeros_like(load))
+            i = i + load
+
+        data = torch.cat([torch.clamp(e, min=1e-5), torch.clamp(i, min=1e-5)], dim=1)
+        data, labels = _balance_classes(data, labels)
+        perm = torch.randperm(len(data), generator=generator)
+        return data[perm], labels[perm]
+
+    train_data, train_labels = _make_split(base_seed, "train")
+    valid_data, valid_labels = _make_split(
+        base_seed + 1, "train" if valid_split_mode == "train" else "test"
+    )
+    test_data, test_labels = _make_split(base_seed + 2, "test")
+    return (
+        TensorDataset(train_data, train_labels),
+        TensorDataset(valid_data, valid_labels),
+        TensorDataset(test_data, test_labels),
+    )
+
+
+def create_hierarchical_gain_load_dataset(
+    n_samples: int = 6000,
+    stream_dim: int = 64,
+    n_levels: int = 3,
+    hierarchy_branching: int = 2,
+    n_flat_groups: int = 8,
+    n_classes: int = 2,
+    e_baseline: float = 5.0,
+    i_baseline: float = 2.0,
+    e_signal_delta: float = 0.35,
+    i_signal_delta: float = 0.35,
+    signal_mode: str = "e_only",
+    signal_profile: str = "all",
+    nuisance_layout: str = "factorized_sensors",
+    sensor_e_baseline: float = 0.02,
+    gain_structure: str = "hierarchical",
+    gain_scale_decay: float = 1.0,
+    train_gain_sigma: float = 0.4,
+    test_gain_sigma: float = 1.4,
+    sensor_alignment_alpha: float = 1.0,
+    sensor_support_mode: str = "matched",
+    private_gain_sigma: float = 0.0,
+    independent_noise_std: float = 0.08,
+    load_mean: float = 0.0,
+    load_noise_sigma: float = 0.0,
+    valid_split_mode: str = "test",
+    seed: Optional[int] = None,
+) -> tuple[TensorDataset, TensorDataset, TensorDataset]:
+    r"""Create a multiscale gain task with an explicit inhibitory nuisance sensor.
+
+    Inputs are ordered ``[E_stream | I_stream]``.  Each stream is partitioned
+    into ``n_levels`` contiguous feature blocks, ordered distal-to-proximal.
+    The primary ``factorized_sensors`` layout implements a sequential
+    cancellation problem. Signal-bearing E in the distal block is multiplied
+    by the product of fine, coarse, and proximal gain fields, while the
+    corresponding I blocks separately measure each factor. The 4/2/2
+    ``inventory_feature_blocks`` routing rule can place those measurements as
+    siblings in a shallow tree or at their matching stages in a deeper tree.
+    ``paired_cumulative`` retains a conventional local-ratio control in which
+    E and I in each block share the cumulative gain visible at that scale.
+
+    ``sensor_alignment_alpha`` controls how faithfully the I stream measures
+    the E-stream log gain (one is matched; zero is an independent sensor with
+    the same marginal hierarchy).  ``sensor_support_mode='shuffled'`` applies a
+    sample permutation to the I gain, preserving its complete marginal
+    distribution while destroying trial-wise E/I matching.  ``gain_structure``
+    can be ``'flat'`` to preserve each block's marginal log-gain variance while
+    replacing nested spatial correlations by unrelated flat gain groups.
+
+    The generator is mechanism-neutral: shunting and additive models receive
+    exactly the same tensors.  ``private_gain_sigma`` and
+    ``independent_noise_std`` are negative controls that are not available in a
+    matched local sensor; the legacy ``load_mean`` argument adds positive,
+    class-independent I-stream background after gain modulation.  It affects
+    both integration rules and must not be interpreted as a denominator-only
+    conductance or as the paper's :math:`\Lambda` coordinate.
+    """
+
+    if seed is not None:
+        torch.manual_seed(seed)
+        np.random.seed(seed)
+    if n_classes != 2:
+        raise ValueError("hierarchical_gain_load supports binary classification only.")
+    if n_samples < 2:
+        raise ValueError("n_samples must be at least 2.")
+    if stream_dim < 2:
+        raise ValueError("stream_dim must be at least 2.")
+    if n_levels < 1 or n_levels > stream_dim:
+        raise ValueError("n_levels must lie in [1, stream_dim].")
+    if hierarchy_branching < 1:
+        raise ValueError("hierarchy_branching must be positive.")
+    if n_flat_groups < 1:
+        raise ValueError("n_flat_groups must be positive.")
+    if gain_scale_decay <= 0:
+        raise ValueError("gain_scale_decay must be positive.")
+    if train_gain_sigma < 0 or test_gain_sigma < 0:
+        raise ValueError("gain sigmas must be nonnegative.")
+    if private_gain_sigma < 0 or independent_noise_std < 0:
+        raise ValueError("private gain and independent noise must be nonnegative.")
+    if sensor_e_baseline < 0:
+        raise ValueError("sensor_e_baseline must be nonnegative.")
+    if load_mean < 0 or load_noise_sigma < 0:
+        raise ValueError("load parameters must be nonnegative.")
+    if not 0.0 <= sensor_alignment_alpha <= 1.0:
+        raise ValueError("sensor_alignment_alpha must be in [0, 1].")
+    if valid_split_mode not in {"train", "test"}:
+        raise ValueError("valid_split_mode must be 'train' or 'test'.")
+    if signal_mode not in {"e_only", "balanced_ratio"}:
+        raise ValueError("signal_mode must be 'e_only' or 'balanced_ratio'.")
+    if signal_profile not in {"all", "distal_only", "proximal_only"}:
+        raise ValueError(
+            "signal_profile must be 'all', 'distal_only', or 'proximal_only'."
+        )
+    if nuisance_layout not in {"factorized_sensors", "paired_cumulative"}:
+        raise ValueError(
+            "nuisance_layout must be 'factorized_sensors' or 'paired_cumulative'."
+        )
+    if gain_structure not in {"hierarchical", "flat"}:
+        raise ValueError("gain_structure must be 'hierarchical' or 'flat'.")
+    if sensor_support_mode not in {"matched", "shuffled"}:
+        raise ValueError("sensor_support_mode must be 'matched' or 'shuffled'.")
+
+    # Construct exact class balance before applying shuffled-sensor controls so
+    # the shuffle preserves the complete sensor marginal after balancing.
+    total_samples = 2 * (int(n_samples) // 2)
+    stream_dim = int(stream_dim)
+    n_levels = int(n_levels)
+    base_seed = int(seed or 0)
+
+    # Integer linspace gives exhaustive, non-overlapping blocks even when the
+    # stream dimension is not divisible by the number of levels.
+    level_edges = [round(idx * stream_dim / n_levels) for idx in range(n_levels + 1)]
+    level_ids = torch.empty(stream_dim, dtype=torch.long)
+    for level_idx, (start, stop) in enumerate(pairwise(level_edges)):
+        level_ids[start:stop] = level_idx
+
+    signal_mask = torch.ones(stream_dim, dtype=torch.bool)
+    if signal_profile == "distal_only":
+        signal_mask = level_ids == 0
+    elif signal_profile == "proximal_only":
+        signal_mask = level_ids == (n_levels - 1)
+
+    def _hierarchical_log_field(
+        *,
+        sigma: float,
+        generator: torch.Generator,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Return zero-mean log gain and its per-feature variance."""
+
+        log_field = torch.zeros(total_samples, stream_dim)
+        variance = torch.zeros(stream_dim)
+        if sigma <= 0:
+            return log_field, variance
+
+        if gain_structure == "flat":
+            # Match the hierarchical marginal variance block by block.  Only
+            # the cross-feature nested covariance is removed in this control.
+            for level_idx, (start, stop) in enumerate(pairwise(level_edges)):
+                active_scales = n_levels - level_idx
+                scale_weights = torch.tensor(
+                    [gain_scale_decay**scale for scale in range(active_scales)],
+                    dtype=torch.float32,
+                )
+                target_std = float(sigma) * float(
+                    torch.linalg.vector_norm(scale_weights)
+                )
+                width = stop - start
+                group_count = min(int(n_flat_groups), width)
+                group_ids = torch.arange(width) * group_count // width
+                z = torch.randn(total_samples, group_count, generator=generator)
+                log_field[:, start:stop] = target_std * z[:, group_ids]
+                variance[start:stop] = target_std**2
+            return log_field, variance
+
+        # Shared latent nodes make blocks genuinely multiscale: all blocks see
+        # the same coarse node field, whereas only distal blocks include the
+        # fine fields. Coordinates at equal relative positions share ancestors.
+        latent_nodes: list[torch.Tensor] = []
+        for scale in range(n_levels):
+            n_nodes = int(hierarchy_branching) ** scale
+            latent_nodes.append(
+                torch.randn(total_samples, n_nodes, generator=generator)
+            )
+
+        for level_idx, (start, stop) in enumerate(pairwise(level_edges)):
+            width = stop - start
+            relative = torch.arange(width, dtype=torch.long)
+            active_scales = n_levels - level_idx
+            for scale in range(active_scales):
+                n_nodes = latent_nodes[scale].shape[1]
+                group_ids = relative * n_nodes // width
+                component_sigma = float(sigma) * float(gain_scale_decay) ** scale
+                log_field[:, start:stop] += (
+                    component_sigma * latent_nodes[scale][:, group_ids]
+                )
+                variance[start:stop] += component_sigma**2
+        return log_field, variance
+
+    def _private_gain(generator: torch.Generator) -> torch.Tensor:
+        if private_gain_sigma <= 0:
+            return torch.ones(total_samples, stream_dim)
+        z = torch.randn(total_samples, stream_dim, generator=generator)
+        sigma = float(private_gain_sigma)
+        return torch.exp(sigma * z - 0.5 * sigma**2)
+
+    def _factorized_log_fields(
+        *,
+        sigma: float,
+        generator: torch.Generator,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Return signal-product and stage-sensor log gains and variances."""
+
+        log_gain_e = torch.zeros(total_samples, stream_dim)
+        log_gain_i = torch.zeros(total_samples, stream_dim)
+        variance_e = torch.zeros(stream_dim)
+        variance_i = torch.zeros(stream_dim)
+        if sigma <= 0:
+            return log_gain_e, variance_e, log_gain_i, variance_i
+
+        signal_start, signal_stop = level_edges[0], level_edges[1]
+        signal_width = signal_stop - signal_start
+        for level_idx, (sensor_start, sensor_stop) in enumerate(pairwise(level_edges)):
+            sensor_width = sensor_stop - sensor_start
+            if gain_structure == "hierarchical":
+                # Distal sensors are spatially fine; proximal sensors are
+                # progressively coarser, ending in one shared factor.
+                n_nodes = int(hierarchy_branching) ** (n_levels - level_idx - 1)
+            else:
+                n_nodes = int(n_flat_groups)
+            n_nodes = max(1, min(n_nodes, signal_width, sensor_width))
+            component_sigma = float(sigma) * float(gain_scale_decay) ** level_idx
+
+            true_nodes = torch.randn(total_samples, n_nodes, generator=generator)
+            independent_nodes = torch.randn(total_samples, n_nodes, generator=generator)
+            signal_groups = torch.arange(signal_width) * n_nodes // signal_width
+            sensor_groups = torch.arange(sensor_width) * n_nodes // sensor_width
+            true_signal = true_nodes[:, signal_groups]
+            true_sensor = true_nodes[:, sensor_groups]
+            independent_sensor = independent_nodes[:, sensor_groups]
+
+            log_gain_e[:, signal_start:signal_stop] += component_sigma * true_signal
+            variance_e[signal_start:signal_stop] += component_sigma**2
+            alpha = float(sensor_alignment_alpha)
+            log_gain_i[:, sensor_start:sensor_stop] = component_sigma * (
+                alpha * true_sensor
+                + float(np.sqrt(max(1.0 - alpha**2, 0.0))) * independent_sensor
+            )
+            variance_i[sensor_start:sensor_stop] = component_sigma**2
+
+        if sensor_support_mode == "shuffled" and total_samples > 1:
+            shift = int(
+                torch.randint(1, total_samples, (1,), generator=generator).item()
+            )
+            log_gain_i = torch.roll(log_gain_i, shifts=shift, dims=0)
+        return log_gain_e, variance_e, log_gain_i, variance_i
+
+    def _make_split(split_seed: int, split: str) -> tuple[torch.Tensor, torch.Tensor]:
+        generator = torch.Generator().manual_seed(split_seed)
+        labels = torch.arange(total_samples, dtype=torch.long) % 2
+        labels = labels[torch.randperm(total_samples, generator=generator)]
+        y = labels.to(torch.float32).unsqueeze(1)
+        y_signed = (2.0 * y) - 1.0
+
+        if nuisance_layout == "factorized_sensors":
+            e = torch.full((total_samples, stream_dim), float(sensor_e_baseline))
+            e[:, level_ids == 0] = float(e_baseline)
+            i = torch.full((total_samples, stream_dim), float(i_baseline))
+            e[:, level_ids == 0] += y * float(e_signal_delta)
+        else:
+            e = torch.full((total_samples, stream_dim), float(e_baseline))
+            i = torch.full((total_samples, stream_dim), float(i_baseline))
+
+        if nuisance_layout == "paired_cumulative" and signal_mode == "balanced_ratio":
+            i_delta = (
+                float(i_signal_delta) if i_signal_delta > 0 else float(e_signal_delta)
+            )
+            e[:, signal_mask] += y_signed * float(e_signal_delta)
+            i[:, signal_mask] -= y_signed * i_delta
+        elif nuisance_layout == "paired_cumulative":
+            e[:, signal_mask] += y * float(e_signal_delta)
+            i[:, signal_mask] += y * float(i_signal_delta)
+
+        if independent_noise_std > 0:
+            noise_std = float(independent_noise_std)
+            e += noise_std * torch.randn(e.shape, generator=generator)
+            i += noise_std * torch.randn(i.shape, generator=generator)
+        e = torch.clamp(e, min=1e-4)
+        i = torch.clamp(i, min=1e-4)
+
+        sigma = float(train_gain_sigma if split == "train" else test_gain_sigma)
+        if nuisance_layout == "factorized_sensors":
+            (
+                log_gain_e,
+                log_variance_e,
+                log_gain_i,
+                log_variance_i,
+            ) = _factorized_log_fields(sigma=sigma, generator=generator)
+        else:
+            log_gain_e, log_variance_e = _hierarchical_log_field(
+                sigma=sigma,
+                generator=generator,
+            )
+            log_gain_independent, _ = _hierarchical_log_field(
+                sigma=sigma,
+                generator=generator,
+            )
+            alpha = float(sensor_alignment_alpha)
+            log_gain_i = (
+                alpha * log_gain_e
+                + float(np.sqrt(max(1.0 - alpha**2, 0.0))) * log_gain_independent
+            )
+            log_variance_i = log_variance_e
+            if sensor_support_mode == "shuffled" and total_samples > 1:
+                # A derangement by a nonzero random cyclic shift preserves the
+                # complete I marginal, unlike independently resampling it.
+                shift = int(
+                    torch.randint(1, total_samples, (1,), generator=generator).item()
+                )
+                log_gain_i = torch.roll(log_gain_i, shifts=shift, dims=0)
+
+        gain_e = torch.exp(log_gain_e - 0.5 * log_variance_e.unsqueeze(0))
+        gain_i = torch.exp(log_gain_i - 0.5 * log_variance_i.unsqueeze(0))
+        e = e * gain_e * _private_gain(generator)
+        i = i * gain_i * _private_gain(generator)
+
+        if load_mean > 0:
+            load = torch.full_like(i, float(load_mean))
+            if load_noise_sigma > 0:
+                z = torch.randn(i.shape, generator=generator)
+                load_sigma = float(load_noise_sigma)
+                load *= torch.exp(z * load_sigma - 0.5 * load_sigma**2)
+            i += load
+
+        data = torch.cat([torch.clamp(e, min=1e-5), torch.clamp(i, min=1e-5)], dim=1)
+        data, labels = _balance_classes(data, labels)
+        perm = torch.randperm(len(data), generator=generator)
+        return data[perm], labels[perm]
+
+    train_data, train_labels = _make_split(base_seed, "train")
+    valid_data, valid_labels = _make_split(
+        base_seed + 1, "train" if valid_split_mode == "train" else "test"
+    )
+    test_data, test_labels = _make_split(base_seed + 2, "test")
+    return (
+        TensorDataset(train_data, train_labels),
+        TensorDataset(valid_data, valid_labels),
+        TensorDataset(test_data, test_labels),
+    )
+
+
 def create_mnist_information_sampled_dataset(
     subset_size: int = 100,
     sampling_strategy: str = "info_balanced",
@@ -1760,6 +2373,65 @@ _SYNTHETIC_DATASET_SPECS: dict[str, _SyntheticDatasetSpec] = {
             "ood_mode": "irrelevant",
             "valid_split_mode": "ood",
             "context_signal_scale": 1.0,
+            "seed": None,
+        },
+    ),
+    "branch_local_gain_load": _SyntheticDatasetSpec(
+        factory=create_branch_local_gain_load_dataset,
+        defaults={
+            "n_samples": 6000,
+            "stream_dim": 64,
+            "signal_fraction": 0.5,
+            "n_gain_groups": 8,
+            "n_classes": 2,
+            "e_baseline": 5.0,
+            "i_baseline": 2.0,
+            "e_signal_delta": 1.0,
+            "i_signal_delta": 0.0,
+            "signal_mode": "e_only",
+            "support_mode": "prefix",
+            "train_gain_support_mode": "signal",
+            "gain_fraction": -1.0,
+            "load_fraction": 1.0,
+            "load_alignment_alpha": 1.0,
+            "independent_noise_std": 0.05,
+            "train_gain_sigma": 0.8,
+            "test_gain_sigma": 0.8,
+            "gain_alignment_alpha": 1.0,
+            "load_mean": 0.0,
+            "load_noise_sigma": 0.0,
+            "valid_split_mode": "test",
+            "seed": None,
+        },
+    ),
+    "hierarchical_gain_load": _SyntheticDatasetSpec(
+        factory=create_hierarchical_gain_load_dataset,
+        defaults={
+            "n_samples": 6000,
+            "stream_dim": 64,
+            "n_levels": 3,
+            "hierarchy_branching": 2,
+            "n_flat_groups": 8,
+            "n_classes": 2,
+            "e_baseline": 5.0,
+            "i_baseline": 2.0,
+            "e_signal_delta": 0.35,
+            "i_signal_delta": 0.35,
+            "signal_mode": "e_only",
+            "signal_profile": "all",
+            "nuisance_layout": "factorized_sensors",
+            "sensor_e_baseline": 0.02,
+            "gain_structure": "hierarchical",
+            "gain_scale_decay": 1.0,
+            "train_gain_sigma": 0.4,
+            "test_gain_sigma": 1.4,
+            "sensor_alignment_alpha": 1.0,
+            "sensor_support_mode": "matched",
+            "private_gain_sigma": 0.0,
+            "independent_noise_std": 0.08,
+            "load_mean": 0.0,
+            "load_noise_sigma": 0.0,
+            "valid_split_mode": "test",
             "seed": None,
         },
     ),

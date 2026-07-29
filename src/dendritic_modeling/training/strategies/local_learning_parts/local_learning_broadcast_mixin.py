@@ -11,6 +11,7 @@ from dendritic_modeling.training.strategies.local_learning_parts.local_learning_
     apply_broadcast_bandwidth,
     compute_layer_total_conductance,
     compute_local_mismatch_broadcast,
+    expand_soma_error_to_compartments,
     reduce_error_to_scalar,
 )
 from dendritic_modeling.training.strategies.local_learning_parts.local_learning_broadcast_low_rank_mixin import (
@@ -149,6 +150,12 @@ class LocalLearningBroadcastMixin(
         bmode = broadcast_state.mode
         if bmode == "per_soma" and delta.dim() == 2 and delta.size(1) == out_features:
             e_n = delta
+        elif bmode in {"per_soma_shared", "per_soma_tree"}:
+            expanded = expand_soma_error_to_compartments(delta, out_features)
+            if isinstance(expanded, torch.Tensor):
+                e_n = expanded.to(device=v_n.device, dtype=v_n.dtype)
+            else:
+                e_n = delta_scalar.expand(-1, out_features)
         elif bmode == "low_rank":
             e_n = self._compute_low_rank_broadcast(
                 delta=delta,

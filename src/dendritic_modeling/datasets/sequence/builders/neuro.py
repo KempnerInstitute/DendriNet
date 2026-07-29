@@ -66,6 +66,7 @@ def build_romo_delay_comparison(
         "positive_input_encoding": positive_input_encoding(dataset_name, kwargs),
         "tuning_dim": kwargs.get("tuning_dim", 8),
         "tuning_sigma": kwargs.get("tuning_sigma", None),
+        "pair_sampling": kwargs.get("pair_sampling", "independent_unequal_v1"),
     }
     return build_explicit_or_deferred_split(
         dataset_cls=RomoDelayComparisonDataset,
@@ -130,6 +131,7 @@ def build_stringer_v1(
             "gratings_drifting_GT3_2019_04_05_1.npy)"
         )
     n_neurons = kwargs.get("n_neurons", 500)
+    neuron_selection_scope = kwargs.get("neuron_selection_scope", "all_trials")
     n_classes = kwargs.get("n_classes", 8)
     normalize = kwargs.get("normalize", True)
     seed = kwargs.get("label_noise_seed", 42)
@@ -145,6 +147,11 @@ def build_stringer_v1(
     running_state = kwargs.get("running_state", "all")
     train_running_state = kwargs.get("train_running_state", running_state)
     test_running_state = kwargs.get("test_running_state", running_state)
+    state_holdout_fraction = float(kwargs.get("state_holdout_fraction", 0.0))
+    if not (0.0 <= state_holdout_fraction < 1.0):
+        raise ValueError(
+            f"state_holdout_fraction must be in [0, 1), got {state_holdout_fraction}"
+        )
     gain_group_count = kwargs.get("gain_group_count", 1)
     gain_grouping = kwargs.get("gain_grouping", "preferred_class")
     poisson_sampling = kwargs.get("poisson_sampling", False)
@@ -191,6 +198,7 @@ def build_stringer_v1(
     common = {
         "data_dir": data_dir,
         "n_neurons": n_neurons,
+        "neuron_selection_scope": neuron_selection_scope,
         "n_classes": n_classes,
         "normalize": normalize,
         "seed": seed,
@@ -213,17 +221,42 @@ def build_stringer_v1(
                 "with test_running_state='high' (or the reverse), or set both "
                 "states to 'all' for the standard fixed split."
             )
+        # Optionally reserve a deterministic same-state endpoint that is not
+        # passed to the training/validation splitter.  This supports a genuine
+        # mechanism-by-state interaction: the frozen model can be evaluated on
+        # both an untouched training-state holdout and the disjoint target
+        # state.  The complementary holdout is reconstructed with
+        # ``split='test'`` and the same ``1-state_holdout_fraction`` fraction.
+        state_train_fraction = 1.0 - state_holdout_fraction
         train_full = StringerV1Dataset(
-            split="all",
+            split="train" if state_holdout_fraction > 0.0 else "all",
+            train_fraction=state_train_fraction,
             **common,
             **state_kwargs("train_", train_running_state),
+        )
+        test_selection_indices = (
+            train_full._neuron_indices
+            if neuron_selection_scope == "train_split"
+            else None
         )
         test_ds = StringerV1Dataset(
             split="all",
             **common,
             **state_kwargs("test_", test_running_state),
             normalization_stats=getattr(train_full, "normalization_stats", None),
+            neuron_selection_indices=test_selection_indices,
         )
+        if test_selection_indices is not None and not np.array_equal(
+            train_full._neuron_indices, test_ds._neuron_indices
+        ):
+            raise RuntimeError(
+                "Stringer V1 state-specific test set did not preserve the "
+                "training-state neuron selection"
+            )
+        train_full.state_holdout_fraction = state_holdout_fraction
+        train_full.state_train_fraction = state_train_fraction
+        test_ds.state_holdout_fraction = state_holdout_fraction
+        test_ds.state_train_fraction = state_train_fraction
         # Name-level disjointness (above) is necessary but not sufficient: the
         # low/high running-speed masks are both boundary-inclusive, so at the
         # default running_quantile=0.5 (or with ties in a zero-inflated running

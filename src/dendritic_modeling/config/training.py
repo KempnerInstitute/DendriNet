@@ -325,10 +325,20 @@ class TransformerReplacementTrainingConfig(BaseConfig):
     mode: str = "layerwise_distillation"
     teacher_source: str = "synthetic_mlp"
     train_target: str = "replacement_only"
+    # Joint-LM student initialization. ``pretrained`` preserves the current
+    # distillation/fine-tuning path; ``from_config`` constructs random model
+    # weights from the Hugging Face architecture config before patching.
+    student_initialization: str = "pretrained"
     layers: list[int] = field(default_factory=list)
     device: str = "auto"
     dtype: str = "float32"
     seed: int | None = None
+    # ``ddp`` is the replicated-model torchrun path used by layerwise and
+    # replacement-only joint distillation. Full-model 7B+ training still
+    # requires the planned FSDP integration.
+    distributed_mode: str = "none"
+    distributed_backend: str = ""
+    ddp_find_unused_parameters: bool = False
     data_parallel: bool = False
     data_parallel_devices: list[int] = field(default_factory=list)
 
@@ -370,13 +380,26 @@ class TransformerReplacementTrainingConfig(BaseConfig):
             "text_path": "",
             "dataset_name": "",
             "dataset_config": "",
+            # ``data_files`` supports datasets-compatible paths/globs, including
+            # local JSON/JSONL gzip shards such as the shared Dolma corpus.
+            "data_files": None,
             "split": "train",
             "text_field": "text",
             "max_documents": None,
             "streaming": False,
+            "shuffle_seed": None,
+            "shuffle_buffer_size": 10_000,
+            "validation_data_files": None,
+            "validation_split": "",
+            "validation_documents": 64,
+            "validation_max_tokens": None,
+            # Optional exact packed-stream state. Model/optimizer checkpointing
+            # must be coordinated at the same step by the caller.
+            "resume_stream_state": "",
             "tokenizer_name": "",
             "tokenizer_kwargs": {},
             "max_tokens": None,
+            "max_tokens_per_document": None,
         }
     )
 
@@ -390,8 +413,31 @@ class TransformerReplacementTrainingConfig(BaseConfig):
     warm_start_dir: str = ""
     gradient_checkpointing: bool = False
     max_grad_norm: float | None = None
+    # Data-driven reactivation policies such as occupancy_quantile require
+    # actual replacement inputs. The generic trainer already calibrates these;
+    # these controls provide the equivalent transformer path.
+    reactivation_calibration_enabled: bool = True
+    reactivation_calibration_batches: int = 3
+    reactivation_calibration_iterations: int = 3
+    # Empty means respect each dendritic layer's configured init policy.
+    reactivation_calibration_mode: str = ""
+    # Restartable layerwise distillation checkpoint. Each DDP rank also writes
+    # its own RNG/stream progress at the same barriered step.
+    checkpoint_every: int = 0
+    resume_checkpoint: str = ""
+    # Layerwise training restores this validation-best state before exporting
+    # replacement checkpoints. This includes step 0, which matters for
+    # teacher-pruned initializations that fine-tuning can degrade.
+    restore_best_replacement: bool = True
+    # Final per-layer export only. Training/restart checkpoints retain slot-wise
+    # indices so optimizer state remains aligned. ``bitmask`` reorders each
+    # sparse row and stores its fixed topology as one bit per possible edge.
+    replacement_checkpoint_encoding: str = "uint"  # uint | bitmask
     save_dir: str = "results/transformer_replacement_distillation"
     save_replacements: bool = True
+    # Opt-in because a full 7B+ state dict is a large artifact. The saved state
+    # is reconstructed by applying the same YAML replacement config first.
+    save_student_model: bool = False
     use_amp: bool = False
 
 
@@ -674,7 +720,7 @@ class LocalRuleConfig(BaseConfig):
     # ========== ERROR SIGNAL ==========
     error_mode: str = "auto"  # "auto", "mse", "ce", "bce"
     error_broadcast_mode: str = (
-        "scalar"  # "scalar", "per_soma", "local_mismatch", "low_rank", "path_transport", "pathway_vector"
+        "scalar"  # "scalar", legacy "per_soma", "per_soma_shared", "local_mismatch", "low_rank", "path_transport", "pathway_vector"
     )
     error_noise_sigma: float = (
         0.0  # Additive Gaussian noise on broadcast error (0 = off)

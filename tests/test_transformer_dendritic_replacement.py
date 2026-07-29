@@ -22,6 +22,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse imp
 from dendritic_modeling.networks.architectures.transformer import (
     DendriticFFNReplacement,
     EIStackMLPSlot,
+    GatedDendriticFFNReplacement,
     apply_transformer_replacement_config,
     build_dendritic_ffn_kwargs_from_core_config,
     build_ei_stack_kwargs_from_core_config,
@@ -320,6 +321,172 @@ def test_dendritic_ffn_replacement_preserves_transformer_mlp_shape():
     assert replacement.output_projection.weight.grad is not None
 
 
+def test_identity_indexed_forward_cache_is_not_a_state_dict_parameter_alias():
+    layer = IndexedSparseLinear(
+        in_features=8,
+        out_features=4,
+        K=3,
+        weight_transform="identity",
+        seed=9,
+    )
+
+    layer(torch.randn(2, 8))
+
+    assert "_last_forward_param_tensor" not in layer.state_dict()
+    assert list(layer.named_parameters()) == [("pre_w", layer.pre_w)]
+
+
+def test_gated_dendritic_ffn_uses_two_independent_paths():
+    replacement = GatedDendriticFFNReplacement(
+        hidden_size=8,
+        dendritic_units=4,
+        branch_factors=[2],
+        synapses_per_branch=2,
+        input_transform="signed_split",
+        topk_type="indexed",
+        indexed_seed=11,
+        use_shunting=False,
+    )
+
+    x = torch.randn(2, 3, 8, requires_grad=True)
+    y = replacement(x)
+    y.square().mean().backward()
+
+    assert y.shape == x.shape
+    assert replacement.gate_core is not replacement.value_core
+    gate_indices = replacement.gate_core.branch_layers[0].branch_excitation
+    value_indices = replacement.value_core.branch_layers[0].branch_excitation
+    assert not torch.equal(
+        gate_indices.connection_indices,
+        value_indices.connection_indices,
+    )
+    assert replacement.output_projection.weight.grad is not None
+    assert all(param.grad is not None for param in replacement.parameters())
+
+
+def test_teacher_topk_gated_initialization_is_exact_at_full_fan_in():
+    torch.manual_seed(17)
+    teacher = TinyGatedMLP(hidden_size=8, intermediate_size=16)
+    replacement = GatedDendriticFFNReplacement(
+        hidden_size=8,
+        dendritic_units=16,
+        branch_factors=[],
+        synapses_per_branch=8,
+        input_transform="identity",
+        topk_type="indexed",
+        indexed_seed=11,
+        use_shunting=False,
+        reactivate=False,
+        weight_transform="identity",
+        gate_activation="silu",
+        teacher_topk_init=True,
+    )
+
+    diagnostics = replacement.initialize_from_mlp(teacher)
+    x = torch.randn(2, 3, 8)
+
+    torch.testing.assert_close(replacement(x), teacher(x), rtol=1e-5, atol=1e-6)
+    assert diagnostics["gate_weight_energy_retained"] == pytest.approx(1.0)
+    assert diagnostics["value_weight_energy_retained"] == pytest.approx(1.0)
+
+
+def test_teacher_topk_gated_initialization_selects_largest_weights():
+    teacher = TinyGatedMLP(hidden_size=8, intermediate_size=16)
+    replacement = GatedDendriticFFNReplacement(
+        hidden_size=8,
+        dendritic_units=16,
+        branch_factors=[],
+        synapses_per_branch=3,
+        input_transform="identity",
+        topk_type="indexed",
+        use_shunting=False,
+        reactivate=False,
+        weight_transform="identity",
+        teacher_topk_init=True,
+    )
+
+    replacement.initialize_from_mlp(teacher)
+    gate_synapse = replacement.gate_core.branch_layers[0].branch_excitation
+    expected = (
+        torch.topk(teacher.gate_proj.weight.abs(), k=3, dim=1, sorted=False)
+        .indices.sort(dim=1)
+        .values
+    )
+
+    torch.testing.assert_close(gate_synapse.connection_indices, expected)
+    torch.testing.assert_close(
+        gate_synapse.pre_w,
+        teacher.gate_proj.weight.gather(1, expected),
+    )
+
+
+def test_teacher_topk_can_prune_gated_output_projection():
+    teacher = TinyGatedMLP(hidden_size=8, intermediate_size=16)
+    replacement = GatedDendriticFFNReplacement(
+        hidden_size=8,
+        dendritic_units=16,
+        branch_factors=[],
+        synapses_per_branch=6,
+        input_transform="identity",
+        topk_type="indexed",
+        use_shunting=False,
+        reactivate=False,
+        weight_transform="identity",
+        teacher_topk_init=True,
+        output_topk=5,
+    )
+
+    diagnostics = replacement.initialize_from_mlp(teacher)
+    expected = (
+        torch.topk(teacher.down_proj.weight.abs(), k=5, dim=1, sorted=False)
+        .indices.sort(dim=1)
+        .values
+    )
+
+    assert isinstance(replacement.output_projection, IndexedSparseLinear)
+    torch.testing.assert_close(
+        replacement.output_projection.connection_indices,
+        expected,
+    )
+    torch.testing.assert_close(
+        replacement.output_projection.pre_w,
+        teacher.down_proj.weight.gather(1, expected),
+    )
+    assert 0.0 < diagnostics["down_weight_energy_retained"] < 1.0
+
+
+def test_apply_transformer_config_selects_gated_dendritic_replacement():
+    core_config = {
+        "type": "dendritic_ffn",
+        "architecture": {
+            "dendritic_units": 4,
+            "branch_factors": [2],
+        },
+        "connectivity": {"synapses_per_branch": 2},
+        "morphology": {"use_shunting": False},
+        "sparsity": {"type": "indexed", "indexed": {"seed": 7}},
+    }
+    transformer_replacement = {
+        "enabled": True,
+        "layers": [0],
+        "target_module": "mlp",
+        "replacement_kwargs": {
+            "kind": "gated_dendritic_ffn",
+            "gate_activation": "silu",
+        },
+    }
+    model = TinyHFLikeModel(n_layers=1)
+
+    records = apply_transformer_replacement_config(
+        model,
+        transformer_replacement,
+        core_config,
+    )
+
+    assert len(records) == 1
+    assert isinstance(model.model.layers[0].mlp, GatedDendriticFFNReplacement)
+
+
 def test_dendritic_ffn_core_matches_legacy_dendrinet_construction():
     kwargs = {
         "hidden_size": 8,
@@ -465,6 +632,58 @@ def test_replace_transformer_mlp_layers_rejects_bad_index():
         replace_transformer_mlp_layers(
             model,
             [3],
+            replacement_kwargs={
+                "dendritic_units": 4,
+                "branch_factors": [2],
+                "synapses_per_branch": 2,
+            },
+        )
+
+
+def test_replace_transformer_mlp_layers_preflights_before_mutation():
+    model = TinyHFLikeModel(n_layers=2)
+    originals = [layer.mlp for layer in model.model.layers]
+
+    with pytest.raises(IndexError, match="out of range"):
+        replace_transformer_mlp_layers(
+            model,
+            [0, 3],
+            replacement_kwargs={
+                "dendritic_units": 4,
+                "branch_factors": [2],
+                "synapses_per_branch": 2,
+            },
+        )
+
+    assert [layer.mlp for layer in model.model.layers] == originals
+
+
+def test_replace_transformer_mlp_layers_supports_all_layers_once():
+    model = TinyHFLikeModel(n_layers=3)
+
+    records = replace_transformer_mlp_layers(
+        model,
+        range(3),
+        replacement_kwargs={
+            "dendritic_units": 4,
+            "branch_factors": [2],
+            "synapses_per_branch": 2,
+        },
+    )
+
+    assert [record.layer_index for record in records] == [0, 1, 2]
+    assert all(
+        isinstance(layer.mlp, DendriticFFNReplacement) for layer in model.model.layers
+    )
+
+
+def test_replace_transformer_mlp_layers_rejects_duplicate_indices():
+    model = TinyHFLikeModel(n_layers=2)
+
+    with pytest.raises(ValueError, match="duplicates"):
+        replace_transformer_mlp_layers(
+            model,
+            [0, 0],
             replacement_kwargs={
                 "dendritic_units": 4,
                 "branch_factors": [2],

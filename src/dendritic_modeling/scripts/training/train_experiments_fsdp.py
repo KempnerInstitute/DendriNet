@@ -52,8 +52,11 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.i
 from dendritic_modeling.networks.architectures.factory import get_architecture
 from dendritic_modeling.scripts.script_utils import config_utils as _config_utils
 from dendritic_modeling.scripts.script_utils.setup_utils import (
+    _apply_initialization_seed_defaults,
+    _apply_topology_seed_defaults,
     _config_to_plain_dict,
     _get_dataset_specific_params,
+    _validate_sealed_test_dataset,
     initialize_model,
 )
 from dendritic_modeling.scripts.training.train_encoder_network import (
@@ -62,6 +65,7 @@ from dendritic_modeling.scripts.training.train_encoder_network import (
 from dendritic_modeling.training.dataloader_utils import (
     DataLoaderTuning,
     resolve_dataloader_tuning_from_config,
+    seeded_dataloader_kwargs,
     visible_cpu_count,
 )
 from dendritic_modeling.training.fsdp_utils import get_fsdp_config, save_fsdp_checkpoint
@@ -69,6 +73,7 @@ from dendritic_modeling.training.strategies.fsdp_standard import (
     FSDPTrainer,
     PaddedDistributedEvalSampler,
 )
+from dendritic_modeling.utils import resolve_experiment_seeds
 from dendritic_modeling.utils.general import save_dict, set_seed
 from dendritic_modeling.utils.logging_config import LoggerManager
 
@@ -177,8 +182,11 @@ def _save_fsdp_run_config(config, run_save_path: str) -> None:
 
 def _setup_rank0_run_directory(config) -> str:
     """Create the rank-0 output directory, logger file, and config snapshot."""
-    run_id = f"{config.outputs.run_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    run_save_path = os.path.join(config.outputs.results_dir, run_id)
+    if bool(getattr(config.outputs, "exact_run_dir", False)):
+        run_save_path = config.outputs.results_dir
+    else:
+        run_id = f"{config.outputs.run_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        run_save_path = os.path.join(config.outputs.results_dir, run_id)
     os.makedirs(run_save_path, exist_ok=True)
 
     logger_manager.set_log_directory(run_save_path)
@@ -198,10 +206,17 @@ def print_model_parameter_summary(model, sample_input=None):
     """Print detailed model parameter summary using torchinfo if available."""
     logger.info("Network architecture summary before training:")
     try:
-        if TORCHINFO_AVAILABLE and sample_input is not None:
+        total_params = sum(p.numel() for p in model.parameters())
+        trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        is_sequence_input = (
+            isinstance(sample_input, torch.Tensor) and sample_input.dim() >= 2
+        )
+        summary_is_safe = total_params <= 10_000_000 and not is_sequence_input
+
+        if TORCHINFO_AVAILABLE and sample_input is not None and summary_is_safe:
             torchinfo.summary(
                 model,
-                input_size=(100, *sample_input.shape),
+                input_size=(1, *sample_input.shape),
                 col_names=["input_size", "output_size", "num_params"],
                 col_width=25,
                 row_settings=["depth"],
@@ -213,14 +228,15 @@ def print_model_parameter_summary(model, sample_input=None):
                 logger.warning(
                     "torchinfo is not available. Model summary not generated."
                 )
+            elif not summary_is_safe:
+                logger.info(
+                    "Skipping torchinfo forward for a recurrent or large model; "
+                    "reporting parameter counts without an artificial pre-FSDP batch."
+                )
             else:
                 logger.warning("No sample input provided. Using basic parameter count.")
 
             # Basic parameter breakdown
-            total_params = sum(p.numel() for p in model.parameters())
-            trainable_params = sum(
-                p.numel() for p in model.parameters() if p.requires_grad
-            )
             logger.info(f"Total parameters: {total_params:,}")
             logger.info(f"Trainable parameters: {trainable_params:,}")
 
@@ -277,12 +293,19 @@ def _create_fsdp_trainer(
     config,
 ):
     """Create the FSDP trainer from resolved runtime config."""
+    checkpointing = getattr(config.experiment, "checkpointing", {}) or {}
+    checkpointing_enabled = bool(checkpointing.get("enabled", False))
+    save_every_n_epochs = (
+        int(checkpointing.get("save_every_n_epochs", 0) or 0)
+        if checkpointing_enabled
+        else None
+    )
     return FSDPTrainer(
         rank=rank,
         world_size=world_size,
         fsdp_config=fsdp_config,
         checkpoint_dir=run_save_path if rank == 0 else None,
-        save_every_n_epochs=getattr(train_common, "save_every_n_epochs", None),
+        save_every_n_epochs=save_every_n_epochs,
         optimizer_config=optimizer_config,
         analysis_manager=analysis_manager,
         wandb_run=wandb_run,
@@ -293,15 +316,38 @@ def _create_fsdp_trainer(
         early_stopping=getattr(train_common, "early_stopping", False),
         patience=getattr(train_common, "patience", 10),
         print_every=getattr(train_common, "print_every", 1),
-        save_checkpoints=True,
+        checkpointing=checkpointing_enabled,
         plot_losses=getattr(train_common, "plot_losses", False),
         save_path=run_save_path if rank == 0 else None,
         seed=int(config.experiment.seed),
     )
 
 
-def _resolve_large_model_input_dim(data_config) -> int:
-    """Resolve flattened input size for manually assembled FSDP models."""
+def _resolve_large_model_input_dim(data_config, model_config=None) -> int:
+    """Resolve input size for manually assembled FSDP models.
+
+    Sequence datasets have configuration-dependent feature widths and are not
+    covered by the fixed vision-dataset table.  Match the standard model
+    builder by honoring an explicit encoder ``params.input_dim`` first.
+    """
+    encoder_config = getattr(model_config, "encoder", None)
+    encoder_params = getattr(encoder_config, "params", None)
+    if encoder_params:
+        explicit_input_dim = getattr(encoder_params, "input_dim", None)
+        if explicit_input_dim is None:
+            try:
+                explicit_input_dim = dict(encoder_params).get("input_dim")
+            except (TypeError, ValueError):
+                explicit_input_dim = None
+        if explicit_input_dim is not None:
+            explicit_input_dim = int(explicit_input_dim)
+            if explicit_input_dim <= 0:
+                raise ValueError(
+                    "model.encoder.params.input_dim must be positive, got "
+                    f"{explicit_input_dim}"
+                )
+            return explicit_input_dim
+
     return flat_dataset_input_dim(
         getattr(data_config, "dataset_name", None),
         default_input_dim=784,
@@ -332,14 +378,18 @@ def create_large_model(config):
         logger.info("Trainable parameters: %s", f"{trainable_params:,}")
         return model
 
-    input_dim = _resolve_large_model_input_dim(config.data)
+    input_dim = _resolve_large_model_input_dim(config.data, model_config)
 
     # Create encoder
     encoder_config = model_config.encoder
     if encoder_config.type.lower() == "identity":
         encoder = Identity(input_dim)
     else:
-        encoder_params = dict(encoder_config.params) if encoder_config.params else {}
+        encoder_params = (
+            _config_to_plain_dict(encoder_config.params)
+            if encoder_config.params
+            else {}
+        )
         encoder_params["input_dim"] = input_dim
         encoder_network = get_architecture(encoder_config.type, encoder_params)
         encoder = (
@@ -368,7 +418,14 @@ def create_large_model(config):
             else core_network.excitatory_layer_sizes[-1]
         )
     else:
-        decoder_params = dict(decoder_config.params) if decoder_config.params else {}
+        decoder_params = (
+            _config_to_plain_dict(decoder_config.params)
+            if decoder_config.params
+            else {}
+        )
+        decoder_params = {
+            key: value for key, value in decoder_params.items() if value is not None
+        }
         if hasattr(core_network, "output_dim"):
             decoder_params["input_dim"] = core_network.output_dim
         elif hasattr(core_network, "excitatory_layer_sizes"):
@@ -377,7 +434,14 @@ def create_large_model(config):
 
     # Create model based on task
     if model_config.task == "classification":
-        model = Classifier(encoder, core_network, decoder)
+        model = Classifier(
+            encoder,
+            core_network,
+            decoder,
+            learned_output_scale=getattr(model_config, "learned_output_scale", True),
+            fixed_output_scale=getattr(model_config, "fixed_output_scale", 1.0),
+            output_scale_mode=getattr(model_config, "output_scale_mode", None),
+        )
     elif model_config.task == "regression":
         model = Regressor(encoder, core_network, decoder)
     else:
@@ -497,6 +561,13 @@ def _setup_rank0_analysis_manager(
 ):
     """Create the rank-0 analysis manager and run pre-training calibration."""
     logger.info("Setting up AnalysisManager...")
+    from dendritic_modeling.scripts.training.train_experiments import (
+        _validate_sealed_test_analysis,
+    )
+
+    experiment_config = getattr(config, "experiment", None)
+    if experiment_config is not None:
+        _validate_sealed_test_analysis(experiment_config, config.analysis)
 
     model.encoder_network = _get_analysis_encoder_network(encoder_network)
     logger.info("Set model encoder to %s", type(model.encoder_network).__name__)
@@ -506,13 +577,20 @@ def _setup_rank0_analysis_manager(
         "valid": encoded_valid_ds,
         "test": encoded_test_ds,
     }
-    analysis_manager = AnalysisManager(
-        model=model,
-        data=encoded_data,
-        analysis_config=config.analysis,
-        save_root=run_save_path,
-        device=f"cuda:{local_rank}",
-    )
+    manager_kwargs = {
+        "model": model,
+        "data": encoded_data,
+        "analysis_config": config.analysis,
+        "save_root": run_save_path,
+        "device": f"cuda:{local_rank}",
+    }
+    if experiment_config is not None:
+        analysis_seeds = resolve_experiment_seeds(experiment_config)
+        manager_kwargs.update(
+            evaluation_seed=analysis_seeds.evaluation_seed,
+            probe_seed=analysis_seeds.probe_seed,
+        )
+    analysis_manager = AnalysisManager(**manager_kwargs)
     logger.info(f"AnalysisManager created: {type(analysis_manager)}")
     logger.info(
         f"Performance analysis enabled: {config.analysis.performance_analysis.enabled}"
@@ -539,25 +617,46 @@ def _save_final_fsdp_checkpoint_and_run_analysis(
     encoder_network,
     local_rank: int,
 ) -> str:
-    """Save the full FSDP checkpoint and run final analysis on rank 0."""
-    fsdp_model = trainer.fsdp_model
-    full_ckpt_path = os.path.join(
-        run_save_path or "/tmp", "checkpoints", "final_full.pt"
+    """Reuse or save one full checkpoint, then run requested final analysis."""
+    analysis_config = getattr(config, "analysis", None)
+    analysis_enabled = bool(
+        analysis_config is not None
+        and hasattr(analysis_config, "any_enabled")
+        and analysis_config.any_enabled()
     )
-    if rank == 0:
-        os.makedirs(os.path.dirname(full_ckpt_path), exist_ok=True)
+    full_ckpt_path = getattr(trainer, "final_checkpoint_path", None)
 
-    save_fsdp_checkpoint(
-        fsdp_model,
-        trainer.optimizer,
-        trainer.epochs - 1,
-        full_ckpt_path,
-        rank=rank,
-    )
-    if rank == 0:
-        logger.info(f"Full checkpoint saved to {full_ckpt_path}")
+    if full_ckpt_path is None and not analysis_enabled:
+        if rank == 0:
+            logger.info(
+                "Skipping final full-state gather: checkpointing and analysis "
+                "are both disabled."
+            )
+        return ""
 
-    if rank == 0 and analysis_manager:
+    if full_ckpt_path is None:
+        fsdp_model = trainer.fsdp_model
+        full_ckpt_path = os.path.join(
+            run_save_path or "/tmp", "checkpoints", "final_full.pt"
+        )
+        if rank == 0:
+            os.makedirs(os.path.dirname(full_ckpt_path), exist_ok=True)
+        completed_epoch = int(
+            getattr(trainer, "last_completed_epoch", trainer.epochs - 1)
+        )
+        save_fsdp_checkpoint(
+            fsdp_model,
+            trainer.optimizer,
+            completed_epoch,
+            full_ckpt_path,
+            rank=rank,
+        )
+        if rank == 0:
+            logger.info(f"Full checkpoint saved to {full_ckpt_path}")
+    elif rank == 0:
+        logger.info("Reusing trainer final checkpoint at %s", full_ckpt_path)
+
+    if rank == 0 and analysis_enabled and analysis_manager is not None:
         _run_final_analysis_on_plain_model(
             config=config,
             analysis_manager=analysis_manager,
@@ -689,6 +788,17 @@ def _dataloader_tuning_from_common(
 
 def setup_data_loaders(config, rank, world_size):
     """Setup distributed data loaders."""
+    resolved_seeds = resolve_experiment_seeds(config.experiment, write_back=True)
+    set_seed(
+        resolved_seeds.dataset_seed,
+        deterministic=bool(getattr(config.experiment, "deterministic", True)),
+        cudnn_benchmark=bool(getattr(config.experiment, "cudnn_benchmark", False)),
+        allow_tf32=bool(getattr(config.experiment, "allow_tf32", False)),
+        float32_matmul_precision=str(
+            getattr(config.experiment, "float32_matmul_precision", "highest")
+        ),
+        strict_deterministic=resolved_seeds.strict_deterministic,
+    )
     data_config = config.data
     base_dir = data_config.base_dir or ""
     dataset_specific_params = _get_dataset_specific_params(data_config)
@@ -704,13 +814,15 @@ def setup_data_loaders(config, rank, world_size):
             "parameters": {
                 **processing_params,
                 **dataset_specific_params,
-                "label_noise_seed": config.experiment.seed,
-                "split_seed": config.experiment.seed,
+                "label_noise_seed": resolved_seeds.dataset_seed,
+                "split_seed": resolved_seeds.split_seed,
             },
         },
     )()
+    task_cfg.parameters.setdefault("seed", resolved_seeds.dataset_seed)
 
     train_ds, valid_ds, test_ds = get_unified_datasets(task_cfg=task_cfg)
+    _validate_sealed_test_dataset(config.experiment, test_ds)
 
     # Create distributed sampler for training only.
     # Validation uses a non-padded sampler: each rank gets a disjoint
@@ -721,7 +833,7 @@ def setup_data_loaders(config, rank, world_size):
         num_replicas=world_size,
         rank=rank,
         shuffle=True,
-        seed=int(config.experiment.seed),
+        seed=resolved_seeds.loader_seed,
     )
 
     # PaddedDistributedEvalSampler gives each rank an equal number of
@@ -750,6 +862,11 @@ def setup_data_loaders(config, rank, world_size):
         train_ds,
         batch_size=batch_size,
         sampler=train_sampler,
+        **seeded_dataloader_kwargs(
+            resolved_seeds.loader_seed,
+            stream=0,
+            rank=rank,
+        ),
         **loader_kwargs,
     )
 
@@ -757,6 +874,11 @@ def setup_data_loaders(config, rank, world_size):
         valid_ds,
         batch_size=batch_size,
         sampler=valid_sampler,
+        **seeded_dataloader_kwargs(
+            resolved_seeds.loader_seed,
+            stream=1,
+            rank=rank,
+        ),
         **loader_kwargs,
     )
 
@@ -773,13 +895,32 @@ def main(config_path):
 
     # Load config
     config = load_config(config_path)
+    from dendritic_modeling.scripts.training.train_experiments import (
+        _validate_sealed_test_analysis,
+    )
 
-    # Set seed
-    set_seed(config.experiment.seed)
+    _validate_sealed_test_analysis(config.experiment, config.analysis)
+
+    resolved_seeds = resolve_experiment_seeds(config.experiment, write_back=True)
+    _apply_topology_seed_defaults(config.model, resolved_seeds.topology_seed)
+    _apply_initialization_seed_defaults(config.model, resolved_seeds.model_seed)
+    set_seed(
+        resolved_seeds.model_seed,
+        deterministic=bool(getattr(config.experiment, "deterministic", True)),
+        cudnn_benchmark=bool(getattr(config.experiment, "cudnn_benchmark", False)),
+        allow_tf32=bool(getattr(config.experiment, "allow_tf32", False)),
+        float32_matmul_precision=str(
+            getattr(config.experiment, "float32_matmul_precision", "highest")
+        ),
+        strict_deterministic=resolved_seeds.strict_deterministic,
+    )
+    if rank == 0:
+        logger.info("Resolved RNG seeds: %s", resolved_seeds.asdict())
 
     # Setup output directory (only on rank 0)
     if rank == 0:
         run_save_path = _setup_rank0_run_directory(config)
+        save_dict(resolved_seeds.asdict(), run_save_path, "resolved_seeds.json")
     else:
         run_save_path = None
 
@@ -802,16 +943,27 @@ def main(config_path):
     # To pretrain an autoencoder encoder, run it *before* FSDP
     # training with the standard single-GPU script, then point
     # the config at the saved checkpoint.
-    encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds = (
-        _prepare_rank_analysis_datasets(
-            rank=rank,
-            model=model,
-            config=config,
-            train_ds=train_ds,
-            valid_ds=valid_ds,
-            test_ds=test_ds,
+    analysis_enabled = config.analysis.any_enabled()
+    if analysis_enabled:
+        encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds = (
+            _prepare_rank_analysis_datasets(
+                rank=rank,
+                model=model,
+                config=config,
+                train_ds=train_ds,
+                valid_ds=valid_ds,
+                test_ds=test_ds,
+            )
         )
-    )
+    else:
+        encoder_network = Identity(1)
+        encoded_train_ds = None
+        encoded_valid_ds = None
+        encoded_test_ds = None
+        if rank == 0:
+            logger.info(
+                "No analysis modules enabled; skipping analysis dataset encoding."
+            )
 
     # Generate detailed parameter summary with real sample input
     if rank == 0:  # Only on rank 0 to avoid duplicate output
@@ -821,7 +973,7 @@ def main(config_path):
 
     # Setup analysis manager (only on rank 0)
     analysis_manager = None
-    if rank == 0:
+    if rank == 0 and analysis_enabled:
         analysis_manager = _setup_rank0_analysis_manager(
             config=config,
             model=model,
@@ -832,6 +984,8 @@ def main(config_path):
             run_save_path=run_save_path,
             local_rank=local_rank,
         )
+    elif rank == 0:
+        logger.info("No final analysis modules enabled; skipping AnalysisManager.")
 
     trainer = _create_fsdp_trainer(
         rank=rank,

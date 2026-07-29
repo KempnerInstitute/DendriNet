@@ -22,6 +22,7 @@ configs/*.txt
 # Private merge/runtime comparison configs belong under ignored projects/ or
 # external review folders, not in the public configs/ namespace.
 configs/branch_comparison/
+configs/local/
 configs/examples/*_multi_population_ei.yaml
 configs/examples/recurrent_synapse_types_ampa_nmda_gaba.yaml
 configs/examples/recurrent_soma_feedback.yaml
@@ -89,7 +90,8 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/
-
+artifacts/
+local_sweep_runs/
 # Filesystem mount points - prevent accidental inclusion of cluster filesystem
 n/
 
@@ -221,13 +223,21 @@ scripts_backup/
 # Ignore experiments folder completely (managed as separate repo)
 /experiments/
 
+# uv lockfile — this project pins deps via requirements/pyproject, and the
+# check-added-large-files hook rejects it (>500 KB).
+uv.lock
+# Stray pytest cache-file directories occasionally created in the repo root.
+pytest-cache-files-*/
+
 # Local scratch + external dependencies (kept untracked in this repo).
 drafts/
 review_round2/
 external/
-/scripts/
+/scripts/*
 !/scripts/ci/
 !/scripts/ci/**
+!/scripts/train_transformer_replacement_array.sh
+!/scripts/train_transformer_replacement_ddp.sh
 scratch/
 figures/
 outputs_smoke/

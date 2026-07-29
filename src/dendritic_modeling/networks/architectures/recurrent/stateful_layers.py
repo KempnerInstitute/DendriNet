@@ -65,6 +65,7 @@ def _stateful_connection_mask(
         in_features=in_dim,
         layer_idx=pop_config.structured_layer_idx,
         level_idx=level_idx,
+        n_levels=n_levels,
     )
 
 
@@ -190,7 +191,10 @@ def _build_stateful_branch_layers(
                     level_idx=level_idx,
                     n_levels=n_levels,
                 ),
-                layer_idx=n_levels - level_idx,
+                # ``level_dims`` is ordered distal-to-soma and includes the
+                # soma as its final level.  Keep the shared analysis convention
+                # exact: soma=0, proximal=1, increasing toward distal levels.
+                layer_idx=n_levels - level_idx - 1,
             ),
             synapse_config=common_synapse_config,
         )

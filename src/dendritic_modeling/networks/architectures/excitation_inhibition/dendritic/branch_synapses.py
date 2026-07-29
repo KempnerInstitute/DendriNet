@@ -8,14 +8,28 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.fac
     get_sparse_layer,
     normalize_sparse_layer_type,
 )
+from dendritic_modeling.utils.stable_hash import stable_seed_offset
 
 
-def _indexed_synapse_seed(owner: Any, synapse_type: str) -> int | None:
-    """Derive the deterministic per-layer/per-pathway indexed sparse seed."""
+def _indexed_synapse_seed(
+    owner: Any,
+    *,
+    pathway: str,
+) -> int | None:
+    """Derive a stable, independent indexed seed for one synaptic pathway.
+
+    ``synapse_type`` alone is not a sufficient namespace: feedforward and
+    recurrent excitation previously received the same seed (as did the two
+    inhibitory pathways).  The population-network builder namespaces the base
+    seed by layer and target population; this final offset separates pathway
+    and dendritic depth without depending on Python's randomized ``hash``.
+    """
     if owner.indexed_seed is None:
         return None
-    synapse_offset = {"exc": 0, "inh": 1}.get(synapse_type, 2)
-    return int(owner.indexed_seed) + (1009 * int(owner.layer_idx)) + synapse_offset
+    return (
+        int(owner.indexed_seed)
+        + stable_seed_offset("branch_synapse", pathway, int(owner.layer_idx))
+    ) % ((1 << 63) - 1)
 
 
 def _pathway_gamma(owner: Any, synapse_type: str) -> float:
@@ -32,10 +46,12 @@ def create_branch_sparse_layer(
     init_method: str,
     noise_level: float,
     synapse_type: str = "exc",
+    pathway: str | None = None,
     forbidden_input_index_per_output: Any = None,
     connection_mask: Any = None,
 ):
     """Create a sparse synapse layer using a branch layer's configuration."""
+    pathway = pathway or synapse_type
     # Keep invalid sweep configs runnable by capping requested synapse count to
     # available presynaptic features for this layer.
     if K is not None and K > in_features:
@@ -115,8 +131,23 @@ def create_branch_sparse_layer(
             prune_metric=owner.dense_to_sparse_prune_metric,
         )
 
-    if layer_type == "deepst":
+    if layer_type in {"deepst", "credit_deepst"}:
         owner.step_counter = 0
+        credit_kwargs = {}
+        if layer_type == "credit_deepst":
+            credit_kwargs = {
+                "credit_trace_decay": owner.credit_trace_decay,
+                "credit_candidate_pool_size": owner.credit_candidate_pool_size,
+                "credit_turnover_fraction": owner.credit_turnover_fraction,
+                "credit_weak_active_pool_fraction": (
+                    owner.credit_weak_active_pool_fraction
+                ),
+                "credit_min_observations": owner.credit_min_observations,
+                "credit_swap_margin": owner.credit_swap_margin,
+                "credit_force_turnover": owner.credit_force_turnover,
+                "credit_selection": owner.credit_selection,
+                "credit_warmup_steps": owner.credit_warmup_steps,
+            }
         return get_sparse_layer(
             layer_type,
             in_features,
@@ -142,6 +173,7 @@ def create_branch_sparse_layer(
             weight_transform=owner.weight_transform,
             forbidden_input_index_per_output=forbidden_input_index_per_output,
             connection_mask=connection_mask,
+            **credit_kwargs,
         )
 
     if layer_type in {"indexed", "indexed_rewire"}:
@@ -164,7 +196,7 @@ def create_branch_sparse_layer(
             gamma=_pathway_gamma(owner, synapse_type),
             connection_mask=connection_mask,
             forbidden_input_index_per_output=forbidden_input_index_per_output,
-            seed=_indexed_synapse_seed(owner, synapse_type),
+            seed=_indexed_synapse_seed(owner, pathway=pathway),
             output_chunk_size=owner.indexed_output_chunk_size,
             use_fused_gather=owner.indexed_use_fused_gather,
             use_triton_gather=owner.indexed_use_triton_gather,
@@ -190,7 +222,7 @@ def create_branch_sparse_layer(
             gamma=_pathway_gamma(owner, synapse_type),
             connection_mask=connection_mask,
             forbidden_input_index_per_output=forbidden_input_index_per_output,
-            seed=_indexed_synapse_seed(owner, synapse_type),
+            seed=_indexed_synapse_seed(owner, pathway=pathway),
             output_chunk_size=owner.indexed_output_chunk_size,
         )
 
@@ -220,6 +252,7 @@ def create_registered_branch_sparse_layer(
     init_method: str,
     noise_level: float,
     synapse_type: str = "exc",
+    pathway: str | None = None,
     forbidden_input_index_per_output: Any = None,
     connection_mask: Any = None,
 ):
@@ -232,6 +265,7 @@ def create_registered_branch_sparse_layer(
         init_method=init_method,
         noise_level=noise_level,
         synapse_type=synapse_type,
+        pathway=pathway,
         forbidden_input_index_per_output=forbidden_input_index_per_output,
         connection_mask=connection_mask,
     )

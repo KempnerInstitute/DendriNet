@@ -38,6 +38,30 @@ class TestAggregation(unittest.TestCase):
         group1 = result[result["ee_value"] == 40].iloc[0]
         self.assertAlmostEqual(group1["test_accuracy_mean"], 0.90, places=2)
 
+    def test_aggregate_over_seeds_accepts_list_valued_group_keys(self):
+        """Architecture lists should form stable groups without mutating input."""
+        data = pd.DataFrame(
+            {
+                "excitatory_layers": [[64], [64], [32, 64], [32, 64]],
+                "branch_factors": ["3-3", "3-3", "2-4", "2-4"],
+                "seed": [0, 1, 0, 1],
+                "test_accuracy": [0.50, 0.52, 0.40, 0.44],
+            }
+        )
+
+        result = aggregate_over_seeds(
+            data,
+            group_by_cols=["excitatory_layers", "branch_factors"],
+        )
+
+        self.assertEqual(len(result), 2)
+        self.assertEqual(set(result["excitatory_layers"]), {(64,), (32, 64)})
+        self.assertAlmostEqual(
+            result.loc[result["branch_factors"] == "3-3", "test_accuracy_mean"].iloc[0],
+            0.51,
+        )
+        self.assertIsInstance(data.loc[0, "excitatory_layers"], list)
+
     def test_compute_ei_ratio(self):
         """Test E/I ratio computation."""
         data = pd.DataFrame(
@@ -150,6 +174,28 @@ class TestAggregation(unittest.TestCase):
             result.iloc[1]["network_category"], "dendritic_normalized_additive"
         )
         self.assertEqual(result.iloc[2]["network_category"], "flat_normalized_additive")
+
+    def test_extract_network_category_population_network(self):
+        """Population-network rows should map to scientific model categories."""
+        data = pd.DataFrame(
+            {
+                "network_type": [
+                    "population_network",
+                    "population_network",
+                    "population_network",
+                ],
+                "use_shunting": [True, False, False],
+                "use_additive_normalization": [False, False, True],
+            }
+        )
+
+        result = extract_network_category(data)
+
+        self.assertEqual(result.iloc[0]["network_category"], "dendritic_shunting")
+        self.assertEqual(result.iloc[1]["network_category"], "dendritic_additive")
+        self.assertEqual(
+            result.iloc[2]["network_category"], "dendritic_normalized_additive"
+        )
 
 
 if __name__ == "__main__":

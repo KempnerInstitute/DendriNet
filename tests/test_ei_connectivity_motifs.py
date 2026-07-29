@@ -39,6 +39,7 @@ class TestEIConnectivityMotifs(unittest.TestCase):
             synapse_attr="branch_rec_inhibition",
             n_target=n_E,
             weight_transform="exp",
+            active_masks=[torch.ones(n_E * 2, n_I), torch.ones(n_E, n_I)],
         )
         ei = extract_compartment_weights_from_state_dict(
             sd,
@@ -46,6 +47,7 @@ class TestEIConnectivityMotifs(unittest.TestCase):
             synapse_attr="branch_recurrent",
             n_target=n_I,
             weight_transform="exp",
+            active_masks=[torch.ones(n_I * 3, n_E), torch.ones(n_I, n_E)],
         )
 
         self.assertEqual([tuple(w.shape) for w in ie], [(n_E, 2, n_I), (n_E, 1, n_I)])
@@ -101,6 +103,16 @@ class TestEIConnectivityMotifs(unittest.TestCase):
             n_I=n_I,
             weight_transform="exp",
             route_keys=LOCAL_RECURRENT_ROUTE_KEYS,
+            active_masks_by_route={
+                "e_rec_exc": [
+                    torch.ones(n_E * 2, n_E),
+                    torch.ones(n_E, n_E),
+                ],
+                "i_rec_inh": [
+                    torch.ones(n_I * 2, n_I),
+                    torch.ones(n_I, n_I),
+                ],
+            },
         )
 
         self.assertIn("e_rec_exc", out)

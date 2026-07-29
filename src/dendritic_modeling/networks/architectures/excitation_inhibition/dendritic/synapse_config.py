@@ -81,6 +81,9 @@ class MorphologyConfig:
 
     use_shunting: bool = True
     use_additive_normalization: bool = False
+    additive_mode: str = "raw"
+    additive_tangent_n0: float | None = None
+    additive_tangent_t0: float | None = None
     epsilon: float = 1e-8
     weight_transform: str = "exp"
     efficient_blocklinear: bool = False
@@ -95,7 +98,10 @@ class AdaptiveInitConfig:
     adaptive_initialization: bool = True
     adaptive_initialization_policy: str = "preserve_shunting_center"
     adaptive_target_conductance: float = 5.0
+    initial_child_conductance: float = 1.0
     branch_factors: tuple[int, ...] | None = None
+    initialization_seed: int | None = None
+    initialization_namespace: str = ""
 
 
 @dataclass(frozen=True)
@@ -113,6 +119,15 @@ class DeepSTConfig:
     freeze_inhibitory_connectivity: bool = False
     init_method: str | None = None
     weight_threshold: float = 1e-6
+    credit_trace_decay: float = 0.95
+    credit_candidate_pool_size: int = 8
+    credit_turnover_fraction: float = 0.1
+    credit_weak_active_pool_fraction: float = 0.5
+    credit_min_observations: int = 5
+    credit_swap_margin: float = 0.0
+    credit_force_turnover: bool = False
+    credit_selection: str = "credit"
+    credit_warmup_steps: int = 5
 
 
 def _topk_config_from_kwargs(source: Mapping[str, Any]) -> TopKConfig:
@@ -194,6 +209,9 @@ def _morphology_config_from_kwargs(source: Mapping[str, Any]) -> MorphologyConfi
     return MorphologyConfig(
         use_shunting=source.get("use_shunting", True),
         use_additive_normalization=source.get("use_additive_normalization", False),
+        additive_mode=source.get("additive_mode", "raw"),
+        additive_tangent_n0=source.get("additive_tangent_n0", None),
+        additive_tangent_t0=source.get("additive_tangent_t0", None),
         epsilon=source.get("epsilon", 1e-8),
         weight_transform=source.get("weight_transform", "exp"),
         efficient_blocklinear=source.get("efficient_blocklinear", False),
@@ -214,7 +232,10 @@ def _initialization_config_from_kwargs(source: Mapping[str, Any]) -> AdaptiveIni
             "adaptive_initialization_policy", "preserve_shunting_center"
         ),
         adaptive_target_conductance=source.get("adaptive_target_conductance", 5.0),
+        initial_child_conductance=source.get("initial_child_conductance", 1.0),
         branch_factors=branch_factors,
+        initialization_seed=source.get("initialization_seed", None),
+        initialization_namespace=str(source.get("initialization_namespace", "") or ""),
     )
 
 
@@ -236,6 +257,17 @@ def _deepst_config_from_kwargs(source: Mapping[str, Any]) -> DeepSTConfig:
         ),
         init_method=source.get("init_method", None),
         weight_threshold=source.get("weight_threshold", 1e-6),
+        credit_trace_decay=source.get("credit_trace_decay", 0.95),
+        credit_candidate_pool_size=source.get("credit_candidate_pool_size", 8),
+        credit_turnover_fraction=source.get("credit_turnover_fraction", 0.1),
+        credit_weak_active_pool_fraction=source.get(
+            "credit_weak_active_pool_fraction", 0.5
+        ),
+        credit_min_observations=source.get("credit_min_observations", 5),
+        credit_swap_margin=source.get("credit_swap_margin", 0.0),
+        credit_force_turnover=source.get("credit_force_turnover", False),
+        credit_selection=source.get("credit_selection", "credit"),
+        credit_warmup_steps=source.get("credit_warmup_steps", 5),
     )
 
 
@@ -314,6 +346,9 @@ def _morphology_kwargs(config: MorphologyConfig) -> dict[str, Any]:
     return {
         "use_shunting": config.use_shunting,
         "use_additive_normalization": config.use_additive_normalization,
+        "additive_mode": config.additive_mode,
+        "additive_tangent_n0": config.additive_tangent_n0,
+        "additive_tangent_t0": config.additive_tangent_t0,
         "epsilon": config.epsilon,
         "weight_transform": config.weight_transform,
         "efficient_blocklinear": config.efficient_blocklinear,
@@ -328,9 +363,12 @@ def _initialization_kwargs(config: AdaptiveInitConfig) -> dict[str, Any]:
         "adaptive_initialization": config.adaptive_initialization,
         "adaptive_initialization_policy": config.adaptive_initialization_policy,
         "adaptive_target_conductance": config.adaptive_target_conductance,
+        "initial_child_conductance": config.initial_child_conductance,
         "branch_factors": (
             None if config.branch_factors is None else list(config.branch_factors)
         ),
+        "initialization_seed": config.initialization_seed,
+        "initialization_namespace": config.initialization_namespace,
     }
 
 
@@ -348,6 +386,15 @@ def _deepst_kwargs(config: DeepSTConfig) -> dict[str, Any]:
         "freeze_inhibitory_connectivity": config.freeze_inhibitory_connectivity,
         "init_method": config.init_method,
         "weight_threshold": config.weight_threshold,
+        "credit_trace_decay": config.credit_trace_decay,
+        "credit_candidate_pool_size": config.credit_candidate_pool_size,
+        "credit_turnover_fraction": config.credit_turnover_fraction,
+        "credit_weak_active_pool_fraction": config.credit_weak_active_pool_fraction,
+        "credit_min_observations": config.credit_min_observations,
+        "credit_swap_margin": config.credit_swap_margin,
+        "credit_force_turnover": config.credit_force_turnover,
+        "credit_selection": config.credit_selection,
+        "credit_warmup_steps": config.credit_warmup_steps,
     }
 
 

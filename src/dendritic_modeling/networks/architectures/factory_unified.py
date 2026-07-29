@@ -39,6 +39,8 @@ def _coerce_population_config(
     alias_overrides: dict[str, object],
     core_type: str,
     context: str,
+    initialization_seed: int | None = None,
+    initialization_namespace: str = "",
 ) -> Any:
     """Normalize one optional E/I population config payload."""
 
@@ -47,6 +49,11 @@ def _coerce_population_config(
         if plain_population:
             population = plain_population
     if isinstance(population, dict):
+        population = dict(population)
+        if initialization_seed is not None:
+            population.setdefault("initialization_seed", initialization_seed)
+        if not population.get("initialization_namespace"):
+            population["initialization_namespace"] = initialization_namespace
         population = _apply_population_alias_overrides(
             population,
             alias_overrides,
@@ -64,6 +71,7 @@ def build_unified_ei_layer_configs(
     population_config_cls: type[Any],
     alias_overrides: dict[str, object],
     core_type: str,
+    initialization_seed: int | None = None,
 ) -> list[Any]:
     """Build typed unified E/I layer configs from mappings or config objects."""
 
@@ -85,6 +93,8 @@ def build_unified_ei_layer_configs(
             alias_overrides=alias_overrides,
             core_type=core_type,
             context=f"model.core.unified_ei.layers[{layer_idx}].excitatory",
+            initialization_seed=initialization_seed,
+            initialization_namespace=f"unified.layer.{layer_idx}.excitatory",
         )
         inh = _coerce_population_config(
             layer.get("inhibitory"),
@@ -92,6 +102,8 @@ def build_unified_ei_layer_configs(
             alias_overrides=alias_overrides,
             core_type=core_type,
             context=f"model.core.unified_ei.layers[{layer_idx}].inhibitory",
+            initialization_seed=initialization_seed,
+            initialization_namespace=f"unified.layer.{layer_idx}.inhibitory",
         )
         if isinstance(exc, population_config_cls):
             layer["excitatory"] = exc
@@ -144,6 +156,7 @@ def _build_unified_ei_architecture(
         population_config_cls=PopulationConfig,
         alias_overrides=alias_overrides,
         core_type=type,
+        initialization_seed=raw_params.get("initialization_seed"),
     )
 
     if not layers_cfg:

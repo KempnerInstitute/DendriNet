@@ -45,6 +45,23 @@ def _clear_rewired_optimizer_state(model, optimizer: Optimizer) -> None:
                 value[mask] = 0
 
 
+def apply_indexed_rewiring_after_step(model, optimizer: Optimizer) -> int:
+    """Rewire indexed sparse leaves once and clear their optimizer moments.
+
+    This helper is used by training paths that construct a normal PyTorch
+    optimizer directly instead of wrapping a full ``BaseModel`` in
+    ``CustomWeightDecayOptimizer``. Traversing rewired leaf modules avoids
+    calling shared or nested replacement containers more than once.
+    """
+    rewired_modules = list(_iter_rewired_optimizer_modules(model))
+    for module, _ in rewired_modules:
+        apply_rewiring = getattr(module, "apply_rewiring", None)
+        if callable(apply_rewiring):
+            apply_rewiring()
+    _clear_rewired_optimizer_state(model, optimizer)
+    return len(rewired_modules)
+
+
 class CustomWeightDecayOptimizer:
     """
     Custom weight decay optimizer wrapper.
@@ -108,4 +125,7 @@ class CustomWeightDecayOptimizer:
         _clear_rewired_optimizer_state(self.model, self.optimizer)
 
 
-__all__ = ["CustomWeightDecayOptimizer"]
+__all__ = [
+    "CustomWeightDecayOptimizer",
+    "apply_indexed_rewiring_after_step",
+]

@@ -54,8 +54,25 @@ dependencies = [
 dendritic-train = "dendritic_modeling.scripts.training.train_experiments:cli_main"
 dendritic-train-transformer-replacement = "dendritic_modeling.scripts.training.train_transformer_replacement:main"
 dendritic-benchmark-transformer-replacement = "dendritic_modeling.scripts.training.benchmark_transformer_replacement:main"
+dendritic-profile-transformer-scaling = "dendritic_modeling.scripts.transformer_replacement.profile_scaling:main"
+dendritic-benchmark-transformer-operator = "dendritic_modeling.scripts.transformer_replacement.benchmark_operator:main"
+dendritic-assemble-transformer-replacements = "dendritic_modeling.scripts.transformer_replacement.assemble_layer_checkpoints:main"
+dendritic-compact-transformer-checkpoint = "dendritic_modeling.scripts.transformer_replacement.compact_checkpoint:main"
 dendritic-sweep = "dendritic_modeling.scripts.sweeps.sweep_manager:main"
 dendritic-analyze = "dendritic_modeling.scripts.sweeps.result_analyzer:main"
+dendritic-analyze-checkpoint = "dendritic_modeling.scripts.analysis.run_checkpoint_analysis:main"
+dendritic-submit-checkpoint-analysis = "dendritic_modeling.scripts.analysis.submit_checkpoint_analysis:main"
+dendritic-collect-representations = "dendritic_modeling.scripts.analysis.collect_representation_accessibility:main"
+dendritic-collect-path-interventions = "dendritic_modeling.scripts.analysis.collect_path_matched_intervention:main"
+dendritic-collect-path-information = "dendritic_modeling.scripts.analysis.collect_path_matched_information:main"
+dendritic-collect-local-i-interventions = "dendritic_modeling.scripts.analysis.collect_layer_population_interventions:main"
+dendritic-collect-checkpoint-analysis = "dendritic_modeling.scripts.analysis.collect_checkpoint_analysis:main"
+dendritic-collect-reactivation = "dendritic_modeling.scripts.analysis.collect_reactivation_dynamics:main"
+dendritic-collect-synaptic-support = "dendritic_modeling.scripts.analysis.collect_synaptic_support:main"
+dendritic-summarize-checkpoint-metrics = "dendritic_modeling.scripts.analysis.summarize_checkpoint_metrics:main"
+dendritic-poisson-exposure-transfer = "dendritic_modeling.scripts.analysis.run_poisson_exposure_transfer:main"
+dendritic-collect-poisson-transfer = "dendritic_modeling.scripts.analysis.collect_poisson_exposure_transfer:main"
+dendritic-collect-sweep-metrics = "dendritic_modeling.scripts.sweeps.collect_sweep_metrics:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
@@ -124,33 +141,6 @@ docs = [
 
 all = [
     "dendritic_modeling[dev,train,docs,tf,transformer]",
-]
-
-# Configuration for pytest
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-python_files = ["test_*.py", "*_test.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
-addopts = [
-    "--strict-markers",
-    "--strict-config",
-    "--cov=dendritic_modeling",
-    "--cov-report=term-missing",
-    "--cov-report=html",
-    "--cov-fail-under=30",
-]
-markers = [
-    "slow: marks tests as slow (deselected by default)",
-    "integration: marks tests as integration tests",
-    "unit: marks tests as unit tests",
-    "requires_gpu: marks tests that require GPU",
-    "requires_data: marks tests that require external data",
-]
-filterwarnings = [
-    "ignore::UserWarning",
-    "ignore::DeprecationWarning",
-    "ignore::PendingDeprecationWarning",
 ]
 
 # Configuration for coverage

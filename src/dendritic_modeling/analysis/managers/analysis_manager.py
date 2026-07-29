@@ -27,6 +27,7 @@ from dendritic_modeling.analysis.managers.analysis_plan import (
 )
 from dendritic_modeling.config import AnalysisConfig
 from dendritic_modeling.models import BaseModel, Regressor
+from dendritic_modeling.utils.reproducibility import isolated_random_seed
 
 __all__ = [
     "_DENDRITIC_TIMETRACES_ANALYSIS",
@@ -55,18 +56,55 @@ class AnalysisManager:
         analysis_config: AnalysisConfig,
         save_root: Optional[str] = None,
         device: str = "cpu",
+        evaluation_seed: int | None = None,
+        probe_seed: int | None = None,
     ):
         self.model = model
         self.data = data
         self.config = analysis_config
         self.save_root = save_root
         self.device = device
+        self.evaluation_seed = None if evaluation_seed is None else int(evaluation_seed)
+        self.probe_seed = None if probe_seed is None else int(probe_seed)
         os.makedirs(self.save_root, exist_ok=True)
         # Logging should be configured externally at the application startup
         self.logger = logging.getLogger(__name__)
 
+        self._apply_reproducibility_seeds()
         self._sanitize_performance_metrics_for_task()
         self._initialize_configured_analyzers()
+
+    def _apply_reproducibility_seeds(self) -> None:
+        """Route experiment evaluation/probe seeds to their concrete consumers."""
+        if self.evaluation_seed is not None:
+            runtime = getattr(self.config, "runtime", None)
+            for phase in ("training", "final"):
+                profile = getattr(runtime, phase, None) if runtime is not None else None
+                if profile is not None:
+                    profile.seed = self.evaluation_seed
+
+        if self.probe_seed is None:
+            return
+        representation = getattr(
+            self.config,
+            "representation_accessibility_analysis",
+            None,
+        )
+        representation_params = getattr(representation, "params", None)
+        if representation_params is not None and hasattr(representation_params, "seed"):
+            representation_params.seed = self.probe_seed
+        information = getattr(self.config, "information_analysis", None)
+        params = getattr(information, "params", None)
+        if params is None:
+            return
+        # Keep the legacy and grouped decoder representations synchronized;
+        # grouped config takes precedence when the analyzer normalizes options.
+        if hasattr(params, "decoder_seed"):
+            params.decoder_seed = self.probe_seed
+        estimator = getattr(params, "estimator", None)
+        decoder = getattr(estimator, "decoder", None) if estimator is not None else None
+        if decoder is not None:
+            decoder.seed = self.probe_seed
 
     def _initialize_configured_analyzers(self) -> None:
         """Instantiate enabled analyzers from registry-backed metadata."""
@@ -74,6 +112,14 @@ class AnalysisManager:
             cfg = getattr(self.config, initializer.config_field, None)
             if cfg is None or not getattr(cfg, "enabled", False):
                 continue
+            if (
+                getattr(cfg, "training", False)
+                and not initializer.spec.supports_training
+            ):
+                raise ValueError(
+                    f"Analyzer {initializer.registry_name!r} is final-only and "
+                    "cannot set training=true"
+                )
             params = getattr(cfg, "params", None)
             setattr(
                 self,
@@ -184,6 +230,7 @@ class AnalysisManager:
         runtime: object | None,
         pass_training: bool = False,
         require_analyzer: bool = False,
+        dataset_split: str = "test",
     ) -> None:
         """Run an analyzer with the common test-dataset call signature."""
         if not self._should_run_registered_analysis(
@@ -193,9 +240,13 @@ class AnalysisManager:
         ):
             return
 
+        dataset_key = "valid" if dataset_split == "validation" else dataset_split
+        if dataset_key not in self.data:
+            raise ValueError(f"Unknown analysis dataset split: {dataset_split!r}")
+
         kwargs = {
             "model": self.model,
-            "test_dataset": self.data["test"],
+            "test_dataset": self.data[dataset_key],
             "device": self.device,
             "save_path": self._analysis_save_path(registry_name),
             "filename": filename,
@@ -203,6 +254,10 @@ class AnalysisManager:
         }
         if pass_training:
             kwargs["training"] = training
+        if registry_name in {"ablation", "path_matched_intervention"}:
+            # Fixed-reference interventions are calibrated once on training
+            # data, then held fixed while evaluating the test split.
+            kwargs["reference_dataset"] = self.data.get("train", self.data["test"])
 
         self._call_analysis_analyzer(registry_name, **kwargs)
 
@@ -249,6 +304,7 @@ class AnalysisManager:
         start_message: str,
         complete_message: str,
         require_analyzer: bool = False,
+        dataset_split: str = "test",
     ) -> None:
         """Run a common test-dataset analyzer with start/complete logging."""
         if not self._should_run_registered_analysis(
@@ -267,6 +323,7 @@ class AnalysisManager:
                 training=training,
                 runtime=runtime,
                 require_analyzer=require_analyzer,
+                dataset_split=dataset_split,
             ),
         )
 
@@ -357,13 +414,60 @@ class AnalysisManager:
         self, *, filename: str, training: bool, runtime: object | None
     ) -> None:
         """Run information analysis."""
-        self._run_logged_test_dataset_analysis(
-            registry_name="information",
+
+        if not self._should_run_registered_analysis(
+            "information", training=training, require_analyzer=True
+        ):
+            return
+
+        def run() -> None:
+            analysis_split = str(
+                getattr(self.information_analyzer, "analysis_split", "test")
+            )
+            self._run_logged_test_dataset_analysis(
+                registry_name="information",
+                filename=filename,
+                training=training,
+                runtime=runtime,
+                start_message="Starting information analysis...",
+                complete_message="Information analysis completed successfully",
+                dataset_split=analysis_split,
+            )
+
+        if self.probe_seed is None:
+            run()
+        else:
+            with isolated_random_seed(self.probe_seed):
+                run()
+
+    def _run_path_matched_information_analysis(
+        self, *, filename: str, training: bool, runtime: object | None
+    ) -> None:
+        """Run matched-width dendritic information on validation data only."""
+        if not self._should_run_registered_analysis(
+            "path_matched_information",
+            training=training,
+            require_analyzer=True,
+        ):
+            return
+        config = self._analysis_config("path_matched_information")
+        params = getattr(config, "params", None)
+        add_probe_offset = bool(getattr(params, "add_probe_seed_offset", False))
+        seed_offset = (
+            int(self.probe_seed)
+            if add_probe_offset and self.probe_seed is not None
+            else 0
+        )
+        self._call_analysis_analyzer(
+            "path_matched_information",
+            model=self.model,
+            validation_dataset=self.data["valid"],
+            device=self.device,
+            save_path=self._analysis_save_path("path_matched_information"),
             filename=filename,
             training=training,
             runtime=runtime,
-            start_message="Starting information analysis...",
-            complete_message="Information analysis completed successfully",
+            seed_offset=seed_offset,
         )
 
     def _run_synaptic_turnover_analysis(self, *, filename: str, training: bool) -> None:
@@ -413,6 +517,22 @@ class AnalysisManager:
             filename=filename,
             training=training,
             runtime=runtime,
+        )
+
+    def _run_representation_accessibility_analysis(
+        self,
+        *,
+        filename: str,
+        training: bool,
+        runtime: object | None,
+    ) -> None:
+        """Run validation-fit representation probes and information metrics."""
+        self._run_split_dataset_analysis(
+            registry_name="representation_accessibility",
+            filename=filename,
+            training=training,
+            runtime=runtime,
+            require_analyzer=True,
         )
 
     def _run_local_rule_component_analysis(
@@ -618,8 +738,16 @@ class AnalysisManager:
             training: Whether this is being called during training (affects which analyses run)
         """
         runtime = self._analysis_runtime(training)
-        self._run_ordered_analysis_sequence(
-            filename=filename,
-            training=training,
-            runtime=runtime,
-        )
+        if self.evaluation_seed is None:
+            self._run_ordered_analysis_sequence(
+                filename=filename,
+                training=training,
+                runtime=runtime,
+            )
+        else:
+            with isolated_random_seed(self.evaluation_seed):
+                self._run_ordered_analysis_sequence(
+                    filename=filename,
+                    training=training,
+                    runtime=runtime,
+                )

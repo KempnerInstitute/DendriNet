@@ -8,6 +8,10 @@ from typing import Optional
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.blocklinear import (
+    BlockLinear,
+    EfficientBlockLinear,
+)
 from dendritic_modeling.networks.architectures.recurrent.dendritic_geometry import (
     compute_level_sizes,
     compute_output_owner_index_per_level,
@@ -60,6 +64,9 @@ from dendritic_modeling.networks.architectures.recurrent.synapse_types import (
     build_synapse_type_set,
     validate_additive_synapse_reversals,
 )
+from dendritic_modeling.networks.utils.weight_transforms import (
+    POSITIVE_WEIGHT_TRANSFORMS,
+)
 
 
 class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
@@ -92,6 +99,13 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
         self.synapse_types = build_synapse_type_set(pop_config.synapse_types)
         self.synapse_types_enabled = bool(self.synapse_types.enabled)
         if self.synapse_types_enabled and not bool(pop_config.use_shunting):
+            if str(pop_config.additive_mode).lower() != "raw":
+                raise ValueError(
+                    "Typed reversal-potential synapses currently support only "
+                    "additive_mode='raw' when use_shunting=false; their signed "
+                    "current decomposition does not share the legacy N/T control "
+                    "equations."
+                )
             self._validate_additive_synapse_reversals()
         self.dynamics_mode = str(pop_config.dynamics_mode).lower()
         self.spiking_soma = _build_stateful_spiking_soma(
@@ -113,6 +127,12 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
             self._level_dims, self._n_soma
         )
         self.n_levels = len(self._level_dims)
+        self.cross_level_mode = str(pop_config.cross_level_mode).lower()
+        if self.is_parallel_readout and self.n_levels < 2:
+            raise ValueError(
+                "cross_level_mode='parallel_readout' requires at least two "
+                "levels (a non-soma level and a soma)"
+            )
         dendritic_spike_setup = _resolve_stateful_dendritic_spike_setup(
             pop_config,
             n_levels=self.n_levels,
@@ -196,6 +216,8 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
         self.branch_configs = tuple(
             branch_layer.branch_config for branch_layer in self.branch_layers
         )
+        if self.cross_level_mode == "parallel_readout":
+            self._configure_parallel_readout()
 
     @property
     def n_soma(self) -> int:
@@ -206,8 +228,126 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
         return self._n_soma
 
     @property
+    def is_parallel_readout(self) -> bool:
+        """Whether levels update independently and pool directly to the soma."""
+        return self.cross_level_mode == "parallel_readout"
+
+    @property
     def level_dims(self) -> list[int]:
         return self._level_dims
+
+    def _configure_parallel_readout(self) -> None:
+        """Replace serial child aggregators with parameter-matched direct pooling.
+
+        For local pre-reactivation voltages ``v_l``, reactivations ``phi_l``,
+        soma-local shunting numerator ``N_s``, denominator ``D_s``, and direct
+        projection conductance ``G``, the rate-mode control computes
+
+        ``C = sum_{l < s} P_l phi_l(v_l)``
+
+        ``G = sum_{l < s} sum_conductances(P_l)``
+
+        ``y = phi_s((N_s + C) / (D_s + G + epsilon))``.
+
+        Thus every non-soma level and the soma are reactivated exactly once. Each
+        ``P_l`` is a fixed-support positive block projection from the level width
+        directly to ``n_soma``. Its number of trainable scalars equals that level
+        width, so replacing the serial aggregators preserves total parameters.
+        """
+        unsupported: list[str] = []
+        if self.dynamics_mode != "rate":
+            unsupported.append("spiking soma dynamics")
+        if self.synapse_types_enabled:
+            unsupported.append("typed synapses")
+        if self.dendritic_spikes_enabled:
+            unsupported.append("dendritic spikes")
+        if self.soma_feedback_enabled:
+            unsupported.append("soma feedback")
+        if not self.pop_config.use_shunting:
+            unsupported.append("additive/non-shunting dynamics")
+        if self.pop_config.blocklinear_strategy != "none":
+            unsupported.append(
+                "non-default blocklinear gradient scaling "
+                f"({self.pop_config.blocklinear_strategy!r})"
+            )
+        if unsupported:
+            raise ValueError(
+                "cross_level_mode='parallel_readout' does not yet support "
+                + ", ".join(unsupported)
+            )
+        if self.pop_config.weight_transform not in POSITIVE_WEIGHT_TRANSFORMS:
+            raise ValueError(
+                "cross_level_mode='parallel_readout' requires a positive "
+                "weight_transform, got "
+                f"{self.pop_config.weight_transform!r}"
+            )
+        has_recurrent_path = any(
+            layer.branch_recurrent is not None
+            or layer.branch_rec_inhibition is not None
+            for layer in self.branch_layers
+        )
+        if not has_recurrent_path:
+            raise ValueError(
+                "cross_level_mode='parallel_readout' requires a recurrent "
+                "population with at least one active recurrent synapse pathway"
+            )
+
+        projection_cls = (
+            EfficientBlockLinear
+            if self.pop_config.efficient_blocklinear
+            else BlockLinear
+        )
+        projections = nn.ModuleList()
+        for level_dim in self._level_dims[:-1]:
+            projection = projection_cls(
+                level_dim,
+                self._n_soma,
+                weight_transform=self.pop_config.weight_transform,
+            )
+            projection.initialize(g_branch=1.0)
+            projections.append(projection)
+        self.parallel_readout_projections = projections
+
+        # Child aggregators have the same total scalar count as the direct
+        # projections. Remove them rather than retaining unused capacity.
+        for layer in self.branch_layers[1:]:
+            if hasattr(layer, "branches_to_output"):
+                del layer.branches_to_output
+            layer.input_branches = False
+
+    def _parallel_readout_soma_voltage(
+        self,
+        *,
+        layer: nn.Module,
+        local_numerator: torch.Tensor,
+        local_denominator: torch.Tensor,
+        level_outputs: list[torch.Tensor],
+    ) -> torch.Tensor:
+        """Pool independent level outputs through the soma shunting equation.
+
+        Each positive projection contributes its activity-weighted current to
+        the numerator and its activity-independent transformed conductance sum
+        to the denominator, matching the primary branch shunting law while
+        replacing only the serial cross-level graph.
+        """
+        direct_current = torch.zeros_like(local_numerator)
+        direct_conductance = torch.zeros_like(local_numerator[:1])
+        for projection, level_output in zip(
+            self.parallel_readout_projections,
+            level_outputs,
+            strict=True,
+        ):
+            direct_current = direct_current + projection(level_output)
+            projection_conductance = projection.sum_conductances().to(
+                device=direct_current.device,
+                dtype=direct_current.dtype,
+            )
+            direct_conductance = direct_conductance + projection_conductance.unsqueeze(
+                0
+            )
+        return (local_numerator + direct_current) / (
+            local_denominator + direct_conductance + layer.epsilon
+        )
 
     def get_decays(self) -> torch.Tensor:
         """Return per-level decay factors, computing from log_tau if learnable."""
@@ -357,6 +497,12 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
         inhibitory_input: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """Feedforward pass, using one stateful step when opt-in dynamics need state."""
+        if self.is_parallel_readout:
+            raise RuntimeError(
+                "cross_level_mode='parallel_readout' is recurrent-only; call "
+                "step() with recurrent state or use it through a recurrent "
+                "PopulationNetwork"
+            )
         if (
             self.synapse_types_enabled
             or self.spiking_soma is not None
@@ -413,6 +559,9 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
         )
 
         branch_voltage = None
+        parallel_level_outputs: list[torch.Tensor] = []
+        soma_local_numerator: torch.Tensor | None = None
+        soma_local_denominator: torch.Tensor | None = None
         soma_feedback_source = self._previous_soma_feedback_source(
             state,
             batch_size=batch_size,
@@ -437,7 +586,7 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
             # 2. Branch aggregation from child level
             raw_branch = _stateful_raw_branch_drive(
                 layer=layer,
-                branch_voltage=branch_voltage,
+                branch_voltage=(None if self.is_parallel_readout else branch_voltage),
                 batch_size=batch_size,
                 level_dim=self._level_dims[level_idx],
                 device=device,
@@ -464,7 +613,11 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
                 prev_trace_E_rec=previous.trace_E_rec,
                 prev_trace_I=previous.trace_I,
                 prev_trace_I_rec=previous.trace_I_rec,
-                prev_trace_branch=previous.trace_branch,
+                prev_trace_branch=(
+                    torch.zeros_like(previous.trace_branch)
+                    if self.is_parallel_readout
+                    else previous.trace_branch
+                ),
                 prev_branch_voltage=previous.branch_voltage,
             )
 
@@ -553,21 +706,65 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
                 buffers.trace_I_rec.append(trace_I_rec)
 
                 # 4. Shunting/additive computation from integrated traces.
-                branch_voltage, denominator = _apply_stateful_legacy_voltage(
-                    layer=layer,
-                    trace_E=trace_E,
-                    trace_E_rec=trace_E_rec,
-                    trace_I=trace_I,
-                    trace_I_rec=trace_I_rec,
-                    trace_branch=effective_trace_branch,
-                    branch_conductance=effective_branch_conductance,
-                )
+                if self.is_parallel_readout:
+                    local_voltage, denominator = layer.voltage_from_currents(
+                        trace_E=trace_E,
+                        trace_E_rec=trace_E_rec,
+                        trace_I=trace_I,
+                        trace_I_rec=trace_I_rec,
+                        trace_branch=effective_trace_branch,
+                        branch_conductance=effective_branch_conductance,
+                    )
+                    # Non-soma levels feed their once-reactivated local outputs
+                    # to direct projections. The soma remains pre-reactivation
+                    # until all direct contributions have been added.
+                    branch_voltage = (
+                        local_voltage
+                        if level_idx == self.n_levels - 1
+                        else layer.reactivation(local_voltage)
+                    )
+                    if level_idx == self.n_levels - 1:
+                        if denominator is None:
+                            raise RuntimeError(
+                                "parallel_readout requires a soma shunting denominator"
+                            )
+                        soma_local_numerator = trace_E + trace_E_rec
+                        soma_local_denominator = denominator
+                else:
+                    branch_voltage, denominator = _apply_stateful_legacy_voltage(
+                        layer=layer,
+                        trace_E=trace_E,
+                        trace_E_rec=trace_E_rec,
+                        trace_I=trace_I,
+                        trace_I_rec=trace_I_rec,
+                        trace_branch=effective_trace_branch,
+                        branch_conductance=effective_branch_conductance,
+                    )
                 self._maybe_update_dynamic_grad_scales(layer, denominator)
             branch_voltage = _apply_stateful_branch_voltage_modulators(
                 branch_voltage=branch_voltage,
                 soma_feedback_gate=soma_feedback_gate,
                 keep_mask=keep_mask,
             )
+            if self.is_parallel_readout:
+                if level_idx < self.n_levels - 1:
+                    parallel_level_outputs.append(branch_voltage)
+                else:
+                    if soma_local_numerator is None or soma_local_denominator is None:
+                        raise RuntimeError(
+                            "parallel_readout soma currents were not initialized"
+                        )
+                    pooled_voltage = self._parallel_readout_soma_voltage(
+                        layer=layer,
+                        local_numerator=soma_local_numerator,
+                        local_denominator=soma_local_denominator,
+                        level_outputs=parallel_level_outputs,
+                    )
+                    # The soma reactivation is applied here, once, and nowhere
+                    # earlier on the soma path.
+                    branch_voltage = layer.reactivation(pooled_voltage)
+                    if keep_mask is not None:
+                        branch_voltage = branch_voltage * keep_mask
             if self.dendritic_spikes_enabled:
                 branch_voltage, plateau, refractory, event = (
                     self._apply_dendritic_spike_dynamics(

@@ -686,8 +686,12 @@ def test_gpu_estimate_task_config_helper_preserves_legacy_and_synthesizes_data()
 
 
 def test_gpu_estimate_fallback_input_shapes():
-    assert _fallback_input_shape(SimpleNamespace(dataset="mnist"), {}) == (784,)
-    assert _fallback_input_shape(SimpleNamespace(dataset="cifar10"), {}) == (3072,)
+    assert _fallback_input_shape(SimpleNamespace(dataset="mnist"), {}) == (1, 28, 28)
+    assert _fallback_input_shape(SimpleNamespace(dataset="cifar10"), {}) == (
+        3,
+        32,
+        32,
+    )
     assert _fallback_input_shape(
         SimpleNamespace(dataset="imagenet"), {"flatten": True}
     ) == (150528,)

@@ -706,6 +706,53 @@ class TestUnifiedSweepGenerator:
         _ = generator.generate_configs(request_config)
         assert not any("may be mostly a no-op" in msg for msg in warning_calls)
 
+    def test_warns_when_optimizer_lr_axis_is_shadowed_by_param_groups(
+        self, generator, monkeypatch
+    ):
+        """Optimizer LR labels must not masquerade as effective LR changes."""
+        sweep_definition = OmegaConf.create(
+            {
+                "sweep_config": {"training.main.optimizer.lr": [0.0001, 0.001]},
+                "filter_config": {},
+                "experiment_settings": {"seeds_per_condition": 1, "base_seed": 42},
+            }
+        )
+        base_training_config = OmegaConf.create(
+            {
+                "experiment": {"seed": 42},
+                "training": {
+                    "main": {
+                        "common": {
+                            "param_groups": {
+                                "split_params": False,
+                                "lr": 0.001,
+                            }
+                        },
+                        "optimizer": {"name": "adam", "lr": 0.001},
+                    }
+                },
+                "model": {},
+                "data": {},
+                "wandb": {},
+                "analysis": {},
+                "outputs": {},
+            }
+        )
+
+        warning_calls: list[str] = []
+
+        def _capture_warning(msg, *args, **kwargs):
+            warning_calls.append(str(msg) % args if args else str(msg))
+
+        monkeypatch.setattr(unified_sweep.logger, "warning", _capture_warning)
+
+        request_config = _build_sweep_request(sweep_definition, base_training_config)
+        configs = generator.generate_configs(request_config)
+
+        assert len(configs) == 2
+        assert any("is ineffective" in msg for msg in warning_calls)
+        assert any("param_groups.*" in msg for msg in warning_calls)
+
 
 class TestUnifiedSweepIntegration:
     """Integration tests for unified sweep functionality."""

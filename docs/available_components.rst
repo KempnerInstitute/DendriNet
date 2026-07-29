@@ -469,10 +469,11 @@ Analysis Modules
 Each enabled under ``analysis.<module_name>.enabled``:
 
 Preferred short names in YAML are ``performance``, ``information``,
-``ablation``, and ``correlation``. The longer ``*_analysis`` names are accepted
-as aliases.
+``representation_accessibility``, ``ablation``, and ``correlation``. The longer
+``*_analysis`` names are accepted as aliases.
 
-Available modules: ``performance``, ``information``, ``ablation``,
+Available modules: ``performance``, ``information``,
+``representation_accessibility``, ``ablation``,
 ``correlation``, ``weight``, ``synapse_turnover``, ``noise_perturbation``,
 ``compartment_statistics``, ``compartment_snr``, ``multiplicative_gain``,
 ``routing``, ``receptive_field``, ``adversarial_robustness``,
@@ -480,6 +481,12 @@ Available modules: ``performance``, ``information``, ``ablation``,
 ``reactivation_dynamics``, ``inhibitory_specialization``,
 ``jacobian_spectrum``, ``dendritic_timetraces``, ``local_rule_components``,
 ``spike_train``.
+
+``representation_accessibility`` captures post-gate soma populations from
+stacked feedforward population networks. It provides validation-to-test Ridge
+and MLP probes, label-independent matched-width projections, joint population
+class information on validation representations, and separate validation-set
+per-soma scalar information summaries.
 
 Information Analysis Components
 -------------------------------
@@ -536,4 +543,7 @@ BlockLinear Initialization
 
 Set via ``model.core.morphology.dbl_init_method``:
 
-``analytical_expectation``, ``ei_equivalence``, ``naive``, ``default``.
+``analytical_expectation``, ``ei_equivalence``, ``naive``, ``default``,
+``mechanism_neutral``. The last option is reserved for paired causal controls:
+with a shared seed it initializes shunting and additive models identically and
+does not provide mechanism-specific operating-point optimization.

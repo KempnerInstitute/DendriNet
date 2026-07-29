@@ -868,7 +868,7 @@ class TestInformationAnalyzer(unittest.TestCase):
             )
 
         self.assertEqual(results, {"basic_mi": {"I(E;C)": 1.0}})
-        mock_metrics.assert_called_once_with(E, I_var, Vout, C, None, None)
+        mock_metrics.assert_called_once_with(E, I_var, Vout, C, None, None, None)
         mock_null.assert_called_once()
         self.assertTrue(mock_null.call_args.kwargs["has_exc_synapses"])
         self.assertFalse(mock_null.call_args.kwargs["has_inh_synapses"])
@@ -883,6 +883,8 @@ class TestInformationAnalyzer(unittest.TestCase):
             "inhibition": torch.tensor([[5.0, 6.0], [7.0, 8.0]]),
             "branch_input": torch.tensor([[9.0, 10.0], [11.0, 12.0]]),
             "output": torch.tensor([[13.0, 14.0], [15.0, 16.0]]),
+            "parent_soma_output": torch.tensor([[17.0], [18.0]]),
+            "branch_to_parent_soma_index": torch.tensor([0, 0]),
             "has_exc_synapses": False,
             "has_inh_synapses": True,
             "has_branch_input": False,
@@ -906,6 +908,14 @@ class TestInformationAnalyzer(unittest.TestCase):
             prepared.output,
             np.array([[13.0, 14.0], [15.0, 16.0]], dtype=np.float32),
         )
+        np.testing.assert_array_equal(
+            prepared.parent_soma_output,
+            np.array([[17.0], [18.0]], dtype=np.float32),
+        )
+        np.testing.assert_array_equal(
+            prepared.branch_to_parent_soma_index,
+            np.array([0, 0]),
+        )
         self.assertFalse(prepared.has_exc_synapses)
         self.assertTrue(prepared.has_inh_synapses)
         self.assertFalse(prepared.has_branch_input)
@@ -921,6 +931,8 @@ class TestInformationAnalyzer(unittest.TestCase):
         prepared = self.analyzer._prepare_single_branch_layer_data(layer_data)
 
         self.assertIsNone(prepared.branch_input)
+        self.assertIsNone(prepared.parent_soma_output)
+        self.assertIsNone(prepared.branch_to_parent_soma_index)
         self.assertTrue(prepared.has_exc_synapses)
         self.assertTrue(prepared.has_inh_synapses)
         self.assertFalse(prepared.has_branch_input)
@@ -999,11 +1011,16 @@ class TestInformationAnalyzer(unittest.TestCase):
             "inhibition": torch.tensor([[4.0, 40.0], [5.0, 50.0], [6.0, 60.0]]),
             "branch_input": torch.tensor([[7.0, 70.0], [8.0, 80.0], [9.0, 90.0]]),
             "output": torch.tensor([[11.0, 110.0], [12.0, 120.0], [13.0, 130.0]]),
+            "parent_soma_output": torch.tensor(
+                [[14.0, 140.0], [15.0, 150.0], [16.0, 160.0]]
+            ),
+            "branch_to_parent_soma_index": torch.tensor([0, 1]),
             "has_exc_synapses": False,
             "has_inh_synapses": True,
             "has_branch_input": True,
         }
         prepared = self.analyzer._prepare_single_branch_layer_data(layer_data)
+        self.analyzer.compute_soma_coupling_mi = True
         lda_signals = Mock()
         lda_signals.excitation = np.array([[101.0, 201.0]])
         lda_signals.inhibition = np.array([[102.0, 202.0]])
@@ -1055,6 +1072,10 @@ class TestInformationAnalyzer(unittest.TestCase):
             mock_base.call_args.kwargs["Vb"],
             np.array([[70.0], [80.0], [90.0]], dtype=np.float32),
         )
+        np.testing.assert_array_equal(
+            mock_base.call_args.kwargs["S"],
+            np.array([[140.0], [150.0], [160.0]], dtype=np.float32),
+        )
         np.testing.assert_array_equal(mock_base.call_args.kwargs["C"], C)
         self.assertFalse(mock_base.call_args.kwargs["has_exc_synapses"])
         self.assertTrue(mock_base.call_args.kwargs["has_inh_synapses"])
@@ -1095,6 +1116,64 @@ class TestInformationAnalyzer(unittest.TestCase):
 
         self.assertIsNone(results)
         mock_warning.assert_called_once_with("No branch results to average")
+
+    def test_single_branch_subsampling_is_reproducible_and_layer_specific(self):
+        """Branch subsampling should be fixed before seeing activations or labels."""
+        self.analyzer.branch_sample_count_per_layer = 4
+        self.analyzer.branch_sample_seed = 17
+        self.analyzer.branch_sample_strategy = "uniform"
+
+        first = self.analyzer._select_single_branch_indices(
+            layer_name="core.layers.0.branch_layers.2",
+            n_branches=30,
+        )
+        repeated = self.analyzer._select_single_branch_indices(
+            layer_name="core.layers.0.branch_layers.2",
+            n_branches=30,
+        )
+        other_layer = self.analyzer._select_single_branch_indices(
+            layer_name="core.layers.0.branch_layers.3",
+            n_branches=30,
+        )
+
+        np.testing.assert_array_equal(first, repeated)
+        self.assertEqual(first.shape, (4,))
+        self.assertEqual(len(np.unique(first)), 4)
+        self.assertTrue(np.all(np.diff(first) > 0))
+        self.assertFalse(np.array_equal(first, other_layer))
+
+        self.analyzer.branch_sample_count_per_layer = None
+        np.testing.assert_array_equal(
+            self.analyzer._select_single_branch_indices(
+                layer_name="core.layers.0.branch_layers.2",
+                n_branches=5,
+            ),
+            np.arange(5),
+        )
+
+    def test_single_branch_subsampling_balances_parent_somas(self):
+        """Balanced sampling should visit every parent before repeating one."""
+        self.analyzer.branch_sample_count_per_layer = 8
+        self.analyzer.branch_sample_seed = 17
+        self.analyzer.branch_sample_strategy = "parent_soma_balanced"
+        parent_indices = np.repeat(np.arange(4), 5)
+
+        selected = self.analyzer._select_single_branch_indices(
+            layer_name="core.layers.0.branch_layers.2",
+            n_branches=20,
+            branch_to_parent_soma_index=parent_indices,
+        )
+        counts = np.bincount(parent_indices[selected], minlength=4)
+
+        np.testing.assert_array_equal(counts, np.full(4, 2))
+        np.testing.assert_array_equal(
+            selected,
+            self.analyzer._select_single_branch_indices(
+                layer_name="core.layers.0.branch_layers.2",
+                n_branches=20,
+                branch_to_parent_soma_index=parent_indices,
+            ),
+        )
 
     def test_finalize_single_branch_results_averages_and_attaches_metadata(self):
         """Single-branch finalization should preserve averaged results metadata."""
@@ -1163,12 +1242,15 @@ class TestInformationAnalyzer(unittest.TestCase):
                 has_branch_input=True,
             )
 
-        E_arg, I_arg, Vout_arg, C_arg, Vinf_arg, Vb_arg = mock_metrics.call_args.args
+        E_arg, I_arg, Vout_arg, C_arg, Vinf_arg, Vb_arg, S_arg = (
+            mock_metrics.call_args.args
+        )
         np.testing.assert_array_equal(E_arg, E_lin[:, 1:2])
         np.testing.assert_array_equal(I_arg, I_lin[:, 1:2])
         np.testing.assert_array_equal(Vout_arg, Vout_lin[:, 1:2])
         np.testing.assert_array_equal(C_arg, C)
         self.assertIsNone(Vinf_arg)
+        self.assertIsNone(S_arg)
         np.testing.assert_array_equal(Vb_arg, Vb_lin[:, 1:2])
         self.assertEqual(
             target,
@@ -2610,6 +2692,14 @@ class TestInformationAnalyzer(unittest.TestCase):
         self.assertEqual(results["num_branches"], 2)
         self.assertEqual(results["computation_level"], "single_branch")
         self.assertEqual(results["layer_statistics"]["layer0"]["stat"], 1.0)
+        self.assertEqual(results["branch_sampling"]["mode"], "all")
+        self.assertFalse(
+            results["branch_sampling"]["selection_depends_on_data_or_labels"]
+        )
+        self.assertEqual(
+            results["branch_sampling"]["layers"]["layer0"]["selected_indices"],
+            [0, 1],
+        )
         mock_average.assert_called_once_with(branch_metric_results)
         mock_stats.assert_called_once_with(
             branch_metric_results,
@@ -3256,6 +3346,31 @@ class TestAnalysisManager(unittest.TestCase):
                 )
 
             mock_analyzer.assert_not_called()
+
+    def test_information_analysis_can_use_validation_split(self):
+        """Generic information analysis should honor its declared dataset split."""
+        config = AnalysisConfig()
+        config.performance_analysis.enabled = False
+        config.information_analysis.enabled = True
+        config.information_analysis.params.compute.analysis_split = "validation"
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manager = AnalysisManager(
+                model=self.model,
+                data=self.data,
+                analysis_config=config,
+                save_root=tmpdir,
+            )
+            with patch.object(manager, "information_analyzer") as mock_analyzer:
+                mock_analyzer.analysis_split = "validation"
+                manager._run_information_analysis(
+                    filename="validation_information",
+                    training=False,
+                    runtime=manager.config.runtime.final,
+                )
+
+            call_kwargs = mock_analyzer.analyze.call_args.kwargs
+            self.assertIs(call_kwargs["test_dataset"], self.data["valid"])
 
     def test_logged_test_dataset_analysis_preserves_call_and_logs(self):
         """Logged test-dataset helper should preserve kwargs and message order."""

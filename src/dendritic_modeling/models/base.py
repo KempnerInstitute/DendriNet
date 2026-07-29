@@ -14,6 +14,8 @@ from dendritic_modeling.config import ParamGroupsConfig
 from dendritic_modeling.networks import (
     BaseNetwork,
     BlockLinear,
+    CreditGatedDeepstLinear,
+    DeepstLinear,
     ExcitationInhibitionLayer,
     Identity,
     ParametricActivation,
@@ -26,7 +28,14 @@ def _is_split_param_group_module(module: nn.Module) -> bool:
     """Return whether a core module participates in split optimizer groups."""
     return isinstance(
         module,
-        (TopKLinear, BlockLinear, ParametricActivation, ExcitationInhibitionLayer),
+        (
+            TopKLinear,
+            DeepstLinear,
+            CreditGatedDeepstLinear,
+            BlockLinear,
+            ParametricActivation,
+            ExcitationInhibitionLayer,
+        ),
     )
 
 
@@ -108,7 +117,9 @@ class BaseModel(nn.Module):
                 self.core_network,
                 _is_split_param_group_module,
             ):
-                if isinstance(module, TopKLinear):
+                if isinstance(
+                    module, (TopKLinear, DeepstLinear, CreditGatedDeepstLinear)
+                ):
                     topk_params.append(module.parameters())
                 elif isinstance(module, BlockLinear):
                     blocklinear_params.append(module.parameters())
@@ -122,6 +133,9 @@ class BaseModel(nn.Module):
             if hasattr(self, "log_output_scale"):
                 self.log_output_scale: nn.Parameter
                 decoder_params.append([self.log_output_scale])
+            if hasattr(self, "log_global_output_scale"):
+                self.log_global_output_scale: nn.Parameter
+                decoder_params.append([self.log_global_output_scale])
 
             # Collect trainable encoder params (non-frozen pretrained prefix).
             encoder_params = []

@@ -1,0 +1,17 @@
+schema_version: dendritic-rnn-task-language-study-v1
+
+sources:
+  counterfactual_statistics: results/dendritic_rnn/counterfactual_psychometric_src_v1/analysis_c2_src_v1/statistics.json
+  stimulus_blank_config: configs/dendritic_rnn/stimulus_blanks_v1.yaml
+
+analysis:
+  output_root: results/dendritic_rnn/task_language_src_v1_paper_final_v2
+  proposal_first_rank_oracle: 0.875
+  bootstrap_draws: 10000
+  analysis_seed: 20260722
+  family_alpha: 0.05
+  roles:
+    hierarchical_aligned: [hierarchical, proximal, distal]
+    hierarchical_reverse: [hierarchical, distal, proximal]
+    reversed_aligned: [reversed, proximal, distal]
+    reversed_reverse: [reversed, distal, proximal]

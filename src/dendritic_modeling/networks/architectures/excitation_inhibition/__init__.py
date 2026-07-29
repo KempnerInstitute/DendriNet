@@ -34,6 +34,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.input_trans
     TransferLayer,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse import (
+    CreditGatedDeepstLinear,
     DeepstLinear,
     DenseToSparseLinear,
     IndexedDynamicTopKLinear,
@@ -55,6 +56,7 @@ __all__ = [
     "AdaptiveInitConfig",
     "BlockLinear",
     "ConfigurableEINetwork",
+    "CreditGatedDeepstLinear",
     "DeepSTConfig",
     "DeepstLinear",
     "DendriNet",

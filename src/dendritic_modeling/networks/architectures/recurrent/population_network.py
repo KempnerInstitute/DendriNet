@@ -177,36 +177,31 @@ class PopulationNetwork(BaseNetwork):
         """Calculate active/effective parameters after TopK-style sparsity.
 
         This mirrors the legacy E/I network API used by matched MLP baselines.
-        Sparse synapse modules contribute their active K entries per output
-        unit, while dense block/re-activation/input-projection parameters count
-        in full.
+        Every non-synaptic parameter counts in full. Sparse synaptic candidate
+        banks are replaced by the number of entries in their realized masks.
+        This includes feedforward and recurrent E/I pathways and respects
+        structural masks that can realize fewer than ``out_features * K``
+        contacts.
         """
-        effective = sum(p.numel() for p in self.input_projection.parameters())
-
-        def _effective_synapse_params(module: nn.Module | None) -> int:
-            if module is None:
-                return 0
-            if hasattr(module, "out_features") and hasattr(module, "K"):
-                return int(module.out_features) * int(module.K)
-            if hasattr(module, "weight_mask"):
-                return int(module.weight_mask().sum().item())
-            return sum(p.numel() for p in module.parameters())
-
+        effective = sum(p.numel() for p in self.parameters())
+        seen_synapses: set[int] = set()
         for branch_layer in self.branch_layers:
-            effective += _effective_synapse_params(
-                getattr(branch_layer, "branch_excitation", None)
-            )
-            effective += _effective_synapse_params(
-                getattr(branch_layer, "branch_inhibition", None)
-            )
-
-            branches_to_output = getattr(branch_layer, "branches_to_output", None)
-            if branches_to_output is not None:
-                effective += sum(p.numel() for p in branches_to_output.parameters())
-
-            reactivation = getattr(branch_layer, "reactivation", None)
-            if reactivation is not None and not isinstance(reactivation, nn.Identity):
-                effective += sum(p.numel() for p in reactivation.parameters())
+            for attr in (
+                "branch_excitation",
+                "branch_inhibition",
+                "branch_recurrent",
+                "branch_rec_inhibition",
+            ):
+                synapse = getattr(branch_layer, attr, None)
+                if synapse is None or id(synapse) in seen_synapses:
+                    continue
+                seen_synapses.add(id(synapse))
+                candidate_params = sum(p.numel() for p in synapse.parameters())
+                mask_fn = getattr(synapse, "weight_mask", None)
+                if not callable(mask_fn):
+                    continue
+                active_params = int(mask_fn().ne(0).sum().item())
+                effective += active_params - candidate_params
 
         return int(effective)
 

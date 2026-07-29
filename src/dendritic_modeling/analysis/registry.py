@@ -60,6 +60,21 @@ _BUILTIN_ANALYZERS: tuple[AnalyzerSpec, ...] = (
         save_subdir="information_analysis",
     ),
     AnalyzerSpec(
+        name="representation_accessibility",
+        config_field="representation_accessibility_analysis",
+        class_path=(
+            "dendritic_modeling.analysis.tools.representation_accessibility."
+            "RepresentationAccessibilityAnalyzer"
+        ),
+        attribute_name="representation_accessibility_analyzer",
+        save_subdir="representation_accessibility",
+        supports_training=False,
+        description=(
+            "Validation-fit linear/nonlinear probes and matched-support class "
+            "information for stacked soma populations"
+        ),
+    ),
+    AnalyzerSpec(
         name="synapse_turnover",
         config_field="synapse_turnover_analysis",
         class_path="dendritic_modeling.analysis.tools.synaptic_turnover.SynapticTurnoverAnalyzer",
@@ -87,6 +102,51 @@ _BUILTIN_ANALYZERS: tuple[AnalyzerSpec, ...] = (
         class_path="dendritic_modeling.analysis.core.ablation.AblationAnalyzer",
         attribute_name="ablation_analyzer",
         save_subdir="ablation_analysis",
+    ),
+    AnalyzerSpec(
+        name="path_matched_intervention",
+        config_field="path_matched_intervention_analysis",
+        class_path=(
+            "dendritic_modeling.analysis.tools.path_matched_intervention."
+            "PathMatchedInterventionAnalyzer"
+        ),
+        attribute_name="path_matched_intervention_analyzer",
+        save_subdir="path_matched_intervention",
+        supports_training=False,
+        description=(
+            "Fixed-count, nested soma-to-distal coordinate interventions across "
+            "dendritic depth"
+        ),
+    ),
+    AnalyzerSpec(
+        name="local_inhibitory_population_intervention",
+        config_field="local_inhibitory_population_intervention_analysis",
+        class_path=(
+            "dendritic_modeling.analysis.tools.layer_population_intervention."
+            "LocalInhibitoryPopulationInterventionAnalyzer"
+        ),
+        attribute_name="local_inhibitory_population_intervention_analyzer",
+        save_subdir="local_inhibitory_population_intervention",
+        supports_training=False,
+        description=(
+            "Whole local inhibitory soma-population interventions across "
+            "feedforward network layers"
+        ),
+    ),
+    AnalyzerSpec(
+        name="path_matched_information",
+        config_field="path_matched_information_analysis",
+        class_path=(
+            "dendritic_modeling.analysis.tools.path_matched_information."
+            "PathMatchedInformationAnalyzer"
+        ),
+        attribute_name="path_matched_information_analyzer",
+        save_subdir="path_matched_information",
+        supports_training=False,
+        description=(
+            "Validation-set joint class information on fixed-width, nested "
+            "soma-to-distal coordinate supports"
+        ),
     ),
     AnalyzerSpec(
         name="weight",

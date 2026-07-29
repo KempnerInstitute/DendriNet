@@ -1,0 +1,128 @@
+schema_version: dendritic-rnn-extreme-placement-cube-matrix-v1
+experiment_id: extreme_placement_cube_src_v1
+output_root: /n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/results/dendritic_rnn/extreme_placement_cube_src_v1
+reference:
+  purpose: Complete the two missing same-side, reversed-tau cells for all ten paired confirmatory seed blocks.
+  immutable_bundle: /n/holylabs/kempner_dev/Users/hsafaai/dendrinet_revision_2026/bundles/extreme_placement_cube_priority_20260720_v14
+  source_code_commit: ac4d587de3a63213583e57b80eac2b593536bb3a
+runtime:
+  python: /n/holylabs/kempner_dev/Users/hsafaai/dendrinet_revision_2026/environments/main_rc7_balanced_selfcontained_v1/bin/python
+  source_root: /n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src
+  training_entrypoint: dendritic_modeling.scripts.training.train_experiments
+conditions:
+  - name: ff_proximal__rec_proximal__tau_reversed__standard
+    ff_excitatory_synapses_by_level: [3, 9, 50]
+    rec_excitatory_synapses_by_level: [3, 7, 30]
+  - name: ff_distal__rec_distal__tau_reversed__standard
+    ff_excitatory_synapses_by_level: [10, 4, 2]
+    rec_excitatory_synapses_by_level: [7, 4, 3]
+replicates:
+  - replicate: r000
+    seed: 2200
+    dataset_seed: 153236249
+    split_seed: 477227869
+    model_seed: 1096054969
+    topology_seed: 1645361516
+    loader_seed: 658402726
+    evaluation_seed: 17522084
+    probe_seed: 772364823
+  - replicate: r001
+    seed: 2201
+    dataset_seed: 173495980
+    split_seed: 1933745607
+    model_seed: 2013085525
+    topology_seed: 2096007031
+    loader_seed: 1248046384
+    evaluation_seed: 393316199
+    probe_seed: 717544903
+  - replicate: r002
+    seed: 2202
+    dataset_seed: 255163212
+    split_seed: 1469289321
+    model_seed: 2055962641
+    topology_seed: 726314294
+    loader_seed: 1020593822
+    evaluation_seed: 203367781
+    probe_seed: 1466848656
+  - replicate: r003
+    seed: 2203
+    dataset_seed: 322980967
+    split_seed: 233714636
+    model_seed: 627094451
+    topology_seed: 1880610539
+    loader_seed: 470008927
+    evaluation_seed: 1328333610
+    probe_seed: 149926485
+  - replicate: r004
+    seed: 2204
+    dataset_seed: 464280078
+    split_seed: 924844563
+    model_seed: 498710959
+    topology_seed: 1734551951
+    loader_seed: 1407850565
+    evaluation_seed: 1476052128
+    probe_seed: 1291336687
+  - replicate: r005
+    seed: 2205
+    dataset_seed: 104615450
+    split_seed: 1913030678
+    model_seed: 1632808993
+    topology_seed: 1869062474
+    loader_seed: 946028839
+    evaluation_seed: 1503587787
+    probe_seed: 1481870772
+  - replicate: r006
+    seed: 2206
+    dataset_seed: 1956706673
+    split_seed: 993051101
+    model_seed: 1336301291
+    topology_seed: 647062278
+    loader_seed: 686773486
+    evaluation_seed: 1308970535
+    probe_seed: 1129059402
+  - replicate: r007
+    seed: 2207
+    dataset_seed: 1558782129
+    split_seed: 670546287
+    model_seed: 909329364
+    topology_seed: 1535245830
+    loader_seed: 1722930408
+    evaluation_seed: 1052612777
+    probe_seed: 2094128051
+  - replicate: r008
+    seed: 2208
+    dataset_seed: 1926858205
+    split_seed: 892388299
+    model_seed: 1805147500
+    topology_seed: 1749310554
+    loader_seed: 456903884
+    evaluation_seed: 191391968
+    probe_seed: 1701277142
+  - replicate: r009
+    seed: 2209
+    dataset_seed: 681439610
+    split_seed: 1460573594
+    model_seed: 230265032
+    topology_seed: 1082058720
+    loader_seed: 1768547015
+    evaluation_seed: 1839412337
+    probe_seed: 542090790
+scheduler:
+  primary:
+    partition: kempner_h100_priority
+    account: kempner_bsabatini_lab
+    gpu_type: nvidia_h100_80gb_hbm3
+  h100_fallback:
+    partition: kempner_h100
+    account: kempner_bsabatini_lab
+    gpu_type: nvidia_h100_80gb_hbm3
+  h200_opt_in:
+    partition: kempner_eng
+    account: kempner_dev
+    gpu_type: nvidia_h200
+  resources:
+    gpus: 1
+    cpus: 6
+    memory: 8G
+    walltime: '36:00:00'
+    rationale: Historical matched runs peaked at 4.3 GiB RAM and 25.5 hours wall time; four dataloader workers require at least five CPUs.

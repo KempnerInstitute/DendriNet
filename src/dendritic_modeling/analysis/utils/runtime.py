@@ -17,7 +17,10 @@ from dendritic_modeling.analysis.utils.dataset_runtime import (
     subset_dataset_for_runtime,
 )
 from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
-from dendritic_modeling.training.dataloader_utils import dataloader_supports_kwarg
+from dendritic_modeling.training.dataloader_utils import (
+    dataloader_supports_kwarg,
+    seeded_dataloader_kwargs,
+)
 from dendritic_modeling.utils.hooks import HookHandle, run_with_forward_hooks
 
 logger = logging.getLogger(__name__)
@@ -95,6 +98,7 @@ def make_analysis_loader(
         dataset_view,
         batch_size=runtime.batch_size,
         shuffle=False,
+        **seeded_dataloader_kwargs(int(getattr(runtime, "seed", 0))),
         **loader_kwargs,
     )
 
@@ -156,6 +160,7 @@ def evaluation_kwargs_from_runtime(
         "eval_prefetch_factor": runtime.prefetch_factor,
         "eval_max_batches": runtime.max_batches,
         "eval_materialize_threshold_mb": runtime.materialize_threshold_mb,
+        "eval_seed": runtime.seed,
     }
     if runtime.in_order is not None:
         kwargs["eval_in_order"] = runtime.in_order

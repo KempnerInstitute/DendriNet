@@ -57,9 +57,12 @@ analysis:
         include_vinf: true            # bool: Include soma/pre-output activation where available.
         normalize_mi: false           # bool: Normalize by class entropy H(C).
         output_units: "bits"          # str: "bits" | "nats"; estimators run internally in nats.
+        analysis_split: "test"        # str: "validation" | "test"; use validation while selecting estimators/quantities.
         verbose: false                # bool: Emit detailed logging.
         computation_level: "single_branch"  # str: "single_branch" | "layer_branch" | "all_branch".
         branch_aggregation: "mean"    # str: "mean" | "multivariate" | "sample"; used for layer/all-branch levels.
+        branch_sample_count_per_layer: null  # int | null: Deterministic per-layer subset for single_branch; null analyzes every branch.
+        branch_sample_seed: 0          # int: Seed for label-independent branch selection.
         layer_total_topk: 10          # int: K for layer-total topK proxy metrics.
         gaussian_fisher:
           aggregation: "sum"          # str: "sum" | "mean" | "max"; how branch Fisher proxies combine.
@@ -134,6 +137,52 @@ analysis:
         ablation_methods: ["lesion"]  # list[str]: "lesion" | "shuffle" | "mean_clamp".
         shuffle_seed: 0               # int: RNG seed for shuffle interventions.
         clamp_statistic: "mean"       # str: "mean"; "median" is reserved/future.
+
+  path_matched_intervention:
+    enabled: false                    # bool: Equal-coordinate current/output interventions across dendritic depth.
+    training: false                   # bool: Final-only; training=true is rejected.
+    params:
+      targets: ["excitation_current", "inhibition_current", "joint_EI_currents"] # list[str]: Pre-gate currents; optionally add "post_gate_output" for post-reactivation compartment outputs.
+      methods: ["zero", "fixed_train_mean", "global_test_shuffle"] # list[str]: Causal replacement controls.
+      depths: []                      # list[int]: Non-somatic soma-relative depths (1=proximal, increasing=distal); empty selects all.
+      support_draws: 5                # int: Prespecified anatomical coordinate draws; technical draws are not model replicates.
+      support_seed: 271828            # int: Label-independent complete-path selection seed.
+      support_namespace: "path-matched-depth-intervention-v1" # str: Stable namespace included in support hashing.
+      shuffle_seed: 314159            # int: One dataset-wide donor permutation shared across depth and joint E/I streams.
+      module_name_prefix: null        # str | null: Select one tree in a multi-layer model; required when depths are duplicated.
+      expected_n_somas: null          # int | null: Optional fail-closed morphology check.
+      expected_branch_factors: []     # list[int]: Optional proximal-to-distal fail-closed morphology check.
+      chance_accuracy: null           # float | null: Null infers 1 / number of output classes.
+      max_samples: null               # int | null: Optional deterministic head cap; null uses the runtime/full split.
+
+  local_inhibitory_population_intervention:
+    enabled: false                    # bool: Whole local inhibitory soma-population interventions by network position.
+    training: false                   # bool: Final-only; training=true is rejected.
+    params:
+      methods: ["global_test_shuffle", "within_class_test_shuffle", "zero"] # list[str]: Donor and removal controls.
+      permutation_draws: 3            # int: Donor permutations; technical draws are not model replicates.
+      shuffle_seed: 20260712           # int: Shared deterministic donor-permutation seed.
+      expected_network_layers: null    # int | null: Optional fail-closed stack-depth check.
+      expected_inhibitory_width: null  # int | null: Optional fail-closed local-I population-width check.
+      max_samples: null               # int | null: Optional deterministic evaluation cap.
+
+  path_matched_information:
+    enabled: false                    # bool: Validation-only matched-support joint class information.
+    training: false                   # bool: Final-only; training=true is rejected.
+    params:
+      signals: ["excitation_current", "inhibition_current", "joint_EI_currents", "upstream_child_current", "post_gate_output"] # list[str]: Captured current/output representations.
+      depths: []                      # list[int]: Soma-relative depths; empty selects soma and every dendritic depth.
+      support_draws: 5                # int: Technical nested-path support draws at non-somatic depths.
+      support_seed: 271828            # int: Label-independent path-selection seed.
+      support_namespace: "path-matched-depth-intervention-v1" # str: Shared with path-matched intervention so default coordinate supports coincide.
+      information_seed: 314159        # int: Base seed for the label-permutation nulls.
+      add_probe_seed_offset: true     # bool: Add the checkpoint's resolved experiment/probe seed to the base.
+      n_neighbors: 10                 # int: Ross continuous-discrete kNN neighbourhood size.
+      n_label_shuffles: 20            # int: Explicit finite-sample label-permutation null draws.
+      module_name_prefix: null        # str | null: Select one tree when a model contains several.
+      expected_n_somas: null          # int | null: Optional fail-closed soma-width check.
+      expected_branch_factors: []     # list[int]: Optional proximal-to-distal morphology check.
+      max_samples: null               # int | null: Optional validation-sample cap; null uses the full split/runtime.
 
   synapse_turnover:
     enabled: false                    # bool: Track active synapse changes over training.
@@ -305,6 +354,10 @@ analysis:
       inh_rf_shape: null              # list[int] | null: I-stream [H, W] shape; overrides rf_shape for I.
       fig_save_format: "png"          # str: Figure extension, e.g. "png" | "pdf" | "svg".
       compute_activation_tuning: false # bool: Add class tuning summaries for E, I, E/I ratio, and Vout branch activations.
+      activation_sample_signals: []   # list[str]: Optional "exc" | "inh" | "vout" | "ei_ratio" sample records.
+      activation_sample_depths: []    # list[int]: Soma-relative depths retained in activation sample records.
+      activation_samples_per_class: 0 # int: Label-balanced records per class; 0 disables records.
+      activation_sample_seed: 0       # int: Seed for label-only within-class sample selection.
       compute_component_rfs: false    # bool: Add compact soma-level E/I mean and conditioned component RF maps.
       plot_component_rfs: true        # bool: Save compact component RF figures when compute_component_rfs is true and training is false.
       compute_rf_tuning: false        # bool: Add aggregate RF tuning, entropy, discriminability, and E-vs-I plots.

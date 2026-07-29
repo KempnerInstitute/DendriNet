@@ -9,7 +9,30 @@ This package contains visualization and plotting utilities organized into logica
 The reorganized structure provides better organization and maintainability.
 """
 
-# Core utilities - removed unused plotting functions
+# Publication-grade style and deterministic vector export
+from .publication import (
+    ADD_STYLE,
+    COLORS,
+    E_STYLE,
+    ERRBAR,
+    FIGURE_EXPORT_CREATOR,
+    FIGURE_SVG_HASHSALT,
+    I_STYLE,
+    NET_STYLE,
+    SH_STYLE,
+    SHADE_ALPHA,
+    PaperColors,
+    clean_axis,
+    inline_label,
+    missing_data_panel,
+    panel_label,
+    plot_with_band,
+    save_figure,
+    setup_paper_style,
+    slim_colorbar,
+    vector_colorbar,
+    vector_heatmap,
+)
 
 # Import from visualizations
 from .visualizations import (  # Analysis functions; Training functions
@@ -31,9 +54,24 @@ from .visualizations import (  # Analysis functions; Training functions
 )
 
 __all__ = [
+    "ADD_STYLE",
+    "COLORS",
+    "ERRBAR",
+    "E_STYLE",
+    "FIGURE_EXPORT_CREATOR",
+    "FIGURE_SVG_HASHSALT",
+    "I_STYLE",
+    "NET_STYLE",
+    "SHADE_ALPHA",
+    "SH_STYLE",
+    "PaperColors",
     # Analysis functions
+    "clean_axis",
     "dendritic_activations_todict",
     "einet_activations_todict",
+    "inline_label",
+    "missing_data_panel",
+    "panel_label",
     "plot_ablation_results",
     "plot_active_synapses_per_branch",
     # Training functions
@@ -48,4 +86,10 @@ __all__ = [
     "plot_performance_metrics",
     "plot_synapse_turnover",
     "plot_weight_distributions",
+    "plot_with_band",
+    "save_figure",
+    "setup_paper_style",
+    "slim_colorbar",
+    "vector_colorbar",
+    "vector_heatmap",
 ]

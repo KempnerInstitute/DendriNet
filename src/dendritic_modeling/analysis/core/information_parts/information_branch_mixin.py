@@ -94,6 +94,7 @@ class InformationBranchAnalysisMixin:
         C: np.ndarray,
         Vb: np.ndarray | None,
         Vinf: np.ndarray | None,
+        S: np.ndarray | None = None,
         has_exc_synapses: bool,
         has_inh_synapses: bool,
         has_branch_input: bool,
@@ -113,6 +114,7 @@ class InformationBranchAnalysisMixin:
                 C=C,
                 Vb=Vb,
                 Vinf=Vinf,
+                S=S,
                 has_exc_synapses=has_exc_synapses,
                 has_inh_synapses=has_inh_synapses,
                 has_branch_input=has_branch_input,
@@ -131,6 +133,7 @@ class InformationBranchAnalysisMixin:
         Vout: np.ndarray,
         C: np.ndarray,
         Vb: np.ndarray | None,
+        S: np.ndarray | None = None,
         has_exc_synapses: bool,
         has_inh_synapses: bool,
         has_branch_input: bool,
@@ -138,7 +141,7 @@ class InformationBranchAnalysisMixin:
         failure_context: str,
     ) -> dict[str, Any]:
         """Compute branch metrics and attach optional label-shuffle baselines."""
-        branch_results = self.compute_metrics(E, I_var, Vout, C, None, Vb)
+        branch_results = self.compute_metrics(E, I_var, Vout, C, None, Vb, S)
         self._try_add_label_shuffle_null_baselines_in_place(
             branch_results,
             E=E,
@@ -147,6 +150,7 @@ class InformationBranchAnalysisMixin:
             C=C,
             Vb=Vb,
             Vinf=None,
+            S=S,
             has_exc_synapses=has_exc_synapses,
             has_inh_synapses=has_inh_synapses,
             has_branch_input=has_branch_input and (Vb is not None),
@@ -270,6 +274,9 @@ class InformationBranchAnalysisMixin:
             layer_statistics[layer_name] = layer_stats
 
         results["layer_statistics"] = layer_statistics
+        layer_depths = self.collected_soma_relative_depths()
+        if layer_depths:
+            results["layer_soma_relative_depths"] = layer_depths
         self.logger.info(
             f"Generated layer statistics for {len(layer_statistics)} layers for plotting"
         )

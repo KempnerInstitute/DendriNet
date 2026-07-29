@@ -9,6 +9,7 @@ and basic data transformations.
 import json
 import os
 import random
+import warnings
 from typing import Any
 
 import numpy as np
@@ -92,6 +93,7 @@ def set_seed(
     cudnn_benchmark: bool = False,
     allow_tf32: bool = False,
     float32_matmul_precision: str = "highest",
+    strict_deterministic: bool = False,
 ) -> None:
     """
     Set the seed for all random number generators to ensure reproducibility.
@@ -108,19 +110,39 @@ def set_seed(
         cudnn_benchmark: Enable CUDNN autotuning for fixed-shape workloads.
         allow_tf32: Allow TF32 matmul/CUDNN kernels on Ampere+ GPUs.
         float32_matmul_precision: PyTorch float32 matmul precision mode.
+        strict_deterministic: Enforce PyTorch deterministic algorithms and a
+            deterministic cuBLAS workspace configuration. Unsupported
+            nondeterministic operations will raise at execution time.
     """
+    if strict_deterministic:
+        cublas_workspace = os.environ.get("CUBLAS_WORKSPACE_CONFIG")
+        if cublas_workspace is None:
+            os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
+        elif cublas_workspace not in {":4096:8", ":16:8"}:
+            warnings.warn(
+                "strict_deterministic requested, but CUBLAS_WORKSPACE_CONFIG="
+                f"{cublas_workspace!r} is not a deterministic setting; use "
+                "':4096:8' or ':16:8' before launching Python.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     np.random.seed(seed)
     random.seed(seed)
-    torch.backends.cudnn.deterministic = deterministic
-    torch.backends.cudnn.benchmark = cudnn_benchmark and not deterministic
+    effective_deterministic = bool(deterministic or strict_deterministic)
+    effective_allow_tf32 = bool(allow_tf32 and not strict_deterministic)
+    torch.backends.cudnn.deterministic = effective_deterministic
+    torch.backends.cudnn.benchmark = cudnn_benchmark and not effective_deterministic
+
+    torch.use_deterministic_algorithms(bool(strict_deterministic))
 
     if hasattr(torch.backends, "cuda") and hasattr(torch.backends.cuda, "matmul"):
-        torch.backends.cuda.matmul.allow_tf32 = allow_tf32
+        torch.backends.cuda.matmul.allow_tf32 = effective_allow_tf32
     if hasattr(torch.backends, "cudnn"):
-        torch.backends.cudnn.allow_tf32 = allow_tf32
+        torch.backends.cudnn.allow_tf32 = effective_allow_tf32
     if hasattr(torch, "set_float32_matmul_precision"):
         try:
             torch.set_float32_matmul_precision(float32_matmul_precision)

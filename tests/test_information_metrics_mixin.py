@@ -143,6 +143,7 @@ def _arrays():
         "C": np.array([0, 1, 0]),
         "Vinf": np.array([[10.0], [11.0], [12.0]]),
         "Vb": np.array([[13.0], [14.0], [15.0]]),
+        "S": np.array([[16.0], [17.0], [18.0]]),
     }
 
 
@@ -173,6 +174,7 @@ def test_metric_variable_for_null_baseline_preserves_token_availability_rules():
         "C_col": C_col,
         "Vinf": arrays["Vinf"],
         "Vb": arrays["Vb"],
+        "S": arrays["S"],
         "has_exc_synapses": True,
         "has_inh_synapses": True,
         "has_branch_input": True,
@@ -187,6 +189,7 @@ def test_metric_variable_for_null_baseline_preserves_token_availability_rules():
     )
     assert _metric_variable_for_null_baseline("Vinf", **common_kwargs) is arrays["Vinf"]
     assert _metric_variable_for_null_baseline("Vb_lda", **common_kwargs) is arrays["Vb"]
+    assert _metric_variable_for_null_baseline("S", **common_kwargs) is arrays["S"]
     assert _metric_variable_for_null_baseline("unknown", **common_kwargs) is None
 
     assert (
@@ -289,8 +292,10 @@ def test_add_label_shuffle_null_baselines_uses_extracted_parsing_and_lookup():
 
     assert result["basic_mi"]["I(E;C)_null"] == 15.0
     assert result["basic_mi"]["I(E;C)_null_std"] == 2.0
+    assert result["basic_mi"]["I(E;C)_excess"] == -14.9
     assert result["basic_mi"]["I(I;C)_null"] == 16.0
     assert result["basic_mi"]["I(I;C)_null_std"] == 2.0
+    assert result["basic_mi"]["I(I;C)_excess"] == -15.8
     assert "I(Vb;C)_null" not in result["basic_mi"]
     assert "not_a_metric_null" not in result["basic_mi"]
     assert [call[0] for call in harness.estimator.calls] == [
@@ -317,6 +322,40 @@ def test_estimate_mi_and_cmi_dispatch_to_active_estimator():
     assert [call[0] for call in harness.estimator.calls] == ["mi", "cmi"]
     assert "Computing I(E;C)" in harness.logger.debug_messages[0]
     assert "I(E;I|C) = 2.0000" in harness.logger.debug_messages[-1]
+
+
+def test_soma_coupling_metrics_include_marginal_joint_and_class_conditioned_terms():
+    harness = _MetricHarness()
+    arrays = _arrays()
+
+    metrics = harness._compute_soma_coupling_mi(
+        arrays["E"],
+        arrays["I"],
+        arrays["Vout"],
+        arrays["C"],
+        arrays["S"],
+    )
+
+    assert list(metrics) == [
+        "I(S;C)",
+        "I(E;S)",
+        "I(I;S)",
+        "I(E,I;S)",
+        "I(Vout;S)",
+        "I(E;S|C)",
+        "I(I;S|C)",
+        "I(E,I;S|C)",
+        "I(Vout;S|C)",
+        "I(E;S|I)",
+        "I(I;S|E)",
+    ]
+    assert [call[0] for call in harness.estimator.calls] == ["mi"] * 5 + ["cmi"] * 6
+    np.testing.assert_array_equal(
+        harness.estimator.calls[3][1],
+        np.hstack([arrays["E"], arrays["I"]]),
+    )
+    for call in harness.estimator.calls[5:9]:
+        np.testing.assert_array_equal(call[3], arrays["C"].reshape(-1, 1))
 
 
 def test_estimate_timed_metric_preserves_debug_message_shape():

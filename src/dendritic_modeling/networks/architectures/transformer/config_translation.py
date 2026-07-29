@@ -14,6 +14,7 @@ from dendritic_modeling.networks.architectures.transformer.config_translation_po
     _dendritic_ffn_kwargs_from_population_network,
     _ei_stack_kwargs_from_population_network,
     _population_network_payload,
+    _population_reactivation_kwargs,
 )
 from dendritic_modeling.networks.architectures.transformer.utils import (
     _first_list_value,
@@ -185,8 +186,7 @@ def build_dendritic_ffn_kwargs_from_core_config(
         ),
         "weight_transform": morphology.get("weight_transform", "softplus"),
         **_structured_blocklinear_kwargs(core),
-        "reactivate": bool(reactivation.get("enabled", True)),
-        "reactivation_type": reactivation.get("type", "param_tanh"),
+        **_population_reactivation_kwargs({}, reactivation),
         "output_bias": bool(tr.get("output_bias", False)),
         "output_init_std": float(tr.get("output_init_std", 0.02)),
         "output_scale": float(tr.get("output_scale", 1.0)),
@@ -280,8 +280,7 @@ def build_ei_stack_kwargs_from_core_config(
         "weight_transform": morphology.get("weight_transform", "softplus"),
         **_structured_blocklinear_kwargs(core),
         **_structured_sparsity_kwargs(sparsity, default_temperature=0.25),
-        "reactivate": bool(reactivation.get("enabled", True)),
-        "reactivation_type": reactivation.get("type", "param_tanh"),
+        **_population_reactivation_kwargs({}, reactivation),
         "output_bias": bool(tr.get("output_bias", False)),
         "output_init_std": float(tr.get("output_init_std", 0.02)),
         "output_scale": float(tr.get("output_scale", 1.0)),

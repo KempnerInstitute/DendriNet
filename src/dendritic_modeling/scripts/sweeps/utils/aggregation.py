@@ -6,6 +6,28 @@ import numpy as np
 import pandas as pd
 
 
+def _make_group_value_hashable(value):
+    """Return a stable, hashable representation for a group key value.
+
+    Configuration extraction intentionally preserves layer-size fields as
+    lists. Pandas cannot group by those values directly, so normalize only the
+    grouping view while leaving the caller's input frame unchanged.
+    """
+    if isinstance(value, np.ndarray):
+        value = value.tolist()
+    if isinstance(value, list | tuple):
+        return tuple(_make_group_value_hashable(item) for item in value)
+    if isinstance(value, dict):
+        return tuple(
+            sorted(
+                (key, _make_group_value_hashable(item)) for key, item in value.items()
+            )
+        )
+    if isinstance(value, set):
+        return tuple(sorted(_make_group_value_hashable(item) for item in value))
+    return value
+
+
 def aggregate_over_seeds(
     data: pd.DataFrame,
     group_by_cols: list[str],
@@ -44,9 +66,13 @@ def aggregate_over_seeds(
     if not group_by_cols:
         return data
 
+    grouping_data = data.copy()
+    for column in group_by_cols:
+        grouping_data[column] = grouping_data[column].map(_make_group_value_hashable)
+
     # Group and aggregate
     results = []
-    for group_vals, group_data in data.groupby(group_by_cols, dropna=False):
+    for group_vals, group_data in grouping_data.groupby(group_by_cols, dropna=False):
         # Create row with group values
         if isinstance(group_vals, tuple):
             row = dict(zip(group_by_cols, group_vals))
@@ -234,6 +260,25 @@ def extract_network_category(data: pd.DataFrame) -> pd.DataFrame:
         result.loc[
             einet_mask & result["use_shunting"].eq(False), "network_category"
         ] = "dendritic_additive"
+
+    # ---- Canonical population-network surface: decide by population dynamics ----
+    population_mask = nt.eq("population_network")
+    if "use_shunting" in result.columns:
+        result.loc[
+            population_mask & result["use_shunting"].eq(True), "network_category"
+        ] = "dendritic_shunting"
+        additive_population = population_mask & result["use_shunting"].eq(False)
+        if "use_additive_normalization" in result.columns:
+            result.loc[
+                additive_population & result["use_additive_normalization"].eq(True),
+                "network_category",
+            ] = "dendritic_normalized_additive"
+            result.loc[
+                additive_population & ~result["use_additive_normalization"].eq(True),
+                "network_category",
+            ] = "dendritic_additive"
+        else:
+            result.loc[additive_population, "network_category"] = "dendritic_additive"
 
     # ---- Ultimate fallback: use_shunting boolean only ----
     if (

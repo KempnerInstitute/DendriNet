@@ -119,6 +119,7 @@ class IndexedSparseLinear(nn.Module):
                 K=self.K,
                 connection_mask=allowed_connection_mask,
                 generator=generator,
+                row_chunk_size=self.output_chunk_size,
             )
         else:
             connection_indices = torch.as_tensor(connection_indices, dtype=torch.long)
@@ -132,8 +133,7 @@ class IndexedSparseLinear(nn.Module):
                 (connection_indices >= self.in_features).any()
             ):
                 raise ValueError(
-                    "connection_indices entries must be in "
-                    f"[0, {self.in_features - 1}]"
+                    f"connection_indices entries must be in [0, {self.in_features - 1}]"
                 )
             sorted_indices = connection_indices.sort(dim=1).values
             if bool((sorted_indices[:, 1:] == sorted_indices[:, :-1]).any()):
@@ -274,7 +274,10 @@ class IndexedSparseLinear(nn.Module):
         original_shape = x.shape
         flat_x = x.reshape(-1, self.in_features)
         weight = self._normalized_sparse_weight()
-        self._last_forward_param_tensor = weight
+        # ``weight`` can be the Parameter itself for the identity transform.
+        # Bypass ``nn.Module.__setattr__`` so this diagnostic cache is not
+        # registered as a duplicate parameter/state-dict key.
+        object.__setattr__(self, "_last_forward_param_tensor", weight)
         indices = self.connection_indices.to(flat_x.device)
 
         # Fastest-first precedence: cuda -> triton -> fused -> original loop. Each perf

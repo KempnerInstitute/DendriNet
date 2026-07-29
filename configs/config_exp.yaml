@@ -177,12 +177,22 @@ model:
             use_shunting: true
             reactivate: true
             reactivation_type: "param_tanh"
-            reactivation_init_policy: "occupancy_quantile"
+            # Empirical-paper training convention from the 2026-06 diagnostics:
+            #   shunting -> analytical reactivation initialization
+            #   additive -> occupancy_quantile reactivation initialization
+            # Population-network configs may omit reactivation_init_policy to
+            # get this canonical behavior automatically: shunting keeps the
+            # analytical population default, while raw additive is promoted to
+            # occupancy_quantile at the population-config boundary.
+            reactivation_init_policy: "analytical"
             reactivation_init_m: 1.5
             reactivation_init_b: 0.5
             dbl_init_method: "analytical_expectation"
             weight_transform: "softplus"
-            topk_type: "indexed_rewire"
+            # Use standard TopK for the paper-facing empirical sweeps. Indexed
+            # rewiring is available for large sparse models, but it is not the
+            # reference recipe for the current empirical figures.
+            topk_type: "standard"
             topk_init_method: "xavier_normal"
             indexed_seed: 42
             indexed_rewire_frequency: 100
@@ -269,13 +279,13 @@ training:
       enable_nan_checking: false        # bool: Check for NaN gradients
       enable_adaptive_clipping: false   # bool: Adaptive gradient clipping
       weight_decay_rate: 0.01           # float: Weight decay rate
-      weight_boosting: false            # bool: Weight boosting
+      weight_boosting: true             # bool: Weight boosting
       param_groups:
-        lr: 0.01                        # float: Base learning rate
+        lr: 0.001                       # float: Base learning rate for split-parameter training
         split_params: true              # bool: Split params into groups
         topk_lr: 0.001                  # float: TopK parameter LR
-        blocklinear_lr: 0.0001          # float: BlockLinear parameter LR
-        reactivation_lr: 0.0001         # float: Reactivation parameter LR
+        blocklinear_lr: 0.001           # float: BlockLinear parameter LR
+        reactivation_lr: 0.001          # float: Reactivation parameter LR
         decoder_lr: 0.001               # float: Decoder LR
         encoder_lr: null                # float | null: Encoder LR (null = frozen / default LR)
 
@@ -292,11 +302,11 @@ training:
             batch_size: 512
             save_checkpoint: false
             param_groups:
-              lr: 0.01
+              lr: 0.001
               split_params: true
               topk_lr: 0.001
-              blocklinear_lr: 0.0001
-              reactivation_lr: 0.0001
+              blocklinear_lr: 0.001
+              reactivation_lr: 0.001
               decoder_lr: 0.001
             trainer_config:
               loss_function: "ce"
@@ -387,13 +397,13 @@ training:
       enable_nan_checking: false        # bool: Check for NaN gradients
       enable_adaptive_clipping: false   # bool: Adaptive gradient clipping
       weight_decay_rate: 0.01           # float: Weight decay rate
-      weight_boosting: false            # bool: Weight boosting
+      weight_boosting: true             # bool: Weight boosting
       param_groups:
-        lr: 0.01                        # float: Base learning rate
+        lr: 0.001                       # float: Base learning rate for split-parameter training
         split_params: true              # bool: Split params into groups
         topk_lr: 0.001                  # float: TopK parameter LR
-        blocklinear_lr: 0.0001          # float: BlockLinear parameter LR
-        reactivation_lr: 0.0001         # float: Reactivation parameter LR
+        blocklinear_lr: 0.001           # float: BlockLinear parameter LR
+        reactivation_lr: 0.001          # float: Reactivation parameter LR
         decoder_lr: 0.001               # float: Decoder LR
         encoder_lr: null                # float | null: Encoder LR (null = frozen / default LR)
 
@@ -460,11 +470,11 @@ training:
             batch_size: 512
             save_checkpoint: false
             param_groups:
-              lr: 0.01
+              lr: 0.001
               split_params: true
               topk_lr: 0.001
-              blocklinear_lr: 0.0001
-              reactivation_lr: 0.0001
+              blocklinear_lr: 0.001
+              reactivation_lr: 0.001
               decoder_lr: 0.001
             trainer_config:
               loss_function: "ce"
@@ -716,9 +726,12 @@ analysis:
         include_vinf: true              # bool: Include soma activation
         normalize_mi: false             # bool: Normalize by H(C)
         output_units: "bits"            # str: "bits" | "nats"
+        analysis_split: "test"          # str: "validation" | "test"
         verbose: false                  # bool: Verbose output
         computation_level: "single_branch"  # str: "single_branch" | "layer_branch" | "all_branch"
         branch_aggregation: "mean"      # str: "mean" | "multivariate" | "sample"
+        branch_sample_count_per_layer: null  # int | null: Deterministic per-layer branch subset for single_branch (null = all)
+        branch_sample_seed: 0            # int: Seed for label-independent branch selection
         layer_total_topk: 10            # int: K for topK_sum metrics
         gaussian_fisher:
           aggregation: "sum"            # str: "sum" | "mean" | "max"
@@ -922,6 +935,10 @@ analysis:
       inh_rf_shape: null                # list[int] | null: Inhibitory RF shape [H, W]
       fig_save_format: png              # str: Figure extension, e.g. png or pdf
       compute_activation_tuning: false  # bool: Class-tuning summaries from branch E/I ratio and Vout activations
+      activation_sample_signals: []     # list[str]: Optional "exc" | "inh" | "vout" | "ei_ratio" sample records
+      activation_sample_depths: []      # list[int]: Soma-relative depths retained in activation sample records
+      activation_samples_per_class: 0   # int: Label-balanced records per class; 0 disables records
+      activation_sample_seed: 0         # int: Seed for label-only within-class sample selection
       compute_component_rfs: false      # bool: Compact soma-level E/I mean and conditioned component RF maps
       plot_component_rfs: true          # bool: Save compact component RF figure on final analysis
       compute_rf_tuning: false          # bool: Rich aggregate RF tuning, entropy, and discriminability analysis

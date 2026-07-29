@@ -36,6 +36,11 @@ def _apply_reactivation_init(
     if isinstance(dbl.reactivation, torch.nn.Identity) or not callable(initialize):
         return
 
+    # Persist the analytical state so the component-factorial policies can use
+    # the original weight/morphology prior after empirical calibration passes.
+    dbl.reactivation_analytical_init_m = float(m_auto)
+    dbl.reactivation_analytical_init_b = float(b_auto)
+
     policy = normalize_reactivation_init_policy(
         getattr(dbl, "reactivation_init_policy", "analytical")
     )
@@ -157,6 +162,67 @@ def _resolve_occupancy_spec(
     return q_low, q_high, r_low, r_high
 
 
+def _analytical_reactivation_prior(layer) -> tuple[float, float]:
+    """Return the immutable analytical gate state for a dendritic layer."""
+    current_m, current_b = _current_reactivation_state(layer)
+    prior_m = max(
+        float(getattr(layer, "reactivation_analytical_init_m", current_m)),
+        1e-8,
+    )
+    prior_b = float(getattr(layer, "reactivation_analytical_init_b", current_b))
+    return prior_m, prior_b
+
+
+def _fit_analytical_occupancy_components(
+    *,
+    layer,
+    layer_name: str,
+    occupancy_fit: dict[str, float | bool | str],
+    policy: str,
+) -> dict[str, float | bool | str]:
+    """Combine analytical and empirical center/slope without a mixing weight."""
+    prior_m, prior_b = _analytical_reactivation_prior(layer)
+    data_m = max(float(occupancy_fit["m"]), 1e-8)
+    data_b = float(occupancy_fit.get("b_raw", occupancy_fit["b"]))
+    occupancy_reverted = bool(occupancy_fit.get("reverted", False))
+    occupancy_reason = str(occupancy_fit.get("revert_reason", "none"))
+
+    if policy == "analytical_slope_occupancy_center":
+        # A slope safeguard does not invalidate a finite empirical center. This
+        # policy does not use the occupancy slope, so it can still recenter when
+        # pure occupancy would reject an excessively sharp slope estimate.
+        if isfinite(data_b):
+            m_selected, b_selected = prior_m, data_b
+            reverted, reason = False, "none"
+        else:
+            m_selected, b_selected = prior_m, prior_b
+            reverted, reason = True, occupancy_reason
+    elif policy == "occupancy_slope_analytical_center":
+        if occupancy_reverted:
+            m_selected, b_selected = prior_m, prior_b
+            reverted, reason = True, occupancy_reason
+        else:
+            m_selected, b_selected = data_m, prior_b
+            reverted, reason = False, "none"
+    else:
+        raise ValueError(
+            f"Unknown analytical--occupancy component policy {policy!r} for "
+            f"layer {layer_name}."
+        )
+
+    return {
+        "m": m_selected,
+        "b": b_selected,
+        "policy": policy,
+        "analytical_m": prior_m,
+        "analytical_b": prior_b,
+        "occupancy_m": data_m,
+        "occupancy_b": data_b,
+        "reverted": reverted,
+        "revert_reason": reason,
+    }
+
+
 def _fit_occupancy_quantile(
     *,
     layer,
@@ -192,6 +258,7 @@ def _fit_occupancy_quantile(
         )
         return {
             "b": current_b,
+            "b_raw": float("nan"),
             "m": current_m,
             "sigma": sigma_mad_std,
             "q_low_prob": q_low_p,
@@ -207,6 +274,12 @@ def _fit_occupancy_quantile(
         }
 
     delta_q_used = max(delta_q_raw, min_width)
+    m_width_candidate = delta_z / delta_q_used
+    b_width_candidate = (
+        q_low_v - (z_low / m_width_candidate)
+        if isfinite(m_width_candidate) and m_width_candidate > 0.0
+        else float("nan")
+    )
     if delta_q_raw < min_width:
         if revert_on_invalid:
             warnings.warn(
@@ -218,6 +291,7 @@ def _fit_occupancy_quantile(
             )
             return {
                 "b": current_b,
+                "b_raw": b_width_candidate,
                 "m": current_m,
                 "sigma": sigma_mad_std,
                 "q_low_prob": q_low_p,
@@ -249,6 +323,7 @@ def _fit_occupancy_quantile(
             )
             return {
                 "b": current_b,
+                "b_raw": float("nan"),
                 "m": current_m,
                 "sigma": sigma_mad_std,
                 "q_low_prob": q_low_p,
@@ -265,6 +340,7 @@ def _fit_occupancy_quantile(
         m_raw = max_m
 
     if m_raw > max_m and revert_on_invalid:
+        b_raw = q_low_v - (z_low / m_raw)
         warnings.warn(
             f"Reactivation occupancy calibration for layer {layer_name} would clamp "
             f"slope from {m_raw:.4f} to {max_m:.4f}; reverting to the previous "
@@ -274,6 +350,7 @@ def _fit_occupancy_quantile(
         )
         return {
             "b": current_b,
+            "b_raw": b_raw,
             "m": current_m,
             "sigma": sigma_mad_std,
             "q_low_prob": q_low_p,
@@ -298,9 +375,11 @@ def _fit_occupancy_quantile(
             stacklevel=2,
         )
     b_fit = q_low_v - (z_low / m_fit)
+    b_raw = q_low_v - (z_low / m_raw)
     sigma_fit = 0.5 * max(delta_q_raw, 0.0)
     return {
         "b": b_fit,
+        "b_raw": b_raw,
         "m": m_fit,
         "sigma": sigma_fit,
         "q_low_prob": q_low_p,
@@ -516,7 +595,13 @@ def calibrate_reactivation_from_data(
         occ_m_clamped = False
         calibration_reverted = False
 
-        if active_mode == "occupancy_quantile":
+        component_fit = None
+        occupancy_modes = {
+            "occupancy_quantile",
+            "analytical_slope_occupancy_center",
+            "occupancy_slope_analytical_center",
+        }
+        if active_mode in occupancy_modes:
             occ_fit = _fit_occupancy_quantile(
                 layer=layer,
                 layer_name=name,
@@ -525,8 +610,21 @@ def calibrate_reactivation_from_data(
                 sigma_mad_std=sigma_mad_std,
                 quantile_aggregation=quantile_aggregation,
             )
-            b_emp = float(occ_fit["b"])
-            m_emp = float(occ_fit["m"])
+            if active_mode in {
+                "analytical_slope_occupancy_center",
+                "occupancy_slope_analytical_center",
+            }:
+                component_fit = _fit_analytical_occupancy_components(
+                    layer=layer,
+                    layer_name=name,
+                    occupancy_fit=occ_fit,
+                    policy=active_mode,
+                )
+                b_emp = float(component_fit["b"])
+                m_emp = float(component_fit["m"])
+            else:
+                b_emp = float(occ_fit["b"])
+                m_emp = float(occ_fit["m"])
             occ_q_low = float(occ_fit["q_low_prob"])
             occ_q_high = float(occ_fit["q_high_prob"])
             occ_r_low = float(occ_fit["r_low"])
@@ -535,7 +633,11 @@ def calibrate_reactivation_from_data(
             occ_delta_q_used = float(occ_fit["delta_q_used"])
             occ_m_raw = float(occ_fit["m_raw"])
             occ_m_clamped = bool(occ_fit["m_clamped"])
-            calibration_reverted = bool(occ_fit["reverted"])
+            calibration_reverted = bool(
+                component_fit["reverted"]
+                if component_fit is not None
+                else occ_fit["reverted"]
+            )
         elif active_mode == "median_mad":
             b_emp = median
             m_emp = robust_m
@@ -548,7 +650,9 @@ def calibrate_reactivation_from_data(
         else:
             raise ValueError(
                 f"calibrate_reactivation_from_data: unknown mode={active_mode!r} "
-                f"(expected 'median_mad', 'mean_std', 'occupancy_quantile')"
+                "(expected 'median_mad', 'mean_std', 'occupancy_quantile', "
+                "'analytical_slope_occupancy_center', or "
+                "'occupancy_slope_analytical_center')"
             )
 
         applied_m, applied_b = _apply_reactivation_calibration(
@@ -580,11 +684,38 @@ def calibrate_reactivation_from_data(
             "occupancy_delta_q_used": occ_delta_q_used,
             "occupancy_m_raw": occ_m_raw,
             "occupancy_m_was_clamped": occ_m_clamped,
+            "occupancy_fit_reverted": (
+                bool(occ_fit["reverted"]) if active_mode in occupancy_modes else None
+            ),
+            "occupancy_fit_revert_reason": (
+                str(occ_fit.get("revert_reason", "none"))
+                if active_mode in occupancy_modes
+                else None
+            ),
+            "component_policy": (
+                component_fit["policy"] if component_fit is not None else None
+            ),
+            "component_analytical_m": (
+                component_fit["analytical_m"] if component_fit is not None else None
+            ),
+            "component_analytical_b": (
+                component_fit["analytical_b"] if component_fit is not None else None
+            ),
+            "component_occupancy_m": (
+                component_fit["occupancy_m"] if component_fit is not None else None
+            ),
+            "component_occupancy_b": (
+                component_fit["occupancy_b"] if component_fit is not None else None
+            ),
             "calibration_reverted": calibration_reverted,
             "calibration_revert_reason": (
-                occ_fit.get("revert_reason")
-                if active_mode == "occupancy_quantile"
-                else "none"
+                component_fit["revert_reason"]
+                if component_fit is not None
+                else (
+                    occ_fit.get("revert_reason")
+                    if active_mode in occupancy_modes
+                    else "none"
+                )
             ),
             "V_min": vmin,
             "V_max": vmax,
@@ -603,9 +734,11 @@ def calibrate_reactivation_empirical(*args, **kwargs):
 
 
 __all__ = [
+    "_analytical_reactivation_prior",
     "_apply_reactivation_calibration",
     "_apply_reactivation_init",
     "_current_reactivation_state",
+    "_fit_analytical_occupancy_components",
     "_fit_occupancy_quantile",
     "_reactivation_calibration_safeguards",
     "_resolve_occupancy_spec",

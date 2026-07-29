@@ -5,6 +5,7 @@ fakes that mimic the minimum contract the analyzer reads from a
 recurrent E-I model:
 
     model.core_network.layers[idx].e_population.branch_layers[l].branch_rec_inhibition.weight()
+    model.core_network.layers[idx].e_population.branch_layers[l].branch_rec_inhibition.weight_mask()
     model.core_network.layers[idx].e_population.n_soma
     model.core_network.layers[idx].i_population.n_soma
 
@@ -33,14 +34,18 @@ from dendritic_modeling.config.analysis import InhibitorySpecializationAnalysisP
 
 
 class _FakeTopK(nn.Module):
-    """Minimal stand-in for ``TopK`` exposing a ``.weight()`` method."""
+    """Minimal deterministic Top-K stand-in with candidate and active views."""
 
-    def __init__(self, w: torch.Tensor) -> None:
+    def __init__(self, w: torch.Tensor, mask: torch.Tensor | None = None) -> None:
         super().__init__()
         self._w = w
+        self._mask = torch.ones_like(w) if mask is None else mask
 
     def weight(self) -> torch.Tensor:
         return self._w
+
+    def weight_mask(self) -> torch.Tensor:
+        return self._mask
 
 
 class _FakeBranchLayer(nn.Module):
@@ -108,13 +113,57 @@ class TestInhibitorySpecializationAnalyzer(unittest.TestCase):
             ),
         }
         comp = extract_recurrent_inhibitory_compartment_weights_from_state_dict(
-            sd, prefix="core", n_E=n_E, weight_transform="exp"
+            sd,
+            prefix="core",
+            n_E=n_E,
+            weight_transform="exp",
+            active_masks=[torch.ones(n_E * 2, n_I), torch.ones(n_E, n_I)],
         )
         summary = summarize_inhibitory_specialization_from_compartment_weights(comp)
         G = summary["G"]
-        # f_distal = 0.25 / (0.25 + 1.0) = 0.2, f_soma = 0.8, so G = 0.6
-        self.assertTrue(torch.allclose(G, torch.full_like(G, 0.6), atol=1e-6))
+        # Realized mass sums over the two distal compartments: distal=0.5,
+        # soma=1.0, hence G = 2/3 - 1/3 = 1/3.
+        self.assertTrue(torch.allclose(G, torch.full_like(G, 1 / 3), atol=1e-6))
         self.assertEqual(summary["class_counts"]["gate-specialist"], n_I)
+
+    def test_state_dict_helper_rejects_dense_candidates_without_masks(self) -> None:
+        sd = {"core.branch_layers.0.branch_rec_inhibition.pre_w": torch.zeros(2, 2)}
+        with self.assertRaisesRegex(ValueError, "active_masks are required"):
+            extract_recurrent_inhibitory_compartment_weights_from_state_dict(
+                sd, prefix="core", n_E=1
+            )
+
+    def test_inactive_large_weights_do_not_change_specialization(self) -> None:
+        n_E, n_I = 2, 1
+        distal_candidates = torch.tensor([[1000.0], [1000.0], [1000.0], [1000.0]])
+        distal_mask = torch.zeros_like(distal_candidates)
+        soma_candidates = torch.ones(n_E, n_I)
+        layer = _FakeLayer(
+            _FakePopulation(
+                n_soma=n_E,
+                branch_layers=[
+                    _FakeBranchLayer(_FakeTopK(distal_candidates, distal_mask)),
+                    _FakeBranchLayer(_FakeTopK(soma_candidates)),
+                ],
+            ),
+            _FakePopulation(n_soma=n_I, branch_layers=[]),
+        )
+        results = InhibitorySpecializationAnalyzer().analyze(
+            _FakeModel(_FakeCore([layer])), device="cpu"
+        )
+        entry = results["layers"]["layer_0"]
+        self.assertEqual(entry["class_counts"]["gate-specialist"], 1)
+        self.assertEqual(entry["pair_level"]["strong_soma_pct"], 100.0)
+
+    def test_disconnected_pairs_are_not_counted_as_balanced(self) -> None:
+        weights = [
+            torch.tensor([[[0.0], [0.0]], [[0.0], [0.0]]]),
+            torch.tensor([[[1.0]], [[0.0]]]),
+        ]
+        summary = summarize_inhibitory_specialization_from_compartment_weights(weights)
+        self.assertEqual(summary["pair_level"]["n_pairs"], 1)
+        self.assertEqual(summary["pair_level"]["n_disconnected_pairs"], 1)
+        self.assertEqual(summary["pair_level"]["balanced_pct"], 0.0)
 
     def test_pair_stats_by_class_reports_bimodality(self) -> None:
         """Mixed-conditional rows should show non-zero bimodality."""

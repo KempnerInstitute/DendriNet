@@ -28,6 +28,7 @@ Usage:
 """
 
 import argparse
+import inspect
 import os
 import sys
 from pathlib import Path
@@ -42,6 +43,11 @@ sys.path.insert(0, str(repo_root / "src"))
 
 # Use absolute imports to avoid relative import issues
 try:
+    from dendritic_modeling.scripts.sweeps.control_plane import (
+        SCHEDULER_PLACEHOLDER,
+        validate_scheduler_profile,
+        write_frozen_sweep_manifest,
+    )
     from dendritic_modeling.scripts.sweeps.unified.base_sweep import SweepJobManager
     from dendritic_modeling.scripts.sweeps.unified.sweep_types.unified_sweep import (
         UnifiedSweepGenerator,
@@ -49,6 +55,11 @@ try:
 except ImportError:
     # Fallback for when run as script
     sys.path.insert(0, str(Path(__file__).parent))
+    from control_plane import (  # type: ignore[no-redef]
+        SCHEDULER_PLACEHOLDER,
+        validate_scheduler_profile,
+        write_frozen_sweep_manifest,
+    )
     from unified.base_sweep import SweepJobManager
     from unified.sweep_types.unified_sweep import UnifiedSweepGenerator
 
@@ -66,6 +77,29 @@ class SweepManager:
         self.generator = UnifiedSweepGenerator()
         # Analysis is handled by separate result_analyzer.py to avoid circular imports
         self.sweep_type = "unified"  # For backward compatibility in output
+
+    @staticmethod
+    def _expected_config_count(config, observed_count: int) -> int:
+        """Resolve and enforce an optional predeclared factorial size."""
+        declared = OmegaConf.select(config, "sweep_contract.expected_config_count")
+        if declared is None:
+            declared = config.get("expected_config_count")
+        if declared is None:
+            return int(observed_count)
+        if isinstance(declared, bool):
+            raise ValueError("expected_config_count must be an integer")
+        try:
+            expected = int(declared)
+        except (TypeError, ValueError) as error:
+            raise ValueError("expected_config_count must be an integer") from error
+        if expected < 0:
+            raise ValueError("expected_config_count must be non-negative")
+        if expected != int(observed_count):
+            raise ValueError(
+                "Generated config count does not match sweep_contract: "
+                f"expected {expected}, observed {observed_count}"
+            )
+        return expected
 
     def generate_sweep(
         self,
@@ -99,13 +133,13 @@ class SweepManager:
         if "slurm_config" not in config or config.slurm_config is None:
             config.slurm_config = OmegaConf.create({})
 
-        skip_slurm_validation = generate_only or dry_run
+        allow_scheduler_placeholder = generate_only or dry_run
 
         if slurm_account is not None:
             config.slurm_config.account = slurm_account
         elif not config.slurm_config.get("account"):
-            if skip_slurm_validation:
-                config.slurm_config.account = "PLACEHOLDER"
+            if allow_scheduler_placeholder:
+                config.slurm_config.account = SCHEDULER_PLACEHOLDER
             else:
                 raise ValueError(
                     "SLURM account not set. Provide 'account' in slurm_config "
@@ -115,13 +149,22 @@ class SweepManager:
         if slurm_partition is not None:
             config.slurm_config.partition = slurm_partition
         elif not config.slurm_config.get("partition"):
-            if skip_slurm_validation:
-                config.slurm_config.partition = "PLACEHOLDER"
+            if allow_scheduler_placeholder:
+                config.slurm_config.partition = SCHEDULER_PLACEHOLDER
             else:
                 raise ValueError(
                     "SLURM partition not set. Provide 'partition' in slurm_config "
                     "or pass --slurm-partition on the command line."
                 )
+
+        scheduler_profile = validate_scheduler_profile(
+            config.slurm_config.account,
+            config.slurm_config.partition,
+            allow_placeholder=allow_scheduler_placeholder,
+        )
+        # Preserve normalized values in both generated scripts and provenance.
+        config.slurm_config.account = scheduler_profile.account
+        config.slurm_config.partition = scheduler_profile.partition
 
         # Validate configuration
         if not self.generator.validate_config(config):
@@ -159,6 +202,10 @@ class SweepManager:
         print("Generating sweep configurations...")
         sweep_configs = self.generator.generate_configs(config)
         print(f"Generated {len(sweep_configs)} configurations")
+        expected_config_count = self._expected_config_count(
+            config,
+            observed_count=len(sweep_configs),
+        )
 
         # Save configurations
         config_paths = self.generator.save_configs(sweep_configs, sweep_output_dir)
@@ -183,7 +230,41 @@ class SweepManager:
 
         # Save original config for reference
         original_config_path = os.path.join(sweep_output_dir, "original_config.yaml")
-        OmegaConf.save(config, original_config_path)
+        OmegaConf.save(config, original_config_path, resolve=True)
+
+        generation_mode = (
+            "generate_only" if generate_only else "dry_run" if dry_run else "submission"
+        )
+        generator_source = inspect.getsourcefile(type(self.generator))
+        manifest_path = write_frozen_sweep_manifest(
+            output_dir=sweep_output_dir,
+            input_config_path=config_path,
+            resolved_config_path=original_config_path,
+            generated_config_paths=config_paths,
+            expected_config_count=expected_config_count,
+            scheduler_profile=scheduler_profile,
+            repo_root=repo_root,
+            source_files=[
+                Path(__file__),
+                Path(__file__).with_name("control_plane.py"),
+                repo_root
+                / "src/dendritic_modeling/scripts/training/train_experiments.py",
+                repo_root / "src/dendritic_modeling/networks/architectures/"
+                "excitation_inhibition/dendritic/initialize_reactivation.py",
+                repo_root / "src/dendritic_modeling/networks/architectures/"
+                "excitation_inhibition/dendritic/initialize_methods.py",
+                repo_root / "src/dendritic_modeling/config/reactivation.py",
+                repo_root / "src/dendritic_modeling/networks/architectures/"
+                "excitation_inhibition/dendritic/branch_layer.py",
+                repo_root / "src/dendritic_modeling/networks/architectures/"
+                "excitation_inhibition/dendritic/synapse_config.py",
+                *([generator_source] if generator_source else []),
+            ],
+            generator_identity=(
+                f"{type(self.generator).__module__}.{type(self.generator).__qualname__}"
+            ),
+            generation_mode=generation_mode,
+        )
 
         sweep_info = {
             "sweep_type": self.sweep_type,
@@ -192,12 +273,15 @@ class SweepManager:
             "config_paths": config_paths,
             "job_scripts": job_scripts,
             "original_config": config_path,
+            "frozen_manifest": str(manifest_path),
+            "scheduler_profile": scheduler_profile.as_dict(),
         }
 
         print("Sweep generation complete!")
         print(f"   Output directory: {sweep_output_dir}")
         print(f"   Configurations: {len(sweep_configs)}")
         print(f"   Job scripts: {len(job_scripts)}")
+        print(f"   Frozen manifest: {manifest_path}")
 
         return sweep_info
 
@@ -214,6 +298,13 @@ class SweepManager:
         """
         job_scripts = sweep_info["job_scripts"]
         sweep_info["output_dir"]
+        scheduler_profile = sweep_info.get("scheduler_profile", {})
+
+        if not dry_run and scheduler_profile.get("placeholder", False):
+            raise ValueError(
+                "Cannot submit a sweep generated with scheduler placeholders; "
+                "regenerate it with one approved account/partition pair"
+            )
 
         if dry_run:
             print("DRY RUN - Would submit the following jobs:")
@@ -400,7 +491,7 @@ Examples:
     )
     parser.add_argument(
         "--slurm-partition",
-        help="Override slurm_config.partition in sweep config (supports comma-separated partitions)",
+        help="Override slurm_config.partition with one approved compute partition",
     )
 
     # Options for analysis
@@ -445,9 +536,16 @@ def main():
                     generate_only=True,
                 )
 
-                print("\nTo submit jobs, run:")
-                print(f"   bash {sweep_info['output_dir']}/submit_all_jobs.sh")
-                print("   OR run without --generate-only flag to auto-submit")
+                if sweep_info["scheduler_profile"]["placeholder"]:
+                    print(
+                        "\nGenerated with non-submitting scheduler placeholders. "
+                        "Regenerate with an approved account/partition pair before "
+                        "submission."
+                    )
+                else:
+                    print("\nTo submit jobs, run:")
+                    print(f"   bash {sweep_info['output_dir']}/submit_all_jobs.sh")
+                    print("   OR run without --generate-only flag to auto-submit")
             else:
                 # Default behavior: generate and submit (--run is now default)
                 manager.run_full_sweep(
