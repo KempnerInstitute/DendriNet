@@ -272,12 +272,11 @@ class KraskovEstimator(BaseInformationEstimator):
             for val in np.unique(z_labels):
                 mask = z_labels == val
                 n = int(np.sum(mask))
-                # kNN MI/CMI estimators query the training set itself, so they require
-                # n_neighbors < n_samples_fit. For a subgroup of size n, this implies
-                # k+1 < n => k <= n-2.
-                if n <= 2:
+                # ``kneighbors(X=None)`` excludes each fitted sample itself, so
+                # a subgroup only needs one other sample and k <= n - 1.
+                if n <= 1:
                     continue
-                k_sub = min(k, n - 2)
+                k_sub = min(k, n - 1)
                 if k_sub < 1:
                     continue
                 try:
