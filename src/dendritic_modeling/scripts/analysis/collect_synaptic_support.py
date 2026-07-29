@@ -193,6 +193,49 @@ def _profile_rows(
     return rows
 
 
+def _checkpoint_summary_rows(
+    support_rows: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Average technical soma records within each fitted checkpoint."""
+    excluded = {
+        *_SCALAR_FIELDS,
+        "soma_index",
+        "technical_record_is_independent_replicate",
+        "trained_checkpoint_is_inference_unit",
+    }
+    groups: dict[tuple[tuple[str, Any], ...], list[Mapping[str, Any]]] = {}
+    for row in support_rows:
+        identity = tuple(
+            (key, value) for key, value in sorted(row.items()) if key not in excluded
+        )
+        groups.setdefault(identity, []).append(row)
+
+    summaries: list[dict[str, Any]] = []
+    for identity, rows in groups.items():
+        n_soma = int(rows[0]["n_soma"])
+        soma_indices = {int(row["soma_index"]) for row in rows}
+        if len(rows) != n_soma or soma_indices != set(range(n_soma)):
+            raise ValueError(
+                "source-support checkpoint group does not contain exactly one "
+                "record for every soma"
+            )
+        summary = dict(identity)
+        summary.update(
+            {
+                "technical_soma_count": len(rows),
+                "technical_aggregation": "mean_across_somas_within_checkpoint",
+                "trained_checkpoint_is_inference_unit": True,
+            }
+        )
+        for field in sorted(_SCALAR_FIELDS):
+            values = [float(row[field]) for row in rows if row.get(field) is not None]
+            summary[f"{field}_defined_count"] = len(values)
+            summary[f"{field}_mean"] = float(np.mean(values)) if values else None
+            summary[f"{field}_sd"] = float(np.std(values, ddof=0)) if values else None
+        summaries.append(summary)
+    return summaries
+
+
 def collect_synaptic_support(
     *,
     jobs_paths: Sequence[Path],
@@ -273,6 +316,7 @@ def collect_synaptic_support(
 
     outputs = {
         "checkpoint_support_records.csv": support_rows,
+        "checkpoint_support_summary.csv": _checkpoint_summary_rows(support_rows),
         "profile_inventory.csv": profile_rows,
         "source_artifacts.csv": source_rows,
     }

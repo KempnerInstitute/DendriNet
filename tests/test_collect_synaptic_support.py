@@ -5,6 +5,7 @@ import pytest
 
 from dendritic_modeling.scripts.analysis.collect_synaptic_support import (
     _array_sha256,
+    _checkpoint_summary_rows,
     _profile_rows,
     _validate_support,
 )
@@ -119,3 +120,25 @@ def test_profile_rows_reject_undeclared_arrays(tmp_path):
             metadata=_support_result()["source_support"]["profile_metadata"],
             profiles_path=profiles_path,
         )
+
+
+def test_checkpoint_summary_averages_somas_without_promoting_them():
+    base = _support_result()["source_support"]["records"][0]
+    rows = []
+    for soma_index, entropy in enumerate((0.5, 0.9)):
+        row = {
+            **base,
+            "n_soma": 2,
+            "soma_index": soma_index,
+            "normalized_source_entropy": entropy,
+            "technical_record_is_independent_replicate": False,
+            "trained_checkpoint_is_inference_unit": True,
+        }
+        rows.append(row)
+
+    summary = _checkpoint_summary_rows(rows)
+
+    assert len(summary) == 1
+    assert summary[0]["technical_soma_count"] == 2
+    assert summary[0]["normalized_source_entropy_mean"] == pytest.approx(0.7)
+    assert summary[0]["trained_checkpoint_is_inference_unit"] is True
