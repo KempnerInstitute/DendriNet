@@ -6,7 +6,11 @@ including both global statistics and hierarchical per-layer analysis with plotti
 Provides comprehensive weight analysis with both global and hierarchical statistics.
 """
 
+import csv
 import logging
+import math
+import os
+import re
 import time
 from collections.abc import Iterator
 from typing import Any, Optional
@@ -15,6 +19,9 @@ import numpy as np
 import torch
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
+from dendritic_modeling.analysis.utils.effective_synapses import (
+    effective_synapse_snapshot,
+)
 from dendritic_modeling.analysis.utils.einet_core import has_einet_core
 from dendritic_modeling.analysis.utils.recurrent_introspection import (
     iter_recurrent_populations,
@@ -26,6 +33,79 @@ from dendritic_modeling.utils import save_dict
 from dendritic_modeling.utils.hooks import iter_named_modules_of_type
 
 logger = logging.getLogger(__name__)
+
+
+_SOURCE_SUPPORT_PATHS = {
+    "ff_excitatory": ("branch_excitation", "excitatory"),
+    "ff_inhibitory": ("branch_inhibition", "inhibitory"),
+    "rec_excitatory": ("branch_recurrent", "excitatory"),
+    "rec_inhibitory": ("branch_rec_inhibition", "inhibitory"),
+}
+
+
+def _safe_profile_key(*parts: object) -> str:
+    """Return a stable NPZ-compatible key from structural identifiers."""
+    return "__".join(
+        re.sub(r"[^A-Za-z0-9_.-]+", "-", str(part)).strip("-") for part in parts
+    )
+
+
+def _mean_pairwise_jaccard(mask: torch.Tensor) -> float:
+    """Mean Jaccard overlap between distinct binary branch supports."""
+    mask = mask.to(dtype=torch.float64)
+    n_rows = int(mask.shape[0])
+    if n_rows < 2:
+        return float("nan")
+    intersection = mask @ mask.T
+    row_sizes = mask.sum(dim=1)
+    union = row_sizes[:, None] + row_sizes[None, :] - intersection
+    valid = ~torch.eye(n_rows, dtype=torch.bool, device=mask.device)
+    pairwise = torch.where(
+        union > 0,
+        intersection / union.clamp_min(torch.finfo(mask.dtype).eps),
+        torch.zeros_like(union),
+    )
+    return float(pairwise[valid].mean().item())
+
+
+def _source_support_statistics(
+    active_mask: torch.Tensor,
+    candidate_mask: torch.Tensor,
+) -> dict[str, float]:
+    """Compute dimensionless source-support statistics for one soma."""
+    active_mask = active_mask.ne(0)
+    candidate_mask = candidate_mask.ne(0)
+    source_dim = int(active_mask.shape[-1])
+    active_counts = active_mask.sum(dim=0, dtype=torch.float64)
+    candidate_union = candidate_mask.any(dim=0)
+    active_union = active_counts > 0
+    eligible_count = int(candidate_union.sum().item())
+    active_source_count = int(active_union.sum().item())
+    total_contacts = float(active_counts.sum().item())
+
+    if total_contacts > 0:
+        distribution = active_counts / total_contacts
+        nonzero = distribution[distribution > 0]
+        entropy_bits = float((-(nonzero * torch.log2(nonzero))).sum().item())
+    else:
+        entropy_bits = 0.0
+    max_entropy_bits = math.log2(source_dim) if source_dim > 1 else 0.0
+    normalized_entropy = (
+        entropy_bits / max_entropy_bits if max_entropy_bits > 0 else 0.0
+    )
+    effective_source_fraction = (
+        (2.0**entropy_bits) / source_dim if source_dim > 0 else 0.0
+    )
+
+    return {
+        "source_coverage_fraction": active_source_count / max(source_dim, 1),
+        "eligible_source_fraction": eligible_count / max(source_dim, 1),
+        "source_coverage_of_eligible": active_source_count / max(eligible_count, 1),
+        "source_entropy_bits": entropy_bits,
+        "normalized_source_entropy": normalized_entropy,
+        "effective_source_fraction": effective_source_fraction,
+        "mean_pairwise_branch_jaccard": _mean_pairwise_jaccard(active_mask),
+    }
 
 
 def _weight_tensor_statistics(
@@ -160,6 +240,36 @@ class WeightAnalyzer(AbstractAnalyzer):
         )
 
         self.weight_threshold = getattr(params, "weight_threshold", 1e-6)
+        self.compute_source_support = bool(
+            getattr(params, "compute_source_support", False)
+        )
+        self.source_support_target_polarities = tuple(
+            str(value).lower()
+            for value in getattr(
+                params,
+                "source_support_target_polarities",
+                ["excitatory"],
+            )
+        )
+        self.source_support_pathways = tuple(
+            str(value).lower()
+            for value in getattr(
+                params,
+                "source_support_pathways",
+                ["ff_excitatory", "ff_inhibitory"],
+            )
+        )
+        image_shape = getattr(params, "source_support_image_shape", None)
+        self.source_support_image_shape = (
+            None if image_shape is None else tuple(int(value) for value in image_shape)
+        )
+        self.source_support_plot_soma_indices = tuple(
+            int(value)
+            for value in getattr(params, "source_support_plot_soma_indices", [])
+        )
+        self.source_support_fig_save_format = str(
+            getattr(params, "source_support_fig_save_format", "pdf")
+        ).lstrip(".")
 
         self.logger.info(
             f"Initialized unified WeightAnalyzer with computation_level: {self.computation_level}"
@@ -254,6 +364,16 @@ class WeightAnalyzer(AbstractAnalyzer):
 
             results["enhanced_layer_statistics"] = enhanced_stats
 
+        source_support_profiles: dict[str, np.ndarray] = {}
+        source_support_profile_metadata: list[dict[str, Any]] = []
+        if self.compute_source_support:
+            (
+                source_support,
+                source_support_profiles,
+                source_support_profile_metadata,
+            ) = self._compute_source_support(model)
+            results["source_support"] = source_support
+
         elapsed_time = time.time() - start_time
         self.logger.info(f"Weight analysis completed in {elapsed_time:.2f} seconds")
 
@@ -262,6 +382,15 @@ class WeightAnalyzer(AbstractAnalyzer):
             self.logger.info(
                 f"Saving weight analysis results to {save_path}/{filename}"
             )
+            if self.compute_source_support:
+                self._save_source_support_outputs(
+                    results["source_support"],
+                    source_support_profiles,
+                    source_support_profile_metadata,
+                    save_path=save_path,
+                    filename=filename,
+                    plot=not training,
+                )
             save_dict(results, save_path, filename)
 
             # Only generate plots during final analysis (not during training)
@@ -273,6 +402,384 @@ class WeightAnalyzer(AbstractAnalyzer):
                 self.logger.info("Training mode: plots skipped, only data saved")
 
         return results
+
+    def _compute_source_support(
+        self,
+        model: BaseModel,
+    ) -> tuple[dict[str, Any], dict[str, np.ndarray], list[dict[str, Any]]]:
+        """Aggregate realized sparse supports without conflating them with weights."""
+        core = getattr(model, "core_network", model)
+        rows: list[dict[str, Any]] = []
+        profiles: dict[str, np.ndarray] = {}
+        profile_metadata: list[dict[str, Any]] = []
+        pooled: dict[
+            tuple[int, str, str, str],
+            dict[str, list[list[torch.Tensor]] | int],
+        ] = {}
+
+        for population_record in iter_recurrent_populations(core):
+            target_polarity = str(population_record.polarity).lower()
+            if target_polarity not in self.source_support_target_polarities:
+                continue
+            population = population_record.population
+            branch_layers = list(getattr(population, "branch_layers", []) or [])
+            n_soma = int(population_record.n_neurons)
+            if n_soma < 1 or not branch_layers:
+                continue
+
+            network_layer_index = (
+                -1
+                if population_record.layer_index is None
+                else int(population_record.layer_index)
+            )
+            population_name = str(
+                population_record.population_name or population_record.key
+            )
+
+            for fallback_depth, branch_layer in enumerate(branch_layers):
+                depth = int(getattr(branch_layer, "layer_idx", fallback_depth))
+                for pathway in self.source_support_pathways:
+                    module_attr, source_polarity = _SOURCE_SUPPORT_PATHS[pathway]
+                    synapse = getattr(branch_layer, module_attr, None)
+                    if synapse is None:
+                        continue
+                    snapshot = effective_synapse_snapshot(synapse)
+                    active = snapshot.active_mask.detach().cpu()
+                    candidate = snapshot.candidate_mask.detach().cpu()
+                    effective = snapshot.effective_weight.detach().cpu()
+                    if active.ndim != 2 or active.shape[0] % n_soma != 0:
+                        raise ValueError(
+                            "Source-support analysis requires branch rows grouped "
+                            f"evenly by soma; got {tuple(active.shape)} for "
+                            f"{population_record.key} with {n_soma} somas"
+                        )
+                    branches_per_soma = int(active.shape[0] // n_soma)
+                    source_dim = int(active.shape[1])
+                    active_by_soma = active.reshape(
+                        n_soma, branches_per_soma, source_dim
+                    )
+                    candidate_by_soma = candidate.reshape(
+                        n_soma, branches_per_soma, source_dim
+                    )
+                    effective_by_soma = effective.reshape(
+                        n_soma, branches_per_soma, source_dim
+                    )
+
+                    metadata = {
+                        "network_layer_index": network_layer_index,
+                        "population_name": population_name,
+                        "target_polarity": target_polarity,
+                        "dendritic_depth": depth,
+                        "depth_label": str(depth),
+                        "pathway": pathway,
+                        "source_polarity": source_polarity,
+                        "n_soma": n_soma,
+                        "branches_per_soma": branches_per_soma,
+                        "source_dim": source_dim,
+                        "selection_policy": snapshot.selection_policy,
+                        "mask_source": snapshot.mask_source,
+                    }
+                    self._record_source_support_block(
+                        metadata=metadata,
+                        active_by_soma=active_by_soma,
+                        candidate_by_soma=candidate_by_soma,
+                        effective_by_soma=effective_by_soma,
+                        rows=rows,
+                        profiles=profiles,
+                        profile_metadata=profile_metadata,
+                    )
+
+                    pool_key = (
+                        network_layer_index,
+                        population_name,
+                        target_polarity,
+                        pathway,
+                    )
+                    pool = pooled.setdefault(
+                        pool_key,
+                        {
+                            "active": [[] for _ in range(n_soma)],
+                            "candidate": [[] for _ in range(n_soma)],
+                            "effective": [[] for _ in range(n_soma)],
+                            "source_dim": source_dim,
+                            "source_polarity": source_polarity,
+                            "selection_policy": snapshot.selection_policy,
+                            "mask_source": snapshot.mask_source,
+                        },
+                    )
+                    if int(pool["source_dim"]) != source_dim:
+                        raise ValueError(
+                            "Cannot aggregate source support across dendritic "
+                            "depths with different source dimensions"
+                        )
+                    for soma_idx in range(n_soma):
+                        pool["active"][soma_idx].append(active_by_soma[soma_idx])
+                        pool["candidate"][soma_idx].append(candidate_by_soma[soma_idx])
+                        pool["effective"][soma_idx].append(effective_by_soma[soma_idx])
+
+        for (
+            network_layer_index,
+            population_name,
+            target_polarity,
+            pathway,
+        ), pool in pooled.items():
+            active_lists = pool["active"]
+            n_soma = len(active_lists)
+            active_by_soma = [
+                torch.cat(active_lists[soma_idx], dim=0) for soma_idx in range(n_soma)
+            ]
+            candidate_by_soma = [
+                torch.cat(pool["candidate"][soma_idx], dim=0)
+                for soma_idx in range(n_soma)
+            ]
+            effective_by_soma = [
+                torch.cat(pool["effective"][soma_idx], dim=0)
+                for soma_idx in range(n_soma)
+            ]
+            branches_per_soma = int(active_by_soma[0].shape[0])
+            metadata = {
+                "network_layer_index": network_layer_index,
+                "population_name": population_name,
+                "target_polarity": target_polarity,
+                "dendritic_depth": -1,
+                "depth_label": "all",
+                "pathway": pathway,
+                "source_polarity": str(pool["source_polarity"]),
+                "n_soma": n_soma,
+                "branches_per_soma": branches_per_soma,
+                "source_dim": int(pool["source_dim"]),
+                "selection_policy": str(pool["selection_policy"]),
+                "mask_source": str(pool["mask_source"]),
+            }
+            self._record_source_support_block(
+                metadata=metadata,
+                active_by_soma=torch.stack(active_by_soma, dim=0),
+                candidate_by_soma=torch.stack(candidate_by_soma, dim=0),
+                effective_by_soma=torch.stack(effective_by_soma, dim=0),
+                rows=rows,
+                profiles=profiles,
+                profile_metadata=profile_metadata,
+            )
+
+        summary: dict[str, Any] = {
+            "quantity_contract": {
+                "contact_frequency": (
+                    "fraction of branches owned by a soma whose exact realized "
+                    "sparse mask selects each source coordinate"
+                ),
+                "mean_effective_conductance": (
+                    "effective positive synaptic conductance averaged over all "
+                    "branches owned by the soma, with unselected contacts equal to zero"
+                ),
+                "dendritic_depth_minus_one": (
+                    "all dendritic depths pooled by concatenating their branch rows"
+                ),
+                "not_activity_or_information": True,
+            },
+            "n_scalar_records": len(rows),
+            "n_profile_arrays": len(profiles),
+            "records": rows,
+            "profile_metadata": profile_metadata,
+            "profiles_file": None,
+            "records_file": None,
+        }
+        return summary, profiles, profile_metadata
+
+    @staticmethod
+    def _record_source_support_block(
+        *,
+        metadata: dict[str, Any],
+        active_by_soma: torch.Tensor,
+        candidate_by_soma: torch.Tensor,
+        effective_by_soma: torch.Tensor,
+        rows: list[dict[str, Any]],
+        profiles: dict[str, np.ndarray],
+        profile_metadata: list[dict[str, Any]],
+    ) -> None:
+        n_soma = int(metadata["n_soma"])
+        contact_frequency = active_by_soma.ne(0).to(torch.float64).mean(dim=1)
+        mean_effective = effective_by_soma.to(torch.float64).mean(dim=1)
+        prefix = _safe_profile_key(
+            f"network-layer-{metadata['network_layer_index']}",
+            f"population-{metadata['population_name']}",
+            f"target-{metadata['target_polarity']}",
+            f"depth-{metadata['depth_label']}",
+            f"pathway-{metadata['pathway']}",
+        )
+        contact_key = f"{prefix}__contact-frequency"
+        effective_key = f"{prefix}__mean-effective-conductance"
+        profiles[contact_key] = contact_frequency.numpy()
+        profiles[effective_key] = mean_effective.numpy()
+        profile_metadata.append(
+            {
+                **metadata,
+                "contact_frequency_key": contact_key,
+                "mean_effective_conductance_key": effective_key,
+            }
+        )
+
+        for soma_idx in range(n_soma):
+            active = active_by_soma[soma_idx]
+            candidate = candidate_by_soma[soma_idx]
+            effective = effective_by_soma[soma_idx]
+            active_values = effective[active.ne(0)]
+            rows.append(
+                {
+                    **metadata,
+                    "soma_index": soma_idx,
+                    "realized_contacts_per_branch_mean": float(
+                        active.ne(0).sum(dim=1).to(torch.float64).mean().item()
+                    ),
+                    "active_effective_conductance_mean": (
+                        float(active_values.to(torch.float64).mean().item())
+                        if active_values.numel()
+                        else 0.0
+                    ),
+                    **_source_support_statistics(active, candidate),
+                }
+            )
+
+    def _save_source_support_outputs(
+        self,
+        summary: dict[str, Any],
+        profiles: dict[str, np.ndarray],
+        profile_metadata: list[dict[str, Any]],
+        *,
+        save_path: str,
+        filename: str,
+        plot: bool,
+    ) -> None:
+        os.makedirs(save_path, exist_ok=True)
+        profiles_name = f"{filename}_source_support_profiles.npz"
+        records_name = f"{filename}_source_support_records.csv"
+        summary["profiles_file"] = profiles_name
+        summary["records_file"] = records_name
+        np.savez_compressed(os.path.join(save_path, profiles_name), **profiles)
+
+        records = summary["records"]
+        if records:
+            with open(
+                os.path.join(save_path, records_name),
+                "w",
+                newline="",
+                encoding="utf-8",
+            ) as handle:
+                writer = csv.DictWriter(handle, fieldnames=list(records[0]))
+                writer.writeheader()
+                writer.writerows(records)
+
+        if plot and self.source_support_image_shape is not None:
+            figure_files = self._plot_source_support_image_grids(
+                profiles,
+                profile_metadata,
+                save_path=save_path,
+                filename=filename,
+            )
+            if figure_files:
+                summary["figure_files"] = figure_files
+
+    def _plot_source_support_image_grids(
+        self,
+        profiles: dict[str, np.ndarray],
+        profile_metadata: list[dict[str, Any]],
+        *,
+        save_path: str,
+        filename: str,
+    ) -> list[str]:
+        """Plot all-depth image-space support; scientific figures may restyle it."""
+        import matplotlib.pyplot as plt
+
+        image_shape = self.source_support_image_shape
+        assert image_shape is not None
+        image_size = int(np.prod(image_shape))
+        selected = [
+            item
+            for item in profile_metadata
+            if item["depth_label"] == "all" and int(item["source_dim"]) == image_size
+        ]
+        groups: dict[tuple[int, str], list[dict[str, Any]]] = {}
+        for item in selected:
+            key = (int(item["network_layer_index"]), str(item["population_name"]))
+            groups.setdefault(key, []).append(item)
+
+        figure_files: list[str] = []
+        for (network_layer_index, population_name), items in sorted(groups.items()):
+            by_pathway = {str(item["pathway"]): item for item in items}
+            pathways = [
+                pathway
+                for pathway in self.source_support_pathways
+                if pathway in by_pathway
+            ]
+            if not pathways:
+                continue
+            n_soma = int(items[0]["n_soma"])
+            soma_indices = (
+                list(self.source_support_plot_soma_indices)
+                if self.source_support_plot_soma_indices
+                else list(range(n_soma))
+            )
+            soma_indices = [index for index in soma_indices if index < n_soma]
+            if not soma_indices:
+                continue
+
+            for quantity, key_field, label in (
+                (
+                    "contact_frequency",
+                    "contact_frequency_key",
+                    "Contact frequency",
+                ),
+                (
+                    "mean_effective_conductance",
+                    "mean_effective_conductance_key",
+                    "Mean effective conductance",
+                ),
+            ):
+                fig, axes = plt.subplots(
+                    len(pathways),
+                    len(soma_indices),
+                    figsize=(
+                        max(3.0, 0.75 * len(soma_indices)),
+                        max(1.5, 0.85 * len(pathways)),
+                    ),
+                    squeeze=False,
+                    constrained_layout=True,
+                )
+                for row_idx, pathway in enumerate(pathways):
+                    metadata = by_pathway[pathway]
+                    values = profiles[str(metadata[key_field])]
+                    vmax = float(np.nanmax(values))
+                    for col_idx, soma_idx in enumerate(soma_indices):
+                        ax = axes[row_idx, col_idx]
+                        ax.imshow(
+                            values[soma_idx].reshape(image_shape),
+                            cmap="magma",
+                            vmin=0.0,
+                            vmax=max(vmax, np.finfo(float).eps),
+                            interpolation="nearest",
+                        )
+                        ax.set_xticks([])
+                        ax.set_yticks([])
+                        if row_idx == 0:
+                            ax.set_title(f"soma {soma_idx}", fontsize=7)
+                        if col_idx == 0:
+                            ax.set_ylabel(pathway.replace("_", " "), fontsize=7)
+                fig.suptitle(label, fontsize=9)
+                stem = _safe_profile_key(
+                    filename,
+                    "source-support",
+                    f"network-layer-{network_layer_index}",
+                    f"population-{population_name}",
+                    quantity,
+                )
+                figure_name = f"{stem}.{self.source_support_fig_save_format}"
+                fig.savefig(
+                    os.path.join(save_path, figure_name),
+                    dpi=300,
+                    bbox_inches="tight",
+                )
+                plt.close(fig)
+                figure_files.append(figure_name)
+        return figure_files
 
     def _compute_global_statistics(self, model: BaseModel) -> dict[str, Any]:
         """Compute global weight statistics across the entire network."""

@@ -436,6 +436,11 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
                     module.branch_inhibition,
                     "inh",
                 )
+            if module.input_branches:
+                yield (
+                    module.branches_to_output,
+                    "upstream",
+                )
             yield module.reactivation, "vout"
 
         def _register_hook(spec):
@@ -492,11 +497,17 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
             layer_summary = {}
             for branch_idx, branch_data in layer_data.items():
                 branch_summary = {"depth": branch_data["depth"], "signals": {}}
-                for signal in ("exc", "inh", "vout"):
+                for signal in ("exc", "inh", "upstream", "vout"):
                     if signal in branch_data:
                         branch_summary["signals"][signal] = self._summarize_signal(
                             branch_data[signal], labels
                         )
+
+                if "exc" in branch_data and "upstream" in branch_data:
+                    depolarizing_drive = branch_data["exc"] + branch_data["upstream"]
+                    branch_summary["signals"]["depolarizing_drive"] = (
+                        self._summarize_signal(depolarizing_drive, labels)
+                    )
 
                 if "exc" in branch_data and "inh" in branch_data:
                     ratio = branch_data["exc"] / (
@@ -564,6 +575,10 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
                         values = branch_data["exc"] / (
                             branch_data["inh"].abs() + self.epsilon
                         )
+                    elif signal == "depolarizing_drive":
+                        if "exc" not in branch_data or "upstream" not in branch_data:
+                            continue
+                        values = branch_data["exc"] + branch_data["upstream"]
                     else:
                         values = branch_data.get(signal)
                         if values is None:

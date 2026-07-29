@@ -467,7 +467,8 @@ def test_receptive_field_checkpoint_and_activation_tuning(tmp_path):
         assert branch_data["inh"].shape == (_x.shape[0],)
         assert branch_data["vout"].shape == (_x.shape[0],)
     for branch_data in second_layer.values():
-        assert set(branch_data) == {"depth", "vout"}
+        assert set(branch_data) == {"depth", "upstream", "vout"}
+        assert branch_data["upstream"].shape == (_x.shape[0],)
         assert branch_data["vout"].shape == (_x.shape[0],)
     assert (tmp_path / "rf_raw_receptive_fields.pt").exists()
     assert (tmp_path / "rf_activation_tuning.json").exists()
@@ -485,6 +486,40 @@ def test_receptive_field_checkpoint_and_activation_tuning(tmp_path):
     assert loaded_results is not None
     assert loaded_results["raw_checkpoint_loaded"]
     assert loaded_results["n_receptive_fields"] == results["n_receptive_fields"]
+
+
+def test_receptive_field_samples_upstream_and_depolarizing_drive():
+    params = ReceptiveFieldAnalysisParams(
+        activation_sample_signals=["upstream", "depolarizing_drive"],
+        activation_sample_depths=[1],
+        activation_samples_per_class=1,
+        activation_sample_seed=3,
+    )
+    analyzer = ReceptiveFieldAnalyzer(params)
+    analyzer.activation_raw = {
+        "core.branch": {
+            0: {
+                "depth": 1,
+                "exc": torch.tensor([1.0, 2.0, 3.0, 4.0]),
+                "upstream": torch.tensor([0.5, 1.0, 1.5, 2.0]),
+            }
+        }
+    }
+
+    records = analyzer._sample_activation_tuning(torch.tensor([0, 0, 1, 1]))
+
+    assert {record["signal"] for record in records} == {
+        "upstream",
+        "depolarizing_drive",
+    }
+    grouped = {
+        (record["signal"], record["dataset_index"]): record["value"]
+        for record in records
+    }
+    for dataset_index in {record["dataset_index"] for record in records}:
+        assert grouped[("depolarizing_drive", dataset_index)] == pytest.approx(
+            1.5 * (dataset_index + 1)
+        )
 
 
 def test_receptive_field_runs_on_non_ei_branch_core(tmp_path):

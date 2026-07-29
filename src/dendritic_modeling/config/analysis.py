@@ -1323,6 +1323,16 @@ class WeightAnalysisParams(BaseConfig):
     Summary statistic toggles:
     - compute_mean, compute_variance, compute_percentiles, compute_min_max,
       compute_dendritic_strength
+
+    Source-support analysis:
+    - compute_source_support: emit exact sparse contact-frequency and effective
+      conductance profiles by network layer, target population, soma, dendritic
+      depth, and synaptic pathway.
+    - source_support_target_polarities / source_support_pathways: restrict the
+      target populations and pathways included in that analysis.
+    - source_support_image_shape: optional image-space shape used only for the
+      package-native audit plot; the saved profiles remain one-dimensional.
+    - source_support_plot_soma_indices: optional soma subset for that plot.
     """
 
     synapse_weights: bool = True  # Analyze excitatory and inhibitory synapse weights
@@ -1353,6 +1363,63 @@ class WeightAnalysisParams(BaseConfig):
     )
 
     weight_threshold: float = 1e-6  # Minimum weight to consider as "active"
+    compute_source_support: bool = False
+    source_support_target_polarities: list[str] = field(
+        default_factory=lambda: ["excitatory"]
+    )
+    source_support_pathways: list[str] = field(
+        default_factory=lambda: ["ff_excitatory", "ff_inhibitory"]
+    )
+    source_support_image_shape: Optional[tuple[int, int]] = None
+    source_support_plot_soma_indices: list[int] = field(default_factory=list)
+    source_support_fig_save_format: str = "pdf"
+
+    def __post_init__(self) -> None:
+        allowed_polarities = {"excitatory", "inhibitory"}
+        allowed_pathways = {
+            "ff_excitatory",
+            "ff_inhibitory",
+            "rec_excitatory",
+            "rec_inhibitory",
+        }
+        self.source_support_target_polarities = [
+            str(value).lower() for value in self.source_support_target_polarities
+        ]
+        self.source_support_pathways = [
+            str(value).lower() for value in self.source_support_pathways
+        ]
+        unknown_polarities = sorted(
+            set(self.source_support_target_polarities) - allowed_polarities
+        )
+        if unknown_polarities:
+            raise ValueError(
+                "unknown source-support target polarities: " f"{unknown_polarities}"
+            )
+        unknown_pathways = sorted(set(self.source_support_pathways) - allowed_pathways)
+        if unknown_pathways:
+            raise ValueError(f"unknown source-support pathways: {unknown_pathways}")
+        if len(set(self.source_support_pathways)) != len(self.source_support_pathways):
+            raise ValueError("source_support_pathways must be unique")
+        self.source_support_plot_soma_indices = [
+            int(value) for value in self.source_support_plot_soma_indices
+        ]
+        if any(value < 0 for value in self.source_support_plot_soma_indices):
+            raise ValueError("source_support_plot_soma_indices must be non-negative")
+        if self.source_support_image_shape is not None:
+            self.source_support_image_shape = tuple(
+                int(value) for value in self.source_support_image_shape
+            )
+            if len(self.source_support_image_shape) != 2 or any(
+                value < 1 for value in self.source_support_image_shape
+            ):
+                raise ValueError(
+                    "source_support_image_shape must contain two positive integers"
+                )
+        self.source_support_fig_save_format = str(
+            self.source_support_fig_save_format
+        ).lstrip(".")
+        if not self.source_support_fig_save_format:
+            raise ValueError("source_support_fig_save_format cannot be empty")
 
 
 @dataclass
@@ -1626,10 +1693,12 @@ class ReceptiveFieldAnalysisParams(BaseConfig):
     - compute_activation_tuning: also summarize class tuning of branch signals.
     - activation_sample_signals / activation_sample_depths: optionally retain a
       deterministic, class-balanced sample of scalar branch signals for
-      distribution plots. ``activation_sample_branch_indices`` can restrict
-      records globally, while ``activation_sample_branch_indices_by_depth``
-      supports a predeclared depth-specific selection. Empty selections retain
-      all branches.
+      distribution plots. In addition to E, I, and post-gate output, ``upstream``
+      records the aggregated child-branch current and ``depolarizing_drive``
+      records E plus that upstream current. ``activation_sample_branch_indices``
+      can restrict records globally, while
+      ``activation_sample_branch_indices_by_depth`` supports a predeclared
+      depth-specific selection. Empty selections retain all branches.
     - compute_component_rfs: run compact E/I mean and conditioned component RF
       maps, matching the empirical paper's soma-level RF summary.
     - compute_rf_tuning: run the aggregate RF tuning,
@@ -1663,7 +1732,14 @@ class ReceptiveFieldAnalysisParams(BaseConfig):
     epsilon: float = 1e-8
 
     def __post_init__(self) -> None:
-        allowed_signals = {"exc", "inh", "vout", "ei_ratio"}
+        allowed_signals = {
+            "exc",
+            "inh",
+            "upstream",
+            "depolarizing_drive",
+            "vout",
+            "ei_ratio",
+        }
         self.activation_sample_signals = [
             str(value) for value in self.activation_sample_signals
         ]
