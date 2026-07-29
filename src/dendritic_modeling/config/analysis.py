@@ -160,6 +160,9 @@ class InformationComputeParams(BaseConfig):
     # within each captured layer. ``None`` preserves the exhaustive legacy behavior.
     branch_sample_count_per_layer: Optional[int] = None
     branch_sample_seed: int = 0
+    # ``parent_soma_balanced`` cycles across parent somas before selecting a
+    # second branch from any soma. ``uniform`` preserves legacy behavior.
+    branch_sample_strategy: str = "uniform"
 
     # Layer-total proxies derived from single-branch metrics
     layer_total_topk: int = 10  # K used for *_topK_sum metrics (int >= 1)

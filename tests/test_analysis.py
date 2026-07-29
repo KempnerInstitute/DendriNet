@@ -1121,6 +1121,7 @@ class TestInformationAnalyzer(unittest.TestCase):
         """Branch subsampling should be fixed before seeing activations or labels."""
         self.analyzer.branch_sample_count_per_layer = 4
         self.analyzer.branch_sample_seed = 17
+        self.analyzer.branch_sample_strategy = "uniform"
 
         first = self.analyzer._select_single_branch_indices(
             layer_name="core.layers.0.branch_layers.2",
@@ -1148,6 +1149,30 @@ class TestInformationAnalyzer(unittest.TestCase):
                 n_branches=5,
             ),
             np.arange(5),
+        )
+
+    def test_single_branch_subsampling_balances_parent_somas(self):
+        """Balanced sampling should visit every parent before repeating one."""
+        self.analyzer.branch_sample_count_per_layer = 8
+        self.analyzer.branch_sample_seed = 17
+        self.analyzer.branch_sample_strategy = "parent_soma_balanced"
+        parent_indices = np.repeat(np.arange(4), 5)
+
+        selected = self.analyzer._select_single_branch_indices(
+            layer_name="core.layers.0.branch_layers.2",
+            n_branches=20,
+            branch_to_parent_soma_index=parent_indices,
+        )
+        counts = np.bincount(parent_indices[selected], minlength=4)
+
+        np.testing.assert_array_equal(counts, np.full(4, 2))
+        np.testing.assert_array_equal(
+            selected,
+            self.analyzer._select_single_branch_indices(
+                layer_name="core.layers.0.branch_layers.2",
+                n_branches=20,
+                branch_to_parent_soma_index=parent_indices,
+            ),
         )
 
     def test_finalize_single_branch_results_averages_and_attaches_metadata(self):

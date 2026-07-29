@@ -95,6 +95,7 @@ class _InformationGranularityConfig:
     branch_aggregation: str
     branch_sample_count_per_layer: int | None
     branch_sample_seed: int
+    branch_sample_strategy: str
     per_neuron_analysis: bool
     per_einet_analysis: bool
     per_layer_analysis: bool
@@ -551,6 +552,15 @@ def _build_information_granularity_config(
                 default=0,
             )
             or 0
+        ),
+        branch_sample_strategy=str(
+            _get_grouped_or_legacy_value(
+                grouped_cfg=compute_cfg,
+                grouped_key="branch_sample_strategy",
+                params=params,
+                legacy_key="branch_sample_strategy",
+                default="uniform",
+            )
         ),
         per_neuron_analysis=bool(
             _get_grouped_or_legacy_value(

@@ -204,6 +204,7 @@ def test_config_setup_mixin_granularity_and_scope_assignments():
         branch_aggregation="mean",
         branch_sample_count_per_layer=None,
         branch_sample_seed=0,
+        branch_sample_strategy="uniform",
         per_neuron_analysis=False,
         per_einet_analysis=False,
         per_layer_analysis=False,
@@ -216,6 +217,7 @@ def test_config_setup_mixin_granularity_and_scope_assignments():
             "branch_aggregation": "sample",
             "branch_sample_count_per_layer": 16,
             "branch_sample_seed": 23,
+            "branch_sample_strategy": "parent-soma-balanced",
             "per_neuron_analysis": True,
             "per_einet_analysis": False,
             "per_layer_analysis": False,
@@ -230,6 +232,7 @@ def test_config_setup_mixin_granularity_and_scope_assignments():
     assert harness.branch_aggregation == "sample"
     assert harness.branch_sample_count_per_layer == 16
     assert harness.branch_sample_seed == 23
+    assert harness.branch_sample_strategy == "parent_soma_balanced"
     assert harness.per_neuron_analysis is False
     assert harness.per_einet_analysis is True
     assert harness.per_layer_analysis is True

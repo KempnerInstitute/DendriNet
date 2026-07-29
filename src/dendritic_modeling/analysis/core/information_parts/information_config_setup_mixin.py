@@ -199,6 +199,14 @@ class InformationConfigSetupMixin:
                 raise ValueError("branch_sample_count_per_layer must be at least 1")
         self.branch_sample_count_per_layer = sample_count
         self.branch_sample_seed = granularity_config.branch_sample_seed
+        sample_strategy = (
+            granularity_config.branch_sample_strategy.strip().lower().replace("-", "_")
+        )
+        if sample_strategy not in {"uniform", "parent_soma_balanced"}:
+            raise ValueError(
+                "branch_sample_strategy must be 'uniform' or " "'parent_soma_balanced'"
+            )
+        self.branch_sample_strategy = sample_strategy
         self.per_neuron_analysis = granularity_config.per_neuron_analysis
         self.per_einet_analysis = granularity_config.per_einet_analysis
         self.per_layer_analysis = granularity_config.per_layer_analysis

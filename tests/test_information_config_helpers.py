@@ -640,6 +640,7 @@ def test_build_information_granularity_config_prefers_grouped_config():
         branch_aggregation="mean",
         branch_sample_count_per_layer=None,
         branch_sample_seed=0,
+        branch_sample_strategy="uniform",
         per_neuron_analysis=False,
         per_einet_analysis=False,
         per_layer_analysis=False,
@@ -652,6 +653,7 @@ def test_build_information_granularity_config_prefers_grouped_config():
             "branch_aggregation": "sample",
             "branch_sample_count_per_layer": 32,
             "branch_sample_seed": 17,
+            "branch_sample_strategy": "parent_soma_balanced",
             "per_neuron_analysis": True,
             "per_einet_analysis": True,
             "per_layer_analysis": True,
@@ -662,6 +664,7 @@ def test_build_information_granularity_config_prefers_grouped_config():
     assert granularity_config.branch_aggregation == "sample"
     assert granularity_config.branch_sample_count_per_layer == 32
     assert granularity_config.branch_sample_seed == 17
+    assert granularity_config.branch_sample_strategy == "parent_soma_balanced"
     assert granularity_config.per_neuron_analysis is True
     assert granularity_config.per_einet_analysis is True
     assert granularity_config.per_layer_analysis is True
@@ -673,6 +676,7 @@ def test_build_information_granularity_config_uses_legacy_fallbacks():
         branch_aggregation="multivariate",
         branch_sample_count_per_layer=24,
         branch_sample_seed=9,
+        branch_sample_strategy="uniform",
         per_neuron_analysis=True,
         per_einet_analysis=False,
         per_layer_analysis=True,
@@ -687,6 +691,7 @@ def test_build_information_granularity_config_uses_legacy_fallbacks():
     assert granularity_config.branch_aggregation == "multivariate"
     assert granularity_config.branch_sample_count_per_layer == 24
     assert granularity_config.branch_sample_seed == 9
+    assert granularity_config.branch_sample_strategy == "uniform"
     assert granularity_config.per_neuron_analysis is True
     assert granularity_config.per_einet_analysis is False
     assert granularity_config.per_layer_analysis is True
@@ -708,6 +713,7 @@ def test_build_information_granularity_config_preserves_mapping_behavior():
     assert granularity_config.branch_aggregation == "sample"
     assert granularity_config.branch_sample_count_per_layer is None
     assert granularity_config.branch_sample_seed == 0
+    assert granularity_config.branch_sample_strategy == "uniform"
     assert granularity_config.per_neuron_analysis is True
     assert granularity_config.per_einet_analysis is True
     assert granularity_config.per_layer_analysis is False
@@ -723,6 +729,7 @@ def test_build_information_granularity_config_preserves_defaults():
     assert granularity_config.branch_aggregation == "mean"
     assert granularity_config.branch_sample_count_per_layer is None
     assert granularity_config.branch_sample_seed == 0
+    assert granularity_config.branch_sample_strategy == "uniform"
     assert granularity_config.per_neuron_analysis is False
     assert granularity_config.per_einet_analysis is False
     assert granularity_config.per_layer_analysis is False
