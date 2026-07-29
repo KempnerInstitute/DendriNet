@@ -24,8 +24,10 @@ from dendritic_modeling.models import BaseModel
 from dendritic_modeling.training.distributed_samplers import (
     PaddedDistributedEvalSampler,
 )
-<<<<<<< HEAD
-from dendritic_modeling.training.strategies.standard import Trainer
+from dendritic_modeling.training.strategies.standard import (
+    Trainer,
+    _ValidationLossStats,
+)
 from dendritic_modeling.training.utils.profiling import (
     finalize_profiling_run,
     finish_profiler,
@@ -34,11 +36,6 @@ from dendritic_modeling.training.utils.profiling import (
     profiling_enabled,
     record_section,
     total_profiled_steps,
-=======
-from dendritic_modeling.training.strategies.standard import (
-    Trainer,
-    _ValidationLossStats,
->>>>>>> origin/iss373_hs
 )
 
 logger = logging.getLogger(__name__)
