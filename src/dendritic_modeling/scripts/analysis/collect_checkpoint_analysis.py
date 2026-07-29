@@ -28,6 +28,7 @@ from dendritic_modeling.scripts.sweeps.control_plane import discover_source_iden
 SCHEMA_VERSION = "checkpoint_analysis_collection_v1"
 CONFIG_SCHEMA_VERSION = "checkpoint_analysis_collection_config_v1"
 RUN_SCHEMA_VERSION = "checkpoint_analysis_run_v1"
+INPUT_HASH_VALIDATION_MODES = {"rehash", "recorded_hash_chain"}
 
 
 def _repo_root() -> Path:
@@ -66,6 +67,8 @@ def _validate_provenance(
     job: Mapping[str, Any],
     provenance: Mapping[str, Any],
     hash_cache: dict[Path, str],
+    *,
+    input_hash_validation: str,
 ) -> None:
     if provenance.get("schema_version") != RUN_SCHEMA_VERSION:
         raise ValueError("unexpected checkpoint-analysis provenance schema")
@@ -86,10 +89,17 @@ def _validate_provenance(
         recorded = Path(str(provenance.get(f"{field}_path", ""))).resolve()
         if path != recorded or not path.is_file():
             raise ValueError(f"{field} path differs between job and provenance")
-        digest = hash_cache.get(path)
-        if digest is None:
-            digest = _sha256(path)
-            hash_cache[path] = digest
+        if input_hash_validation == "recorded_hash_chain":
+            digest = job.get(f"{field}_sha256")
+            if not isinstance(digest, str) or not digest:
+                raise ValueError(
+                    f"{field} hash is absent from the immutable job declaration"
+                )
+        else:
+            digest = hash_cache.get(path)
+            if digest is None:
+                digest = _sha256(path)
+                hash_cache[path] = digest
         if digest != provenance.get(f"{field}_sha256"):
             raise ValueError(f"{field} hash differs from provenance")
 
@@ -205,8 +215,14 @@ def collect_checkpoint_analysis(
     expected_count: int | None = None,
     metric_patterns: Sequence[str] = (),
     include_full_results: bool = True,
+    input_hash_validation: str = "rehash",
 ) -> dict[str, Any]:
     """Validate and collect generic checkpoint-level analyzer results."""
+    hash_validation = str(input_hash_validation).strip().lower()
+    if hash_validation not in INPUT_HASH_VALIDATION_MODES:
+        raise ValueError(
+            "input_hash_validation must be 'rehash' or 'recorded_hash_chain'"
+        )
     jobs = _read_jobs(jobs_paths)
     if expected_count is not None and len(jobs) != int(expected_count):
         raise ValueError(f"declared {len(jobs)} jobs; expected {expected_count}")
@@ -232,7 +248,12 @@ def collect_checkpoint_analysis(
         if not provenance_path.is_file():
             raise FileNotFoundError(provenance_path)
         provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
-        _validate_provenance(job, provenance, hash_cache)
+        _validate_provenance(
+            job,
+            provenance,
+            hash_cache,
+            input_hash_validation=hash_validation,
+        )
 
         enabled = tuple(str(name) for name in provenance.get("enabled_analyzers", []))
         missing_enabled = sorted(set(required) - set(enabled))
@@ -310,6 +331,15 @@ def collect_checkpoint_analysis(
         "required_analyzers": list(required),
         "metric_patterns": list(patterns),
         "include_full_results": bool(include_full_results),
+        "input_hash_validation": hash_validation,
+        "input_hash_validation_semantics": (
+            "current input bytes were re-hashed during collection"
+            if hash_validation == "rehash"
+            else (
+                "immutable job-declaration hashes were required to match "
+                "run-time analyzer provenance; current input bytes were not re-hashed"
+            )
+        ),
         "aggregation_policy": (
             "none; values are raw numeric leaves and are not independent replicates"
         ),
@@ -359,6 +389,7 @@ def _load_collection_config(path: Path) -> dict[str, Any]:
         "expected_count": payload.get("expected_count"),
         "metric_patterns": list(payload.get("metric_patterns", [])),
         "include_full_results": bool(payload.get("include_full_results", True)),
+        "input_hash_validation": str(payload.get("input_hash_validation", "rehash")),
     }
 
 
@@ -371,6 +402,11 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--expected-count", type=int, default=None)
     parser.add_argument("--metric-pattern", action="append", default=[])
     parser.add_argument("--omit-full-results", action="store_true")
+    parser.add_argument(
+        "--input-hash-validation",
+        choices=sorted(INPUT_HASH_VALIDATION_MODES),
+        default="rehash",
+    )
     return parser
 
 
@@ -385,6 +421,7 @@ def main(argv: list[str] | None = None) -> dict[str, Any]:
                 args.expected_count is not None,
                 args.metric_pattern,
                 args.omit_full_results,
+                args.input_hash_validation != "rehash",
             )
         )
         if explicit:
@@ -401,6 +438,7 @@ def main(argv: list[str] | None = None) -> dict[str, Any]:
         expected_count=args.expected_count,
         metric_patterns=args.metric_pattern,
         include_full_results=not args.omit_full_results,
+        input_hash_validation=args.input_hash_validation,
     )
 
 

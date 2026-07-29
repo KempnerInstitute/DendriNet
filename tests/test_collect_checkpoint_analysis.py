@@ -63,8 +63,11 @@ def _write_run(root: Path, config_id: int) -> dict[str, object]:
         "config_id": config_id,
         "mechanism": "shunting",
         "config": str(config),
+        "config_sha256": _sha256(config),
         "checkpoint": str(checkpoint),
+        "checkpoint_sha256": _sha256(checkpoint),
         "analysis_config": str(analysis),
+        "analysis_config_sha256": _sha256(analysis),
         "output_dir": str(run_dir),
     }
 
@@ -115,6 +118,54 @@ def test_generic_collector_rejects_modified_checkpoint_and_missing_result(
             jobs_paths=[jobs_path],
             output_dir=tmp_path / "missing",
             required_analyzers=["information"],
+        )
+
+
+def test_generic_collector_can_validate_recorded_input_hash_chain(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    job = _write_run(tmp_path, 0)
+    jobs_path = tmp_path / "jobs.jsonl"
+    jobs_path.write_text(json.dumps(job) + "\n")
+    checkpoint = Path(str(job["checkpoint"])).resolve()
+
+    from dendritic_modeling.scripts.analysis import (
+        collect_checkpoint_analysis as module,
+    )
+
+    original_sha256 = module._sha256
+
+    def fail_if_checkpoint_is_rehashed(path: Path, *, chunk_size: int = 2**20) -> str:
+        if path.resolve() == checkpoint:
+            raise AssertionError("recorded_hash_chain re-hashed the checkpoint")
+        return original_sha256(path, chunk_size=chunk_size)
+
+    monkeypatch.setattr(module, "_sha256", fail_if_checkpoint_is_rehashed)
+    release = collect_checkpoint_analysis(
+        jobs_paths=[jobs_path],
+        output_dir=tmp_path / "recorded_chain",
+        required_analyzers=["information"],
+        input_hash_validation="recorded_hash_chain",
+    )
+
+    assert release["input_hash_validation"] == "recorded_hash_chain"
+    assert "were not re-hashed" in release["input_hash_validation_semantics"]
+
+
+def test_recorded_hash_chain_requires_job_and_provenance_agreement(
+    tmp_path: Path,
+) -> None:
+    job = _write_run(tmp_path, 0)
+    job["checkpoint_sha256"] = "0" * 64
+    jobs_path = tmp_path / "jobs.jsonl"
+    jobs_path.write_text(json.dumps(job) + "\n")
+
+    with pytest.raises(ValueError, match="checkpoint hash differs"):
+        collect_checkpoint_analysis(
+            jobs_paths=[jobs_path],
+            output_dir=tmp_path / "mismatch",
+            required_analyzers=["information"],
+            input_hash_validation="recorded_hash_chain",
         )
 
 
