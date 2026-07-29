@@ -104,7 +104,7 @@ class InformationSelectionParams(BaseConfig):
       - "layer_proxies": layer-total proxies derived from single-branch metrics
       - "upstream_unique_cmi": adds I(Vb;C|E,I) (can be expensive)
       - "soma_coupling": branch-current and branch-output information about the
-        corresponding parent soma output
+        corresponding soma output
     - scopes: extra summaries/breakdowns to run
       - "layer": per-layer breakdown
       - "einet": separate excitatory vs inhibitory pathway summaries
@@ -372,7 +372,7 @@ class InformationAnalysisParams(BaseConfig):
       - "layer_proxies": layer-total proxies derived from single-branch metrics
       - "upstream_unique_cmi": adds I(Vb;C|E,I) (can be expensive)
       - "soma_coupling": branch-current and branch-output information about the
-        corresponding parent soma output
+        corresponding soma output
     - selection.scopes: which additional breakdowns to run
       - "layer": per-layer breakdown
       - "einet": separate excitatory vs inhibitory pathway summaries

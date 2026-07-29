@@ -290,7 +290,7 @@ class InformationMutualInformationMixin(InformationValidationMixin):
         C: np.ndarray,
         S: np.ndarray | None,
     ) -> dict[str, float]:
-        """Measure branch-current/output association with the parent soma."""
+        """Measure branch-current/output association with the owning soma."""
         if S is None:
             return {}
 
