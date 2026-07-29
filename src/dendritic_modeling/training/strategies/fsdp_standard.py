@@ -387,6 +387,12 @@ class FSDPTrainer(Trainer):
         else:
             train_loader, valid_loader = self._dataloaders(train_loader, valid_loader)
 
+        # Include FSDP wrapping, state synchronization, training, validation,
+        # and checkpoint work in one per-rank peak-memory measurement.
+        track_cuda_memory = torch.cuda.is_available()
+        if track_cuda_memory:
+            torch.cuda.reset_peak_memory_stats(self.device)
+
         # Wrap model with FSDP
         model = wrap_model_with_fsdp(model, self.fsdp_config)
 
@@ -404,6 +410,22 @@ class FSDPTrainer(Trainer):
 
         # Create optimizer after FSDP wrapping
         self.optimizer = self.create_optimizer(model)
+
+        fsdp_setup_peak_memory = None
+        if track_cuda_memory:
+            torch.cuda.synchronize(self.device)
+            fsdp_setup_peak_memory = torch.tensor(
+                [
+                    torch.cuda.max_memory_allocated(self.device),
+                    torch.cuda.max_memory_reserved(self.device),
+                ],
+                dtype=torch.int64,
+                device=self.device,
+            )
+            dist.all_reduce(fsdp_setup_peak_memory, op=dist.ReduceOp.MAX)
+            # Measure the recurrent train/validation phase independently while
+            # retaining the setup peak above for an overall maximum.
+            torch.cuda.reset_peak_memory_stats(self.device)
 
         # Training loop
         train_losses = []
@@ -530,7 +552,7 @@ class FSDPTrainer(Trainer):
             self._loss_plotting(train_losses, valid_losses)
             # Removed redundant accuracy plotting - handled by performance option
 
-        return {
+        results = {
             "train_losses": train_losses,
             "valid_losses": valid_losses,
             "best_valid_loss": best_valid_loss,
@@ -539,6 +561,52 @@ class FSDPTrainer(Trainer):
             "final_train_loss": train_losses[-1] if train_losses else None,
             "final_valid_loss": valid_losses[-1] if valid_losses else None,
         }
+        if track_cuda_memory:
+            torch.cuda.synchronize(self.device)
+            training_peak_memory = torch.tensor(
+                [
+                    torch.cuda.max_memory_allocated(self.device),
+                    torch.cuda.max_memory_reserved(self.device),
+                ],
+                dtype=torch.int64,
+                device=self.device,
+            )
+            dist.all_reduce(training_peak_memory, op=dist.ReduceOp.MAX)
+            assert fsdp_setup_peak_memory is not None
+            peak_memory = torch.maximum(
+                fsdp_setup_peak_memory,
+                training_peak_memory,
+            )
+            results["fsdp_setup_peak_cuda_allocated_bytes"] = int(
+                fsdp_setup_peak_memory[0].item()
+            )
+            results["fsdp_setup_peak_cuda_reserved_bytes"] = int(
+                fsdp_setup_peak_memory[1].item()
+            )
+            results["training_peak_cuda_allocated_bytes"] = int(
+                training_peak_memory[0].item()
+            )
+            results["training_peak_cuda_reserved_bytes"] = int(
+                training_peak_memory[1].item()
+            )
+            results["peak_cuda_allocated_bytes"] = int(peak_memory[0].item())
+            results["peak_cuda_reserved_bytes"] = int(peak_memory[1].item())
+            if self.rank == 0:
+                gib = 1024**3
+                logger.info(
+                    "Peak CUDA memory across ranks: FSDP setup "
+                    "allocated=%.3f/reserved=%.3f GiB; train+validation "
+                    "allocated=%.3f/reserved=%.3f GiB; overall "
+                    "allocated=%.3f/reserved=%.3f GiB",
+                    results["fsdp_setup_peak_cuda_allocated_bytes"] / gib,
+                    results["fsdp_setup_peak_cuda_reserved_bytes"] / gib,
+                    results["training_peak_cuda_allocated_bytes"] / gib,
+                    results["training_peak_cuda_reserved_bytes"] / gib,
+                    results["peak_cuda_allocated_bytes"] / gib,
+                    results["peak_cuda_reserved_bytes"] / gib,
+                )
+
+        return results
 
     def _epoch_train_fsdp(
         self, model: BaseModel, train_loader: DataLoader

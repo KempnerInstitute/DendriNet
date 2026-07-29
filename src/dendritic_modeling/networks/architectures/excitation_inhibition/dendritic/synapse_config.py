@@ -49,6 +49,12 @@ class IndexedSynapseConfig:
     rewire_frequency: int = 100
     rewire_quantile: float = 0.05
     rewire_until_step: int | None = None
+    index_dtype: str = "int64"
+    workspace_mb: float | None = None
+    cache_transformed_weights: bool = False
+    recompute_backward: bool = False
+    persistent_indices: bool = True
+    init_mode: str = "per_rank"
 
 
 @dataclass(frozen=True)
@@ -168,6 +174,14 @@ def _indexed_config_from_kwargs(source: Mapping[str, Any]) -> IndexedSynapseConf
         rewire_frequency=source.get("indexed_rewire_frequency", 100),
         rewire_quantile=source.get("indexed_rewire_quantile", 0.05),
         rewire_until_step=source.get("indexed_rewire_until_step", None),
+        index_dtype=source.get("indexed_index_dtype", "int64"),
+        workspace_mb=source.get("indexed_workspace_mb", None),
+        cache_transformed_weights=source.get(
+            "indexed_cache_transformed_weights", False
+        ),
+        recompute_backward=source.get("indexed_recompute_backward", False),
+        persistent_indices=source.get("indexed_persistent_indices", True),
+        init_mode=source.get("indexed_init_mode", "per_rank"),
     )
 
 
@@ -304,6 +318,12 @@ def _indexed_kwargs(config: IndexedSynapseConfig) -> dict[str, Any]:
         "indexed_rewire_frequency": config.rewire_frequency,
         "indexed_rewire_quantile": config.rewire_quantile,
         "indexed_rewire_until_step": config.rewire_until_step,
+        "indexed_index_dtype": config.index_dtype,
+        "indexed_workspace_mb": config.workspace_mb,
+        "indexed_cache_transformed_weights": config.cache_transformed_weights,
+        "indexed_recompute_backward": config.recompute_backward,
+        "indexed_persistent_indices": config.persistent_indices,
+        "indexed_init_mode": config.init_mode,
     }
 
 

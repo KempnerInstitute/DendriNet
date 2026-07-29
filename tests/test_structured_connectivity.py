@@ -20,7 +20,9 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse imp
     sample_probability_mask,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_common import (
+    _resolve_index_dtype,
     _sample_indices_from_mask,
+    _workspace_limited_chunk_size,
 )
 from dendritic_modeling.networks.architectures.factory import get_architecture
 from dendritic_modeling.networks.architectures.recurrent.structured_einet_factory import (
@@ -895,6 +897,224 @@ def test_unmasked_index_sampler_is_chunked_reproducible_and_unique(monkeypatch):
     assert bool((sorted_first[:, 1:] != sorted_first[:, :-1]).all())
 
 
+def test_unmasked_index_sampler_excludes_forbidden_without_dense_mask(monkeypatch):
+    """Per-row self-exclusion must stay O(out_features * K)."""
+    original_ones = torch.ones
+
+    def reject_dense_ones(*args, **kwargs):
+        if args[:2] == (257, 1000):
+            pytest.fail("self-exclusion must not allocate a dense allowed mask")
+        return original_ones(*args, **kwargs)
+
+    monkeypatch.setattr(torch, "ones", reject_dense_ones)
+    forbidden = torch.arange(257)
+    sampled = _sample_indices_from_mask(
+        out_features=257,
+        in_features=1000,
+        K=20,
+        connection_mask=None,
+        forbidden_input_index_per_output=forbidden,
+        generator=torch.Generator().manual_seed(19),
+        row_chunk_size=31,
+        index_dtype="auto",
+    )
+
+    assert sampled.dtype == torch.int32
+    assert not bool((sampled.to(torch.long) == forbidden[:, None]).any())
+    sorted_sampled = sampled.sort(dim=1).values
+    assert bool((sorted_sampled[:, 1:] != sorted_sampled[:, :-1]).all())
+
+
+def test_index_dtype_resolution_and_legacy_default():
+    assert _resolve_index_dtype("auto", in_features=1000) == torch.int32
+    assert _resolve_index_dtype("int64", in_features=1000) == torch.int64
+
+    legacy = IndexedSparseLinear(in_features=8, out_features=4, K=2, seed=3)
+    compact = IndexedSparseLinear(
+        in_features=8,
+        out_features=4,
+        K=2,
+        seed=3,
+        index_dtype="auto",
+    )
+
+    assert legacy.connection_indices.dtype == torch.int64
+    assert compact.connection_indices.dtype == torch.int32
+    assert torch.equal(legacy.connection_indices, compact.connection_indices)
+
+
+def test_indexed_sparse_compact_indices_preserve_forward_and_gradients():
+    indices = torch.tensor([[0, 2], [1, 4], [3, 5]])
+    legacy = IndexedSparseLinear(
+        in_features=6,
+        out_features=3,
+        K=2,
+        connection_indices=indices,
+        weight_transform="softplus",
+        index_dtype="int64",
+    )
+    compact = IndexedSparseLinear(
+        in_features=6,
+        out_features=3,
+        K=2,
+        connection_indices=indices,
+        weight_transform="softplus",
+        index_dtype="int32",
+    )
+    compact.load_state_dict(legacy.state_dict())
+    x_legacy = torch.randn(4, 6, requires_grad=True)
+    x_compact = x_legacy.detach().clone().requires_grad_(True)
+
+    legacy(x_legacy).sum().backward()
+    compact(x_compact).sum().backward()
+
+    torch.testing.assert_close(legacy(x_legacy.detach()), compact(x_compact.detach()))
+    torch.testing.assert_close(x_legacy.grad, x_compact.grad)
+    torch.testing.assert_close(legacy.pre_w.grad, compact.pre_w.grad)
+
+
+@pytest.mark.parametrize("index_dtype", ["int32", "int64"])
+def test_indexed_recompute_backward_preserves_forward_and_gradients(index_dtype):
+    indices = torch.tensor(
+        [
+            [0, 2, 4],
+            [1, 3, 5],
+            [0, 3, 6],
+            [1, 4, 7],
+        ]
+    )
+    standard = IndexedSparseLinear(
+        in_features=8,
+        out_features=4,
+        K=3,
+        connection_indices=indices,
+        weight_transform="softplus",
+        weight_norm_order=2,
+        index_dtype=index_dtype,
+        output_chunk_size=2,
+    )
+    recomputed = IndexedSparseLinear(
+        in_features=8,
+        out_features=4,
+        K=3,
+        connection_indices=indices,
+        weight_transform="softplus",
+        weight_norm_order=2,
+        index_dtype=index_dtype,
+        output_chunk_size=2,
+        recompute_backward=True,
+    )
+    recomputed.load_state_dict(standard.state_dict())
+    x_standard = torch.randn(3, 8, requires_grad=True)
+    x_recomputed = x_standard.detach().clone().requires_grad_(True)
+
+    output_standard = standard(x_standard)
+    output_recomputed = recomputed(x_recomputed)
+    loss_standard = output_standard.square().sum()
+    loss_recomputed = output_recomputed.square().sum()
+    loss_standard.backward()
+    loss_recomputed.backward()
+
+    torch.testing.assert_close(output_standard, output_recomputed)
+    torch.testing.assert_close(x_standard.grad, x_recomputed.grad)
+    torch.testing.assert_close(standard.pre_w.grad, recomputed.pre_w.grad)
+
+
+def test_indexed_workspace_budget_caps_gathered_output_rows():
+    chunk = _workspace_limited_chunk_size(
+        output_chunk_size=65536,
+        workspace_mb=128,
+        out_features=400000,
+        flattened_batch_size=4,
+        synapses_per_output=5000,
+        element_size=2,
+    )
+
+    assert chunk == 3355
+
+
+def test_indexed_sparse_recurrent_cache_reuses_transformed_weights(monkeypatch):
+    layer = IndexedSparseLinear(
+        in_features=8,
+        out_features=5,
+        K=3,
+        seed=7,
+        cache_transformed_weights=True,
+        weight_transform="softplus",
+    )
+    original = layer._normalized_sparse_weight
+    calls = 0
+
+    def counted_weight():
+        nonlocal calls
+        calls += 1
+        return original()
+
+    monkeypatch.setattr(layer, "_normalized_sparse_weight", counted_weight)
+    x = torch.randn(2, 8, requires_grad=True)
+    layer.set_recurrent_weight_cache(True)
+    loss = layer(x).sum() + layer(x).sum()
+    layer.set_recurrent_weight_cache(False)
+    loss.backward()
+
+    assert calls == 1
+    assert layer.pre_w.grad is not None
+    assert x.grad is not None
+
+
+def test_nonpersistent_indexed_topology_regenerates_from_seed():
+    first = IndexedSparseLinear(
+        in_features=9,
+        out_features=6,
+        K=3,
+        seed=23,
+        persistent_indices=False,
+    )
+    restored = IndexedSparseLinear(
+        in_features=9,
+        out_features=6,
+        K=3,
+        seed=23,
+        persistent_indices=False,
+    )
+
+    assert "connection_indices" not in first.state_dict()
+    assert torch.equal(first.connection_indices, restored.connection_indices)
+    restored.load_state_dict(first.state_dict())
+    x = torch.randn(2, 9)
+    torch.testing.assert_close(first(x), restored(x))
+
+
+def test_rank0_broadcast_mode_defers_nonzero_rank_topology(monkeypatch):
+    monkeypatch.setattr(torch.distributed, "is_available", lambda: True)
+    monkeypatch.setattr(torch.distributed, "is_initialized", lambda: True)
+    monkeypatch.setattr(torch.distributed, "get_rank", lambda: 1)
+    deferred = IndexedSparseLinear(
+        in_features=9,
+        out_features=6,
+        K=3,
+        seed=29,
+        init_mode="rank0_broadcast",
+        index_dtype="auto",
+    )
+
+    with pytest.raises(RuntimeError, match="awaiting rank-0 broadcast"):
+        deferred(torch.randn(2, 9))
+
+    reference = IndexedSparseLinear(
+        in_features=9,
+        out_features=6,
+        K=3,
+        seed=29,
+        index_dtype="auto",
+    )
+    deferred.connection_indices.copy_(reference.connection_indices)
+    deferred._topology_initialized.fill_(1)
+    deferred.load_state_dict(reference.state_dict())
+    x = torch.randn(2, 9)
+    torch.testing.assert_close(deferred(x), reference(x))
+
+
 def test_indexed_dynamic_auto_candidate_size_respects_connection_mask():
     connection_mask = torch.tensor(
         [
@@ -916,6 +1136,49 @@ def test_indexed_dynamic_auto_candidate_size_respects_connection_mask():
     row = torch.arange(layer.out_features)[:, None]
     assert layer.candidate_size == 2
     assert bool(connection_mask[row, layer.connection_indices].all())
+
+
+def test_indexed_dynamic_compact_nonpersistent_topology_and_cache(monkeypatch):
+    forbidden = torch.arange(5)
+    layer = IndexedDynamicTopKLinear(
+        in_features=8,
+        out_features=5,
+        K=2,
+        candidate_size=4,
+        selection="standard",
+        noise_level=0,
+        seed=31,
+        forbidden_input_index_per_output=forbidden,
+        index_dtype="auto",
+        persistent_indices=False,
+        cache_transformed_weights=True,
+        recompute_backward=True,
+        workspace_mb=1,
+    )
+
+    assert layer.connection_indices.dtype == torch.int32
+    assert "connection_indices" not in layer.state_dict()
+    assert not bool(
+        (layer.connection_indices.to(torch.long) == forbidden[:, None]).any()
+    )
+
+    original = layer._normalized_sparse_weight
+    calls = 0
+
+    def counted_weight():
+        nonlocal calls
+        calls += 1
+        return original()
+
+    monkeypatch.setattr(layer, "_normalized_sparse_weight", counted_weight)
+    x = torch.randn(2, 8, requires_grad=True)
+    layer.set_recurrent_weight_cache(True)
+    loss = layer(x).sum() + layer(x).sum()
+    layer.set_recurrent_weight_cache(False)
+    loss.backward()
+
+    assert calls == 1
+    assert layer.pre_w.grad is not None
 
 
 def test_indexed_dynamic_explicit_candidate_size_remains_strict_with_mask():

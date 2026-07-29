@@ -62,6 +62,38 @@ Population-network examples should use:
 - `weight_decay_rate: 0.01` and `weight_boosting: true` for examples matching
   the E/I training recipe
 
+Large fixed indexed populations can additionally control storage and temporary
+memory entirely from the population YAML:
+
+```yaml
+topk_type: indexed
+indexed_seed: 17
+indexed_index_dtype: auto
+indexed_output_chunk_size: 65536
+indexed_workspace_mb: 128
+indexed_cache_transformed_weights: true
+indexed_recompute_backward: true
+indexed_persistent_indices: false
+indexed_init_mode: rank0_broadcast
+```
+
+- `indexed_index_dtype: auto` uses 32-bit indices whenever the input dimension
+  fits, halving topology-buffer memory relative to the legacy 64-bit default.
+- `indexed_workspace_mb` caps the gathered-input tensor for each indexed
+  projection; it can only reduce `indexed_output_chunk_size`.
+- `indexed_cache_transformed_weights` reuses deterministic fixed weights within
+  one recurrent unroll. It is disabled by default.
+- `indexed_recompute_backward` avoids retaining contact-sized gathered inputs
+  at every recurrent timestep. Backward re-gathers one bounded chunk from the
+  saved recurrent state; it is disabled by default.
+- `indexed_persistent_indices: false` regenerates topology from
+  `indexed_seed` instead of saving it in checkpoints. An explicit seed is
+  required, and adaptive `indexed_rewire` topology must remain persistent.
+- `indexed_init_mode: rank0_broadcast` generates topology on global rank 0.
+  Use it with FSDP `sync_module_states: true`.
+- `allow_self_recurrence: false` is compatible with indexed layers without a
+  dense connectivity mask; self-indices are excluded directly by the sampler.
+
 Keep these outside `configs/examples/`:
 
 - input-mode equivalence configs (`input_mode0/1`, one-layer/two-layer);

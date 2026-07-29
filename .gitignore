@@ -247,6 +247,7 @@ external/
 /scripts/*
 !/scripts/ci/
 !/scripts/ci/**
+!/scripts/train_fsdp.sh
 !/scripts/train_transformer_replacement_array.sh
 !/scripts/train_transformer_replacement_ddp.sh
 scratch/

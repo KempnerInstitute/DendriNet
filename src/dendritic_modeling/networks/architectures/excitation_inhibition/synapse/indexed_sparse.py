@@ -8,10 +8,16 @@ import torch
 import torch.nn as nn
 
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_common import (
-    _allowed_mask_with_forbidden,
     _connection_generator,
+    _indexed_sparse_projection,
+    _resolve_index_dtype,
     _sample_indices_from_mask,
     _scale_for_sparse_target,
+    _validate_forbidden_indices,
+    _workspace_limited_chunk_size,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.structured_mask import (
+    validate_connection_mask,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
     TOPK_INIT_METHODS,
@@ -55,6 +61,12 @@ class IndexedSparseLinear(nn.Module):
         forbidden_input_index_per_output: torch.Tensor | None = None,
         seed: int | None = None,
         output_chunk_size: int = 2048,
+        index_dtype: str | torch.dtype = "int64",
+        workspace_mb: float | None = None,
+        cache_transformed_weights: bool = False,
+        recompute_backward: bool = False,
+        persistent_indices: bool = True,
+        init_mode: str = "per_rank",
         **_: object,
     ):
         super().__init__()
@@ -70,6 +82,16 @@ class IndexedSparseLinear(nn.Module):
             )
         if output_chunk_size < 1:
             raise ValueError("output_chunk_size must be >= 1")
+        if workspace_mb is not None and float(workspace_mb) <= 0:
+            raise ValueError("workspace_mb must be > 0 when provided")
+        init_mode = str(init_mode).strip().lower()
+        if init_mode not in {"per_rank", "rank0_broadcast"}:
+            raise ValueError("init_mode must be 'per_rank' or 'rank0_broadcast'")
+        if not persistent_indices and connection_indices is None and seed is None:
+            raise ValueError(
+                "persistent_indices=False requires an explicit seed so the "
+                "topology can be regenerated when loading a checkpoint"
+            )
 
         self.in_features = int(in_features)
         self.out_features = int(out_features)
@@ -81,31 +103,69 @@ class IndexedSparseLinear(nn.Module):
         self.weight_norm_order = weight_norm_order
         self.gamma = float(gamma)
         self.output_chunk_size = int(output_chunk_size)
+        self.workspace_mb = None if workspace_mb is None else float(workspace_mb)
+        self.index_dtype = _resolve_index_dtype(
+            index_dtype,
+            in_features=self.in_features,
+        )
+        self.cache_transformed_weights = bool(cache_transformed_weights)
+        self.recompute_backward = bool(recompute_backward)
+        self.persistent_indices = bool(persistent_indices)
+        self.init_mode = init_mode
         self.input_scale_vec = None
         self.param_scale_vec = None
+        self._use_forward_dynamic_grad_scaling = False
         self.cache_mask = False
         self._last_forward_weight_mask: torch.Tensor | None = None
         self._last_forward_param_tensor: torch.Tensor | None = None
+        self._recurrent_weight_cache_enabled = False
+        self._recurrent_cached_weight: torch.Tensor | None = None
 
-        allowed_connection_mask = _allowed_mask_with_forbidden(
-            connection_mask=connection_mask,
-            forbidden_input_index_per_output=forbidden_input_index_per_output,
+        allowed_connection_mask = validate_connection_mask(
+            connection_mask,
+            self.out_features,
+            self.in_features,
+        )
+        forbidden = _validate_forbidden_indices(
+            forbidden_input_index_per_output,
             out_features=self.out_features,
             in_features=self.in_features,
         )
 
+        topology_initialized = True
         if connection_indices is None:
-            generator = _connection_generator(seed)
-            connection_indices = _sample_indices_from_mask(
-                out_features=self.out_features,
-                in_features=self.in_features,
-                K=self.K,
-                connection_mask=allowed_connection_mask,
-                generator=generator,
-                row_chunk_size=self.output_chunk_size,
+            rank0_initializes = (
+                self.init_mode == "rank0_broadcast"
+                and torch.distributed.is_available()
+                and torch.distributed.is_initialized()
             )
+            topology_initialized = (
+                not rank0_initializes or torch.distributed.get_rank() == 0
+            )
+            if topology_initialized:
+                generator = _connection_generator(seed)
+                connection_indices = _sample_indices_from_mask(
+                    out_features=self.out_features,
+                    in_features=self.in_features,
+                    K=self.K,
+                    connection_mask=allowed_connection_mask,
+                    forbidden_input_index_per_output=forbidden,
+                    generator=generator,
+                    row_chunk_size=self.output_chunk_size,
+                    index_dtype=self.index_dtype,
+                )
+            else:
+                # FSDP ``sync_module_states=True`` broadcasts this buffer and
+                # the initialization marker from rank 0 before first use.
+                connection_indices = torch.zeros(
+                    self.out_features,
+                    self.K,
+                    dtype=self.index_dtype,
+                )
         else:
-            connection_indices = torch.as_tensor(connection_indices, dtype=torch.long)
+            connection_indices = torch.as_tensor(
+                connection_indices, dtype=self.index_dtype
+            )
             if tuple(connection_indices.shape) != (self.out_features, self.K):
                 raise ValueError(
                     "connection_indices must have shape "
@@ -123,10 +183,23 @@ class IndexedSparseLinear(nn.Module):
                 raise ValueError("connection_indices must be unique within each row")
             if allowed_connection_mask is not None:
                 row = torch.arange(self.out_features)[:, None]
-                if not bool(allowed_connection_mask[row, connection_indices].all()):
+                if not bool(
+                    allowed_connection_mask[
+                        row, connection_indices.to(torch.long)
+                    ].all()
+                ):
                     raise ValueError(
                         "connection_indices contains entries disallowed by "
-                        "connection_mask or forbidden_input_index_per_output"
+                        "connection_mask"
+                    )
+            if forbidden is not None:
+                violates_forbidden = (forbidden[:, None] >= 0) & (
+                    connection_indices.to(torch.long) == forbidden[:, None]
+                )
+                if bool(violates_forbidden.any()):
+                    raise ValueError(
+                        "connection_indices contains entries disallowed by "
+                        "forbidden_input_index_per_output"
                     )
 
         if allowed_connection_mask is None:
@@ -141,9 +214,24 @@ class IndexedSparseLinear(nn.Module):
                 allowed_connection_mask.contiguous(),
                 persistent=False,
             )
+        if forbidden is None:
+            forbidden = torch.empty(0, dtype=torch.long)
         self.register_buffer(
-            "connection_indices", connection_indices.contiguous(), persistent=True
+            "_forbidden_input_index_per_output",
+            forbidden.contiguous(),
+            persistent=False,
         )
+        self.register_buffer(
+            "connection_indices",
+            connection_indices.contiguous(),
+            persistent=self.persistent_indices,
+        )
+        self.register_buffer(
+            "_topology_initialized",
+            torch.tensor(int(topology_initialized), dtype=torch.uint8),
+            persistent=False,
+        )
+        self._topology_ready = topology_initialized
         self.pre_w = nn.Parameter(torch.empty(self.out_features, self.K))
         self.initialize()
 
@@ -169,6 +257,32 @@ class IndexedSparseLinear(nn.Module):
         safe_norm = norm.clamp_min(torch.finfo(weight.dtype).eps)
         normalized = (weight / safe_norm) * self.gamma
         return torch.where(norm > 0, normalized, weight)
+
+    def set_recurrent_weight_cache(self, enabled: bool) -> None:
+        """Cache the transformed fixed weights once per recurrent unroll."""
+        self._recurrent_weight_cache_enabled = (
+            bool(enabled)
+            and self.cache_transformed_weights
+            and not self._use_forward_dynamic_grad_scaling
+        )
+        self._recurrent_cached_weight = None
+
+    def _forward_sparse_weight(self) -> torch.Tensor:
+        if not self._recurrent_weight_cache_enabled:
+            return self._normalized_sparse_weight()
+        if self._recurrent_cached_weight is None:
+            self._recurrent_cached_weight = self._normalized_sparse_weight()
+        return self._recurrent_cached_weight
+
+    def _forward_output_chunk_size(self, flat_x: torch.Tensor) -> int:
+        return _workspace_limited_chunk_size(
+            output_chunk_size=self.output_chunk_size,
+            workspace_mb=self.workspace_mb,
+            out_features=self.out_features,
+            flattened_batch_size=flat_x.shape[0],
+            synapses_per_output=self.K,
+            element_size=flat_x.element_size(),
+        )
 
     def weight(self) -> torch.Tensor:
         """Return a dense compatibility view of the effective weights."""
@@ -242,6 +356,14 @@ class IndexedSparseLinear(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Apply the fixed sparse projection along the last input dimension."""
+        if not self._topology_ready:
+            if not bool(self._topology_initialized.item()):
+                raise RuntimeError(
+                    "Indexed topology is awaiting rank-0 broadcast. Construct "
+                    "this module under FSDP with sync_module_states=True before "
+                    "forward."
+                )
+            self._topology_ready = True
         if not isinstance(x, torch.Tensor):
             raise TypeError(f"Expected input to be a tensor, got {type(x)}")
         squeezed = False
@@ -256,21 +378,21 @@ class IndexedSparseLinear(nn.Module):
 
         original_shape = x.shape
         flat_x = x.reshape(-1, self.in_features)
-        out = flat_x.new_empty(flat_x.shape[0], self.out_features)
-        weight = self._normalized_sparse_weight()
+        weight = self._forward_sparse_weight()
         # ``weight`` can be the Parameter itself for the identity transform.
         # Bypass ``nn.Module.__setattr__`` so this diagnostic cache is not
         # registered as a duplicate parameter/state-dict key.
         object.__setattr__(self, "_last_forward_param_tensor", weight)
         indices = self.connection_indices.to(flat_x.device)
 
-        for start in range(0, self.out_features, self.output_chunk_size):
-            end = min(start + self.output_chunk_size, self.out_features)
-            idx_chunk = indices[start:end]
-            selected = flat_x[:, idx_chunk.reshape(-1)].reshape(
-                flat_x.shape[0], end - start, self.K
-            )
-            out[:, start:end] = (selected * weight[start:end].unsqueeze(0)).sum(dim=-1)
+        output_chunk_size = self._forward_output_chunk_size(flat_x)
+        out = _indexed_sparse_projection(
+            flat_x=flat_x,
+            weight=weight,
+            connection_indices=indices,
+            output_chunk_size=output_chunk_size,
+            recompute_backward=self.recompute_backward,
+        )
 
         out = out.reshape(*original_shape[:-1], self.out_features)
         if self.cache_mask:
