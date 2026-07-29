@@ -67,6 +67,7 @@ class InformationFinalizationMixin:
             "Vb": "pre_gate_upstream_current",
             "V": "pre_gate_voltage",
             "Vout": "post_gate_output",
+            "S": "post_gate_parent_soma_output",
         }
         results["layer_information_proxy_semantics"] = dict(
             LAYER_INFORMATION_PROXY_SEMANTICS

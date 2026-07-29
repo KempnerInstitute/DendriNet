@@ -95,6 +95,7 @@ class InformationDataMixin:
             runtime=runtime,
         )
         self._collect_forward_hook_activations(model=model, inputs=inputs)
+        self.attach_parent_soma_outputs_to_branch_records()
         C, entropy_C = self._labels_to_class_array(labels)
         self.logger.debug(
             f"Data collection completed. Found {len(self.data_dict)} layers."

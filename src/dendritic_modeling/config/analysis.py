@@ -103,6 +103,8 @@ class InformationSelectionParams(BaseConfig):
         such as I(Vout;C|E), I(Vout;C|I), or I(Vout;C|E,I)
       - "layer_proxies": layer-total proxies derived from single-branch metrics
       - "upstream_unique_cmi": adds I(Vb;C|E,I) (can be expensive)
+      - "soma_coupling": branch-current and branch-output information about the
+        corresponding parent soma output
     - scopes: extra summaries/breakdowns to run
       - "layer": per-layer breakdown
       - "einet": separate excitatory vs inhibitory pathway summaries
@@ -366,6 +368,8 @@ class InformationAnalysisParams(BaseConfig):
         such as I(Vout;C|E), I(Vout;C|I), or I(Vout;C|E,I)
       - "layer_proxies": layer-total proxies derived from single-branch metrics
       - "upstream_unique_cmi": adds I(Vb;C|E,I) (can be expensive)
+      - "soma_coupling": branch-current and branch-output information about the
+        corresponding parent soma output
     - selection.scopes: which additional breakdowns to run
       - "layer": per-layer breakdown
       - "einet": separate excitatory vs inhibitory pathway summaries
@@ -472,6 +476,7 @@ class InformationAnalysisParams(BaseConfig):
     # - "ablation_aligned"
     # - "layer_proxies" / "layer_total_proxies"
     # - "upstream_unique_cmi"
+    # - "soma_coupling" / "branch_soma" / "parent_soma"
     components: list[str] = field(default_factory=list)
 
     # Ablation-aligned information components (cheap extra CMI terms)

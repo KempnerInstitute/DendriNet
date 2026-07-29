@@ -98,6 +98,7 @@ def test_config_setup_mixin_assigns_core_null_pid_and_metric_options():
     assert harness.compute_conditional_mi is True
     assert harness.compute_pid is True
     assert harness.compute_gaussian_fisher is False
+    assert harness.compute_soma_coupling_mi is False
     assert harness.pid_binarize is True
     assert harness.pid_binarize_method == "quantile"
     assert harness.pid_binarize_threshold == 0.75
@@ -140,6 +141,7 @@ def test_config_setup_mixin_component_selection_preserves_empty_override_semanti
                 "ablation",
                 "layer-total",
                 "upstream unique",
+                "soma coupling",
             ]
         },
     )
@@ -152,6 +154,7 @@ def test_config_setup_mixin_component_selection_preserves_empty_override_semanti
     assert harness.compute_ablation_aligned_mi is True
     assert harness.compute_layer_total_proxies is True
     assert harness.compute_upstream_unique_cmi is True
+    assert harness.compute_soma_coupling_mi is True
 
 
 def test_config_setup_mixin_disables_pid_request_with_warning():

@@ -17,6 +17,7 @@ class _InformationComponentSelection:
     compute_ablation_aligned_mi: bool
     compute_layer_total_proxies: bool
     compute_upstream_unique_cmi: bool
+    compute_soma_coupling_mi: bool
 
 
 @dataclass(frozen=True)
@@ -219,6 +220,15 @@ def _parse_information_component_selection(
         ),
         compute_upstream_unique_cmi=_has_any_config_token(
             components, {"upstream_unique_cmi", "upstream_unique"}
+        ),
+        compute_soma_coupling_mi=_has_any_config_token(
+            components,
+            {
+                "soma_coupling",
+                "soma_coupling_mi",
+                "branch_soma",
+                "parent_soma",
+            },
         ),
     )
 

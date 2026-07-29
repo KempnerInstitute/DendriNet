@@ -42,6 +42,7 @@ def _metric_variable_for_null_baseline(
     C_col: np.ndarray,
     Vinf: np.ndarray | None,
     Vb: np.ndarray | None,
+    S: np.ndarray | None = None,
     has_exc_synapses: bool,
     has_inh_synapses: bool,
     has_branch_input: bool,
@@ -59,6 +60,8 @@ def _metric_variable_for_null_baseline(
         return Vout
     if base == "Vinf":
         return Vinf
+    if base == "S":
+        return S
     return None
 
 
@@ -75,6 +78,7 @@ class InformationNullBaselineMixin(InformationPidMetricsMixin):
         C: np.ndarray,
         Vinf: np.ndarray | None = None,
         Vb: np.ndarray | None = None,
+        S: np.ndarray | None = None,
         has_exc_synapses: bool = True,
         has_inh_synapses: bool = True,
         has_branch_input: bool = True,
@@ -108,6 +112,14 @@ class InformationNullBaselineMixin(InformationPidMetricsMixin):
                 null_components
             )
         )
+        want_soma_coupling = want_all or bool(
+            {
+                "soma_coupling",
+                "soma_coupling_mi",
+                "branch_soma",
+                "parent_soma",
+            }.intersection(null_components)
+        )
         categories: list[str] = []
         if want_basic:
             categories.append("basic_mi")
@@ -115,6 +127,8 @@ class InformationNullBaselineMixin(InformationPidMetricsMixin):
             categories.append("pairwise_mi")
         if want_conditional:
             categories.append("conditional_mi")
+        if want_soma_coupling:
+            categories.append("soma_coupling_mi")
         if not categories:
             return
 
@@ -133,6 +147,7 @@ class InformationNullBaselineMixin(InformationPidMetricsMixin):
                 C_col=C_col,
                 Vinf=Vinf,
                 Vb=Vb,
+                S=S,
                 has_exc_synapses=has_exc_synapses,
                 has_inh_synapses=has_inh_synapses,
                 has_branch_input=has_branch_input,

@@ -186,6 +186,7 @@ def test_parse_information_component_selection_preserves_aliases():
             "ablation",
             "layer-total",
             "upstream unique",
+            "parent soma",
         ]
     )
 
@@ -198,6 +199,7 @@ def test_parse_information_component_selection_preserves_aliases():
     assert selection.compute_ablation_aligned_mi is True
     assert selection.compute_layer_total_proxies is True
     assert selection.compute_upstream_unique_cmi is True
+    assert selection.compute_soma_coupling_mi is True
 
 
 def test_parse_information_component_selection_preserves_empty_list_semantics():
@@ -214,6 +216,7 @@ def test_parse_information_component_selection_preserves_empty_list_semantics():
     assert blank_selection.compute_ablation_aligned_mi is False
     assert blank_selection.compute_layer_total_proxies is False
     assert blank_selection.compute_upstream_unique_cmi is False
+    assert blank_selection.compute_soma_coupling_mi is False
 
 
 def test_parse_information_scope_selection_preserves_aliases():

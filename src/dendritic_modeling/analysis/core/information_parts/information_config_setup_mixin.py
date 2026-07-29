@@ -65,6 +65,7 @@ class InformationConfigSetupMixin:
         )
         self.compute_pid = bool(getattr(params, "compute_pid", False))
         self.compute_gaussian_fisher = False
+        self.compute_soma_coupling_mi = False
 
     def _configure_pid_preprocessing(self, *, params: Any, pid_cfg: Any) -> None:
         """Assign PID preprocessing parameters."""
@@ -128,6 +129,7 @@ class InformationConfigSetupMixin:
         self.compute_upstream_unique_cmi = (
             component_selection.compute_upstream_unique_cmi
         )
+        self.compute_soma_coupling_mi = component_selection.compute_soma_coupling_mi
 
     def _disable_pid_if_requested(self) -> None:
         """Apply the current policy that PID requests are acknowledged but skipped."""

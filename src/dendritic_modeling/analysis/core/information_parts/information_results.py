@@ -15,9 +15,15 @@ _AVERAGED_METRIC_CATEGORIES = (
     "basic_mi",
     "pairwise_mi",
     "conditional_mi",
+    "soma_coupling_mi",
     "gaussian_fisher",
 )
-_LAYER_STATISTIC_CATEGORIES = ("basic_mi", "pairwise_mi", "conditional_mi")
+_LAYER_STATISTIC_CATEGORIES = (
+    "basic_mi",
+    "pairwise_mi",
+    "conditional_mi",
+    "soma_coupling_mi",
+)
 
 LAYER_INFORMATION_PROXY_SEMANTICS = {
     "scalar_mi_sum_proxy": (

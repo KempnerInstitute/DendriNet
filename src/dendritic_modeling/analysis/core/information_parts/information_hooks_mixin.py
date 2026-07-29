@@ -245,6 +245,33 @@ def _store_network_layer_hook_data(
     )
 
 
+def _branch_population_coordinates(module_name: str) -> tuple[str, str] | None:
+    """Return the containing network-layer path and population name."""
+    if ".populations." not in module_name or ".branch_layers." not in module_name:
+        return None
+    network_layer_name, population_suffix = module_name.split(".populations.", 1)
+    population_name = population_suffix.split(".branch_layers.", 1)[0]
+    if not network_layer_name or not population_name:
+        return None
+    return network_layer_name, population_name
+
+
+def _branch_to_parent_soma_indices(
+    *,
+    n_branches: int,
+    n_somas: int,
+) -> torch.Tensor:
+    """Map contiguous regular-tree branch blocks to their parent somas."""
+    if n_branches < 1 or n_somas < 1:
+        raise ValueError("Branch-to-soma mapping requires positive dimensions")
+    if n_branches % n_somas:
+        raise ValueError(
+            f"Branch count {n_branches} is not divisible by soma count {n_somas}"
+        )
+    branches_per_soma = n_branches // n_somas
+    return torch.arange(n_branches, dtype=torch.int64) // branches_per_soma
+
+
 class InformationHooksMixin(ForwardHookRemovalMixin):
     """Collects branch-layer currents and outputs during model evaluation."""
 
@@ -353,6 +380,48 @@ class InformationHooksMixin(ForwardHookRemovalMixin):
             output,
         )
 
+    def attach_parent_soma_outputs_to_branch_records(self) -> None:
+        """Bind every branch record to its corresponding post-gate soma output."""
+        for module_name, layer_data in getattr(self, "data_dict", {}).items():
+            coordinates = _branch_population_coordinates(module_name)
+            if coordinates is None or "output" not in layer_data:
+                continue
+            network_layer_name, population_name = coordinates
+            network_record = getattr(self, "network_layer_data", {}).get(
+                network_layer_name
+            )
+            if not isinstance(network_record, dict):
+                continue
+            soma_outputs = network_record.get("post_gate_soma_outputs", {})
+            parent_soma_output = soma_outputs.get(population_name)
+            if not isinstance(parent_soma_output, torch.Tensor):
+                continue
+            if parent_soma_output.ndim != 2:
+                self.logger.warning(
+                    f"Skipping parent-soma binding for {module_name}: "
+                    f"expected a two-dimensional soma output, got "
+                    f"{tuple(parent_soma_output.shape)}"
+                )
+                continue
+
+            n_branches = int(layer_data["output"].shape[1])
+            n_somas = int(parent_soma_output.shape[1])
+            try:
+                branch_to_soma = _branch_to_parent_soma_indices(
+                    n_branches=n_branches,
+                    n_somas=n_somas,
+                )
+            except ValueError as exc:
+                self.logger.warning(
+                    f"Skipping parent-soma binding for {module_name}: {exc}"
+                )
+                continue
+
+            layer_data["parent_soma_output"] = parent_soma_output
+            layer_data["branch_to_parent_soma_index"] = branch_to_soma
+            layer_data["parent_soma_population"] = population_name
+            layer_data["branches_per_parent_soma"] = n_branches // n_somas
+
     def collected_soma_relative_depths(self) -> dict[str, int]:
         """Return canonical depth metadata for captured dendritic layers."""
         return {
@@ -368,4 +437,8 @@ class InformationHooksMixin(ForwardHookRemovalMixin):
         getattr(self, "_network_layer_name_by_module_id", {}).clear()
 
 
-__all__ = ["InformationHooksMixin"]
+__all__ = [
+    "InformationHooksMixin",
+    "_branch_population_coordinates",
+    "_branch_to_parent_soma_indices",
+]

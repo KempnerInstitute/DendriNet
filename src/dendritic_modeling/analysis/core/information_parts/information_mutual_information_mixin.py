@@ -282,6 +282,44 @@ class InformationMutualInformationMixin(InformationValidationMixin):
         self.logger.debug("  Pairwise MI computation completed.")
         return metrics
 
+    def _compute_soma_coupling_mi(
+        self,
+        E: np.ndarray,
+        I_var: np.ndarray,
+        Vout: np.ndarray,
+        C: np.ndarray,
+        S: np.ndarray | None,
+    ) -> dict[str, float]:
+        """Measure branch-current/output association with the parent soma."""
+        if S is None:
+            return {}
+
+        metrics: dict[str, float] = {}
+        EI = np.hstack([E, I_var])
+        C_col = C.reshape(-1, 1)
+        self._add_mi_metrics(
+            metrics,
+            [
+                ("I(S;C)", S, C_col),
+                ("I(E;S)", E, S),
+                ("I(I;S)", I_var, S),
+                ("I(E,I;S)", EI, S),
+                ("I(Vout;S)", Vout, S),
+            ],
+        )
+        self._add_cmi_metrics(
+            metrics,
+            [
+                ("I(E;S|C)", E, S, C_col),
+                ("I(I;S|C)", I_var, S, C_col),
+                ("I(E,I;S|C)", EI, S, C_col),
+                ("I(Vout;S|C)", Vout, S, C_col),
+                ("I(E;S|I)", E, S, I_var),
+                ("I(I;S|E)", I_var, S, E),
+            ],
+        )
+        return metrics
+
     def _add_ablation_aligned_conditional_metrics(
         self,
         metrics: dict[str, float],

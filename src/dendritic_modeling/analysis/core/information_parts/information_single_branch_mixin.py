@@ -19,6 +19,8 @@ class _SingleBranchLayerData:
     inhibition: np.ndarray
     output: np.ndarray
     branch_input: np.ndarray | None
+    parent_soma_output: np.ndarray | None
+    branch_to_parent_soma_index: np.ndarray | None
     has_exc_synapses: bool
     has_inh_synapses: bool
     has_branch_input: bool
@@ -81,12 +83,26 @@ class InformationSingleBranchMixin:
             if Vb_all_branches_raw is not None
             else None
         )
+        parent_soma_output_raw = layer_data.get("parent_soma_output")
+        parent_soma_output = (
+            parent_soma_output_raw.detach().cpu().numpy()
+            if parent_soma_output_raw is not None
+            else None
+        )
+        branch_to_parent_soma_raw = layer_data.get("branch_to_parent_soma_index")
+        branch_to_parent_soma_index = (
+            np.asarray(branch_to_parent_soma_raw, dtype=np.int64)
+            if branch_to_parent_soma_raw is not None
+            else None
+        )
 
         return _SingleBranchLayerData(
             excitation=E_all_branches_filtered.detach().cpu().numpy(),
             inhibition=I_all_branches_filtered.detach().cpu().numpy(),
             output=layer_data["output"].detach().cpu().numpy(),
             branch_input=branch_input,
+            parent_soma_output=parent_soma_output,
+            branch_to_parent_soma_index=branch_to_parent_soma_index,
             has_exc_synapses=has_exc_synapses,
             has_inh_synapses=has_inh_synapses,
             has_branch_input=has_branch_input,
@@ -145,6 +161,18 @@ class InformationSingleBranchMixin:
             if prepared_layer.branch_input is not None
             else None
         )
+        parent_soma_branch = None
+        if (
+            getattr(self, "compute_soma_coupling_mi", False)
+            and prepared_layer.parent_soma_output is not None
+            and prepared_layer.branch_to_parent_soma_index is not None
+        ):
+            parent_soma_index = int(
+                prepared_layer.branch_to_parent_soma_index[branch_idx]
+            )
+            parent_soma_branch = prepared_layer.parent_soma_output[
+                :, parent_soma_index : parent_soma_index + 1
+            ]
 
         branch_results = self._compute_branch_metrics_with_null_baselines(
             E=E_branch,
@@ -152,6 +180,7 @@ class InformationSingleBranchMixin:
             Vout=Vout_branch,
             C=C,
             Vb=Vb_branch,
+            S=parent_soma_branch,
             has_exc_synapses=prepared_layer.has_exc_synapses,
             has_inh_synapses=prepared_layer.has_inh_synapses,
             has_branch_input=prepared_layer.has_branch_input,
@@ -270,6 +299,8 @@ class InformationSingleBranchMixin:
                 "selected_count": len(selected_indices_list),
                 "selected_indices": selected_indices_list,
                 "selected_indices_sha256": selected_indices_sha256,
+                "parent_soma_population": layer_data.get("parent_soma_population"),
+                "branches_per_parent_soma": layer_data.get("branches_per_parent_soma"),
             }
             layer_branch_results = []
             layer_start_time = time.time()

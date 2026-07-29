@@ -8,6 +8,7 @@ _SUMMARY_METRIC_SECTIONS = (
     ("basic_mi", "Basic MI with C:", True),
     ("pairwise_mi", "\nPairwise MI:", False),
     ("conditional_mi", "\nConditional MI given C:", False),
+    ("soma_coupling_mi", "\nBranch-to-parent-soma MI:", False),
     ("gaussian_fisher", "\nGaussian/Fisher proxy:", False),
 )
 
