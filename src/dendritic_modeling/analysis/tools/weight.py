@@ -50,12 +50,12 @@ def _safe_profile_key(*parts: object) -> str:
     )
 
 
-def _mean_pairwise_jaccard(mask: torch.Tensor) -> float:
+def _mean_pairwise_jaccard(mask: torch.Tensor) -> float | None:
     """Mean Jaccard overlap between distinct binary branch supports."""
     mask = mask.to(dtype=torch.float64)
     n_rows = int(mask.shape[0])
     if n_rows < 2:
-        return float("nan")
+        return None
     intersection = mask @ mask.T
     row_sizes = mask.sum(dim=1)
     union = row_sizes[:, None] + row_sizes[None, :] - intersection
@@ -71,7 +71,7 @@ def _mean_pairwise_jaccard(mask: torch.Tensor) -> float:
 def _source_support_statistics(
     active_mask: torch.Tensor,
     candidate_mask: torch.Tensor,
-) -> dict[str, float]:
+) -> dict[str, float | None]:
     """Compute dimensionless source-support statistics for one soma."""
     active_mask = active_mask.ne(0)
     candidate_mask = candidate_mask.ne(0)

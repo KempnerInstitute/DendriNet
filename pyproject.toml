@@ -68,6 +68,7 @@ dendritic-collect-path-information = "dendritic_modeling.scripts.analysis.collec
 dendritic-collect-local-i-interventions = "dendritic_modeling.scripts.analysis.collect_layer_population_interventions:main"
 dendritic-collect-checkpoint-analysis = "dendritic_modeling.scripts.analysis.collect_checkpoint_analysis:main"
 dendritic-collect-reactivation = "dendritic_modeling.scripts.analysis.collect_reactivation_dynamics:main"
+dendritic-collect-synaptic-support = "dendritic_modeling.scripts.analysis.collect_synaptic_support:main"
 dendritic-summarize-checkpoint-metrics = "dendritic_modeling.scripts.analysis.summarize_checkpoint_metrics:main"
 dendritic-poisson-exposure-transfer = "dendritic_modeling.scripts.analysis.run_poisson_exposure_transfer:main"
 dendritic-collect-poisson-transfer = "dendritic_modeling.scripts.analysis.collect_poisson_exposure_transfer:main"
