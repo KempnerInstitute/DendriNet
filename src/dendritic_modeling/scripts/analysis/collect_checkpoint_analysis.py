@@ -10,6 +10,7 @@ Analyzers with dedicated technical-draw collectors should continue to use them.
 from __future__ import annotations
 
 import argparse
+import copy
 import csv
 import fnmatch
 import hashlib
@@ -169,6 +170,50 @@ def _numeric_leaves(
     return []
 
 
+def _add_information_null_excess_in_place(value: Any) -> None:
+    """Add signed observed-minus-permutation-floor information metrics.
+
+    This backfills the package's ``*_excess`` convention when collecting
+    information results written before analyzers emitted that field directly.
+    It handles both per-signal keys (``I(...)`` / ``I(...)_null``) and
+    branch-averaged layer-statistic keys
+    (``I(...)_mean`` / ``I(...)_null_mean``).
+    """
+
+    if not isinstance(value, dict):
+        return
+    for child in list(value.values()):
+        _add_information_null_excess_in_place(child)
+
+    additions: dict[str, float] = {}
+    for null_key, null_value in list(value.items()):
+        if not isinstance(null_key, str) or not null_key.startswith("I("):
+            continue
+        if null_key.endswith("_null_mean"):
+            observed_key = f"{null_key[:-10]}_mean"
+            excess_key = f"{null_key[:-10]}_excess_mean"
+        elif null_key.endswith("_null"):
+            observed_key = null_key[:-5]
+            excess_key = f"{observed_key}_excess"
+        else:
+            continue
+        observed_value = value.get(observed_key)
+        if excess_key in value:
+            continue
+        if not isinstance(observed_value, (int, float)) or isinstance(
+            observed_value, bool
+        ):
+            continue
+        if not isinstance(null_value, (int, float)) or isinstance(null_value, bool):
+            continue
+        observed_number = float(observed_value)
+        null_number = float(null_value)
+        if not (math.isfinite(observed_number) and math.isfinite(null_number)):
+            raise ValueError(f"non-finite information floor pair at {null_key}")
+        additions[excess_key] = observed_number - null_number
+    value.update(additions)
+
+
 def _csv_cell(value: Any) -> Any:
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
@@ -216,6 +261,7 @@ def collect_checkpoint_analysis(
     metric_patterns: Sequence[str] = (),
     include_full_results: bool = True,
     input_hash_validation: str = "rehash",
+    derive_information_null_excess: bool = False,
 ) -> dict[str, Any]:
     """Validate and collect generic checkpoint-level analyzer results."""
     hash_validation = str(input_hash_validation).strip().lower()
@@ -271,9 +317,12 @@ def collect_checkpoint_analysis(
             result = json.loads(result_path.read_text(encoding="utf-8"))
             if not isinstance(result, dict):
                 raise ValueError(f"analyzer result is not a mapping: {result_path}")
+            collected_result = copy.deepcopy(result)
+            if derive_information_null_excess:
+                _add_information_null_excess_in_place(collected_result)
             digest = _sha256(result_path)
             base = _job_fields(job_index, job)
-            numeric_leaves = _numeric_leaves(result, patterns=patterns)
+            numeric_leaves = _numeric_leaves(collected_result, patterns=patterns)
             if patterns and not numeric_leaves:
                 raise ValueError(
                     f"metric patterns selected no values for {analyzer_name}: {result_path}"
@@ -297,7 +346,11 @@ def collect_checkpoint_analysis(
                         "analyzer": analyzer_name,
                         "metric_path": metric_path,
                         "value": metric_value,
-                        "value_role": "raw_saved_numeric_leaf",
+                        "value_role": (
+                            "derived_observed_minus_permutation_floor"
+                            if "_excess" in metric_path
+                            else "raw_saved_numeric_leaf"
+                        ),
                         "independent_replicate": False,
                     }
                 )
@@ -310,7 +363,7 @@ def collect_checkpoint_analysis(
                 "result_sha256": digest,
             }
             if include_full_results:
-                record["result"] = result
+                record["result"] = collected_result
             else:
                 record["selected_metrics"] = dict(numeric_leaves)
             jsonl_records.append(record)
@@ -331,6 +384,7 @@ def collect_checkpoint_analysis(
         "required_analyzers": list(required),
         "metric_patterns": list(patterns),
         "include_full_results": bool(include_full_results),
+        "derive_information_null_excess": bool(derive_information_null_excess),
         "input_hash_validation": hash_validation,
         "input_hash_validation_semantics": (
             "current input bytes were re-hashed during collection"
@@ -390,6 +444,9 @@ def _load_collection_config(path: Path) -> dict[str, Any]:
         "metric_patterns": list(payload.get("metric_patterns", [])),
         "include_full_results": bool(payload.get("include_full_results", True)),
         "input_hash_validation": str(payload.get("input_hash_validation", "rehash")),
+        "derive_information_null_excess": bool(
+            payload.get("derive_information_null_excess", False)
+        ),
     }
 
 
@@ -402,6 +459,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--expected-count", type=int, default=None)
     parser.add_argument("--metric-pattern", action="append", default=[])
     parser.add_argument("--omit-full-results", action="store_true")
+    parser.add_argument("--derive-information-null-excess", action="store_true")
     parser.add_argument(
         "--input-hash-validation",
         choices=sorted(INPUT_HASH_VALIDATION_MODES),
@@ -421,6 +479,7 @@ def main(argv: list[str] | None = None) -> dict[str, Any]:
                 args.expected_count is not None,
                 args.metric_pattern,
                 args.omit_full_results,
+                args.derive_information_null_excess,
                 args.input_hash_validation != "rehash",
             )
         )
@@ -439,6 +498,7 @@ def main(argv: list[str] | None = None) -> dict[str, Any]:
         metric_patterns=args.metric_pattern,
         include_full_results=not args.omit_full_results,
         input_hash_validation=args.input_hash_validation,
+        derive_information_null_excess=args.derive_information_null_excess,
     )
 
 

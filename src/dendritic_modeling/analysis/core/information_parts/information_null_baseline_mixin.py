@@ -66,7 +66,7 @@ def _metric_variable_for_null_baseline(
 
 
 class InformationNullBaselineMixin(InformationPidMetricsMixin):
-    """Adds label-shuffle null baselines for selected MI/CMI metrics."""
+    """Adds permutation floors and signed excesses for selected MI/CMI metrics."""
 
     def _add_label_shuffle_null_baselines_in_place(
         self,
@@ -84,11 +84,15 @@ class InformationNullBaselineMixin(InformationPidMetricsMixin):
         has_branch_input: bool = True,
         seed_offset: int = 0,
     ) -> None:
-        r"""Add permutation (*_null) baselines for selected MI/CMI metrics (in-place).
+        r"""Add permutation floors and excess MI for selected metrics (in-place).
 
-        This is a finite-sample bias / null diagnostic: it permutes *one of the
-        variables* across samples and recomputes MI/CMI using the *same* estimator
-        selected by ``estimator.method``.
+        This is a finite-sample permutation-floor diagnostic: it permutes *one
+        of the variables* across samples and recomputes MI/CMI using the *same*
+        estimator selected by ``estimator.method``.  For every computed null,
+        ``*_excess`` is the signed observed estimate minus the mean permutation
+        floor.  This estimator-specific floor subtraction is not a general
+        analytical bias correction; for example, it remains distinct from the
+        Miller--Madow correction used by the binned estimator.
 
         Notes
         -----
@@ -162,7 +166,7 @@ class InformationNullBaselineMixin(InformationPidMetricsMixin):
             for metric_key in list(metrics_dict.keys()):
                 if not isinstance(metric_key, str):
                     continue
-                if metric_key.endswith(("_null", "_std", "_normalized")):
+                if metric_key.endswith(("_null", "_excess", "_std", "_normalized")):
                     continue
                 if f"{metric_key}_null" in metrics_dict:
                     continue
@@ -191,6 +195,11 @@ class InformationNullBaselineMixin(InformationPidMetricsMixin):
                     )
                     metrics_dict[f"{metric_key}_null"] = float(null_mean)
                     metrics_dict[f"{metric_key}_null_std"] = float(null_std)
+                    observed = metrics_dict.get(metric_key)
+                    if isinstance(observed, (int, float, np.number)):
+                        metrics_dict[f"{metric_key}_excess"] = float(
+                            observed - null_mean
+                        )
                     seed_off += 1
                     continue
 
@@ -223,6 +232,11 @@ class InformationNullBaselineMixin(InformationPidMetricsMixin):
                     )
                 metrics_dict[f"{metric_key}_null"] = float(np.mean(vals))
                 metrics_dict[f"{metric_key}_null_std"] = float(np.std(vals))
+                observed = metrics_dict.get(metric_key)
+                if isinstance(observed, (int, float, np.number)):
+                    metrics_dict[f"{metric_key}_excess"] = float(
+                        observed - np.mean(vals)
+                    )
 
 
 __all__ = [

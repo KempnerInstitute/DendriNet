@@ -292,8 +292,10 @@ def test_add_label_shuffle_null_baselines_uses_extracted_parsing_and_lookup():
 
     assert result["basic_mi"]["I(E;C)_null"] == 15.0
     assert result["basic_mi"]["I(E;C)_null_std"] == 2.0
+    assert result["basic_mi"]["I(E;C)_excess"] == -14.9
     assert result["basic_mi"]["I(I;C)_null"] == 16.0
     assert result["basic_mi"]["I(I;C)_null_std"] == 2.0
+    assert result["basic_mi"]["I(I;C)_excess"] == -15.8
     assert "I(Vb;C)_null" not in result["basic_mi"]
     assert "not_a_metric_null" not in result["basic_mi"]
     assert [call[0] for call in harness.estimator.calls] == [

@@ -218,6 +218,43 @@ def test_generic_collector_selects_declared_metrics_without_copying_results(
     assert "result" not in record
 
 
+def test_generic_collector_backfills_information_permutation_excess(
+    tmp_path: Path,
+) -> None:
+    job = _write_run(tmp_path, 0)
+    result_path = Path(str(job["output_dir"]), "information_analysis", "final.json")
+    result = json.loads(result_path.read_text())
+    result["basic_mi"]["I(E;C)_null"] = 0.05
+    result["layer_statistics"] = {
+        "layer0": {
+            "I(E;I|C)_mean": 0.40,
+            "I(E;I|C)_null_mean": 0.15,
+        }
+    }
+    result_path.write_text(json.dumps(result))
+    jobs_path = tmp_path / "jobs.jsonl"
+    jobs_path.write_text(json.dumps(job) + "\n")
+
+    release = collect_checkpoint_analysis(
+        jobs_paths=[jobs_path],
+        output_dir=tmp_path / "excess",
+        required_analyzers=["information"],
+        metric_patterns=["basic_mi.*", "layer_statistics.*"],
+        derive_information_null_excess=True,
+    )
+
+    metrics = pd.read_csv(tmp_path / "excess/checkpoint_scalar_metrics.csv")
+    values = dict(zip(metrics["metric_path"], metrics["value"], strict=True))
+    assert values["basic_mi.I(E;C)_excess"] == pytest.approx(0.20)
+    assert values["layer_statistics.layer0.I(E;I|C)_excess_mean"] == pytest.approx(0.25)
+    roles = dict(zip(metrics["metric_path"], metrics["value_role"], strict=True))
+    assert (
+        roles["layer_statistics.layer0.I(E;I|C)_excess_mean"]
+        == "derived_observed_minus_permutation_floor"
+    )
+    assert release["derive_information_null_excess"] is True
+
+
 def test_generic_collector_loads_relative_yaml_config(tmp_path: Path) -> None:
     jobs = tmp_path / "jobs.jsonl"
     jobs.write_text("{}\n")
@@ -232,6 +269,7 @@ def test_generic_collector_loads_relative_yaml_config(tmp_path: Path) -> None:
                 "expected_count: 1",
                 "metric_patterns: ['basic_mi.*']",
                 "include_full_results: false",
+                "derive_information_null_excess: true",
             ]
         )
         + "\n"
@@ -244,3 +282,4 @@ def test_generic_collector_loads_relative_yaml_config(tmp_path: Path) -> None:
     assert loaded["required_analyzers"] == ["information"]
     assert loaded["metric_patterns"] == ["basic_mi.*"]
     assert loaded["include_full_results"] is False
+    assert loaded["derive_information_null_excess"] is True
