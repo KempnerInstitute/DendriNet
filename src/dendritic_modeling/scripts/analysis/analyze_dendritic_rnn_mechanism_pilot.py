@@ -21,6 +21,7 @@ from dendritic_modeling.scripts.analysis.evaluate_dendritic_rnn_mechanism_pilot 
     EXPECTED_CONDITIONS,
     REPO_ROOT,
     RESULT_SCHEMA,
+    _manifest_groups,
     _resolve,
     _strict_json,
     load_config,
@@ -52,7 +53,8 @@ def _load_analysis_contract(
 ) -> dict[str, Any]:
     """Validate the analysis source and delay plan frozen before pilot outcomes."""
 
-    contract = _strict_json(path.resolve(strict=True))
+    path = path.resolve(strict=True)
+    contract = _strict_json(path)
     if contract.get("schema_version") != ANALYSIS_CONTRACT_SCHEMA:
         raise MechanismPilotAnalysisError("Unsupported pilot analysis contract")
     if _sha256(Path(__file__).resolve()) != contract.get("analysis_source_sha256"):
@@ -66,6 +68,49 @@ def _load_analysis_contract(
     if contract.get("delay_strata_in_aggregate_gate") is not False:
         raise MechanismPilotAnalysisError("Delay strata entered the aggregate gate")
     return contract
+
+
+def _analysis_contract_path(
+    config: dict[str, Any], override: Path | None = None
+) -> Path:
+    """Resolve the frozen contract without requiring configs in a source snapshot."""
+
+    if override is not None:
+        return override.resolve(strict=True)
+    configured = config["study"].get("analysis_contract")
+    if configured is None:
+        return DEFAULT_ANALYSIS_CONTRACT.resolve(strict=True)
+    if not isinstance(configured, str) or not configured:
+        raise MechanismPilotAnalysisError("study.analysis_contract must be a path")
+    return _resolve(configured).resolve(strict=True)
+
+
+def _source_snapshot_provenance(config: dict[str, Any]) -> dict[str, Any] | None:
+    """Require analysis to execute from the manifest's validated v2 snapshot."""
+
+    if config.get("study", {}).get("require_source_snapshot") is not True:
+        return None
+    manifest, manifest_path, _groups = _manifest_groups(config)
+    snapshot = manifest["source_snapshot"]
+    root = Path(str(snapshot["root"])).resolve(strict=True)
+    expected_source = (
+        root / "src/dendritic_modeling/scripts/analysis/"
+        "analyze_dendritic_rnn_mechanism_pilot.py"
+    ).resolve(strict=True)
+    actual_source = Path(__file__).resolve()
+    if actual_source != expected_source:
+        raise MechanismPilotAnalysisError(
+            "Snapshot-required analysis was not imported from the frozen source"
+        )
+    return {
+        "training_manifest": {
+            "path": str(manifest_path),
+            "sha256": _sha256(manifest_path),
+        },
+        "root": str(root),
+        "package_sha256": snapshot["package_sha256"],
+        "training_runtime_source_sha256": snapshot["training_runtime_source_sha256"],
+    }
 
 
 def _result_paths(config: dict[str, Any]) -> list[Path]:
@@ -244,11 +289,16 @@ def _summarize_delay_strata(
     }
 
 
-def compute_statistics(config_path: Path = DEFAULT_CONFIG) -> dict[str, Any]:
+def compute_statistics(
+    config_path: Path = DEFAULT_CONFIG,
+    analysis_contract_path: Path | None = None,
+) -> dict[str, Any]:
     """Validate the complete grid and compute descriptive paired-seed effects."""
 
-    analysis_contract = _load_analysis_contract()
     config, config_path = load_config(config_path)
+    source_snapshot = _source_snapshot_provenance(config)
+    contract_path = _analysis_contract_path(config, analysis_contract_path)
+    analysis_contract = _load_analysis_contract(contract_path)
     rows, provenance = _load_results(config, config_path)
     nested = _nested(rows)
     metrics = {metric: _summarize_metric(nested, metric) for metric in METRICS}
@@ -290,10 +340,15 @@ def compute_statistics(config_path: Path = DEFAULT_CONFIG) -> dict[str, Any]:
         "config": str(config_path),
         "config_sha256": _sha256(config_path),
         "analysis_contract": {
-            "path": str(DEFAULT_ANALYSIS_CONTRACT),
-            "sha256": _sha256(DEFAULT_ANALYSIS_CONTRACT),
+            "path": str(contract_path),
+            "sha256": _sha256(contract_path),
             "frozen_utc": analysis_contract["frozen_utc"],
         },
+        "analysis_source": {
+            "path": str(Path(__file__).resolve()),
+            "sha256": _sha256(Path(__file__).resolve()),
+        },
+        "source_snapshot": source_snapshot,
         "rows": rows,
     }
 
@@ -458,17 +513,26 @@ def render_figure(statistics: dict[str, Any], output: Path) -> None:
 
 
 def analyze(
-    config_path: Path = DEFAULT_CONFIG, output_dir: Path | None = None
+    config_path: Path = DEFAULT_CONFIG,
+    output_dir: Path | None = None,
+    analysis_contract_path: Path | None = None,
 ) -> dict[str, Any]:
     config, _ = load_config(config_path)
-    destination = output_dir or (
-        _resolve(config["study"]["output_root"]).parent / "analysis_v1"
-    )
+    configured_output = config["study"].get("analysis_output_root")
+    if configured_output is not None and (
+        not isinstance(configured_output, str) or not configured_output
+    ):
+        raise MechanismPilotAnalysisError("study.analysis_output_root must be a path")
+    destination = output_dir
+    if destination is None and configured_output is not None:
+        destination = _resolve(configured_output)
+    if destination is None:
+        destination = _resolve(config["study"]["output_root"]).parent / "analysis_v1"
     statistics_path = destination / "statistics.json"
     figure_path = destination / "figure_mechanism_identification_pilot_v1.pdf"
     if statistics_path.exists() or figure_path.exists():
         raise MechanismPilotAnalysisError("Analysis output already exists")
-    statistics = compute_statistics(config_path)
+    statistics = compute_statistics(config_path, analysis_contract_path)
     _atomic_json(statistics_path, statistics, readonly=True)
     render_figure(statistics, figure_path)
     return {
@@ -482,9 +546,16 @@ def analyze(
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
+    parser.add_argument("--analysis-contract", type=Path)
     parser.add_argument("--output-dir", type=Path)
     args = parser.parse_args()
-    print(json.dumps(analyze(args.config, args.output_dir), indent=2, sort_keys=True))
+    print(
+        json.dumps(
+            analyze(args.config, args.output_dir, args.analysis_contract),
+            indent=2,
+            sort_keys=True,
+        )
+    )
 
 
 if __name__ == "__main__":

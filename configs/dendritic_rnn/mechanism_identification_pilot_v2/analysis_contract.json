@@ -1,0 +1,24 @@
+{
+  "schema_version": "dendritic-rnn-mechanism-pilot-analysis-contract-v1",
+  "protocol_version": "mechanism_identification_pilot_src_v2",
+  "frozen_utc": "2026-07-23T02:27:15Z",
+  "frozen_before_any_training_complete": true,
+  "frozen_before_any_v2_training_submission": true,
+  "analysis_source": "src/dendritic_modeling/scripts/analysis/analyze_dendritic_rnn_mechanism_pilot.py",
+  "analysis_source_sha256": "c3560f7d906f08497bd34d7f2f7e224dd12942a531f198265876ab4f13d55e1a",
+  "aggregate_gate_metrics": [
+    "accuracy",
+    "target_log_score",
+    "target_margin"
+  ],
+  "delay_strata": [
+    [240, 260],
+    [261, 280],
+    [281, 300],
+    [301, 320]
+  ],
+  "delay_strata_metric": "accuracy",
+  "delay_strata_estimand": "Within-paired-seed difference of recurrent distal-minus-proximal effects under slow versus fast distal tau, computed separately in each delay bin.",
+  "delay_strata_in_aggregate_gate": false,
+  "delay_strata_inference": "descriptive_only_no_null_test"
+}

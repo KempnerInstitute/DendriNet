@@ -30,6 +30,10 @@ from dendritic_modeling.scripts.analysis.evaluate_dendritic_rnn_frozen_bank impo
     _sha256_json,
     evaluation_runtime_source_sha256,
 )
+from dendritic_modeling.scripts.experiments.dendritic_rnn_extreme_cube import (
+    _package_tree_sha256,
+    _tree_sha256,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 DEFAULT_CONFIG = (
@@ -59,6 +63,87 @@ def _utc_now() -> str:
 def _resolve(raw: str) -> Path:
     path = Path(raw)
     return path if path.is_absolute() else REPO_ROOT / path
+
+
+def _require_external_path(path: Path, *, repo_root: Path, label: str) -> Path:
+    """Require a v2 mutable artifact to live outside the source checkout."""
+
+    resolved = path.resolve()
+    source_root = repo_root.resolve()
+    if resolved == source_root or resolved.is_relative_to(source_root):
+        raise MechanismPilotEvaluationError(
+            f"{label} must be outside the source repository: {resolved}"
+        )
+    return resolved
+
+
+def _expected_sha256(path: Path, expected: str, *, label: str) -> None:
+    if not isinstance(expected, str) or len(expected) != 64:
+        raise MechanismPilotEvaluationError(f"Invalid expected {label} SHA-256")
+    try:
+        actual = _sha256(path.resolve(strict=True))
+    except FileNotFoundError as exc:
+        raise MechanismPilotEvaluationError(f"Missing {label}: {path}") from exc
+    if actual != expected:
+        raise MechanismPilotEvaluationError(f"{label} changed after submission")
+
+
+def _validated_source_snapshot(
+    config: dict[str, Any], manifest: dict[str, Any]
+) -> dict[str, Any] | None:
+    """Validate the immutable package and training-source hashes for v2."""
+
+    if config.get("study", {}).get("require_source_snapshot") is not True:
+        return None
+    snapshot = manifest.get("source_snapshot")
+    if not isinstance(snapshot, dict):
+        raise MechanismPilotEvaluationError(
+            "Training manifest lacks an immutable source snapshot"
+        )
+    raw_root = snapshot.get("root")
+    if not isinstance(raw_root, str) or not Path(raw_root).is_absolute():
+        raise MechanismPilotEvaluationError("Source snapshot root must be absolute")
+    try:
+        root = Path(raw_root).resolve(strict=True)
+    except FileNotFoundError as exc:
+        raise MechanismPilotEvaluationError(
+            f"Source snapshot is missing: {raw_root}"
+        ) from exc
+    if not root.is_dir() or not (root / "src/dendritic_modeling").is_dir():
+        raise MechanismPilotEvaluationError(
+            f"Source snapshot package is missing: {root}"
+        )
+    package_sha256 = _package_tree_sha256(root)
+    training_sha256 = _tree_sha256(root)
+    if package_sha256 != snapshot.get("package_sha256"):
+        raise MechanismPilotEvaluationError("Source snapshot package hash mismatch")
+    if training_sha256 != snapshot.get("training_runtime_source_sha256"):
+        raise MechanismPilotEvaluationError("Source snapshot training hash mismatch")
+    declared_training_sha256 = manifest.get("source", {}).get("training_source_sha256")
+    if declared_training_sha256 not in (None, training_sha256):
+        raise MechanismPilotEvaluationError(
+            "Manifest training-source hash differs from its source snapshot"
+        )
+    return {
+        **snapshot,
+        "root": str(root),
+        "package_sha256": package_sha256,
+        "training_runtime_source_sha256": training_sha256,
+    }
+
+
+def _require_running_from_snapshot(snapshot: dict[str, Any] | None) -> None:
+    if snapshot is None:
+        return
+    root = Path(str(snapshot["root"]))
+    expected = (
+        root / "src/dendritic_modeling/scripts/analysis/"
+        "evaluate_dendritic_rnn_mechanism_pilot.py"
+    ).resolve(strict=True)
+    if Path(__file__).resolve() != expected:
+        raise MechanismPilotEvaluationError(
+            "Snapshot-required evaluation was not imported from the frozen source"
+        )
 
 
 def _strict_json(path: Path) -> dict[str, Any]:
@@ -124,10 +209,47 @@ def load_config(path: Path = DEFAULT_CONFIG) -> tuple[dict[str, Any], Path]:
 
 
 def _manifest_groups(
-    config: dict[str, Any]
+    config: dict[str, Any],
 ) -> tuple[dict[str, Any], Path, dict[str, list[dict[str, Any]]]]:
     manifest_path = _resolve(config["study"]["training_manifest"]).resolve(strict=True)
     manifest = _strict_json(manifest_path)
+    snapshot = _validated_source_snapshot(config, manifest)
+    if snapshot is not None:
+        raw_repo_root = manifest.get("repo_root")
+        if not isinstance(raw_repo_root, str) or not Path(raw_repo_root).is_absolute():
+            raise MechanismPilotEvaluationError(
+                "Snapshot-required manifest lacks an absolute source repository root"
+            )
+        source_repo = Path(raw_repo_root)
+        _require_external_path(
+            manifest_path,
+            repo_root=source_repo,
+            label="training manifest",
+        )
+        output_root = Path(str(manifest.get("output_root", "")))
+        if not output_root.is_absolute():
+            raise MechanismPilotEvaluationError(
+                "Snapshot-required manifest output root must be absolute"
+            )
+        _require_external_path(
+            output_root,
+            repo_root=source_repo,
+            label="training output root",
+        )
+        for key, label in (
+            ("bank_root", "evaluation bank root"),
+            ("output_root", "evaluation output root"),
+        ):
+            configured_root = Path(str(config["study"].get(key, "")))
+            if not configured_root.is_absolute():
+                raise MechanismPilotEvaluationError(
+                    f"Snapshot-required {label} must be absolute"
+                )
+            _require_external_path(
+                configured_root,
+                repo_root=source_repo,
+                label=label,
+            )
     groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in manifest.get("runs", []):
         groups[str(row["pairing_group"])].append(dict(row))
@@ -176,7 +298,9 @@ def build_banks(config_path: Path = DEFAULT_CONFIG) -> dict[str, Any]:
     """Generate three immutable, seed-paired OOD banks before outcomes are read."""
 
     config, config_path = load_config(config_path)
-    _manifest, manifest_path, groups = _manifest_groups(config)
+    manifest, manifest_path, groups = _manifest_groups(config)
+    source_snapshot = _validated_source_snapshot(config, manifest)
+    _require_running_from_snapshot(source_snapshot)
     bank_contract = config["bank"]
     records = []
     for pairing_group, rows in groups.items():
@@ -260,6 +384,8 @@ def build_banks(config_path: Path = DEFAULT_CONFIG) -> dict[str, Any]:
             "training_manifest_sha256": _sha256(manifest_path),
             "pair_audit": "PASSED_EXACT",
         }
+        if source_snapshot is not None:
+            index["source_snapshot"] = source_snapshot
         _atomic_json(index_path, index, readonly=True)
         records.append(
             {
@@ -344,6 +470,9 @@ def run_one(
     pairing_group: str,
     expected_evaluator_sha256: str,
     expected_runtime_source_sha256: str,
+    expected_config_sha256: str,
+    expected_manifest_sha256: str,
+    expected_bank_index_sha256: str,
 ) -> dict[str, Any]:
     """Evaluate one paired quartet sequentially on a single GPU."""
 
@@ -351,10 +480,40 @@ def run_one(
         raise MechanismPilotEvaluationError("Evaluator changed after submission")
     if evaluation_runtime_source_sha256() != expected_runtime_source_sha256:
         raise MechanismPilotEvaluationError("Model runtime changed after submission")
+    config_path = config_path.resolve(strict=True)
+    _expected_sha256(config_path, expected_config_sha256, label="evaluation config")
     config, config_path = load_config(config_path)
-    _manifest, manifest_path, groups = _manifest_groups(config)
+    manifest_path = _resolve(config["study"]["training_manifest"])
+    _expected_sha256(manifest_path, expected_manifest_sha256, label="training manifest")
+    manifest, manifest_path, groups = _manifest_groups(config)
+    source_snapshot = _validated_source_snapshot(config, manifest)
+    _require_running_from_snapshot(source_snapshot)
     if pairing_group not in groups:
         raise MechanismPilotEvaluationError(f"Unknown pairing group: {pairing_group}")
+    expected_training_source_sha256 = (
+        source_snapshot["training_runtime_source_sha256"]
+        if source_snapshot is not None
+        else manifest.get("source", {}).get("training_source_sha256")
+    )
+    if not isinstance(expected_training_source_sha256, str):
+        raise MechanismPilotEvaluationError(
+            "Training manifest lacks its training-source hash"
+        )
+    for row in groups[pairing_group]:
+        run_dir = Path(row["output_dir"]).resolve()
+        marker = _strict_json((run_dir / "COMPLETE.json").resolve(strict=True))
+        if marker.get("state") != "COMPLETE" or marker.get("run_id") != row["run_id"]:
+            raise MechanismPilotEvaluationError(
+                f"Training marker mismatch: {row['run_id']}"
+            )
+        if marker.get("config_sha256") != row.get("config_sha256"):
+            raise MechanismPilotEvaluationError(
+                f"Training marker config hash mismatch: {row['run_id']}"
+            )
+        if marker.get("training_source_sha256") != expected_training_source_sha256:
+            raise MechanismPilotEvaluationError(
+                f"Training marker source hash mismatch: {row['run_id']}"
+            )
     expected_partition = config["resources"]["partition"]
     if os.environ.get("SLURM_JOB_PARTITION") != expected_partition:
         raise MechanismPilotEvaluationError("Evaluation ran on the wrong partition")
@@ -363,7 +522,21 @@ def run_one(
     gpu_name = torch.cuda.get_device_name(0)
     if "H100" not in gpu_name:
         raise MechanismPilotEvaluationError(f"Unexpected accelerator: {gpu_name}")
+    bank_index_path = _bank_paths(config, pairing_group)[1]
+    _expected_sha256(
+        bank_index_path,
+        expected_bank_index_sha256,
+        label=f"{pairing_group} bank index",
+    )
     index, bank = _load_bank(config, pairing_group)
+    if index.get("config_sha256") != expected_config_sha256:
+        raise MechanismPilotEvaluationError(
+            f"Bank index is bound to a different config: {pairing_group}"
+        )
+    if index.get("training_manifest_sha256") != expected_manifest_sha256:
+        raise MechanismPilotEvaluationError(
+            f"Bank index is bound to a different manifest: {pairing_group}"
+        )
     output_dir = _resolve(config["study"]["output_root"]) / pairing_group
     if output_dir.exists() and any(output_dir.iterdir()):
         raise MechanismPilotEvaluationError(
@@ -378,11 +551,6 @@ def run_one(
     }
     for row in groups[pairing_group]:
         run_dir = Path(row["output_dir"]).resolve()
-        marker = _strict_json((run_dir / "COMPLETE.json").resolve(strict=True))
-        if marker.get("state") != "COMPLETE" or marker.get("run_id") != row["run_id"]:
-            raise MechanismPilotEvaluationError(
-                f"Training marker mismatch: {row['run_id']}"
-            )
         checkpoint = (run_dir / "final_model.pt").resolve(strict=True)
         best_checkpoint = (run_dir / "main_network/standard_best_model.pt").resolve(
             strict=True
@@ -446,13 +614,14 @@ def run_one(
         "config": str(config_path),
         "config_sha256": _sha256(config_path),
         "training_manifest": str(manifest_path),
-        "training_manifest_sha256": _sha256(manifest_path),
+        "training_manifest_sha256": expected_manifest_sha256,
         "bank_index": str(_bank_paths(config, pairing_group)[1]),
-        "bank_index_sha256": _sha256(_bank_paths(config, pairing_group)[1]),
+        "bank_index_sha256": expected_bank_index_sha256,
         "bank_sha256": index["bank_sha256"],
         "predictions": str(prediction_path),
         "predictions_sha256": _sha256(prediction_path),
         "evaluation_runtime_source_sha256": expected_runtime_source_sha256,
+        "source_snapshot": source_snapshot,
         "device": {
             "name": gpu_name,
             "torch": torch.__version__,
@@ -471,98 +640,238 @@ def submit(
     """Submit three quartet evaluations with afterok dependencies."""
 
     config, config_path = load_config(config_path)
-    _manifest, _manifest_path, groups = _manifest_groups(config)
-    receipt_path = _resolve(config["study"]["training_receipt"]).resolve(strict=True)
-    receipt = _strict_json(receipt_path)
+    manifest, manifest_path, groups = _manifest_groups(config)
+    source_snapshot = _validated_source_snapshot(config, manifest)
+    require_snapshot = source_snapshot is not None
+    source_repo = Path(str(manifest.get("repo_root", REPO_ROOT))).resolve()
+    if require_snapshot:
+        _require_external_path(
+            config_path, repo_root=source_repo, label="evaluation config"
+        )
+    training_receipt_path = _resolve(config["study"]["training_receipt"]).resolve(
+        strict=True
+    )
+    if require_snapshot:
+        _require_external_path(
+            training_receipt_path,
+            repo_root=source_repo,
+            label="training receipt",
+        )
+    receipt = _strict_json(training_receipt_path)
+    manifest_sha256 = _sha256(manifest_path)
+    if require_snapshot:
+        if (
+            receipt.get("state") != "SUBMITTED"
+            or receipt.get("dry_run") is not False
+            or receipt.get("preflight") is not False
+        ):
+            raise MechanismPilotEvaluationError(
+                "Snapshot evaluation requires a finalized real training receipt"
+            )
+        if Path(str(receipt.get("manifest", ""))).resolve() != manifest_path:
+            raise MechanismPilotEvaluationError(
+                "Training receipt points to a different manifest"
+            )
+        if receipt.get("manifest_sha256") != manifest_sha256:
+            raise MechanismPilotEvaluationError(
+                "Training receipt manifest hash mismatch"
+            )
+    receipt_jobs = receipt.get("jobs", [])
+    if not isinstance(receipt_jobs, list):
+        raise MechanismPilotEvaluationError("Training receipt jobs are invalid")
     training_jobs = {
-        row["run_id"]: str(row["job_id"]) for row in receipt.get("jobs", [])
+        str(row.get("run_id")): str(row.get("job_id"))
+        for row in receipt_jobs
+        if isinstance(row, dict)
     }
     if set(training_jobs) != {
         row["run_id"] for rows in groups.values() for row in rows
-    }:
+    } or len(receipt_jobs) != len(training_jobs):
         raise MechanismPilotEvaluationError("Training receipt does not match manifest")
+    if any(not job_id.isdigit() for job_id in training_jobs.values()):
+        raise MechanismPilotEvaluationError(
+            "Training receipt contains a non-numeric Slurm job ID"
+        )
     resources = config["resources"]
     runtime = config["runtime"]
-    evaluator_sha256 = _sha256(Path(__file__).resolve())
-    runtime_sha256 = evaluation_runtime_source_sha256()
-    log_root = _resolve(config["study"]["output_root"]) / "_slurm"
-    log_root.mkdir(parents=True, exist_ok=True)
-    submitted = []
-    for pairing_group, rows in groups.items():
-        dependencies = ":".join(training_jobs[row["run_id"]] for row in rows)
-        runtime_argv = [
-            str(runtime["python"]),
-            "-m",
-            "dendritic_modeling.scripts.analysis.evaluate_dendritic_rnn_mechanism_pilot",
-            "run-one",
-            "--config",
-            str(config_path),
-            "--pairing-group",
-            pairing_group,
-            "--expected-evaluator-sha256",
-            evaluator_sha256,
-            "--expected-runtime-source-sha256",
-            runtime_sha256,
-        ]
-        wrapped = " && ".join(
-            [
-                f"cd {shlex.quote(str(REPO_ROOT))}",
-                f"export PYTHONPATH={shlex.quote(str(REPO_ROOT / 'src'))}",
-                shlex.join(runtime_argv),
-            ]
-        )
-        command = [
-            "sbatch",
-            "--parsable",
-            "--no-requeue",
-            f"--job-name=dendrnn-mpilot-eval-{pairing_group}",
-            f"--dependency=afterok:{dependencies}",
-            f"--partition={resources['partition']}",
-            f"--account={resources['account']}",
-            "--nodes=1",
-            "--ntasks=1",
-            f"--gres=gpu:{resources['gpu_type']}:{resources['gpus']}",
-            f"--cpus-per-task={resources['cpus_per_task']}",
-            f"--mem={resources['memory']}",
-            f"--time={resources['walltime']}",
-            f"--output={log_root}/%x_%j.out",
-            f"--error={log_root}/%x_%j.err",
-            f"--chdir={REPO_ROOT}",
-            f"--wrap={wrapped}",
-        ]
-        job_id = None
-        if not dry_run:
-            completed = subprocess.run(
-                command, check=True, capture_output=True, text=True
+    if require_snapshot:
+        runtime_root = Path(str(source_snapshot["root"]))
+        evaluator_path = (
+            runtime_root / "src/dendritic_modeling/scripts/analysis/"
+            "evaluate_dendritic_rnn_mechanism_pilot.py"
+        ).resolve(strict=True)
+        runtime_sha256 = evaluation_runtime_source_sha256(runtime_root)
+    else:
+        runtime_root = REPO_ROOT
+        evaluator_path = Path(__file__).resolve()
+        runtime_sha256 = evaluation_runtime_source_sha256()
+    evaluator_sha256 = _sha256(evaluator_path)
+    config_sha256 = _sha256(config_path)
+    output_root = _resolve(config["study"]["output_root"])
+    raw_log_root = config["study"].get("log_root")
+    log_root = (
+        _resolve(str(raw_log_root))
+        if raw_log_root is not None
+        else output_root / "_slurm"
+    )
+    if require_snapshot:
+        if raw_log_root is not None and not Path(str(raw_log_root)).is_absolute():
+            raise MechanismPilotEvaluationError(
+                "Snapshot-required log root must be absolute"
             )
-            job_id = completed.stdout.strip().split(";", 1)[0]
-        submitted.append(
-            {
-                "pairing_group": pairing_group,
-                "job_id": job_id,
-                "dependencies": dependencies.split(":"),
-                "command": command,
-            }
+        _require_external_path(log_root, repo_root=source_repo, label="log root")
+    log_root.mkdir(parents=True, exist_ok=True)
+    if require_snapshot and not os.access(log_root, os.W_OK):
+        raise MechanismPilotEvaluationError(f"Log root is not writable: {log_root}")
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    raw_evaluation_receipt = config["study"].get("evaluation_receipt")
+    if raw_evaluation_receipt is not None:
+        if require_snapshot and not Path(str(raw_evaluation_receipt)).is_absolute():
+            raise MechanismPilotEvaluationError(
+                "Snapshot-required evaluation receipt must be absolute"
+            )
+        evaluation_receipt_path = _resolve(str(raw_evaluation_receipt))
+    else:
+        evaluation_receipt_path = output_root / "_launch" / f"submission_{stamp}.json"
+    if require_snapshot:
+        _require_external_path(
+            evaluation_receipt_path,
+            repo_root=source_repo,
+            label="evaluation receipt",
         )
-    result = {
+    if not dry_run and evaluation_receipt_path.exists():
+        raise MechanismPilotEvaluationError(
+            f"Refusing to overwrite evaluation receipt: {evaluation_receipt_path}"
+        )
+
+    result: dict[str, Any] = {
         "schema_version": RECEIPT_SCHEMA,
         "created_utc": _utc_now(),
+        "state": "DRY_RUN" if dry_run else "SUBMITTING",
         "config": str(config_path),
-        "config_sha256": _sha256(config_path),
+        "config_sha256": config_sha256,
+        "training_manifest": str(manifest_path),
+        "training_manifest_sha256": manifest_sha256,
+        "training_receipt": str(training_receipt_path),
+        "training_receipt_sha256": _sha256(training_receipt_path),
         "evaluator_sha256": evaluator_sha256,
         "runtime_source_sha256": runtime_sha256,
+        "source_snapshot": source_snapshot,
+        "runtime_root": str(runtime_root),
         "dry_run": dry_run,
-        "jobs": submitted,
+        "jobs": [],
     }
     if not dry_run:
-        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        output = (
-            _resolve(config["study"]["output_root"])
-            / "_launch"
-            / f"submission_{stamp}.json"
-        )
-        _atomic_json(output, result, readonly=True)
-        result["receipt"] = str(output)
+        result["receipt"] = str(evaluation_receipt_path)
+        _atomic_json(evaluation_receipt_path, result, readonly=False)
+
+    try:
+        for pairing_group, rows in groups.items():
+            dependencies = ":".join(training_jobs[row["run_id"]] for row in rows)
+            bank_index_path = _bank_paths(config, pairing_group)[1].resolve(strict=True)
+            bank_index_sha256 = _sha256(bank_index_path)
+            runtime_argv = [
+                str(runtime["python"]),
+                "-m",
+                "dendritic_modeling.scripts.analysis.evaluate_dendritic_rnn_mechanism_pilot",
+                "run-one",
+                "--config",
+                str(config_path),
+                "--pairing-group",
+                pairing_group,
+                "--expected-evaluator-sha256",
+                evaluator_sha256,
+                "--expected-runtime-source-sha256",
+                runtime_sha256,
+                "--expected-config-sha256",
+                config_sha256,
+                "--expected-manifest-sha256",
+                manifest_sha256,
+                "--expected-bank-index-sha256",
+                bank_index_sha256,
+            ]
+            environment_commands = []
+            if require_snapshot:
+                runtime_log_dir = log_root / "runtime" / pairing_group
+                if not dry_run:
+                    runtime_log_dir.mkdir(parents=True, exist_ok=True)
+                environment_commands.extend(
+                    [
+                        "export PYTHONDONTWRITEBYTECODE=1",
+                        "export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK:-1}",
+                        "export MKL_NUM_THREADS=${SLURM_CPUS_PER_TASK:-1}",
+                        "export DENDRITIC_LOG_DIR=" + shlex.quote(str(runtime_log_dir)),
+                    ]
+                )
+            environment_commands.append(
+                f"export PYTHONPATH={shlex.quote(str(runtime_root / 'src'))}"
+            )
+            wrapped = " && ".join(
+                [
+                    f"cd {shlex.quote(str(runtime_root))}",
+                    *environment_commands,
+                    shlex.join(runtime_argv),
+                ]
+            )
+            command = [
+                "sbatch",
+                "--parsable",
+                "--no-requeue",
+                f"--job-name=dendrnn-mpilot-eval-{pairing_group}",
+                f"--dependency=afterok:{dependencies}",
+                f"--partition={resources['partition']}",
+                f"--account={resources['account']}",
+                "--nodes=1",
+                "--ntasks=1",
+                f"--gres=gpu:{resources['gpu_type']}:{resources['gpus']}",
+                f"--cpus-per-task={resources['cpus_per_task']}",
+                f"--mem={resources['memory']}",
+                f"--time={resources['walltime']}",
+                f"--output={log_root}/%x_%j.out",
+                f"--error={log_root}/%x_%j.err",
+                f"--chdir={runtime_root}",
+                f"--wrap={wrapped}",
+            ]
+            job_id = None
+            if not dry_run:
+                completed = subprocess.run(
+                    command, check=True, capture_output=True, text=True
+                )
+                job_id = completed.stdout.strip().split(";", 1)[0]
+                if not job_id.isdigit():
+                    raise MechanismPilotEvaluationError(
+                        f"Unexpected sbatch job ID: {job_id!r}"
+                    )
+            result["jobs"].append(
+                {
+                    "pairing_group": pairing_group,
+                    "job_id": job_id,
+                    "dependencies": dependencies.split(":"),
+                    "bank_index": str(bank_index_path),
+                    "bank_index_sha256": bank_index_sha256,
+                    "command": command,
+                }
+            )
+            if not dry_run:
+                result["updated_utc"] = _utc_now()
+                _atomic_json(evaluation_receipt_path, result, readonly=False)
+    except Exception as exc:
+        if not dry_run:
+            result.update(
+                {
+                    "state": "SUBMISSION_FAILED",
+                    "finished_utc": _utc_now(),
+                    "error_type": type(exc).__name__,
+                    "error": str(exc),
+                }
+            )
+            _atomic_json(evaluation_receipt_path, result, readonly=True)
+        raise
+
+    if not dry_run:
+        result["state"] = "SUBMITTED"
+        result["finished_utc"] = _utc_now()
+        _atomic_json(evaluation_receipt_path, result, readonly=True)
     return result
 
 
@@ -579,6 +888,9 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--pairing-group", choices=("r000", "r001", "r002"), required=True)
     run.add_argument("--expected-evaluator-sha256", required=True)
     run.add_argument("--expected-runtime-source-sha256", required=True)
+    run.add_argument("--expected-config-sha256", required=True)
+    run.add_argument("--expected-manifest-sha256", required=True)
+    run.add_argument("--expected-bank-index-sha256", required=True)
     return parser
 
 
@@ -594,6 +906,9 @@ def main() -> None:
             pairing_group=args.pairing_group,
             expected_evaluator_sha256=args.expected_evaluator_sha256,
             expected_runtime_source_sha256=args.expected_runtime_source_sha256,
+            expected_config_sha256=args.expected_config_sha256,
+            expected_manifest_sha256=args.expected_manifest_sha256,
+            expected_bank_index_sha256=args.expected_bank_index_sha256,
         )
     print(json.dumps(result, indent=2, sort_keys=True))
 

@@ -1,0 +1,21 @@
+{
+  "schema_version": "dendritic-rnn-mechanism-pilot-runtime-equivalence-audit-v1",
+  "audit_date_utc": "2026-07-23",
+  "scope": "Invalid v1 training runtime versus the v2 rerun runtime",
+  "v1_training_runtime_sha256": "8d2ea7c620201d6039cb50133df002f2dbc58d72da01513d1f5c33471c49c4c0",
+  "v1_exact_dirty_source_recoverable": false,
+  "v2_hash_status": "Bound at v2 materialization in the immutable manifest",
+  "reviewed_commit_range": "bfbd93b4..c39fa57987e5f5f702274482bdd9a7a6c9e3382b",
+  "training_root_changes": [
+    "Optional credit/DeepST-synapse strategy plumbing",
+    "Validate-only early-exit behavior"
+  ],
+  "pilot_path_audit": {
+    "topk_strategy": "none",
+    "blocklinear_strategy": "none",
+    "synapse_types": {},
+    "pruning_enabled": false,
+    "validate_only_during_training": false,
+    "conclusion": "New optional strategy paths are not selected and the non-validation training control flow is unchanged. The v2 rerun is scientifically protocol-equivalent but is not claimed to be bit-identical to the unrecoverable v1 dirty tree."
+  }
+}

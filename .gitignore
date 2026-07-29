@@ -96,7 +96,8 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/
-
+artifacts/
+local_sweep_runs/
 # Filesystem mount points - prevent accidental inclusion of cluster filesystem
 n/
 

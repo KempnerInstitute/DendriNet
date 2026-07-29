@@ -12,6 +12,7 @@ import argparse
 import copy
 import json
 import shlex
+import shutil
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -24,6 +25,8 @@ from dendritic_modeling.scripts.experiments.dendritic_rnn_extreme_cube import (
     SEED_FIELDS,
     _atomic_json,
     _git_metadata,
+    _materialize_source_snapshot,
+    _package_tree_sha256,
     _plain_yaml,
     _runtime_gpu_metadata,
     _sha256,
@@ -103,6 +106,15 @@ def _load_matrix(path: Path) -> tuple[dict[str, Any], Path]:
         != EXPECTED_RECURRENT_CONTACTS
     ):
         raise ValueError("Pilot claim or matching contract changed")
+    run_prefix = str(matrix.get("run_prefix", "mechanism-pilot"))
+    if not run_prefix or "/" in run_prefix or "\\" in run_prefix:
+        raise ValueError("run_prefix must be a non-empty path-safe name")
+    isolation = matrix.get("runtime_isolation", {})
+    if isolation and (
+        isolation.get("immutable_source_snapshot") is not True
+        or isolation.get("frozen_protocol_inputs") is not True
+    ):
+        raise ValueError("Runtime-isolated pilots require frozen source and protocol")
     return matrix, path
 
 
@@ -124,9 +136,10 @@ def _materialized_config(
     replicate: dict[str, Any],
     condition: dict[str, Any],
     output_root: Path,
+    run_prefix: str,
 ) -> tuple[str, dict[str, Any]]:
     config = copy.deepcopy(base)
-    run_id = f"mechanism-pilot-{replicate['replicate']}-{condition['name']}"
+    run_id = f"{run_prefix}-{replicate['replicate']}-{condition['name']}"
     run_dir = output_root / run_id
     for field in SEED_FIELDS:
         config["experiment"][field] = int(replicate[field])
@@ -153,16 +166,84 @@ def _materialized_config(
     return run_id, config
 
 
+def _resolve_output_root(matrix: dict[str, Any], results_root: Path | None) -> Path:
+    raw = results_root or Path(str(matrix["output_root"]))
+    output_root = raw.resolve() if raw.is_absolute() else (REPO_ROOT / raw).resolve()
+    isolation = matrix.get("runtime_isolation", {})
+    if isolation.get("require_external_output_root"):
+        if output_root == REPO_ROOT or output_root.is_relative_to(REPO_ROOT):
+            raise ValueError(
+                "Protected pilot output root must be outside the repository"
+            )
+        output_text = str(output_root)
+        forbidden = tuple(isolation.get("forbidden_output_path_tokens", ()))
+        if any(token in output_text for token in forbidden):
+            raise ValueError(
+                f"Protected pilot output uses a forbidden path: {output_root}"
+            )
+    return output_root
+
+
+def _freeze_protocol_input(source: Path, destination: Path) -> dict[str, str]:
+    """Copy one protocol input atomically and make the copy read-only."""
+
+    source = source.resolve(strict=True)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if destination.exists():
+        if _sha256(destination) != _sha256(source):
+            raise RuntimeError(f"Frozen protocol input changed: {destination}")
+    else:
+        temporary = destination.with_name(f".{destination.name}.tmp")
+        shutil.copy2(source, temporary)
+        temporary.replace(destination)
+        destination.chmod(0o444)
+    return {"path": str(destination), "sha256": _sha256(destination)}
+
+
 def materialize(
-    *, matrix_path: Path = DEFAULT_MATRIX, generated_dir: Path = DEFAULT_GENERATED
+    *,
+    matrix_path: Path = DEFAULT_MATRIX,
+    generated_dir: Path = DEFAULT_GENERATED,
+    results_root: Path | None = None,
 ) -> Path:
     """Materialize twelve standalone standard training YAMLs."""
 
     matrix, matrix_path = _load_matrix(matrix_path)
     base, base_path = _merge_base(matrix)
-    output_root = (REPO_ROOT / str(matrix["output_root"])).resolve()
+    output_root = _resolve_output_root(matrix, results_root)
     generated_dir = generated_dir.resolve()
     generated_dir.mkdir(parents=True, exist_ok=True)
+    source_snapshot = _materialize_source_snapshot(output_root)
+    source_metadata = _git_metadata()
+    if (
+        source_snapshot["training_runtime_source_sha256"]
+        != source_metadata["training_source_sha256"]
+    ):
+        raise RuntimeError("Frozen training source differs from the live source")
+    protocol_input_root = output_root / "_protocol" / "inputs"
+    frozen_matrix = _freeze_protocol_input(
+        matrix_path, protocol_input_root / "matrix.yaml"
+    )
+    frozen_base = _freeze_protocol_input(base_path, protocol_input_root / "base.yaml")
+    frozen_protocol_inputs: dict[str, dict[str, str]] = {}
+    for name, specification in matrix.get("protocol_inputs", {}).items():
+        if not isinstance(specification, dict):
+            raise ValueError(f"Invalid protocol input specification: {name}")
+        protocol_source = Path(str(specification.get("source", "")))
+        if not protocol_source.is_absolute():
+            protocol_source = REPO_ROOT / protocol_source
+        destination_name = str(specification.get("destination", ""))
+        destination = Path(destination_name)
+        if (
+            not destination_name
+            or destination.is_absolute()
+            or len(destination.parts) != 1
+        ):
+            raise ValueError(f"Invalid protocol input destination: {name}")
+        frozen_protocol_inputs[str(name)] = _freeze_protocol_input(
+            protocol_source, output_root / "_protocol" / destination
+        )
+    run_prefix = str(matrix.get("run_prefix", "mechanism-pilot"))
     runs = []
     for replicate in matrix["replicates"]:
         for condition in matrix["conditions"]:
@@ -171,9 +252,15 @@ def materialize(
                 replicate=replicate,
                 condition=condition,
                 output_root=output_root,
+                run_prefix=run_prefix,
             )
             config_path = generated_dir / f"{run_id}.yaml"
+            if config_path.exists():
+                raise RuntimeError(
+                    f"Refusing to overwrite frozen config: {config_path}"
+                )
             OmegaConf.save(OmegaConf.create(config), config_path)
+            config_path.chmod(0o444)
             runs.append(
                 {
                     "index": len(runs),
@@ -191,17 +278,27 @@ def materialize(
         "experiment_id": matrix["experiment_id"],
         "created_utc": _utc_now(),
         "repo_root": str(REPO_ROOT),
-        "matrix_config": {"path": str(matrix_path), "sha256": _sha256(matrix_path)},
-        "base_config": {"path": str(base_path), "sha256": _sha256(base_path)},
+        "matrix_config": frozen_matrix,
+        "base_config": frozen_base,
+        "canonical_inputs": {
+            "matrix": {"path": str(matrix_path), "sha256": _sha256(matrix_path)},
+            "base": {"path": str(base_path), "sha256": _sha256(base_path)},
+        },
+        "protocol_inputs": frozen_protocol_inputs,
         "output_root": str(output_root),
         "design": matrix["design"],
         "runtime": matrix["runtime"],
         "scheduler": matrix["scheduler"],
-        "source": _git_metadata(),
+        "source": source_metadata,
+        "source_snapshot": source_snapshot,
+        "training_receipt_path": matrix.get("training_receipt_path"),
         "runs": runs,
     }
     manifest_path = generated_dir / "manifest.json"
+    if manifest_path.exists():
+        raise RuntimeError(f"Refusing to overwrite frozen manifest: {manifest_path}")
     _atomic_json(manifest_path, manifest)
+    manifest_path.chmod(0o444)
     return manifest_path
 
 
@@ -214,15 +311,52 @@ def validate_manifest(manifest_path: Path) -> dict[str, Any]:
     manifest = json.loads(manifest_path.read_text())
     if manifest.get("schema_version") != MANIFEST_SCHEMA:
         raise ValueError("Unsupported mechanism-pilot manifest")
+    output_root = Path(str(manifest["output_root"])).resolve()
+    source_snapshot = manifest.get("source_snapshot")
+    if not isinstance(source_snapshot, dict):
+        raise ValueError("Manifest lacks an immutable source snapshot")
+    snapshot_root = Path(str(source_snapshot.get("root", ""))).resolve()
+    if not snapshot_root.is_dir():
+        raise ValueError(f"Source snapshot is missing: {snapshot_root}")
+    package_sha256 = _package_tree_sha256(snapshot_root)
+    training_sha256 = _tree_sha256(snapshot_root)
+    if package_sha256 != source_snapshot.get("package_sha256"):
+        raise ValueError("Source snapshot package hash changed")
+    if training_sha256 != source_snapshot.get("training_runtime_source_sha256"):
+        raise ValueError("Source snapshot training hash changed")
+    if training_sha256 != manifest.get("source", {}).get("training_source_sha256"):
+        raise ValueError("Live and frozen training hashes differed at materialization")
+    for label in ("matrix_config", "base_config"):
+        frozen = manifest.get(label, {})
+        frozen_path = Path(str(frozen.get("path", ""))).resolve()
+        if not frozen_path.is_file() or _sha256(frozen_path) != frozen.get("sha256"):
+            raise ValueError(f"Frozen {label} changed: {frozen_path}")
+    for label, frozen in manifest.get("protocol_inputs", {}).items():
+        frozen_path = Path(str(frozen.get("path", ""))).resolve()
+        if not frozen_path.is_file() or _sha256(frozen_path) != frozen.get("sha256"):
+            raise ValueError(f"Frozen protocol input changed: {label}")
     matrix, _ = _load_matrix(Path(manifest["matrix_config"]["path"]))
+    isolation = matrix.get("runtime_isolation", {})
+    if isolation.get("require_external_output_root"):
+        if output_root == REPO_ROOT or output_root.is_relative_to(REPO_ROOT):
+            raise ValueError("Protected pilot output root is inside the repository")
+        if snapshot_root != Path(str(source_snapshot["root"])).resolve():
+            raise ValueError("Invalid source snapshot root")
+        if not snapshot_root.is_relative_to(output_root / "_runtime"):
+            raise ValueError("Source snapshot is outside the protected output root")
     if len(manifest.get("runs", [])) != 12:
         raise ValueError("Mechanism-pilot manifest must contain twelve runs")
     paired: dict[str, list[dict[str, Any]]] = {}
     signatures: dict[str, dict[str, Any]] = {}
     for row in manifest["runs"]:
-        path = Path(row["config"])
+        path = Path(row["config"]).resolve()
         if not path.is_file() or _sha256(path) != row["config_sha256"]:
             raise ValueError(f"Generated config changed: {path}")
+        if isolation.get("frozen_protocol_inputs") and path.stat().st_mode & 0o222:
+            raise ValueError(f"Generated config is writable: {path}")
+        row_output = Path(str(row["output_dir"])).resolve()
+        if row_output.parent != output_root:
+            raise ValueError(f"Run output escaped the protected root: {row_output}")
         raw = _plain_yaml(path)
         typed = load_config(str(path))
         if (
@@ -276,7 +410,9 @@ def validate_manifest(manifest_path: Path) -> dict[str, Any]:
         "standard_configs_valid": True,
         "contact_matching": "PASSED_EXACT",
         "soma_tau_fixed": "PASSED",
-        "training_source_sha256": manifest["source"]["training_source_sha256"],
+        "source_snapshot": str(snapshot_root),
+        "package_sha256": package_sha256,
+        "training_source_sha256": training_sha256,
     }
 
 
@@ -304,7 +440,11 @@ def _sbatch_command(
     route = _route(manifest, route_name, allow_h200=allow_h200)
     resources = manifest["scheduler"]["resources"]
     logs = Path(manifest["output_root"]) / "_slurm"
+    runtime_logs = Path(manifest["output_root"]) / "_runtime_logs" / "training"
     logs.mkdir(parents=True, exist_ok=True)
+    runtime_logs.mkdir(parents=True, exist_ok=True)
+    source_snapshot = manifest["source_snapshot"]
+    snapshot_root = Path(str(source_snapshot["root"])).resolve()
     job_name = (
         f"dendrnn-mpilot-pre-{row['condition'][:18]}"
         if validate_only
@@ -322,7 +462,13 @@ def _sbatch_command(
         "--expected-gpu-type",
         str(route["gpu_type"]),
         "--expected-source-sha256",
-        str(manifest["source"]["training_source_sha256"]),
+        str(source_snapshot["training_runtime_source_sha256"]),
+        "--expected-package-sha256",
+        str(source_snapshot["package_sha256"]),
+        "--expected-source-root",
+        str(snapshot_root),
+        "--expected-config-sha256",
+        str(row["config_sha256"]),
     ]
     if validate_only:
         if output_dir is None:
@@ -330,8 +476,13 @@ def _sbatch_command(
         runtime.extend(["--validate-only", "--output-dir", str(output_dir)])
     wrapped = " && ".join(
         [
-            f"cd {shlex.quote(str(REPO_ROOT))}",
-            "export PYTHONPATH=" + shlex.quote(str(REPO_ROOT / "src")),
+            f"cd {shlex.quote(str(snapshot_root))}",
+            "export PYTHONPATH=" + shlex.quote(str(snapshot_root / "src")),
+            "export PYTHONDONTWRITEBYTECODE=1",
+            "export OMP_NUM_THREADS=1",
+            "export DENDRITIC_LOG_DIR="
+            + shlex.quote(str(runtime_logs))
+            + "/${SLURM_JOB_ID}",
             shlex.join(runtime),
         ]
     )
@@ -353,7 +504,8 @@ def _sbatch_command(
         f"--time={walltime}",
         f"--output={logs}/%x_%j.out",
         f"--error={logs}/%x_%j.err",
-        f"--chdir={REPO_ROOT}",
+        f"--chdir={snapshot_root}",
+        f"--comment={manifest['experiment_id']}:{row['run_id']}",
         f"--wrap={wrapped}",
     ]
 
@@ -369,6 +521,7 @@ def submit(
     """Submit all runs or the first seed's four validate-only preflights."""
 
     validate_manifest(manifest_path)
+    manifest_path = manifest_path.resolve(strict=True)
     manifest = json.loads(manifest_path.read_text())
     selected = (
         [row for row in manifest["runs"] if row["pairing_group"] == "r000"]
@@ -377,6 +530,36 @@ def submit(
     )
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     submitted = []
+    receipt = {
+        "schema_version": RECEIPT_SCHEMA,
+        "created_utc": _utc_now(),
+        "manifest": str(manifest_path),
+        "manifest_sha256": _sha256(manifest_path),
+        "source_snapshot": manifest["source_snapshot"],
+        "route": route_name,
+        "preflight": preflight,
+        "dry_run": dry_run,
+        "state": "DRY_RUN" if dry_run else "SUBMITTING",
+        "jobs": submitted,
+    }
+    receipt_path: Path | None = None
+    if not dry_run:
+        configured_receipt = manifest.get("training_receipt_path")
+        if not preflight and configured_receipt:
+            configured_path = Path(str(configured_receipt))
+            if not configured_path.is_absolute():
+                raise ValueError("Configured training receipt must be absolute")
+            receipt_path = configured_path.resolve()
+        else:
+            kind = "preflight" if preflight else "training"
+            receipt_path = (
+                Path(manifest["output_root"])
+                / "_launch"
+                / f"{kind}_submission_{stamp}.json"
+            )
+        if receipt_path.exists():
+            raise RuntimeError(f"Refusing to overwrite launch receipt: {receipt_path}")
+        _atomic_json(receipt_path, receipt)
     for row in selected:
         output_dir = (
             Path(manifest["output_root"]) / "_preflight" / stamp / row["condition"]
@@ -397,8 +580,19 @@ def submit(
         )
         job_id = None
         if not dry_run:
-            result = subprocess.run(command, check=True, capture_output=True, text=True)
-            job_id = result.stdout.strip().split(";", 1)[0]
+            try:
+                result = subprocess.run(
+                    command, check=True, capture_output=True, text=True
+                )
+                job_id = result.stdout.strip().split(";", 1)[0]
+                if not job_id.isdigit():
+                    raise RuntimeError(f"Invalid sbatch job ID: {job_id!r}")
+            except Exception as exc:
+                receipt["state"] = "SUBMISSION_FAILED"
+                receipt["error"] = f"{type(exc).__name__}: {exc}"
+                if receipt_path is not None:
+                    _atomic_json(receipt_path, receipt)
+                raise
         submitted.append(
             {
                 "run_id": row["run_id"],
@@ -408,24 +602,13 @@ def submit(
                 "command": command,
             }
         )
-    receipt = {
-        "schema_version": RECEIPT_SCHEMA,
-        "created_utc": _utc_now(),
-        "manifest": str(manifest_path.resolve()),
-        "manifest_sha256": _sha256(manifest_path),
-        "route": route_name,
-        "preflight": preflight,
-        "dry_run": dry_run,
-        "jobs": submitted,
-    }
-    if not dry_run:
-        kind = "preflight" if preflight else "training"
-        receipt_path = (
-            Path(manifest["output_root"])
-            / "_launch"
-            / f"{kind}_submission_{stamp}.json"
-        )
+        if receipt_path is not None:
+            _atomic_json(receipt_path, receipt)
+    if receipt_path is not None:
+        receipt["state"] = "SUBMITTED"
+        receipt["finished_utc"] = _utc_now()
         _atomic_json(receipt_path, receipt)
+        receipt_path.chmod(0o444)
         receipt["receipt"] = str(receipt_path)
     return receipt
 
@@ -436,6 +619,9 @@ def run_one(
     expected_partition: str,
     expected_gpu_type: str,
     expected_source_sha256: str,
+    expected_package_sha256: str,
+    expected_source_root: Path,
+    expected_config_sha256: str,
     validate_only: bool,
     output_dir: Path | None,
 ) -> None:
@@ -445,8 +631,18 @@ def run_one(
         run_one as standard_run_one,
     )
 
+    config_path = config_path.resolve(strict=True)
+    expected_source_root = expected_source_root.resolve(strict=True)
+    if REPO_ROOT.resolve() != expected_source_root:
+        raise RuntimeError(
+            f"Pilot imported from {REPO_ROOT}, expected {expected_source_root}"
+        )
+    if _package_tree_sha256() != expected_package_sha256:
+        raise RuntimeError("Runtime source snapshot package changed")
     if _tree_sha256() != expected_source_sha256:
         raise RuntimeError("Training source changed after pilot materialization")
+    if _sha256(config_path) != expected_config_sha256:
+        raise RuntimeError("Training config changed after pilot materialization")
     _runtime_gpu_metadata(expected_gpu_type)
     standard_run_one(
         config_path=config_path,
@@ -466,6 +662,7 @@ def _parser() -> argparse.ArgumentParser:
     materialize_parser.add_argument(
         "--generated-dir", type=Path, default=DEFAULT_GENERATED
     )
+    materialize_parser.add_argument("--results-root", type=Path)
     validate_parser = subparsers.add_parser("validate")
     validate_parser.add_argument(
         "--manifest", type=Path, default=DEFAULT_GENERATED / "manifest.json"
@@ -487,6 +684,9 @@ def _parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--expected-partition", required=True)
     run_parser.add_argument("--expected-gpu-type", required=True)
     run_parser.add_argument("--expected-source-sha256", required=True)
+    run_parser.add_argument("--expected-package-sha256", required=True)
+    run_parser.add_argument("--expected-source-root", type=Path, required=True)
+    run_parser.add_argument("--expected-config-sha256", required=True)
     run_parser.add_argument("--validate-only", action="store_true")
     run_parser.add_argument("--output-dir", type=Path)
     return parser
@@ -497,7 +697,11 @@ def main() -> None:
     if args.command == "materialize":
         result: Any = {
             "manifest": str(
-                materialize(matrix_path=args.matrix, generated_dir=args.generated_dir)
+                materialize(
+                    matrix_path=args.matrix,
+                    generated_dir=args.generated_dir,
+                    results_root=args.results_root,
+                )
             )
         }
     elif args.command == "validate":
@@ -516,6 +720,9 @@ def main() -> None:
             expected_partition=args.expected_partition,
             expected_gpu_type=args.expected_gpu_type,
             expected_source_sha256=args.expected_source_sha256,
+            expected_package_sha256=args.expected_package_sha256,
+            expected_source_root=args.expected_source_root,
+            expected_config_sha256=args.expected_config_sha256,
             validate_only=args.validate_only,
             output_dir=args.output_dir,
         )
