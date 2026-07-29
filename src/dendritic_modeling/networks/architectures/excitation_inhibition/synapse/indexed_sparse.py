@@ -102,6 +102,7 @@ class IndexedSparseLinear(nn.Module):
                 K=self.K,
                 connection_mask=allowed_connection_mask,
                 generator=generator,
+                row_chunk_size=self.output_chunk_size,
             )
         else:
             connection_indices = torch.as_tensor(connection_indices, dtype=torch.long)

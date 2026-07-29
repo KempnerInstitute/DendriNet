@@ -26,6 +26,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.b
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
     TopKLinear,
 )
+from dendritic_modeling.networks.architectures.factory import get_architecture
 from dendritic_modeling.scripts.training.train_experiments_fsdp import (
     _build_fsdp_runtime_configs,
     _create_fsdp_trainer,
@@ -59,6 +60,7 @@ from dendritic_modeling.training.strategies.fsdp_standard import (
     FSDPTrainer,
     _iter_modules_by_class_name,
     _iter_reactivation_parameter_candidates,
+    _sequence_lengths_from_batch,
 )
 
 
@@ -218,6 +220,41 @@ def test_resolve_large_model_input_dim_preserves_existing_mapping(
     data_config = SimpleNamespace(dataset_name=dataset_name, processing=processing)
 
     assert _resolve_large_model_input_dim(data_config) == expected
+
+
+def test_resolve_large_model_input_dim_honors_explicit_sequence_width():
+    data_config = SimpleNamespace(dataset_name="romo_delay_comparison_positive")
+    model_config = SimpleNamespace(
+        encoder=SimpleNamespace(params=SimpleNamespace(input_dim=11))
+    )
+
+    assert _resolve_large_model_input_dim(data_config, model_config) == 11
+
+
+def test_sequence_lengths_from_recurrent_batch():
+    x_batch = torch.zeros(3, 7, 4)
+    lengths = torch.tensor([7, 5, 6])
+
+    resolved = _sequence_lengths_from_batch(
+        (x_batch, torch.zeros(3), lengths),
+        x_batch=x_batch,
+        device=torch.device("cpu"),
+    )
+
+    torch.testing.assert_close(resolved, lengths)
+
+
+def test_sequence_lengths_ignores_nonsequence_metadata():
+    x_batch = torch.zeros(3, 4)
+
+    assert (
+        _sequence_lengths_from_batch(
+            (x_batch, torch.zeros(3), torch.arange(3)),
+            x_batch=x_batch,
+            device=torch.device("cpu"),
+        )
+        is None
+    )
 
 
 def test_fsdp_dataloader_kwargs_reject_invalid_persistent_workers():
@@ -626,6 +663,21 @@ def test_print_rank0_model_summary_falls_back_without_sample(monkeypatch):
     assert calls == [(model, None)]
 
 
+def test_parameter_summary_skips_torchinfo_for_sequence_input(monkeypatch):
+    model = nn.Linear(4, 2)
+    summary_calls = []
+    monkeypatch.setattr(fsdp_script, "TORCHINFO_AVAILABLE", True)
+    monkeypatch.setattr(
+        fsdp_script.torchinfo,
+        "summary",
+        lambda *args, **kwargs: summary_calls.append((args, kwargs)),
+    )
+
+    fsdp_script.print_model_parameter_summary(model, torch.zeros(7, 4))
+
+    assert summary_calls == []
+
+
 def test_build_fsdp_runtime_configs_uses_typed_config_values(monkeypatch):
     """FSDP runtime config assembly should preserve typed config values."""
     fsdp_config = object()
@@ -827,7 +879,12 @@ def test_create_fsdp_trainer_preserves_rank0_custom_kwargs(monkeypatch):
         print_every=2,
         plot_losses=True,
     )
-    config = SimpleNamespace(experiment=SimpleNamespace(seed="42"))
+    config = SimpleNamespace(
+        experiment=SimpleNamespace(
+            seed="42",
+            checkpointing={"enabled": True, "save_every_n_epochs": 3},
+        )
+    )
 
     monkeypatch.setattr(fsdp_script, "FSDPTrainer", FSDPTrainerStub)
 
@@ -860,7 +917,7 @@ def test_create_fsdp_trainer_preserves_rank0_custom_kwargs(monkeypatch):
         "early_stopping": True,
         "patience": 4,
         "print_every": 2,
-        "save_checkpoints": True,
+        "checkpointing": True,
         "plot_losses": True,
         "save_path": "/tmp/run",
         "seed": 42,
@@ -912,7 +969,7 @@ def test_create_fsdp_trainer_preserves_non_rank0_defaults(monkeypatch):
         "early_stopping": False,
         "patience": 10,
         "print_every": 1,
-        "save_checkpoints": True,
+        "checkpointing": False,
         "plot_losses": False,
         "save_path": None,
         "seed": 9,
@@ -991,10 +1048,15 @@ def test_save_final_fsdp_checkpoint_and_run_analysis_rank0(monkeypatch):
     """FSDP finalization should save a full checkpoint and run analysis on rank 0."""
     fsdp_model = object()
     optimizer = object()
-    config = object()
+    config = SimpleNamespace(analysis=SimpleNamespace(any_enabled=lambda: True))
     analysis_manager = object()
     encoder_network = object()
-    trainer = SimpleNamespace(fsdp_model=fsdp_model, optimizer=optimizer, epochs=7)
+    trainer = SimpleNamespace(
+        fsdp_model=fsdp_model,
+        optimizer=optimizer,
+        epochs=7,
+        last_completed_epoch=4,
+    )
     mkdir_calls = []
     checkpoint_calls = []
     analysis_calls = []
@@ -1036,7 +1098,7 @@ def test_save_final_fsdp_checkpoint_and_run_analysis_rank0(monkeypatch):
             "args": (
                 fsdp_model,
                 optimizer,
-                6,
+                4,
                 "/tmp/run/checkpoints/final_full.pt",
             ),
             "kwargs": {"rank": 0},
@@ -1087,7 +1149,7 @@ def test_save_final_fsdp_checkpoint_and_run_analysis_non_rank0(monkeypatch):
         rank=1,
         trainer=trainer,
         run_save_path=None,
-        config=object(),
+        config=SimpleNamespace(analysis=SimpleNamespace(any_enabled=lambda: True)),
         analysis_manager=analysis_manager,
         encoder_network=object(),
         local_rank=0,
@@ -1107,6 +1169,34 @@ def test_save_final_fsdp_checkpoint_and_run_analysis_non_rank0(monkeypatch):
         }
     ]
     assert analysis_calls == []
+
+
+def test_save_final_fsdp_checkpoint_skips_when_nothing_requested(monkeypatch):
+    checkpoint_calls = []
+    trainer = SimpleNamespace(
+        fsdp_model=object(),
+        optimizer=object(),
+        epochs=1,
+        final_checkpoint_path=None,
+    )
+    monkeypatch.setattr(
+        fsdp_script,
+        "save_fsdp_checkpoint",
+        lambda *args, **kwargs: checkpoint_calls.append((args, kwargs)),
+    )
+
+    result = _save_final_fsdp_checkpoint_and_run_analysis(
+        rank=0,
+        trainer=trainer,
+        run_save_path="/tmp/run",
+        config=SimpleNamespace(analysis=SimpleNamespace(any_enabled=lambda: False)),
+        analysis_manager=None,
+        encoder_network=None,
+        local_rank=0,
+    )
+
+    assert result == ""
+    assert checkpoint_calls == []
 
 
 def test_save_rank0_training_results_saves_only_on_rank0(monkeypatch):
@@ -1625,6 +1715,65 @@ class TestApplyGradientCheckpointing:
         assert layer.weight.grad is not None
         assert torch.isfinite(x.grad).all()
         assert torch.isfinite(layer.weight.grad).all()
+
+    def test_recurrent_ei_checkpoint_preserves_forward_and_gradients(self):
+        """Checkpoint the recurrent layer that owns raw-current computation."""
+        params = {
+            "unified_ei": {
+                "output_mode": "last",
+                "layers": [
+                    {
+                        "excitatory": {
+                            "n_neurons": 6,
+                            "branch_factors": [1],
+                            "ff_excitatory_synapses": 3,
+                            "rec_excitatory_synapses": 2,
+                            "use_noise": False,
+                        },
+                        "inhibitory": None,
+                        "recurrent": True,
+                    }
+                ],
+            }
+        }
+        torch.manual_seed(12)
+        baseline = get_architecture("ei_unified", params, input_dim=4)
+        checkpointed = get_architecture("ei_unified", params, input_dim=4)
+        checkpointed.load_state_dict(baseline.state_dict())
+        _apply_gradient_checkpointing(checkpointed)
+
+        assert checkpointed.forward.__func__.__name__ == "checkpointed_forward"
+        assert (
+            checkpointed.layers[0].forward.__func__.__name__ != "checkpointed_forward"
+        )
+        assert (
+            checkpointed.layers[0]
+            .e_population.branch_layers[0]
+            .forward.__func__.__name__
+            != "checkpointed_forward"
+        )
+
+        x_baseline = torch.randn(2, 3, 4, requires_grad=True)
+        x_checkpointed = x_baseline.detach().clone().requires_grad_(True)
+        y_baseline = baseline(x_baseline)
+        y_checkpointed = checkpointed(x_checkpointed)
+        torch.testing.assert_close(y_checkpointed, y_baseline)
+
+        y_baseline.square().sum().backward()
+        y_checkpointed.square().sum().backward()
+        torch.testing.assert_close(x_checkpointed.grad, x_baseline.grad)
+        for baseline_param, checkpointed_param in zip(
+            baseline.parameters(),
+            checkpointed.parameters(),
+            strict=True,
+        ):
+            if baseline_param.grad is None:
+                assert checkpointed_param.grad is None
+            else:
+                torch.testing.assert_close(
+                    checkpointed_param.grad,
+                    baseline_param.grad,
+                )
 
     def test_apply_gradient_checkpointing_selects_targets_in_module_order(
         self, monkeypatch

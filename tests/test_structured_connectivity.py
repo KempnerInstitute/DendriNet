@@ -19,6 +19,9 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse imp
     sample_fixed_indegree_mask,
     sample_probability_mask,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_common import (
+    _sample_indices_from_mask,
+)
 from dendritic_modeling.networks.architectures.factory import get_architecture
 from dendritic_modeling.networks.architectures.recurrent.structured_einet_factory import (
     _build_structured_inhibitory_population_config,
@@ -857,6 +860,39 @@ def test_indexed_sparse_linear_seed_none_follows_global_rng():
 
     assert torch.equal(first.connection_indices, second.connection_indices)
     assert not torch.equal(first.connection_indices, third.connection_indices)
+
+
+def test_unmasked_index_sampler_is_chunked_reproducible_and_unique(monkeypatch):
+    """Sparse initialization should avoid per-row full input permutations."""
+    monkeypatch.setattr(
+        torch,
+        "randperm",
+        lambda *args, **kwargs: pytest.fail(
+            "the sparse unmasked path must not call torch.randperm"
+        ),
+    )
+    kwargs = {
+        "out_features": 257,
+        "in_features": 1000,
+        "K": 20,
+        "connection_mask": None,
+        "row_chunk_size": 31,
+    }
+    first = _sample_indices_from_mask(
+        **kwargs,
+        generator=torch.Generator().manual_seed(17),
+    )
+    second = _sample_indices_from_mask(
+        **kwargs,
+        generator=torch.Generator().manual_seed(17),
+    )
+
+    assert torch.equal(first, second)
+    assert first.shape == (257, 20)
+    assert bool((first >= 0).all())
+    assert bool((first < 1000).all())
+    sorted_first = first.sort(dim=1).values
+    assert bool((sorted_first[:, 1:] != sorted_first[:, :-1]).all())
 
 
 def test_indexed_dynamic_auto_candidate_size_respects_connection_mask():

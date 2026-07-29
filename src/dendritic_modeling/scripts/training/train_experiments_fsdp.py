@@ -206,10 +206,17 @@ def print_model_parameter_summary(model, sample_input=None):
     """Print detailed model parameter summary using torchinfo if available."""
     logger.info("Network architecture summary before training:")
     try:
-        if TORCHINFO_AVAILABLE and sample_input is not None:
+        total_params = sum(p.numel() for p in model.parameters())
+        trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        is_sequence_input = (
+            isinstance(sample_input, torch.Tensor) and sample_input.dim() >= 2
+        )
+        summary_is_safe = total_params <= 10_000_000 and not is_sequence_input
+
+        if TORCHINFO_AVAILABLE and sample_input is not None and summary_is_safe:
             torchinfo.summary(
                 model,
-                input_size=(100, *sample_input.shape),
+                input_size=(1, *sample_input.shape),
                 col_names=["input_size", "output_size", "num_params"],
                 col_width=25,
                 row_settings=["depth"],
@@ -221,14 +228,15 @@ def print_model_parameter_summary(model, sample_input=None):
                 logger.warning(
                     "torchinfo is not available. Model summary not generated."
                 )
+            elif not summary_is_safe:
+                logger.info(
+                    "Skipping torchinfo forward for a recurrent or large model; "
+                    "reporting parameter counts without an artificial pre-FSDP batch."
+                )
             else:
                 logger.warning("No sample input provided. Using basic parameter count.")
 
             # Basic parameter breakdown
-            total_params = sum(p.numel() for p in model.parameters())
-            trainable_params = sum(
-                p.numel() for p in model.parameters() if p.requires_grad
-            )
             logger.info(f"Total parameters: {total_params:,}")
             logger.info(f"Trainable parameters: {trainable_params:,}")
 
@@ -285,12 +293,19 @@ def _create_fsdp_trainer(
     config,
 ):
     """Create the FSDP trainer from resolved runtime config."""
+    checkpointing = getattr(config.experiment, "checkpointing", {}) or {}
+    checkpointing_enabled = bool(checkpointing.get("enabled", False))
+    save_every_n_epochs = (
+        int(checkpointing.get("save_every_n_epochs", 0) or 0)
+        if checkpointing_enabled
+        else None
+    )
     return FSDPTrainer(
         rank=rank,
         world_size=world_size,
         fsdp_config=fsdp_config,
         checkpoint_dir=run_save_path if rank == 0 else None,
-        save_every_n_epochs=getattr(train_common, "save_every_n_epochs", None),
+        save_every_n_epochs=save_every_n_epochs,
         optimizer_config=optimizer_config,
         analysis_manager=analysis_manager,
         wandb_run=wandb_run,
@@ -301,15 +316,38 @@ def _create_fsdp_trainer(
         early_stopping=getattr(train_common, "early_stopping", False),
         patience=getattr(train_common, "patience", 10),
         print_every=getattr(train_common, "print_every", 1),
-        save_checkpoints=True,
+        checkpointing=checkpointing_enabled,
         plot_losses=getattr(train_common, "plot_losses", False),
         save_path=run_save_path if rank == 0 else None,
         seed=int(config.experiment.seed),
     )
 
 
-def _resolve_large_model_input_dim(data_config) -> int:
-    """Resolve flattened input size for manually assembled FSDP models."""
+def _resolve_large_model_input_dim(data_config, model_config=None) -> int:
+    """Resolve input size for manually assembled FSDP models.
+
+    Sequence datasets have configuration-dependent feature widths and are not
+    covered by the fixed vision-dataset table.  Match the standard model
+    builder by honoring an explicit encoder ``params.input_dim`` first.
+    """
+    encoder_config = getattr(model_config, "encoder", None)
+    encoder_params = getattr(encoder_config, "params", None)
+    if encoder_params:
+        explicit_input_dim = getattr(encoder_params, "input_dim", None)
+        if explicit_input_dim is None:
+            try:
+                explicit_input_dim = dict(encoder_params).get("input_dim")
+            except (TypeError, ValueError):
+                explicit_input_dim = None
+        if explicit_input_dim is not None:
+            explicit_input_dim = int(explicit_input_dim)
+            if explicit_input_dim <= 0:
+                raise ValueError(
+                    "model.encoder.params.input_dim must be positive, got "
+                    f"{explicit_input_dim}"
+                )
+            return explicit_input_dim
+
     return flat_dataset_input_dim(
         getattr(data_config, "dataset_name", None),
         default_input_dim=784,
@@ -340,14 +378,18 @@ def create_large_model(config):
         logger.info("Trainable parameters: %s", f"{trainable_params:,}")
         return model
 
-    input_dim = _resolve_large_model_input_dim(config.data)
+    input_dim = _resolve_large_model_input_dim(config.data, model_config)
 
     # Create encoder
     encoder_config = model_config.encoder
     if encoder_config.type.lower() == "identity":
         encoder = Identity(input_dim)
     else:
-        encoder_params = dict(encoder_config.params) if encoder_config.params else {}
+        encoder_params = (
+            _config_to_plain_dict(encoder_config.params)
+            if encoder_config.params
+            else {}
+        )
         encoder_params["input_dim"] = input_dim
         encoder_network = get_architecture(encoder_config.type, encoder_params)
         encoder = (
@@ -376,7 +418,14 @@ def create_large_model(config):
             else core_network.excitatory_layer_sizes[-1]
         )
     else:
-        decoder_params = dict(decoder_config.params) if decoder_config.params else {}
+        decoder_params = (
+            _config_to_plain_dict(decoder_config.params)
+            if decoder_config.params
+            else {}
+        )
+        decoder_params = {
+            key: value for key, value in decoder_params.items() if value is not None
+        }
         if hasattr(core_network, "output_dim"):
             decoder_params["input_dim"] = core_network.output_dim
         elif hasattr(core_network, "excitatory_layer_sizes"):
@@ -568,25 +617,46 @@ def _save_final_fsdp_checkpoint_and_run_analysis(
     encoder_network,
     local_rank: int,
 ) -> str:
-    """Save the full FSDP checkpoint and run final analysis on rank 0."""
-    fsdp_model = trainer.fsdp_model
-    full_ckpt_path = os.path.join(
-        run_save_path or "/tmp", "checkpoints", "final_full.pt"
+    """Reuse or save one full checkpoint, then run requested final analysis."""
+    analysis_config = getattr(config, "analysis", None)
+    analysis_enabled = bool(
+        analysis_config is not None
+        and hasattr(analysis_config, "any_enabled")
+        and analysis_config.any_enabled()
     )
-    if rank == 0:
-        os.makedirs(os.path.dirname(full_ckpt_path), exist_ok=True)
+    full_ckpt_path = getattr(trainer, "final_checkpoint_path", None)
 
-    save_fsdp_checkpoint(
-        fsdp_model,
-        trainer.optimizer,
-        trainer.epochs - 1,
-        full_ckpt_path,
-        rank=rank,
-    )
-    if rank == 0:
-        logger.info(f"Full checkpoint saved to {full_ckpt_path}")
+    if full_ckpt_path is None and not analysis_enabled:
+        if rank == 0:
+            logger.info(
+                "Skipping final full-state gather: checkpointing and analysis "
+                "are both disabled."
+            )
+        return ""
 
-    if rank == 0 and analysis_manager:
+    if full_ckpt_path is None:
+        fsdp_model = trainer.fsdp_model
+        full_ckpt_path = os.path.join(
+            run_save_path or "/tmp", "checkpoints", "final_full.pt"
+        )
+        if rank == 0:
+            os.makedirs(os.path.dirname(full_ckpt_path), exist_ok=True)
+        completed_epoch = int(
+            getattr(trainer, "last_completed_epoch", trainer.epochs - 1)
+        )
+        save_fsdp_checkpoint(
+            fsdp_model,
+            trainer.optimizer,
+            completed_epoch,
+            full_ckpt_path,
+            rank=rank,
+        )
+        if rank == 0:
+            logger.info(f"Full checkpoint saved to {full_ckpt_path}")
+    elif rank == 0:
+        logger.info("Reusing trainer final checkpoint at %s", full_ckpt_path)
+
+    if rank == 0 and analysis_enabled and analysis_manager is not None:
         _run_final_analysis_on_plain_model(
             config=config,
             analysis_manager=analysis_manager,
@@ -873,16 +943,27 @@ def main(config_path):
     # To pretrain an autoencoder encoder, run it *before* FSDP
     # training with the standard single-GPU script, then point
     # the config at the saved checkpoint.
-    encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds = (
-        _prepare_rank_analysis_datasets(
-            rank=rank,
-            model=model,
-            config=config,
-            train_ds=train_ds,
-            valid_ds=valid_ds,
-            test_ds=test_ds,
+    analysis_enabled = config.analysis.any_enabled()
+    if analysis_enabled:
+        encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds = (
+            _prepare_rank_analysis_datasets(
+                rank=rank,
+                model=model,
+                config=config,
+                train_ds=train_ds,
+                valid_ds=valid_ds,
+                test_ds=test_ds,
+            )
         )
-    )
+    else:
+        encoder_network = Identity(1)
+        encoded_train_ds = None
+        encoded_valid_ds = None
+        encoded_test_ds = None
+        if rank == 0:
+            logger.info(
+                "No analysis modules enabled; skipping analysis dataset encoding."
+            )
 
     # Generate detailed parameter summary with real sample input
     if rank == 0:  # Only on rank 0 to avoid duplicate output
@@ -892,7 +973,7 @@ def main(config_path):
 
     # Setup analysis manager (only on rank 0)
     analysis_manager = None
-    if rank == 0:
+    if rank == 0 and analysis_enabled:
         analysis_manager = _setup_rank0_analysis_manager(
             config=config,
             model=model,
@@ -903,6 +984,8 @@ def main(config_path):
             run_save_path=run_save_path,
             local_rank=local_rank,
         )
+    elif rank == 0:
+        logger.info("No final analysis modules enabled; skipping AnalysisManager.")
 
     trainer = _create_fsdp_trainer(
         rank=rank,

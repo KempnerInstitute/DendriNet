@@ -128,6 +128,7 @@ class IndexedDynamicTopKLinear(nn.Module):
                 K=self.candidate_size,
                 connection_mask=allowed_connection_mask,
                 generator=generator,
+                row_chunk_size=self.output_chunk_size,
             )
         else:
             connection_indices = torch.as_tensor(connection_indices, dtype=torch.long)

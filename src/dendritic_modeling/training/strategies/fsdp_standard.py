@@ -42,6 +42,32 @@ def _optimizer_config_value(
     return (optimizer_config or {}).get(key, default)
 
 
+def _sequence_lengths_from_batch(
+    batch,
+    *,
+    x_batch: torch.Tensor,
+    device: torch.device,
+) -> torch.Tensor | None:
+    """Return optional per-sample sequence lengths from a recurrent batch.
+
+    Sequence datasets use ``(inputs, labels, lengths)``.  Image and tabular
+    datasets may also expose extra metadata, so only accept a one-value-per-row
+    tensor when the input has an explicit time dimension.
+    """
+    if x_batch.dim() != 3 or not isinstance(batch, (tuple, list)) or len(batch) < 3:
+        return None
+    lengths = batch[2]
+    if not torch.is_tensor(lengths):
+        try:
+            lengths = torch.as_tensor(lengths)
+        except (TypeError, ValueError):
+            return None
+    lengths = lengths.reshape(-1)
+    if lengths.numel() != x_batch.shape[0]:
+        return None
+    return lengths.to(device=device, dtype=torch.long, non_blocking=True)
+
+
 def _collect_unique_parameters(
     parameters: Iterable[torch.nn.Parameter],
     used_param_ids: set[int],
@@ -386,11 +412,13 @@ class FSDPTrainer(Trainer):
         valid_accs = []
         best_valid_loss = float("inf")
         patience_counter = 0
+        self.last_completed_epoch = -1
 
         if self.rank == 0:
             logger.info(f"Starting training for {self.epochs} epochs")
 
         for epoch in range(self.epochs):
+            self.last_completed_epoch = epoch
             if self.rank == 0:
                 logger.info(f"Starting epoch {epoch}")
             epoch_start = time.time()
@@ -469,9 +497,11 @@ class FSDPTrainer(Trainer):
 
             # Checkpointing
             if (
-                self.save_every_n_epochs is not None
+                self.checkpointing
+                and self.save_every_n_epochs is not None
                 and self.save_every_n_epochs > 0
                 and (epoch + 1) % self.save_every_n_epochs == 0
+                and (epoch + 1) < self.epochs
             ):
                 save_fsdp_checkpoint(
                     model,
@@ -482,13 +512,18 @@ class FSDPTrainer(Trainer):
                 )
 
         # Final save
-        save_fsdp_checkpoint(
-            model,
-            self.optimizer,
-            self.epochs - 1,
-            os.path.join(self.checkpoint_dir, "final_model.pt"),
-            rank=self.rank,
-        )
+        self.final_checkpoint_path = None
+        if self.checkpointing:
+            self.final_checkpoint_path = os.path.join(
+                self.checkpoint_dir, "final_model.pt"
+            )
+            save_fsdp_checkpoint(
+                model,
+                self.optimizer,
+                self.last_completed_epoch,
+                self.final_checkpoint_path,
+                rank=self.rank,
+            )
 
         # Generate plots (only on rank 0)
         if self.rank == 0:
@@ -520,11 +555,16 @@ class FSDPTrainer(Trainer):
 
             x_batch = batch[0].to(self.device)
             y_batch = batch[1].to(self.device)
+            seq_lengths = _sequence_lengths_from_batch(
+                batch,
+                x_batch=x_batch,
+                device=self.device,
+            )
 
             if self.use_amp:
                 # Mixed precision forward pass
                 with autocast():
-                    outputs = model(x_batch)
+                    outputs = model(x_batch, seq_lengths=seq_lengths)
                     loss = self.loss_fn(outputs, y_batch)
 
                 # Backward pass with scaling
@@ -541,7 +581,7 @@ class FSDPTrainer(Trainer):
                 self.scaler.update()
             else:
                 # Standard precision training
-                outputs = model(x_batch)
+                outputs = model(x_batch, seq_lengths=seq_lengths)
                 loss = self.loss_fn(outputs, y_batch)
 
                 # Backward pass
@@ -610,9 +650,14 @@ class FSDPTrainer(Trainer):
             for batch in valid_loader:
                 x_batch = batch[0].to(self.device)
                 y_batch = batch[1].to(self.device)
+                seq_lengths = _sequence_lengths_from_batch(
+                    batch,
+                    x_batch=x_batch,
+                    device=self.device,
+                )
                 bs = y_batch.size(0)
 
-                outputs = model(x_batch)
+                outputs = model(x_batch, seq_lengths=seq_lengths)
                 loss = self.loss_fn(outputs, y_batch)
 
                 if real_count is not None:

@@ -26,6 +26,8 @@ from dendritic_modeling.networks.architectures.excitation_inhibition import (
     ExcitationInhibitionLayer,
     ExcitationInhibitionNetwork,
 )
+from dendritic_modeling.networks.architectures.recurrent.ei_layer import EILayer
+from dendritic_modeling.networks.architectures.recurrent.ei_network import EINetwork
 from dendritic_modeling.utils.hooks import iter_named_modules_matching
 
 logger = logging.getLogger(__name__)
@@ -57,7 +59,10 @@ def _resolve_fsdp_dtype(value: Any, *, field_name: str) -> torch.dtype:
 
 def _is_dendritic_fsdp_module(module: torch.nn.Module) -> bool:
     """Return whether a module should be treated as an FSDP dendritic unit."""
-    return isinstance(module, (DendriticBranchLayer, ExcitationInhibitionLayer))
+    return isinstance(
+        module,
+        (DendriticBranchLayer, ExcitationInhibitionLayer, EINetwork, EILayer),
+    )
 
 
 def _is_large_linear_checkpoint_candidate(module: torch.nn.Module) -> bool:
@@ -319,17 +324,36 @@ def _apply_gradient_checkpointing(model: torch.nn.Module):
     Args:
         model: Model to apply checkpointing to
     """
-    # Apply checkpointing to large linear layers and dendritic components
+    # Checkpoint the outermost eligible module only. Nested checkpoint regions
+    # recompute the same dendritic operations more than once and can make
+    # non-reentrant checkpointing observe different saved-tensor metadata.
+    checkpointed_names: list[str] = []
     for name, module in iter_named_modules_matching(
         model,
         _is_gradient_checkpoint_candidate,
     ):
+        is_nested = any(
+            bool(name) and (not parent_name or name.startswith(f"{parent_name}."))
+            for parent_name in checkpointed_names
+        )
+        if is_nested:
+            logger.debug(
+                "Skipping nested gradient checkpoint target %s",
+                name,
+            )
+            continue
+
         if _is_dendritic_fsdp_module(module):
             _checkpoint_module_forward(module)
-            logger.debug(f"Applied gradient checkpointing to {name}")
+            checkpointed_names.append(name)
+            logger.debug("Applied gradient checkpointing to %s", name)
         elif _is_large_linear_checkpoint_candidate(module):
             _checkpoint_module_forward(module)
-            logger.debug(f"Applied gradient checkpointing to large linear layer {name}")
+            checkpointed_names.append(name)
+            logger.debug(
+                "Applied gradient checkpointing to large linear layer %s",
+                name,
+            )
 
 
 def save_fsdp_checkpoint(
