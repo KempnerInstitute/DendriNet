@@ -6,11 +6,55 @@ This module contains various parametric activation functions with learnable para
 
 import logging
 import math
+import os
 
 import torch
 import torch.nn as nn
 
 from dendritic_modeling.networks.utils.weight_transforms import safe_exp
+
+# --------------------------------------------------------------------------- #
+# Positive-tanh fast path                                                      #
+# --------------------------------------------------------------------------- #
+# Every "positive tanh" reactivation in this file computes (tanh(z) + 1) / 2,
+# which is exactly sigmoid(2z). The naive spelling runs four full-size
+# elementwise kernels (tanh, add, div, plus the scale) and allocates a full-size
+# temporary for each; the identity runs two and allocates one. An allocation
+# profile of the 12-layer stress config attributed 39.9% of live memory to this
+# single line, so the temporaries are not incidental.
+#
+# The two forms are equal in exact arithmetic but not bit-identical in floating
+# point (~1e-7 relative in fp32), and this activation sits inside the learning
+# dynamics of every config. So it is OFF by default and opt-in per the
+# optimization-branch discipline: set DENDRINET_POSITIVE_TANH_SIGMOID=1 or call
+# set_positive_tanh_sigmoid(True).
+_USE_SIGMOID_IDENTITY = os.environ.get("DENDRINET_POSITIVE_TANH_SIGMOID", "0") == "1"
+
+
+def set_positive_tanh_sigmoid(enabled: bool) -> None:
+    """Enable/disable the sigmoid(2z) fast path for positive-tanh activations."""
+    global _USE_SIGMOID_IDENTITY
+    _USE_SIGMOID_IDENTITY = bool(enabled)
+
+
+def positive_tanh_sigmoid_enabled() -> bool:
+    """Whether the sigmoid(2z) fast path is currently active."""
+    return _USE_SIGMOID_IDENTITY
+
+
+def _positive_tanh_centered(scale, x, center):
+    """(tanh(scale * (x - center)) + 1) / 2.
+
+    The 2 is folded into ``scale`` (shape [output_dim]) rather than applied to
+    ``x``, so the fast path costs the same number of full-size kernels as the
+    slow one minus the add and the divide. ``x - center`` is kept intact rather
+    than expanded to ``scale*x - scale*center``: the expanded form cancels
+    catastrophically exactly where ``x ~ center``, which is the steep part of
+    the curve.
+    """
+    if _USE_SIGMOID_IDENTITY:
+        return torch.sigmoid((2.0 * scale) * (x - center))
+    return (torch.tanh(scale * (x - center)) + 1) / 2
 
 
 class ParametricActivation(nn.Module):
@@ -59,7 +103,7 @@ class ParametricTanh(ParametricActivation):
     def forward(self, V):
         m = self.log_m.exp()  # slope
         b = self.b  # midpoint
-        return (torch.tanh(m * (V - b)) + 1) / 2
+        return _positive_tanh_centered(m, V, b)
 
     def initialize(self, slope_val, mid_val):
         self.log_m.data.fill_(math.log(slope_val))
@@ -82,7 +126,7 @@ class ParametricTanhOnlyM(ParametricActivation):
     def forward(self, V):
         m = self.log_m.exp()  # slope
         b = self.fixed_b  # fixed midpoint
-        return (torch.tanh(m * (V - b)) + 1) / 2
+        return _positive_tanh_centered(m, V, b)
 
     def initialize(self, slope_val, mid_val):
         safe_slope = max(float(slope_val), 1e-8)
@@ -183,6 +227,12 @@ class ParametricLinearTanh(ParametricActivation):
         # Calculate the three component functions
         h_x = x  # linear function
         g_x = safe_exp(-3 * x, max_exponent=20.0)  # exponential weighting
+        # Deliberately NOT routed through the sigmoid fast path. The (1 - g_x)
+        # factor below reaches ~1e5, which amplifies the identity's 1e-7
+        # rounding into a 4e-4 relative shift on the parameter gradients (in
+        # fp64 the two forms are bit-identical, so it is rounding, not a
+        # different function -- see check_positive_tanh_equiv.py). No config
+        # selects this activation, so there is nothing to win by taking that on.
         f_x = (torch.tanh(m * x + self.fixed_b) + 1) / 2  # tanh
         # Combine using the interpolation formula
         return h_x * g_x + f_x * (1 - g_x)
@@ -340,4 +390,6 @@ __all__ = [
     "ParametricLinearTanhTransition",
     "ParametricTanh",
     "ParametricTanhOnlyM",
+    "positive_tanh_sigmoid_enabled",
+    "set_positive_tanh_sigmoid",
 ]

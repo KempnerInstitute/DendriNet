@@ -79,9 +79,40 @@ next thing to decompose, *before* sharding `idx`.
 more GPUs — confirming the replicated-buffer / model-parallel item as the gate for 1M, but
 `idx` alone (18.6 GB at 1M) is not sufficient to explain the floor.
 
+## NEW — positive-tanh sigmoid identity (2026-07-30)
+`(tanh(z)+1)/2` is exactly `sigmoid(2z)`, but the naive spelling runs two extra
+full-size elementwise kernels and allocates a temporary for each. Pass D of the hot-path
+audit attributed **39.9% of live allocation** to that one line. Flag: default OFF,
+`DENDRINET_POSITIVE_TANH_SIGMOID=1` or `set_positive_tanh_sigmoid(True)`.
+
+Isolated op (Blackwell, 8 shape/dtype combos): fwd **1.43×**, bwd **1.12×**, peak **1.17×**.
+
+End-to-end, 12-layer 16k stress config, batch 512, fused path:
+
+| | step (ms) | peak (MB) |
+|---|---|---|
+| identity off | 2843.6 | 29831.8 |
+| identity on | 2824.9 | 25021.8 |
+| **ratio** | **1.007×** | **1.192×** |
+
+**This is a memory optimization, not a speed one.** The op gets 1.43× faster and the step
+gets 0.7% faster — Amdahl, the gather still dominates. But it returns **4.8 GB at batch
+512** for free. That is the same class as the hoist: an *activation-layout* fix aimed at
+the fixed per-GPU floor, which is the 1M gate. Correct an earlier claim of "1.46× faster,
+1.33× less memory" — that was the isolated forward, and it does not survive end-to-end.
+
+Equivalence (`check_positive_tanh_equiv.py`): **bit-identical in fp64** for every touched
+activation, so the rewrite is structurally exact and the fp32 gap is pure rounding
+(1.2e-07 value, 6.0e-07 grad; 2.4e-07 through the whole 12-layer network). 200 Adam steps
+down each path: final loss relative difference **0.00e+00**, params agree to 2.4e-07 — it
+does not compound. `param_linear_tanh` is deliberately excluded: its `(1-exp(-3x))` factor
+reaches ~1e5 and amplified that rounding to 4e-4 on parameter gradients, and no config
+selects it.
+
 ## Open rows
 | scale | GPU | path | epoch (s) | peak (MB) | notes |
 |---|---|---|---|---|---|
+| 100k/5k | multi-GPU | + sigmoid identity | — | — | does it cut the 13.75 GB floor? |
 | 5k/5k | Blackwell | fused+int32+hoist, trial 2 | — | — | re-run for 2-trial avg |
 | 5k/5k | A100 | loop / fused | — | — | cross-arch |
 | 100k/5k | multi-GPU | decompose the 13.75 GB floor | — | — | **do before sharding idx** |
