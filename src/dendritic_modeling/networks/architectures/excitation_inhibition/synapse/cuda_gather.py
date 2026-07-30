@@ -369,10 +369,45 @@ def _bwd_wpo_ok(IN: int) -> bool:
     return IN * 4 <= _optin_shared()
 
 
-def _pick_bwd_wpo_params() -> tuple[int, int]:
-    """(P outputs/block, T threads) for the split backward. Tuned on Blackwell
-    (P=2048, T=512 -> ~2.6x over v2, matching the forward's sweet spot)."""
-    return 2048, 512
+def _pick_bwd_wpo_params(out_features: int | None = None) -> tuple[int, int]:
+    """(P outputs/block, T threads) for the split backward, adaptive in ``P``.
+
+    The backward launches ``grid = ceil(out_features / P)``. A fixed P=2048 left
+    the GPU mostly idle at real layer shapes: out=144,000 gives 71 blocks and
+    out=48,000 gives 24, i.e. 38% and 13% of a 188-SM Blackwell. Nsight measured
+    33.1% achieved occupancy against 100% theoretical with DRAM at 4.2% and SM at
+    6.6% -- not bandwidth- or compute-bound, just under-filled. Measured gains
+    from lowering P (batch 512, Blackwell): 7.78x at out=2,000 (one block!),
+    2.39x at out=48,000, 1.37x at out=144,000; 1.32x over the whole backward
+    weighted by the layer mix of the 12-layer stress config.
+
+    Smaller P is not free -- more blocks re-stage more -- and the optimum also
+    depends on in_features, so a closed form over (O, SM) does not fit: every
+    shape disagreed with ``O/(2*SM)``. These thresholds are the measured optima
+    (``rnn_prof/bench_gradw_tile.py``), interpolated conservatively and clamped
+    to the shipped value above the measured range.
+
+    NOT applied to the forward: sweeping it showed 1.00x, because it stages the
+    x-row in shared per block, so fewer/larger blocks amortise that staging and
+    the occupancy gain cancels. Only this kernel is under-filled.
+
+    ``P`` merely partitions outputs across blocks and each (o, k) stays owned by
+    a single warp, so results are unchanged -- see rnn_prof/check_gradw_tile_equiv.py.
+    """
+    if out_features is None:
+        return 2048, 512
+    o = int(out_features)
+    if o <= 4_000:
+        p = 96
+    elif o <= 24_000:
+        p = 256
+    elif o <= 96_000:
+        p = 384
+    elif o <= 200_000:
+        p = 1024
+    else:
+        p = 2048
+    return p, 512
 
 
 class _CudaSparseGather(torch.autograd.Function):
@@ -401,7 +436,8 @@ class _CudaSparseGather(torch.autograd.Function):
         gof = grad_out.contiguous().to(torch.float32)
         IN = xf.size(1)
         if _bwd_wpo_ok(IN):                    # Phase-4 split backward (~2.6x over v2)
-            P, T = _pick_bwd_wpo_params()
+            # P adapts to out_features so the grid actually fills the GPU.
+            P, T = _pick_bwd_wpo_params(gof.size(1))
             xT = xf.t().contiguous()           # [IN, M]  (x is small; transpose is cheap)
             goT = gof.t().contiguous()         # [O, M]   (grad_out transpose, charged per call)
             grad_x, grad_w = ext.gather_bwd_wpo_cuda(gof, goT, xT, idx.to(torch.int32), wf, P, T)
