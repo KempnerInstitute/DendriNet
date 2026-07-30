@@ -1,0 +1,99 @@
+{
+  "protocol": {
+    "morphology": [
+      3,
+      3,
+      3
+    ],
+    "contacts_per_neuron": 20000,
+    "excitatory_fraction": 0.8,
+    "inhibitory_fraction": 0.2,
+    "gpus": 4,
+    "gpu_type": "H200",
+    "epochs": 150,
+    "train_samples": 128,
+    "valid_samples": 32
+  },
+  "scales": [
+    {
+      "label": "025k",
+      "total_neurons": 25000,
+      "excitatory_neurons": 20000,
+      "inhibitory_neurons": 5000,
+      "decoder_input_lr": 3.2e-06,
+      "host_memory_gb": 64,
+      "cpus": 16,
+      "walltime": "00:30:00",
+      "config": "scale_025k_20k_frozen_readout.yaml",
+      "dynamical_compartments": 805000,
+      "active_contacts": 500000000,
+      "trainable_readout_parameters": 640098
+    },
+    {
+      "label": "100k",
+      "total_neurons": 100000,
+      "excitatory_neurons": 80000,
+      "inhibitory_neurons": 20000,
+      "decoder_input_lr": 8e-07,
+      "host_memory_gb": 128,
+      "cpus": 24,
+      "walltime": "00:40:00",
+      "config": "scale_100k_20k_frozen_readout.yaml",
+      "dynamical_compartments": 3220000,
+      "active_contacts": 2000000000,
+      "trainable_readout_parameters": 2560098
+    },
+    {
+      "label": "500k",
+      "total_neurons": 500000,
+      "excitatory_neurons": 400000,
+      "inhibitory_neurons": 100000,
+      "decoder_input_lr": 1.6e-07,
+      "host_memory_gb": 384,
+      "cpus": 40,
+      "walltime": "01:00:00",
+      "config": "scale_500k_20k_frozen_readout.yaml",
+      "dynamical_compartments": 16100000,
+      "active_contacts": 10000000000,
+      "trainable_readout_parameters": 12800098
+    },
+    {
+      "label": "1m",
+      "total_neurons": 1000000,
+      "excitatory_neurons": 800000,
+      "inhibitory_neurons": 200000,
+      "decoder_input_lr": 8e-08,
+      "host_memory_gb": 768,
+      "cpus": 48,
+      "walltime": "01:00:00",
+      "config": "scale_1m_20k_frozen_readout.yaml",
+      "dynamical_compartments": 32200000,
+      "active_contacts": 20000000000,
+      "trainable_readout_parameters": 25600098
+    }
+  ],
+  "end_to_end": [
+    {
+      "config": "e2e_100k_20k_canary.yaml",
+      "epochs": 1,
+      "train_samples": 32,
+      "valid_samples": 16,
+      "gpus": 4,
+      "gpu_type": "H200",
+      "host_memory_gb": 192,
+      "cpus": 32,
+      "walltime": "00:30:00"
+    },
+    {
+      "config": "e2e_100k_20k_30ep.yaml",
+      "epochs": 30,
+      "train_samples": 128,
+      "valid_samples": 32,
+      "gpus": 4,
+      "gpu_type": "H200",
+      "host_memory_gb": 192,
+      "cpus": 32,
+      "walltime": "02:00:00"
+    }
+  ]
+}

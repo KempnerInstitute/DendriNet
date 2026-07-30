@@ -16,6 +16,7 @@ Example:
 import argparse
 import logging
 import os
+import time
 from dataclasses import asdict
 from datetime import datetime, timedelta
 
@@ -971,6 +972,7 @@ def setup_data_loaders(config, rank, world_size):
 
 def main(config_path):
     """Main FSDP training function."""
+    script_started = time.perf_counter()
     # Setup distributed environment
     rank, local_rank, world_size = setup_distributed()
 
@@ -1012,13 +1014,17 @@ def main(config_path):
     wandb_run = setup_wandb(config, rank, world_size) if rank == 0 else None
 
     # Create model
+    model_creation_started = time.perf_counter()
     model = create_large_model(config)
     _apply_fsdp_trainability_policy(model, config.distributed.fsdp)
+    model_creation_seconds = time.perf_counter() - model_creation_started
 
     # Setup data loaders
+    data_setup_started = time.perf_counter()
     train_loader, valid_loader, test_ds, train_ds, valid_ds = setup_data_loaders(
         config, rank, world_size
     )
+    data_setup_seconds = time.perf_counter() - data_setup_started
 
     # Encode datasets for analysis (rank 0 only).
     # Note: FSDP does NOT support autoencoder pretraining.  If the
@@ -1093,6 +1099,14 @@ def main(config_path):
 
     # Train the model
     results = trainer.train(model, train_loader, valid_loader)
+    results.update(
+        {
+            "model_creation_seconds": model_creation_seconds,
+            "data_setup_seconds": data_setup_seconds,
+            "runtime_through_training_seconds": time.perf_counter() - script_started,
+            "world_size": world_size,
+        }
+    )
 
     _save_rank0_training_results(
         rank=rank,

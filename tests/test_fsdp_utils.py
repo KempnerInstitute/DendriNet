@@ -1194,6 +1194,11 @@ def test_fsdp_training_reuses_cached_core_outputs_across_epochs(
     assert model.core_calls == 4
     assert len(results["train_losses"]) == 2
     assert len(results["valid_losses"]) == 2
+    assert results["fsdp_setup_seconds"] >= 0.0
+    assert results["frozen_core_cache_seconds"] >= 0.0
+    assert len(results["epoch_times_seconds"]) == 2
+    assert results["training_loop_seconds"] >= sum(results["epoch_times_seconds"])
+    assert results["trainer_total_seconds"] >= results["training_loop_seconds"]
 
 
 def test_fsdp_best_valid_loss_tracks_history_without_early_stopping(
@@ -1237,6 +1242,8 @@ def test_fsdp_best_valid_loss_tracks_history_without_early_stopping(
 
     assert results["valid_losses"] == [0.7, 0.4, 0.6]
     assert results["best_valid_loss"] == 0.4
+    assert results["frozen_core_cache_seconds"] is None
+    assert len(results["epoch_times_seconds"]) == 3
 
 
 def test_fsdp_module_class_name_iterator_preserves_concrete_name_rule():
