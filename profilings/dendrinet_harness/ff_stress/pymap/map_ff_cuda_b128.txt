@@ -1,0 +1,101 @@
+GPU NVIDIA RTX PRO 6000 Blackwell Server Edition
+config configs/examples/kernel_stress_ab/kernel_stress_12L_16k_cuda.yaml
+path=cuda  batch=128  (op counts are batch-independent)
+
+======================================================================================
+[1] FILES THAT EXECUTE ON ONE TRAINING STEP  (15 of 488 in the repo)
+======================================================================================
+     calls  funcs   self s  file
+       660      8    0.000  networks/architectures/excitation_inhibition/synapse/cuda_gather.py
+       300      5    0.001  networks/architectures/excitation_inhibition/synapse/indexed_sparse.py
+       264      2    0.000  networks/utils/weight_transforms.py
+       132      5    0.000  networks/architectures/recurrent/population_layer.py
+       128      3    0.000  networks/architectures/recurrent/population_sources.py
+       120      2    0.002  networks/architectures/excitation_inhibition/dendritic/branch_dynamics.py
+       120      2    0.001  networks/activations/parametric.py
+       108      3    0.001  networks/architectures/excitation_inhibition/dendritic/blocklinear.py
+        72      1    0.000  utils/profiling.py
+        60      1    0.000  networks/architectures/excitation_inhibition/dendritic/branch_layer.py
+        60      1    0.000  networks/architectures/excitation_inhibition/synapse/indexed_common.py
+        50      7    0.000  networks/architectures/recurrent/population_network.py
+        48      2    0.000  networks/architectures/recurrent/stateful_dendrinet.py
+         1      1    0.000  networks/architectures/excitation_inhibition/input_transform/transfer.py
+         1      1    0.000  networks/architectures/excitation_inhibition/input_transform/identity.py
+
+======================================================================================
+[2] PYTHON FUNCTIONS BY CALL COUNT (top 25)
+======================================================================================
+     calls   self s  site
+       180    0.000  networks/architectures/excitation_inhibition/synapse/cuda_gather.py:304  _load_ext()
+       132    0.000  networks/utils/weight_transforms.py:103  apply_weight_transform()
+       132    0.000  networks/utils/weight_transforms.py:92  _lookup_transform()
+       120    0.000  networks/architectures/excitation_inhibition/synapse/cuda_gather.py:327  cuda_gather_available()
+        72    0.000  utils/profiling.py:9  nvtx_range()
+        60    0.002  networks/architectures/excitation_inhibition/dendritic/branch_dynamics.py:181  forward_branch_dynamics()
+        60    0.001  networks/activations/parametric.py:45  _positive_tanh_centered()
+        60    0.000  networks/architectures/excitation_inhibition/synapse/indexed_sparse.py:477  forward()
+        60    0.000  networks/architectures/excitation_inhibition/synapse/cuda_gather.py:414  forward()
+        60    0.000  networks/architectures/excitation_inhibition/dendritic/branch_layer.py:904  forward()
+        60    0.000  networks/activations/parametric.py:103  forward()
+        60    0.000  networks/architectures/excitation_inhibition/synapse/cuda_gather.py:456  cuda_sparse_gather()
+        60    0.000  networks/architectures/excitation_inhibition/synapse/indexed_sparse.py:313  _forward_output_chunk_size()
+        60    0.000  networks/architectures/excitation_inhibition/synapse/indexed_sparse.py:293  sparse_weight()
+        60    0.000  networks/architectures/excitation_inhibition/synapse/cuda_gather.py:332  _pick_tile()
+        60    0.000  networks/architectures/excitation_inhibition/dendritic/branch_dynamics.py:21  _diagnostic_synapse_forward()
+        60    0.000  networks/architectures/excitation_inhibition/synapse/indexed_sparse.py:462  _transformed_weight()
+        60    0.000  networks/architectures/excitation_inhibition/synapse/indexed_common.py:220  _workspace_limited_chunk_size()
+        60    0.000  networks/architectures/excitation_inhibition/synapse/indexed_sparse.py:297  _normalized_sparse_weight()
+        60    0.000  networks/architectures/excitation_inhibition/synapse/cuda_gather.py:351  _wpo_ok()
+        60    0.000  networks/architectures/excitation_inhibition/synapse/cuda_gather.py:343  _optin_shared()
+        60    0.000  networks/architectures/excitation_inhibition/synapse/cuda_gather.py:358  _pick_wpo_params()
+        58    0.000  networks/architectures/recurrent/population_sources.py:41  _canonical_external_source()
+        48    0.000  networks/architectures/recurrent/population_layer.py:582  _collect_stream()
+        48    0.000  networks/architectures/recurrent/population_sources.py:33  _concat_or_none()
+
+======================================================================================
+[3] ATEN OPS PER STEP: 3,887 total  (2,072 issued from the autograd engine)
+======================================================================================
+       ops   share  issuing source line
+       360    9.3%  networks/activations/parametric.py:57  _positive_tanh_centered()
+       180    4.6%  networks/architectures/excitation_inhibition/synapse/cuda_gather.py:443  backward()
+       132    3.4%  networks/utils/weight_transforms.py:119  apply_weight_transform()
+       120    3.1%  networks/architectures/excitation_inhibition/synapse/cuda_gather.py:424  forward()
+       120    3.1%  networks/architectures/excitation_inhibition/dendritic/branch_dynamics.py:285  forward_branch_dynamics()
+       120    3.1%  networks/activations/parametric.py:104  forward()
+       120    3.1%  networks/architectures/excitation_inhibition/synapse/cuda_gather.py:441  backward()
+       120    3.1%  networks/architectures/excitation_inhibition/synapse/cuda_gather.py:442  backward()
+        72    1.9%  networks/architectures/excitation_inhibition/dendritic/blocklinear.py:317  forward()
+        60    1.5%  networks/architectures/excitation_inhibition/synapse/indexed_sparse.py:500  forward()
+        60    1.5%  networks/architectures/excitation_inhibition/synapse/cuda_gather.py:420  forward()
+        60    1.5%  networks/architectures/excitation_inhibition/synapse/indexed_sparse.py:543  forward()
+        36    0.9%  networks/architectures/excitation_inhibition/dendritic/branch_dynamics.py:213  forward_branch_dynamics()
+        36    0.9%  networks/architectures/excitation_inhibition/dendritic/branch_dynamics.py:214  forward_branch_dynamics()
+        36    0.9%  networks/architectures/excitation_inhibition/dendritic/blocklinear.py:311  forward()
+        36    0.9%  networks/architectures/excitation_inhibition/dendritic/blocklinear.py:313  forward()
+        36    0.9%  networks/architectures/excitation_inhibition/dendritic/blocklinear.py:261  sum_conductances()
+        36    0.9%  networks/architectures/excitation_inhibition/dendritic/branch_dynamics.py:245  forward_branch_dynamics()
+        36    0.9%  networks/architectures/excitation_inhibition/dendritic/branch_dynamics.py:246  forward_branch_dynamics()
+        24    0.6%  networks/architectures/excitation_inhibition/dendritic/branch_dynamics.py:261  forward_branch_dynamics()
+        11    0.3%  networks/architectures/recurrent/population_sources.py:38  _concat_or_none()
+         2    0.1%  networks/architectures/excitation_inhibition/input_transform/transfer.py:111  forward()
+         2    0.1%  networks/architectures/excitation_inhibition/input_transform/transfer.py:112  forward()
+
+       ops   share  most-issued aten ops
+       504   13.0%  view
+       482   12.4%  mul
+       459   11.8%  detach
+       407   10.5%  add
+       361    9.3%  div
+       264    6.8%  sum
+       180    4.6%  _to_copy
+       132    3.4%  softplus
+       132    3.4%  softplus_backward
+       120    3.1%  empty
+       120    3.1%  neg
+       120    3.1%  t
+       120    3.1%  clone
+        73    1.9%  expand
+        72    1.9%  unsqueeze
+
+  [3] is the launch map: ~1 aten op = 1 kernel launch. A line high
+  here is cheap to fix and pays most where launches dominate.
