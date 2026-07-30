@@ -5,7 +5,6 @@ historical import path.
 """
 
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_common import (
-    _allowed_mask_with_forbidden as _allowed_mask_with_forbidden,
     _connection_generator as _connection_generator,
     _sample_indices_from_mask as _sample_indices_from_mask,
     _scale_for_sparse_target as _scale_for_sparse_target,

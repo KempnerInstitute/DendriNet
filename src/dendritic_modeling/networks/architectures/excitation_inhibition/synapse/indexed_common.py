@@ -110,7 +110,23 @@ def _sample_indices_from_mask(
     # initialization proportional to out_features * in_features even though
     # only out_features * K indices are retained. Rejection sampling is exact
     # and efficient while K is sparse relative to in_features.
-    if allowed is None and K * 4 <= in_features:
+    # Rejection sampling also works with a connection_mask, by rejecting draws
+    # that land on a disallowed input. It is only efficient while the mask is
+    # dense enough that a random draw is usually accepted, so require >=25%
+    # allowed per row; sparser masks fall through to the per-row path below.
+    # Without this, ANY structured_connectivity config took the per-row loop --
+    # 144,000 Python iterations, each with a nonzero() over 16,000 entries, for
+    # one layer of the 12-layer stress config.
+    use_rejection = K * 4 <= in_features
+    if allowed is not None:
+        row_allowed_count = allowed.sum(dim=1)
+        min_allowed = int(row_allowed_count.min()) if allowed.numel() else 0
+        use_rejection = (
+            use_rejection
+            and min_allowed * 4 >= in_features   # dense enough to accept draws
+            and min_allowed >= K + 1             # room for K, plus a forbidden one
+        )
+    if use_rejection:
         if forbidden is not None and bool(
             (in_features - (forbidden >= 0).to(torch.long) < K).any()
         ):
@@ -145,6 +161,9 @@ def _sample_indices_from_mask(
                     invalid |= (chunk_forbidden[:, None] >= 0) & (
                         values == chunk_forbidden[:, None]
                     )
+                if allowed is not None:
+                    # reject draws landing on a disallowed input for that row
+                    invalid |= ~allowed[start:end].gather(1, values.long())
                 if not bool(invalid.any()):
                     break
                 invalid_count = int(invalid.sum().item())
@@ -162,6 +181,21 @@ def _sample_indices_from_mask(
             indices[start:end] = values
         return indices
 
+    # Per-row fallback: one nonzero() + randperm() per output. Correct for any
+    # mask density, but O(out_features) Python iterations -- 144,000 of them for
+    # the largest layer of the 12-layer stress config. Only reachable now for
+    # masks too sparse for rejection sampling, or K*4 > in_features.
+    if out_features > 10_000:
+        import warnings
+
+        warnings.warn(
+            f"_sample_indices_from_mask is using the per-row fallback for "
+            f"{out_features:,} outputs (mask density too low for rejection "
+            f"sampling, or K*4 > in_features). This is O(out_features) Python "
+            f"iterations and will be slow to initialise.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
     for out_idx in range(out_features):
         if allowed is None:
             row_allowed = full_arange
@@ -325,41 +359,20 @@ def _scale_for_sparse_target(
     return scale
 
 
-def _allowed_mask_with_forbidden(
-    *,
-    connection_mask: torch.Tensor | None,
-    forbidden_input_index_per_output: torch.Tensor | None,
-    out_features: int,
-    in_features: int,
-) -> torch.Tensor | None:
-    """Merge hard connectivity masks with per-row forbidden input indices."""
-    allowed = validate_connection_mask(connection_mask, out_features, in_features)
-    forbidden = _validate_forbidden_indices(
-        forbidden_input_index_per_output,
-        out_features=out_features,
-        in_features=in_features,
-    )
-    if forbidden is None:
-        return allowed
-
-    if allowed is None:
-        allowed = torch.ones(out_features, in_features, dtype=torch.bool)
-    else:
-        allowed = allowed.clone()
-    rows = torch.arange(out_features, dtype=torch.long)
-    active = forbidden >= 0
-    if bool(active.any()):
-        allowed[rows[active], forbidden[active]] = False
-    if allowed.numel() > 0 and bool((allowed.sum(dim=1) == 0).any()):
-        raise ValueError(
-            "connection_mask and forbidden_input_index_per_output leave at "
-            "least one output row with no allowed inputs"
-        )
-    return allowed
+# NOTE: `_allowed_mask_with_forbidden` was removed here.
+#
+# It merged a connection_mask with per-row forbidden indices by materialising a
+# DENSE [out_features, in_features] bool mask -- 2.15 GiB for a single
+# out=144,000 x in=16,000 layer, and the reason base.yaml warns that turning
+# `allow_self_recurrence` off "creates a dense allowed-connectivity mask at this
+# scale". IndexedSparseLinear no longer calls it: it passes `connection_mask` and
+# `forbidden_input_index_per_output` to _sample_indices_from_mask separately, so
+# the forbidden index is applied during sampling and never materialised. The
+# function was dead in this package and is removed so it cannot be wired back in.
+# (A private copy still lives under tests/src/ and is unaffected.)
 
 
 __all__ = [
-    "_allowed_mask_with_forbidden",
     "_connection_generator",
     "_indexed_sparse_projection",
     "_resolve_index_dtype",
