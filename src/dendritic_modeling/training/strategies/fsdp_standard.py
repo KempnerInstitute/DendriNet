@@ -634,6 +634,7 @@ class FSDPTrainer(Trainer):
         Returns:
             Training results dictionary
         """
+        trainer_started = time.perf_counter()
         if isinstance(train_loader, DataLoader):
             if valid_loader is not None and not isinstance(valid_loader, DataLoader):
                 raise TypeError(
@@ -695,24 +696,33 @@ class FSDPTrainer(Trainer):
             # Measure the recurrent train/validation phase independently while
             # retaining the setup peak above for an overall maximum.
             torch.cuda.reset_peak_memory_stats(self.device)
+        fsdp_setup_seconds = time.perf_counter() - trainer_started
 
+        frozen_core_cache_seconds = None
         if self.cache_frozen_core_outputs:
             if not bool(getattr(model, "_freeze_core_forward", False)):
                 raise ValueError(
                     "cache_frozen_core_outputs requires the frozen-core "
                     "trainability policy"
                 )
+            if track_cuda_memory:
+                torch.cuda.synchronize(self.device)
+            cache_started = time.perf_counter()
             train_loader, valid_loader = self._cache_frozen_core_loaders(
                 model,
                 train_loader,
                 valid_loader,
             )
+            if track_cuda_memory:
+                torch.cuda.synchronize(self.device)
+            frozen_core_cache_seconds = time.perf_counter() - cache_started
 
         # Training loop
         train_losses = []
         valid_losses = []
         train_accs = []
         valid_accs = []
+        epoch_times_seconds = []
         best_valid_loss = float("inf")
         patience_counter = 0
         self.last_completed_epoch = -1
@@ -720,11 +730,12 @@ class FSDPTrainer(Trainer):
         if self.rank == 0:
             logger.info(f"Starting training for {self.epochs} epochs")
 
+        training_loop_started = time.perf_counter()
         for epoch in range(self.epochs):
             self.last_completed_epoch = epoch
             if self.rank == 0:
                 logger.info(f"Starting epoch {epoch}")
-            epoch_start = time.time()
+            epoch_start = time.perf_counter()
 
             # Set epoch for distributed sampler
             if hasattr(train_loader.sampler, "set_epoch"):
@@ -773,7 +784,8 @@ class FSDPTrainer(Trainer):
             # (see train_experiments_fsdp.py).
 
             # Logging
-            epoch_time = time.time() - epoch_start
+            epoch_time = time.perf_counter() - epoch_start
+            epoch_times_seconds.append(epoch_time)
             if self.rank == 0 and epoch % self.print_every == 0:
                 msg = f"Epoch {epoch}/{self.epochs} - Train Loss: {train_loss:.4f} - Train Acc: {train_acc:.4f}"
                 if valid_loss is not None and valid_acc is not None:
@@ -815,6 +827,7 @@ class FSDPTrainer(Trainer):
                     os.path.join(self.checkpoint_dir, f"checkpoint_epoch_{epoch}.pt"),
                     rank=self.rank,
                 )
+        training_loop_seconds = time.perf_counter() - training_loop_started
 
         # Final save
         self.final_checkpoint_path = None
@@ -843,6 +856,11 @@ class FSDPTrainer(Trainer):
             "valid_accs": valid_accs,
             "final_train_loss": train_losses[-1] if train_losses else None,
             "final_valid_loss": valid_losses[-1] if valid_losses else None,
+            "fsdp_setup_seconds": fsdp_setup_seconds,
+            "frozen_core_cache_seconds": frozen_core_cache_seconds,
+            "epoch_times_seconds": epoch_times_seconds,
+            "training_loop_seconds": training_loop_seconds,
+            "trainer_total_seconds": time.perf_counter() - trainer_started,
         }
         if diagnostic_hook is not None:
             diagnostic_hook.remove()
