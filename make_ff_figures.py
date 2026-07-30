@@ -104,8 +104,11 @@ def place_endlabels(ax, items, dx=6, min_gap_px=13):
                     arrowprops=leader)
 
 
-def thousands(ax):
-    ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:,.0f}"))
+def thousands(ax, axis="y"):
+    """Comma-format the VALUE axis. On horizontal bars that is x -- applying it
+    to y replaces the category names with tick numbers."""
+    a = ax.yaxis if axis == "y" else ax.xaxis
+    a.set_major_formatter(FuncFormatter(lambda v, _: f"{v:,.0f}"))
 
 
 def save(fig, outdir, name):
@@ -144,6 +147,18 @@ STEP = lambda r: r["whole_step"]["step_ms_mean"]
 FWD = lambda r: r["whole_step"]["fwd_ms_mean"]
 BWD = lambda r: r["whole_step"]["bwd_ms_mean"]
 PEAK = lambda r: r["peak_mem_mb"]
+
+
+def short_kernel(name):
+    """A readable stem for a mangled CUDA kernel symbol."""
+    # Strip the wrappers BEFORE splitting on "(" -- "(anonymous namespace)::" has
+    # its own parenthesis, so splitting first reduced the loop's dominant kernel
+    # to the empty string and the bar was labelled with a bare percentage.
+    s = name
+    for junk in ("void ", "at::native::", "(anonymous namespace)::", "at_cuda_detail::"):
+        s = s.replace(junk, "")
+    s = s.split("(")[0].split("<")[0].split("::")[-1]
+    return (s[:24] + "…") if len(s) > 25 else s
 
 
 def kernel_ops(rec, phase):
@@ -232,6 +247,7 @@ def fig_fwd_bwd(cells, gpu, outdir, batch):
     if not have:
         return
     fig, ax = plt.subplots(figsize=(7.2, 4.2))
+    widest = max(FWD(cells[(p, batch)]) + BWD(cells[(p, batch)]) for p in have)
     for i, p in enumerate(have):
         r = cells[(p, batch)]
         f, b = FWD(r), BWD(r)
@@ -241,11 +257,12 @@ def fig_fwd_bwd(cells, gpu, outdir, batch):
                 edgecolor=SURFACE, linewidth=2)
         ax.text(f + b, i, f"  {f + b:,.0f} ms", va="center", fontsize=9,
                 color=INK, fontweight="600")
-        if f > (f + b) * 0.06:
+        if f > widest * 0.10:
             ax.text(f / 2, i, f"fwd {f:,.0f}", va="center", ha="center",
                     fontsize=8, color=SURFACE, fontweight="600")
-        ax.text(f + b / 2, i, f"bwd {b:,.0f}", va="center", ha="center",
-                fontsize=8, color=INK, fontweight="600")
+        if b > widest * 0.10:
+            ax.text(f + b / 2, i, f"bwd {b:,.0f}", va="center", ha="center",
+                    fontsize=8, color=INK, fontweight="600")
     ax.set_yticks(range(len(have)))
     ax.set_yticklabels([LABEL[p] for p in have])
     ax.invert_yaxis()
@@ -268,15 +285,18 @@ def fig_per_op(cells, gpu, outdir, batch, topn=6):
             ops[k] = ops.get(k, 0) + v
         top = sorted(ops.items(), key=lambda kv: -kv[1])[:topn]
         left = 0.0
+        # Label ONLY the dominant kernel: the tail segments are far narrower than
+        # their mangled symbol names, so labelling each one produced a pile-up.
+        # The rest is legible in the per-op JSON / ops_*.txt tables.
         for j, (name, ms) in enumerate(top):
             ax.barh(i, ms, left=left, height=0.58, zorder=3,
                     color=COLOR[p], alpha=1.0 - j * 0.13,
                     edgecolor=SURFACE, linewidth=2)
-            if ms > sum(v for _, v in top) * 0.14:
-                short = name.split("(")[0].split("::")[-1][:26]
-                ax.text(left + ms / 2, i, short, va="center", ha="center",
-                        fontsize=7.5, color=INK, fontweight="600")
             left += ms
+        big_name, big_ms = top[0]
+        ax.annotate(f"{short_kernel(big_name)}  {100 * big_ms / left:.0f}%",
+                    xy=(big_ms / 2, i), xytext=(0, 15), textcoords="offset points",
+                    ha="center", fontsize=8, color=INK, fontweight="600")
         ax.text(left, i, f"  {left:,.0f} ms", va="center", fontsize=9,
                 color=INK, fontweight="600")
     ax.set_yticks(range(len(have)))
@@ -406,7 +426,8 @@ def fig_mem_reduction(cells, gpu, outdir):
     ax.set_xticklabels(batches)
     style(ax, "Memory saved versus the eager baseline", "batch size",
           "% less peak memory", subtitle=f"{gpu} · higher is better")
-    ax.legend(frameon=False, fontsize=9, labelcolor=INK_2, ncol=3, loc="lower left")
+    ax.legend(frameon=False, fontsize=9, labelcolor=INK_2, ncol=3,
+              loc="lower center", bbox_to_anchor=(0.5, -0.30))
     save(fig, outdir, "M3_memory_reduction.png")
 
 
@@ -416,6 +437,7 @@ def fig_mem_split(cells, gpu, outdir, batch):
     if not have:
         return
     fig, ax = plt.subplots(figsize=(7.2, 4.2))
+    widest = max(PEAK(cells[(p, batch)]) for p in have)
     for i, p in enumerate(have):
         r = cells[(p, batch)]
         base = r.get("param_mem_mb", 0.0)
@@ -426,12 +448,13 @@ def fig_mem_split(cells, gpu, outdir, batch):
                 height=0.58, edgecolor=SURFACE, linewidth=2)
         ax.text(base + act, i, f"  {base + act:,.0f} MB", va="center", fontsize=9,
                 color=INK, fontweight="600")
-        ax.text(base + act / 2, i, f"activations {act:,.0f}", va="center",
-                ha="center", fontsize=8, color=INK, fontweight="600")
+        if act > widest * 0.22:
+            ax.text(base + act / 2, i, f"activations {act:,.0f}", va="center",
+                    ha="center", fontsize=8, color=INK, fontweight="600")
     ax.set_yticks(range(len(have)))
     ax.set_yticklabels([LABEL[p] for p in have])
     ax.invert_yaxis()
-    thousands(ax)
+    thousands(ax, axis="x")
     style(ax, "Activations, not parameters, are the memory", "MB", "",
           subtitle=f"{gpu} · batch {batch} · solid = resident, translucent = activations")
     save(fig, outdir, "M4_activation_vs_resident.png")
