@@ -12,6 +12,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as functional
 
+from dendritic_modeling.utils.profiling import nvtx_range
+
 
 class DendriteConv2d(nn.Module):
     """
@@ -374,9 +376,21 @@ class DendriteConv2d(nn.Module):
         v_out : torch.Tensor
             Output tensor of shape (batch, out_channels, height_out, width_out)
         """
+        with nvtx_range("dendrite/conv2d/forward"):
+            return self._forward_impl(x, v_in=v_in)
+
+    def _forward_impl(
+        self, x: torch.Tensor, v_in: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
         # Excitatory and inhibitory branch computations.
-        E = self._branch_conv2d(x, self.weight_e_branches, self.n_e_dendrites)
-        I_var = self._branch_conv2d(x, self.weight_i_branches, self.n_i_dendrites)
+        with nvtx_range("dendrite/conv2d/apply_excitatory_dense_mask"):
+            weight_e_branches = self.weight_e_branches
+        with nvtx_range("dendrite/conv2d/excitatory_dense_convolution"):
+            E = self._branch_conv2d(x, weight_e_branches, self.n_e_dendrites)
+        with nvtx_range("dendrite/conv2d/apply_inhibitory_dense_mask"):
+            weight_i_branches = self.weight_i_branches
+        with nvtx_range("dendrite/conv2d/inhibitory_dense_convolution"):
+            I_var = self._branch_conv2d(x, weight_i_branches, self.n_i_dendrites)
 
         if self.bias_E is not None:
             E = E + self.bias_E[None, :, None, None]
@@ -424,7 +438,8 @@ class DendriteConv2d(nn.Module):
             I_var = I_var * torch.sigmoid(apical_mod_I)
 
         # Divisive normalization
-        v_out = E / (E + I_var + self.epsilon)
+        with nvtx_range("dendrite/conv2d/shunting_normalization"):
+            v_out = E / (E + I_var + self.epsilon)
 
         return v_out
 

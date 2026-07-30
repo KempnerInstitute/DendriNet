@@ -22,6 +22,7 @@ from dendritic_modeling.networks.utils.weight_transforms import (
     inverse_softplus,
 )
 from dendritic_modeling.utils.hooks import iter_modules_matching
+from dendritic_modeling.utils.profiling import nvtx_range
 
 TOPK_INIT_METHODS = {
     "xavier_normal": nn.init.xavier_normal_,
@@ -352,20 +353,24 @@ class TopKLinear(nn.Module):
         if use_cache and not torch.is_grad_enabled():
             pruned_weight = self._recurrent_cached_pruned_weight
             if pruned_weight is None:
-                mask = self.weight_mask()
+                with nvtx_range("dendrite/topk/select_mask"):
+                    mask = self.weight_mask()
                 if self.cache_mask:
                     self._last_forward_weight_mask = mask.detach()
-                pruned_weight = self._pruned_weight_from_mask(mask)
+                with nvtx_range("dendrite/topk/apply_dense_mask"):
+                    pruned_weight = self._pruned_weight_from_mask(mask)
                 self._recurrent_cached_pruned_weight = pruned_weight
         else:
             mask = self._recurrent_cached_weight_mask if use_cache else None
             if mask is None:
-                mask = self.weight_mask()
+                with nvtx_range("dendrite/topk/select_mask"):
+                    mask = self.weight_mask()
                 if use_cache:
                     self._recurrent_cached_weight_mask = mask
             if self.cache_mask:
                 self._last_forward_weight_mask = mask.detach()
-            pruned_weight = self._pruned_weight_from_mask(mask)
+            with nvtx_range("dendrite/topk/apply_dense_mask"):
+                pruned_weight = self._pruned_weight_from_mask(mask)
 
         object.__setattr__(
             self,
@@ -373,7 +378,8 @@ class TopKLinear(nn.Module):
             pruned_weight if self._use_forward_dynamic_grad_scaling else None,
         )
 
-        return torch.matmul(x, pruned_weight.t())
+        with nvtx_range("dendrite/topk/dense_matmul"):
+            return torch.matmul(x, pruned_weight.t())
 
     def register_forward_param_gradient_scale(self, param_scale: torch.Tensor) -> None:
         """Scale parameter gradients for the most recent forward call only."""

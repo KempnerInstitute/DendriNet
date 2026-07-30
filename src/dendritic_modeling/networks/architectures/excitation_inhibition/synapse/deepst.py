@@ -22,6 +22,7 @@ from dendritic_modeling.networks.utils.weight_transforms import (
     apply_weight_transform,
     inverse_softplus,
 )
+from dendritic_modeling.utils.profiling import nvtx_range
 
 
 def _normalize_forbidden_inputs(
@@ -321,8 +322,12 @@ class DeepstLinear(nn.Module):
         return self.weight() * self.mask
 
     def forward(self, x):
-        # Apply mask and sum across dendritic locations
-        return torch.matmul(x, self.pruned_weight().t())
+        # Like TopKLinear, DEEPST applies logical sparsity to a dense weight
+        # tensor and then dispatches a dense matrix multiplication.
+        with nvtx_range("dendrite/deepst/apply_dense_mask"):
+            pruned_weight = self.pruned_weight()
+        with nvtx_range("dendrite/deepst/dense_matmul"):
+            return torch.matmul(x, pruned_weight.t())
 
     def weighted_synapses(self, cell_weights, prune=False):
         """Apply cell weights to synapses (compatibility with DendriNet)"""

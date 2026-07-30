@@ -32,6 +32,7 @@ from dendritic_modeling.training.fsdp_utils import (
 )
 from dendritic_modeling.training.strategies.standard import Trainer
 from dendritic_modeling.utils.hooks import iter_modules_matching
+from dendritic_modeling.utils.profiling import nvtx_range
 
 logger = logging.getLogger(__name__)
 
@@ -428,7 +429,8 @@ class FSDPTrainer(Trainer):
                 train_loader.sampler.set_epoch(epoch)
 
             # Training
-            train_loss, train_acc = self._epoch_train_fsdp(model, train_loader)
+            with nvtx_range(f"training/epoch_{epoch + 1}/train"):
+                train_loss, train_acc = self._epoch_train_fsdp(model, train_loader)
             train_losses.append(train_loss)
             train_accs.append(train_acc)
 
@@ -438,7 +440,8 @@ class FSDPTrainer(Trainer):
             if valid_loader is not None:
                 if hasattr(valid_loader.sampler, "set_epoch"):
                     valid_loader.sampler.set_epoch(epoch)
-                valid_loss, valid_acc = self._epoch_valid_fsdp(model, valid_loader)
+                with nvtx_range(f"training/epoch_{epoch + 1}/validation"):
+                    valid_loss, valid_acc = self._epoch_valid_fsdp(model, valid_loader)
                 valid_losses.append(valid_loss)
                 valid_accs.append(valid_acc)
 
@@ -551,7 +554,8 @@ class FSDPTrainer(Trainer):
 
         for _batch_idx, batch in enumerate(train_loader):
             # Clear GPU cache before each forward pass
-            torch.cuda.empty_cache()
+            with nvtx_range("training/batch/clear_cuda_cache"):
+                torch.cuda.empty_cache()
 
             x_batch = batch[0].to(self.device)
             y_batch = batch[1].to(self.device)
@@ -568,8 +572,10 @@ class FSDPTrainer(Trainer):
                     loss = self.loss_fn(outputs, y_batch)
 
                 # Backward pass with scaling
-                self.optimizer.zero_grad()
-                self.scaler.scale(loss).backward()
+                with nvtx_range("training/batch/zero_grad"):
+                    self.optimizer.zero_grad()
+                with nvtx_range("training/batch/backward"):
+                    self.scaler.scale(loss).backward()
 
                 # Gradient clipping
                 if self.grad_clip_value is not None:
@@ -577,27 +583,32 @@ class FSDPTrainer(Trainer):
                     self._clip_grad_norm_fsdp(model)
 
                 # Optimizer step with scaling
-                self.scaler.step(self.optimizer)
-                self.scaler.update()
+                with nvtx_range("training/batch/optimizer_step"):
+                    self.scaler.step(self.optimizer)
+                    self.scaler.update()
             else:
                 # Standard precision training
                 outputs = model(x_batch, seq_lengths=seq_lengths)
                 loss = self.loss_fn(outputs, y_batch)
 
                 # Backward pass
-                self.optimizer.zero_grad()
-                loss.backward()
+                with nvtx_range("training/batch/zero_grad"):
+                    self.optimizer.zero_grad()
+                with nvtx_range("training/batch/backward"):
+                    loss.backward()
 
                 # Gradient clipping
                 if self.grad_clip_value is not None:
                     self._clip_grad_norm_fsdp(model)
 
                 # Optimizer step
-                self.optimizer.step()
+                with nvtx_range("training/batch/optimizer_step"):
+                    self.optimizer.step()
 
             bs = y_batch.size(0)
-            total_loss += loss.item() * bs
-            total_correct += (outputs.argmax(dim=1) == y_batch).sum().item()
+            with nvtx_range("training/batch/metrics_to_host"):
+                total_loss += loss.item() * bs
+                total_correct += (outputs.argmax(dim=1) == y_batch).sum().item()
             total_examples += bs
 
         # All-reduce exact counts across ranks.
@@ -605,7 +616,8 @@ class FSDPTrainer(Trainer):
             [total_loss, float(total_correct), float(total_examples)],
             device=self.device,
         )
-        dist.all_reduce(stats, op=dist.ReduceOp.SUM)
+        with nvtx_range("training/train/all_reduce_metrics"):
+            dist.all_reduce(stats, op=dist.ReduceOp.SUM)
         global_examples = stats[2].item()
         avg_loss = stats[0].item() / max(global_examples, 1)
         avg_acc = stats[1].item() / max(global_examples, 1)
@@ -676,8 +688,9 @@ class FSDPTrainer(Trainer):
                         bs = real_in_batch
                     seen += bs
 
-                weighted_loss_sum += loss.item() * bs
-                total_correct += (outputs.argmax(dim=1) == y_batch).sum().item()
+                with nvtx_range("training/validation_batch/metrics_to_host"):
+                    weighted_loss_sum += loss.item() * bs
+                    total_correct += (outputs.argmax(dim=1) == y_batch).sum().item()
                 total_examples += bs
 
         # All-reduce exact counts across ranks.
@@ -685,7 +698,8 @@ class FSDPTrainer(Trainer):
             [weighted_loss_sum, float(total_correct), float(total_examples)],
             device=self.device,
         )
-        dist.all_reduce(stats, op=dist.ReduceOp.SUM)
+        with nvtx_range("training/validation/all_reduce"):
+            dist.all_reduce(stats, op=dist.ReduceOp.SUM)
         global_examples = stats[2].item()
         avg_loss = stats[0].item() / max(global_examples, 1)
         avg_acc = stats[1].item() / max(global_examples, 1)

@@ -41,6 +41,7 @@ from dendritic_modeling.training.regularization import (
     RegularizationManager,
 )
 from dendritic_modeling.utils.hooks import iter_modules_of_type
+from dendritic_modeling.utils.profiling import nvtx_range
 
 logger = logging.getLogger(__name__)
 
@@ -590,11 +591,15 @@ class Trainer:
             and self.epoch_counter >= recalib_start
             and (self.epoch_counter - recalib_start) % recalib_every == 0
         ):
-            self._recalibrate_reactivation(model, train_loader)
+            with nvtx_range(
+                f"training/epoch_{self.epoch_counter}/reactivation_recalibration"
+            ):
+                self._recalibrate_reactivation(model, train_loader)
 
-        train_loss_total, train_loss_base, train_loss_reg = self._epoch_train(
-            model, train_loader
-        )
+        with nvtx_range(f"training/epoch_{self.epoch_counter}/train"):
+            train_loss_total, train_loss_base, train_loss_reg = self._epoch_train(
+                model, train_loader
+            )
         train_losses.append(train_loss_total)
         train_losses_base.append(train_loss_base)
         train_losses_reg.append(train_loss_reg)
@@ -602,23 +607,25 @@ class Trainer:
         # padded samplers and then all-reduce exact sample-weighted loss.
         if self._is_distributed:
             unwrapped = self._unwrap_model(model)
-            valid_loss = self._epoch_valid_distributed(unwrapped, valid_loader)
+            with nvtx_range(f"training/epoch_{self.epoch_counter}/validation"):
+                valid_loss = self._epoch_valid_distributed(unwrapped, valid_loader)
         else:
             valid_loss = self._non_distributed_validation_loss(model, valid_loader)
 
         valid_losses.append(valid_loss)
 
-        self._update_best(model, valid_loss)
-        self._save_checkpoint(model)
-        self._analyze()
-        self._tracking(
-            train_loss_total,
-            valid_loss,
-            logger_info,
-            wandb_info,
-            train_loss_base=train_loss_base,
-            train_loss_reg=train_loss_reg,
-        )
+        with nvtx_range(f"training/epoch_{self.epoch_counter}/bookkeeping"):
+            self._update_best(model, valid_loss)
+            self._save_checkpoint(model)
+            self._analyze()
+            self._tracking(
+                train_loss_total,
+                valid_loss,
+                logger_info,
+                wandb_info,
+                train_loss_base=train_loss_base,
+                train_loss_reg=train_loss_reg,
+            )
         return train_losses, valid_losses, train_losses_base, train_losses_reg
 
     def _recalibrate_reactivation(
@@ -707,31 +714,34 @@ class Trainer:
 
             if self.enable_amp:
                 # Mixed precision forward pass
-                with autocast():
-                    base_loss = self.loss_function(model, x_batch, y_batch)
+                with nvtx_range("training/batch/forward_and_loss"):
+                    with autocast():
+                        base_loss = self.loss_function(model, x_batch, y_batch)
 
-                    # Add all regularization losses only if regularization is enabled
-                    if has_regularization:
-                        reg_loss = (
-                            self.regularization_manager.compute_regularization_loss(
-                                model,
-                                x_batch,
-                                y_batch,
-                                param_groups=self.optimizer.param_groups,
-                            )
-                        )
-                        total_loss = base_loss + reg_loss
-                        reg_loss_item = reg_loss.item()
-                    else:
-                        total_loss = base_loss
-                        reg_loss_item = 0.0
+                        # Add all regularization losses only if regularization is enabled
+                        if has_regularization:
+                            with nvtx_range("training/batch/regularization"):
+                                reg_loss = self.regularization_manager.compute_regularization_loss(
+                                    model,
+                                    x_batch,
+                                    y_batch,
+                                    param_groups=self.optimizer.param_groups,
+                                )
+                            total_loss = base_loss + reg_loss
+                            reg_loss_item = reg_loss.item()
+                        else:
+                            total_loss = base_loss
+                            reg_loss_item = 0.0
 
-                self.optimizer.zero_grad()
-                self.scaler.scale(total_loss).backward()
+                with nvtx_range("training/batch/zero_grad"):
+                    self.optimizer.zero_grad()
+                with nvtx_range("training/batch/backward"):
+                    self.scaler.scale(total_loss).backward()
 
                 # Optional expensive operations (configurable for performance)
                 if self.enable_nan_checking:
-                    nan_detected = self._check_and_handle_nan_gradients(model)
+                    with nvtx_range("training/batch/check_nan_gradients"):
+                        nan_detected = self._check_and_handle_nan_gradients(model)
                     if nan_detected:
                         logger.warning(
                             "NaNs detected and handled in gradients during AMP training"
@@ -739,49 +749,62 @@ class Trainer:
 
                 # Gradient clipping with AMP
                 if self.grad_clip_value:
-                    # Unscale gradients before clipping
-                    self.scaler.unscale_(self.optimizer)
-                    if self.enable_adaptive_clipping:
-                        self._apply_adaptive_gradient_clipping(model)
-                    else:
-                        clip_grad_value_(model.parameters(), self.grad_clip_value)
+                    with nvtx_range("training/batch/gradient_clipping"):
+                        # Unscale gradients before clipping
+                        self.scaler.unscale_(self.optimizer)
+                        if self.enable_adaptive_clipping:
+                            self._apply_adaptive_gradient_clipping(model)
+                        else:
+                            clip_grad_value_(model.parameters(), self.grad_clip_value)
 
-                self.scaler.step(self.optimizer)
-                self.scaler.update()
+                with nvtx_range("training/batch/optimizer_step"):
+                    self.scaler.step(self.optimizer)
+                    self.scaler.update()
             else:
                 # Standard precision training
-                base_loss: torch.Tensor = self.loss_function(model, x_batch, y_batch)
-
-                # Add all regularization losses only if regularization is enabled
-                if has_regularization:
-                    reg_loss = self.regularization_manager.compute_regularization_loss(
-                        model,
-                        x_batch,
-                        y_batch,
-                        param_groups=self.optimizer.param_groups,
+                with nvtx_range("training/batch/forward_and_loss"):
+                    base_loss: torch.Tensor = self.loss_function(
+                        model, x_batch, y_batch
                     )
-                    total_loss = base_loss + reg_loss
-                    reg_loss_item = reg_loss.item()
-                else:
-                    total_loss = base_loss
-                    reg_loss_item = 0.0
 
-                self.optimizer.zero_grad()
-                total_loss.backward()
+                    # Add all regularization losses only if regularization is enabled
+                    if has_regularization:
+                        with nvtx_range("training/batch/regularization"):
+                            reg_loss = (
+                                self.regularization_manager.compute_regularization_loss(
+                                    model,
+                                    x_batch,
+                                    y_batch,
+                                    param_groups=self.optimizer.param_groups,
+                                )
+                            )
+                        total_loss = base_loss + reg_loss
+                        reg_loss_item = reg_loss.item()
+                    else:
+                        total_loss = base_loss
+                        reg_loss_item = 0.0
+
+                with nvtx_range("training/batch/zero_grad"):
+                    self.optimizer.zero_grad()
+                with nvtx_range("training/batch/backward"):
+                    total_loss.backward()
 
                 # Optional expensive operations (configurable for performance)
                 if self.enable_nan_checking:
-                    nan_detected = self._check_and_handle_nan_gradients(model)
+                    with nvtx_range("training/batch/check_nan_gradients"):
+                        nan_detected = self._check_and_handle_nan_gradients(model)
                     if nan_detected:
                         logger.warning("NaNs detected and handled in gradients")
 
                 # Gradient clipping: adaptive (expensive) vs simple (fast)
-                if self.enable_adaptive_clipping:
-                    self._apply_adaptive_gradient_clipping(model)
-                else:
-                    # Use simple, fast gradient clipping (default)
-                    clip_grad_value_(model.parameters(), self.grad_clip_value)
-                self.optimizer.step()
+                with nvtx_range("training/batch/gradient_clipping"):
+                    if self.enable_adaptive_clipping:
+                        self._apply_adaptive_gradient_clipping(model)
+                    else:
+                        # Use simple, fast gradient clipping (default)
+                        clip_grad_value_(model.parameters(), self.grad_clip_value)
+                with nvtx_range("training/batch/optimizer_step"):
+                    self.optimizer.step()
 
             train_loss_total += total_loss.item()
             train_loss_base += base_loss.item()
@@ -963,15 +986,18 @@ class Trainer:
                         y_batch = y_batch[:real_in_batch]
                         batch_size = real_in_batch
                     seen += batch_size
-                loss: torch.Tensor = self.loss_function(model, x_batch, y_batch)
-                weighted_loss_sum += loss.item() * batch_size
+                with nvtx_range("training/validation_batch/forward_and_loss"):
+                    loss: torch.Tensor = self.loss_function(model, x_batch, y_batch)
+                with nvtx_range("training/validation_batch/metrics_to_host"):
+                    weighted_loss_sum += loss.item() * batch_size
                 total_examples += batch_size
         stats = torch.tensor(
             [weighted_loss_sum, float(total_examples)],
             device=self.device,
             dtype=torch.float64,
         )
-        dist.all_reduce(stats, op=dist.ReduceOp.SUM)
+        with nvtx_range("training/validation/all_reduce"):
+            dist.all_reduce(stats, op=dist.ReduceOp.SUM)
         return stats[0].item() / max(stats[1].item(), 1.0)
 
     def _evaluate_loader_loss(self, model: BaseModel, loader: DataLoader) -> float:

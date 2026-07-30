@@ -17,6 +17,7 @@ from dendritic_modeling.networks.utils.weight_transforms import (
     inverse_softplus,
     inverse_weight_transform,
 )
+from dendritic_modeling.utils.profiling import nvtx_range
 
 logger = logging.getLogger(__name__)
 
@@ -212,16 +213,18 @@ class BlockLinear(nn.Module):
 
         self._last_forward_input_tensor = x
 
-        block = torch.zeros(
-            (self.out_features, self.in_features),
-            device=self.log_weight.device,
-            dtype=self.log_weight.dtype,
-        )
-        row_ix, col_ix = self._block_indices()
-        weights = self.weight() * 1.0
-        object.__setattr__(self, "_last_forward_param_tensor", weights)
-        block[row_ix, col_ix] = weights
-        output = torch.matmul(x, block.t())
+        with nvtx_range("dendrite/block_linear/materialize_dense_matrix"):
+            block = torch.zeros(
+                (self.out_features, self.in_features),
+                device=self.log_weight.device,
+                dtype=self.log_weight.dtype,
+            )
+            row_ix, col_ix = self._block_indices()
+            weights = self.weight() * 1.0
+            object.__setattr__(self, "_last_forward_param_tensor", weights)
+            block[row_ix, col_ix] = weights
+        with nvtx_range("dendrite/block_linear/dense_matmul"):
+            output = torch.matmul(x, block.t())
 
         # Reshape output to match input shape structure if needed
         if len(original_shape) > 2:
@@ -304,13 +307,14 @@ class EfficientBlockLinear(BlockLinear):
                 details += f" The provided width implies out_features={implied_out}."
             raise ValueError(details)
 
-        x_reshaped = x.view(B, self.out_features, self.block_size)
-        weights = (
-            apply_weight_transform(self.log_weight, self.weight_transform) * 1.0
-        )  # (out_features, block_size)
-        self._last_forward_input_tensor = x
-        object.__setattr__(self, "_last_forward_param_tensor", weights)
-        output = (x_reshaped * weights).sum(dim=-1)  # (B, out_features)
+        with nvtx_range("dendrite/block_linear/structured_multiply_reduce"):
+            x_reshaped = x.view(B, self.out_features, self.block_size)
+            weights = (
+                apply_weight_transform(self.log_weight, self.weight_transform) * 1.0
+            )  # (out_features, block_size)
+            self._last_forward_input_tensor = x
+            object.__setattr__(self, "_last_forward_param_tensor", weights)
+            output = (x_reshaped * weights).sum(dim=-1)  # (B, out_features)
 
         # Reshape output to match input shape structure if needed
         if len(original_shape) > 2:

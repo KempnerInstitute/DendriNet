@@ -69,6 +69,7 @@ alias configs are supported for saved experiments and comparison runs.
 
    network_architectures
    training_strategies
+   profiling
    datasets
    analysis
    engineering_architecture

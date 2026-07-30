@@ -37,6 +37,7 @@ from dendritic_modeling.training.utils.profiling import (
     record_section,
     total_profiled_steps,
 )
+from dendritic_modeling.utils.profiling import nvtx_range
 
 logger = logging.getLogger(__name__)
 
@@ -199,7 +200,8 @@ class RecurrentTrainer(Trainer):
                 x_batch = x_batch.to(self.device)
                 y_batch = y_batch.to(self.device)
 
-            self.optimizer.zero_grad()
+            with nvtx_range("training/batch/zero_grad"):
+                self.optimizer.zero_grad()
 
             if self.recurrent_amp:
                 amp_opt = self.optimizer
@@ -210,8 +212,11 @@ class RecurrentTrainer(Trainer):
                 with record_section("backward"):
                     self.recurrent_scaler.scale(loss).backward()
                 if self.grad_clip > 0:
-                    self.recurrent_scaler.unscale_(amp_opt)
-                    torch.nn.utils.clip_grad_norm_(model.parameters(), self.grad_clip)
+                    with nvtx_range("training/batch/gradient_clipping"):
+                        self.recurrent_scaler.unscale_(amp_opt)
+                        torch.nn.utils.clip_grad_norm_(
+                            model.parameters(), self.grad_clip
+                        )
                 # Step through the configured optimizer object directly so AMP
                 # skip semantics apply to wrapper logic (e.g., custom decay/rewiring).
                 with record_section("optimizer"):
@@ -253,7 +258,8 @@ class RecurrentTrainer(Trainer):
 
         # Step LR scheduler once per epoch
         if self.scheduler is not None:
-            self.scheduler.step()
+            with nvtx_range("training/epoch/scheduler_step"):
+                self.scheduler.step()
 
         avg_loss = total_loss / max(n_batches, 1)
         return avg_loss, avg_loss, 0.0  # (total, base, reg=0)
