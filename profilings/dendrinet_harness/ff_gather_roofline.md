@@ -45,6 +45,56 @@ Backward is the same shape of result: `gather_gradx_stage` 1.21% DRAM / 22.4% SM
 **Not bandwidth-bound. Not compute-bound. Occupancy-capped at 1 block/SM by shared
 memory** — 512 threads = 16 warps, against an SM that holds far more.
 
+### RESOLVED (2026-07-30) — un-staged forward variant
+
+Added `gather_fwd_wpo_ns_kernel`: identical warp-per-output structure, **no shared
+staging**, x read through `__ldg` and served by the L2 that was already at 99.44%.
+Additive — the staged kernel is untouched.
+
+It does not always win: it issues ~5× more L2 requests, which only pays back when the
+grid has enough output work. Swept a 5×5 (IN, O) grid, batch 512, K=40 — **won 3 cells,
+lost 22**:
+
+| IN \ O | 2,000 | 8,000 | 16,000 | 48,000 | 144,000 | blk/SM |
+|---|---|---|---|---|---|---|
+| 3,072 | 0.91 | 0.92 | 0.91 | 0.92 | 0.89 | 8 |
+| 4,000 | 0.90 | 0.89 | 0.88 | 0.86 | 0.88 | 6 |
+| 8,000 | 0.78 | 0.74 | 0.63 | 0.71 | 0.82 | 3 |
+| 16,000 | 0.84 | 0.81 | 0.87 | **1.11** | **1.50** | 1 |
+| 24,000 | 0.73 | 0.70 | 0.72 | 0.84 | **1.06** | 1 |
+
+`blk/SM <= 1 and reuse >= 120` (reuse = O·K/IN) classifies all 25 cells correctly. The
+boundary **moves with IN** — at 16,000 it crosses by O=48,000, at 24,000 not until
+144,000 — because a larger x-row is less L2-resident. That is why the rule has two terms
+and not a threshold on either axis alone.
+
+Shipped as `_pick_fwd_variant`, default `auto`, overridable with
+`DENDRINET_GATHER_FWD_VARIANT=staged|nostage`.
+
+**End-to-end, 12-layer stress config, batch 512, cuda path:**
+
+| | step (ms) | peak (MB) |
+|---|---|---|
+| staged (before) | 908.6 | 28184.1 |
+| auto picker | 837.0 | 28216.9 |
+| **ratio** | **1.086×** | 0.999× |
+
+Network output **bit-identical** (`torch.equal` → True across all 60 sparse layers).
+
+**It also removes the `in_features` ceiling.** At IN=33,344 the staged kernel fails to
+launch (`invalid argument`, needs 133,376 B > optin 101,376); the un-staged one runs. That
+ceiling gated scaling `in_features` past 25,344 on Blackwell.
+
+**Caveats.** Measured on Blackwell only. A100 has a larger optin (166,912 B), so `blk/SM`
+at IN=16,000 is 2 and the rule selects `staged` — a no-op there, not a regression, but the
+crossover has not been re-measured on A100. Only K=40 was swept; the reuse term carries K
+on mechanism, not measurement. The **backward is untouched** — `gather_gradx_stage_kernel`
+needs its shared buffer for fast atomics, so the same trick does not transfer directly.
+
+Also: my earlier "forward tile P is closed at 1.00×" used a ladder topping out at the
+shipped 2048. The staged optimum is actually **P=4096** (14.84 vs 15.07 ms, ~1.5%). Minor,
+but the ladder failed to bracket the optimum from above.
+
 ### The lever this exposes
 
 The shared-memory staging is what costs the occupancy, and the **99.44% L2 hit rate says

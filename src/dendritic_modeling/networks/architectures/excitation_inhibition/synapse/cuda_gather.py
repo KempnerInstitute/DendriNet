@@ -30,6 +30,8 @@ dtypes (the indexed synapse only ever sees fp32 under this model's autocast anyw
 """
 from __future__ import annotations
 
+import os
+
 import torch
 
 _EXT = None            # the compiled extension module (or None)
@@ -38,6 +40,7 @@ _COMPILE_TRIED = False  # so we attempt the (slow) compile at most once per proc
 _CPP_SRC = (
     "torch::Tensor gather_fwd_cuda(torch::Tensor x, torch::Tensor idx, torch::Tensor w, int B_O, int B_M);\n"
     "torch::Tensor gather_fwd_wpo_cuda(torch::Tensor x, torch::Tensor idx, torch::Tensor w, int P, int T);\n"
+    "torch::Tensor gather_fwd_wpo_ns_cuda(torch::Tensor x, torch::Tensor idx, torch::Tensor w, int P, int T);\n"
     "std::vector<torch::Tensor> gather_bwd_cuda(torch::Tensor grad_out, torch::Tensor x, "
     "torch::Tensor idx, torch::Tensor w, int B_O, int B_M);\n"
     "std::vector<torch::Tensor> gather_bwd_wpo_cuda(torch::Tensor grad_out, torch::Tensor goT, "
@@ -190,6 +193,58 @@ torch::Tensor gather_fwd_wpo_cuda(torch::Tensor x, torch::Tensor idx, torch::Ten
     return out;
 }
 
+// ---- forward wpo, NO shared staging -------------------------------------------------
+// The staged variant above puts the whole x-row (IN floats) in shared memory, so at
+// IN=16,000 it asks for 64KB and exactly ONE block fits per SM. ncu measured the
+// consequence: 33.1% achieved occupancy, DRAM at 1.11% of peak, SM at 35.3% -- neither
+// bandwidth- nor compute-bound, just starved of resident warps to hide latency with.
+//
+// The staging is also 71x redundant here: grid.x = ceil(O/P) blocks each re-stage the
+// SAME x-row for a given m. And the L2 hit rate on that row is already 99.44%, so the
+// data the staging protects is cache-resident anyway.
+//
+// This variant drops shared entirely and reads x through the read-only path, letting L2
+// do the job it is already doing. It trades ~5x more L2 requests for full occupancy.
+// Which wins is a measurement, not an argument -- see bench_gather_nostage.py.
+//
+// Bonus: with no shared requirement the IN <= optin/4 ceiling (25,344 on Blackwell)
+// disappears, so this path also covers rows the staged kernel cannot run at all.
+__global__ void gather_fwd_wpo_ns_kernel(
+        const float* __restrict__ x, const int* __restrict__ idx,
+        const float* __restrict__ w, float* __restrict__ out,
+        int M, int O, int IN, int K, int P) {
+    int o_base = blockIdx.x * P, m = blockIdx.y;
+    int T = blockDim.x, t = threadIdx.x;
+    const float* __restrict__ x_m = x + (long)m * IN;
+    int warp = t >> 5, lane = t & 31, W = T >> 5;
+    for (int po = warp; po < P; po += W) {
+        int o = o_base + po;
+        if (o >= O) continue;
+        long base = (long)o * K;
+        float p = 0.0f;
+        for (int k = lane; k < K; k += 32) {
+            int ix = idx[base + k];
+            p += __ldg(x_m + ix) * w[base + k];
+        }
+        #pragma unroll
+        for (int off = 16; off > 0; off >>= 1) p += __shfl_down_sync(0xffffffffu, p, off);
+        if (lane == 0) out[(long)m * O + o] = p;
+    }
+}
+
+torch::Tensor gather_fwd_wpo_ns_cuda(torch::Tensor x, torch::Tensor idx, torch::Tensor w, int P, int T) {
+    int M = x.size(0), IN = x.size(1), O = idx.size(0), K = idx.size(1);
+    auto out = torch::empty({M, O}, x.options());
+    dim3 grid((O + P - 1) / P, M), block(T);
+    gather_fwd_wpo_ns_kernel<<<grid, block, 0>>>(
+        x.data_ptr<float>(), idx.data_ptr<int>(), w.data_ptr<float>(),
+        out.data_ptr<float>(), M, O, IN, K, P);
+    { cudaError_t e = cudaGetLastError();
+      TORCH_CHECK(e == cudaSuccess, "gather_fwd_wpo_ns launch failed: ", cudaGetErrorString(e),
+                  " (P=", P, " T=", T, ")"); }
+    return out;
+}
+
 int cuda_gather_max_optin_shared() {
     int dev = 0; cudaGetDevice(&dev);
     int m = 0; cudaDeviceGetAttribute(&m, cudaDevAttrMaxSharedMemoryPerBlockOptin, dev);
@@ -315,8 +370,9 @@ def _load_ext():
             name="dendrinet_cuda_gather",
             cpp_sources=_CPP_SRC,
             cuda_sources=_CUDA_SRC,
-            functions=["gather_fwd_cuda", "gather_fwd_wpo_cuda", "gather_bwd_cuda",
-                       "gather_bwd_wpo_cuda", "cuda_gather_max_optin_shared"],
+            functions=["gather_fwd_cuda", "gather_fwd_wpo_cuda", "gather_fwd_wpo_ns_cuda",
+                       "gather_bwd_cuda", "gather_bwd_wpo_cuda",
+                       "cuda_gather_max_optin_shared"],
             verbose=False,
         )
     except Exception:  # noqa: BLE001  (missing nvcc, compile error, arch mismatch, ...)
@@ -360,6 +416,62 @@ def _pick_wpo_params() -> tuple[int, int]:
     T=512 (16 warps) is the occupancy sweet spot and 40KB-class rows leave ~2 blocks/SM.
     Safe on Ampere (row still < 48KB there)."""
     return 2048, 512
+
+
+# Which forward kernel to use. "auto" applies the measured rule below; "staged" /
+# "nostage" force one variant, for A/B and for reverting without a code change.
+_FWD_VARIANT = os.environ.get("DENDRINET_GATHER_FWD_VARIANT", "auto").strip().lower()
+
+# Below this much index reuse the un-staged kernel's extra L2 traffic does not pay
+# for itself. reuse = O*K/IN = gathers issued per element of the x-row.
+_NOSTAGE_MIN_REUSE = 120.0
+
+
+def _pick_fwd_variant(IN: int, O: int, K: int) -> tuple[str, int, int]:
+    """Choose the forward gather kernel: ("staged"|"nostage", P, T).
+
+    The staged kernel asks for IN*4 bytes of shared, so it fits
+    ``optin // (IN*4)`` blocks per SM. Once that is 1, it is occupancy-capped
+    (ncu: 33.1% achieved, DRAM 1.11%, SM 35.3%) and the un-staged kernel -- which
+    uses no shared at all and lets L2 serve the gathers, at a 99.44% hit rate --
+    can win. It does not *always* win, because it issues ~5x more L2 requests,
+    and that only pays back when there are enough outputs to fill the grid.
+
+    Measured on Blackwell, batch 512, K=40, over a 5x5 (IN, O) grid -- no-stage
+    won 3 cells and lost 22 (see bench_gather_crossover.py):
+
+        IN \\ O      2,000   8,000  16,000  48,000  144,000   blk/SM
+         3,072      0.91    0.92    0.91    0.92     0.89        8
+         4,000      0.90    0.89    0.88    0.86     0.88        6
+         8,000      0.78    0.74    0.63    0.71     0.82        3
+        16,000      0.84    0.81    0.87    1.11     1.50        1
+        24,000      0.73    0.70    0.72    0.84     1.06        1
+
+    ``blk/SM <= 1 and reuse >= 120`` classifies all 25 cells correctly. Note the
+    boundary moves with IN (at 16,000 it crosses by O=48,000; at 24,000 not until
+    144,000) because a larger x-row is less L2-resident -- which is why this is a
+    two-term rule and not a threshold on either axis alone.
+
+    Only K=40 was swept; the reuse term carries K on the assumption that gathers
+    per staged element is what matters, which is the mechanism but not measured
+    across K.
+    """
+    ns_P = 64 if O >= 96_000 else 32
+    if _FWD_VARIANT == "staged":
+        return ("staged", *_pick_wpo_params())
+    if _FWD_VARIANT == "nostage":
+        return ("nostage", ns_P, 512)
+    optin = _optin_shared()
+    if IN * 4 > optin:
+        # The staged kernel cannot launch at all here; before this variant existed
+        # the path fell back to v2. This also lifts the IN <= optin/4 ceiling
+        # (25,344 on Blackwell) that gated scaling in_features.
+        return ("nostage", ns_P, 512)
+    blocks_per_sm = optin // max(IN * 4, 1)
+    reuse = (O * K) / max(IN, 1)
+    if blocks_per_sm <= 1 and reuse >= _NOSTAGE_MIN_REUSE:
+        return ("nostage", ns_P, 512)
+    return ("staged", *_pick_wpo_params())
 
 
 def _bwd_wpo_ok(IN: int) -> bool:
@@ -419,8 +531,10 @@ class _CudaSparseGather(torch.autograd.Function):
         wf = weight.contiguous().to(torch.float32)
         idx = idx.contiguous().to(torch.int64)
         IN, K = xf.size(1), idx.size(1)
-        if _wpo_ok(IN, K):                     # Phase-4 warp-per-output forward (~4.5x over v2)
-            P, T = _pick_wpo_params()
+        variant, P, T = _pick_fwd_variant(IN, idx.size(0), K)
+        if variant == "nostage":               # no shared -> not occupancy-capped, no IN ceiling
+            out = ext.gather_fwd_wpo_ns_cuda(xf, idx.to(torch.int32), wf, P, T)
+        elif _wpo_ok(IN, K):                   # Phase-4 warp-per-output forward (~4.5x over v2)
             out = ext.gather_fwd_wpo_cuda(xf, idx.to(torch.int32), wf, P, T)
         else:                                  # fall back to v2 (x-row too large for shared)
             out = ext.gather_fwd_cuda(xf, idx, wf, B_O, B_M)
