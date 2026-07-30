@@ -48,6 +48,22 @@ CONFIG="${1:-configs/vision/alexnet_k1_einet.yaml}"
 NGPUS="${2:-4}"
 NNODES="${SLURM_NNODES:-1}"
 
+# torchrun otherwise defaults to one OpenMP thread per worker. Divide the
+# allocated CPUs evenly across local GPU workers so large CPU-side topology
+# initialization can use the resources requested from Slurm.
+CPUS_PER_TASK="${SLURM_CPUS_PER_TASK:-$NGPUS}"
+DEFAULT_THREADS_PER_RANK=$(( CPUS_PER_TASK / NGPUS ))
+if (( DEFAULT_THREADS_PER_RANK < 1 )); then
+    DEFAULT_THREADS_PER_RANK=1
+fi
+THREADS_PER_RANK="${DENDRITIC_FSDP_CPU_THREADS_PER_RANK:-$DEFAULT_THREADS_PER_RANK}"
+if ! [[ "$THREADS_PER_RANK" =~ ^[1-9][0-9]*$ ]]; then
+    echo "ERROR: DENDRITIC_FSDP_CPU_THREADS_PER_RANK must be a positive integer" >&2
+    exit 2
+fi
+export OMP_NUM_THREADS="$THREADS_PER_RANK"
+export MKL_NUM_THREADS="$THREADS_PER_RANK"
+
 # NCCL settings for FASRC cluster
 export NCCL_SOCKET_IFNAME=ib0,eth0
 export NCCL_IB_DISABLE=0
@@ -69,6 +85,7 @@ echo "Config: $CONFIG"
 echo "Nodes:  $NNODES"
 echo "GPUs per node: $NGPUS"
 echo "Total GPUs:    $(( NNODES * NGPUS ))"
+echo "CPU threads per rank: $OMP_NUM_THREADS"
 echo "Master: $MASTER_HOST ($MASTER_ADDR):$MASTER_PORT"
 echo "Job ID: ${SLURM_JOB_ID}"
 echo ""

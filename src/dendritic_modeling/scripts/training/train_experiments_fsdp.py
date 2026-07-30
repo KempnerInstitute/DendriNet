@@ -17,7 +17,7 @@ import argparse
 import logging
 import os
 from dataclasses import asdict
-from datetime import datetime
+from datetime import datetime, timedelta
 
 os.environ.setdefault("TORCH_NCCL_ASYNC_ERROR_HANDLING", "1")
 os.environ.setdefault("NCCL_TIMEOUT", "1800")  # 30 minutes timeout
@@ -79,6 +79,7 @@ from dendritic_modeling.utils.logging_config import LoggerManager
 
 logger = logging.getLogger(__name__)
 logger_manager = LoggerManager()
+_PROCESS_GROUP_TIMEOUT_ENV = "DENDRITIC_FSDP_PROCESS_GROUP_TIMEOUT_SECONDS"
 canonicalize_model_core_flags = getattr(
     _config_utils, "canonicalize_model_core_flags", None
 )
@@ -164,7 +165,23 @@ def setup_distributed() -> tuple[int, int, int]:
     world_size = int(os.environ.get("WORLD_SIZE", 1))
 
     if not dist.is_initialized():
-        dist.init_process_group(backend="nccl")
+        timeout_seconds_raw = os.environ.get(_PROCESS_GROUP_TIMEOUT_ENV, "1800")
+        try:
+            timeout_seconds = int(timeout_seconds_raw)
+        except ValueError as exc:
+            raise ValueError(
+                f"{_PROCESS_GROUP_TIMEOUT_ENV} must be a positive integer, "
+                f"got {timeout_seconds_raw!r}"
+            ) from exc
+        if timeout_seconds <= 0:
+            raise ValueError(
+                f"{_PROCESS_GROUP_TIMEOUT_ENV} must be a positive integer, "
+                f"got {timeout_seconds_raw!r}"
+            )
+        dist.init_process_group(
+            backend="nccl",
+            timeout=timedelta(seconds=timeout_seconds),
+        )
 
     torch.cuda.set_device(local_rank)
     return rank, local_rank, world_size

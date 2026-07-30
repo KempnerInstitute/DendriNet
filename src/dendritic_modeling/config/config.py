@@ -323,6 +323,10 @@ class FSDPConfig(BaseConfig):
     mixed_precision: bool = True
     cpu_offload: bool = False
     min_num_params: int = 1000000
+    # ``indexed_synapses`` nests FSDP around each indexed sparse synapse
+    # module. This bounds parameter all-gathers for contact-heavy models while
+    # leaving the historical whole-model policy unchanged by default.
+    auto_wrap_policy: str = "none"
     reduce_communication_overhead: bool = True
     limit_all_gathers: bool = True
     forward_prefetch: bool = True

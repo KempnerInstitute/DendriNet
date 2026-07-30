@@ -6,7 +6,7 @@ import logging
 import os
 import tempfile
 from dataclasses import dataclass
-from datetime import datetime as RealDatetime
+from datetime import datetime as RealDatetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -22,6 +22,10 @@ from dendritic_modeling.networks.architectures.classical.autoencoder import (
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.blocklinear import (
     BlockLinear,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse import (
+    IndexedDynamicTopKLinear,
+    IndexedSparseLinear,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
     TopKLinear,
@@ -43,6 +47,7 @@ from dendritic_modeling.scripts.training.train_experiments_fsdp import (
     _save_rank0_training_results,
     _setup_rank0_analysis_manager,
     _setup_rank0_run_directory,
+    setup_distributed,
 )
 from dendritic_modeling.training.fsdp_utils import (
     _apply_gradient_checkpointing,
@@ -62,6 +67,41 @@ from dendritic_modeling.training.strategies.fsdp_standard import (
     _iter_reactivation_parameter_candidates,
     _sequence_lengths_from_batch,
 )
+
+
+def test_setup_distributed_uses_configured_process_group_timeout(monkeypatch):
+    monkeypatch.setenv("RANK", "3")
+    monkeypatch.setenv("LOCAL_RANK", "1")
+    monkeypatch.setenv("WORLD_SIZE", "8")
+    monkeypatch.setenv("DENDRITIC_FSDP_PROCESS_GROUP_TIMEOUT_SECONDS", "3600")
+    monkeypatch.setattr(fsdp_script.dist, "is_initialized", lambda: False)
+    init_calls = []
+    monkeypatch.setattr(
+        fsdp_script.dist,
+        "init_process_group",
+        lambda **kwargs: init_calls.append(kwargs),
+    )
+    device_calls = []
+    monkeypatch.setattr(
+        fsdp_script.torch.cuda,
+        "set_device",
+        lambda local_rank: device_calls.append(local_rank),
+    )
+
+    assert setup_distributed() == (3, 1, 8)
+    assert init_calls == [{"backend": "nccl", "timeout": timedelta(hours=1)}]
+    assert device_calls == [1]
+
+
+def test_setup_distributed_rejects_invalid_process_group_timeout(monkeypatch):
+    monkeypatch.setenv("RANK", "0")
+    monkeypatch.setenv("LOCAL_RANK", "0")
+    monkeypatch.setenv("WORLD_SIZE", "1")
+    monkeypatch.setenv("DENDRITIC_FSDP_PROCESS_GROUP_TIMEOUT_SECONDS", "0")
+    monkeypatch.setattr(fsdp_script.dist, "is_initialized", lambda: False)
+
+    with pytest.raises(ValueError, match="positive integer"):
+        setup_distributed()
 
 
 def test_fsdp_dataloader_kwargs_from_common_config():
@@ -1452,6 +1492,27 @@ class TestGetFSDPConfig:
         assert config["mixed_precision"].param_dtype is torch.bfloat16
         assert config["mixed_precision"].reduce_dtype is torch.float32
         assert config["mixed_precision"].buffer_dtype is torch.bfloat16
+
+    @patch("torch.cuda.current_device", return_value=0)
+    def test_get_fsdp_config_indexes_synapses_with_narrow_wrap_policy(
+        self, _mock_current_device
+    ):
+        config = get_fsdp_config(
+            fsdp_config_dict={"auto_wrap_policy": "indexed_synapses"}
+        )
+
+        policy = config["auto_wrap_policy"]
+        assert policy._module_classes == {
+            IndexedSparseLinear,
+            IndexedDynamicTopKLinear,
+        }
+
+    @patch("torch.cuda.current_device", return_value=0)
+    def test_get_fsdp_config_rejects_unknown_auto_wrap_policy(
+        self, _mock_current_device
+    ):
+        with pytest.raises(ValueError, match="auto_wrap_policy"):
+            get_fsdp_config(fsdp_config_dict={"auto_wrap_policy": "size_based"})
 
     @pytest.mark.skipif(
         not torch.cuda.is_available(), reason="CUDA not available - FSDP requires GPU"
