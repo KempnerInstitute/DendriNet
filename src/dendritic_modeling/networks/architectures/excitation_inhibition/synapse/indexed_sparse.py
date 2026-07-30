@@ -158,6 +158,15 @@ class IndexedSparseLinear(nn.Module):
                 allowed_connection_mask.contiguous(),
                 persistent=False,
             )
+        # Store connection indices in the smallest safe integer dtype. The index
+        # buffer is an FSDP-replicated (non-sharded) buffer, so it is the binding
+        # per-GPU memory term at scale (issue #383): int32 halves it vs int64. Safe
+        # whenever in_features fits int32 -- index values live in [0, in_features) --
+        # and torch indexing / index_add_ / scatter_add_ all accept int32, so the
+        # result is bit-identical (same integer values, narrower storage). Rewiring
+        # writes in place, inheriting this dtype.
+        if self.in_features <= torch.iinfo(torch.int32).max:
+            connection_indices = connection_indices.to(torch.int32)
         self.register_buffer(
             "connection_indices", connection_indices.contiguous(), persistent=True
         )
