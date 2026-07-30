@@ -89,8 +89,21 @@ def _sample_indices_from_mask(
 ) -> torch.Tensor:
     """Sample exactly ``K`` unique allowed input indices for each output."""
     allowed = validate_connection_mask(connection_mask, out_features, in_features)
-    indices = torch.empty(out_features, K, dtype=torch.long)
-    full_arange = torch.arange(in_features, dtype=torch.long) if allowed is None else None
+    # Both derived from this function's own parameters; the body below refers to
+    # them throughout (``forbidden`` 8x, ``resolved_dtype`` 4x).
+    forbidden = _validate_forbidden_indices(
+        forbidden_input_index_per_output,
+        out_features=out_features,
+        in_features=in_features,
+    )
+    resolved_dtype = _resolve_index_dtype(index_dtype, in_features=in_features)
+    # Allocate in the resolved dtype so the sampled topology is returned as
+    # int32 where it fits -- building it as int64 here would silently undo the
+    # compact index buffer that every caller threads ``index_dtype`` through for.
+    indices = torch.empty(out_features, K, dtype=resolved_dtype)
+    full_arange = (
+        torch.arange(in_features, dtype=resolved_dtype) if allowed is None else None
+    )
 
     # The common unmasked sparse case must not construct one full randperm of
     # all inputs for every output row. At large neuronal scales that makes

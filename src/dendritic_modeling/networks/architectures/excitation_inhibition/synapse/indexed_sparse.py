@@ -76,6 +76,10 @@ class IndexedSparseLinear(nn.Module):
         use_triton_gather: bool = False,
         use_cuda_gather: bool = False,
         cache_recurrent_weight: bool = False,
+        index_dtype: str | torch.dtype = "auto",
+        workspace_mb: float | None = None,
+        init_mode: str = "per_rank",
+        persistent_indices: bool = True,
         **_: object,
     ):
         super().__init__()
@@ -105,6 +109,16 @@ class IndexedSparseLinear(nn.Module):
         self.in_features = int(in_features)
         self.out_features = int(out_features)
         self.K = K
+        # Assigned before the topology block below, which reads self.index_dtype
+        # and self.init_mode. Defaults reproduce the pre-7d24e966 behaviour:
+        # "auto" -> int32 whenever in_features fits, workspace_mb None -> no chunk
+        # cap, per-rank topology sampling, indices kept in the state dict.
+        self.index_dtype = _resolve_index_dtype(
+            index_dtype, in_features=int(in_features)
+        )
+        self.workspace_mb = None if workspace_mb is None else float(workspace_mb)
+        self.init_mode = init_mode
+        self.persistent_indices = bool(persistent_indices)
         self.param_space = param_space
         self.init_method = init_method
         self.init_gain = init_gain
@@ -228,11 +242,19 @@ class IndexedSparseLinear(nn.Module):
         # and torch indexing / index_add_ / scatter_add_ all accept int32, so the
         # result is bit-identical (same integer values, narrower storage). Rewiring
         # writes in place, inheriting this dtype.
-        if self.in_features <= torch.iinfo(torch.int32).max:
-            connection_indices = connection_indices.to(torch.int32)
+        # Honour self.index_dtype rather than forcing int32: it already resolves
+        # to int32 under "auto" whenever in_features fits, so an unconditional
+        # downcast here would silently override an explicit index_dtype="int64".
+        connection_indices = connection_indices.to(self.index_dtype)
+        # Mirrors the `_allowed_connection_mask` sentinel above: this buffer is
+        # optional, so store an empty tensor rather than dereferencing None.
         self.register_buffer(
             "_forbidden_input_index_per_output",
-            forbidden.contiguous(),
+            (
+                torch.empty(0, dtype=torch.long)
+                if forbidden is None
+                else forbidden.contiguous()
+            ),
             persistent=False,
         )
         self.register_buffer(
