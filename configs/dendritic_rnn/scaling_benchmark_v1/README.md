@@ -18,9 +18,12 @@ then train the readout. They test systems scaling and representation
 learnability. They are not end-to-end recurrent-weight training claims.
 
 `e2e_100k_20k_canary.yaml` and `e2e_100k_20k_30ep.yaml` test full recurrent
-optimization at the 100,000-neuron, 2-billion-contact scale. The canary must
-complete with finite first-step diagnostics before the 30-epoch experiment
-is submitted.
+optimization at the 100,000-neuron, 2-billion-contact scale.
+`e2e_100k_20k_stable_30ep.yaml` tests the same model with a smaller recurrent
+learning rate and a larger wide-decoder learning rate. This separates
+systems feasibility from learning-rate allocation. The canary must complete
+with finite first-step diagnostics before either 30-epoch experiment is
+submitted.
 
 The paper-specific generator is:
 

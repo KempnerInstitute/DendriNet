@@ -95,3 +95,19 @@ def test_end_to_end_canary_trains_recurrent_core():
     for population in (layer["excitatory"], layer["inhibitory"]):
         assert population["indexed_cache_transformed_weights"] is True
         assert population["indexed_recompute_backward"] is True
+
+
+def test_stable_end_to_end_variant_changes_only_learning_rate_allocation():
+    baseline = load_config(str(CONFIG_DIR / "e2e_100k_20k_30ep.yaml"))
+    stable = load_config(str(CONFIG_DIR / "e2e_100k_20k_stable_30ep.yaml"))
+    baseline_groups = baseline.training.main.common.param_groups
+    stable_groups = stable.training.main.common.param_groups
+
+    assert baseline_groups.topk_lr == 1.0e-5
+    assert baseline_groups.decoder_input_lr == 8.0e-7
+    assert stable_groups.topk_lr == 1.0e-7
+    assert stable_groups.blocklinear_lr == 1.0e-7
+    assert stable_groups.reactivation_lr == 1.0e-7
+    assert stable_groups.decoder_input_lr == 4.0e-6
+    assert stable.model.core.unified_ei == baseline.model.core.unified_ei
+    assert stable.data == baseline.data
