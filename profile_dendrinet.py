@@ -36,6 +36,7 @@ import json
 import os
 import statistics
 import sys
+import time
 import traceback
 from collections import defaultdict
 from contextlib import nullcontext
@@ -442,16 +443,39 @@ def cv(xs):
 # --------------------------------------------------------------------------- #
 # One profiling run for a single (config, batch) shape.                        #
 # --------------------------------------------------------------------------- #
+class _SkipProfile(Exception):
+    """Internal: signals the profiler passes were deliberately skipped."""
+
+
 def run_one(config_path, batch, warmup, iters, outdir, device, kernels="off",
-            compile_mode="off", path=None, freeze_rewire=True):
+            compile_mode="off", path=None, freeze_rewire=True, prebuilt=None,
+            do_profile=True):
+    """Measure one (config, path, batch) cell.
+
+    ``prebuilt`` lets the caller construct the core ONCE and reuse it across the
+    batch sweep. Construction is dominated by index sampling and scales with
+    contact count -- 77.6 s for the 116M-contact stress config -- so rebuilding
+    per cell would spend ~20 min per sweep doing nothing but resampling an
+    identical topology. The core is stateless between cells here (grads are
+    zeroed, a fresh input is drawn, and the gather path / rewire pin are
+    re-applied), so reuse does not change what is measured. Not used when
+    ``compile_mode == "on"``, since that permanently rebinds ``core.forward``.
+
+    ``do_profile`` gates the expensive torch.profiler + split-fwd/bwd passes.
+    Only the per-op figure needs them, and only at one batch; the other figures
+    need just wall-clock and memory.
+    """
     result = {"config": config_path, "batch": batch}
-    try:
-        core, input_dim, meta = build_core_from_config(config_path)
-    except Exception as e:
-        result["status"] = "BUILD_FAILED"
-        result["error"] = f"{type(e).__name__}: {e}"
-        result["traceback"] = traceback.format_exc()
-        return result
+    if prebuilt is not None:
+        core, input_dim, meta = prebuilt
+    else:
+        try:
+            core, input_dim, meta = build_core_from_config(config_path)
+        except Exception as e:
+            result["status"] = "BUILD_FAILED"
+            result["error"] = f"{type(e).__name__}: {e}"
+            result["traceback"] = traceback.format_exc()
+            return result
 
     result.update(meta)
     core = core.to(device).train()
@@ -599,22 +623,35 @@ def run_one(config_path, batch, warmup, iters, outdir, device, kernels="off",
     result["families"] = fam_report
 
     # ---- torch.profiler pass (few iters) for self-CUDA / mem / FLOPs ----
+    # Gated: only the per-op breakdown figure needs these, and only at one
+    # batch. They are also the slowest part of a cell (profiler overhead).
+    result["profiled"] = bool(do_profile)
     try:
+        if not do_profile:
+            raise _SkipProfile()
         result["profiler"] = profiler_pass(
             core, step, outdir, config_path, batch, path=resolved_path
         )
+    except _SkipProfile:
+        pass
     except Exception as e:
         result["profiler_error"] = f"{type(e).__name__}: {e}"
 
     # ---- clean forward-only / backward-only per-op split ----
     try:
+        if not do_profile:
+            raise _SkipProfile()
         result["split_fb"] = split_fb_profile(
             core, step, outdir, config_path, batch, path=resolved_path
         )
+    except _SkipProfile:
+        pass
     except Exception as e:
         result["split_fb_error"] = f"{type(e).__name__}: {e}"
 
-    del core, x
+    del x
+    if prebuilt is None:
+        del core
     gc.collect()
     torch.cuda.empty_cache()
     return result
@@ -772,6 +809,11 @@ def main():
                          "torch.compile AFTER kernels are set, to fuse the "
                          "elementwise/reduction tail. Reports output equivalence "
                          "vs eager.")
+    ap.add_argument("--profile-all-batches", action="store_true",
+                    help="Run the torch.profiler + split-fwd/bwd passes at EVERY "
+                         "batch. Default runs them only at the largest batch, "
+                         "since only the per-op figure needs them and they are "
+                         "the slowest part of a cell.")
     ap.add_argument("--outdir", default="profilings/dendrinet_harness")
     ap.add_argument("--cpu-smoke", action="store_true",
                     help="Build + 1 fwd/bwd on CPU with tiny batch; no timing. "
@@ -829,17 +871,48 @@ def main():
     print(f"# warmup={args.warmup} iters={args.iters} batches={args.batches} "
           f"compile={args.compile_mode.upper()}\n")
 
+    # Which batches get the expensive torch.profiler + split-fwd/bwd passes.
+    # Default: the largest only -- just the per-op figure needs them.
+    prof_batches = (
+        set(args.batches) if args.profile_all_batches
+        else ({max(args.batches)} if args.batches else set())
+    )
+    print(f"# per-op profiling at batch(es): {sorted(prof_batches)} "
+          f"(others: timing + memory only)\n")
+
     all_results = []
     for cfg in args.configs:
+        # Build ONCE per config and reuse across the batch sweep; construction is
+        # index sampling and costs ~78 s on the 116M-contact stress config, so
+        # per-cell rebuilds would burn ~20 min per sweep resampling an identical
+        # topology. torch.compile permanently rebinds core.forward, so that mode
+        # keeps the old rebuild-per-cell behaviour.
+        prebuilt = None
+        if args.compile_mode != "on":
+            t0 = time.perf_counter()
+            try:
+                core_b, in_dim_b, meta_b = build_core_from_config(cfg)
+                prebuilt = (core_b.to(device).train(), in_dim_b, meta_b)
+                print(f"# built {os.path.basename(cfg)} once in "
+                      f"{time.perf_counter() - t0:.1f}s, reused for "
+                      f"{len(args.batches)} batches")
+            except Exception as e:
+                print(f"# BUILD FAILED {os.path.basename(cfg)}: "
+                      f"{type(e).__name__}: {e}")
         for b in args.batches:
             print(f"=== {os.path.basename(cfg)}  batch={b}  "
                   f"[path {resolved_path}, compile {args.compile_mode}] ===")
             r = run_one(cfg, b, args.warmup, args.iters, args.outdir, device,
                         kernels=args.kernels, compile_mode=args.compile_mode,
-                        path=resolved_path, freeze_rewire=args.freeze_rewire)
+                        path=resolved_path, freeze_rewire=args.freeze_rewire,
+                        prebuilt=prebuilt, do_profile=(b in prof_batches))
             all_results.append(r)
             print_result(r)
             print()
+        if prebuilt is not None:
+            del prebuilt, core_b
+            gc.collect()
+            torch.cuda.empty_cache()
 
     out_json = os.path.join(args.outdir, f"results_{resolved_path}.json")
     with open(out_json, "w") as f:
