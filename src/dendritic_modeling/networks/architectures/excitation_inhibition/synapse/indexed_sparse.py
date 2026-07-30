@@ -76,6 +76,7 @@ class IndexedSparseLinear(nn.Module):
         use_triton_gather: bool = False,
         use_cuda_gather: bool = False,
         cache_recurrent_weight: bool = False,
+        cache_transformed_weights: bool = False,
         index_dtype: str | torch.dtype = "auto",
         workspace_mb: float | None = None,
         init_mode: str = "per_rank",
@@ -138,7 +139,15 @@ class IndexedSparseLinear(nn.Module):
         # Opt-in hoist of the weight transform out of a recurrent unroll; see
         # ``set_recurrent_weight_cache``. Off by default so behaviour is unchanged
         # unless a config asks for it.
-        self.cache_recurrent_weight = bool(cache_recurrent_weight)
+        # Two config spellings reached this feature independently:
+        # `indexed_cache_recurrent_weight` and `indexed_cache_transformed_weights`
+        # (the latter is also used by indexed_dynamic.py). Accept either so no
+        # existing config silently stops caching; a single flag drives the one
+        # live implementation.
+        self.cache_transformed_weights = bool(cache_transformed_weights)
+        self.cache_recurrent_weight = bool(
+            cache_recurrent_weight or cache_transformed_weights
+        )
         self._recurrent_weight_cache_enabled = False
         self._cached_recurrent_weight: torch.Tensor | None = None
 
@@ -294,21 +303,12 @@ class IndexedSparseLinear(nn.Module):
         normalized = (weight / safe_norm) * self.gamma
         return torch.where(norm > 0, normalized, weight)
 
-    def set_recurrent_weight_cache(self, enabled: bool) -> None:
-        """Cache the transformed fixed weights once per recurrent unroll."""
-        self._recurrent_weight_cache_enabled = (
-            bool(enabled)
-            and self.cache_transformed_weights
-            and not self._use_forward_dynamic_grad_scaling
-        )
-        self._recurrent_cached_weight = None
-
-    def _forward_sparse_weight(self) -> torch.Tensor:
-        if not self._recurrent_weight_cache_enabled:
-            return self._normalized_sparse_weight()
-        if self._recurrent_cached_weight is None:
-            self._recurrent_cached_weight = self._normalized_sparse_weight()
-        return self._recurrent_cached_weight
+    # NOTE: a second `set_recurrent_weight_cache` / `_forward_sparse_weight` pair
+    # used to live here. It was dead code -- the definition further down shadowed
+    # it (later definition wins), and it read `self.cache_transformed_weights`,
+    # which this class never assigned, so it would have raised AttributeError had
+    # it ever been reached. The single live implementation is below; it honours
+    # both config spellings. Do not reintroduce a second copy.
 
     def _forward_output_chunk_size(self, flat_x: torch.Tensor) -> int:
         return _workspace_limited_chunk_size(

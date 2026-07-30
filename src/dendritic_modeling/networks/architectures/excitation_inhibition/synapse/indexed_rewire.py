@@ -110,7 +110,14 @@ class IndexedRewireLinear(IndexedSparseLinear):
     def apply_rewiring(self) -> None:
         """Replace the weakest active sparse slots with new random inputs."""
         with torch.no_grad():
-            self._recurrent_cached_weight = None
+            # Rewiring rewrites both connection_indices and pre_w below, so any
+            # cached transformed weight is stale and must be dropped. This used
+            # to clear `_recurrent_cached_weight`, an attribute that no longer
+            # exists after the duplicate cache implementations in
+            # indexed_sparse.py were consolidated -- so the invalidation was a
+            # silent no-op and rewiring + caching together would have kept using
+            # a pre-rewire exp(pre_w).
+            self._cached_recurrent_weight = None
             self.rewire_step.add_(1)
             self._last_rewired_mask.zero_()
 

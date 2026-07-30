@@ -183,17 +183,99 @@ def build_core_from_config(config_path: str):
 # --------------------------------------------------------------------------- #
 _GATHER_FLAGS = ("use_cuda_gather", "use_triton_gather", "use_fused_gather")
 
+# Exactly one flag per path. `auto` reproduces the old `--kernels on` behaviour
+# (all three True, so indexed_sparse's cuda -> triton -> fused precedence picks
+# the fastest AVAILABLE path) -- useful for "best case" but useless for
+# attributing a result to a specific implementation, which is what the A/B
+# figures need. Prefer an explicit path.
+_PATH_FLAGS = {
+    "loop": (),
+    "fused": ("use_fused_gather",),
+    "triton": ("use_triton_gather",),
+    "cuda": ("use_cuda_gather",),
+    "auto": _GATHER_FLAGS,
+}
 
-def apply_kernels(core, mode: str) -> int:
-    if mode != "on":
-        return 0
+
+def assert_path_available(path: str) -> None:
+    """Fail loudly if the requested path would silently degrade to another.
+
+    ``indexed_sparse.forward`` guards each accelerated path on a runtime
+    availability check and falls through to the next-best one when it fails --
+    great for robustness, fatal for benchmarking, because an unbuilt CUDA
+    extension yields a run that is labelled "cuda" but is really the eager loop.
+    (That exact mistake produced an invalid CUDA profile earlier in this work.)
+    """
+    if path == "cuda":
+        from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.cuda_gather import (
+            cuda_gather_available,
+        )
+
+        if not cuda_gather_available():
+            raise RuntimeError(
+                "--path cuda requested but cuda_gather_available() is False, so "
+                "the run would silently fall back to the eager loop and be "
+                "mislabelled. Build the extension first:\n"
+                "  source profilings/weight_transform_opt/setup_cuda_env.sh"
+            )
+    elif path == "triton":
+        from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.triton_gather import (
+            triton_gather_available,
+        )
+
+        if not triton_gather_available():
+            raise RuntimeError(
+                "--path triton requested but triton_gather_available() is False, "
+                "so the run would silently fall back and be mislabelled."
+            )
+
+
+def apply_path(core, path: str) -> dict:
+    """Force exactly one gather path on every sparse layer.
+
+    Every flag is set explicitly (not just the selected one) so the measured
+    path is unambiguous regardless of what the config asked for.
+    """
+    on = set(_PATH_FLAGS[path])
     n = 0
     for m in core.modules():
         if all(hasattr(m, f) for f in _GATHER_FLAGS):
             for f in _GATHER_FLAGS:
-                setattr(m, f, True)
+                setattr(m, f, f in on)
+            n += 1
+    return {"path": path, "layers": n}
+
+
+def freeze_rewiring(core) -> int:
+    """Pin structural plasticity off so every path measures the same topology.
+
+    The largest feedforward config uses ``topk_type: indexed_rewire``. Rewiring
+    only fires from an explicit ``apply_rewiring()`` call (never from forward),
+    so a raw fwd/bwd harness should not trigger it -- but if it ever did fire
+    unevenly across paths the A/B would be comparing different models. Setting
+    ``freeze_connectivity`` makes that guarantee explicit rather than assumed;
+    ``verify_rewiring_frozen`` re-checks it after the timed loop.
+    """
+    n = 0
+    for m in core.modules():
+        if hasattr(m, "freeze_connectivity"):
+            m.freeze_connectivity = True
             n += 1
     return n
+
+
+def verify_rewiring_frozen(core) -> dict:
+    """Confirm no rewiring happened during measurement (rewire_step still 0)."""
+    steps = [
+        int(m.rewire_step.item())
+        for m in core.modules()
+        if hasattr(m, "rewire_step")
+    ]
+    return {
+        "rewire_layers": len(steps),
+        "max_rewire_step": max(steps) if steps else 0,
+        "rewiring_occurred": bool(steps and max(steps) > 0),
+    }
 
 
 # --------------------------------------------------------------------------- #
@@ -361,7 +443,7 @@ def cv(xs):
 # One profiling run for a single (config, batch) shape.                        #
 # --------------------------------------------------------------------------- #
 def run_one(config_path, batch, warmup, iters, outdir, device, kernels="off",
-            compile_mode="off"):
+            compile_mode="off", path=None, freeze_rewire=True):
     result = {"config": config_path, "batch": batch}
     try:
         core, input_dim, meta = build_core_from_config(config_path)
@@ -373,8 +455,18 @@ def run_one(config_path, batch, warmup, iters, outdir, device, kernels="off",
 
     result.update(meta)
     core = core.to(device).train()
-    result["kernels"] = kernels
-    result["kernels_layers_on"] = apply_kernels(core, kernels)
+    # `--path` is the precise selector; `--kernels on/off` is kept as a legacy
+    # alias (on -> auto, off -> loop) so old invocations keep working.
+    resolved_path = path if path is not None else (
+        "auto" if kernels == "on" else "loop"
+    )
+    info = apply_path(core, resolved_path)
+    result["path"] = resolved_path
+    result["path_layers"] = info["layers"]
+    result["kernels"] = kernels  # legacy field, kept for older readers
+    result["kernels_layers_on"] = info["layers"] if resolved_path != "loop" else 0
+    if freeze_rewire:
+        result["rewire_layers_frozen"] = freeze_rewiring(core)
     result["compile"] = compile_mode
 
     # Synthetic input: standard-normal, realistic magnitude. Non-negative input
@@ -483,6 +575,10 @@ def run_one(config_path, batch, warmup, iters, outdir, device, kernels="off",
     }
     result["peak_mem_mb"] = peak_mem / 1e6
     result["activation_mem_mb"] = (peak_mem - mem_before) / 1e6
+    result["param_mem_mb"] = mem_before / 1e6
+    # Assumption, not hope: confirm structural plasticity stayed off, so every
+    # path in the A/B measured the identical topology.
+    result["rewiring"] = verify_rewiring_frozen(core)
 
     # per-family mean ms + CV + % of step
     step_total = result["whole_step"]["step_ms_mean"]
@@ -504,13 +600,17 @@ def run_one(config_path, batch, warmup, iters, outdir, device, kernels="off",
 
     # ---- torch.profiler pass (few iters) for self-CUDA / mem / FLOPs ----
     try:
-        result["profiler"] = profiler_pass(core, step, outdir, config_path, batch)
+        result["profiler"] = profiler_pass(
+            core, step, outdir, config_path, batch, path=resolved_path
+        )
     except Exception as e:
         result["profiler_error"] = f"{type(e).__name__}: {e}"
 
     # ---- clean forward-only / backward-only per-op split ----
     try:
-        result["split_fb"] = split_fb_profile(core, step, outdir, config_path, batch)
+        result["split_fb"] = split_fb_profile(
+            core, step, outdir, config_path, batch, path=resolved_path
+        )
     except Exception as e:
         result["split_fb_error"] = f"{type(e).__name__}: {e}"
 
@@ -520,13 +620,13 @@ def run_one(config_path, batch, warmup, iters, outdir, device, kernels="off",
     return result
 
 
-def split_fb_profile(core, step, outdir, config_path, batch, n=8):
+def split_fb_profile(core, step, outdir, config_path, batch, n=8, path="loop"):
     """Two separate profiler passes so per-op self-CUDA is cleanly attributable
     to forward vs backward (no scope-nesting ambiguity). Returns dict with
     'forward' and 'backward' top-op lists."""
     from torch.profiler import ProfilerActivity, profile
 
-    tag = f"{os.path.basename(config_path).replace('.yaml','')}_b{batch}"
+    tag = f"{os.path.basename(config_path).replace('.yaml','')}_{path}_b{batch}"
     acts = [ProfilerActivity.CPU, ProfilerActivity.CUDA]
 
     def topops(ka, limit=30):
@@ -576,10 +676,10 @@ def split_fb_profile(core, step, outdir, config_path, batch, n=8):
     return {"forward": fwd, "backward": bwd}
 
 
-def profiler_pass(core, step, outdir, config_path, batch):
+def profiler_pass(core, step, outdir, config_path, batch, path="loop"):
     from torch.profiler import ProfilerActivity, profile, record_function
 
-    tag = f"{os.path.basename(config_path).replace('.yaml','')}_b{batch}"
+    tag = f"{os.path.basename(config_path).replace('.yaml','')}_{path}_b{batch}"
     activities = [ProfilerActivity.CPU, ProfilerActivity.CUDA]
     n = 6
     with profile(
@@ -650,10 +750,22 @@ def main():
     ap.add_argument("--batches", nargs="+", type=int, default=[128, 512])
     ap.add_argument("--warmup", type=int, default=12)
     ap.add_argument("--iters", type=int, default=50)
+    ap.add_argument("--path", choices=list(_PATH_FLAGS), default=None,
+                    help="Which gather implementation to measure, exactly one: "
+                         "loop (shipped advanced-index), fused (custom autograd), "
+                         "triton, cuda, or auto (all flags on -> cuda>triton>fused "
+                         "precedence picks the fastest AVAILABLE, so it cannot be "
+                         "attributed to one implementation). Fails loudly if the "
+                         "requested path is unavailable rather than silently "
+                         "falling back. Overrides --kernels.")
     ap.add_argument("--kernels", choices=["off", "on"], default="off",
-                    help="off (default) = shipped advanced-index gather; "
-                         "on = enable sparse-gather kernels (cuda->triton->fused) "
-                         "on every IndexedSparseLinear before profiling.")
+                    help="LEGACY alias for --path (off->loop, on->auto). Prefer "
+                         "--path; this cannot isolate triton or fused.")
+    ap.add_argument("--no-freeze-rewire", dest="freeze_rewire",
+                    action="store_false",
+                    help="Do NOT pin freeze_connectivity. Default is to pin it so "
+                         "every path measures the identical topology; the harness "
+                         "verifies rewire_step stayed 0 either way.")
     ap.add_argument("--compile", dest="compile_mode", choices=["off", "on"],
                     default="off",
                     help="off (default) = eager; on = wrap core.forward in "
@@ -704,23 +816,32 @@ def main():
 
     device = torch.device("cuda")
     p = torch.cuda.get_device_properties(0)
+    resolved_path = args.path if args.path is not None else (
+        "auto" if args.kernels == "on" else "loop"
+    )
+    # Check availability ONCE, before any timing, so an unbuildable path fails in
+    # seconds instead of producing a full run of mislabelled numbers.
+    assert_path_available(resolved_path)
     print(f"# GPU: {p.name} | {p.total_memory/1e9:.1f} GB | sm_{p.major}{p.minor}")
     print(f"# torch {torch.__version__} cuda {torch.version.cuda}")
+    print(f"# path={resolved_path.upper()} (verified available) "
+          f"freeze_rewire={args.freeze_rewire}")
     print(f"# warmup={args.warmup} iters={args.iters} batches={args.batches} "
-          f"kernels={args.kernels.upper()} compile={args.compile_mode.upper()}\n")
+          f"compile={args.compile_mode.upper()}\n")
 
     all_results = []
     for cfg in args.configs:
         for b in args.batches:
             print(f"=== {os.path.basename(cfg)}  batch={b}  "
-                  f"[kernels {args.kernels}, compile {args.compile_mode}] ===")
+                  f"[path {resolved_path}, compile {args.compile_mode}] ===")
             r = run_one(cfg, b, args.warmup, args.iters, args.outdir, device,
-                        kernels=args.kernels, compile_mode=args.compile_mode)
+                        kernels=args.kernels, compile_mode=args.compile_mode,
+                        path=resolved_path, freeze_rewire=args.freeze_rewire)
             all_results.append(r)
             print_result(r)
             print()
 
-    out_json = os.path.join(args.outdir, "results.json")
+    out_json = os.path.join(args.outdir, f"results_{resolved_path}.json")
     with open(out_json, "w") as f:
         json.dump(all_results, f, indent=2, default=str)
     print(f"\n# wrote {out_json}")
