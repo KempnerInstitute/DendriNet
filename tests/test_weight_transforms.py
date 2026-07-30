@@ -179,3 +179,19 @@ def test_safe_exp_respects_explicit_max_exponent():
     out = safe_exp(w, max_exponent=2.0)
 
     torch.testing.assert_close(out, torch.exp(torch.tensor([0.0, 2.0])))
+
+
+def test_safe_exp_preserves_input_and_clamped_gradient():
+    weights = torch.tensor([-2.0, 1.0, 20.0], requires_grad=True)
+    original = weights.detach().clone()
+
+    out = safe_exp(weights, max_exponent=10.0)
+    out.sum().backward()
+
+    torch.testing.assert_close(weights.detach(), original)
+    torch.testing.assert_close(
+        weights.grad,
+        torch.tensor(
+            [torch.exp(torch.tensor(-2.0)), torch.exp(torch.tensor(1.0)), 0.0]
+        ),
+    )

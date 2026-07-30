@@ -6,14 +6,14 @@ import logging
 import os
 import tempfile
 from dataclasses import dataclass
-from datetime import datetime as RealDatetime
+from datetime import datetime as RealDatetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
 import torch
 import torch.nn as nn
-from torch.utils.data import TensorDataset
+from torch.utils.data import DataLoader, TensorDataset
 
 import dendritic_modeling.scripts.training.train_experiments_fsdp as fsdp_script
 from dendritic_modeling.networks.activations import ParametricTanh
@@ -23,11 +23,16 @@ from dendritic_modeling.networks.architectures.classical.autoencoder import (
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.blocklinear import (
     BlockLinear,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse import (
+    IndexedDynamicTopKLinear,
+    IndexedSparseLinear,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
     TopKLinear,
 )
 from dendritic_modeling.networks.architectures.factory import get_architecture
 from dendritic_modeling.scripts.training.train_experiments_fsdp import (
+    _apply_fsdp_trainability_policy,
     _build_fsdp_runtime_configs,
     _create_fsdp_trainer,
     _dataloader_kwargs_from_common,
@@ -43,6 +48,10 @@ from dendritic_modeling.scripts.training.train_experiments_fsdp import (
     _save_rank0_training_results,
     _setup_rank0_analysis_manager,
     _setup_rank0_run_directory,
+    setup_distributed,
+)
+from dendritic_modeling.training.distributed_samplers import (
+    PaddedDistributedEvalSampler,
 )
 from dendritic_modeling.training.fsdp_utils import (
     _apply_gradient_checkpointing,
@@ -61,7 +70,43 @@ from dendritic_modeling.training.strategies.fsdp_standard import (
     _iter_modules_by_class_name,
     _iter_reactivation_parameter_candidates,
     _sequence_lengths_from_batch,
+    _tensor_diagnostics,
 )
+
+
+def test_setup_distributed_uses_configured_process_group_timeout(monkeypatch):
+    monkeypatch.setenv("RANK", "3")
+    monkeypatch.setenv("LOCAL_RANK", "1")
+    monkeypatch.setenv("WORLD_SIZE", "8")
+    monkeypatch.setenv("DENDRITIC_FSDP_PROCESS_GROUP_TIMEOUT_SECONDS", "3600")
+    monkeypatch.setattr(fsdp_script.dist, "is_initialized", lambda: False)
+    init_calls = []
+    monkeypatch.setattr(
+        fsdp_script.dist,
+        "init_process_group",
+        lambda **kwargs: init_calls.append(kwargs),
+    )
+    device_calls = []
+    monkeypatch.setattr(
+        fsdp_script.torch.cuda,
+        "set_device",
+        lambda local_rank: device_calls.append(local_rank),
+    )
+
+    assert setup_distributed() == (3, 1, 8)
+    assert init_calls == [{"backend": "nccl", "timeout": timedelta(hours=1)}]
+    assert device_calls == [1]
+
+
+def test_setup_distributed_rejects_invalid_process_group_timeout(monkeypatch):
+    monkeypatch.setenv("RANK", "0")
+    monkeypatch.setenv("LOCAL_RANK", "0")
+    monkeypatch.setenv("WORLD_SIZE", "1")
+    monkeypatch.setenv("DENDRITIC_FSDP_PROCESS_GROUP_TIMEOUT_SECONDS", "0")
+    monkeypatch.setattr(fsdp_script.dist, "is_initialized", lambda: False)
+
+    with pytest.raises(ValueError, match="positive integer"):
+        setup_distributed()
 
 
 def test_fsdp_dataloader_kwargs_from_common_config():
@@ -81,6 +126,30 @@ def test_fsdp_dataloader_kwargs_from_common_config():
         "persistent_workers": True,
         "prefetch_factor": 3,
     }
+
+
+def test_tensor_diagnostics_reports_finite_values_only():
+    diagnostics = _tensor_diagnostics(
+        torch.tensor([1.0, 3.0, float("nan"), float("inf")])
+    )
+
+    assert diagnostics == {
+        "numel": 4,
+        "finite_count": 2,
+        "mean": 2.0,
+        "std": 1.0,
+        "min": 1.0,
+        "max": 3.0,
+        "rms": pytest.approx(5**0.5),
+    }
+
+
+def test_tensor_diagnostics_separates_feature_and_sample_variation():
+    diagnostics = _tensor_diagnostics(torch.tensor([[1.0, 3.0], [3.0, 5.0]]))
+
+    assert diagnostics["within_row_std_mean"] == 1.0
+    assert diagnostics["row_mean_std"] == 1.0
+    assert diagnostics["across_row_feature_std_mean"] == 1.0
 
 
 def test_fsdp_dataloader_kwargs_auto_avoids_workers_for_tensor_data():
@@ -683,7 +752,16 @@ def test_build_fsdp_runtime_configs_uses_typed_config_values(monkeypatch):
     fsdp_config = object()
     calls = []
     train_common = SimpleNamespace(
-        param_groups=SimpleNamespace(lr=0.123, split_params=True),
+        param_groups=SimpleNamespace(
+            lr=0.123,
+            split_params=True,
+            topk_lr=0.01,
+            blocklinear_lr=0.02,
+            reactivation_lr=0.03,
+            decoder_lr=0.04,
+            decoder_input_lr=0.006,
+            encoder_lr=0.05,
+        ),
         weight_decay_rate=0.4,
     )
     fsdp_cfg = SimpleNamespace(
@@ -713,6 +791,12 @@ def test_build_fsdp_runtime_configs_uses_typed_config_values(monkeypatch):
         "lr": 0.123,
         "weight_decay": 0.4,
         "split_params": True,
+        "topk_lr": 0.01,
+        "blocklinear_lr": 0.02,
+        "reactivation_lr": 0.03,
+        "decoder_lr": 0.04,
+        "decoder_input_lr": 0.006,
+        "encoder_lr": 0.05,
     }
     assert calls == [
         {
@@ -827,6 +911,334 @@ def test_fsdp_optimizer_split_groups_assign_each_parameter_once():
     assert lr_by_param_id[id(model.other.weight)] == 0.05
 
 
+def test_fsdp_optimizer_assigns_indexed_synapses_to_topk_group():
+    """Indexed sparse weights should honor the configured synapse LR."""
+    model = nn.Module()
+    model.fixed = IndexedSparseLinear(4, 3, K=2, seed=1)
+    model.dynamic = IndexedDynamicTopKLinear(
+        4,
+        3,
+        K=2,
+        candidate_size=3,
+        seed=2,
+    )
+    model.decoder_network = nn.Linear(3, 2)
+
+    trainer = FSDPTrainer.__new__(FSDPTrainer)
+    trainer.optimizer_config = {
+        "split_params": True,
+        "lr": 0.05,
+        "topk_lr": 0.01,
+        "decoder_lr": 0.04,
+    }
+
+    optimizer = trainer.create_optimizer(model)
+    lr_by_param_id = {
+        id(param): group["lr"]
+        for group in optimizer.param_groups
+        for param in group["params"]
+    }
+
+    assert lr_by_param_id[id(model.fixed.pre_w)] == 0.01
+    assert lr_by_param_id[id(model.dynamic.pre_w)] == 0.01
+    assert lr_by_param_id[id(model.decoder_network.weight)] == 0.04
+
+
+def test_fsdp_optimizer_scales_only_decoder_input_weight():
+    model = nn.Module()
+    model.decoder_network = nn.Sequential(
+        nn.LayerNorm(8, elementwise_affine=False),
+        nn.Linear(8, 4),
+        nn.ReLU(),
+        nn.Linear(4, 2),
+    )
+
+    trainer = FSDPTrainer.__new__(FSDPTrainer)
+    trainer.optimizer_config = {
+        "split_params": True,
+        "lr": 0.05,
+        "decoder_input_lr": 1e-5,
+        "decoder_lr": 1e-3,
+    }
+
+    optimizer = trainer.create_optimizer(model)
+    group_by_param_id = {
+        id(param): group
+        for group in optimizer.param_groups
+        for param in group["params"]
+    }
+
+    assert group_by_param_id[id(model.decoder_network[1].weight)]["name"] == (
+        "decoder_input"
+    )
+    assert group_by_param_id[id(model.decoder_network[1].weight)]["lr"] == 1e-5
+    assert group_by_param_id[id(model.decoder_network[1].bias)]["name"] == "decoder"
+    assert group_by_param_id[id(model.decoder_network[1].bias)]["lr"] == 1e-3
+    assert group_by_param_id[id(model.decoder_network[3].weight)]["name"] == "decoder"
+    assert group_by_param_id[id(model.decoder_network[3].weight)]["lr"] == 1e-3
+
+
+def test_fsdp_freeze_core_policy_leaves_only_readout_trainable():
+    model = nn.Module()
+    model.core_network = nn.Linear(8, 8)
+    model.decoder_network = nn.Linear(8, 2)
+
+    frozen = _apply_fsdp_trainability_policy(
+        model,
+        SimpleNamespace(freeze_core=True),
+    )
+
+    assert frozen == 72
+    assert all(
+        not parameter.requires_grad for parameter in model.core_network.parameters()
+    )
+    assert all(
+        parameter.requires_grad for parameter in model.decoder_network.parameters()
+    )
+    assert model._freeze_core_forward is True
+    assert all(
+        module._fsdp_frozen_core is True for module in model.core_network.modules()
+    )
+
+    trainer = FSDPTrainer.__new__(FSDPTrainer)
+    trainer.optimizer_config = {
+        "split_params": True,
+        "lr": 0.0,
+        "decoder_lr": 1e-3,
+    }
+    optimizer = trainer.create_optimizer(model)
+    optimized = {
+        id(parameter)
+        for group in optimizer.param_groups
+        for parameter in group["params"]
+    }
+    assert optimized == {
+        id(parameter) for parameter in model.decoder_network.parameters()
+    }
+
+
+def test_fsdp_freeze_core_policy_is_opt_in():
+    model = nn.Module()
+    model.core_network = nn.Linear(3, 2)
+
+    frozen = _apply_fsdp_trainability_policy(
+        model,
+        SimpleNamespace(freeze_core=False),
+    )
+
+    assert frozen == 0
+    assert all(parameter.requires_grad for parameter in model.core_network.parameters())
+    assert not hasattr(model, "_freeze_core_forward")
+
+
+def test_fsdp_core_output_cache_requires_frozen_core():
+    model = nn.Module()
+    model.core_network = nn.Linear(3, 2)
+
+    with pytest.raises(ValueError, match="requires freeze_core=true"):
+        _apply_fsdp_trainability_policy(
+            model,
+            SimpleNamespace(
+                freeze_core=False,
+                cache_frozen_core_outputs=True,
+            ),
+        )
+
+
+def test_fsdp_core_output_cache_requires_frozen_encoder():
+    model = nn.Module()
+    model.encoder_network = nn.Linear(3, 3)
+    model.core_network = nn.Linear(3, 2)
+
+    with pytest.raises(ValueError, match="frozen or parameter-free encoder"):
+        _apply_fsdp_trainability_policy(
+            model,
+            SimpleNamespace(
+                freeze_core=True,
+                cache_frozen_core_outputs=True,
+            ),
+        )
+
+
+def test_fsdp_cache_core_output_loader_materializes_decoder_inputs():
+    class CacheModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.core_network = nn.Linear(2, 2, bias=False)
+            self.decoder_network = nn.Linear(2, 2)
+            self.core_calls = 0
+            self._freeze_core_forward = True
+            with torch.no_grad():
+                self.core_network.weight.copy_(2 * torch.eye(2))
+
+        def forward(self, inputs, seq_lengths=None, *, precomputed_core=False):
+            del seq_lengths
+            if not precomputed_core:
+                self.core_calls += 1
+                inputs = self.core_network(inputs)
+            return self.decoder_network(inputs)
+
+    trainer = FSDPTrainer.__new__(FSDPTrainer)
+    trainer.device = torch.device("cpu")
+    trainer.rank = 0
+    trainer.seed = 11
+    trainer.cached_core_batch_size = None
+    model = CacheModel()
+    inputs = torch.arange(8, dtype=torch.float32).reshape(4, 2)
+    targets = torch.tensor([0, 1, 0, 1])
+    loader = DataLoader(TensorDataset(inputs, targets), batch_size=2)
+
+    cached_loader = trainer._cache_core_output_loader(
+        model,
+        loader,
+        shuffle=False,
+        seed_offset=17,
+    )
+
+    cached_features, cached_targets = cached_loader.dataset.tensors
+    torch.testing.assert_close(cached_features, 2 * inputs)
+    torch.testing.assert_close(cached_targets, targets)
+    assert model.core_calls == 2
+
+    cached_logits = model(cached_features, precomputed_core=True)
+    direct_logits = model.decoder_network(2 * inputs)
+    torch.testing.assert_close(cached_logits, direct_logits)
+    assert model.core_calls == 2
+
+
+def test_fsdp_cached_eval_loader_preserves_real_padding_count():
+    trainer = FSDPTrainer.__new__(FSDPTrainer)
+    trainer.device = torch.device("cpu")
+    trainer.rank = 1
+    trainer.seed = 11
+    trainer.cached_core_batch_size = None
+    model = nn.Module()
+    model.decoder_network = nn.Identity()
+    model.forward = lambda inputs, **_kwargs: model.decoder_network(inputs)
+    dataset = TensorDataset(torch.ones(3, 2), torch.tensor([0, 1, 0]))
+    sampler = PaddedDistributedEvalSampler(dataset, num_replicas=2, rank=1)
+    loader = DataLoader(dataset, batch_size=1, sampler=sampler)
+
+    cached_loader = trainer._cache_core_output_loader(
+        model,
+        loader,
+        shuffle=False,
+        seed_offset=29,
+    )
+
+    assert len(cached_loader.dataset) == 2
+    assert cached_loader._dendritic_real_count == 1
+
+
+def test_fsdp_training_reuses_cached_core_outputs_across_epochs(
+    monkeypatch,
+    tmp_path,
+):
+    class CacheModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.core_network = nn.Linear(2, 2)
+            self.core_network.requires_grad_(False)
+            self.decoder_network = nn.Linear(2, 2)
+            self.core_calls = 0
+            self._freeze_core_forward = True
+
+        def forward(self, inputs, seq_lengths=None, *, precomputed_core=False):
+            del seq_lengths
+            if not precomputed_core:
+                self.core_calls += 1
+                inputs = self.core_network(inputs)
+            return self.decoder_network(inputs)
+
+    trainer = FSDPTrainer.__new__(FSDPTrainer)
+    trainer.device = torch.device("cpu")
+    trainer.rank = 0
+    trainer.epochs = 2
+    trainer.early_stopping = False
+    trainer.patience = 10
+    trainer.checkpointing = False
+    trainer.print_every = 1
+    trainer.wandb_run = None
+    trainer.save_every_n_epochs = None
+    trainer.save_path = str(tmp_path)
+    trainer.log_first_step_diagnostics = False
+    trainer.cache_frozen_core_outputs = True
+    trainer.cached_core_batch_size = 2
+    trainer.first_step_diagnostics = None
+    trainer._decoder_input_diagnostics = None
+    trainer._use_precomputed_core = False
+    trainer.fsdp_config = {}
+    trainer.optimizer_config = {"lr": 1e-2, "split_params": False}
+    trainer.analysis_manager = None
+    trainer.grad_clip_value = None
+    trainer.use_amp = False
+    trainer.loss_fn = nn.CrossEntropyLoss()
+    trainer.seed = 13
+    trainer._loss_plotting = lambda *_args: None
+
+    inputs = torch.tensor([[1.0, 0.0], [0.0, 1.0], [2.0, 0.0], [0.0, 2.0]])
+    targets = torch.tensor([0, 1, 0, 1])
+    loader = DataLoader(TensorDataset(inputs, targets), batch_size=2)
+    model = CacheModel()
+    monkeypatch.setattr(
+        "dendritic_modeling.training.strategies.fsdp_standard." "wrap_model_with_fsdp",
+        lambda wrapped_model, _config: wrapped_model,
+    )
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+    monkeypatch.setattr(torch.distributed, "all_reduce", lambda *_args, **_kwargs: None)
+
+    results = trainer.train(model, loader, loader)
+
+    # Two train and two validation batches are cached once. Neither training
+    # epoch recomputes the frozen core.
+    assert model.core_calls == 4
+    assert len(results["train_losses"]) == 2
+    assert len(results["valid_losses"]) == 2
+
+
+def test_fsdp_best_valid_loss_tracks_history_without_early_stopping(
+    monkeypatch,
+    tmp_path,
+):
+    trainer = FSDPTrainer.__new__(FSDPTrainer)
+    trainer.device = torch.device("cpu")
+    trainer.rank = 0
+    trainer.epochs = 3
+    trainer.early_stopping = False
+    trainer.patience = 10
+    trainer.checkpointing = False
+    trainer.print_every = 1
+    trainer.wandb_run = None
+    trainer.save_every_n_epochs = None
+    trainer.save_path = str(tmp_path)
+    trainer.log_first_step_diagnostics = False
+    trainer.cache_frozen_core_outputs = False
+    trainer.cached_core_batch_size = None
+    trainer._use_precomputed_core = False
+    trainer.first_step_diagnostics = None
+    trainer._decoder_input_diagnostics = None
+    trainer.fsdp_config = {}
+    trainer.optimizer_config = {"lr": 1e-3}
+    trainer.analysis_manager = None
+    trainer._loss_plotting = lambda *_args: None
+    trainer._epoch_train_fsdp = lambda *_args: (0.5, 0.5)
+    validation_losses = iter((0.7, 0.4, 0.6))
+    trainer._epoch_valid_fsdp = lambda *_args: (next(validation_losses), 0.5)
+
+    model = nn.Linear(2, 2)
+    loader = DataLoader(TensorDataset(torch.ones(1, 2), torch.zeros(1)), batch_size=1)
+    monkeypatch.setattr(
+        "dendritic_modeling.training.strategies.fsdp_standard." "wrap_model_with_fsdp",
+        lambda wrapped_model, _config: wrapped_model,
+    )
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+
+    results = trainer.train(model, loader, loader)
+
+    assert results["valid_losses"] == [0.7, 0.4, 0.6]
+    assert results["best_valid_loss"] == 0.4
+
+
 def test_fsdp_module_class_name_iterator_preserves_concrete_name_rule():
     class TopKLinear(nn.Module):
         pass
@@ -878,12 +1290,19 @@ def test_create_fsdp_trainer_preserves_rank0_custom_kwargs(monkeypatch):
         patience=4,
         print_every=2,
         plot_losses=True,
+        log_first_step_diagnostics=True,
     )
     config = SimpleNamespace(
         experiment=SimpleNamespace(
             seed="42",
             checkpointing={"enabled": True, "save_every_n_epochs": 3},
-        )
+        ),
+        distributed=SimpleNamespace(
+            fsdp=SimpleNamespace(
+                cache_frozen_core_outputs=True,
+                cached_core_batch_size=16,
+            )
+        ),
     )
 
     monkeypatch.setattr(fsdp_script, "FSDPTrainer", FSDPTrainerStub)
@@ -917,6 +1336,9 @@ def test_create_fsdp_trainer_preserves_rank0_custom_kwargs(monkeypatch):
         "early_stopping": True,
         "patience": 4,
         "print_every": 2,
+        "log_first_step_diagnostics": True,
+        "cache_frozen_core_outputs": True,
+        "cached_core_batch_size": 16,
         "checkpointing": True,
         "plot_losses": True,
         "save_path": "/tmp/run",
@@ -937,7 +1359,15 @@ def test_create_fsdp_trainer_preserves_non_rank0_defaults(monkeypatch):
     fsdp_config = object()
     optimizer_config = object()
     train_common = SimpleNamespace(epochs=5)
-    config = SimpleNamespace(experiment=SimpleNamespace(seed=9))
+    config = SimpleNamespace(
+        experiment=SimpleNamespace(seed=9),
+        distributed=SimpleNamespace(
+            fsdp=SimpleNamespace(
+                cache_frozen_core_outputs=False,
+                cached_core_batch_size=None,
+            )
+        ),
+    )
 
     monkeypatch.setattr(fsdp_script, "FSDPTrainer", FSDPTrainerStub)
 
@@ -969,6 +1399,9 @@ def test_create_fsdp_trainer_preserves_non_rank0_defaults(monkeypatch):
         "early_stopping": False,
         "patience": 10,
         "print_every": 1,
+        "log_first_step_diagnostics": False,
+        "cache_frozen_core_outputs": False,
+        "cached_core_batch_size": None,
         "checkpointing": False,
         "plot_losses": False,
         "save_path": None,
@@ -1452,6 +1885,27 @@ class TestGetFSDPConfig:
         assert config["mixed_precision"].param_dtype is torch.bfloat16
         assert config["mixed_precision"].reduce_dtype is torch.float32
         assert config["mixed_precision"].buffer_dtype is torch.bfloat16
+
+    @patch("torch.cuda.current_device", return_value=0)
+    def test_get_fsdp_config_indexes_synapses_with_narrow_wrap_policy(
+        self, _mock_current_device
+    ):
+        config = get_fsdp_config(
+            fsdp_config_dict={"auto_wrap_policy": "indexed_synapses"}
+        )
+
+        policy = config["auto_wrap_policy"]
+        assert policy._module_classes == {
+            IndexedSparseLinear,
+            IndexedDynamicTopKLinear,
+        }
+
+    @patch("torch.cuda.current_device", return_value=0)
+    def test_get_fsdp_config_rejects_unknown_auto_wrap_policy(
+        self, _mock_current_device
+    ):
+        with pytest.raises(ValueError, match="auto_wrap_policy"):
+            get_fsdp_config(fsdp_config_dict={"auto_wrap_policy": "size_based"})
 
     @pytest.mark.skipif(
         not torch.cuda.is_available(), reason="CUDA not available - FSDP requires GPU"

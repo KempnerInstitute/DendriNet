@@ -175,9 +175,35 @@ class PopulationConfig(BaseConfig):
     # per-level state banks.
     cross_level_mode: str = "hierarchical"  # hierarchical | parallel_readout
 
+    # Appended indexed-synapse scaling controls. Defaults preserve legacy
+    # topology storage, checkpoint, and initialization behavior.
+    indexed_index_dtype: str = "int64"
+    indexed_workspace_mb: Optional[float] = None
+    indexed_cache_transformed_weights: bool = False
+    indexed_recompute_backward: bool = False
+    indexed_persistent_indices: bool = True
+    indexed_init_mode: str = "per_rank"
+
     def __post_init__(self):
         if self.n_neurons <= 0:
             raise ValueError(f"n_neurons must be > 0, got {self.n_neurons}")
+        self.indexed_index_dtype = str(self.indexed_index_dtype).lower()
+        if self.indexed_index_dtype not in {"auto", "int32", "int64", "long"}:
+            raise ValueError(
+                "indexed_index_dtype must be one of 'auto', 'int32', or 'int64', "
+                f"got {self.indexed_index_dtype!r}"
+            )
+        if self.indexed_workspace_mb is not None and self.indexed_workspace_mb <= 0:
+            raise ValueError(
+                "indexed_workspace_mb must be > 0 when provided, got "
+                f"{self.indexed_workspace_mb}"
+            )
+        self.indexed_init_mode = str(self.indexed_init_mode).lower()
+        if self.indexed_init_mode not in {"per_rank", "rank0_broadcast"}:
+            raise ValueError(
+                "indexed_init_mode must be 'per_rank' or 'rank0_broadcast', "
+                f"got {self.indexed_init_mode!r}"
+            )
         self.cross_level_mode = str(self.cross_level_mode).lower()
         if self.cross_level_mode not in {"hierarchical", "parallel_readout"}:
             raise ValueError(

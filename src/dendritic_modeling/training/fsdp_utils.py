@@ -20,11 +20,14 @@ from torch.distributed.fsdp import (
     ShardingStrategy,
     StateDictType,
 )
+from torch.distributed.fsdp.wrap import ModuleWrapPolicy
 
 from dendritic_modeling.networks.architectures.excitation_inhibition import (
     DendriticBranchLayer,
     ExcitationInhibitionLayer,
     ExcitationInhibitionNetwork,
+    IndexedDynamicTopKLinear,
+    IndexedSparseLinear,
 )
 from dendritic_modeling.networks.architectures.recurrent.ei_layer import EILayer
 from dendritic_modeling.networks.architectures.recurrent.ei_network import EINetwork
@@ -134,6 +137,9 @@ def get_fsdp_config(
             "reduce_communication_overhead", reduce_communication_overhead
         )
         min_num_params = fsdp_config_dict.get("min_num_params", None)
+        auto_wrap_policy_name = str(
+            fsdp_config_dict.get("auto_wrap_policy", "none")
+        ).lower()
         sync_module_states = fsdp_config_dict.get("sync_module_states", True)
         use_orig_params = fsdp_config_dict.get("use_orig_params", True)
         backward_prefetch = fsdp_config_dict.get("backward_prefetch", "BACKWARD_PRE")
@@ -149,6 +155,7 @@ def get_fsdp_config(
     else:
         # Use defaults
         min_num_params = None
+        auto_wrap_policy_name = "none"
         sync_module_states = True
         use_orig_params = True
         backward_prefetch = "BACKWARD_PRE"
@@ -201,7 +208,21 @@ def get_fsdp_config(
     else:
         pass  # Wrap layers with >10M params
 
-    auto_wrap_policy = None  # Disable auto-wrapping to fix parameter corruption
+    if auto_wrap_policy_name == "none":
+        # Preserve the historical whole-model wrapping behavior by default.
+        auto_wrap_policy = None
+    elif auto_wrap_policy_name == "indexed_synapses":
+        # This narrowly targets leaf sparse-synapse modules. It avoids the
+        # parent/child wrapping ambiguity of the old parameter-count policy
+        # while bounding full-parameter all-gathers for very large RNNs.
+        auto_wrap_policy = ModuleWrapPolicy(
+            {IndexedSparseLinear, IndexedDynamicTopKLinear}
+        )
+    else:
+        raise ValueError(
+            "FSDP auto_wrap_policy must be 'none' or 'indexed_synapses', "
+            f"got {auto_wrap_policy_name!r}"
+        )
 
     # Convert backward_prefetch string to enum
     backward_prefetch_map = {

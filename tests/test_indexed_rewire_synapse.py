@@ -1,3 +1,4 @@
+import pytest
 import torch
 
 from dendritic_modeling.networks import DendriticBranchLayer
@@ -27,6 +28,17 @@ def test_indexed_rewire_registered_and_stores_only_active_slots():
     assert layer.pre_w.shape == (4, 3)
     assert layer.connection_indices.shape == (4, 3)
     assert layer.weight_mask().sum().item() == 12
+
+
+def test_indexed_rewire_requires_persistent_topology():
+    with pytest.raises(ValueError, match="requires persistent_indices=True"):
+        IndexedRewireLinear(
+            in_features=6,
+            out_features=3,
+            K=2,
+            seed=7,
+            persistent_indices=False,
+        )
 
 
 def test_indexed_rewire_replaces_weakest_slots_per_dendrite():

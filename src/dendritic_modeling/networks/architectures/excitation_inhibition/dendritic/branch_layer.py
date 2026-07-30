@@ -386,6 +386,14 @@ class DendriticBranchLayer(nn.Module):
         self.indexed_rewire_frequency = int(synapse_options["indexed_rewire_frequency"])
         self.indexed_rewire_quantile = float(synapse_options["indexed_rewire_quantile"])
         self.indexed_rewire_until_step = synapse_options["indexed_rewire_until_step"]
+        self.indexed_index_dtype = synapse_options["indexed_index_dtype"]
+        self.indexed_workspace_mb = synapse_options["indexed_workspace_mb"]
+        self.indexed_cache_transformed_weights = synapse_options[
+            "indexed_cache_transformed_weights"
+        ]
+        self.indexed_recompute_backward = synapse_options["indexed_recompute_backward"]
+        self.indexed_persistent_indices = synapse_options["indexed_persistent_indices"]
+        self.indexed_init_mode = synapse_options["indexed_init_mode"]
         self.input_excitatory = excitatory_input_dim is not None
         self.print_hooks = synapse_options["print_hooks"]
 

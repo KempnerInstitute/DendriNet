@@ -33,13 +33,16 @@ def safe_exp(
     margin: float = DEFAULT_SAFE_EXP_MARGIN,
     max_exponent: float | None = None,
 ) -> torch.Tensor:
-    """Exponentiate without overflowing finite floating-point tensors."""
+    """Exponentiate without overflow or a second full-size output allocation."""
     if not torch.is_floating_point(weights):
         return torch.exp(weights)
     max_log = math.log(torch.finfo(weights.dtype).max) - float(margin)
     if max_exponent is not None:
         max_log = min(max_log, float(max_exponent))
-    return torch.exp(weights.clamp(max=max_log))
+    # clamp() creates a fresh tensor, so exponentiating that buffer in-place
+    # does not mutate the parameter. This avoids simultaneously materializing
+    # both clamp and exp outputs for multi-billion-contact sparse layers.
+    return weights.clamp(max=max_log).exp_()
 
 
 def inverse_softplus(

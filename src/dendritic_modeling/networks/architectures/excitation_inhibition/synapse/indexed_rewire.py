@@ -48,6 +48,11 @@ class IndexedRewireLinear(IndexedSparseLinear):
             raise ValueError("rewire_quantile must be in [0, 1]")
         if rewire_until_step is not None and int(rewire_until_step) < 0:
             raise ValueError("rewire_until_step must be >= 0 when provided")
+        if kwargs.get("persistent_indices", True) is False:
+            raise ValueError(
+                "IndexedRewireLinear requires persistent_indices=True because "
+                "its topology changes during training"
+            )
 
         self._rewire_seed = (
             int(seed)
@@ -79,10 +84,17 @@ class IndexedRewireLinear(IndexedSparseLinear):
 
     def _allowed_indices_for_row_cpu(self, row_idx: int) -> torch.Tensor:
         if self._allowed_connection_mask.numel() == 0:
-            return torch.arange(self.in_features, dtype=torch.long)
-        return torch.nonzero(
-            self._allowed_connection_mask[row_idx].detach().cpu(), as_tuple=False
-        ).flatten()
+            allowed = torch.arange(self.in_features, dtype=torch.long)
+        else:
+            allowed = torch.nonzero(
+                self._allowed_connection_mask[row_idx].detach().cpu(),
+                as_tuple=False,
+            ).flatten()
+        if self._forbidden_input_index_per_output.numel() > 0:
+            forbidden = int(self._forbidden_input_index_per_output[row_idx].item())
+            if forbidden >= 0:
+                allowed = allowed[allowed != forbidden]
+        return allowed
 
     def _new_pre_weights(self, shape: tuple[int, int]) -> torch.Tensor:
         temp = torch.empty(shape, device=self.pre_w.device, dtype=self.pre_w.dtype)
@@ -98,6 +110,7 @@ class IndexedRewireLinear(IndexedSparseLinear):
     def apply_rewiring(self) -> None:
         """Replace the weakest active sparse slots with new random inputs."""
         with torch.no_grad():
+            self._recurrent_cached_weight = None
             self.rewire_step.add_(1)
             self._last_rewired_mask.zero_()
 

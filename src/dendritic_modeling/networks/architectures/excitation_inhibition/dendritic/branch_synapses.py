@@ -37,6 +37,18 @@ def _pathway_gamma(owner: Any, synapse_type: str) -> float:
     return owner.topk_gamma if synapse_type == "inh" else 1.0
 
 
+def _indexed_runtime_kwargs(owner: Any) -> dict[str, Any]:
+    """Return config-controlled indexed storage and execution options."""
+    return {
+        "index_dtype": owner.indexed_index_dtype,
+        "workspace_mb": owner.indexed_workspace_mb,
+        "cache_transformed_weights": owner.indexed_cache_transformed_weights,
+        "recompute_backward": owner.indexed_recompute_backward,
+        "persistent_indices": owner.indexed_persistent_indices,
+        "init_mode": owner.indexed_init_mode,
+    }
+
+
 def create_branch_sparse_layer(
     owner: Any,
     *,
@@ -225,6 +237,7 @@ def create_branch_sparse_layer(
             forbidden_input_index_per_output=forbidden_input_index_per_output,
             seed=_indexed_synapse_seed(owner, pathway=pathway),
             output_chunk_size=owner.indexed_output_chunk_size,
+            **_indexed_runtime_kwargs(owner),
         )
 
     return get_sparse_layer(

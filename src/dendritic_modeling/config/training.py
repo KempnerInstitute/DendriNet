@@ -23,6 +23,9 @@ class ParamGroupsConfig(BaseConfig):
     blocklinear_lr: float = 0.0001
     reactivation_lr: float = 0.0001
     decoder_lr: float = 0.001
+    # Optional LR for only the first decoder Linear weight. This supports
+    # width-scaled updates without slowing decoder biases or the output head.
+    decoder_input_lr: Optional[float] = None
     encoder_lr: Optional[float] = None  # None = frozen / use default LR
 
 
@@ -53,6 +56,9 @@ class CommonTrainerConfig(BaseConfig):
     enable_nan_checking: bool = False
     enable_adaptive_clipping: bool = False
     profile_dataloader: bool = False
+    # Record compact decoder-input, logit, and gradient statistics for the
+    # first FSDP optimizer step. Disabled by default to avoid extra reductions.
+    log_first_step_diagnostics: bool = False
     weight_decay_rate: float = 0.01
     weight_boosting: bool = False
     # Periodic reactivation recalibration during training.

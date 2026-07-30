@@ -17,7 +17,7 @@ import argparse
 import logging
 import os
 from dataclasses import asdict
-from datetime import datetime
+from datetime import datetime, timedelta
 
 os.environ.setdefault("TORCH_NCCL_ASYNC_ERROR_HANDLING", "1")
 os.environ.setdefault("NCCL_TIMEOUT", "1800")  # 30 minutes timeout
@@ -79,6 +79,7 @@ from dendritic_modeling.utils.logging_config import LoggerManager
 
 logger = logging.getLogger(__name__)
 logger_manager = LoggerManager()
+_PROCESS_GROUP_TIMEOUT_ENV = "DENDRITIC_FSDP_PROCESS_GROUP_TIMEOUT_SECONDS"
 canonicalize_model_core_flags = getattr(
     _config_utils, "canonicalize_model_core_flags", None
 )
@@ -164,7 +165,23 @@ def setup_distributed() -> tuple[int, int, int]:
     world_size = int(os.environ.get("WORLD_SIZE", 1))
 
     if not dist.is_initialized():
-        dist.init_process_group(backend="nccl")
+        timeout_seconds_raw = os.environ.get(_PROCESS_GROUP_TIMEOUT_ENV, "1800")
+        try:
+            timeout_seconds = int(timeout_seconds_raw)
+        except ValueError as exc:
+            raise ValueError(
+                f"{_PROCESS_GROUP_TIMEOUT_ENV} must be a positive integer, "
+                f"got {timeout_seconds_raw!r}"
+            ) from exc
+        if timeout_seconds <= 0:
+            raise ValueError(
+                f"{_PROCESS_GROUP_TIMEOUT_ENV} must be a positive integer, "
+                f"got {timeout_seconds_raw!r}"
+            )
+        dist.init_process_group(
+            backend="nccl",
+            timeout=timedelta(seconds=timeout_seconds),
+        )
 
     torch.cuda.set_device(local_rank)
     return rank, local_rank, world_size
@@ -272,11 +289,26 @@ def _build_fsdp_runtime_configs(config):
         fsdp_config_dict=vars(fsdp_cfg) if hasattr(fsdp_cfg, "__dict__") else None,
     )
 
+    param_groups = train_common.param_groups
     optimizer_config = {
-        "lr": train_common.param_groups.lr,
+        "lr": param_groups.lr,
         "weight_decay": getattr(train_common, "weight_decay_rate", 0.0),
-        "split_params": getattr(train_common.param_groups, "split_params", False),
+        "split_params": getattr(param_groups, "split_params", False),
     }
+    # Keep the component-specific learning rates from the typed YAML config.
+    # These values are especially important for very wide decoders, where a
+    # single global Adam learning rate can produce a width-dependent jump.
+    for key in (
+        "topk_lr",
+        "blocklinear_lr",
+        "reactivation_lr",
+        "decoder_lr",
+        "decoder_input_lr",
+        "encoder_lr",
+    ):
+        value = getattr(param_groups, key, None)
+        if value is not None:
+            optimizer_config[key] = value
     return train_common, fsdp_config, optimizer_config
 
 
@@ -316,6 +348,21 @@ def _create_fsdp_trainer(
         early_stopping=getattr(train_common, "early_stopping", False),
         patience=getattr(train_common, "patience", 10),
         print_every=getattr(train_common, "print_every", 1),
+        log_first_step_diagnostics=getattr(
+            train_common,
+            "log_first_step_diagnostics",
+            False,
+        ),
+        cache_frozen_core_outputs=getattr(
+            config.distributed.fsdp,
+            "cache_frozen_core_outputs",
+            False,
+        ),
+        cached_core_batch_size=getattr(
+            config.distributed.fsdp,
+            "cached_core_batch_size",
+            None,
+        ),
         checkpointing=checkpointing_enabled,
         plot_losses=getattr(train_common, "plot_losses", False),
         save_path=run_save_path if rank == 0 else None,
@@ -454,6 +501,43 @@ def create_large_model(config):
     logger.info(f"Trainable parameters: {trainable_params:,}")
 
     return model
+
+
+def _apply_fsdp_trainability_policy(model, fsdp_config) -> int:
+    """Apply opt-in FSDP component freezing before wrapping the model."""
+    freeze_core = bool(getattr(fsdp_config, "freeze_core", False))
+    cache_core = bool(getattr(fsdp_config, "cache_frozen_core_outputs", False))
+    if cache_core and not freeze_core:
+        raise ValueError(
+            "distributed.fsdp.cache_frozen_core_outputs requires freeze_core=true"
+        )
+    if not freeze_core:
+        return 0
+    core = getattr(model, "core_network", None)
+    if core is None:
+        raise ValueError("distributed.fsdp.freeze_core requires model.core_network")
+    encoder = getattr(model, "encoder_network", None)
+    if (
+        cache_core
+        and encoder is not None
+        and any(parameter.requires_grad for parameter in encoder.parameters())
+    ):
+        raise ValueError(
+            "cache_frozen_core_outputs requires a frozen or parameter-free encoder"
+        )
+    model._freeze_core_forward = True
+    for module in core.modules():
+        module._fsdp_frozen_core = True
+    frozen_parameters = 0
+    for parameter in core.parameters():
+        if parameter.requires_grad:
+            frozen_parameters += parameter.numel()
+            parameter.requires_grad_(False)
+    logger.info(
+        "FSDP readout-only mode: froze %s core parameters before wrapping",
+        f"{frozen_parameters:,}",
+    )
+    return frozen_parameters
 
 
 def _get_analysis_encoder_network(encoder_network):
@@ -929,6 +1013,7 @@ def main(config_path):
 
     # Create model
     model = create_large_model(config)
+    _apply_fsdp_trainability_policy(model, config.distributed.fsdp)
 
     # Setup data loaders
     train_loader, valid_loader, test_ds, train_ds, valid_ds = setup_data_loaders(

@@ -3,7 +3,13 @@ import torch.nn as nn
 from dendritic_modeling.config.regularization import RegularizationConfig
 from dendritic_modeling.config.training import ParamGroupsConfig
 from dendritic_modeling.models.base import BaseModel
-from dendritic_modeling.networks import BlockLinear, ParametricTanh, TopKLinear
+from dendritic_modeling.networks import (
+    BlockLinear,
+    IndexedDynamicTopKLinear,
+    IndexedSparseLinear,
+    ParametricTanh,
+    TopKLinear,
+)
 from dendritic_modeling.scripts.script_utils.config_utils import (
     normalize_param_groups_config,
     prepare_trainer_config,
@@ -81,6 +87,61 @@ def test_base_model_split_param_groups_preserve_core_module_order():
     assert param_group_by_id[id(model.core_network[1].log_weight)] == "blocklinear"
     assert param_group_by_id[id(model.core_network[2].log_m)] == "reactivation"
     assert param_group_by_id[id(model.decoder_network.weight)] == "decoder"
+
+
+def test_base_model_assigns_indexed_synapses_to_topk_group():
+    model = _DummyModel()
+    model.core_network = nn.Sequential(
+        IndexedSparseLinear(4, 3, K=2, seed=1),
+        IndexedDynamicTopKLinear(3, 2, K=1, candidate_size=2, seed=2),
+    )
+    model.decoder_network = nn.Linear(2, 1)
+
+    groups = model.get_param_groups(
+        ParamGroupsConfig(
+            lr=0.05,
+            topk_lr=0.01,
+            decoder_lr=0.04,
+            split_params=True,
+        )
+    )
+    group_by_param_id = {
+        id(param): group for group in groups for param in group["params"]
+    }
+
+    assert group_by_param_id[id(model.core_network[0].pre_w)]["name"] == "topk"
+    assert group_by_param_id[id(model.core_network[0].pre_w)]["lr"] == 0.01
+    assert group_by_param_id[id(model.core_network[1].pre_w)]["name"] == "topk"
+    assert group_by_param_id[id(model.core_network[1].pre_w)]["lr"] == 0.01
+
+
+def test_base_model_scales_only_decoder_input_weight():
+    model = _DummyModel()
+    model.decoder_network = nn.Sequential(
+        nn.Linear(8, 4),
+        nn.ReLU(),
+        nn.Linear(4, 2),
+    )
+
+    groups = model.get_param_groups(
+        ParamGroupsConfig(
+            lr=0.05,
+            decoder_input_lr=1e-5,
+            decoder_lr=1e-3,
+            split_params=True,
+        )
+    )
+    group_by_param_id = {
+        id(param): group for group in groups for param in group["params"]
+    }
+
+    assert group_by_param_id[id(model.decoder_network[0].weight)]["name"] == (
+        "decoder_input"
+    )
+    assert group_by_param_id[id(model.decoder_network[0].weight)]["lr"] == 1e-5
+    assert group_by_param_id[id(model.decoder_network[0].bias)]["name"] == "decoder"
+    assert group_by_param_id[id(model.decoder_network[2].weight)]["name"] == "decoder"
+    assert group_by_param_id[id(model.decoder_network[2].bias)]["lr"] == 1e-3
 
 
 def test_regularization_uses_explicit_param_group_name():

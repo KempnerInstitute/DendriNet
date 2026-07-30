@@ -8,10 +8,16 @@ import torch
 import torch.nn as nn
 
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_common import (
-    _allowed_mask_with_forbidden,
     _connection_generator,
+    _indexed_sparse_projection,
+    _resolve_index_dtype,
     _sample_indices_from_mask,
     _scale_for_sparse_target,
+    _validate_forbidden_indices,
+    _workspace_limited_chunk_size,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.structured_mask import (
+    validate_connection_mask,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
     TOPK_INIT_METHODS,
@@ -56,6 +62,12 @@ class IndexedDynamicTopKLinear(nn.Module):
         forbidden_input_index_per_output: torch.Tensor | None = None,
         seed: int | None = None,
         output_chunk_size: int = 2048,
+        index_dtype: str | torch.dtype = "int64",
+        workspace_mb: float | None = None,
+        cache_transformed_weights: bool = False,
+        recompute_backward: bool = False,
+        persistent_indices: bool = True,
+        init_mode: str = "per_rank",
         **_: object,
     ):
         super().__init__()
@@ -70,9 +82,13 @@ class IndexedDynamicTopKLinear(nn.Module):
                 f"(K={K}, in_features={in_features})"
             )
 
-        allowed_connection_mask = _allowed_mask_with_forbidden(
-            connection_mask=connection_mask,
-            forbidden_input_index_per_output=forbidden_input_index_per_output,
+        allowed_connection_mask = validate_connection_mask(
+            connection_mask,
+            int(out_features),
+            int(in_features),
+        )
+        forbidden = _validate_forbidden_indices(
+            forbidden_input_index_per_output,
             out_features=int(out_features),
             in_features=int(in_features),
         )
@@ -80,8 +96,16 @@ class IndexedDynamicTopKLinear(nn.Module):
         if candidate_size is None:
             candidate_size = min(in_features, max(K, 4 * K))
             if allowed_connection_mask is not None:
-                min_allowed = int(allowed_connection_mask.sum(dim=1).min().item())
-                candidate_size = min(candidate_size, min_allowed)
+                allowed_count = allowed_connection_mask.sum(dim=1)
+                if forbidden is not None:
+                    rows = torch.arange(int(out_features))
+                    active = forbidden >= 0
+                    allowed_count = allowed_count - (
+                        active & allowed_connection_mask[rows, forbidden.clamp_min(0)]
+                    ).to(allowed_count.dtype)
+                candidate_size = min(candidate_size, int(allowed_count.min().item()))
+            elif forbidden is not None and bool((forbidden >= 0).any()):
+                candidate_size = min(candidate_size, in_features - 1)
         candidate_size = int(candidate_size)
         if candidate_size < K:
             raise ValueError("candidate_size must be >= K")
@@ -89,6 +113,16 @@ class IndexedDynamicTopKLinear(nn.Module):
             raise ValueError("candidate_size must be <= in_features")
         if output_chunk_size < 1:
             raise ValueError("output_chunk_size must be >= 1")
+        if workspace_mb is not None and float(workspace_mb) <= 0:
+            raise ValueError("workspace_mb must be > 0 when provided")
+        init_mode = str(init_mode).strip().lower()
+        if init_mode not in {"per_rank", "rank0_broadcast"}:
+            raise ValueError("init_mode must be 'per_rank' or 'rank0_broadcast'")
+        if not persistent_indices and connection_indices is None and seed is None:
+            raise ValueError(
+                "persistent_indices=False requires an explicit seed so the "
+                "topology can be regenerated when loading a checkpoint"
+            )
 
         selection = str(selection).lower()
         if selection not in {"standard", "stochastic", "rank_probabilistic"}:
@@ -113,25 +147,57 @@ class IndexedDynamicTopKLinear(nn.Module):
         self.weight_norm_order = weight_norm_order
         self.gamma = float(gamma)
         self.output_chunk_size = int(output_chunk_size)
+        self.workspace_mb = None if workspace_mb is None else float(workspace_mb)
+        self.index_dtype = _resolve_index_dtype(
+            index_dtype,
+            in_features=self.in_features,
+        )
+        self.cache_transformed_weights = bool(cache_transformed_weights)
+        self.recompute_backward = bool(recompute_backward)
+        self.persistent_indices = bool(persistent_indices)
+        self.init_mode = init_mode
         self.input_scale_vec = None
         self.param_scale_vec = None
+        self._use_forward_dynamic_grad_scaling = False
         self.cache_mask = False
         self._last_forward_weight_mask: torch.Tensor | None = None
         self._last_forward_active_sparse_mask: torch.Tensor | None = None
         self._last_forward_param_tensor: torch.Tensor | None = None
+        self._recurrent_weight_cache_enabled = False
+        self._recurrent_cached_weight: torch.Tensor | None = None
 
+        topology_initialized = True
         if connection_indices is None:
-            generator = _connection_generator(seed)
-            connection_indices = _sample_indices_from_mask(
-                out_features=self.out_features,
-                in_features=self.in_features,
-                K=self.candidate_size,
-                connection_mask=allowed_connection_mask,
-                generator=generator,
-                row_chunk_size=self.output_chunk_size,
+            rank0_initializes = (
+                self.init_mode == "rank0_broadcast"
+                and torch.distributed.is_available()
+                and torch.distributed.is_initialized()
             )
+            topology_initialized = (
+                not rank0_initializes or torch.distributed.get_rank() == 0
+            )
+            if topology_initialized:
+                generator = _connection_generator(seed)
+                connection_indices = _sample_indices_from_mask(
+                    out_features=self.out_features,
+                    in_features=self.in_features,
+                    K=self.candidate_size,
+                    connection_mask=allowed_connection_mask,
+                    forbidden_input_index_per_output=forbidden,
+                    generator=generator,
+                    row_chunk_size=self.output_chunk_size,
+                    index_dtype=self.index_dtype,
+                )
+            else:
+                connection_indices = torch.zeros(
+                    self.out_features,
+                    self.candidate_size,
+                    dtype=self.index_dtype,
+                )
         else:
-            connection_indices = torch.as_tensor(connection_indices, dtype=torch.long)
+            connection_indices = torch.as_tensor(
+                connection_indices, dtype=self.index_dtype
+            )
             if tuple(connection_indices.shape) != (
                 self.out_features,
                 self.candidate_size,
@@ -152,15 +218,43 @@ class IndexedDynamicTopKLinear(nn.Module):
                 raise ValueError("connection_indices must be unique within each row")
             if allowed_connection_mask is not None:
                 row = torch.arange(self.out_features)[:, None]
-                if not bool(allowed_connection_mask[row, connection_indices].all()):
+                if not bool(
+                    allowed_connection_mask[
+                        row, connection_indices.to(torch.long)
+                    ].all()
+                ):
                     raise ValueError(
                         "connection_indices contains entries disallowed by "
-                        "connection_mask or forbidden_input_index_per_output"
+                        "connection_mask"
+                    )
+            if forbidden is not None:
+                violates_forbidden = (forbidden[:, None] >= 0) & (
+                    connection_indices.to(torch.long) == forbidden[:, None]
+                )
+                if bool(violates_forbidden.any()):
+                    raise ValueError(
+                        "connection_indices contains entries disallowed by "
+                        "forbidden_input_index_per_output"
                     )
 
+        if forbidden is None:
+            forbidden = torch.empty(0, dtype=torch.long)
         self.register_buffer(
-            "connection_indices", connection_indices.contiguous(), persistent=True
+            "_forbidden_input_index_per_output",
+            forbidden.contiguous(),
+            persistent=False,
         )
+        self.register_buffer(
+            "connection_indices",
+            connection_indices.contiguous(),
+            persistent=self.persistent_indices,
+        )
+        self.register_buffer(
+            "_topology_initialized",
+            torch.tensor(int(topology_initialized), dtype=torch.uint8),
+            persistent=False,
+        )
+        self._topology_ready = topology_initialized
         self.pre_w = nn.Parameter(torch.empty(self.out_features, self.candidate_size))
         self.initialize()
 
@@ -265,6 +359,34 @@ class IndexedDynamicTopKLinear(nn.Module):
         normalized = (active_weight / safe_norm) * self.gamma
         return torch.where(norm > 0, normalized, active_weight)
 
+    def set_recurrent_weight_cache(self, enabled: bool) -> None:
+        """Cache deterministic candidate selection once per recurrent unroll."""
+        self._recurrent_weight_cache_enabled = (
+            bool(enabled)
+            and self.cache_transformed_weights
+            and self.selection == "standard"
+            and self.noise_level == 0
+            and not self._use_forward_dynamic_grad_scaling
+        )
+        self._recurrent_cached_weight = None
+
+    def _forward_sparse_weight(self) -> torch.Tensor:
+        if not self._recurrent_weight_cache_enabled:
+            return self._normalized_sparse_weight()
+        if self._recurrent_cached_weight is None:
+            self._recurrent_cached_weight = self._normalized_sparse_weight()
+        return self._recurrent_cached_weight
+
+    def _forward_output_chunk_size(self, flat_x: torch.Tensor) -> int:
+        return _workspace_limited_chunk_size(
+            output_chunk_size=self.output_chunk_size,
+            workspace_mb=self.workspace_mb,
+            out_features=self.out_features,
+            flattened_batch_size=flat_x.shape[0],
+            synapses_per_output=self.candidate_size,
+            element_size=flat_x.element_size(),
+        )
+
     def candidate_mask(self) -> torch.Tensor:
         """Return dense mask of all stored candidate synapses."""
         mask = torch.zeros(
@@ -361,6 +483,14 @@ class IndexedDynamicTopKLinear(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Apply dynamic TopK over the fixed candidate pool."""
+        if not self._topology_ready:
+            if not bool(self._topology_initialized.item()):
+                raise RuntimeError(
+                    "Indexed topology is awaiting rank-0 broadcast. Construct "
+                    "this module under FSDP with sync_module_states=True before "
+                    "forward."
+                )
+            self._topology_ready = True
         if not isinstance(x, torch.Tensor):
             raise TypeError(f"Expected input to be a tensor, got {type(x)}")
         squeezed = False
@@ -375,20 +505,25 @@ class IndexedDynamicTopKLinear(nn.Module):
 
         original_shape = x.shape
         flat_x = x.reshape(-1, self.in_features)
-        out = flat_x.new_empty(flat_x.shape[0], self.out_features)
-        active_weight = self._normalized_sparse_weight()
-        object.__setattr__(self, "_last_forward_param_tensor", active_weight)
+        active_weight = self._forward_sparse_weight()
+        # Frozen weights cannot receive the optional per-forward gradient
+        # hook. Releasing their transformed tensor is essential for successive
+        # contact-heavy FSDP modules to reuse the same CUDA memory.
+        object.__setattr__(
+            self,
+            "_last_forward_param_tensor",
+            active_weight if active_weight.requires_grad else None,
+        )
         indices = self.connection_indices.to(flat_x.device)
 
-        for start in range(0, self.out_features, self.output_chunk_size):
-            end = min(start + self.output_chunk_size, self.out_features)
-            idx_chunk = indices[start:end]
-            selected = flat_x[:, idx_chunk.reshape(-1)].reshape(
-                flat_x.shape[0], end - start, self.candidate_size
-            )
-            out[:, start:end] = (selected * active_weight[start:end].unsqueeze(0)).sum(
-                dim=-1
-            )
+        output_chunk_size = self._forward_output_chunk_size(flat_x)
+        out = _indexed_sparse_projection(
+            flat_x=flat_x,
+            weight=active_weight,
+            connection_indices=indices,
+            output_chunk_size=output_chunk_size,
+            recompute_backward=self.recompute_backward,
+        )
 
         out = out.reshape(*original_shape[:-1], self.out_features)
         if self.cache_mask:
