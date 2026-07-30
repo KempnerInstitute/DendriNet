@@ -103,7 +103,7 @@
       "core_lr": 1e-05,
       "decoder_input_lr": 8e-07,
       "gpus": 4,
-      "gpu_type": "H200",
+      "gpu_type": "H100-80GB",
       "host_memory_gb": 192,
       "cpus": 32,
       "walltime": "00:30:00"
@@ -116,7 +116,7 @@
       "core_lr": 1e-05,
       "decoder_input_lr": 8e-07,
       "gpus": 4,
-      "gpu_type": "H200",
+      "gpu_type": "H100-80GB",
       "host_memory_gb": 192,
       "cpus": 32,
       "walltime": "03:30:00"
@@ -129,7 +129,7 @@
       "core_lr": 1e-07,
       "decoder_input_lr": 4e-06,
       "gpus": 4,
-      "gpu_type": "H200",
+      "gpu_type": "H100-80GB",
       "host_memory_gb": 192,
       "cpus": 32,
       "walltime": "03:30:00"

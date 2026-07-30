@@ -23,7 +23,8 @@ four-H200 scale point, they measure strong scaling without changing the
 model, data, or topology seed.
 
 `e2e_100k_20k_canary.yaml` and `e2e_100k_20k_30ep.yaml` test full recurrent
-optimization at the 100,000-neuron, 2-billion-contact scale.
+optimization at the 100,000-neuron, 2-billion-contact scale on four
+H100-80GB GPUs.
 `e2e_100k_20k_stable_30ep.yaml` tests the same model with a smaller recurrent
 learning rate and a larger wide-decoder learning rate. This separates
 systems feasibility from learning-rate allocation. The canary must complete
