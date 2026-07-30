@@ -288,6 +288,23 @@ def test_exact_1m_20k_frozen_readout_contract():
     assert dataset["test"]["n_samples"] <= config.experiment.max_test_samples
 
 
+def test_exact_1m_20k_5000_epoch_extension_preserves_model_contract():
+    config = load_config(str(CONFIG_DIR / "test_1m_20k_frozen_readout_5000ep.yaml"))
+    layer = config.model.core.unified_ei["layers"][0]
+
+    assert layer["excitatory"]["n_neurons"] == 800_000
+    assert layer["inhibitory"]["n_neurons"] == 200_000
+    for population in (layer["excitatory"], layer["inhibitory"]):
+        assert _contacts_per_target(population) == (16_000, 4_000)
+    assert config.distributed.fsdp.freeze_core is True
+    assert config.distributed.fsdp.cache_frozen_core_outputs is True
+    assert config.distributed.fsdp.cached_core_batch_size == 4
+    assert config.training.main.common.epochs == 5000
+    assert config.training.main.common.print_every == 100
+    assert config.outputs.exact_run_dir is True
+    assert config.outputs.results_dir.endswith("test_1m_20k_frozen_readout_5000ep")
+
+
 def test_zero_head_diagnostic_starts_with_balanced_logits():
     config = load_config(str(CONFIG_DIR / "diagnostic_20k_10k_zero_head.yaml"))
 

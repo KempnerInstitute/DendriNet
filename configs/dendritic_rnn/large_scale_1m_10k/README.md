@@ -11,6 +11,7 @@ dataset, FSDP, and trainer paths.
 | [`base.yaml`](base.yaml) | 1,000,000 | 10,000 | One-step full-core systems test on 8 H200s |
 | [`learn_1m_10k.yaml`](learn_1m_10k.yaml) | 1,000,000 | 10,000 | Experimental full-core learning configuration |
 | [`test_1m_20k_frozen_readout.yaml`](test_1m_20k_frozen_readout.yaml) | 1,000,000 | 20,000 | Exact 20-billion-contact recurrent system with a trainable cached readout on 4 H200s |
+| [`test_1m_20k_frozen_readout_5000ep.yaml`](test_1m_20k_frozen_readout_5000ep.yaml) | 1,000,000 | 20,000 | Five-thousand-epoch extension of the exact cached-readout experiment |
 | [`diagnostic_20k_10k_readout_only.yaml`](diagnostic_20k_10k_readout_only.yaml) | 20,000 | 10,000 | Frozen-core readout learning control |
 | [`diagnostic_20k_20k_frozen_readout.yaml`](diagnostic_20k_20k_frozen_readout.yaml) | 20,001 | 20,000 | Degree-matched control for the exact 20k-contact model |
 | [`diagnostic_paper_scale_fsdp.yaml`](diagnostic_paper_scale_fsdp.yaml) | 80 | paper scale | Learning check for the indexed-synapse FSDP path |
