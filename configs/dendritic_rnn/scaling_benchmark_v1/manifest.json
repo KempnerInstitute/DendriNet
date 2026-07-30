@@ -72,6 +72,28 @@
       "trainable_readout_parameters": 25600098
     }
   ],
+  "strong_scaling": [
+    {
+      "config": "strong_100k_20k_1gpu.yaml",
+      "total_neurons": 100000,
+      "active_contacts": 2000000000,
+      "gpus": 1,
+      "gpu_type": "H200",
+      "host_memory_gb": 96,
+      "cpus": 12,
+      "walltime": "00:20:00"
+    },
+    {
+      "config": "strong_100k_20k_2gpu.yaml",
+      "total_neurons": 100000,
+      "active_contacts": 2000000000,
+      "gpus": 2,
+      "gpu_type": "H200",
+      "host_memory_gb": 128,
+      "cpus": 16,
+      "walltime": "00:15:00"
+    }
+  ],
   "end_to_end": [
     {
       "config": "e2e_100k_20k_canary.yaml",

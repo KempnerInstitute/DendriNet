@@ -111,3 +111,14 @@ def test_stable_end_to_end_variant_changes_only_learning_rate_allocation():
     assert stable_groups.decoder_input_lr == 4.0e-6
     assert stable.model.core.unified_ei == baseline.model.core.unified_ei
     assert stable.data == baseline.data
+
+
+def test_strong_scaling_configs_preserve_the_100k_model_and_data():
+    reference = load_config(str(CONFIG_DIR / "scale_100k_20k_frozen_readout.yaml"))
+
+    for gpus in (1, 2):
+        config = load_config(str(CONFIG_DIR / f"strong_100k_20k_{gpus}gpu.yaml"))
+        assert config.model == reference.model
+        assert config.data == reference.data
+        assert config.training == reference.training
+        assert config.distributed == reference.distributed

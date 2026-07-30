@@ -17,6 +17,11 @@ forward model once for each example, cache its deterministic output, and
 then train the readout. They test systems scaling and representation
 learnability. They are not end-to-end recurrent-weight training claims.
 
+`strong_100k_20k_1gpu.yaml` and `strong_100k_20k_2gpu.yaml` repeat the exact
+100,000-neuron frozen-core experiment on one and two H200s. Together with the
+four-H200 scale point, they measure strong scaling without changing the
+model, data, or topology seed.
+
 `e2e_100k_20k_canary.yaml` and `e2e_100k_20k_30ep.yaml` test full recurrent
 optimization at the 100,000-neuron, 2-billion-contact scale.
 `e2e_100k_20k_stable_30ep.yaml` tests the same model with a smaller recurrent
