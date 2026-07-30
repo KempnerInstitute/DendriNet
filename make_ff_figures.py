@@ -259,6 +259,7 @@ def fig_per_op(cells, gpu, outdir, batch, topn=6):
     """S4: per-op device-kernel breakdown at one batch."""
     have = [p for p in PATHS if (p, batch) in cells and cells[(p, batch)].get("split_fb")]
     if not have:
+        print(f"  SKIP S4: no per-op data at batch {batch}")
         return
     fig, ax = plt.subplots(figsize=(8.6, 4.6))
     for i, p in enumerate(have):
@@ -291,6 +292,7 @@ def fig_efficiency(cells, gpu, outdir, batch):
     """S5: kernel launches per step (dispatch pressure)."""
     have = [p for p in PATHS if (p, batch) in cells and cells[(p, batch)].get("split_fb")]
     if not have:
+        print(f"  SKIP S5: no per-op data at batch {batch}")
         return
     fig, ax = plt.subplots(figsize=(7.2, 4.2))
     counts = []
@@ -490,8 +492,13 @@ def main():
     fig_speedup_bars(cells, args.gpu, args.outdir)
     fig_step_time(cells, args.gpu, args.outdir, oom)
     fig_fwd_bwd(cells, args.gpu, args.outdir, hb)
-    fig_per_op(cells, args.gpu, args.outdir, hb)
-    fig_efficiency(cells, args.gpu, args.outdir, hb)
+    prof_ok = [b for b in batches
+               if all((p, b) in cells and cells[(p, b)].get("split_fb") for p in PATHS)]
+    pb = prof_ok[-1] if prof_ok else hb
+    if pb != hb:
+        print(f"  per-op figures use batch {pb} (only rung with split_fb for all paths)")
+    fig_per_op(cells, args.gpu, args.outdir, pb)
+    fig_efficiency(cells, args.gpu, args.outdir, pb)
     fig_mem_bars(cells, args.gpu, args.outdir)
     fig_mem_scaling(cells, args.gpu, args.outdir, oom, args.capacity_mb)
     fig_mem_reduction(cells, args.gpu, args.outdir)
