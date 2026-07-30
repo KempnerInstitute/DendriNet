@@ -122,6 +122,71 @@ End-to-end, real FSDP trainer, 1 epoch — loss bit-identical (1.4123 train /
    would halve the gather's dominant memory term *and* halve the 40 GB `idx`
    allocation at the 1e6 target. Cheap, orthogonal, worth its own issue.
 
+## Addendum: why the CUDA/Triton paths lose here — and how to fix them
+
+The goal is custom CUDA/Triton kernels on *all* RNN configs, so the follow-up
+question is whether those paths are fundamentally wrong for the batch-1 recurrent
+regime or merely mistuned. **They are mistuned.** Measured per call at the real
+layer shapes (`bench_gather_paths.py`, `bench_wpo_tile.py`, `bench_wpo_tile_bwd.py`).
+
+The forward launches `grid = (ceil(O / P), M)` with **P hard-coded to 2048 outputs
+per block** (`_pick_wpo_params`), one warp per output. That was tuned on
+feedforward layers where `O` is 1e4–1e5. The dendritic RNN's proximal and somatic
+compartments have the opposite geometry — `O` = 1000–4000 with `K` = 1168–3968 —
+so at batch 1 the grid collapses to **1–2 blocks on a 188-SM GPU** while each warp
+serially walks K. The measured slowdown tracks block count exactly:
+
+| in | out | K | blocks @P=2048 | cuda kernel vs loop |
+|---|---|---|---|---|
+| 4000 | 100000 | 64 | 49 | 1.08x |
+| 4000 | 20000 | 240 | 10 | 5.9x |
+| 4000 | 4000 | 1168 | 2 | 12.7x |
+| 4000 | 1000 | 3968 | **1** | **20.6x** |
+
+Sweeping the tile per shape (Blackwell, batch 1, per timestep, all 10 layers):
+
+| | loop / fused | shipped P=2048 | best tile | tile tuning recovers |
+|---|---|---|---|---|
+| forward | 0.445 ms (loop) | 1.541 ms (3.46x **slower**) | **0.091 ms (4.9x faster)** | **17.0x** |
+| backward | 2.268 ms (fused) | 92.95 ms (41x **slower**) | **1.983 ms (1.14x faster)** | **46.9x** |
+
+The best tile is roofline-class: 0.091 ms/timestep against a ~0.11 ms bandwidth
+bound for the traffic involved. The optimal P falls with `O` exactly as the
+occupancy argument predicts (P=128 at O=100000 down to P=2 at O=1000).
+
+Per-call dtype conversion is a real but **secondary** cost. Both wrappers do
+`weight.to(fp32)` and `idx.to(int32)` on every call even though both are invariant
+across all 58 timesteps — 26.1 GB of conversion traffic per forward against 8.7 GB
+of useful gather traffic. But measured, that is only **10% (Blackwell) / 24%
+(A100)** of the CUDA path's cost. The tile is the dominant term.
+
+**So: yes, custom kernels can win on RNN configs — the work is a tile heuristic,
+not a new kernel.** Order of operations:
+
+1. **Make the tile adaptive** in `_pick_wpo_params` / `_pick_bwd_wpo_params`:
+   choose P so that `ceil(O/P) * M` is a few times the SM count, instead of a
+   constant 2048. This is the prerequisite for enabling CUDA on any RNN config,
+   and it is the single highest-leverage change available (17–47x on the kernels).
+2. **Cache the int32 index** on the module (it never changes) and add a bf16
+   kernel path, removing the remaining conversion tax.
+3. **Then** CUDA graphs, and only then does the forward kernel win become visible
+   in wall clock — at batch 1 the forward is launch-bound, so today a 17x faster
+   forward gather saves GPU time that is already hidden behind the launch gap.
+   The backward gain does translate immediately, since backward is GPU-bound.
+
+Until step 1 lands, `fused` stays the correct default for the RNN configs: it is
+the only path that is fast at these shapes without a retune.
+
+Two caveats for whoever picks this up. The CUDA path computes in fp32 while
+loop/fused compute in bf16, so it is not bit-equivalent — the canary loss is
+0.7073 rather than 0.7078. That is *more* precise, not wrong, but it means the
+cuda path cannot be A/B'd as a pure perf change. And `cuda_gather_available()`
+returns False and **silently falls back to the loop** when the extension is not
+built, so a config with `use_cuda_gather: true` can quietly run the slow path with
+no warning; source `profilings/weight_transform_opt/setup_cuda_env.sh` first and
+check the flag. Triton was not re-tuned here: at batch 1 it took >25 min for 5
+steps (>250x the loop), consistent with the earlier epoch-level result.
+
 ## Reproducing
 
 ```bash
