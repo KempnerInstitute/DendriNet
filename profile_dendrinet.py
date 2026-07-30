@@ -536,6 +536,13 @@ def run_one(config_path, batch, warmup, iters, outdir, device, kernels="off",
                 x.grad = None
             out, loss = step()
             loss.backward()
+        # Drop the last warmup iteration's output/loss before the baseline is
+        # sampled. Leaving them bound keeps that iteration's forward activations
+        # alive, so `mem_before` (reported as param_mem_mb) absorbs them -- it
+        # read 35 GB for a 0.5 GB model on the loop path -- and the derived
+        # activation_mem_mb is understated by the same amount. Peak is unaffected.
+        del out, loss
+        gc.collect()
         torch.cuda.synchronize()
     except RuntimeError as e:
         msg = str(e)
@@ -552,7 +559,10 @@ def run_one(config_path, batch, warmup, iters, outdir, device, kernels="off",
         result["traceback"] = traceback.format_exc()
         return result
 
-    out_shape = tuple(step()[0].shape)
+    # no_grad: this is a shape probe, not a measurement. Under grad it would
+    # build and retain another full forward graph on top of the baseline.
+    with torch.no_grad():
+        out_shape = tuple(step()[0].shape)
     result["output_shape"] = out_shape
 
     # ---- timed loop: whole-step fwd/bwd cuda.Event + per-module timer ----
