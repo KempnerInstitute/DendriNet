@@ -146,6 +146,12 @@ model:
           # (per-call launch + cast/transpose overhead x ~58 timesteps), and cuda takes
           # precedence over fused, so enabling it would silently disable the fast path.
           indexed_use_fused_gather: true
+          # Hoist the weight transform out of the timestep loop. pre_w is constant
+          # within a forward, so exp(pre_w) is loop-invariant; without this autograd
+          # saves T copies, which measured 51.9 MB/timestep at 5k/5k (~= nnz*2B) and
+          # is the largest single memory term at scale. It does NOT shard under FSDP.
+          # Forward is bit-identical; grads differ only by accumulation order.
+          indexed_cache_recurrent_weight: true
           indexed_use_triton_gather: false
           indexed_use_cuda_gather: false
           blocklinear_strategy: none
@@ -197,6 +203,12 @@ model:
           # Gather kernels (see excitatory block). Point-I in_features ~500k.
           # FUSED ONLY, for the same measured reasons; dtype-safe under FSDP bf16.
           indexed_use_fused_gather: true
+          # Hoist the weight transform out of the timestep loop. pre_w is constant
+          # within a forward, so exp(pre_w) is loop-invariant; without this autograd
+          # saves T copies, which measured 51.9 MB/timestep at 5k/5k (~= nnz*2B) and
+          # is the largest single memory term at scale. It does NOT shard under FSDP.
+          # Forward is bit-identical; grads differ only by accumulation order.
+          indexed_cache_recurrent_weight: true
           indexed_use_triton_gather: false
           indexed_use_cuda_gather: false
           blocklinear_strategy: none

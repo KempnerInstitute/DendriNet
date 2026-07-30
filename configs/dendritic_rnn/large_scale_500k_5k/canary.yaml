@@ -137,6 +137,12 @@ model:
           # the canary must exercise the same path the real run uses.
           # Dtype-safe: fp32 compute, bf16 in/out under FSDP.
           indexed_use_fused_gather: true
+          # Hoist the weight transform out of the timestep loop. pre_w is constant
+          # within a forward, so exp(pre_w) is loop-invariant; without this autograd
+          # saves T copies, which measured 51.9 MB/timestep at 5k/5k (~= nnz*2B) and
+          # is the largest single memory term at scale. It does NOT shard under FSDP.
+          # Forward is bit-identical; grads differ only by accumulation order.
+          indexed_cache_recurrent_weight: true
           indexed_use_triton_gather: false
           indexed_use_cuda_gather: false
           blocklinear_strategy: none
@@ -184,6 +190,12 @@ model:
           indexed_output_chunk_size: 2048
           # Gather kernels (see excitatory block). Point-I; fused only, as above.
           indexed_use_fused_gather: true
+          # Hoist the weight transform out of the timestep loop. pre_w is constant
+          # within a forward, so exp(pre_w) is loop-invariant; without this autograd
+          # saves T copies, which measured 51.9 MB/timestep at 5k/5k (~= nnz*2B) and
+          # is the largest single memory term at scale. It does NOT shard under FSDP.
+          # Forward is bit-identical; grads differ only by accumulation order.
+          indexed_cache_recurrent_weight: true
           indexed_use_triton_gather: false
           indexed_use_cuda_gather: false
           blocklinear_strategy: none

@@ -38,6 +38,7 @@ class PopulationConfig(BaseConfig):
     indexed_selection: str = "standard"
     indexed_output_chunk_size: int = 2048
     indexed_use_fused_gather: bool = False
+    indexed_cache_recurrent_weight: bool = False
     indexed_use_triton_gather: bool = False
     indexed_use_cuda_gather: bool = False
     indexed_rewire_frequency: int = 100

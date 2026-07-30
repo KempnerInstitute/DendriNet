@@ -69,6 +69,7 @@ class IndexedSparseLinear(nn.Module):
         use_fused_gather: bool = False,
         use_triton_gather: bool = False,
         use_cuda_gather: bool = False,
+        cache_recurrent_weight: bool = False,
         **_: object,
     ):
         super().__init__()
@@ -103,6 +104,12 @@ class IndexedSparseLinear(nn.Module):
         self.cache_mask = False
         self._last_forward_weight_mask: torch.Tensor | None = None
         self._last_forward_param_tensor: torch.Tensor | None = None
+        # Opt-in hoist of the weight transform out of a recurrent unroll; see
+        # ``set_recurrent_weight_cache``. Off by default so behaviour is unchanged
+        # unless a config asks for it.
+        self.cache_recurrent_weight = bool(cache_recurrent_weight)
+        self._recurrent_weight_cache_enabled = False
+        self._cached_recurrent_weight: torch.Tensor | None = None
 
         allowed_connection_mask = _allowed_mask_with_forbidden(
             connection_mask=connection_mask,
@@ -266,6 +273,55 @@ class IndexedSparseLinear(nn.Module):
                     scale *= 1 + weight_decay
                 self.pre_w.data *= scale
 
+    def set_recurrent_weight_cache(self, enabled: bool) -> None:
+        """Hoist the weight transform out of a recurrent unroll's timestep loop.
+
+        ``pre_w`` is constant for the duration of one forward pass, so
+        ``exp(pre_w)`` (or softplus/…) is loop-invariant across timesteps. Unlike
+        :class:`TopKLinear` -- whose mask is derived from the weights, forcing it
+        to cache only the mask under autograd -- this layer's connectivity is a
+        fixed index buffer, so the transformed weight has no per-timestep data
+        dependence and is safe to compute once and reuse.
+
+        This matters at scale because autograd saves each timestep's transformed
+        weight for backward: the recomputing path costs ``T * out_features * K``
+        elements of activation, which at T=58 is the single largest memory term in
+        the model and does *not* shard under FSDP (every rank runs the full
+        forward). Caching cuts it by a factor of T.
+
+        The gradient is mathematically identical -- one shared node accumulating T
+        incoming gradients instead of T nodes contributing one each -- but the
+        floating-point accumulation order differs, so results are not bit-identical.
+
+        Bypassed when dynamic forward gradient scaling is active, since that
+        registers a per-forward hook on the returned tensor and a shared tensor
+        would collect one hook per timestep. Always call with ``enabled=False``
+        after the unroll to release the cached tensor.
+        """
+        self._recurrent_weight_cache_enabled = (
+            bool(enabled)
+            and self.cache_recurrent_weight
+            and not getattr(self, "_use_forward_dynamic_grad_scaling", False)
+        )
+        # Drop any cached tensor on a state change so a stale weight can never be
+        # reused across unrolls (and so the memory is actually released).
+        self._cached_recurrent_weight = None
+
+    def _transformed_weight(self) -> torch.Tensor:
+        """Return the effective weight, reusing the unroll cache when enabled."""
+        # Re-check the dynamic-grad-scaling guard here as well as in the setter:
+        # ``register_forward_param_gradient_scale`` sets that attribute during a
+        # forward, i.e. possibly after the cache was enabled for this unroll.
+        if not self._recurrent_weight_cache_enabled or getattr(
+            self, "_use_forward_dynamic_grad_scaling", False
+        ):
+            return self._normalized_sparse_weight()
+        cached = self._cached_recurrent_weight
+        if cached is None:
+            cached = self._normalized_sparse_weight()
+            self._cached_recurrent_weight = cached
+        return cached
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Apply the fixed sparse projection along the last input dimension."""
         if not isinstance(x, torch.Tensor):
@@ -282,7 +338,7 @@ class IndexedSparseLinear(nn.Module):
 
         original_shape = x.shape
         flat_x = x.reshape(-1, self.in_features)
-        weight = self._normalized_sparse_weight()
+        weight = self._transformed_weight()
         # ``weight`` can be the Parameter itself for the identity transform.
         # Bypass ``nn.Module.__setattr__`` so this diagnostic cache is not
         # registered as a duplicate parameter/state-dict key.

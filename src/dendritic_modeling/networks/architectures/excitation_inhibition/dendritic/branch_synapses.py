@@ -199,6 +199,7 @@ def create_branch_sparse_layer(
             seed=_indexed_synapse_seed(owner, pathway=pathway),
             output_chunk_size=owner.indexed_output_chunk_size,
             use_fused_gather=owner.indexed_use_fused_gather,
+            cache_recurrent_weight=owner.indexed_cache_recurrent_weight,
             use_triton_gather=owner.indexed_use_triton_gather,
             use_cuda_gather=owner.indexed_use_cuda_gather,
             **extra_kwargs,

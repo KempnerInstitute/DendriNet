@@ -376,6 +376,9 @@ class DendriticBranchLayer(nn.Module):
         self.indexed_seed = synapse_options["indexed_seed"]
         self.indexed_output_chunk_size = synapse_options["indexed_output_chunk_size"]
         self.indexed_use_fused_gather = synapse_options["indexed_use_fused_gather"]
+        self.indexed_cache_recurrent_weight = synapse_options[
+            "indexed_cache_recurrent_weight"
+        ]
         self.indexed_use_triton_gather = synapse_options["indexed_use_triton_gather"]
         self.indexed_use_cuda_gather = synapse_options["indexed_use_cuda_gather"]
         self.indexed_candidate_size = synapse_options["indexed_candidate_size"]
