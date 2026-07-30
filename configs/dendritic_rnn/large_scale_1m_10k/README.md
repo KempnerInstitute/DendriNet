@@ -1,156 +1,179 @@
-# Large dendritic RNN: 1M neurons / 10k contacts
+# Million-neuron dendritic RNNs
 
-The exact target is [`base.yaml`](base.yaml). It contains 800,000 excitatory
-and 200,000 inhibitory neurons. Excitatory neurons use morphology `[3,3,3]`;
-inhibitory neurons are point cells.
+This directory contains the standard YAML configurations used to test
+million-neuron dendritic RNNs through the main `dendritic_modeling` model,
+dataset, FSDP, and trainer paths.
 
-The branch multiplicities are `[27,9,3,1]`, so the target has 32 million
-excitatory compartments and 0.2 million inhibitory compartments. Every neuron
-receives exactly 8,000 excitatory-source and 2,000 inhibitory-source contacts,
-giving 10 billion contacts overall.
+## Configurations
 
-For an excitatory target, excitatory-source contacts are
+| Configuration | Neurons | Contacts per neuron | Purpose |
+| --- | ---: | ---: | --- |
+| [`base.yaml`](base.yaml) | 1,000,000 | 10,000 | One-step full-core systems test on 8 H200s |
+| [`learn_1m_10k.yaml`](learn_1m_10k.yaml) | 1,000,000 | 10,000 | Experimental full-core learning configuration |
+| [`test_1m_20k_frozen_readout.yaml`](test_1m_20k_frozen_readout.yaml) | 1,000,000 | 20,000 | Exact 20-billion-contact recurrent system with a trainable cached readout on 4 H200s |
+| [`diagnostic_20k_10k_readout_only.yaml`](diagnostic_20k_10k_readout_only.yaml) | 20,000 | 10,000 | Frozen-core readout learning control |
+| [`diagnostic_20k_20k_frozen_readout.yaml`](diagnostic_20k_20k_frozen_readout.yaml) | 20,001 | 20,000 | Degree-matched control for the exact 20k-contact model |
+| [`diagnostic_paper_scale_fsdp.yaml`](diagnostic_paper_scale_fsdp.yaml) | 80 | paper scale | Learning check for the indexed-synapse FSDP path |
+
+The other `diagnostic_*` and `gate_*` files preserve the initialization,
+normalization, learning-rate, and scale interventions used to isolate the
+large-model training problem.
+
+## Exact 1M-neuron / 20k-contact geometry
+
+[`test_1m_20k_frozen_readout.yaml`](test_1m_20k_frozen_readout.yaml) has
+800,000 excitatory neurons with morphology `[3,3,3]` and 200,000 inhibitory
+point neurons. The excitatory branch multiplicities are `[27,9,3,1]`.
+
+Every excitatory target receives 16,000 excitatory-source contacts:
 
 ```text
-27 * 64 + 9 * 192 + 3 * 576 + (32 + 2784) = 8000.
+27 * 128 + 9 * 384 + 3 * 1152 + (5600 + 32) = 16000.
 ```
 
-Inhibitory-source contacts are
+It also receives 4,000 inhibitory-source contacts:
 
 ```text
-27 * 16 + 9 * 48 + 3 * 144 + 704 = 2000.
+27 * 32 + 9 * 96 + 3 * 288 + 1408 = 4000.
 ```
 
-For an inhibitory target the allocation is
-`(32 + 7968) + 2000 = 10000`.
+Every inhibitory target receives the same E/I total:
 
-## Staged test
+```text
+(32 feedforward E + 15968 recurrent E) + 4000 recurrent I = 20000.
+```
 
-[`gate_100k_10k.yaml`](gate_100k_10k.yaml) preserves the morphology and
-contacts per neuron at one tenth of the neuron count. Its one billion contacts
-are large enough to measure the dominant topology, parameter, recurrent, and
-optimizer costs. It runs 30 epochs on 32 balanced training and 16 validation
-examples and writes a real loss curve. It uses the analytical expectation
-initialization that successfully trained the paper-scale Romo model.
+The model therefore contains exactly 20 billion active contacts. Self
+recurrence is disabled. The smaller degree-matched control uses 4,001
+inhibitory neurons because 4,000 distinct recurrent inhibitory sources require
+at least 4,001 cells when self-connections are excluded.
 
-[`diagnostic_20k_10k.yaml`](diagnostic_20k_10k.yaml) keeps the full 10,000
-contacts per neuron at the smallest clean 80/20 population scale. Its 128
-training examples and 30 epochs produce 960 distributed optimizer updates.
-Use it to distinguish too few updates from degree- or scale-dependent loss of
-trainable signal.
+## What fits on four H200s
 
-[`diagnostic_20k_1k.yaml`](diagnostic_20k_1k.yaml) is the matched degree
-control. It changes only the E/I contact total from 8,000/2,000 to 800/200.
+The exact recurrent forward and normalized readout training now fit on one
+node with four H200s. The recurrent core is frozen, but it is not replaced or
+approximated: every sample is first propagated through the full morphology,
+E/I pathways, nonlinearities, taus, shunting dynamics, and all 20 billion
+contacts. Because that core is deterministic and frozen, its final state is
+cached once per sample. Later epochs optimize the readout without repeating
+an identical expensive recurrent calculation.
 
-[`diagnostic_paper_scale_fsdp.yaml`](diagnostic_paper_scale_fsdp.yaml) runs the
-64E/16I paper-scale morphology through the same indexed/FSDP execution path.
-It separates an implementation-level training problem from a scaling effect.
+This is different from full-core Adam training. The current indexed topology
+is replicated on every rank. Its 20 billion `int32` indices require about
+80 GB (74.5 GiB) per GPU. A four-way shard of 20 billion FP32 synaptic
+parameters is another 20 GB per GPU. Full Adam would additionally require
+sharded gradients and two optimizer moments. Indices, parameters, gradients,
+and moments alone exceed H200 capacity before activations, FSDP all-gathers,
+or transformed-weight workspaces are included.
 
-## Measured results
+Consequently:
 
-The staged runs establish two separate points:
+- Exact recurrent execution plus readout learning is supported on 4 H200s.
+- Updating all 20 billion independent recurrent weights with Adam is not
+  supported on 4 H200s.
+- Full-core learning at this scale will require sharded or procedural
+  connectivity indices, parameter-efficient recurrent adaptation, compressed
+  optimizer state, more GPUs, or a combination of these.
 
-- Job `36195643` trained the 100k-neuron / one-billion-contact gate on four
-  H200s. It used 18.22 GiB peak allocated memory per GPU and took about 37.2 s
-  per epoch for 32 training and 16 validation examples. Its validation loss
-  stayed at 0.6934 and validation accuracy stayed at 50%. An analytical
-  initialization repeat (`36196837`) and the 20k-neuron 10k- and 1k-contact
-  diagnostics (`36197511`, `36199137`) also remained at chance over comparable
-  numbers of optimizer updates.
-- Job `36200507` trained the paper-scale control through the same indexed
-  connectivity, custom backward, and FSDP path on two H100s. Validation loss
-  fell from 0.6931 to 0.0218 and validation accuracy reached 100% after 20
-  epochs. Peak allocated memory was 0.105 GiB per GPU and an epoch took about
-  34.4 s for 4,096 training and 1,024 validation examples.
-- Job `36223565` repeats that control with the opt-in
-  `auto_wrap_policy: indexed_synapses` used by the exact target. Its loss
-  follows the same learning trajectory and reaches 0.0225 validation loss and
-  100% validation accuracy. Peak allocated memory is again 0.105 GiB. The
-  narrow wrapping policy therefore preserves learning, but its 87.4 s mean
-  epoch is 2.54 times slower than whole-model FSDP for this small control. It
-  is intended for contact-heavy models where the bounded all-gather is needed.
-- The earlier 500k-neuron / 2.5-billion-contact systems gate (`36186369`) used
-  49.87 GiB peak allocated memory per H200 and took 200.7 s for one epoch with
-  64 training and 32 validation examples.
-- An exact-target construction on 16 H100s (`36202200`) reached FSDP module
-  synchronization but ran out of memory. Each rank had 75.21 GiB allocated and
-  only 3.41 GiB free when a 5.96 GiB synchronization allocation was requested.
-  More H100 ranks do not eliminate this replicated setup cost.
-- The first exact H200 attempt (`36204181`) held about 83.7 GiB on each of
-  seven waiting ranks. Rank 0 was still generating the 10-billion-contact
-  topology when the default 10-minute process-group store timeout expired.
-  This was a coordination timeout, not an H200 out-of-memory failure. The FSDP
-  launcher now uses a 30-minute default process-group timeout, configurable
-  with `DENDRITIC_FSDP_PROCESS_GROUP_TIMEOUT_SECONDS`.
-- Job `36228210` completed the exact target on eight H200s across two nodes.
-  It exercised topology construction, FSDP synchronization, forward,
-  backward, Adam, and validation. FSDP setup peaked at 56.383 GiB allocated
-  and 64.123 GiB reserved per GPU. Training and validation peaked at 135.457
-  GiB allocated and 138.035 GiB reserved per GPU. The epoch took 65.36 s and
-  the full Slurm job took 7 min 31 s. Each node used about 318 GB peak host
-  memory.
+## Validated results
 
-The paper-scale result verifies that the optimized execution path learns. The
-exact result establishes systems feasibility. It does not establish
-large-scale task learning: one optimizer update changed validation loss from
-the chance-scale training loss to 224 at 50% accuracy. Together with the flat
-100k-neuron pilots, this identifies large-scale initialization, normalization,
-and optimizer step size as the next questions; it is not evidence that FSDP
-or the indexed operator is incorrect.
+| Run | GPUs | Learning result | Peak allocated memory |
+| --- | ---: | --- | ---: |
+| Paper-scale indexed/FSDP control, job `36223565` | 2 H100 | Validation loss `0.6936 -> 0.0225`; 100% validation accuracy | 0.105 GiB/GPU |
+| 20k neurons / 10k contacts, frozen core, job `36250235` | 2 H100 | Best validation loss `0.2721`; best validation accuracy 90.6% | 6.94 GiB/GPU |
+| 20,001 neurons / 20k contacts, frozen core, job `36260818` | 2 H100 | Validation loss `0.6934 -> 0.6572` over 30 epochs | 9.13 GiB/GPU |
+| 1M neurons / 10k contacts, full-core step, job `36228210` | 8 H200 | Completed train, Adam, and validation; the unscaled first update was unstable | 135.46 GiB/GPU |
+| 1M neurons / 20k contacts, exact uncached readout, job `36265339` | 4 H200 | Validation loss `0.6938 -> 0.6919` over 5 epochs; final validation accuracy 62.5% | 121.51 GiB/GPU |
+| 1M neurons / 20k contacts, cached readout, job `36279943` | 4 H200 | Validation loss `0.6929 -> 0.6472` over 30 epochs; best loss `0.6470` | 121.51 GiB/GPU |
 
-The combined learning, memory, and throughput diagnostic is written to
-`results/dendritic_rnn/large_scale_1m_10k/learning_and_scaling_diagnostics.png`.
+The uncached exact 20k-contact job took 36 minutes. Topology construction and
+FSDP setup used about 602 GiB of host memory. Each uncached epoch took about
+291 seconds for 32 training and 8 validation examples.
+
+The final cached job completed in 31 minutes 43 seconds. Its one-time exact
+core pass cached 128 training and 32 validation states, each with 800,000
+features. The following 240 readout updates took about 15 seconds. Training
+loss decreased from `0.6938` to `0.6227`; validation loss decreased smoothly
+from `0.6929` to a best value of `0.6470` and ended at `0.6472`. The best
+validation accuracy was 62.5%; accuracy is quantized in 3.125 percentage-point
+increments because the validation set has 32 examples.
+
+This exact run and the degree-matched control both used 128/32 samples, hidden
+width 32, global batch 16, 30 epochs, and 240 optimizer updates. The exact
+model achieved a slightly lower final validation loss than the 20,001-neuron
+20k-contact control (`0.6472` versus `0.6572`), although the runs use different
+random seeds and are intended as feasibility controls rather than a
+statistical scale comparison. Together with the finite first-step feature and
+gradient diagnostics, the monotonic loss curve establishes that the exact
+20-billion-contact recurrent representation contains task-relevant signal
+that a trained readout can learn.
+
+FSDP setup peaked at 121.51 GiB allocated per GPU. Overall reserved memory
+peaked at 137.72 GiB per GPU, close to the H200 limit, so four H200s are the
+minimum validated GPU allocation for this configuration.
+
+## Why the initial large runs did not learn
+
+The failure was not one single model-size limit:
+
+1. The FSDP launcher retained the global learning rate but discarded
+   component-specific rates from the YAML configuration.
+2. Indexed sparse weights were not assigned to the synapse optimizer group.
+3. Adam's first update to a dense `800000 -> hidden` decoder accumulated
+   coherently across width and produced an oversized logit change.
+4. Large recurrent states had a substantial common offset and a much smaller
+   task-dependent component.
+5. Frozen transformed synaptic tensors were retained between large FSDP
+   modules, and the exponential transform temporarily materialized two
+   full-sized outputs.
+
+The corrected path preserves component learning rates, gives only the first
+decoder weight a width-scaled rate, applies parameter-free LayerNorm to the
+readout input, supports a zero-initialized output head, excludes frozen core
+parameters from Adam, transforms frozen indexed weights by bounded output
+chunks, and optionally caches deterministic frozen-core states. First-step
+feature, logit, gradient, and memory diagnostics are saved with the training
+results.
+
+## Run the exact four-H200 configuration
 
 ```bash
 export PYTHON_BIN=/n/holylabs/LABS/kempner_dev/Users/hsafaai/conda_envs/vdc_paper_v2/bin/python
 
 sbatch \
-  --job-name=dendrnn-100k-10k-learn \
+  --job-name=dendrnn-1m-20k-cached \
   --partition=kempner_eng \
   --account=kempner_dev \
   --qos=normal \
   --nodes=1 \
   --ntasks-per-node=1 \
   --gpus-per-node=nvidia_h200:4 \
-  --cpus-per-task=32 \
-  --mem=256G \
-  --time=02:00:00 \
-  --output=logs/dendrnn_100k_10k_learn_%j.out \
-  --error=logs/dendrnn_100k_10k_learn_%j.err \
-  --export=ALL,PYTHON_BIN="$PYTHON_BIN" \
-  scripts/train_fsdp.sh \
-  configs/dendritic_rnn/large_scale_1m_10k/gate_100k_10k.yaml 4
-```
-
-The exact systems test uses two nodes with four H200 GPUs each:
-
-```bash
-sbatch \
-  --job-name=dendrnn-1m-10k \
-  --partition=kempner_eng \
-  --account=kempner_dev \
-  --qos=normal \
-  --nodes=2 \
-  --ntasks-per-node=1 \
-  --gpus-per-node=nvidia_h200:4 \
   --cpus-per-task=48 \
-  --mem=512G \
-  --time=00:30:00 \
-  --output=logs/dendrnn_1m_10k_%j.out \
-  --error=logs/dendrnn_1m_10k_%j.err \
-  --export=ALL,PYTHON_BIN="$PYTHON_BIN",DENDRITIC_FSDP_PROCESS_GROUP_TIMEOUT_SECONDS=3600,DENDRITIC_FSDP_CPU_THREADS_PER_RANK=12,PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
+  --mem=768G \
+  --time=00:50:00 \
+  --output=logs/dendrnn_1m_20k_cached_%j.out \
+  --error=logs/dendrnn_1m_20k_cached_%j.err \
+  --export=ALL,PYTHON_BIN="$PYTHON_BIN",DENDRITIC_FSDP_PROCESS_GROUP_TIMEOUT_SECONDS=3600,DENDRITIC_FSDP_CPU_THREADS_PER_RANK=12,PYTORCH_ALLOC_CONF=expandable_segments:True,NCCL_MAX_NCHANNELS=8,NCCL_BUFFSIZE=2097152 \
   scripts/train_fsdp.sh \
-  configs/dendritic_rnn/large_scale_1m_10k/base.yaml 4
+  configs/dendritic_rnn/large_scale_1m_10k/test_1m_20k_frozen_readout.yaml 4
 ```
 
-The exact job uses eight total GPUs, one train step per rank, one validation
-step per rank, and no checkpoint. It is a systems-feasibility test, not a
-learning experiment. A full checkpoint would contain roughly 40 GB of weights
-plus Adam state and should be expected to exceed 100 GB.
+Rank 0 constructs the exact topology before FSDP synchronizes it. The measured
+peak host use is about 602 GiB, so the 768 GiB request leaves approximately
+27% headroom. The validated job used a conservative 1 TiB request; 768 GiB is
+the recommended resource-efficient request for subsequent identical runs.
+The 32 MB indexed workspace and bounded frozen-weight transform are also
+required; increasing the workspace is not beneficial near the H200 memory
+limit.
 
-The exact H200 systems test requires the explicit process-group timeout, 12
-CPU threads per rank, and expandable CUDA allocator shown above. Omitting the
-expandable allocator caused a first-backward allocation failure despite
-enough aggregate reserved memory. The verified job runs within the H200
-capacity but has only a small memory margin; it should continue to use eight
-H200s rather than a smaller allocation.
+Results are written to:
+
+```text
+results/dendritic_rnn/large_scale_1m_10k/test_1m_20k_frozen_readout/
+```
+
+The directory contains `training_results.json` and
+`standard_loss_curves.png`. The preserved five-epoch uncached result is in the
+neighboring `test_1m_20k_frozen_readout_uncached_5epoch/` directory.
+A local comparison against the two matched smaller controls is written to
+`results/dendritic_rnn/large_scale_1m_10k/frozen_readout_learning_comparison.png`.

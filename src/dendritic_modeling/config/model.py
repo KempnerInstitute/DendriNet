@@ -319,6 +319,9 @@ class DecoderParamsConfig(BaseConfig):
     hidden_dims: list[int] = field(default_factory=lambda: [16])
     activation: str = "relu"
     output_dim: int = 10
+    input_normalization: str = "none"
+    input_norm_eps: float = 1e-5
+    output_init: str = "default"
 
 
 @dataclass

@@ -14,7 +14,7 @@ from typing import Any, Optional
 import torch
 import torch.distributed as dist
 from torch.cuda.amp import GradScaler, autocast
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, Dataset, TensorDataset
 
 try:  # PyTorch exposes the FSDP-aware scaler from this submodule.
     from torch.distributed.fsdp.sharded_grad_scaler import ShardedGradScaler
@@ -34,6 +34,13 @@ from dendritic_modeling.training.strategies.standard import Trainer
 from dendritic_modeling.utils.hooks import iter_modules_matching
 
 logger = logging.getLogger(__name__)
+
+_TOPK_PARAM_GROUP_CLASS_NAMES = (
+    "TopKLinear",
+    "IndexedSparseLinear",
+    "IndexedDynamicTopKLinear",
+    "IndexedRewireLinear",
+)
 
 
 def _optimizer_config_value(
@@ -68,12 +75,51 @@ def _sequence_lengths_from_batch(
     return lengths.to(device=device, dtype=torch.long, non_blocking=True)
 
 
+def _tensor_diagnostics(tensor: torch.Tensor) -> dict[str, float | int]:
+    """Return compact, JSON-safe finite-value diagnostics for a tensor."""
+    values = tensor.detach().float()
+    finite = torch.isfinite(values)
+    finite_count = int(finite.sum().item())
+    diagnostics: dict[str, float | int] = {
+        "numel": values.numel(),
+        "finite_count": finite_count,
+    }
+    if finite_count == 0:
+        return diagnostics
+    finite_values = values[finite]
+    diagnostics.update(
+        {
+            "mean": float(finite_values.mean().item()),
+            "std": float(finite_values.std(unbiased=False).item()),
+            "min": float(finite_values.min().item()),
+            "max": float(finite_values.max().item()),
+            "rms": float(finite_values.square().mean().sqrt().item()),
+        }
+    )
+    if finite_count == values.numel() and values.ndim >= 2:
+        rows = values.reshape(-1, values.shape[-1])
+        diagnostics.update(
+            {
+                "within_row_std_mean": float(
+                    rows.std(dim=-1, unbiased=False).mean().item()
+                ),
+                "row_mean_std": float(rows.mean(dim=-1).std(unbiased=False).item()),
+                "across_row_feature_std_mean": float(
+                    rows.std(dim=0, unbiased=False).mean().item()
+                ),
+            }
+        )
+    return diagnostics
+
+
 def _collect_unique_parameters(
     parameters: Iterable[torch.nn.Parameter],
     used_param_ids: set[int],
 ) -> list[torch.nn.Parameter]:
     unique_params = []
     for param in parameters:
+        if not param.requires_grad:
+            continue
         param_id = id(param)
         if param_id not in used_param_ids:
             unique_params.append(param)
@@ -128,6 +174,16 @@ def _collect_reactivation_parameters(
     return params
 
 
+def _first_linear_weight(module: torch.nn.Module) -> torch.nn.Parameter | None:
+    """Return the first Linear weight in module traversal order."""
+    for child in iter_modules_matching(
+        module,
+        lambda item: isinstance(item, torch.nn.Linear),
+    ):
+        return child.weight
+    return None
+
+
 def _iter_reactivation_parameter_candidates(
     model: torch.nn.Module,
 ) -> Iterator[tuple[torch.nn.Parameter, ...]]:
@@ -140,6 +196,7 @@ def _append_fsdp_param_group(
     param_groups: list[dict[str, Any]],
     params: list[torch.nn.Parameter],
     *,
+    name: str,
     optimizer_config: Optional[dict],
     lr_key: str,
     default_lr: float,
@@ -147,6 +204,7 @@ def _append_fsdp_param_group(
     if params:
         param_groups.append(
             {
+                "name": name,
                 "params": params,
                 "lr": _optimizer_config_value(optimizer_config, lr_key, default_lr),
             }
@@ -171,6 +229,9 @@ class FSDPTrainer(Trainer):
         optimizer_config: Optional[dict] = None,
         analysis_manager: Optional[object] = None,
         wandb_run: Optional[object] = None,
+        log_first_step_diagnostics: bool = False,
+        cache_frozen_core_outputs: bool = False,
+        cached_core_batch_size: int | None = None,
         **kwargs,
     ):
         """
@@ -200,6 +261,16 @@ class FSDPTrainer(Trainer):
         self.optimizer_config = optimizer_config or {}
         self.analysis_manager = analysis_manager
         self.wandb_run = wandb_run
+        self.log_first_step_diagnostics = bool(log_first_step_diagnostics)
+        self.cache_frozen_core_outputs = bool(cache_frozen_core_outputs)
+        if cached_core_batch_size is not None and int(cached_core_batch_size) <= 0:
+            raise ValueError("cached_core_batch_size must be positive when provided")
+        self.cached_core_batch_size = (
+            int(cached_core_batch_size) if cached_core_batch_size is not None else None
+        )
+        self.first_step_diagnostics: dict[str, Any] | None = None
+        self._decoder_input_diagnostics: dict[str, float | int] | None = None
+        self._use_precomputed_core = False
 
         # Set device using local rank
         self.device = torch.device(f"cuda:{self.local_rank}")
@@ -284,8 +355,11 @@ class FSDPTrainer(Trainer):
 
     def create_optimizer(self, model: BaseModel) -> torch.optim.Optimizer:
         """Create optimizer with FSDP-aware parameter groups."""
-        # Get all parameters first
-        all_params = list(model.parameters())
+        # Exclude frozen parameters so readout-only runs do not allocate Adam
+        # state for the contact-heavy recurrent core.
+        all_params = [param for param in model.parameters() if param.requires_grad]
+        if not all_params:
+            raise ValueError("FSDP training requires at least one trainable parameter")
         optimizer_config = self.optimizer_config or {}
 
         # If not using split params, use all parameters with single LR
@@ -302,12 +376,19 @@ class FSDPTrainer(Trainer):
         param_groups = []
         used_params = set()
 
-        topk_params = _collect_module_parameters_by_class_name(
-            model, "TopKLinear", used_params
-        )
+        topk_params = []
+        for class_name in _TOPK_PARAM_GROUP_CLASS_NAMES:
+            topk_params.extend(
+                _collect_module_parameters_by_class_name(
+                    model,
+                    class_name,
+                    used_params,
+                )
+            )
         _append_fsdp_param_group(
             param_groups,
             topk_params,
+            name="topk",
             optimizer_config=optimizer_config,
             lr_key="topk_lr",
             default_lr=0.001,
@@ -319,6 +400,7 @@ class FSDPTrainer(Trainer):
         _append_fsdp_param_group(
             param_groups,
             blocklinear_params,
+            name="blocklinear",
             optimizer_config=optimizer_config,
             lr_key="blocklinear_lr",
             default_lr=0.001,
@@ -328,12 +410,29 @@ class FSDPTrainer(Trainer):
         _append_fsdp_param_group(
             param_groups,
             reactivation_params,
+            name="reactivation",
             optimizer_config=optimizer_config,
             lr_key="reactivation_lr",
             default_lr=0.001,
         )
 
         if hasattr(model, "decoder_network"):
+            decoder_input_lr = optimizer_config.get("decoder_input_lr")
+            if decoder_input_lr is not None:
+                first_weight = _first_linear_weight(model.decoder_network)
+                decoder_input_params = (
+                    _collect_unique_parameters([first_weight], used_params)
+                    if first_weight is not None
+                    else []
+                )
+                _append_fsdp_param_group(
+                    param_groups,
+                    decoder_input_params,
+                    name="decoder_input",
+                    optimizer_config=optimizer_config,
+                    lr_key="decoder_input_lr",
+                    default_lr=0.001,
+                )
             decoder_params = _collect_unique_parameters(
                 model.decoder_network.parameters(), used_params
             )
@@ -342,6 +441,7 @@ class FSDPTrainer(Trainer):
         _append_fsdp_param_group(
             param_groups,
             decoder_params,
+            name="decoder",
             optimizer_config=optimizer_config,
             lr_key="decoder_lr",
             default_lr=0.001,
@@ -352,15 +452,169 @@ class FSDPTrainer(Trainer):
         _append_fsdp_param_group(
             param_groups,
             other_params,
+            name="other",
             optimizer_config=optimizer_config,
             lr_key="lr",
             default_lr=0.001,
         )
 
-        return torch.optim.Adam(
+        optimizer = torch.optim.Adam(
             param_groups,
             weight_decay=_optimizer_config_value(optimizer_config, "weight_decay", 0.0),
         )
+        param_counts = [
+            sum(param.numel() for param in group["params"])
+            for group in optimizer.param_groups
+        ]
+        if dist.is_available() and dist.is_initialized():
+            count_device = all_params[0].device
+            global_counts = torch.tensor(
+                param_counts,
+                dtype=torch.int64,
+                device=count_device,
+            )
+            dist.all_reduce(global_counts, op=dist.ReduceOp.SUM)
+            param_counts = [int(value) for value in global_counts.tolist()]
+        if getattr(self, "rank", 0) == 0:
+            group_summary = ", ".join(
+                (
+                    f"{group['name']}: lr={group['lr']:.3g}, "
+                    f"global_params={param_count:,}"
+                )
+                for group, param_count in zip(
+                    optimizer.param_groups,
+                    param_counts,
+                    strict=True,
+                )
+            )
+            logger.info("FSDP optimizer groups: %s", group_summary)
+        return optimizer
+
+    def _cache_core_output_loader(
+        self,
+        model: BaseModel,
+        loader: DataLoader,
+        *,
+        shuffle: bool,
+        seed_offset: int,
+    ) -> DataLoader:
+        """Materialize one frozen-core output for each sample on this rank."""
+        decoder = getattr(model, "decoder_network", None)
+        if decoder is None:
+            raise ValueError("cache_frozen_core_outputs requires model.decoder_network")
+
+        cached_features: list[torch.Tensor] = []
+        cached_targets: list[torch.Tensor] = []
+
+        def capture_core_output(_module, args) -> None:
+            if not args or not torch.is_tensor(args[0]):
+                raise RuntimeError("Decoder did not receive a tensor core output")
+            cached_features.append(args[0].detach().to(device="cpu", copy=True))
+
+        hook = decoder.register_forward_pre_hook(capture_core_output)
+        was_training = model.training
+        model.eval()
+        try:
+            with torch.no_grad():
+                for batch in loader:
+                    if not isinstance(batch, (tuple, list)) or len(batch) < 2:
+                        raise ValueError(
+                            "Cached frozen-core training requires (input, target) batches"
+                        )
+                    x_batch = batch[0].to(self.device)
+                    seq_lengths = _sequence_lengths_from_batch(
+                        batch,
+                        x_batch=x_batch,
+                        device=self.device,
+                    )
+                    captures_before = len(cached_features)
+                    model(x_batch, seq_lengths=seq_lengths)
+                    if len(cached_features) != captures_before + 1:
+                        raise RuntimeError(
+                            "Expected exactly one decoder input per cached batch"
+                        )
+                    cached_targets.append(batch[1].detach().to(device="cpu", copy=True))
+        finally:
+            hook.remove()
+            model.train(was_training)
+
+        if not cached_features:
+            raise ValueError("Cannot cache frozen-core outputs from an empty loader")
+        features = torch.cat(cached_features, dim=0)
+        targets = torch.cat(cached_targets, dim=0)
+        if features.shape[0] != targets.shape[0]:
+            raise RuntimeError(
+                "Cached core-output and target counts differ: "
+                f"{features.shape[0]} != {targets.shape[0]}"
+            )
+
+        generator = torch.Generator()
+        generator.manual_seed(self.seed + self.rank + seed_offset)
+        cached_batch_size = self.cached_core_batch_size or loader.batch_size
+        if cached_batch_size is None:
+            raise ValueError(
+                "cached_core_batch_size is required when the source loader "
+                "does not define batch_size"
+            )
+        cached_loader = DataLoader(
+            TensorDataset(features, targets),
+            batch_size=cached_batch_size,
+            shuffle=shuffle,
+            drop_last=loader.drop_last,
+            num_workers=0,
+            pin_memory=loader.pin_memory,
+            generator=generator,
+        )
+        if isinstance(loader.sampler, PaddedDistributedEvalSampler):
+            cached_loader._dendritic_real_count = len(loader.sampler.real_indices)
+        return cached_loader
+
+    def _cache_frozen_core_loaders(
+        self,
+        model: BaseModel,
+        train_loader: DataLoader,
+        valid_loader: DataLoader | None,
+    ) -> tuple[DataLoader, DataLoader | None]:
+        """Replace raw loaders with rank-local deterministic core features."""
+        cached_train_loader = self._cache_core_output_loader(
+            model,
+            train_loader,
+            shuffle=True,
+            seed_offset=17,
+        )
+        cached_valid_loader = (
+            self._cache_core_output_loader(
+                model,
+                valid_loader,
+                shuffle=False,
+                seed_offset=29,
+            )
+            if valid_loader is not None
+            else None
+        )
+        local_counts = torch.tensor(
+            [
+                len(cached_train_loader.dataset),
+                (
+                    len(cached_valid_loader.dataset)
+                    if cached_valid_loader is not None
+                    else 0
+                ),
+            ],
+            dtype=torch.int64,
+            device=self.device,
+        )
+        dist.all_reduce(local_counts, op=dist.ReduceOp.SUM)
+        if self.rank == 0:
+            feature_shape = cached_train_loader.dataset.tensors[0].shape[1:]
+            logger.info(
+                "Cached frozen-core outputs: train=%s, valid=%s, feature_shape=%s",
+                f"{int(local_counts[0].item()):,}",
+                f"{int(local_counts[1].item()):,}",
+                tuple(feature_shape),
+            )
+        self._use_precomputed_core = True
+        return cached_train_loader, cached_valid_loader
 
     def train(
         self,
@@ -411,6 +665,20 @@ class FSDPTrainer(Trainer):
         # Create optimizer after FSDP wrapping
         self.optimizer = self.create_optimizer(model)
 
+        diagnostic_hook = None
+        if self.log_first_step_diagnostics and hasattr(model, "decoder_network"):
+
+            def capture_decoder_input(_module, args) -> None:
+                if self._decoder_input_diagnostics is not None or not args:
+                    return
+                decoder_input = args[0]
+                if torch.is_tensor(decoder_input):
+                    self._decoder_input_diagnostics = _tensor_diagnostics(decoder_input)
+
+            diagnostic_hook = model.decoder_network.register_forward_pre_hook(
+                capture_decoder_input
+            )
+
         fsdp_setup_peak_memory = None
         if track_cuda_memory:
             torch.cuda.synchronize(self.device)
@@ -426,6 +694,18 @@ class FSDPTrainer(Trainer):
             # Measure the recurrent train/validation phase independently while
             # retaining the setup peak above for an overall maximum.
             torch.cuda.reset_peak_memory_stats(self.device)
+
+        if self.cache_frozen_core_outputs:
+            if not bool(getattr(model, "_freeze_core_forward", False)):
+                raise ValueError(
+                    "cache_frozen_core_outputs requires the frozen-core "
+                    "trainability policy"
+                )
+            train_loader, valid_loader = self._cache_frozen_core_loaders(
+                model,
+                train_loader,
+                valid_loader,
+            )
 
         # Training loop
         train_losses = []
@@ -464,11 +744,11 @@ class FSDPTrainer(Trainer):
                 valid_losses.append(valid_loss)
                 valid_accs.append(valid_acc)
 
-                # Early stopping
-                if self.early_stopping and valid_loss < best_valid_loss:
+                improved = valid_loss < best_valid_loss
+                if improved:
                     best_valid_loss = valid_loss
                     patience_counter = 0
-                    if self.checkpointing:
+                    if self.early_stopping and self.checkpointing:
                         save_fsdp_checkpoint(
                             model,
                             self.optimizer,
@@ -561,6 +841,10 @@ class FSDPTrainer(Trainer):
             "final_train_loss": train_losses[-1] if train_losses else None,
             "final_valid_loss": valid_losses[-1] if valid_losses else None,
         }
+        if diagnostic_hook is not None:
+            diagnostic_hook.remove()
+        if self.first_step_diagnostics is not None:
+            results["first_step_diagnostics"] = self.first_step_diagnostics
         if track_cuda_memory:
             torch.cuda.synchronize(self.device)
             training_peak_memory = torch.tensor(
@@ -632,7 +916,11 @@ class FSDPTrainer(Trainer):
             if self.use_amp:
                 # Mixed precision forward pass
                 with autocast():
-                    outputs = model(x_batch, seq_lengths=seq_lengths)
+                    outputs = model(
+                        x_batch,
+                        seq_lengths=seq_lengths,
+                        precomputed_core=self._use_precomputed_core,
+                    )
                     loss = self.loss_fn(outputs, y_batch)
 
                 # Backward pass with scaling
@@ -642,14 +930,20 @@ class FSDPTrainer(Trainer):
                 # Gradient clipping
                 if self.grad_clip_value is not None:
                     self.scaler.unscale_(self.optimizer)
-                    self._clip_grad_norm_fsdp(model)
+                    grad_norm = self._clip_grad_norm_fsdp(model)
+                else:
+                    grad_norm = None
 
                 # Optimizer step with scaling
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
             else:
                 # Standard precision training
-                outputs = model(x_batch, seq_lengths=seq_lengths)
+                outputs = model(
+                    x_batch,
+                    seq_lengths=seq_lengths,
+                    precomputed_core=self._use_precomputed_core,
+                )
                 loss = self.loss_fn(outputs, y_batch)
 
                 # Backward pass
@@ -658,10 +952,29 @@ class FSDPTrainer(Trainer):
 
                 # Gradient clipping
                 if self.grad_clip_value is not None:
-                    self._clip_grad_norm_fsdp(model)
+                    grad_norm = self._clip_grad_norm_fsdp(model)
+                else:
+                    grad_norm = None
 
                 # Optimizer step
                 self.optimizer.step()
+
+            if self.log_first_step_diagnostics and self.first_step_diagnostics is None:
+                self.first_step_diagnostics = {
+                    "decoder_input": self._decoder_input_diagnostics,
+                    "logits": _tensor_diagnostics(outputs),
+                    "loss": float(loss.detach().item()),
+                    "grad_norm_before_clip": (
+                        float(grad_norm.detach().item())
+                        if torch.is_tensor(grad_norm)
+                        else (float(grad_norm) if grad_norm is not None else None)
+                    ),
+                }
+                if self.rank == 0:
+                    logger.info(
+                        "First-step diagnostics: %s",
+                        self.first_step_diagnostics,
+                    )
 
             bs = y_batch.size(0)
             total_loss += loss.item() * bs
@@ -708,7 +1021,14 @@ class FSDPTrainer(Trainer):
 
         # Determine how many real (non-padding) samples this rank has.
         sampler = valid_loader.sampler
-        if isinstance(sampler, PaddedDistributedEvalSampler):
+        cached_real_count = getattr(
+            valid_loader,
+            "_dendritic_real_count",
+            None,
+        )
+        if cached_real_count is not None:
+            real_count = int(cached_real_count)
+        elif isinstance(sampler, PaddedDistributedEvalSampler):
             real_count = len(sampler.real_indices)
         else:
             real_count = None  # unknown — count all
@@ -725,7 +1045,11 @@ class FSDPTrainer(Trainer):
                 )
                 bs = y_batch.size(0)
 
-                outputs = model(x_batch, seq_lengths=seq_lengths)
+                outputs = model(
+                    x_batch,
+                    seq_lengths=seq_lengths,
+                    precomputed_core=self._use_precomputed_core,
+                )
                 loss = self.loss_fn(outputs, y_batch)
 
                 if real_count is not None:

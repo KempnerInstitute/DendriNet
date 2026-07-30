@@ -334,6 +334,15 @@ class FSDPConfig(BaseConfig):
     use_orig_params: bool = True
     backward_prefetch: str = "BACKWARD_PRE"
     gradient_checkpointing: bool = False
+    # Readout-only mode for contact-heavy recurrent models. Freezing before
+    # FSDP wrapping avoids core gradients and optimizer state while preserving
+    # the full dendritic forward dynamics.
+    freeze_core: bool = False
+    # Cache deterministic frozen-core outputs once per local dataset shard.
+    # Later epochs train the readout without repeating the recurrent forward.
+    cache_frozen_core_outputs: bool = False
+    # Optional local batch size used after the frozen states are cached.
+    cached_core_batch_size: Optional[int] = None
     # Mixed-precision dtype control (only used when mixed_precision=True). The
     # single knob `mixed_precision_dtype` sets param/reduce/buffer together; the
     # granular fields override it individually (None = follow the knob). Default

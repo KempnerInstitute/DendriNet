@@ -18,6 +18,18 @@ from dendritic_modeling.networks import MLP, ExcitationInhibitionNetwork
 class TestCoreModels(unittest.TestCase):
     """Test the core model functionality."""
 
+    class _RecordingCore(nn.Module):
+        is_recurrent = False
+        output_dim = 4
+
+        def __init__(self):
+            super().__init__()
+            self.grad_enabled = None
+
+        def forward(self, inputs):
+            self.grad_enabled = torch.is_grad_enabled()
+            return inputs
+
     def test_classifier_creation(self):
         """Test that we can create a basic classifier."""
         # Create simple MLP network
@@ -55,6 +67,91 @@ class TestCoreModels(unittest.TestCase):
 
         self.assertEqual(predictions.shape, (32,))
         self.assertTrue(torch.all((predictions >= 0) & (predictions < 2)))
+
+    def test_frozen_core_forward_avoids_autograd_for_readout_only_input(self):
+        core = self._RecordingCore()
+        decoder = nn.Linear(4, 2)
+        classifier = Classifier(nn.Identity(), core, decoder)
+        classifier._freeze_core_forward = True
+
+        output = classifier(torch.randn(3, 4))
+        output.sum().backward()
+
+        self.assertFalse(core.grad_enabled)
+        self.assertIsNotNone(decoder.weight.grad)
+
+    def test_frozen_core_forward_preserves_trainable_encoder_gradient_path(self):
+        encoder = nn.Linear(4, 4)
+        core = self._RecordingCore()
+        classifier = Classifier(encoder, core, nn.Linear(4, 2))
+        classifier._freeze_core_forward = True
+
+        classifier(torch.randn(3, 4)).sum().backward()
+
+        self.assertTrue(core.grad_enabled)
+        self.assertIsNotNone(encoder.weight.grad)
+
+    def test_precomputed_core_input_skips_encoder_and_core(self):
+        encoder = nn.Linear(4, 4)
+        core = self._RecordingCore()
+        decoder = nn.Linear(4, 2)
+        classifier = Classifier(encoder, core, decoder)
+        features = torch.randn(3, 4)
+
+        output = classifier(features, precomputed_core=True)
+        output.sum().backward()
+
+        self.assertIsNone(core.grad_enabled)
+        self.assertIsNone(encoder.weight.grad)
+        self.assertIsNotNone(decoder.weight.grad)
+
+    def test_mlp_parameter_free_input_layer_norm(self):
+        """MLP readouts can normalize wide inputs without adding parameters."""
+        mlp = MLP(
+            input_dim=4,
+            hidden_dims=[],
+            input_normalization="layer_norm",
+        )
+        x = torch.tensor([[1.0, 2.0, 3.0, 4.0], [2.0, 4.0, 6.0, 8.0]])
+
+        output = mlp(x)
+
+        torch.testing.assert_close(
+            output.mean(dim=-1), torch.zeros(2), atol=1e-6, rtol=0
+        )
+        torch.testing.assert_close(
+            output.std(dim=-1, unbiased=False),
+            torch.ones(2),
+            atol=1e-5,
+            rtol=0,
+        )
+        self.assertEqual(sum(param.numel() for param in mlp.parameters()), 0)
+
+    def test_mlp_rejects_unknown_input_normalization(self):
+        with self.assertRaisesRegex(ValueError, "input_normalization"):
+            MLP(
+                input_dim=4,
+                hidden_dims=[2],
+                input_normalization="unknown",
+            )
+
+    def test_mlp_can_zero_initialize_only_the_output_head(self):
+        mlp = MLP(
+            input_dim=4,
+            hidden_dims=[3],
+            output_dim=2,
+            output_init="zero",
+        )
+
+        self.assertGreater(torch.count_nonzero(mlp.layers[0].weight).item(), 0)
+        torch.testing.assert_close(
+            mlp.layers[-1].weight,
+            torch.zeros_like(mlp.layers[-1].weight),
+        )
+        torch.testing.assert_close(
+            mlp.layers[-1].bias,
+            torch.zeros_like(mlp.layers[-1].bias),
+        )
 
 
 class TestEINetworkIntegration(unittest.TestCase):

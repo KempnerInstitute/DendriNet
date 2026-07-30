@@ -49,6 +49,7 @@ from dendritic_modeling.networks.architectures.recurrent.structured_einet_factor
     _structured_population_soma_feedback_kwargs,
     _structured_population_timing_kwargs,
 )
+from dendritic_modeling.networks.utils.weight_transforms import apply_weight_transform
 
 
 @dataclass(frozen=True)
@@ -1215,6 +1216,124 @@ def test_indexed_sparse_linear_forward_param_gradient_scale():
 
     assert layer.pre_w.grad is not None
     assert torch.allclose(layer.pre_w.grad, torch.zeros_like(layer.pre_w.grad))
+
+
+@pytest.mark.parametrize(
+    "layer",
+    [
+        IndexedSparseLinear(
+            in_features=4,
+            out_features=3,
+            K=2,
+            seed=0,
+            weight_transform="exp",
+        ),
+        IndexedDynamicTopKLinear(
+            in_features=4,
+            out_features=3,
+            K=1,
+            candidate_size=2,
+            seed=0,
+            weight_transform="exp",
+        ),
+    ],
+)
+def test_frozen_indexed_layer_releases_transformed_forward_weight(layer):
+    layer.requires_grad_(False)
+
+    output = layer(torch.ones(2, 4))
+
+    assert output.requires_grad is False
+    assert layer._last_forward_param_tensor is None
+
+
+def test_frozen_indexed_sparse_transforms_by_output_chunk(monkeypatch):
+    layer = IndexedSparseLinear(
+        in_features=8,
+        out_features=6,
+        K=4,
+        seed=0,
+        weight_transform="exp",
+        output_chunk_size=2,
+    )
+    layer.requires_grad_(False)
+    inputs = torch.randn(3, 8)
+    expected_weight = layer.pre_w.detach().exp()
+    expected = torch.stack(
+        [
+            (
+                inputs[:, layer.connection_indices[row].to(torch.long)]
+                * expected_weight[row]
+            ).sum(dim=-1)
+            for row in range(layer.out_features)
+        ],
+        dim=-1,
+    )
+
+    transformed_shapes = []
+    original_transform = apply_weight_transform
+
+    def record_transform(weights, transform_type):
+        transformed_shapes.append(tuple(weights.shape))
+        return original_transform(weights, transform_type)
+
+    monkeypatch.setattr(
+        "dendritic_modeling.networks.architectures.excitation_inhibition."
+        "synapse.indexed_sparse.apply_weight_transform",
+        record_transform,
+    )
+
+    actual = layer(inputs)
+
+    torch.testing.assert_close(actual, expected)
+    assert transformed_shapes == [(2, 4), (2, 4), (2, 4)]
+
+
+def test_fsdp_frozen_marker_selects_chunked_transform_for_wrapped_view(monkeypatch):
+    layer = IndexedSparseLinear(
+        in_features=8,
+        out_features=6,
+        K=4,
+        seed=0,
+        weight_transform="exp",
+        output_chunk_size=2,
+    )
+    layer._fsdp_frozen_core = True
+    inputs = torch.randn(3, 8)
+    transformed_shapes = []
+    original_transform = apply_weight_transform
+
+    def record_transform(weights, transform_type):
+        transformed_shapes.append(tuple(weights.shape))
+        return original_transform(weights, transform_type)
+
+    monkeypatch.setattr(
+        "dendritic_modeling.networks.architectures.excitation_inhibition."
+        "synapse.indexed_sparse.apply_weight_transform",
+        record_transform,
+    )
+
+    with torch.no_grad():
+        layer(inputs)
+
+    assert transformed_shapes == [(2, 4), (2, 4), (2, 4)]
+
+
+def test_frozen_indexed_sparse_preserves_required_input_gradients():
+    layer = IndexedSparseLinear(
+        in_features=4,
+        out_features=3,
+        K=2,
+        seed=0,
+        weight_transform="exp",
+    )
+    layer.requires_grad_(False)
+    inputs = torch.randn(2, 4, requires_grad=True)
+
+    layer(inputs).sum().backward()
+
+    assert inputs.grad is not None
+    assert layer._last_forward_param_tensor is None
 
 
 def test_dendritic_branch_layer_passes_connection_mask_to_topk():

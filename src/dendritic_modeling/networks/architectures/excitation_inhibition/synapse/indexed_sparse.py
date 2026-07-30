@@ -284,6 +284,41 @@ class IndexedSparseLinear(nn.Module):
             element_size=flat_x.element_size(),
         )
 
+    def _can_use_frozen_chunked_transform(self, flat_x: torch.Tensor) -> bool:
+        """Return whether forward can transform each projection chunk in place."""
+        return (
+            (
+                not self.pre_w.requires_grad
+                or bool(getattr(self, "_fsdp_frozen_core", False))
+            )
+            and not flat_x.requires_grad
+            and self.weight_norm_order is None
+            and not self._recurrent_weight_cache_enabled
+        )
+
+    def _forward_frozen_chunked_transform(
+        self,
+        flat_x: torch.Tensor,
+        connection_indices: torch.Tensor,
+        output_chunk_size: int,
+    ) -> torch.Tensor:
+        """Project frozen weights without materializing one full transformed copy."""
+        out = flat_x.new_empty(flat_x.shape[0], self.out_features)
+        for start in range(0, self.out_features, output_chunk_size):
+            end = min(start + output_chunk_size, self.out_features)
+            idx_chunk = connection_indices[start:end].to(torch.long)
+            selected = flat_x[:, idx_chunk.reshape(-1)].reshape(
+                flat_x.shape[0],
+                end - start,
+                self.K,
+            )
+            weight_chunk = apply_weight_transform(
+                self.pre_w[start:end],
+                self.weight_transform,
+            )
+            out[:, start:end] = (selected * weight_chunk.unsqueeze(0)).sum(dim=-1)
+        return out
+
     def weight(self) -> torch.Tensor:
         """Return a dense compatibility view of the effective weights."""
         return self.dense_weight()
@@ -378,14 +413,34 @@ class IndexedSparseLinear(nn.Module):
 
         original_shape = x.shape
         flat_x = x.reshape(-1, self.in_features)
+        indices = self.connection_indices.to(flat_x.device)
+        output_chunk_size = self._forward_output_chunk_size(flat_x)
+
+        if self._can_use_frozen_chunked_transform(flat_x):
+            out = self._forward_frozen_chunked_transform(
+                flat_x,
+                indices,
+                output_chunk_size,
+            )
+            object.__setattr__(self, "_last_forward_param_tensor", None)
+            out = out.reshape(*original_shape[:-1], self.out_features)
+            if self.cache_mask:
+                self._last_forward_weight_mask = self.weight_mask().detach()
+            if squeezed:
+                return out.squeeze(0)
+            return out
+
         weight = self._forward_sparse_weight()
         # ``weight`` can be the Parameter itself for the identity transform.
         # Bypass ``nn.Module.__setattr__`` so this diagnostic cache is not
-        # registered as a duplicate parameter/state-dict key.
-        object.__setattr__(self, "_last_forward_param_tensor", weight)
-        indices = self.connection_indices.to(flat_x.device)
-
-        output_chunk_size = self._forward_output_chunk_size(flat_x)
+        # registered as a duplicate parameter/state-dict key. Frozen weights
+        # cannot receive the optional gradient hook, so do not retain their
+        # potentially multi-gigabyte transformed tensors after this forward.
+        object.__setattr__(
+            self,
+            "_last_forward_param_tensor",
+            weight if weight.requires_grad else None,
+        )
         out = _indexed_sparse_projection(
             flat_x=flat_x,
             weight=weight,

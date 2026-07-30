@@ -506,7 +506,14 @@ class IndexedDynamicTopKLinear(nn.Module):
         original_shape = x.shape
         flat_x = x.reshape(-1, self.in_features)
         active_weight = self._forward_sparse_weight()
-        object.__setattr__(self, "_last_forward_param_tensor", active_weight)
+        # Frozen weights cannot receive the optional per-forward gradient
+        # hook. Releasing their transformed tensor is essential for successive
+        # contact-heavy FSDP modules to reuse the same CUDA memory.
+        object.__setattr__(
+            self,
+            "_last_forward_param_tensor",
+            active_weight if active_weight.requires_grad else None,
+        )
         indices = self.connection_indices.to(flat_x.device)
 
         output_chunk_size = self._forward_output_chunk_size(flat_x)
