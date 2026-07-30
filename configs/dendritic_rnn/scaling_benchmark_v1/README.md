@@ -10,7 +10,7 @@ only network scale:
 - exactly 20,000 active contacts per neuron;
 - identical 128/32 train/validation examples;
 - 150 normalized-readout epochs; and
-- one node with four H200 GPUs.
+- one node with four H200 GPUs on `kempner_eng` under `kempner_dev`.
 
 The frozen-core experiments execute the complete dendritic E/I recurrent
 forward model once for each example, cache its deterministic output, and
@@ -24,7 +24,7 @@ model, data, or topology seed.
 
 `e2e_100k_20k_canary.yaml` and `e2e_100k_20k_30ep.yaml` test full recurrent
 optimization at the 100,000-neuron, 2-billion-contact scale on four
-H100-80GB GPUs.
+H100-80GB GPUs on `kempner_h100_priority` under `kempner_dev`.
 `e2e_100k_20k_stable_30ep.yaml` tests the same model with a smaller recurrent
 learning rate and a larger wide-decoder learning rate. This separates
 systems feasibility from learning-rate allocation. The canary must complete

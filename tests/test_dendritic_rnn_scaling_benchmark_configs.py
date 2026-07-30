@@ -58,6 +58,9 @@ def _contacts(population):
 
 def test_frozen_scaling_configs_change_only_declared_scale_contract():
     manifest = json.loads((CONFIG_DIR / "manifest.json").read_text())
+    assert manifest["protocol"]["gpu_type"] == "H200"
+    assert manifest["protocol"]["partition"] == "kempner_eng"
+    assert manifest["protocol"]["account"] == "kempner_dev"
 
     for scale in manifest["scales"]:
         config = load_config(str(CONFIG_DIR / scale["config"]))
@@ -82,6 +85,9 @@ def test_frozen_scaling_configs_change_only_declared_scale_contract():
 
 
 def test_end_to_end_canary_trains_recurrent_core():
+    manifest = json.loads((CONFIG_DIR / "manifest.json").read_text())
+    end_to_end = {Path(spec["config"]).stem: spec for spec in manifest["end_to_end"]}
+    canary_spec = end_to_end["e2e_100k_20k_canary"]
     config = load_config(str(CONFIG_DIR / "e2e_100k_20k_canary.yaml"))
     layer = config.model.core.unified_ei["layers"][0]
     groups = config.training.main.common.param_groups
@@ -92,6 +98,10 @@ def test_end_to_end_canary_trains_recurrent_core():
     assert config.training.main.common.epochs == 1
     assert groups.topk_lr == 1.0e-5
     assert groups.reactivation_lr == 1.0e-5
+    assert canary_spec["trainable_parameters"] == 2_012_120_866
+    assert canary_spec["gpu_type"] == "H100-80GB"
+    assert canary_spec["partition"] == "kempner_h100_priority"
+    assert canary_spec["account"] == "kempner_dev"
     for population in (layer["excitatory"], layer["inhibitory"]):
         assert population["indexed_cache_transformed_weights"] is True
         assert population["indexed_recompute_backward"] is True
