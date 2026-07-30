@@ -44,7 +44,29 @@ class _ChunkedSparseGatherMulSum(torch.autograd.Function):
         out_features, K, chunk_size = ctx.meta
         M = x.shape[0]
         needs_x, _, needs_w = ctx.needs_input_grad[:3]
-        grad_x = torch.zeros_like(x) if needs_x else None
+        # grad_x is a scatter: every one of the out_features*K synapses adds into
+        # one of in_features slots, so each slot takes out_features*K/in_features
+        # atomic adds (~1600 for the recurrent configs). Accumulate in fp32 when
+        # the input is reduced-precision, for two reasons:
+        #   * precision -- summing that many bf16 terms into a bf16 slot loses
+        #     bits the eager baseline keeps (aten's indexing_backward accumulates
+        #     in opmath_t = float), so fp32 here matches the baseline rather than
+        #     diverging from it;
+        #   * speed -- bf16 atomicAdd is emulated on sm_80 and collapses under
+        #     this contention. Measured on the 5k/5k recurrent layer shapes:
+        #     bf16 index_add_ is ~105x slower than fp32 on A100 (170 ms vs 1.6 ms)
+        #     and ~1.9x slower on Blackwell. This one cast is the whole reason the
+        #     fused path was 8.8x slower than the loop baseline on A100.
+        acc_dtype = (
+            torch.float32
+            if x.dtype in (torch.bfloat16, torch.float16)
+            else x.dtype
+        )
+        grad_x = (
+            torch.zeros(x.shape, dtype=acc_dtype, device=x.device)
+            if needs_x
+            else None
+        )
         grad_w = torch.empty_like(weight) if needs_w else None
         for start in range(0, out_features, chunk_size):
             end = min(start + chunk_size, out_features)
@@ -54,8 +76,12 @@ class _ChunkedSparseGatherMulSum(torch.autograd.Function):
                 selected = x.index_select(1, idx_chunk).reshape(M, end - start, K)
                 grad_w[start:end] = (g * selected).sum(dim=0)              # [chunk, K]
             if needs_x:
-                grad_sel = (g * weight[start:end].unsqueeze(0)).reshape(M, (end - start) * K)
+                grad_sel = (
+                    g.to(acc_dtype) * weight[start:end].to(acc_dtype).unsqueeze(0)
+                ).reshape(M, (end - start) * K)
                 grad_x.index_add_(1, idx_chunk, grad_sel)                  # grouped scatter
+        if grad_x is not None and grad_x.dtype != x.dtype:
+            grad_x = grad_x.to(x.dtype)
         return grad_x, None, grad_w, None, None, None
 
 

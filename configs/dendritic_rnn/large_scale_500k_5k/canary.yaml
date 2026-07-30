@@ -131,9 +131,12 @@ model:
           indexed_selection: standard
           indexed_output_chunk_size: 2048
           # Gather kernels (precedence cuda -> triton -> fused -> loop; each guarded).
-          # At canary width (in_features ~500) the fast wpo CUDA path engages.
+          # FUSED ONLY, matching base.yaml. Although the fast wpo CUDA path does engage
+          # at canary width (in_features ~500), cuda/triton are both far slower in the
+          # batch-1 recurrent regime and take precedence over fused when enabled, so
+          # the canary must exercise the same path the real run uses.
           # Dtype-safe: fp32 compute, bf16 in/out under FSDP.
-          indexed_use_fused_gather: false
+          indexed_use_fused_gather: true
           indexed_use_triton_gather: false
           indexed_use_cuda_gather: false
           blocklinear_strategy: none
@@ -179,8 +182,8 @@ model:
           indexed_seed: 520008
           indexed_selection: standard
           indexed_output_chunk_size: 2048
-          # Gather kernels (see excitatory block). Point-I, wpo path engages at canary width.
-          indexed_use_fused_gather: false
+          # Gather kernels (see excitatory block). Point-I; fused only, as above.
+          indexed_use_fused_gather: true
           indexed_use_triton_gather: false
           indexed_use_cuda_gather: false
           blocklinear_strategy: none
