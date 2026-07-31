@@ -448,12 +448,25 @@ def cuda_gather_available() -> bool:
     return _load_ext() is not None
 
 
+_TILE = None  # (B_O, B_M), queried once -- the device does not change mid-process
+
+
 def _pick_tile() -> tuple[int, int]:
     """Per-arch tile for the v2 fallback forward/backward: B_M=16 is the sweet spot on both
-    A100 and Blackwell; B_O by arch."""
-    cc = torch.cuda.get_device_capability()
-    b_o = 64 if cc[0] >= 9 else 32     # Hopper/Blackwell like wider tiles; Ampere prefers 32
-    return b_o, 16
+    A100 and Blackwell; B_O by arch.
+
+    Memoized: this ran ``get_device_capability()`` on every sparse-layer forward
+    (60x/step on the stress config) to answer a question whose answer cannot
+    change within a process. Negligible where the GPU is saturated; the batch-1
+    RNN is 31-37% GPU-busy across 13k kernels, i.e. mostly CPU gap, so per-call
+    host work there is paid T times per sequence.
+    """
+    global _TILE
+    if _TILE is None:
+        cc = torch.cuda.get_device_capability()
+        # Hopper/Blackwell like wider tiles; Ampere prefers 32.
+        _TILE = (64 if cc[0] >= 9 else 32, 16)
+    return _TILE
 
 
 _OPTIN_SHARED = None  # device max opt-in dynamic shared mem per block (bytes), queried once
@@ -616,16 +629,23 @@ class _CudaSparseGather(torch.autograd.Function):
         in_dtype, w_dtype = x.dtype, weight.dtype
         xf = x.contiguous().to(torch.float32)
         wf = weight.contiguous().to(torch.float32)
-        idx = idx.contiguous().to(torch.int64)
-        IN, K = xf.size(1), idx.size(1)
-        variant, P, T = _pick_fwd_variant(IN, idx.size(0), K)
+        # Indices are STORED int32 (the lever that halved the replicated idx
+        # buffer for scaling). This used to upcast them to int64 here, cast
+        # straight back to int32 to call the kernel, and then RETAIN the int64
+        # copy for backward -- ~2x the necessary bytes, undoing that lever on
+        # every call. int64 is now materialized only inside the v2 forward
+        # branch, which is the sole consumer that needs it; both backward paths
+        # take int32.
+        idx32 = idx.contiguous().to(torch.int32)
+        IN, K = xf.size(1), idx32.size(1)
+        variant, P, T = _pick_fwd_variant(IN, idx32.size(0), K)
         if variant == "nostage":               # no shared -> not occupancy-capped, no IN ceiling
-            out = ext.gather_fwd_wpo_ns_cuda(xf, idx.to(torch.int32), wf, P, T)
+            out = ext.gather_fwd_wpo_ns_cuda(xf, idx32, wf, P, T)
         elif _wpo_ok(IN, K):                   # Phase-4 warp-per-output forward (~4.5x over v2)
-            out = ext.gather_fwd_wpo_cuda(xf, idx.to(torch.int32), wf, P, T)
+            out = ext.gather_fwd_wpo_cuda(xf, idx32, wf, P, T)
         else:                                  # fall back to v2 (x-row too large for shared)
-            out = ext.gather_fwd_cuda(xf, idx, wf, B_O, B_M)
-        ctx.save_for_backward(xf, idx, wf)     # int64 idx kept for the v2 backward
+            out = ext.gather_fwd_cuda(xf, idx32.to(torch.int64), wf, B_O, B_M)
+        ctx.save_for_backward(xf, idx32, wf)   # int32: both backward paths want it
         ctx.cfg = (B_O, B_M, in_dtype, w_dtype)
         return out.to(in_dtype)
 

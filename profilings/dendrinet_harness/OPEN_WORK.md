@@ -73,6 +73,20 @@ Ledger: `rnn_scaling_benchmark.md`. 100k PASS multi-GPU; 1M **OOM** on 4×A100-4
 
 ---
 
+## UNVERIFIED — run these first on the next allocation
+
+Two changes are committed but were **never executed on a GPU** (the allocation expired
+between writing and testing). They are small and mechanical, but "should be right" is not
+a measurement:
+
+| # | change | what to run |
+|---|---|---|
+| U.1 | **C6** — gather wrapper now stores indices as int32 instead of upcasting to int64 and retaining the larger copy | `check_gradw_tile_equiv.py` (must PASS), then `bench_gather_variant_e2e.py` — expect ~386 MB less peak, output still bit-identical |
+| U.2 | **C5** — `_pick_tile()` memoized (was querying `get_device_capability()` 60×/step) | same runs; expect **~0** on feedforward. Only interesting on the batch-1 RNN, where host work is paid T times per sequence |
+
+If U.1 regresses anything, revert it first — it touches the gather hot path, unlike
+everything else in the reactivation work.
+
 ## Recommended order
 
 1. **2.1** (`weight_transforms.py`) — largest thing never measured, and the last leg of the claim I over-stated.
