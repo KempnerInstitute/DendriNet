@@ -25,6 +25,7 @@ from torch.utils.data import DataLoader
 
 from dendritic_modeling.config import load_config
 from dendritic_modeling.scripts.script_utils.setup_utils import setup_environment
+from dendritic_modeling.training.optimizers import create_optimizer
 
 logger = logging.getLogger(__name__)
 
@@ -172,18 +173,17 @@ def _profile(
     batch_size: int,
     warmup_steps: int,
     steps: int,
-    learning_rate: float,
-    weight_decay: float,
+    optimizer_config,
+    param_groups_config,
     grad_clip_value: float | None,
     use_amp: bool,
 ) -> dict[str, Any]:
     device = torch.device("cuda")
     model.to(device)
     model.train()
-    optimizer = torch.optim.AdamW(
-        model.parameters(),
-        lr=learning_rate,
-        weight_decay=weight_decay,
+    optimizer = create_optimizer(
+        model.get_param_groups(param_groups_config),
+        optimizer_config,
     )
     scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
     iterator = iter(loader)
@@ -233,6 +233,14 @@ def _profile(
 
     samples = batch_size * steps
     total_seconds = data_wait_seconds + step_seconds
+    optimizer_groups = [
+        {
+            "name": str(group.get("name", f"group_{idx}")),
+            "lr": float(group["lr"]),
+            "parameters": int(sum(parameter.numel() for parameter in group["params"])),
+        }
+        for idx, group in enumerate(optimizer.param_groups)
+    ]
     return {
         "warmup_steps": warmup_steps,
         "measured_steps": steps,
@@ -248,6 +256,7 @@ def _profile(
         "data_wait_fraction": data_wait_seconds / total_seconds,
         "peak_cuda_allocated_gib": _cuda_gib(torch.cuda.max_memory_allocated()),
         "peak_cuda_reserved_gib": _cuda_gib(torch.cuda.max_memory_reserved()),
+        "optimizer_groups": optimizer_groups,
     }
 
 
@@ -308,8 +317,8 @@ def main() -> None:
             batch_size=args.batch_size,
             warmup_steps=args.warmup_steps,
             steps=args.steps,
-            learning_rate=float(param_groups.lr),
-            weight_decay=float(optimizer_config.weight_decay),
+            optimizer_config=optimizer_config,
+            param_groups_config=param_groups,
             grad_clip_value=common.grad_clip_value,
             use_amp=bool(common.use_amp),
         )
