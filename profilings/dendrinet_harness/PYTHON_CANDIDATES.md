@@ -127,7 +127,43 @@ is the 1M blocker, so that is the right side of the trade.
 - **Why it is first:** biggest measured allocation never examined, and structurally
   identical to the win we are trying to repeat. Also sets up the Triton/CUDA phase.
 
-## C2 — `EfficientBlockLinear.forward` materializes the product before reducing **[P]**
+## C2 — `EfficientBlockLinear.forward` — **REFUTED at the retained level, 8.9 MB**
+
+Measured `blocklinear.py:313` at **8.9 MB — 0.05% of live allocation**, both before and
+after the reactivation fix. Not 72-ops-worth of anything.
+
+Why the guess was wrong: `(x_reshaped * weights).sum(dim=-1)` does build a
+`[B, out, block]` product, but that tensor is **transient** — `sum` consumes it
+immediately and `SumBackward` retains nothing but a shape. What survives into backward is
+`x_reshaped` and `weights`, which are small here because this BlockLinear is the
+branch→soma pooling with `block_size = 3`, not one of the 144,000-wide sparse layers.
+
+**Caveat, stated because it is the one thing this profile cannot see:** the snapshot is
+taken at the top of the step and therefore shows only *retained* allocation. Live total
+was 15,969 MB against a step peak of 18,469 MB — a **~2.5 GB gap that is transients**, and
+a large short-lived product would live in exactly that gap. C2 is refuted as a *retention*
+problem; it is not yet ruled out as a contributor to peak. Decomposing that gap is the
+honest follow-up.
+
+The `apply_weight_transform(...) * 1.0` on the same line remains a trap either way — verify
+whether it exists to force a non-leaf for `register_hook` before touching it.
+
+## C3 — `_last_forward_param_tensor` — **REFUTED, it does not duplicate anything**
+
+It never allocates; it stores a *reference* to a tensor allocated at
+`weight_transforms.py:119`. So it cannot appear as its own line — it can only show up by
+inflating that one.
+
+It does not. `weight_transforms.py:119` measured **448.6 MB** against an arithmetic
+prediction of **443.1 MB** for exactly *one* copy of the transformed weights across all 60
+layers. One copy, not two — so the reference is aliasing the tensor autograd already holds,
+not adding a second.
+
+Its real (small) cost is lifetime, not size: the weight stays reachable between steps
+instead of being freed. Bounded by 443 MB, and ~0 at peak, since peak occurs mid-step when
+that tensor is live regardless. Not worth a conditional.
+
+## C2 (original hypothesis, kept for the record) **[P]**
 
 `blocklinear.py:317` — `output = (x_reshaped * weights).sum(dim=-1)`
 
