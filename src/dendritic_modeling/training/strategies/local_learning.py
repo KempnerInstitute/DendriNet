@@ -29,6 +29,7 @@ from dendritic_modeling.training.strategies.local_learning_parts.local_learning_
     _apply_decoder_local_gradients as _apply_decoder_local_gradients,
     _apply_local_decoder_update,
     _apply_path_propagation_factor as _apply_path_propagation_factor,
+    _average_distributed_gradients,
     _average_local_epoch_losses,
     _clear_topk_mask_cache as _clear_topk_mask_cache,
     _clip_model_gradients,
@@ -238,6 +239,11 @@ class LocalCreditAssignment(
                 delta_out=delta_out,
                 normalize_by_batch=self.local_cfg.normalize_by_batch,
             )
+
+            # LocalCA assigns gradients directly rather than calling
+            # ``loss.backward()``. DDP therefore cannot reduce them through
+            # autograd hooks; average them explicitly before clipping.
+            _average_distributed_gradients(model)
 
             # Optional gradient clipping (value-wise)
             _clip_model_gradients(model, self.local_cfg.clip_grad_value)

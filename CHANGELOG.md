@@ -63,3 +63,6 @@
   main-epoch override for bounded canary runs.
 - Made post-training resource accounting operate directly on compact indexed
   connectivity, avoiding dense compatibility matrices for large sparse models.
+- Added compact fixed-index LocalCA gradients and explicit DDP averaging for
+  manually assigned local-rule gradients, enabling large spatial DendriNets to
+  use 3F/4F/5F credit assignment without dense branch-by-input updates.

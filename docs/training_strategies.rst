@@ -342,7 +342,8 @@ The local learning recorder captures all TopK pathways on a
    * - Structured connectivity
      - Connection masks are always respected. ``update_inactive_weights`` can
        allow non-active TopK weights to move, but forbidden masked connections
-       stay frozen.
+       stay frozen. Fixed ``indexed`` synapses compute 3F/4F/5F updates directly
+       on their stored contacts, without a dense output-by-input gradient.
    * - Recurrent pathways
      - ``3f``/``4f``/``5f`` and STDP update ``rec_exc`` and ``rec_inh``
        pathways when those modules are present and enabled by config.
@@ -351,6 +352,11 @@ The local learning recorder captures all TopK pathways on a
        model readout and ``activity_mode``. Exact event timing is approximated
        by the trainer's update steps; for finer time-bin STDP, use sequence
        batches with recurrent outputs exposed at each step.
+
+Under DDP, LocalCA averages its manually assigned local gradients across ranks
+before clipping and stepping the optimizer. This is required because these
+gradients are not produced by an ordinary ``loss.backward()`` call and
+therefore do not use DDP's autograd reduction hooks.
 
 Morphology-Aware Extensions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~

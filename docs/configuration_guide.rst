@@ -1477,7 +1477,9 @@ length as the branch-factor list. The raw tensor is interpreted in CHW order.
 Every soma has independent weights and independently sampled indices; only the
 geometric partition is shared. Thus the mapping preserves image geometry
 without convolution or parameter sharing. The current implementation requires
-fixed ``indexed`` sparsity and rejects global ``indexed_rewire``.
+fixed ``indexed`` sparsity and rejects global ``indexed_rewire``. The
+``local_ca`` 3F/4F/5F rules update only the stored indexed contacts and remain
+compact under DDP; local gradients are averaged explicitly across ranks.
 
 Multi-Stage Training
 --------------------

@@ -295,6 +295,77 @@ class IndexedSparseLinear(nn.Module):
             "mask_source": "fixed_indices",
         }
 
+    def local_weight_gradient(
+        self,
+        factor: torch.Tensor,
+        x_pre: torch.Tensor,
+        *,
+        normalize_by_batch: bool,
+    ) -> torch.Tensor:
+        """Compute a compact local conductance gradient on the fixed support.
+
+        A dense local rule forms ``factor.T @ x_pre``, whose shape is
+        ``[out_features, in_features]``.  For fixed indexed connectivity only
+        the ``K`` stored contacts per output can be updated.  This method
+        evaluates exactly those entries in bounded output chunks and returns a
+        tensor matching ``pre_w``.
+        """
+
+        if factor.ndim != 2 or x_pre.ndim != 2:
+            raise ValueError(
+                "Indexed local gradients require two-dimensional factor and "
+                f"input tensors, got {tuple(factor.shape)} and {tuple(x_pre.shape)}"
+            )
+        if factor.shape[0] != x_pre.shape[0]:
+            raise ValueError(
+                "Indexed local-gradient batch dimensions differ: "
+                f"{factor.shape[0]} vs {x_pre.shape[0]}"
+            )
+        if factor.shape[1] != self.out_features:
+            raise ValueError(
+                "Indexed local-gradient factor width does not match out_features: "
+                f"{factor.shape[1]} vs {self.out_features}"
+            )
+        if x_pre.shape[1] != self.in_features:
+            raise ValueError(
+                "Indexed local-gradient input width does not match in_features: "
+                f"{x_pre.shape[1]} vs {self.in_features}"
+            )
+        if factor.device != self.pre_w.device or x_pre.device != self.pre_w.device:
+            raise ValueError(
+                "Indexed local-gradient tensors must share the layer device"
+            )
+
+        factor = factor.detach()
+        x_pre = x_pre.detach()
+        gradient = torch.empty_like(self.pre_w)
+        output_chunk_size = self._forward_output_chunk_size(x_pre)
+        batch_scale = 1.0 / factor.shape[0] if normalize_by_batch else 1.0
+
+        with torch.no_grad():
+            for start in range(0, self.out_features, output_chunk_size):
+                end = min(start + output_chunk_size, self.out_features)
+                indices = self.connection_indices[start:end].to(torch.long)
+                selected = x_pre.index_select(1, indices.reshape(-1)).reshape(
+                    x_pre.shape[0],
+                    end - start,
+                    self.K,
+                )
+                factor_chunk = factor[:, start:end]
+                if selected.dtype != factor_chunk.dtype:
+                    selected = selected.to(factor_chunk.dtype)
+                chunk_gradient = torch.einsum(
+                    "bo,bok->ok",
+                    factor_chunk,
+                    selected,
+                )
+                if normalize_by_batch:
+                    chunk_gradient.mul_(batch_scale)
+                gradient[start:end].copy_(
+                    chunk_gradient.to(device=gradient.device, dtype=gradient.dtype)
+                )
+        return gradient
+
     def _normalized_sparse_weight(self) -> torch.Tensor:
         weight = self.sparse_weight()
         if self.weight_norm_order is None:

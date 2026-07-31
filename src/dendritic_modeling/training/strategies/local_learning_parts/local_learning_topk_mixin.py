@@ -12,7 +12,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.top
 )
 from dendritic_modeling.training.strategies.local_learning_parts.local_learning_gradient_utils import (
     _apply_optional_alignment,
-    _factor_pre_weight_grad,
+    _factor_synapse_weight_grad,
     _topk_pre_weight_grad,
 )
 from dendritic_modeling.training.strategies.local_learning_parts.local_learning_pathways import (
@@ -219,7 +219,8 @@ class LocalLearningTopKGradientMixin:
             return layer
 
         x_pre: torch.Tensor = rec[input_key]
-        grad_g = _factor_pre_weight_grad(
+        grad_g = _factor_synapse_weight_grad(
+            layer,
             post_factor,
             x_pre,
             normalize_by_batch=self.local_cfg.normalize_by_batch,
@@ -231,6 +232,7 @@ class LocalLearningTopKGradientMixin:
         )
 
         grad_homeo = self._compute_topk_voltage_homeostasis_grad(
+            layer=layer,
             v_n=v_n,
             x_pre=x_pre,
             r_tot=r_tot,
@@ -282,7 +284,8 @@ class LocalLearningTopKGradientMixin:
             layer_dynamics_mode=layer_dynamics_mode,
         )
 
-        grad_g = _factor_pre_weight_grad(
+        grad_g = _factor_synapse_weight_grad(
+            layer,
             inh_factor,
             x_pre,
             normalize_by_batch=self.local_cfg.normalize_by_batch,
@@ -293,6 +296,7 @@ class LocalLearningTopKGradientMixin:
         _record_structural_credit(layer, grad_g)
 
         grad_homeo = self._compute_topk_voltage_homeostasis_grad(
+            layer=layer,
             v_n=v_n,
             x_pre=x_pre,
             r_tot=r_tot,
@@ -308,7 +312,8 @@ class LocalLearningTopKGradientMixin:
             rec=rec, R_tot=r_tot, v_n=v_n
         )
         if inhibitory_homeo_factor is not None:
-            grad_homeo = _factor_pre_weight_grad(
+            grad_homeo = _factor_synapse_weight_grad(
+                layer,
                 inhibitory_homeo_factor,
                 x_pre,
                 normalize_by_batch=self.local_cfg.normalize_by_batch,
@@ -329,6 +334,7 @@ class LocalLearningTopKGradientMixin:
         batch_size: int,
         conductance_reversal: float,
         additive_sign: float,
+        layer: TopKLinear | None = None,
     ) -> torch.Tensor | None:
         voltage_homeo_error = self._compute_voltage_homeostasis_error(v_n)
         if voltage_homeo_error is None:
@@ -339,7 +345,8 @@ class LocalLearningTopKGradientMixin:
         else:
             homeo_factor = voltage_homeo_error * float(additive_sign)
 
-        return _factor_pre_weight_grad(
+        return _factor_synapse_weight_grad(
+            layer,
             homeo_factor,
             x_pre,
             normalize_by_batch=self.local_cfg.normalize_by_batch,

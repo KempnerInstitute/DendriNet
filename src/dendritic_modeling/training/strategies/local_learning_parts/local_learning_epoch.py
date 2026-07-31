@@ -4,6 +4,7 @@ from functools import partial
 from typing import Any, Optional
 
 import torch
+import torch.distributed as dist
 import torch.nn as nn
 
 from dendritic_modeling.models import BaseModel
@@ -409,6 +410,40 @@ def _should_clip_gradients(clip_grad_value: Any) -> bool:
 def _clip_model_gradients(model: BaseModel, clip_grad_value: Any) -> None:
     if _should_clip_gradients(clip_grad_value):
         torch.nn.utils.clip_grad_value_(model.parameters(), clip_grad_value)
+
+
+def _average_distributed_gradients(model: BaseModel) -> None:
+    """Average manually assigned local gradients across distributed ranks."""
+
+    if not dist.is_available() or not dist.is_initialized():
+        return
+    world_size = dist.get_world_size()
+    if world_size <= 1:
+        return
+
+    parameters = list(model.parameters())
+    if not parameters:
+        return
+    device = parameters[0].device
+    present = torch.tensor(
+        [parameter.grad is not None for parameter in parameters],
+        device=device,
+        dtype=torch.int32,
+    )
+    dist.all_reduce(present, op=dist.ReduceOp.SUM)
+    inconsistent = (present != 0) & (present != world_size)
+    if bool(inconsistent.any()):
+        indices = inconsistent.nonzero(as_tuple=False).flatten().tolist()
+        raise RuntimeError(
+            "Local-gradient presence differs across distributed ranks for "
+            f"parameter indices {indices}"
+        )
+
+    for parameter, rank_count in zip(parameters, present.tolist()):
+        if rank_count == 0:
+            continue
+        dist.all_reduce(parameter.grad, op=dist.ReduceOp.SUM)
+        parameter.grad.div_(float(world_size))
 
 
 def _forward_with_local_recorders(

@@ -2132,7 +2132,9 @@ Supported methods:
 
    This method currently requires ``sparsity.type: indexed``. Global adaptive
    rewiring is rejected because it could move a synapse outside the branch's
-   spatial region. No dense ``[branches, pixels]`` tensor is created.
+   spatial region. No dense ``[branches, pixels]`` tensor is created. Fixed
+   indexed synapses also expose compact 3F/4F/5F local-credit gradients, so
+   ``local_ca`` does not construct that dense tensor during an update.
 
 Scalar and list-valued ``probability``/``indegree`` use repeat-last semantics
 over network layers. With DeepST, rewiring stays inside the allowed mask.

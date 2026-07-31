@@ -15,8 +15,15 @@ from dendritic_modeling.training.strategies.local_learning import LocalCreditAss
 class _SingleBranchModel(nn.Module):
     """Small model exposing a single dendritic branch layer."""
 
-    def __init__(self, *, use_shunting: bool):
+    def __init__(self, *, use_shunting: bool, topk_type: str = "standard"):
         super().__init__()
+        indexed_options = {}
+        if topk_type == "indexed":
+            indices = torch.tensor([[0, 1], [2, 3]])
+            indexed_options = {
+                "excitatory_connection_indices": indices,
+                "inhibitory_connection_indices": indices,
+            }
         self.branch = DendriticBranchLayer(
             output_dim=2,
             excitatory_input_dim=4,
@@ -27,7 +34,9 @@ class _SingleBranchModel(nn.Module):
             use_shunting=use_shunting,
             reactivate=False,
             topk_noise_level=0.0,
+            topk_type=topk_type,
             weight_transform="identity",
+            **indexed_options,
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -170,6 +179,26 @@ def test_topk_voltage_homeostasis_helper_matches_legacy_formula() -> None:
         )
         is None
     )
+
+
+def test_local_rule_updates_compact_indexed_synapses_without_dense_gradients() -> None:
+    trainer = _make_trainer(dynamics_mode="conductance")
+    model = _SingleBranchModel(use_shunting=True, topk_type="indexed")
+    rec = _capture_record(trainer, model, torch.rand(3, 4))
+
+    exc_grad, inh_grad, dendritic_grad = _run_local_update(
+        trainer,
+        model,
+        rec,
+        delta=torch.tensor([[0.2, -0.1], [-0.3, 0.4], [0.1, 0.2]]),
+    )
+
+    assert exc_grad.shape == (2, 2)
+    assert inh_grad.shape == (2, 2)
+    assert dendritic_grad.shape == model.branch.branches_to_output.log_weight.shape
+    assert torch.isfinite(exc_grad).all()
+    assert torch.isfinite(inh_grad).all()
+    assert torch.isfinite(dendritic_grad).all()
 
 
 def test_local_rule_gradient_dispatch_passes_records_in_order(monkeypatch) -> None:

@@ -974,6 +974,34 @@ def test_indexed_sparse_compact_indices_preserve_forward_and_gradients():
     torch.testing.assert_close(legacy.pre_w.grad, compact.pre_w.grad)
 
 
+@pytest.mark.parametrize("normalize_by_batch", [False, True])
+def test_indexed_local_weight_gradient_matches_dense_active_entries(
+    normalize_by_batch,
+):
+    indices = torch.tensor([[0, 3], [1, 4], [2, 5]])
+    layer = IndexedSparseLinear(
+        in_features=6,
+        out_features=3,
+        K=2,
+        connection_indices=indices,
+        output_chunk_size=2,
+    )
+    factor = torch.randn(4, 3)
+    x_pre = torch.randn(4, 6)
+
+    compact = layer.local_weight_gradient(
+        factor,
+        x_pre,
+        normalize_by_batch=normalize_by_batch,
+    )
+    dense = factor.t() @ x_pre
+    if normalize_by_batch:
+        dense = dense / factor.shape[0]
+    expected = dense.gather(1, indices)
+
+    torch.testing.assert_close(compact, expected)
+
+
 @pytest.mark.parametrize("index_dtype", ["int32", "int64"])
 def test_indexed_recompute_backward_preserves_forward_and_gradients(index_dtype):
     indices = torch.tensor(

@@ -30,6 +30,7 @@ from dendritic_modeling.training.strategies.local_learning_parts.local_learning_
     _accumulate_local_logging_loss,
     _apply_local_decoder_update,
     _apply_training_schedule_update_modes,
+    _average_distributed_gradients,
     _average_local_epoch_losses,
     _collect_trainable_parameters,
     _compute_decoder_local_gradients,
@@ -679,6 +680,29 @@ def test_average_local_epoch_losses_preserves_legacy_division():
         train_loss_reg=0.0,
         n_batches=3,
     ) == (2.0, 1.0, 0.0)
+
+
+def test_average_distributed_gradients_averages_manual_grads(monkeypatch):
+    model = nn.Linear(2, 1)
+    model.weight.grad = torch.tensor([[2.0, -4.0]])
+    model.bias.grad = None
+    calls = []
+
+    monkeypatch.setattr(torch.distributed, "is_available", lambda: True)
+    monkeypatch.setattr(torch.distributed, "is_initialized", lambda: True)
+    monkeypatch.setattr(torch.distributed, "get_world_size", lambda: 4)
+
+    def fake_all_reduce(tensor, op=None):
+        calls.append((tensor.dtype, tuple(tensor.shape), op))
+        tensor.mul_(4)
+
+    monkeypatch.setattr(torch.distributed, "all_reduce", fake_all_reduce)
+
+    _average_distributed_gradients(model)
+
+    torch.testing.assert_close(model.weight.grad, torch.tensor([[2.0, -4.0]]))
+    assert model.bias.grad is None
+    assert len(calls) == 2
 
 
 def test_has_dendritic_branch_layers_returns_false_when_model_iteration_fails():

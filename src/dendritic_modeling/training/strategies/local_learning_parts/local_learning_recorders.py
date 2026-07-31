@@ -54,6 +54,17 @@ def _record_topk_forward(
     rec[path.output_key] = outputs.detach()
     rec[path.module_key] = layer
     try:
+        connection_indices = getattr(layer, "connection_indices", None)
+        pre_weight = getattr(layer, "pre_w", None)
+        if (
+            isinstance(connection_indices, torch.Tensor)
+            and isinstance(pre_weight, torch.Tensor)
+            and connection_indices.shape == pre_weight.shape
+        ):
+            # Every compact parameter is active. A dense fixed-support mask can
+            # be hundreds of GiB and is neither needed nor safe to construct.
+            rec[path.mask_key] = None
+            return
         cached_mask = getattr(layer, "_last_forward_weight_mask", None)
         if isinstance(cached_mask, torch.Tensor):
             rec[path.mask_key] = cached_mask.detach()

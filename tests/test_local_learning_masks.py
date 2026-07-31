@@ -47,6 +47,26 @@ class _DualSynapseBranchModel(nn.Module):
         return self.branch(x, inhibitory_x)
 
 
+class _IndexedBranchModel(nn.Module):
+    """Minimal branch with compact fixed synaptic indices."""
+
+    def __init__(self):
+        super().__init__()
+        self.branch = DendriticBranchLayer(
+            output_dim=4,
+            excitatory_input_dim=8,
+            excitatory_synapses_per_branch=2,
+            excitatory_connection_indices=torch.tensor(
+                [[0, 1], [2, 3], [4, 5], [6, 7]]
+            ),
+            topk_type="indexed",
+            reactivate=False,
+        )
+
+    def forward(self, x):
+        return self.branch(x)
+
+
 class _DecoderOnlyModel(nn.Module):
     """Model with a decoder network for decoder-recorder cleanup checks."""
 
@@ -122,6 +142,27 @@ def test_local_recorders_use_cached_topk_mask_without_extra_sampling():
     rec = records[0]
     assert isinstance(rec.get("exc_mask"), torch.Tensor)
     torch.testing.assert_close(rec["exc_mask"], topk._last_forward_weight_mask)
+
+
+def test_local_recorders_do_not_materialize_indexed_dense_mask(monkeypatch):
+    model = _IndexedBranchModel()
+    synapse = model.branch.branch_excitation
+    trainer = LocalCreditAssignment.__new__(LocalCreditAssignment)
+    trainer._decoder_cache = {}
+    records, handles = trainer._attach_local_recorders(model)
+
+    def reject_dense_mask():
+        raise AssertionError("compact local recording must not build a dense mask")
+
+    monkeypatch.setattr(synapse, "weight_mask", reject_dense_mask)
+    try:
+        _ = model(torch.rand(3, 8))
+    finally:
+        for handle in handles:
+            handle.remove()
+
+    assert records[0]["exc_module"] is synapse
+    assert records[0]["exc_mask"] is None
 
 
 def test_local_recorders_remove_hooks_after_failed_registration(monkeypatch):
