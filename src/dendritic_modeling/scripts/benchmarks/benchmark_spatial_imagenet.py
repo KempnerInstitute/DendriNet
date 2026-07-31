@@ -59,6 +59,12 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument("--warmup-steps", type=int, default=2)
     parser.add_argument("--steps", type=int, default=8)
+    parser.add_argument(
+        "--eval-steps",
+        type=int,
+        default=0,
+        help="Number of held-out validation batches to evaluate after training.",
+    )
     parser.add_argument("--num-workers", type=int, default=8)
     parser.add_argument(
         "--lr-scale",
@@ -90,6 +96,8 @@ def _validate_args(args: argparse.Namespace) -> None:
             raise ValueError(f"--{name.replace('_', '-')} must be positive")
     if args.warmup_steps < 0:
         raise ValueError("--warmup-steps cannot be negative")
+    if args.eval_steps < 0:
+        raise ValueError("--eval-steps cannot be negative")
     if args.num_workers < 0:
         raise ValueError("--num-workers cannot be negative")
     if args.lr_scale <= 0:
@@ -145,10 +153,12 @@ def _model_resource_counts(model: torch.nn.Module) -> dict[str, int]:
 
 
 def _make_loader(
-    train_dataset,
+    dataset,
     *,
     batch_size: int,
     num_workers: int,
+    shuffle: bool = True,
+    drop_last: bool = True,
 ) -> DataLoader:
     worker_kwargs: dict[str, Any] = {}
     if num_workers > 0:
@@ -157,12 +167,12 @@ def _make_loader(
             prefetch_factor=4,
         )
     return DataLoader(
-        train_dataset,
+        dataset,
         batch_size=batch_size,
-        shuffle=True,
+        shuffle=shuffle,
         num_workers=num_workers,
         pin_memory=True,
-        drop_last=True,
+        drop_last=drop_last,
         **worker_kwargs,
     )
 
@@ -339,6 +349,44 @@ def _profile(
     }
 
 
+@torch.no_grad()
+def _evaluate(
+    *,
+    model: torch.nn.Module,
+    loader: DataLoader,
+    steps: int,
+    use_amp: bool,
+) -> dict[str, Any]:
+    if steps <= 0:
+        return {}
+    device = torch.device("cuda")
+    model.eval()
+    losses = []
+    correct = 0
+    samples = 0
+    start = time.perf_counter()
+    for step_idx, (images, labels) in enumerate(loader):
+        if step_idx >= steps:
+            break
+        images = images.to(device, non_blocking=True)
+        labels = labels.to(device, non_blocking=True)
+        with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=use_amp):
+            logits = model(images)
+            losses.append(float(F.cross_entropy(logits, labels)))
+        correct += int((logits.argmax(dim=-1) == labels).sum())
+        samples += int(labels.numel())
+    _synchronize()
+    elapsed = time.perf_counter() - start
+    model.train()
+    return {
+        "eval_steps": len(losses),
+        "eval_samples": samples,
+        "eval_loss": sum(losses) / max(len(losses), 1),
+        "eval_top1_accuracy": correct / max(samples, 1),
+        "eval_samples_per_second": samples / max(elapsed, 1e-12),
+    }
+
+
 def main() -> None:
     args = _parse_args()
     _validate_args(args)
@@ -354,7 +402,7 @@ def main() -> None:
     (
         _run_save_path,
         train_dataset,
-        _valid_dataset,
+        valid_dataset,
         _test_dataset,
         model,
         _encoder,
@@ -372,6 +420,13 @@ def main() -> None:
         train_dataset,
         batch_size=args.batch_size,
         num_workers=args.num_workers,
+    )
+    eval_loader = _make_loader(
+        valid_dataset,
+        batch_size=args.batch_size,
+        num_workers=args.num_workers,
+        shuffle=False,
+        drop_last=False,
     )
     common = config.training.main.common
     optimizer_config = config.training.main.optimizer
@@ -404,6 +459,14 @@ def main() -> None:
             learning_rate_scale=args.lr_scale,
             group_learning_rate_scales=group_lr_scales,
             grad_clip_value=common.grad_clip_value,
+            use_amp=bool(common.use_amp),
+        )
+    )
+    result.update(
+        _evaluate(
+            model=model,
+            loader=eval_loader,
+            steps=args.eval_steps,
             use_amp=bool(common.use_amp),
         )
     )
