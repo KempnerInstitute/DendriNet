@@ -67,6 +67,16 @@ def _parse_args() -> argparse.Namespace:
         help="Multiply every configured optimizer-group learning rate.",
     )
     parser.add_argument(
+        "--group-lr-scale",
+        action="append",
+        default=[],
+        metavar="NAME=SCALE",
+        help=(
+            "Additional multiplier for one optimizer group. May be repeated; "
+            "for example --group-lr-scale decoder=0.01."
+        ),
+    )
+    parser.add_argument(
         "--output-dir",
         type=Path,
         default=Path("outputs/profiles/spatial_imagenet"),
@@ -86,6 +96,21 @@ def _validate_args(args: argparse.Namespace) -> None:
         raise ValueError("--lr-scale must be positive")
     if not torch.cuda.is_available():
         raise RuntimeError("This benchmark requires a CUDA GPU")
+
+
+def _parse_group_lr_scales(values: list[str]) -> dict[str, float]:
+    scales: dict[str, float] = {}
+    for value in values:
+        name, separator, raw_scale = value.partition("=")
+        if not separator or not name.strip():
+            raise ValueError(
+                f"--group-lr-scale must use NAME=SCALE syntax, got {value!r}"
+            )
+        scale = float(raw_scale)
+        if scale <= 0:
+            raise ValueError(f"--group-lr-scale values must be positive, got {value!r}")
+        scales[name.strip()] = scale
+    return scales
 
 
 def _cuda_gib(value: int) -> float:
@@ -197,6 +222,7 @@ def _profile(
     optimizer_config,
     param_groups_config,
     learning_rate_scale: float,
+    group_learning_rate_scales: dict[str, float],
     grad_clip_value: float | None,
     use_amp: bool,
 ) -> dict[str, Any]:
@@ -207,8 +233,21 @@ def _profile(
         model.get_param_groups(param_groups_config),
         optimizer_config,
     )
+    available_groups = {str(group.get("name", "")) for group in optimizer.param_groups}
+    unknown_groups = set(group_learning_rate_scales) - available_groups
+    if unknown_groups:
+        raise ValueError(
+            "Unknown optimizer groups in --group-lr-scale: "
+            f"{sorted(unknown_groups)}; available groups are "
+            f"{sorted(available_groups)}"
+        )
     for group in optimizer.param_groups:
-        group["lr"] = float(group["lr"]) * learning_rate_scale
+        group_name = str(group.get("name", ""))
+        group["lr"] = (
+            float(group["lr"])
+            * learning_rate_scale
+            * group_learning_rate_scales.get(group_name, 1.0)
+        )
     scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
     iterator = iter(loader)
 
@@ -303,6 +342,7 @@ def _profile(
 def main() -> None:
     args = _parse_args()
     _validate_args(args)
+    group_lr_scales = _parse_group_lr_scales(args.group_lr_scale)
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     config = load_config(str(args.config))
@@ -346,6 +386,7 @@ def main() -> None:
         "batch_size": args.batch_size,
         "num_workers": args.num_workers,
         "learning_rate_scale": args.lr_scale,
+        "group_learning_rate_scales": group_lr_scales,
         "train_dataset_samples": len(train_dataset),
         "use_amp": bool(common.use_amp),
         **_git_provenance(),
@@ -361,6 +402,7 @@ def main() -> None:
             optimizer_config=optimizer_config,
             param_groups_config=param_groups,
             learning_rate_scale=args.lr_scale,
+            group_learning_rate_scales=group_lr_scales,
             grad_clip_value=common.grad_clip_value,
             use_amp=bool(common.use_amp),
         )
