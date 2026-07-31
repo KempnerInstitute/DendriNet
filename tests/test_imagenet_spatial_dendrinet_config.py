@@ -55,3 +55,7 @@ def test_raw_imagenet_config_has_no_learned_image_backbone() -> None:
     assert config.model.core.sparsity.type == "indexed"
     assert config.model.core.sparsity.indexed["index_dtype"] == "int32"
     assert config.model.core.sparsity.indexed["persistent_indices"] is False
+    assert config.training.main.common.batch_size == 64
+    assert config.training.main.common.param_groups.decoder_lr == 3e-5
+    assert config.distributed.mode == "ddp"
+    assert config.analysis.performance_analysis.final_splits == ["valid"]

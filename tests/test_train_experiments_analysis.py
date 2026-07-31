@@ -105,7 +105,12 @@ def test_resolve_final_epoch_for_performance_plot_handles_missing_sections():
 
 def test_apply_cli_overrides_updates_config_fields():
     config = SimpleNamespace(
-        training=SimpleNamespace(main=SimpleNamespace(strategy="standard")),
+        training=SimpleNamespace(
+            main=SimpleNamespace(
+                strategy="standard",
+                common=SimpleNamespace(epochs=10),
+            )
+        ),
         outputs=SimpleNamespace(results_dir="old_dir", run_name="old_run"),
         experiment=SimpleNamespace(seed=1),
     )
@@ -114,6 +119,7 @@ def test_apply_cli_overrides_updates_config_fields():
         output_dir="new_dir",
         run_name="new_run",
         seed=99,
+        epochs=3,
     )
 
     train_experiments._apply_cli_overrides(config, args)
@@ -122,6 +128,7 @@ def test_apply_cli_overrides_updates_config_fields():
     assert config.outputs.results_dir == "new_dir"
     assert config.outputs.run_name == "new_run"
     assert config.experiment.seed == 99
+    assert config.training.main.common.epochs == 3
 
 
 def test_apply_cli_overrides_ignores_missing_args_object():
@@ -739,8 +746,10 @@ def test_prepare_encoded_training_state_runs_steps_in_order(monkeypatch):
     monkeypatch.setattr(
         train_experiments,
         "_load_or_train_encoder_datasets",
-        lambda **kwargs: events.append(("load", kwargs))
-        or (encoded_encoder, encoded_train_ds, encoded_valid_ds, encoded_test_ds),
+        lambda **kwargs: (
+            events.append(("load", kwargs))
+            or (encoded_encoder, encoded_train_ds, encoded_valid_ds, encoded_test_ds)
+        ),
     )
     monkeypatch.setattr(
         train_experiments,
@@ -869,8 +878,10 @@ def test_log_model_summary_before_training_uses_torchinfo(monkeypatch):
     monkeypatch.setattr(
         train_experiments.torchinfo,
         "summary",
-        lambda *args, **kwargs: summary_calls.append((args, kwargs))
-        or SimpleNamespace(total_params=11, trainable_params=7),
+        lambda *args, **kwargs: (
+            summary_calls.append((args, kwargs))
+            or SimpleNamespace(total_params=11, trainable_params=7)
+        ),
     )
 
     train_experiments._log_model_summary_before_training(
@@ -1001,31 +1012,31 @@ def test_setup_training_environment_worker_skips_rank0_outputs(monkeypatch):
     monkeypatch.setattr(
         train_experiments,
         "setup_environment",
-        lambda **kwargs: events.append(("setup", kwargs))
-        or (
-            "/tmp/worker-run",
-            train_ds,
-            valid_ds,
-            test_ds,
-            built_model,
-            encoder_network,
+        lambda **kwargs: (
+            events.append(("setup", kwargs))
+            or (
+                "/tmp/worker-run",
+                train_ds,
+                valid_ds,
+                test_ds,
+                built_model,
+                encoder_network,
+            )
         ),
     )
     monkeypatch.setattr(
         train_experiments,
         "_broadcast_run_save_path",
-        lambda path, *, world_size, is_main: events.append(
-            ("broadcast", path, world_size, is_main)
-        )
-        or "/tmp/shared-run",
+        lambda path, *, world_size, is_main: (
+            events.append(("broadcast", path, world_size, is_main)) or "/tmp/shared-run"
+        ),
     )
     monkeypatch.setattr(
         train_experiments,
         "_wrap_ddp_model",
-        lambda model, *, world_size, local_rank, is_main: events.append(
-            ("wrap", model, world_size, local_rank, is_main)
-        )
-        or model,
+        lambda model, *, world_size, local_rank, is_main: (
+            events.append(("wrap", model, world_size, local_rank, is_main)) or model
+        ),
     )
     monkeypatch.setattr(
         train_experiments,

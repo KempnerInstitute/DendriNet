@@ -141,7 +141,8 @@ training:
     strategy: "standard"
     common:
       epochs: 90
-      batch_size: 16
+      # Per-rank batch size; four-GPU DDP gives global batch 256.
+      batch_size: 64
       num_workers: 8
       pin_memory: true
       persistent_workers: true
@@ -168,7 +169,9 @@ training:
         topk_lr: 0.001
         blocklinear_lr: 0.0001
         reactivation_lr: 0.0001
-        decoder_lr: 0.001
+        # The 9.9M-parameter readout is sensitive at initialization. Bounded
+        # H200 canaries identified 3e-5 as stable while preserving early signal.
+        decoder_lr: 0.00003
     optimizer:
       name: "adamw"
       weight_decay: 0.01
@@ -202,7 +205,8 @@ analysis:
       mse: false
       cosine_similarity: false
     training_splits: ["valid"]
-    final_splits: ["valid", "test"]
+    # Keep the test split sealed while optimization choices are still being made.
+    final_splits: ["valid"]
   information: {enabled: false, training: false, params: {}}
   correlation: {enabled: false, training: false, params: {}}
   ablation: {enabled: false, training: false, params: {}}
@@ -225,7 +229,7 @@ outputs:
   run_name: "imagenet_raw_spatial_dendrinet_alexnet_matched_bp"
   results_dir: "outputs"
 
-# The model fits on one H200. Use DDP later only for throughput after a
-# one-GPU profile; FSDP is not needed for parameter memory.
+# The model fits easily on one H200. Four-GPU DDP is used only for throughput;
+# FSDP is neither required nor appropriate for this parameter footprint.
 distributed:
-  mode: "none"
+  mode: "ddp"

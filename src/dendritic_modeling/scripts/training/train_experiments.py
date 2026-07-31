@@ -585,18 +585,23 @@ def _apply_cli_overrides(config, args) -> None:
     if not args:
         return
 
-    if args.learning_strategy:
+    if getattr(args, "learning_strategy", None):
         config.training.main.strategy = args.learning_strategy
         logger.info(f"Override learning strategy: {args.learning_strategy}")
-    if args.output_dir:
+    if getattr(args, "output_dir", None):
         config.outputs.results_dir = args.output_dir
         logger.info(f"Override output directory: {args.output_dir}")
-    if args.run_name:
+    if getattr(args, "run_name", None):
         config.outputs.run_name = args.run_name
         logger.info(f"Override run name: {args.run_name}")
     if getattr(args, "seed", None) is not None:
         config.experiment.seed = args.seed
         logger.info(f"Override seed: {args.seed}")
+    if getattr(args, "epochs", None) is not None:
+        if args.epochs < 1:
+            raise ValueError("--epochs must be positive")
+        config.training.main.common.epochs = args.epochs
+        logger.info(f"Override main training epochs: {args.epochs}")
 
 
 def _load_and_prepare_training_config(
@@ -1509,6 +1514,12 @@ def _parse_cli_args():
         type=int,
         default=None,
         help="Override experiment seed (for running multiple seeds per config).",
+    )
+    parser.add_argument(
+        "--epochs",
+        type=int,
+        default=None,
+        help="Override the number of main-training epochs.",
     )
     parser.add_argument(
         "--validate-only",

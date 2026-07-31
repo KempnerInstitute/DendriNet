@@ -57,3 +57,7 @@
   vision backbone. Its 61,103,392 trainable parameters closely match AlexNet,
   and its fixed connectivity can be regenerated instead of stored in
   checkpoints.
+- Added a bounded H200 profiler for the raw-ImageNet model, including exact
+  optimizer groups, CUDA memory, input-pipeline throughput, early-learning
+  windows, and held-out evaluation. The training entrypoint also accepts a
+  main-epoch override for bounded canary runs.
