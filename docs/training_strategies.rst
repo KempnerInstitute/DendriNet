@@ -276,7 +276,10 @@ Error Broadcast
 
 ``error_broadcast_mode``
    ``"scalar"`` -- single scalar error for the whole network.
-   ``"per_soma"`` -- per-neuron error at the soma level.
+   ``"per_soma"`` -- legacy width-matched mode: use the per-neuron error at
+   the soma stage and fall back to a scalar at wider dendritic stages.
+   ``"per_soma_shared"`` -- repeat each soma error only over compartments in
+   that soma's subtree, preserving ancestry at every dendritic stage.
    ``"local_mismatch"`` -- locally computed mismatch signal.
 
 ``broadcast_bandwidth``

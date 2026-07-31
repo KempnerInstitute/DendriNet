@@ -89,7 +89,8 @@ def test_localca_config_changes_credit_rule_not_model_or_data() -> None:
     assert local.training.main.common.param_groups.decoder_lr == 3e-5
     assert local.training.main.learning_strategy_config.rule_variant == "5f"
     assert (
-        local.training.main.learning_strategy_config.error_broadcast_mode == "per_soma"
+        local.training.main.learning_strategy_config.error_broadcast_mode
+        == "per_soma_shared"
     )
     assert local.training.main.learning_strategy_config.decoder_update_mode == "local"
     assert local.distributed.mode == "ddp"

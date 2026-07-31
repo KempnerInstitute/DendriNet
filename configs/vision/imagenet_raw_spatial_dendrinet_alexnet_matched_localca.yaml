@@ -167,9 +167,9 @@ training:
     learning_strategy_config:
       rule_variant: "5f"
       error_mode: "auto"
-      # One decoder-derived error coordinate per soma, reused only along that
-      # soma's anatomical subtree.
-      error_broadcast_mode: "per_soma"
+      # One decoder-derived error coordinate per soma, repeated only over the
+      # compartments in that soma's anatomical subtree.
+      error_broadcast_mode: "per_soma_shared"
       broadcast_bandwidth: "full"
       decoder_update_mode: "local"
       encoder_update_mode: "none"

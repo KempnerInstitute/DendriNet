@@ -76,3 +76,7 @@
   DDP models, so distributed local training updates the configured readout.
 - Added bounded ImageNet sample and optimizer-group learning-rate CLI overrides
   for reproducible large-model canaries and tuning runs.
+- Corrected the raw-ImageNet LocalCA reference to use ancestry-shared soma
+  feedback at every dendritic stage. The legacy ``per_soma`` mode is
+  width-matched with scalar fallback; ``per_soma_shared`` explicitly repeats
+  each soma coordinate only along its own subtree.
