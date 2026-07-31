@@ -108,6 +108,7 @@ def test_apply_cli_overrides_updates_config_fields():
         training=SimpleNamespace(
             main=SimpleNamespace(
                 strategy="standard",
+                learning_strategy_config=SimpleNamespace(error_broadcast_mode="scalar"),
                 common=SimpleNamespace(
                     epochs=10,
                     param_groups=SimpleNamespace(
@@ -132,6 +133,7 @@ def test_apply_cli_overrides_updates_config_fields():
     )
     args = SimpleNamespace(
         learning_strategy="local_ca",
+        error_broadcast_mode="per_soma_shared",
         output_dir="new_dir",
         run_name="new_run",
         seed=99,
@@ -147,6 +149,10 @@ def test_apply_cli_overrides_updates_config_fields():
     train_experiments._apply_cli_overrides(config, args)
 
     assert config.training.main.strategy == "local_ca"
+    assert (
+        config.training.main.learning_strategy_config.error_broadcast_mode
+        == "per_soma_shared"
+    )
     assert config.outputs.results_dir == "new_dir"
     assert config.outputs.run_name == "new_run"
     assert config.experiment.seed == 99

@@ -588,6 +588,11 @@ def _apply_cli_overrides(config, args) -> None:
     if getattr(args, "learning_strategy", None):
         config.training.main.strategy = args.learning_strategy
         logger.info(f"Override learning strategy: {args.learning_strategy}")
+    if getattr(args, "error_broadcast_mode", None):
+        config.training.main.learning_strategy_config.error_broadcast_mode = (
+            args.error_broadcast_mode
+        )
+        logger.info("Override error broadcast mode: %s", args.error_broadcast_mode)
     if getattr(args, "output_dir", None):
         config.outputs.results_dir = args.output_dir
         logger.info(f"Override output directory: {args.output_dir}")
@@ -1549,6 +1554,19 @@ def _parse_cli_args():
             "multi_stage",
         ],
         help="Override learning strategy specified in config.",
+    )
+    parser.add_argument(
+        "--error_broadcast_mode",
+        choices=[
+            "scalar",
+            "per_soma",
+            "per_soma_shared",
+            "local_mismatch",
+            "low_rank",
+            "path_transport",
+            "pathway_vector",
+        ],
+        help="Override the LocalCA error-routing mode specified in config.",
     )
     parser.add_argument(
         "--seed",
