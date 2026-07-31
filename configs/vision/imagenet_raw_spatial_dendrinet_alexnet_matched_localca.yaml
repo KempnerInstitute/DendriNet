@@ -5,6 +5,9 @@
 # topology, optimizer groups, data, and decoder are identical. Only the core
 # credit-assignment rule changes: dendritic and synaptic parameters use the 5F
 # local rule, while the linear decoder uses its exact local output gradient.
+# The optimizer family and parameter partition match the BP run. Learning rates
+# are calibrated separately because ImageNet has roughly ten times more updates
+# per epoch than the smaller local-learning experiments.
 #
 # Active trainable parameter count:
 #   E branch synapses: 38,077,440
@@ -152,11 +155,11 @@ training:
       checkpointing: true
       checkpoint_interval: 10
       param_groups:
-        lr: 0.001
+        lr: 0.00005
         split_params: true
-        topk_lr: 0.001
-        blocklinear_lr: 0.0001
-        reactivation_lr: 0.0001
+        topk_lr: 0.00005
+        blocklinear_lr: 0.00002
+        reactivation_lr: 0.00001
         decoder_lr: 0.00003
     optimizer:
       name: "adamw"

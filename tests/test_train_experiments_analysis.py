@@ -108,7 +108,23 @@ def test_apply_cli_overrides_updates_config_fields():
         training=SimpleNamespace(
             main=SimpleNamespace(
                 strategy="standard",
-                common=SimpleNamespace(epochs=10),
+                common=SimpleNamespace(
+                    epochs=10,
+                    param_groups=SimpleNamespace(
+                        topk_lr=1e-3,
+                        blocklinear_lr=1e-4,
+                        reactivation_lr=1e-4,
+                        decoder_lr=1e-3,
+                    ),
+                ),
+            )
+        ),
+        data=SimpleNamespace(
+            dataset_params=SimpleNamespace(
+                imagenet=SimpleNamespace(
+                    train_samples_per_class=None,
+                    val_samples_per_class=None,
+                )
             )
         ),
         outputs=SimpleNamespace(results_dir="old_dir", run_name="old_run"),
@@ -120,6 +136,12 @@ def test_apply_cli_overrides_updates_config_fields():
         run_name="new_run",
         seed=99,
         epochs=3,
+        topk_lr=5e-5,
+        blocklinear_lr=2e-5,
+        reactivation_lr=1e-5,
+        decoder_lr=3e-5,
+        train_samples_per_class=2,
+        val_samples_per_class=1,
     )
 
     train_experiments._apply_cli_overrides(config, args)
@@ -129,6 +151,12 @@ def test_apply_cli_overrides_updates_config_fields():
     assert config.outputs.run_name == "new_run"
     assert config.experiment.seed == 99
     assert config.training.main.common.epochs == 3
+    assert config.training.main.common.param_groups.topk_lr == 5e-5
+    assert config.training.main.common.param_groups.blocklinear_lr == 2e-5
+    assert config.training.main.common.param_groups.reactivation_lr == 1e-5
+    assert config.training.main.common.param_groups.decoder_lr == 3e-5
+    assert config.data.dataset_params.imagenet.train_samples_per_class == 2
+    assert config.data.dataset_params.imagenet.val_samples_per_class == 1
 
 
 def test_apply_cli_overrides_ignores_missing_args_object():

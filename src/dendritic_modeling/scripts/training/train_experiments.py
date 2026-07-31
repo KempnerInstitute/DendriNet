@@ -603,6 +603,39 @@ def _apply_cli_overrides(config, args) -> None:
         config.training.main.common.epochs = args.epochs
         logger.info(f"Override main training epochs: {args.epochs}")
 
+    learning_rate_overrides = {
+        argument_name: getattr(args, argument_name, None)
+        for argument_name in (
+            "topk_lr",
+            "blocklinear_lr",
+            "reactivation_lr",
+            "decoder_lr",
+        )
+    }
+    if any(value is not None for value in learning_rate_overrides.values()):
+        param_groups = config.training.main.common.param_groups
+        for argument_name, value in learning_rate_overrides.items():
+            if value is None:
+                continue
+            if value <= 0:
+                raise ValueError(f"--{argument_name} must be positive")
+            setattr(param_groups, argument_name, value)
+            logger.info("Override %s: %s", argument_name, value)
+
+    sample_overrides = {
+        argument_name: getattr(args, argument_name, None)
+        for argument_name in ("train_samples_per_class", "val_samples_per_class")
+    }
+    if any(value is not None for value in sample_overrides.values()):
+        imagenet_params = config.data.dataset_params.imagenet
+        for argument_name, value in sample_overrides.items():
+            if value is None:
+                continue
+            if value < 1:
+                raise ValueError(f"--{argument_name} must be positive")
+            setattr(imagenet_params, argument_name, value)
+            logger.info("Override ImageNet %s: %s", argument_name, value)
+
 
 def _load_and_prepare_training_config(
     config_path: str,
@@ -1520,6 +1553,42 @@ def _parse_cli_args():
         type=int,
         default=None,
         help="Override the number of main-training epochs.",
+    )
+    parser.add_argument(
+        "--topk_lr",
+        type=float,
+        default=None,
+        help="Override the main trainer's sparse-synapse learning rate.",
+    )
+    parser.add_argument(
+        "--blocklinear_lr",
+        type=float,
+        default=None,
+        help="Override the main trainer's dendritic-coupling learning rate.",
+    )
+    parser.add_argument(
+        "--reactivation_lr",
+        type=float,
+        default=None,
+        help="Override the main trainer's reactivation learning rate.",
+    )
+    parser.add_argument(
+        "--decoder_lr",
+        type=float,
+        default=None,
+        help="Override the main trainer's decoder learning rate.",
+    )
+    parser.add_argument(
+        "--train_samples_per_class",
+        type=int,
+        default=None,
+        help="Bound ImageNet training samples per class for a canary run.",
+    )
+    parser.add_argument(
+        "--val_samples_per_class",
+        type=int,
+        default=None,
+        help="Bound ImageNet evaluation samples per class for a canary run.",
     )
     parser.add_argument(
         "--validate-only",

@@ -74,3 +74,5 @@
   transfers through the shared training data path.
 - Made LocalCA decoder recording, soma-error mapping, and decoder updates unwrap
   DDP models, so distributed local training updates the configured readout.
+- Added bounded ImageNet sample and optimizer-group learning-rate CLI overrides
+  for reproducible large-model canaries and tuning runs.

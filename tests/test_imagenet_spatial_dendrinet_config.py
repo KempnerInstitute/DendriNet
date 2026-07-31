@@ -81,9 +81,12 @@ def test_localca_config_changes_credit_rule_not_model_or_data() -> None:
     assert local.data == bp.data
     assert local.training.main.strategy == "local_ca"
     assert local.training.main.common.batch_size == bp.training.main.common.batch_size
-    assert (
-        local.training.main.common.param_groups == bp.training.main.common.param_groups
-    )
+    assert local.training.main.optimizer == bp.training.main.optimizer
+    assert local.training.main.common.param_groups.split_params is True
+    assert local.training.main.common.param_groups.topk_lr == 5e-5
+    assert local.training.main.common.param_groups.blocklinear_lr == 2e-5
+    assert local.training.main.common.param_groups.reactivation_lr == 1e-5
+    assert local.training.main.common.param_groups.decoder_lr == 3e-5
     assert local.training.main.learning_strategy_config.rule_variant == "5f"
     assert (
         local.training.main.learning_strategy_config.error_broadcast_mode == "per_soma"
