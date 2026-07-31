@@ -186,9 +186,11 @@ def main():
     for k, sz in by_site.most_common(8):
         print(f"{sz / 2**20:>10,.1f}{100 * sz / live:>7.1f}%  {k}")
     print(f"\n  cuda_gather retained : {gather_mb:,.1f} MB   step peak {peak:,.1f} MB")
-    print(f"  Blackwell baseline before C6 was {BASELINE_MB:,.1f} MB at "
-          f"12L/16k cuda batch 512.")
-    print(f"  Expect ~half of that if C6 took (int64 -> int32).")
+    print(f"  Baseline before C6 was {BASELINE_MB:,.1f} MB at 12L/16k cuda batch 512.")
+    print("  Expect 0.0, not half. `.to(torch.int32)` on an already-int32")
+    print("  contiguous tensor returns THE SAME TENSOR, so the retained index is")
+    print("  an alias of the module's existing buffer and costs no new bytes. The")
+    print("  old `.to(torch.int64)` was a real copy, so C6 removes all 889 MB.")
 
     print("\nPASS" if ok else "\nFAIL")
     return 0 if ok else 1

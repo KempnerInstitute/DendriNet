@@ -1,0 +1,49 @@
+---- CUDA + dendritic_env ----
+ext cache : /n/home12/rwhalen/.cache/torch_extensions_sm120
+nvcc      : /n/sw/helmod-rocky8/apps/Core/cuda/12.9.1-fasrc01/cuda/bin/nvcc
+Build cuda_12.9.r12.9/compiler.36037853_0
+CUDA_HOME : /n/sw/helmod-rocky8/apps/Core/cuda/12.9.1-fasrc01/cuda
+g++       : /n/sw/helmod-rocky8/apps/Core/gcc/12.2.0-fasrc01/bin/g++  (12.2.0)
+python    : /n/home12/rwhalen/.conda/envs/dendritic_env/bin/python
+torch     : 2.11.0+cu128 | cuda avail: True | device: NVIDIA RTX PRO 6000 Blackwell Server Edition
+ready -> build/run CUDA scripts in profilings/weight_transform_opt/
+GPU NVIDIA RTX PRO 6000 Blackwell Server Edition   optin=101,376 B
+
+==============================================================================
+[1] STRUCTURE -- dtype the gather retains for backward
+==============================================================================
+  saved tensors: ['float32', 'int32', 'float32']
+  index copy retained as int32  (7.3 MB for this one layer)   OK -- C6 took
+
+==============================================================================
+[3] GRADIENTS -- cuda path vs the fused reference
+==============================================================================
+  in=16,000 out=144,000 K= 40  grad_w 1.05e-07  grad_x 3.94e-07  OK
+  in=16,000 out= 48,000 K= 40  grad_w 1.05e-07  grad_x 2.47e-07  OK
+  in= 4,000 out= 48,000 K= 10  grad_w 1.05e-07  grad_x 2.48e-07  OK
+
+==============================================================================
+[4] C5 -- what memoizing _pick_tile() is worth
+==============================================================================
+  60 calls/step:  uncached 0.1200 ms   memoized 0.0014 ms   saved 0.1186 ms/step
+
+==============================================================================
+[2] MEMORY -- gather's retained index copy on the real config
+==============================================================================
+  116,160,000 indices total -> int32 443.1 MB | int64 886.2 MB
+
+        MB   share  site
+   4,979.6   49.3%  parametric.py:173
+   4,558.8   45.2%  parametric.py:171
+     448.0    4.4%  weight_transforms.py:119
+      85.9    0.9%  population_sources.py:38
+       9.7    0.1%  parametric.py:222
+       8.9    0.1%  blocklinear.py:313
+       6.0    0.1%  transfer.py:111
+       0.0    0.0%  ??:0
+
+  cuda_gather retained : 0.0 MB   step peak 13,370.1 MB
+  Blackwell baseline before C6 was 889.3 MB at 12L/16k cuda batch 512.
+  Expect ~half of that if C6 took (int64 -> int32).
+
+PASS

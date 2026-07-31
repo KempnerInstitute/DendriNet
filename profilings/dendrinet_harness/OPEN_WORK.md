@@ -73,19 +73,29 @@ Ledger: `rnn_scaling_benchmark.md`. 100k PASS multi-GPU; 1M **OOM** on 4×A100-4
 
 ---
 
-## UNVERIFIED — run these first on the next allocation
+## VERIFIED — C5/C6, both GPUs, `verify_c5_c6.py` PASS
 
-Two changes are committed but were **never executed on a GPU** (the allocation expired
-between writing and testing). They are small and mechanical, but "should be right" is not
-a measurement:
+Run on Blackwell (`sm120`) and A100-40GB (`sm80`); identical results.
 
-| # | change | what to run |
-|---|---|---|
-| U.1 | **C6** — gather wrapper now stores indices as int32 instead of upcasting to int64 and retaining the larger copy | `check_gradw_tile_equiv.py` (must PASS), then `bench_gather_variant_e2e.py` — expect ~386 MB less peak, output still bit-identical |
-| U.2 | **C5** — `_pick_tile()` memoized (was querying `get_device_capability()` 60×/step) | same runs; expect **~0** on feedforward. Only interesting on the batch-1 RNN, where host work is paid T times per sequence |
+**C6 — index dtype.** Retained dtype read off the autograd node: `['float32', 'int32',
+'float32']`. Gradients vs the fused reference agree on both arches (grad_w 1.05e-07,
+grad_x ≤ 3.96e-07).
 
-If U.1 regresses anything, revert it first — it touches the gather hot path, unlike
-everything else in the reactivation work.
+It beat the prediction. I expected the retained index to halve, 889 → ~445 MB. Measured
+**0.0 MB**, because `.to(torch.int32)` on an already-int32 contiguous tensor returns *the
+same tensor* — the retained index is now an alias of the module's existing buffer and costs
+no new bytes at all. The old `.to(torch.int64)` was a genuine copy, so C6 removes the whole
+889 MB rather than half of it.
+
+**C5 — memoized `_pick_tile()`.** Saves **0.1186 ms/step** (Blackwell) / **0.2396 ms/step**
+(A100) against an ~845 ms step: **0.014%** and **0.028%**. Confirmed a non-event on
+feedforward, as predicted. Kept because it is free and correct, and because the batch-1 RNN
+pays this host work T times per sequence at 31–37% GPU occupancy — but do not quote it as a
+feedforward win.
+
+**Peak is now 13,370.1 MB** on both arches, from 28,184.1 eager — **2.11×**.
+
+Notable: **the A100-40GB ran this config.** It needed 28.2 GB before today's memory work.
 
 ## Recommended order
 

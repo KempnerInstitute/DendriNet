@@ -134,6 +134,16 @@ at batch 64 by a harness bug) put `parametric.py` at **57.6% of live allocation*
 | + identity | 820.5 | 23,384.7 | 4,799 MB |
 | + fused activation | 841.1 | 18,551.5 | 9,633 MB (1.52×) |
 | **+ fused shunt** | 844.8 | **14,343.3** | **13,841 MB (1.96×)** |
+| + int32 indices (C6) | — | **13,370.1** | **14,814 MB (2.11×)** |
+
+C6 removes the gather wrapper's int32->int64->int32 index round trip, which had been
+retaining an 889 MB int64 copy per step and partly undoing the int32-index scaling lever.
+Verified on Blackwell AND A100-40GB (`verify_c5_c6.py` PASS on both): retained dtype read
+off the autograd node is int32, gradients agree with the fused reference to <= 4e-07. The
+retained copy costs **0.0 MB**, not the predicted ~445 -- `.to(torch.int32)` on an
+already-int32 contiguous tensor returns the same tensor, so it aliases the module's buffer.
+
+**The A100-40GB now runs this config**, which needed 28.2 GB before.
 
 Mechanism confirmed by re-profiling against an arithmetic one-tensor cost of 4,968.8 MB:
 the reactivation went 3 retained tensors → 1, and the divide+activation pair went
