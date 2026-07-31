@@ -143,7 +143,35 @@ itself, and only ever applied to the positive-tanh family.
    `{n, d+eps, v}` suffice and two are required. Further cuts need a different idea
    (recompute across the layer boundary, or checkpointing), not another fusion.
 
-5. **C1, C2, C3, C7 are closed.**
+5. **C1, C2, C3, C7 are closed.** C8 is ruled out by the same profile — no
+   `indexed_sparse` line appears in the allocation table, so `indices.to(device)` is the
+   no-op it looked like.
+
+---
+
+## STILL OPEN — the transient gap, and my method cannot see it
+
+Every allocation number in this document is **retained** memory, snapshotted at the top of
+the step. Peak is larger, and the difference is tensors that are created and freed within
+the step but still push the high-water mark.
+
+| | start of day | now |
+|---|---|---|
+| attributed retained | 25,936 MB | 10,097 MB |
+| step peak | 28,184 MB | 13,370 MB |
+| **transient gap** | 2,248 MB (8.0% of peak) | **3,273 MB (24.5% of peak)** |
+
+The gap barely moved in absolute terms — every fix targeted the retained side. So as a
+*share of peak* it has tripled, and it is now the **largest un-decomposed item** in the
+feedforward memory picture.
+
+This is also where C2 was explicitly not cleared: `(x * weights).sum(-1)` builds a real
+`[B, out, block]` product that `SumBackward` does not retain. Refuted as retention;
+untested as a peak contributor.
+
+Decomposing it needs a different instrument — `torch.cuda.memory._record_memory_history`
+sampled at the peak rather than at the top of the step, or the allocator trace rather than
+the live snapshot. Do that before assuming the feedforward memory work is finished.
 
 ---
 
