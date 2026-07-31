@@ -98,8 +98,11 @@ class LocalLearningRecorderMixin(ForwardHookRemovalMixin):
         self._decoder_cache.clear()
 
         try:
-            if hasattr(model, "decoder_network"):
-                handles.extend(self._attach_decoder_recorders(model.decoder_network))
+            component_model = self._unwrap_model(model)
+            if hasattr(component_model, "decoder_network"):
+                handles.extend(
+                    self._attach_decoder_recorders(component_model.decoder_network)
+                )
             branch_records, branch_handles = self._attach_branch_recorders(model)
             records.extend(branch_records)
             handles.extend(branch_handles)

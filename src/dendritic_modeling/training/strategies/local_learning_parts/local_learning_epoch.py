@@ -292,18 +292,22 @@ def _collect_backprop_param_groups(
     encoder_update_mode: str,
     decoder_update_mode: str,
 ) -> list[list[torch.nn.Parameter]]:
+    component_model = model.module if hasattr(model, "module") else model
     backprop_param_groups: list[list[torch.nn.Parameter]] = []
     if (
         encoder_update_mode == "backprop"
-        and hasattr(model, "encoder_network")
-        and model.encoder_network is not None
+        and hasattr(component_model, "encoder_network")
+        and component_model.encoder_network is not None
     ):
-        enc_params = _collect_trainable_parameters(model.encoder_network)
+        enc_params = _collect_trainable_parameters(component_model.encoder_network)
         if enc_params:
             backprop_param_groups.append(enc_params)
 
-    if hasattr(model, "decoder_network") and decoder_update_mode == "backprop":
-        dec_params = _collect_trainable_parameters(model.decoder_network)
+    if (
+        hasattr(component_model, "decoder_network")
+        and decoder_update_mode == "backprop"
+    ):
+        dec_params = _collect_trainable_parameters(component_model.decoder_network)
         if dec_params:
             backprop_param_groups.append(dec_params)
 
@@ -413,7 +417,10 @@ def _apply_local_decoder_update(
 ) -> None:
     """Apply decoder-local gradients when the current epoch mode requests them."""
 
-    if not (hasattr(model, "decoder_network") and decoder_update_mode == "local"):
+    component_model = model.module if hasattr(model, "module") else model
+    if not (
+        hasattr(component_model, "decoder_network") and decoder_update_mode == "local"
+    ):
         return
 
     _apply_decoder_local_gradients(

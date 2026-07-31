@@ -78,6 +78,17 @@ class _DecoderOnlyModel(nn.Module):
         return self.decoder_network(x)
 
 
+class _DDPStyleWrapper(nn.Module):
+    """Minimal wrapper exposing the same ``module`` boundary as DDP."""
+
+    def __init__(self, module: nn.Module):
+        super().__init__()
+        self.module = module
+
+    def forward(self, *args, **kwargs):
+        return self.module(*args, **kwargs)
+
+
 def _count_forward_and_pre_hooks(model: nn.Module) -> int:
     return sum(
         len(module._forward_hooks) + len(module._forward_pre_hooks)
@@ -202,6 +213,25 @@ def test_local_recorders_remove_decoder_pre_hook_after_linear_registration_failu
         trainer._attach_local_recorders(model)
 
     assert _count_forward_and_pre_hooks(model) == 0
+
+
+def test_local_recorders_capture_decoder_through_ddp_style_wrapper():
+    model = _DecoderOnlyModel()
+    wrapped = _DDPStyleWrapper(model)
+    trainer = LocalCreditAssignment.__new__(LocalCreditAssignment)
+    trainer._decoder_cache = {}
+
+    _records, handles = trainer._attach_local_recorders(wrapped)
+    x = torch.randn(4, 3)
+    try:
+        _ = wrapped(x)
+    finally:
+        for handle in handles:
+            handle.remove()
+
+    assert trainer._decoder_cache["module"] is model.decoder_network[0]
+    torch.testing.assert_close(trainer._decoder_cache["input"], x)
+    assert _count_forward_and_pre_hooks(wrapped) == 0
 
 
 def test_local_recorders_remove_partial_topk_hooks_after_failed_registration(

@@ -72,3 +72,5 @@
   learning curves report the full epoch rather than one rank's data shard.
 - Added LocalCA input-wait and step-time profiling and nonblocking pinned-memory
   transfers through the shared training data path.
+- Made LocalCA decoder recording, soma-error mapping, and decoder updates unwrap
+  DDP models, so distributed local training updates the configured readout.

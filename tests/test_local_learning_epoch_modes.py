@@ -935,6 +935,25 @@ def test_collect_backprop_param_groups_preserves_encoder_then_decoder_order():
     ]
 
 
+def test_collect_backprop_param_groups_unwraps_ddp_style_model():
+    encoder = nn.Linear(3, 2)
+    decoder = nn.Linear(2, 1)
+    wrapped = SimpleNamespace(
+        module=SimpleNamespace(
+            encoder_network=encoder,
+            decoder_network=decoder,
+        )
+    )
+
+    groups = _collect_backprop_param_groups(
+        wrapped,
+        encoder_update_mode="backprop",
+        decoder_update_mode="backprop",
+    )
+
+    assert groups == [list(encoder.parameters()), list(decoder.parameters())]
+
+
 def test_collect_trainable_parameters_preserves_module_order_and_filtering():
     module = nn.Sequential(nn.Linear(3, 4), nn.Linear(4, 2))
     module[0].bias.requires_grad_(False)
@@ -1123,6 +1142,27 @@ def test_apply_local_decoder_update_preserves_local_mode_gradients():
 
     _apply_local_decoder_update(
         model=model,
+        decoder_update_mode="local",
+        decoder_cache={"module": decoder, "input": h_in},
+        delta_out=delta_out,
+        normalize_by_batch=True,
+    )
+
+    torch.testing.assert_close(
+        decoder.weight.grad,
+        0.5 * (delta_out.t() @ h_in),
+    )
+    torch.testing.assert_close(decoder.bias.grad, torch.tensor([1.0]))
+
+
+def test_apply_local_decoder_update_unwraps_ddp_style_model():
+    decoder = nn.Linear(2, 1, bias=True)
+    wrapped = SimpleNamespace(module=SimpleNamespace(decoder_network=decoder))
+    h_in = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
+    delta_out = torch.tensor([[0.5], [1.5]])
+
+    _apply_local_decoder_update(
+        model=wrapped,
         decoder_update_mode="local",
         decoder_cache={"module": decoder, "input": h_in},
         delta_out=delta_out,

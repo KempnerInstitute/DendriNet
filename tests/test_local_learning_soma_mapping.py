@@ -66,6 +66,27 @@ def test_linear_decoder_maps_output_error_to_core_soma_error():
     torch.testing.assert_close(delta_local, expected_delta)
 
 
+def test_linear_decoder_mapping_unwraps_ddp_style_model():
+    decoder = nn.Linear(3, 2, bias=False)
+    model = _DummyModel(decoder)
+    wrapped = SimpleNamespace(module=model)
+    trainer = _make_trainer()
+    h_in = torch.randn(5, 3)
+    y_hat = torch.randn(5, 2)
+    delta_out = torch.randn(5, 2)
+    trainer._decoder_cache["module"] = decoder
+    trainer._decoder_cache["input"] = h_in
+
+    v0_local, delta_local = trainer._resolve_local_soma_signals(
+        wrapped,
+        y_hat,
+        delta_out,
+    )
+
+    torch.testing.assert_close(v0_local, h_in)
+    torch.testing.assert_close(delta_local, delta_out @ decoder.weight.detach())
+
+
 def test_nonlinear_decoder_maps_output_error_via_decoder_jacobian():
     """Multi-layer decoder should map error back to decoder input when cached."""
     torch.manual_seed(1)

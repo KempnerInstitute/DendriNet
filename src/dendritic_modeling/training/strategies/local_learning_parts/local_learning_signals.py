@@ -257,7 +257,8 @@ class LocalLearningSignalMixin:
 
         delta_local = delta_out.detach()
 
-        if not hasattr(model, "decoder_network"):
+        component_model = self._unwrap_model(model)
+        if not hasattr(component_model, "decoder_network"):
 
             return v0_local, delta_local
 
@@ -273,7 +274,7 @@ class LocalLearningSignalMixin:
 
         # We only apply explicit mapping when decoder is a single linear readout.
 
-        if not _has_single_linear_decoder(model.decoder_network):
+        if not _has_single_linear_decoder(component_model.decoder_network):
 
             self._warn_decoder_soma_fallback_once(
                 "Local soma-error mapping fallback: decoder is not a single linear layer."
