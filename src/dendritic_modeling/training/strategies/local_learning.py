@@ -9,6 +9,7 @@ by a broadcast soma error and optional morphology/information factors.
 """
 
 import logging
+import time
 from typing import Any
 
 import torch
@@ -38,7 +39,6 @@ from dendritic_modeling.training.strategies.local_learning_parts.local_learning_
     _enable_topk_mask_cache as _enable_topk_mask_cache,
     _forward_with_local_recorders,
     _has_dendritic_branch_layers,
-    _move_batch_to_device,
     _prepare_hsic_target,
     _resolve_epoch_update_modes as _resolve_epoch_update_modes,
     _resolve_local_epoch_update_modes,
@@ -174,8 +174,25 @@ class LocalCreditAssignment(
             # Defer to base implementation
             return super()._epoch_train(model, train_loader)
 
-        for batch in train_loader:
-            x_batch, y_batch = batch[0], batch[1]
+        profile_loader = bool(getattr(self, "profile_dataloader", False))
+        data_wait_total = 0.0
+        step_time_total = 0.0
+        max_data_wait = 0.0
+        n_batches = 0
+
+        train_iter = iter(train_loader)
+        while True:
+            fetch_start = time.perf_counter()
+            try:
+                batch = next(train_iter)
+            except StopIteration:
+                break
+            if profile_loader:
+                data_wait = time.perf_counter() - fetch_start
+                data_wait_total += data_wait
+                max_data_wait = max(max_data_wait, data_wait)
+                step_start = time.perf_counter()
+
             # Resolve per-epoch schedule for reactivation/decoder behavior
             update_reactivation, encoder_update_mode, decoder_update_mode = (
                 _resolve_local_epoch_update_modes(
@@ -184,7 +201,10 @@ class LocalCreditAssignment(
                     self._normalize_reactivation_update_mode(),
                 )
             )
-            x_batch, y_batch = _move_batch_to_device(x_batch, y_batch, self.device)
+            x_batch, y_batch = self._move_training_batch_to_device(
+                batch,
+                train_loader,
+            )
 
             # Forward once to obtain outputs and local signals.
             y_hat, layer_records = _forward_with_local_recorders(self, model, x_batch)
@@ -256,12 +276,23 @@ class LocalCreditAssignment(
 
             # Step optimizer
             self.optimizer.step()
+            n_batches += 1
+            if profile_loader:
+                step_time_total += time.perf_counter() - step_start
+
+        if profile_loader and self._is_main_process:
+            self._log_dataloader_profile(
+                n_batches=n_batches,
+                data_wait_total=data_wait_total,
+                step_time_total=step_time_total,
+                max_data_wait=max_data_wait,
+            )
 
         return _average_local_epoch_losses(
             train_loss=train_loss,
             train_loss_base=train_loss_base,
             train_loss_reg=train_loss_reg,
-            n_batches=len(train_loader),
+            n_batches=n_batches,
             device=self.device,
         )
 

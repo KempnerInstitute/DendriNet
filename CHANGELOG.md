@@ -70,3 +70,5 @@
   redundant full-model forward pass while preserving model-dependent fallbacks.
 - Aggregated LocalCA training-loss totals across DDP ranks so distributed
   learning curves report the full epoch rather than one rank's data shard.
+- Added LocalCA input-wait and step-time profiling and nonblocking pinned-memory
+  transfers through the shared training data path.
