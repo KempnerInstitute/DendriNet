@@ -526,10 +526,14 @@ def _pick_fwd_variant(IN: int, O: int, K: int) -> tuple[str, int, int]:
         return ("nostage", ns_P, 512)
     optin = _optin_shared()
     if IN * 4 > optin:
-        # The staged kernel cannot launch at all here; before this variant existed
-        # the path fell back to v2. This also lifts the IN <= optin/4 ceiling
-        # (25,344 on Blackwell) that gated scaling in_features.
-        return ("nostage", ns_P, 512)
+        # Above the ceiling the staged kernel cannot launch, but the answer is NOT
+        # the un-staged one: measured against the v2 shared-tiled forward it
+        # already fell back to, ns is 0.89-0.96x (bench_bwd_above_ceiling.py). v2
+        # tiles over IN and keeps idx+w in shared, which still pays when the row is
+        # huge. Returning "staged" here routes through _wpo_ok to that v2 path.
+        # (The BACKWARD goes the other way above the ceiling -- ns beats v2
+        # 1.11-1.20x there. Do not assume the two directions agree.)
+        return ("staged", *_pick_wpo_params())
     blocks_per_sm = optin // max(IN * 4, 1)
     reuse = (O * K) / max(IN, 1)
     if blocks_per_sm <= 1 and reuse >= _NOSTAGE_MIN_REUSE:
@@ -618,8 +622,18 @@ class _CudaSparseGather(torch.autograd.Function):
             xT = xf.t().contiguous()           # [IN, M]  (x is small; transpose is cheap)
             goT = gof.t().contiguous()         # [O, M]   (grad_out transpose, charged per call)
             grad_x, grad_w = ext.gather_bwd_wpo_cuda(gof, goT, xT, idx.to(torch.int32), wf, P, T)
-        else:                                  # fall back to v2 (grad_x row too large for shared)
-            grad_x, grad_w = ext.gather_bwd_cuda(gof, xf, idx, wf, B_O, B_M)
+        else:
+            # grad_x row does not fit shared, so the staged split backward cannot
+            # run. The un-staged grad_x needs no shared and DOES run here, and it
+            # beats the v2 fallback 1.11-1.20x above the ceiling (measured,
+            # bench_bwd_above_ceiling.py) -- even though it loses 2.1x to staged
+            # below it, where staged is available. Different comparison, different
+            # winner.
+            P, T = _pick_bwd_wpo_params(gof.size(1))
+            xT = xf.t().contiguous()
+            goT = gof.t().contiguous()
+            grad_x, grad_w = ext.gather_bwd_wpo_cuda2(
+                gof, goT, xT, idx.to(torch.int32), wf, P, T, 1)
         needs_x, _, needs_w = ctx.needs_input_grad[:3]
         return (
             grad_x.to(in_dtype) if needs_x else None,

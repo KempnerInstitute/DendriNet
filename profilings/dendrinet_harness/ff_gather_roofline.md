@@ -81,9 +81,19 @@ Shipped as `_pick_fwd_variant`, default `auto`, overridable with
 
 Network output **bit-identical** (`torch.equal` → True across all 60 sparse layers).
 
-**It also removes the `in_features` ceiling.** At IN=33,344 the staged kernel fails to
-launch (`invalid argument`, needs 133,376 B > optin 101,376); the un-staged one runs. That
-ceiling gated scaling `in_features` past 25,344 on Blackwell.
+**CORRECTION — it does NOT remove the `in_features` ceiling.** I claimed it did, on the
+grounds that the staged kernel cannot launch above IN = optin/4 while the un-staged one
+can. Both halves of that were misleading:
+
+1. Production never hard-failed there. `_wpo_ok` already routed above-ceiling shapes to the
+   **v2 shared-tiled forward**. The ceiling was a performance cliff, not a wall.
+2. Measured against that v2 forward, the un-staged kernel **loses**: 0.96× / 0.93× / 0.89×
+   at (33,344→48,000), (33,344→16,000), (50,688→16,000). v2 tiles over IN and keeps idx+w
+   in shared, which still pays when the row is huge.
+
+`_pick_fwd_variant` now returns `staged` above the ceiling, which routes through `_wpo_ok`
+to v2 — the measured best. The 1.086× end-to-end win is unaffected; it comes entirely from
+below-ceiling shapes.
 
 **Caveats.** Measured on Blackwell only. A100 has a larger optin (166,912 B), so `blk/SM`
 at IN=16,000 is 2 and the rule selects `staged` — a no-op there, not a regression, but the
@@ -146,8 +156,22 @@ scatter→gather transpose of grad_x, measured 2.2–2.4× slower. So all three 
 global atomics, index transpose, shared staging — have now been measured, and the shipped
 one wins.
 
-`gather_bwd_wpo_cuda2(..., gx_variant)` is retained solely so this stays re-testable (A100
-has different atomic throughput); it is never selected by default.
+**But the rejected kernel is not dead code — it wins ABOVE the ceiling.** Where the staged
+grad_x cannot run at all, the comparison is not ns-vs-staged but **ns-vs-v2**, and there ns
+wins:
+
+| IN | out | v2 (was) | ns | speedup |
+|---|---|---|---|---|
+| 33,344 | 48,000 | 7.78 ms | 6.51 ms | **1.19×** |
+| 33,344 | 16,000 | 2.60 ms | 2.33 ms | 1.12× |
+| 50,688 | 16,000 | 2.61 ms | 2.35 ms | 1.11× |
+
+Gradients agree to ≤3.3e-07. `_CudaSparseGather.backward` now uses
+`gather_bwd_wpo_cuda2(..., gx_variant=1)` above the ceiling instead of `gather_bwd_cuda`.
+
+**Note the asymmetry: above the ceiling the forward wants v2 and the backward wants ns.**
+The two directions do not agree, and assuming they would is what produced the wrong forward
+rule in the first place.
 
 ### The lever this exposes
 
