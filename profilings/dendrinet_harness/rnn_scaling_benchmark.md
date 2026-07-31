@@ -158,70 +158,39 @@ Equivalence: fp64 output *and* every gradient bit-identical up to 46% saturation
 2.4e-07 end-to-end and does not grow with saturation; 200 Adam steps with a saturating
 input end at final-loss relative difference 0.00e+00.
 
-## Batch scaling — feedforward stress config, Blackwell, cuda path
+## Batch scaling — feedforward stress config, Blackwell (97,252 MB), cuda path
 
-| batch | peak (MB) | vs batch 512 |
-|---|---|---|
-| 512 | 13,370.1 | 1.00× |
-| **2048** | **48,810.2** | 3.65× |
+Full sweep of batch x mode. **Batch 4096 runs — and only with the complete stack.**
 
-Sub-linear in batch because ~450 MB (the transformed weights) is batch-independent.
-Predicted ~52 GB from the batch-512 composition; measured 48.8 GB.
+| batch | eager | identity | fused-act | fused-shunt |
+|---|---|---|---|---|
+| 128 | 7,924.8 | 6,723.4 | 5,503.5 | **4,292.6** |
+| 256 | 14,361.9 | 11,949.5 | 9,518.7 | **7,096.9** |
+| 512 | 27,236.2 | 22,401.9 | 17,549.2 | **12,705.5** |
+| 1024 | 52,984.6 | 43,306.6 | 33,610.2 | **23,922.7** |
+| 2048 | **OOM** | 85,116.0 | 65,732.1 | **46,357.1** |
+| 4096 | — | **OOM** | **OOM** | **91,226.0** |
 
-**Batch 2048 was not reachable this morning.** At the pre-fusion 28,184 MB it would have
-needed ~103 GB, which is no single GPU here; it now fits a 96 GB Blackwell with 47 GB spare.
-The transient gap grows with it — 9,880 MB, still ~20% of peak — so that remains the
-un-decomposed term at any batch.
+*(peak MB; OOM = did not fit 97,252 MB)*
 
-## 1M gate re-run WITH the fusions — still OOM, and the reason is now known (job 36607767)
+**The maximum trainable batch quadrupled**, 1024 → 4096. Without this work the config
+cannot pass batch 1024 on a 97 GB card; the 2048 and 4096 runs exist only because of it.
 
-Re-ran `scale_1m_5k.yaml` on 4× A100-40GB with every memory fix active. Result: **OOM at
-38,995 MB/GPU, tried to allocate 2.98 GiB** — *byte-identical to the pre-fusion baseline.*
+The ratio against eager grows with batch, because the ~1.7 GB batch-independent term is a
+shrinking share of the total: 1.85x at 128, 2.02x at 256, 2.14x at 512, **2.21x at 1024**
+(the largest batch where all four modes still run, so the last honest comparison).
 
-That identity is the finding. The traceback says why:
+**Speed is flat to slightly better in every cell** — 193.0 vs 204.7 ms at batch 128,
+1,658.8 vs 1,680.1 at 1024. None of this trades speed for memory.
 
-```
-fsdp_utils.py:324  wrap_model_with_fsdp
-  FSDP.__init__
-    _init_param_handle_from_module
-      _sync_module_params_and_buffers      <- OOM here
-```
+Prediction check, recorded because it was contested: fitting **21.84 MB/sample + 1,678 MB**
+to the 512 and 2048 points predicted 91,100 MB at batch 4096. Measured **91,226 MB** —
+0.14% off. An intermediate claim that 4096 would "most likely OOM" came from doubling the
+2048 figure instead of fitting the line, which ignores the fixed term; it was wrong and the
+original "tight but plausible" was right.
 
-**It dies inside `FSDP.__init__`, before a single forward pass.** Every rank materializes
-the entire unsharded 1M model (**37.63 GB allocated**) and then `sync_module_states=True`
-tries to broadcast, needing 2.98 GiB more than the card has.
-
-**So the 1M blocker is model materialization, not activation memory.** Everything in this
-ledger's recent work — the reactivation fusion, the shunt fusion, int32 indices — operates
-on forward/backward activations. The 1M model never reaches a forward, which is exactly why
-the number did not move by even a megabyte. The 2.11× is real and will apply the moment the
-model fits; it simply cannot help this failure.
-
-### What the 37.63 GB is, and what would shard
-
-1M neurons (800k E + 200k I) × ~5k synapses:
-
-| term | size | shardable by FSDP? |
-|---|---|---|
-| `pre_w` (parameters) | ~20 GB | **yes** — but only after init succeeds |
-| `connection_indices` (buffers) | ~20 GB | **no** — FSDP does not shard buffers |
-
-This also resolves the ledger's open question above. It noted that `idx` alone (18.6 GB)
-"is not sufficient to explain the floor" — the rest is the parameter tensor, which FSDP
-*would* shard if it could get past initialization.
-
-### The two things 1M actually needs
-
-1. **Deferred / meta-device init** (`param_init_fn`, currently `None` at `fsdp_utils.py:264`;
-   `sync_module_states` defaults True at :143). Construct on `meta`, let FSDP materialize
-   only each rank's shard, so no rank ever holds the full 40 GB. Would put parameters at
-   ~5 GB/rank on 4 GPUs.
-2. **Do something about the replicated index buffer** — ~20 GB/rank at 1M and untouched by
-   sharding. `IndexedSparseLinear` already carries an `init_mode="per_rank"`, which is the
-   thread to pull: if every rank regenerates identical indices from a shared seed, the
-   broadcast is unnecessary and the buffer need never be synced.
-
-Both are systems work on the init path. Neither is a kernel change nor an activation-memory problem.
+Raw data: `ff_stress/batchsweep/blackwell.json` (untracked — `profilings/**/*.json` is
+gitignored by project convention).
 
 ## Open rows
 | scale | GPU | path | epoch (s) | peak (MB) | notes |
