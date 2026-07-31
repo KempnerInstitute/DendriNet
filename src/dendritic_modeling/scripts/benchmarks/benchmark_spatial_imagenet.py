@@ -159,11 +159,12 @@ def _optimizer_step(
     labels: torch.Tensor,
     grad_clip_value: float | None,
     use_amp: bool,
-) -> float:
+) -> tuple[float, int]:
     optimizer.zero_grad(set_to_none=True)
     with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=use_amp):
         logits = model(images)
         loss = F.cross_entropy(logits, labels)
+    correct = int((logits.detach().argmax(dim=-1) == labels).sum())
 
     scaler.scale(loss).backward()
     if grad_clip_value:
@@ -171,7 +172,7 @@ def _optimizer_step(
         clip_grad_value_(model.parameters(), float(grad_clip_value))
     scaler.step(optimizer)
     scaler.update()
-    return float(loss.detach())
+    return float(loss.detach()), correct
 
 
 @torch.no_grad()
@@ -238,6 +239,7 @@ def _profile(
     data_wait_seconds = 0.0
     step_seconds = 0.0
     losses = []
+    correct_predictions = 0
 
     for _ in range(steps):
         wait_start = time.perf_counter()
@@ -249,22 +251,23 @@ def _profile(
         labels = labels.to(device, non_blocking=True)
         _synchronize()
         step_start = time.perf_counter()
-        losses.append(
-            _optimizer_step(
-                model=model,
-                optimizer=optimizer,
-                scaler=scaler,
-                images=images,
-                labels=labels,
-                grad_clip_value=grad_clip_value,
-                use_amp=use_amp,
-            )
+        loss, correct = _optimizer_step(
+            model=model,
+            optimizer=optimizer,
+            scaler=scaler,
+            images=images,
+            labels=labels,
+            grad_clip_value=grad_clip_value,
+            use_amp=use_amp,
         )
+        losses.append(loss)
+        correct_predictions += correct
         _synchronize()
         step_seconds += time.perf_counter() - step_start
 
     samples = batch_size * steps
     total_seconds = data_wait_seconds + step_seconds
+    loss_window = max(1, steps // 4)
     optimizer_groups = [
         {
             "name": str(group.get("name", f"group_{idx}")),
@@ -280,6 +283,10 @@ def _profile(
         "initial_loss": initial_loss,
         "loss_first": losses[0],
         "loss_last": losses[-1],
+        "loss_mean": sum(losses) / len(losses),
+        "loss_first_window_mean": sum(losses[:loss_window]) / loss_window,
+        "loss_last_window_mean": sum(losses[-loss_window:]) / loss_window,
+        "online_top1_accuracy": correct_predictions / samples,
         "all_losses_finite": all(torch.isfinite(torch.tensor(losses)).tolist()),
         "data_wait_seconds": data_wait_seconds,
         "optimizer_step_seconds": step_seconds,
