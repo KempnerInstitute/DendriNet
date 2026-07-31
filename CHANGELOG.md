@@ -61,3 +61,5 @@
   optimizer groups, CUDA memory, input-pipeline throughput, early-learning
   windows, and held-out evaluation. The training entrypoint also accepts a
   main-epoch override for bounded canary runs.
+- Made post-training resource accounting operate directly on compact indexed
+  connectivity, avoiding dense compatibility matrices for large sparse models.

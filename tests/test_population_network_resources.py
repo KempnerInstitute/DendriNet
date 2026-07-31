@@ -221,6 +221,29 @@ def test_indexed_topology_is_reproducible_and_namespaced_by_pathway() -> None:
     )
 
 
+def test_indexed_resource_summary_uses_compact_fixed_indices(monkeypatch) -> None:
+    network = _indexed_point_population_network()
+
+    def reject_dense_snapshot(_synapse):
+        raise AssertionError("indexed resource accounting must remain compact")
+
+    monkeypatch.setattr(
+        "dendritic_modeling.analysis.utils.model_resources."
+        "effective_synapse_snapshot",
+        reject_dense_snapshot,
+    )
+    summary = model_resource_summary(network)
+
+    assert summary["active_synapses"] == 16
+    assert summary["candidate_synapse_slots"] == 32
+    assert {record["selection_policy"] for record in summary["synapses"]} == {
+        "indexed_fixed"
+    }
+    assert {record["mask_source"] for record in summary["synapses"]} == {
+        "fixed_indices"
+    }
+
+
 def test_indexed_topology_base_seed_is_namespaced_by_layer_and_population() -> None:
     base = _indexed_point_population_network()
     renamed_layer = _indexed_point_population_network(layer_name="renamed")

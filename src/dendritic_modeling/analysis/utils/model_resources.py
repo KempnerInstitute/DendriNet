@@ -197,25 +197,51 @@ def synapse_resource_records(model: torch.nn.Module) -> list[SynapseResourceReco
             if synapse is None or id(synapse) in seen:
                 continue
             seen.add(id(synapse))
-            snapshot = effective_synapse_snapshot(synapse)
-            realized_k = snapshot.realized_k.to(dtype=torch.float32)
+            compact_counts_fn = getattr(
+                synapse,
+                "connectivity_resource_counts",
+                None,
+            )
+            if callable(compact_counts_fn):
+                counts = compact_counts_fn()
+                out_features = int(counts["out_features"])
+                in_features = int(counts["in_features"])
+                candidate_slots = int(counts["candidate_slots"])
+                active_synapses = int(counts["active_synapses"])
+                realized_k_min = int(counts["realized_k_min"])
+                realized_k_max = int(counts["realized_k_max"])
+                realized_k_mean = float(counts["realized_k_mean"])
+                selection_policy = str(counts["selection_policy"])
+                mask_source = str(counts["mask_source"])
+            else:
+                snapshot = effective_synapse_snapshot(synapse)
+                realized_k = snapshot.realized_k.to(dtype=torch.float32)
+                out_features = int(snapshot.active_mask.shape[0])
+                in_features = int(snapshot.active_mask.shape[1])
+                candidate_slots = int(snapshot.candidate_mask.ne(0).sum().item())
+                active_synapses = int(snapshot.active_mask.ne(0).sum().item())
+                realized_k_min = int(realized_k.min().item())
+                realized_k_max = int(realized_k.max().item())
+                realized_k_mean = float(realized_k.mean().item())
+                selection_policy = snapshot.selection_policy
+                mask_source = snapshot.mask_source
             records.append(
                 SynapseResourceRecord(
                     module=f"{branch_name}.{attr}",
                     pathway=pathway,
                     soma_relative_depth=int(depth),
-                    out_features=int(snapshot.active_mask.shape[0]),
-                    in_features=int(snapshot.active_mask.shape[1]),
+                    out_features=out_features,
+                    in_features=in_features,
                     candidate_parameters=int(
                         sum(parameter.numel() for parameter in synapse.parameters())
                     ),
-                    candidate_slots=int(snapshot.candidate_mask.ne(0).sum().item()),
-                    active_synapses=int(snapshot.active_mask.ne(0).sum().item()),
-                    realized_k_min=int(realized_k.min().item()),
-                    realized_k_max=int(realized_k.max().item()),
-                    realized_k_mean=float(realized_k.mean().item()),
-                    selection_policy=snapshot.selection_policy,
-                    mask_source=snapshot.mask_source,
+                    candidate_slots=candidate_slots,
+                    active_synapses=active_synapses,
+                    realized_k_min=realized_k_min,
+                    realized_k_max=realized_k_max,
+                    realized_k_mean=realized_k_mean,
+                    selection_policy=selection_policy,
+                    mask_source=mask_source,
                 )
             )
     return records

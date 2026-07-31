@@ -249,6 +249,52 @@ class IndexedSparseLinear(nn.Module):
         """Return the trainable sparse weights with shape ``[out_features, K]``."""
         return apply_weight_transform(self.pre_w, self.weight_transform)
 
+    def connectivity_resource_counts(self) -> dict[str, int | float | str]:
+        """Return exact connectivity counts without materializing a dense matrix.
+
+        Resource accounting is called after training, including for layers whose
+        dense compatibility view can be hundreds of GiB.  Fixed indexed layers
+        already store every realized contact explicitly, so their counts should
+        be obtained from the compact indices.
+        """
+
+        allowed = self._allowed_connection_mask
+        forbidden = self._forbidden_input_index_per_output
+        if allowed.numel() > 0:
+            candidate_slots = int(allowed.count_nonzero().item())
+            if forbidden.numel() > 0:
+                valid = forbidden >= 0
+                if bool(valid.any()):
+                    rows = torch.arange(
+                        self.out_features,
+                        device=forbidden.device,
+                    )
+                    candidate_slots -= int(
+                        allowed[
+                            rows[valid],
+                            forbidden[valid].to(torch.long),
+                        ]
+                        .count_nonzero()
+                        .item()
+                    )
+        else:
+            candidate_slots = self.out_features * self.in_features
+            if forbidden.numel() > 0:
+                candidate_slots -= int((forbidden >= 0).count_nonzero().item())
+
+        active_synapses = int(self.connection_indices.numel())
+        return {
+            "out_features": self.out_features,
+            "in_features": self.in_features,
+            "candidate_slots": candidate_slots,
+            "active_synapses": active_synapses,
+            "realized_k_min": self.K,
+            "realized_k_max": self.K,
+            "realized_k_mean": float(self.K),
+            "selection_policy": "indexed_fixed",
+            "mask_source": "fixed_indices",
+        }
+
     def _normalized_sparse_weight(self) -> torch.Tensor:
         weight = self.sparse_weight()
         if self.weight_norm_order is None:
