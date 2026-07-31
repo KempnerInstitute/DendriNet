@@ -1,0 +1,36 @@
+GPU NVIDIA RTX PRO 6000 Blackwell Server Edition
+config configs/examples/kernel_stress_ab/kernel_stress_12L_16k_cuda.yaml
+path=cuda  batch=128
+
+==============================================================================
+[1] ARITHMETIC -- what the transformed weights must cost
+==============================================================================
+   12 layers of       (144000, 40)      22.0 MB each      263.7 MB total
+   12 layers of        (48000, 40)       7.3 MB each       87.9 MB total
+   12 layers of       (144000, 10)       5.5 MB each       65.9 MB total
+   12 layers of        (48000, 10)       1.8 MB each       22.0 MB total
+   12 layers of         (2000, 40)       0.3 MB each        3.7 MB total
+
+  60 indexed layers, transformed weight total: 443.1 MB
+
+==============================================================================
+[2]+[3] PROFILER -- live allocation at the top of the step
+==============================================================================
+        MB   share  site
+   3,729.5   49.7%  parametric.py:57  _positive_tanh_centered
+   1,137.5   15.2%  branch_dynamics.py:285  forward_branch_dynamics
+     893.2   11.9%  cuda_gather.py:619  forward
+     855.5   11.4%  branch_dynamics.py:213  forward_branch_dynamics
+     454.1    6.1%  weight_transforms.py:119  apply_weight_transform
+     388.3    5.2%  branch_dynamics.py:245  forward_branch_dynamics
+      25.6    0.3%  population_sources.py:38  _concat_or_none
+       9.7    0.1%  parametric.py:104  forward
+       8.9    0.1%  blocklinear.py:313  forward
+       1.7    0.0%  transfer.py:111  forward
+       0.0    0.0%  ??:0  torch::unwind::unwind()
+
+  live total 7,504.0 MB   step peak 8,821.5 MB
+  weight_transforms attributed: 454.1 MB (6.1% of live, 5.1% of peak)
+  arithmetic said: 443.1 MB  -> AGREE
+
+  C1 is only worth doing if it is large as a share of PEAK.

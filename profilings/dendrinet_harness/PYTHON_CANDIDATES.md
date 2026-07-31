@@ -43,7 +43,47 @@ holds on **every** path including the naive loop.
 
 ---
 
-## C1 — `sparse_weight()` materializes the transformed weight **[M]**
+---
+
+# MEASURED RANKING (cuda, batch 512, Blackwell — 2026-07-30)
+
+`profile_c1_weight_transform.py`, live allocation at the top of the step (after forward,
+before backward frees anything). Peak 28,184 MB, live 25,936 MB.
+
+| MB | share | site | was |
+|---:|---:|---|---|
+| **14,943.5** | **57.6%** | `parametric.py:57` `_positive_tanh_centered` | not on the list |
+| 4,559.8 | 17.6% | `branch_dynamics.py:285` | C4 |
+| 3,432.8 | 13.2% | `branch_dynamics.py:213` | C4 |
+| 1,550.6 | 6.0% | `branch_dynamics.py:245` | C4 |
+| 890.3 | 3.4% | `cuda_gather.py:619` forward | — |
+| **448.6** | **1.7%** | `weight_transforms.py:119` | **C1** |
+
+**C1 is dead: 1.7% of live, 1.6% of peak — not 28.9%.** The old figure was exactly the
+fused/batch-64 artifact predicted. Arithmetic cross-check passed (443.1 MB predicted vs
+448.6 measured, AGREE), so the attribution is trustworthy and this is a real refutation
+rather than a broken measurement.
+
+**The real #1 is the reactivation** at 57.6% — and `parametric.py:57` is the *slow* branch,
+taken because `DENDRINET_POSITIVE_TANH_SIGMOID` defaults off. The identity already built and
+verified today measured **1.19× peak end-to-end (4.8 GB)** against precisely this line.
+
+**The real #2 is C4**, `branch_dynamics` accumulation, at **36.8% combined** — far larger
+than the "[P] 120 ops" estimate that had it fourth.
+
+### Revised order
+
+1. **Turn on the sigmoid identity.** Already implemented, fp64 bit-identical, no drift over
+   200 Adam steps, 4.8 GB measured. It attacks the 57.6% line and costs nothing new.
+2. **Then attack `parametric.py:57` structurally** — the identity only removes transient
+   temporaries; the two full-size tensors retained for backward remain. Profile the
+   composition of that 14.9 GB before designing the fix.
+3. **Then C4** (`branch_dynamics`, 36.8%).
+4. C3, C5, C6 as cheap ride-alongs. **C1 and C7 are closed.**
+
+---
+
+## C1 — `sparse_weight()` materializes the transformed weight — **REFUTED, 1.6% of peak**
 
 `indexed_sparse.py:293` → `weight_transforms.py:119` → `softplus(pre_w)`
 
