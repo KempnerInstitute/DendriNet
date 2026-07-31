@@ -1,0 +1,19 @@
+GPU NVIDIA RTX PRO 6000 Blackwell Server Edition   configs/examples/kernel_stress_ab/kernel_stress_12L_16k_cuda.yaml
+path=cuda  batch=512
+
+  measured eager
+  measured identity
+  measured fused-act
+  measured fused-shunt
+
+      mode   step (ms)   peak (MB)   vs eager   mem saved
+     eager       841.9     27314.8      1.00x          0 MB
+  identity       816.6     22506.4      1.21x       4808 MB
+ fused-act       832.6     17673.2      1.55x       9642 MB
+fused-shunt       823.0     12859.7      2.12x      14455 MB
+
+      mode   max rel d out   max rel d grad_x
+     eager        0.00e+00           0.00e+00
+  identity        2.39e-07           3.97e-07
+ fused-act        2.39e-07           3.97e-07
+fused-shunt        2.39e-07           7.22e-07

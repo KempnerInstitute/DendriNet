@@ -2,46 +2,37 @@ GPU NVIDIA RTX PRO 6000 Blackwell Server Edition
 path=cuda  batch=2048
 
 ====================================================================================
-LIVE AT PEAK  (9,192 events, peak at event 3,268)
+LIVE AT PEAK  (7,751 events, peak at event 2,872)
 ====================================================================================
         MB   share  site
-  19,875.0   41.7%  parametric.py:173  forward
-  17,813.3   37.4%  parametric.py:171  forward
-   2,250.0    4.7%  parametric.py:197  backward
-   1,135.1    2.4%  <no frames>
-   1,125.0    2.4%  parametric.py:184  backward
-   1,125.0    2.4%  parametric.py:185  backward
-   1,125.0    2.4%  parametric.py:189  backward
-   1,125.0    2.4%  parametric.py:193  backward
-   1,125.0    2.4%  parametric.py:194  backward
-     443.1    0.9%  weight_transforms.py:119  apply_weight_transform
-     343.8    0.7%  population_sources.py:38  _concat_or_none
-     156.2    0.3%  cuda_gather.py:664  backward
+  20,500.0   47.0%  parametric.py:182  forward
+  17,813.3   40.8%  parametric.py:180  forward
+   1,125.0    2.6%  cuda_gather.py:643  forward
+   1,125.0    2.6%  branch_dynamics.py:217  forward_branch_dynamics
+   1,125.0    2.6%  cuda_gather.py:645  forward
+   1,125.0    2.6%  branch_dynamics.py:265  forward_branch_dynamics
+     434.0    1.0%  weight_transforms.py:119  apply_weight_transform
+     343.8    0.8%  population_sources.py:38  _concat_or_none
       24.0    0.1%  transfer.py:111  forward
-       9.5    0.0%  parametric.py:222  run
-       8.9    0.0%  blocklinear.py:313  forward
-       0.5    0.0%  parametric.py:183  backward
+       9.5    0.0%  parametric.py:251  run
+       8.1    0.0%  blocklinear.py:313  forward
+       0.5    0.0%  parametric.py:181  forward
 
-  trace peak 47,684.6 MB   torch-reported peak 48,810.2 MB
+  trace peak 43,633.1 MB   torch-reported peak 46,405.1 MB
 
 ====================================================================================
 TRANSIENT CONTRIBUTION  (live at peak, minus what survives the step)
 ====================================================================================
         MB  site
-  17,813.3  parametric.py:171  forward
-   2,250.0  parametric.py:197  backward
-   1,125.0  parametric.py:184  backward
-   1,125.0  parametric.py:185  backward
-   1,125.0  parametric.py:189  backward
-   1,125.0  parametric.py:193  backward
-   1,125.0  parametric.py:194  backward
-     673.4  <no frames>
+  17,813.3  parametric.py:180  forward
+   1,125.0  cuda_gather.py:643  forward
+   1,125.0  branch_dynamics.py:217  forward_branch_dynamics
+   1,125.0  cuda_gather.py:645  forward
+   1,125.0  branch_dynamics.py:265  forward_branch_dynamics
+     625.0  parametric.py:182  forward
      343.8  population_sources.py:38  _concat_or_none
-     156.2  cuda_gather.py:664  backward
       24.0  transfer.py:111  forward
-       9.5  parametric.py:222  run
-       0.5  parametric.py:183  backward
-       0.0  profile_peak_transients.py:80  step
-       0.0  __init__.py:231  _make_grads
+       9.5  parametric.py:251  run
+       0.5  parametric.py:181  forward
 
-  transient total 26,895.7 MB of a 47,684.6 MB peak
+  transient total 23,316.0 MB of a 43,633.1 MB peak

@@ -169,9 +169,43 @@ This is also where C2 was explicitly not cleared: `(x * weights).sum(-1)` builds
 `[B, out, block]` product that `SumBackward` does not retain. Refuted as retention;
 untested as a peak contributor.
 
-Decomposing it needs a different instrument — `torch.cuda.memory._record_memory_history`
-sampled at the peak rather than at the top of the step, or the allocator trace rather than
-the live snapshot. Do that before assuming the feedforward memory work is finished.
+### RESOLVED — the transient gap was mostly my own backward
+
+Built `profile_peak_transients.py`: replay the allocator's event trace and dump the live set
+at the moment the running total is maximal. Two hypotheses were stated before measuring.
+
+**Confirmed:** `_ShuntDividePositiveTanh.backward` was **1,968.5 MB = 16.0% of peak**, in
+seven full-size temporaries, three of them pure redundancy — `logit(y)` computed twice
+(562.5 MB on one line), `gs` kept alive only to build `gv`, and `grad_d` re-dividing by `de`
+that `grad_n` had already divided by. I cut retained memory 2× and pushed transient memory
+up doing it.
+
+**Refuted:** the gather backward's `xT`/`goT` transposes were **39.1 MB (0.3%)** — a time
+cost (5.2% of backward), not a memory one.
+
+Rewritten for allocation count: one buffer for `gs`/`gv`, `logit` computed once and finally
+overwritten in place to become `grad_d`, `grad_scale` derived from `gv` (since `gs = gv/2m`),
+`grad_d = -grad_n*v`. Same treatment for `_PositiveTanhCentered.backward`.
+
+| | before | after |
+|---|---|---|
+| backward temporaries | 1,968.5 MB | **absent from the peak** |
+| peak occurs during | backward (event 3,218) | **forward** (event 2,871) |
+| peak, batch 512 | 13,370.1 MB | **12,743.8 MB** |
+| peak, batch 2048 | 48,810.2 MB | **46,405.1 MB** |
+| step time | 844.8 ms | **823.0 ms** |
+
+Smaller *and* faster — in-place elementwise beats allocate-then-write here.
+
+### What is left, and why it is the floor
+
+At batch 512 the peak is now `y` (5,125 MB) and `d+eps` (4,454 MB) — the two tensors a
+divide-then-activate provably must keep — plus ~1.4 GB of genuine forward working set
+(gather fp32 conversions, shunt accumulation intermediates) and 434 MB of weights. Nothing
+above 500 MB is reducible without changing the algorithm or checkpointing.
+
+**The feedforward Python track is finished:** 28,184 → 12,860 MB = **2.19×**, step time
+857.7 → 823.0 ms.
 
 ---
 
