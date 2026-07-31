@@ -21,12 +21,16 @@ class _RecordingInformationDataHarness(InformationDataMixin):
         self.logger = logging.getLogger(__name__)
         self.data_dict = {"layer0": {}}
         self.removed_handles = []
+        self.parent_soma_outputs_attached = False
 
     def attach_forward_hooks(self, model):
         return ["handle"]
 
     def remove_forward_hooks(self, handles):
         self.removed_handles.append(list(handles))
+
+    def attach_parent_soma_outputs_to_branch_records(self):
+        self.parent_soma_outputs_attached = True
 
     def _is_discrete_class_labels(self, labels):
         return np.issubdtype(labels.dtype, np.integer)
@@ -70,6 +74,7 @@ def test_information_data_collection_preserves_outputs_and_hook_lifecycle():
     assert result.entropy_C == 0.75
     torch.testing.assert_close(model.seen_inputs, x)
     assert harness.removed_handles == [["handle"]]
+    assert harness.parent_soma_outputs_attached is True
 
 
 def test_information_forward_hook_collection_removes_hooks_after_forward_failure():

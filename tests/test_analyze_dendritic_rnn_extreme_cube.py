@@ -11,6 +11,9 @@ def _synthetic_collection() -> dict:
     rows = []
     for replicate in range(cube.N_REPLICATES):
         for tau, ff, rec in cube.CELL_ORDER:
+            source = (
+                "extension" if (tau, ff, rec) in cube.EXTENSION_CELLS else "primary"
+            )
             tau_sign = 1.0 if tau == "hierarchical" else -1.0
             ff_sign = 1.0 if ff == "proximal" else -1.0
             rec_sign = 1.0 if rec == "proximal" else -1.0
@@ -27,10 +30,28 @@ def _synthetic_collection() -> dict:
                     "tau": tau,
                     "ff": ff,
                     "rec": rec,
+                    "source": source,
                     "accuracy": accuracy,
+                    "training_partition": (
+                        cube.PRIORITY_PARTITION
+                        if source == "extension" or replicate >= 8
+                        else cube.BASE_PARTITION
+                    ),
                 }
             )
-    return {"schema_version": cube.COLLECTION_SCHEMA, "runs": rows}
+    return {
+        "schema_version": cube.COLLECTION_SCHEMA,
+        "design": {
+            "route_audit": {
+                "status": "PASSED",
+                "observed_counts": {
+                    cube.BASE_PARTITION: 48,
+                    cube.PRIORITY_PARTITION: 32,
+                },
+            }
+        },
+        "runs": rows,
+    }
 
 
 def test_contrast_coefficients_have_expected_orthogonal_norms() -> None:

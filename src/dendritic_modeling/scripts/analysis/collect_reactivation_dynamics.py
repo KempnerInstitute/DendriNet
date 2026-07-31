@@ -231,7 +231,12 @@ def collect_reactivation_dynamics(
             if not path.is_file():
                 raise FileNotFoundError(path)
         provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
-        _validate_provenance(job, provenance, hash_cache)
+        _validate_provenance(
+            job,
+            provenance,
+            hash_cache,
+            input_hash_validation="rehash",
+        )
         if "reactivation_dynamics" not in {
             str(name) for name in provenance.get("enabled_analyzers", [])
         }:
