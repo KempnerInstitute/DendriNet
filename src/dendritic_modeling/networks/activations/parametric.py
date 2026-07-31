@@ -23,12 +23,21 @@ from dendritic_modeling.networks.utils.weight_transforms import safe_exp
 # profile of the 12-layer stress config attributed 39.9% of live memory to this
 # single line, so the temporaries are not incidental.
 #
-# The two forms are equal in exact arithmetic but not bit-identical in floating
-# point (~1e-7 relative in fp32), and this activation sits inside the learning
-# dynamics of every config. So it is OFF by default and opt-in per the
-# optimization-branch discipline: set DENDRINET_POSITIVE_TANH_SIGMOID=1 or call
-# set_positive_tanh_sigmoid(True).
-_USE_SIGMOID_IDENTITY = os.environ.get("DENDRINET_POSITIVE_TANH_SIGMOID", "0") == "1"
+# ON by default since 2026-07-30. It shipped off pending evidence; the evidence
+# arrived from two directions:
+#   * an allocation profile of the 12-layer stress config (cuda, batch 512) puts
+#     THIS LINE at 14,943 MB = 57.6% of live allocation -- the single largest
+#     thing in the model, ahead of branch_dynamics at 36.8% combined;
+#   * equivalence is settled, not assumed: bit-identical in fp64 for every
+#     touched activation (so the fp32 gap of 1.2e-07 value / 2.4e-07 through the
+#     whole network is rounding, not a different function), and 200 Adam steps
+#     down each path end at a final-loss relative difference of exactly 0.00e+00.
+# Measured effect: 1.19x peak memory (4.8 GB at batch 512), ~1.03x step time.
+#
+# Set DENDRINET_POSITIVE_TANH_SIGMOID=0 or call set_positive_tanh_sigmoid(False)
+# to get the old spelling back -- the switch is kept precisely so a numerics
+# question can be answered by flipping it rather than by reverting a commit.
+_USE_SIGMOID_IDENTITY = os.environ.get("DENDRINET_POSITIVE_TANH_SIGMOID", "1") != "0"
 
 
 def set_positive_tanh_sigmoid(enabled: bool) -> None:
