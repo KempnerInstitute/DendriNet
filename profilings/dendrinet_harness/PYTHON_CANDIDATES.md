@@ -15,6 +15,32 @@ Search space is the **15 files** that actually execute per step (`ff_stress/pyma
 **Evidence key:** **[M]** measured · **[P]** visible in a profile but unquantified ·
 **[S]** suspected from reading the code, unmeasured.
 
+## Which gather path do these assume?
+
+Two different provenances are mixed below, so this has to be stated up front.
+
+- The **aten-op map** (3,887 ops/step, and every op count quoted here) was measured on the
+  **cuda** path — `map_ff_python.py --path cuda`. Sound.
+- The **allocation profile** — including C1's headline **28.9%** — came from pass D, which
+  had a bug (`"cuda" if ... and False else "fused"`) forcing it to **`fused` at batch 64**.
+  Fixed 2026-07-30; `--path` is now explicit and required in practice.
+
+The absolute allocation from C1 is unchanged by path, but the *share* is not: `fused` and
+`cuda` retain different things for backward, so the denominator moves. **Re-run pass D on
+`--path cuda --batch 512` before quoting 28.9% again.**
+
+Which candidates depend on the path at all:
+
+| candidate | path dependence |
+|---|---|
+| C1 | **none.** `_transformed_weight()` runs at `indexed_sparse.py:501`, *before* path selection at :514 — it materializes on loop, fused, triton and cuda alike |
+| C2, C3, C4 | **none** — BlockLinear, module-attribute retention, and branch dynamics are all outside the gather |
+| C5 | **split.** `_load_ext()` 180× and `cuda_gather_available()` 120× are **cuda-only** (`and` short-circuits when `use_cuda_gather` is off); `_lookup_transform()` 132× and `_forward_output_chunk_size()` 60× are path-independent |
+| C6 | **cuda-only** by definition |
+
+So the list does not assume the fused autograd gather is on. C1 — the one to do first —
+holds on **every** path including the naive loop.
+
 ---
 
 ## C1 — `sparse_weight()` materializes the transformed weight **[M]**

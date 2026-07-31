@@ -18,9 +18,15 @@ defects that a kernel-level profile cannot see at all:
 
 B and D need a GPU and a config; C is static and runs anywhere.
 
+ALWAYS pass --path explicitly and match it to the path you actually train with.
+B and D previously hard-coded `fused` through a bug, and `fused` is 2.8x slower
+than `cuda` on this config -- which changes the timings AND the share each source
+line holds of total allocation. Any number produced before 2026-07-30 is a
+fused-path number.
+
     python audit_hotpath.py --pass C
-    python audit_hotpath.py --pass B --config <cfg.yaml> --batch 64
-    python audit_hotpath.py --pass D --config <cfg.yaml> --batch 64
+    python audit_hotpath.py --pass B --config <cfg.yaml> --path cuda --batch 512
+    python audit_hotpath.py --pass D --config <cfg.yaml> --path cuda --batch 512
 """
 
 from __future__ import annotations
@@ -126,11 +132,11 @@ def pass_c():
 # --------------------------------------------------------------------------- #
 # Pass B -- runtime sync audit                                                 #
 # --------------------------------------------------------------------------- #
-def pass_b(config, batch):
+def pass_b(config, batch, path="cuda"):
     import torch
     from torch.profiler import ProfilerActivity, profile
 
-    core, dim, step = _build(config, batch)
+    core, dim, step = _build(config, batch, path)
     for _ in range(2):
         core.zero_grad(set_to_none=True)
         step().backward()
@@ -147,7 +153,7 @@ def pass_b(config, batch):
         if any(s in k for s in ("cudaStreamSynchronize", "cudaDeviceSynchronize",
                                 "cudaMemcpyAsync", "Memcpy DtoH", "item")):
             tot[k] = (int(e.count), float(getattr(e, "cpu_time_total", 0)) / 1000)
-    print(f"\n{'=' * 78}\nPASS B -- device syncs in one fwd+bwd (batch {batch})\n{'=' * 78}")
+    print(f"\n{'=' * 78}\nPASS B -- device syncs in one fwd+bwd (path {path}, batch {batch})\n{'=' * 78}")
     if not tot:
         print("  no explicit sync/DtoH events recorded")
     for k, (n, ms) in sorted(tot.items(), key=lambda kv: -kv[1][1]):
@@ -160,10 +166,10 @@ def pass_b(config, batch):
 # --------------------------------------------------------------------------- #
 # Pass D -- allocation profile by call site                                    #
 # --------------------------------------------------------------------------- #
-def pass_d(config, batch, topn=15):
+def pass_d(config, batch, path="cuda", topn=15):
     import torch
 
-    core, dim, step = _build(config, batch)
+    core, dim, step = _build(config, batch, path)
     for _ in range(2):
         core.zero_grad(set_to_none=True)
         step().backward()
@@ -190,7 +196,7 @@ def pass_d(config, batch, topn=15):
             sz, n = by_site.get(key, (0, 0))
             by_site[key] = (sz + blk.get("size", 0), n + 1)
 
-    print(f"\n{'=' * 78}\nPASS D -- live allocations by source line (batch {batch})\n{'=' * 78}")
+    print(f"\n{'=' * 78}\nPASS D -- live allocations by source line (path {path}, batch {batch})\n{'=' * 78}")
     if not by_site:
         print("  no attributed allocations captured")
     tot = sum(v[0] for v in by_site.values()) or 1
@@ -200,7 +206,7 @@ def pass_d(config, batch, topn=15):
     return 0
 
 
-def _build(config, batch):
+def _build(config, batch, path="cuda"):
     import torch
     sys.path.insert(0, ".")
     import importlib.util
@@ -209,7 +215,14 @@ def _build(config, batch):
     sys.modules["pd"] = pd
     spec.loader.exec_module(pd)
     core, dim, meta = pd.build_core_from_config(config)
-    pd.apply_path(core, "cuda" if pd.assert_path_available and False else "fused")
+    # Was: `"cuda" if pd.assert_path_available and False else "fused"`. The
+    # `and False` made that unconditionally "fused", so passes B and D had never
+    # once run on the path a real run uses -- and `fused` is 2.8x slower than
+    # `cuda` on this config, which changes both the timings and the share each
+    # line holds of total allocation. Now explicit, and hard-fails if the
+    # requested path is unavailable rather than silently falling back.
+    pd.assert_path_available(path)
+    pd.apply_path(core, path)
     pd.freeze_rewiring(core)
     core = core.to("cuda").train()
     x = torch.randn(batch, dim, device="cuda").abs().requires_grad_(True)
@@ -227,12 +240,15 @@ def main():
     ap.add_argument("--pass", dest="which", choices=["B", "C", "D"], required=True)
     ap.add_argument("--config")
     ap.add_argument("--batch", type=int, default=64)
+    ap.add_argument("--path", default="cuda",
+                    choices=["loop", "fused", "triton", "cuda"])
     a = ap.parse_args()
     if a.which == "C":
         return pass_c()
     if not a.config:
         raise SystemExit(f"pass {a.which} needs --config")
-    return pass_b(a.config, a.batch) if a.which == "B" else pass_d(a.config, a.batch)
+    return (pass_b(a.config, a.batch, a.path) if a.which == "B"
+            else pass_d(a.config, a.batch, a.path))
 
 
 if __name__ == "__main__":
