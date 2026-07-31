@@ -1492,13 +1492,34 @@ def _n_leaves_from_branch_factors(branch_factors: tuple[int, ...]) -> int:
     return n_leaves
 
 
+def _dendritic_layer_sizes(branch_factors: tuple[int, ...]) -> list[int]:
+    """Return root→distal layer sizes ``[1, b0, b0*b1, …, n_leaves]``."""
+    sizes = [1]
+    for b in branch_factors:
+        sizes.append(sizes[-1] * int(b))
+    return sizes
+
+
+def _n_internal_nodes_from_branch_factors(
+    branch_factors: tuple[int, ...],
+    auxiliary_root: bool,
+) -> int:
+    """Count internal aux nodes (optionally including the root)."""
+    sizes = _dendritic_layer_sizes(branch_factors)
+    # Non-root, non-leaf compartment levels.
+    n_internal = sum(sizes[1:-1])
+    if auxiliary_root:
+        n_internal += 1
+    return int(n_internal)
+
+
 def _nested_reduce_by_branch_factors(
     leaf_bits: torch.Tensor,
     branch_factors: tuple[int, ...],
     internal_op: str,
 ) -> torch.Tensor:
     """
-    Reduce ``[N, n_leaves]`` with an explicit branching schedule.
+    Reduce ``[N, n_leaves]`` with an explicit branching schedule (children only).
 
     ``branch_factors`` follow the EINet convention (proximal→distal). Reduction
     walks distal→proximal by applying ``reversed(branch_factors)``.
@@ -1525,13 +1546,82 @@ def _nested_reduce_by_branch_factors(
     return values.squeeze(-1)
 
 
+def _nested_reduce_with_internal_aux(
+    leaf_bits: torch.Tensor,
+    aux_bits: torch.Tensor,
+    branch_factors: tuple[int, ...],
+    internal_op: str,
+    auxiliary_root: bool,
+) -> torch.Tensor:
+    """
+    Reduce leaf bits with per-internal-node aux bits (distal→proximal).
+
+    At each non-root internal node, combines children with that node's aux bit via
+    ``internal_op``. At the root, includes an aux bit only when
+    ``auxiliary_root`` is True (children-only otherwise).
+
+    ``aux_bits`` are ordered distal→proximal (root last when present), matching
+    the reduction walk over ``reversed(branch_factors)``.
+    """
+    values = leaf_bits
+    expected_leaves = _n_leaves_from_branch_factors(branch_factors)
+    expected_aux = _n_internal_nodes_from_branch_factors(
+        branch_factors, auxiliary_root=auxiliary_root
+    )
+    if values.shape[-1] != expected_leaves:
+        raise ValueError(
+            f"leaf_bits trailing dim {values.shape[-1]} does not match "
+            f"prod(branch_factors)={expected_leaves} for {branch_factors}"
+        )
+    if aux_bits.ndim != 2 or aux_bits.shape[0] != values.shape[0]:
+        raise ValueError(
+            f"aux_bits must have shape [N, n_internal]=[{values.shape[0]}, "
+            f"{expected_aux}], got {tuple(aux_bits.shape)}"
+        )
+    if aux_bits.shape[-1] != expected_aux:
+        raise ValueError(
+            f"aux_bits trailing dim {aux_bits.shape[-1]} does not match "
+            f"n_internal={expected_aux} for branch_factors={branch_factors}, "
+            f"auxiliary_root={auxiliary_root}"
+        )
+
+    aux_offset = 0
+    factors = tuple(reversed(branch_factors))
+    for step_idx, b in enumerate(factors):
+        n = values.shape[-1]
+        if n % b != 0:
+            raise ValueError(
+                f"Cannot group {n} values with branch factor {b} "
+                f"(branch_factors={branch_factors})"
+            )
+        n_groups = n // b
+        values = values.view(values.shape[0], n_groups, b)
+        is_root_step = step_idx == len(factors) - 1
+        if is_root_step and not auxiliary_root:
+            values = _combine_binary(values, internal_op)
+            continue
+        level_aux = aux_bits[:, aux_offset : aux_offset + n_groups]
+        aux_offset += n_groups
+        values = _combine_binary(
+            torch.cat([values, level_aux.unsqueeze(-1)], dim=-1),
+            internal_op,
+        )
+
+    if aux_offset != expected_aux:
+        raise ValueError(
+            f"Consumed {aux_offset} aux bits but expected {expected_aux} "
+            f"(branch_factors={branch_factors}, auxiliary_root={auxiliary_root})"
+        )
+    return values.squeeze(-1)
+
+
 def _make_population_projection(
     latent_dims: int,
     dims_per_leaf: int,
 ) -> torch.Tensor:
     """Build a fixed nonnegative projection ``[latent_dims, dims_per_leaf]``.
 
-    Each observed block coordinate is a convex combination of the leaf latents, so
+    Each observed block coordinate is a convex combination of the node latents, so
     the latent is distributed across the block (population code) rather than sitting
     in a few privileged coordinates.
     """
@@ -1545,7 +1635,7 @@ def _population_embed_leaf_blocks(
     projection: torch.Tensor,
     distractor_scale: float,
 ) -> torch.Tensor:
-    """Embed ``[N, n_leaves, latent_dims]`` into ``[N, n_leaves, dims_per_leaf]``.
+    """Embed ``[N, n_nodes, latent_dims]`` into ``[N, n_nodes, dims_per_leaf]``.
 
     ``projection`` has shape ``[latent_dims, dims_per_leaf]``. Distractors are
     mixed in with weight ``distractor_scale`` in ``[0, 1]``.
@@ -1569,37 +1659,46 @@ def create_nested_multixor_dataset(
     leaf_op: str = "and",
     internal_op: str = "xor",
     threshold: float = 0.25,
-    noise_std: float = 0.05,
     shuffle_leaves: bool = False,
     dims_per_leaf: int = 64,
     latent_dims: int = 2,
     distractor_scale: float = 0.25,
+    auxiliary_root: bool = False,
     seed: Optional[int] = None,
 ) -> tuple[TensorDataset, TensorDataset, TensorDataset]:
     """
-    Nested MultiXOR / tree-composition task with population-coded leaf blocks.
+    Nested MultiXOR / tree-composition task with population-coded node blocks.
 
-    ``branch_factors`` uses the EINet proximal→distal convention. Leaf count is
-    ``prod(branch_factors)``. Each leaf has a low-D latent in
-    ``[0, 1]^{latent_dims}`` that determines its bit via ``leaf_op``. That latent
-    is then **population-embedded** into a contiguous block of size
-    ``dims_per_leaf`` (shared nonnegative random projection + optional within-block
-    distractor mix), so ``input_dim = n_leaves * dims_per_leaf``. Leaf bits are
-    combined distal→proximal according to ``branch_factors`` with ``internal_op``.
+    ``branch_factors`` uses the EINet proximal→distal convention and may be any
+    valid schedule (not only ``[2, 2]``). Leaf count is ``prod(branch_factors)``.
+    Each leaf and each non-root internal node has a low-D latent in
+    ``[0, 1]^{latent_dims}`` that determines its bit via ``leaf_op``. When
+    ``auxiliary_root=True``, the root/soma also gets an aux latent (pair with
+    model ``somatic_synapses=True``); default ``False`` matches
+    ``somatic_synapses=False``.
 
-    Because each leaf signal is distributed across its block, sparse synapses
-    recover a leaf most reliably by sampling that leaf's subspace — favoring
-    morphology-aligned distal specialization — rather than latching onto a few
-    privileged global coordinates.
+    Latents are **population-embedded** into contiguous blocks of size
+    ``dims_per_leaf`` (shared nonnegative random projection + optional
+    within-block distractor mix). Layout is leaf blocks in leaf order, then
+    internal aux blocks in distal→proximal reduction order (root aux last if
+    present), so
+    ``input_dim = (n_leaves + n_internal) * dims_per_leaf``.
+
+    Labels combine children with each node's aux bit via ``internal_op`` while
+    walking distal→proximal. The root uses children only unless
+    ``auxiliary_root`` is set. Sparse synapses recover a node most reliably by
+    sampling that node's block — distal for leaves, proximal for non-root
+    internals, soma for root aux when enabled.
 
     Default ``leaf_op='and'`` + ``internal_op='xor'`` does **not** collapse to flat
     parity of the raw input dimensions. ``leaf_op='xor'`` + ``internal_op='xor'``
-    does (parity control over leaf bits).
+    does (parity over leaf bits and included aux bits).
 
-    Set ``shuffle_leaves=True`` to break topology-aligned leaf→tree assignment
-    (morphology control): input block ``i`` still embeds latent ``i``, but labels
-    use a permuted latent order. Match ``branch_factors`` to the model's
-    ``excitatory_branch_factors`` when testing morphology-aligned composition.
+    Set ``shuffle_leaves=True`` to jointly permute all node latents used for
+    labels (morphology control): input block ``i`` still embeds latent ``i``,
+    but labels use a permuted node order. Match ``branch_factors`` to the
+    model's ``excitatory_branch_factors`` when testing morphology-aligned
+    composition.
     """
     if seed is not None:
         torch.manual_seed(seed)
@@ -1608,6 +1707,7 @@ def create_nested_multixor_dataset(
     branch_factors = _normalize_branch_factors(branch_factors)
     dims_per_leaf = int(dims_per_leaf)
     latent_dims = int(latent_dims)
+    auxiliary_root = bool(auxiliary_root)
     if latent_dims < 1:
         raise ValueError(f"latent_dims must be >= 1, got {latent_dims}")
     if dims_per_leaf < latent_dims:
@@ -1616,29 +1716,52 @@ def create_nested_multixor_dataset(
         )
 
     n_leaves = _n_leaves_from_branch_factors(branch_factors)
-    input_dim = n_leaves * dims_per_leaf
+    n_internal = _n_internal_nodes_from_branch_factors(
+        branch_factors, auxiliary_root=auxiliary_root
+    )
+    n_blocks = n_leaves + n_internal
+    input_dim = n_blocks * dims_per_leaf
     total_samples = int(n_samples) * 2
 
-    latents = torch.rand(total_samples, n_leaves, latent_dims)
-    label_latents = latents
-    if shuffle_leaves:
-        # Permute leaf→tree assignment for labels only; keep block i = embed(latent i)
-        # so contiguous input blocks no longer match the composition tree.
-        perm = torch.randperm(n_leaves)
-        label_latents = latents[:, perm, :]
+    leaf_latents = torch.rand(total_samples, n_leaves, latent_dims)
+    if n_internal > 0:
+        internal_latents = torch.rand(total_samples, n_internal, latent_dims)
+    else:
+        internal_latents = torch.empty(total_samples, 0, latent_dims)
+    node_latents = torch.cat([leaf_latents, internal_latents], dim=1)
 
-    leaves = _leaf_values(label_latents, leaf_op=leaf_op, threshold=threshold)
-    labels = _nested_reduce_by_branch_factors(
-        leaves, branch_factors, internal_op=internal_op
+    label_nodes = node_latents
+    if shuffle_leaves:
+        # Jointly permute all node→tree assignments for labels only; keep
+        # block i = embed(latent i) so contiguous input blocks no longer match
+        # the composition tree.
+        perm = torch.randperm(n_blocks)
+        label_nodes = node_latents[:, perm, :]
+
+    label_leaf_latents = label_nodes[:, :n_leaves, :]
+    label_internal_latents = label_nodes[:, n_leaves:, :]
+    leaf_bits = _leaf_values(
+        label_leaf_latents, leaf_op=leaf_op, threshold=threshold
+    )
+    if n_internal > 0:
+        aux_bits = _leaf_values(
+            label_internal_latents, leaf_op=leaf_op, threshold=threshold
+        )
+    else:
+        aux_bits = torch.zeros(total_samples, 0, dtype=torch.long)
+    labels = _nested_reduce_with_internal_aux(
+        leaf_bits,
+        aux_bits,
+        branch_factors,
+        internal_op=internal_op,
+        auxiliary_root=auxiliary_root,
     ).long()
 
     projection = _make_population_projection(latent_dims, dims_per_leaf)
-    leaf_blocks = _population_embed_leaf_blocks(
-        latents, projection, distractor_scale=distractor_scale
+    node_blocks = _population_embed_leaf_blocks(
+        node_latents, projection, distractor_scale=distractor_scale
     )
-    data = leaf_blocks.reshape(total_samples, input_dim)
-    if noise_std > 0:
-        data = torch.clamp(data + torch.randn_like(data) * noise_std, 0, 1)
+    data = node_blocks.reshape(total_samples, input_dim)
 
     data, labels = _balance_classes(data, labels)
     perm = torch.randperm(len(data))
@@ -1988,11 +2111,11 @@ _SYNTHETIC_DATASET_SPECS: dict[str, _SyntheticDatasetSpec] = {
             "leaf_op": "and",
             "internal_op": "xor",
             "threshold": 0.25,
-            "noise_std": 0.05,
             "shuffle_leaves": False,
             "dims_per_leaf": 64,
             "latent_dims": 2,
             "distractor_scale": 0.25,
+            "auxiliary_root": False,
             "seed": None,
         },
     ),

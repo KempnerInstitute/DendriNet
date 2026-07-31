@@ -53,6 +53,7 @@ from .paired import (
     _make_pair_indices as _make_pair_indices,
 )
 from .paths import get_data_directory, split_generator as _split_generator
+from .contextual_gain import ContextualGainDataset as ContextualGainDataset
 from .poisson import PoissonGeneratorDataset as PoissonGeneratorDataset
 from .poisson import _build_multiscale_group_components
 from .registry import build_registered_dataset
@@ -1080,6 +1081,98 @@ def _load_poisson_generator_from_options(
     )
 
 
+def _wrap_contextual_gain_dataset(
+    dataset: Dataset,
+    *,
+    n_layered_images: int,
+    min_gain_factor: float,
+    max_gain_factor: float,
+    gain_sampling: str,
+    poisson_sampling: bool,
+) -> ContextualGainDataset:
+    """Wrap one tensor-like dataset with contextual multi-image gain overlay."""
+    return ContextualGainDataset(
+        *dataset[:],
+        n_layered_images=n_layered_images,
+        min_gain_factor=min_gain_factor,
+        max_gain_factor=max_gain_factor,
+        gain_sampling=gain_sampling,
+        poisson_sampling=poisson_sampling,
+    )
+
+
+def load_contextual_gain_datasets(
+    base_dataset: str,
+    n_layered_images: int = 2,
+    min_gain_factor: float = 0.01,
+    max_gain_factor: float = 1.0,
+    gain_sampling: str = "log_uniform",
+    poisson_sampling: bool = True,
+    train_valid_split: float = 0.8,
+    flatten: bool = False,
+    task_data_path: Optional[str] = None,
+    split_seed: int = 0,
+):
+    """Load base vision data and wrap splits with ``ContextualGainDataset``."""
+    if base_dataset == "mnist":
+        train_ds, valid_ds, test_ds = load_mnist_as_datasets(
+            train_valid_split=train_valid_split,
+            flatten=flatten,
+            normalize=False,
+            task_data_path=task_data_path,
+            split_seed=split_seed,
+        )
+    elif base_dataset == "cifar10":
+        train_ds, valid_ds, test_ds = load_cifar10_as_datasets(
+            train_valid_split=train_valid_split,
+            flatten=flatten,
+            normalize=False,
+            task_data_path=task_data_path,
+            split_seed=split_seed,
+        )
+    else:
+        raise ValueError(f"Unknown base dataset: {base_dataset}")
+
+    kwargs = {
+        "n_layered_images": n_layered_images,
+        "min_gain_factor": min_gain_factor,
+        "max_gain_factor": max_gain_factor,
+        "gain_sampling": gain_sampling,
+        "poisson_sampling": poisson_sampling,
+    }
+    return (
+        _wrap_contextual_gain_dataset(train_ds, **kwargs),
+        _wrap_contextual_gain_dataset(valid_ds, **kwargs),
+        _wrap_contextual_gain_dataset(test_ds, **kwargs),
+    )
+
+
+def _load_contextual_gain_from_options(
+    options: _UnifiedDatasetOptions,
+) -> _DatasetTriplet:
+    p = options.parameters
+    return load_contextual_gain_datasets(
+        base_dataset=options.base_dataset,
+        n_layered_images=int(p.get("n_layered_images", 2)),
+        min_gain_factor=(
+            options.min_gain_factor
+            if options.min_gain_factor is not None
+            else float(p.get("min_gain_factor", 0.01))
+        ),
+        max_gain_factor=(
+            options.max_gain_factor
+            if options.max_gain_factor is not None
+            else float(p.get("max_gain_factor", 1.0))
+        ),
+        gain_sampling=options.gain_sampling,
+        poisson_sampling=options.poisson_sampling,
+        train_valid_split=options.train_valid_split,
+        flatten=options.flatten,
+        task_data_path=options.task_data_path,
+        split_seed=options.split_seed,
+    )
+
+
 def _load_imagenet_from_options(options: _UnifiedDatasetOptions) -> _DatasetTriplet:
     p = options.parameters
     return load_imagenet_as_datasets(
@@ -1200,6 +1293,7 @@ _SPECIAL_DATASET_LOADERS: dict[
     str, Callable[[_UnifiedDatasetOptions], _DatasetTriplet]
 ] = {
     "poisson_generator": _load_poisson_generator_from_options,
+    "contextual_gain": _load_contextual_gain_from_options,
     "imagenet": _load_imagenet_from_options,
     "mnist_modulo10": _load_mnist_modulo10_from_options,
     "cifar10_modulo10": _load_cifar10_modulo10_from_options,

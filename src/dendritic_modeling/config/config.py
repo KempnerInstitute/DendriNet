@@ -164,6 +164,17 @@ class DatasetParamsConfig(BaseConfig):
         }
     )
 
+    contextual_gain: dict[str, Any] = field(
+        default_factory=lambda: {
+            "base_dataset": "mnist",
+            "n_layered_images": 2,
+            "min_gain_factor": 0.01,
+            "max_gain_factor": 1.0,
+            "gain_sampling": "log_uniform",
+            "poisson_sampling": True,
+        }
+    )
+
     multixor: dict[str, Any] = field(default_factory=lambda: {"n_bits": 8})
     orientation_bars: dict[str, Any] = field(
         default_factory=lambda: {"n_orient_classes": 8}
@@ -204,11 +215,11 @@ class DatasetParamsConfig(BaseConfig):
             "leaf_op": "and",
             "internal_op": "xor",
             "threshold": 0.25,
-            "noise_std": 0.05,
             "shuffle_leaves": False,
             "dims_per_leaf": 64,
             "latent_dims": 2,
             "distractor_scale": 0.25,
+            "auxiliary_root": False,
         }
     )
     imagenet: dict[str, Any] = field(
