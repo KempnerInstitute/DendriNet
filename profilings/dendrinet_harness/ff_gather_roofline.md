@@ -95,6 +95,60 @@ Also: my earlier "forward tile P is closed at 1.00×" used a ladder topping out 
 shipped 2048. The staged optimum is actually **P=4096** (14.84 vs 15.07 ms, ~1.5%). Minor,
 but the ladder failed to bracket the optimum from above.
 
+### BACKWARD: investigated, CLOSED — two hypotheses killed (2026-07-30)
+
+`ncu` splits the backward cleanly at the dominant shape:
+
+| kernel | time | occupancy | limiter | DRAM | SM |
+|---|---|---|---|---|---|
+| `gather_gradx_stage` | **21.01 ms** | 33.26% | **shared = 1 block** (regs allow 4) | 1.21% | 22.4% |
+| `gather_gradw_transpose` | 3.16 ms | — | grid = 141 blocks | 7.38% | 41.3% |
+
+grad_x is **87% of the backward**, and looks exactly like the forward did: 33% occupancy,
+capped by an IN-float shared row. Both obvious fixes were tried, and **both lost**.
+
+**Hypothesis 1 — "the row flush is the cost." FALSE.** Each block flushes the whole staged
+row with global atomics, and there are `ceil(O/P)` blocks per m, so the flush is
+`ceil(O/P)·IN·M` = **1.16 billion** atomics at the shipped P. Raising P cuts that linearly.
+Swept P upward to O itself:
+
+| P | blocks/m | flush atomics | ms | vs shipped |
+|---|---|---|---|---|
+| 1024 | 141 | 1.16 G | **20.46** | 1.00× |
+| 4096 | 36 | 0.29 G | 27.32 | 0.75× |
+| 16384 | 9 | 0.07 G | 57.23 | 0.36× |
+| 147456 | 1 | 0.01 G | 364.81 | **0.06×** |
+
+100× fewer atomics, **17× slower**. The flush is nearly free; parallelism is everything.
+The shipped picker is already optimal — **1.00× weighted**, do not re-tune it.
+
+**Hypothesis 2 — "the forward's no-stage fix transfers." FALSE.** Added
+`gather_gradx_ns_kernel` (no shared, direct global fp32 atomics) and swept both:
+
+| in | out | staged | no-stage | ratio |
+|---|---|---|---|---|
+| 16,000 | 144,000 | 20.42 ms | 41.50 ms | 0.49× |
+| 16,000 | 48,000 | 7.42 ms | 13.47 ms | 0.55× |
+| 3,072 | 144,000 | 8.05 ms | 44.14 ms | **0.18×** |
+| | | | **weighted** | **0.47×** |
+
+**2.1× slower.** Gradients agree (grad_x rel ≤ 9.1e-07; grad_w bit-identical), so this is
+purely a speed verdict.
+
+**Why the forward and backward differ.** The forward's shared row is a *read cache* for
+data L2 already holds at 99.44% — deleting it costs only extra L2 requests. The backward's
+shared row is an *atomic accumulator*, and shared atomics are far cheaper than global ones
+under contention. The staged kernel is deliberately buying atomic locality with occupancy,
+and that trade is strongly favourable. Its 33% occupancy is a *price*, not a defect.
+
+**Third approach already rejected upstream**: the module docstring records a v3
+scatter→gather transpose of grad_x, measured 2.2–2.4× slower. So all three routes —
+global atomics, index transpose, shared staging — have now been measured, and the shipped
+one wins.
+
+`gather_bwd_wpo_cuda2(..., gx_variant)` is retained solely so this stays re-testable (A100
+has different atomic throughput); it is never selected by default.
+
 ### The lever this exposes
 
 The shared-memory staging is what costs the occupancy, and the **99.44% L2 hit rate says

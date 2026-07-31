@@ -45,6 +45,8 @@ _CPP_SRC = (
     "torch::Tensor idx, torch::Tensor w, int B_O, int B_M);\n"
     "std::vector<torch::Tensor> gather_bwd_wpo_cuda(torch::Tensor grad_out, torch::Tensor goT, "
     "torch::Tensor xT, torch::Tensor idx, torch::Tensor w, int P, int T);\n"
+    "std::vector<torch::Tensor> gather_bwd_wpo_cuda2(torch::Tensor grad_out, torch::Tensor goT, "
+    "torch::Tensor xT, torch::Tensor idx, torch::Tensor w, int P, int T, int gx_variant);\n"
     "int cuda_gather_max_optin_shared();"
 )
 
@@ -330,6 +332,67 @@ __global__ void gather_gradw_transpose_kernel(
     }
 }
 
+// grad_x WITHOUT the shared staging: accumulate straight into global with fp32
+// atomics. The staged kernel is capped at 1 block/SM by its IN-float shared row
+// (ncu: 33.26% occupancy, 21.01 ms -- 87% of the whole backward, vs grad_w's
+// 3.16 ms), while registers would allow 4 blocks. This trades the shared atomics
+// + row flush for global atomics at full occupancy.
+//
+// The v2 backward was originally slow partly because of global grad_x atomics,
+// which is why the staged version exists -- so this is NOT obviously a win, and
+// it is selected by measurement (bench_gradx_nostage.py), not by analogy with
+// the forward. fp32 atomicAdd is native; do not let this path see bf16, where
+// sm_80 emulates and collapses.
+__global__ void gather_gradx_ns_kernel(
+        const float* __restrict__ grad_out, const int* __restrict__ idx,
+        const float* __restrict__ w, float* __restrict__ grad_x,
+        int M, int O, int IN, int K, int P) {
+    int o_base = blockIdx.x * P, m = blockIdx.y;
+    int T = blockDim.x, t = threadIdx.x;
+    int warp = t >> 5, lane = t & 31, W = T >> 5;
+    const float* go_m = grad_out + (long)m * O;
+    float* gx_m = grad_x + (long)m * IN;
+    for (int po = warp; po < P; po += W) {
+        int o = o_base + po;
+        if (o >= O) continue;
+        float go = go_m[o];
+        long base = (long)o * K;
+        for (int k = lane; k < K; k += 32)
+            atomicAdd(&gx_m[idx[base + k]], go * w[base + k]);
+    }
+}
+
+// gx_variant: 0 = staged (shared atomics + flush), 1 = un-staged (global atomics)
+std::vector<torch::Tensor> gather_bwd_wpo_cuda2(
+        torch::Tensor grad_out, torch::Tensor goT, torch::Tensor xT,
+        torch::Tensor idx, torch::Tensor w, int P, int T, int gx_variant) {
+    int M = grad_out.size(0), O = grad_out.size(1), IN = xT.size(0), K = idx.size(1);
+    auto grad_x = torch::zeros({M, IN}, grad_out.options());
+    auto grad_w = torch::empty({O, K}, grad_out.options());
+    { dim3 grid((O + P - 1) / P, M), block(T);
+      if (gx_variant == 1) {
+          gather_gradx_ns_kernel<<<grid, block, 0>>>(
+              grad_out.data_ptr<float>(), idx.data_ptr<int>(), w.data_ptr<float>(),
+              grad_x.data_ptr<float>(), M, O, IN, K, P);
+      } else {
+          size_t sh = (size_t)IN * sizeof(float);
+          if (sh > 48 * 1024)
+              cudaFuncSetAttribute(gather_gradx_stage_kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, (int)sh);
+          gather_gradx_stage_kernel<<<grid, block, sh>>>(
+              grad_out.data_ptr<float>(), idx.data_ptr<int>(), w.data_ptr<float>(),
+              grad_x.data_ptr<float>(), M, O, IN, K, P);
+      }
+      cudaError_t e = cudaGetLastError();
+      TORCH_CHECK(e == cudaSuccess, "gather_gradx launch failed: ", cudaGetErrorString(e)); }
+    { dim3 grid((O + P - 1) / P), block(T);
+      gather_gradw_transpose_kernel<<<grid, block>>>(
+          goT.data_ptr<float>(), xT.data_ptr<float>(), idx.data_ptr<int>(),
+          grad_w.data_ptr<float>(), M, O, IN, K, P);
+      cudaError_t e = cudaGetLastError();
+      TORCH_CHECK(e == cudaSuccess, "gather_gradw_transpose launch failed: ", cudaGetErrorString(e)); }
+    return {grad_x, grad_w};
+}
+
 std::vector<torch::Tensor> gather_bwd_wpo_cuda(
         torch::Tensor grad_out, torch::Tensor goT, torch::Tensor xT,
         torch::Tensor idx, torch::Tensor w, int P, int T) {
@@ -371,7 +434,7 @@ def _load_ext():
             cpp_sources=_CPP_SRC,
             cuda_sources=_CUDA_SRC,
             functions=["gather_fwd_cuda", "gather_fwd_wpo_cuda", "gather_fwd_wpo_ns_cuda",
-                       "gather_bwd_cuda", "gather_bwd_wpo_cuda",
+                       "gather_bwd_cuda", "gather_bwd_wpo_cuda", "gather_bwd_wpo_cuda2",
                        "cuda_gather_max_optin_shared"],
             verbose=False,
         )
