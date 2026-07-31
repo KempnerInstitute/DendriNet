@@ -51,6 +51,80 @@ def positive_tanh_sigmoid_enabled() -> bool:
     return _USE_SIGMOID_IDENTITY
 
 
+# Fuse the whole positive-tanh into one autograd Function that retains only its
+# OUTPUT. Default on; DENDRINET_POSITIVE_TANH_FUSED=0 disables.
+_USE_FUSED_POSITIVE_TANH = os.environ.get("DENDRINET_POSITIVE_TANH_FUSED", "1") != "0"
+
+
+def set_fused_positive_tanh(enabled: bool) -> None:
+    """Enable/disable the single-Function positive-tanh that saves only y."""
+    global _USE_FUSED_POSITIVE_TANH
+    _USE_FUSED_POSITIVE_TANH = bool(enabled)
+
+
+def fused_positive_tanh_enabled() -> bool:
+    return _USE_FUSED_POSITIVE_TANH
+
+
+class _PositiveTanhCentered(torch.autograd.Function):
+    """``y = sigmoid(2m(x - c))``, retaining **only** ``y``.
+
+    Written as one Function because of an asymmetry in what each gradient needs.
+    With ``z = 2m(x-c)`` and ``s = dy/dz = y(1-y)``:
+
+        grad_x = g*s*2m               <- needs only y
+        grad_c = -2m * sum(g*s)       <- needs only y
+        grad_m = (1/m) * sum(g*s*z)   <- needs z
+
+    So only ``grad_m`` wants anything besides ``y`` -- and ``z`` is recoverable
+    from ``y`` as ``logit(y)``. The eager spelling instead retains TWO full-size
+    tensors per call: ``x - c`` (MulBackward needs it for grad_m) and ``y``
+    (SigmoidBackward needs it). An allocation profile put this line at 57.6% of
+    live allocation, so halving its retained set is the largest single memory
+    lever in the model.
+
+    The reconstruction is safe *because of* the saturation that makes it look
+    unsafe. Once |z| exceeds ~17 the fp32 sigmoid returns exactly 1.0 (or 0.0),
+    ``logit`` returns +-inf, and inf*0 would be nan -- but at exactly those
+    points ``y*(1-y)`` is exactly 0, and PyTorch's own sigmoid backward computes
+    the same ``g*y*(1-y)``, so the reference contribution is 0 too. Bounding the
+    logit argument (never the ``y`` used for ``s``) replaces inf with a finite
+    stand-in that the 0 annihilates, reproducing the reference rather than
+    approximating it. Measured against autograd at saturation fractions from 0%
+    to 58.8%: grad_log_m agrees to <= 3.8e-07 with no nan
+    (probe_positive_tanh_saved.py).
+    """
+
+    @staticmethod
+    def forward(ctx, x, scale, center):
+        two_m = scale + scale
+        y = torch.sigmoid(two_m * (x - center))
+        center_t = center if torch.is_tensor(center) else None
+        ctx.save_for_backward(y, scale, center_t)
+        return y
+
+    @staticmethod
+    def backward(ctx, grad_out):
+        y, scale, center_t = ctx.saved_tensors
+        needs_x, needs_scale, needs_center = ctx.needs_input_grad[:3]
+        two_m = scale + scale
+        gs = grad_out * y * (1.0 - y)          # g * dy/dz
+        reduce_dims = tuple(range(gs.dim() - 1))
+
+        grad_x = gs * two_m if needs_x else None
+        grad_scale = None
+        if needs_scale:
+            # z = logit(y); eps bounds ONLY the logit argument. Where y has
+            # saturated, gs is exactly 0, so the finite stand-in contributes 0.
+            eps = torch.finfo(y.dtype).eps
+            z = torch.logit(y, eps)
+            grad_scale = (gs * z).sum(dim=reduce_dims) / scale
+        grad_center = None
+        if needs_center and center_t is not None:
+            grad_center = -(gs * two_m).sum(dim=reduce_dims)
+        return grad_x, grad_scale, grad_center
+
+
 def _positive_tanh_centered(scale, x, center):
     """(tanh(scale * (x - center)) + 1) / 2.
 
@@ -61,6 +135,8 @@ def _positive_tanh_centered(scale, x, center):
     catastrophically exactly where ``x ~ center``, which is the steep part of
     the curve.
     """
+    if _USE_SIGMOID_IDENTITY and _USE_FUSED_POSITIVE_TANH:
+        return _PositiveTanhCentered.apply(x, scale, center)
     if _USE_SIGMOID_IDENTITY:
         return torch.sigmoid((2.0 * scale) * (x - center))
     return (torch.tanh(scale * (x - center)) + 1) / 2
