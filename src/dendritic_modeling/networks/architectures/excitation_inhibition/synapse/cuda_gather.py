@@ -475,9 +475,29 @@ def _wpo_ok(IN: int, K: int) -> bool:
 
 
 def _pick_wpo_params() -> tuple[int, int]:
-    """(P outputs/block, T threads). Tuned on Blackwell (P=2048, T=512 -> ~4.5x over v2);
-    T=512 (16 warps) is the occupancy sweet spot and 40KB-class rows leave ~2 blocks/SM.
-    Safe on Ampere (row still < 48KB there)."""
+    """(P outputs/block, T threads) for the STAGED forward. P=2048, T=512.
+
+    WARNING -- this was tuned at in_features=10,000, where the staged x-row is
+    40 KB, stays under the 48 KB default, and leaves ~2 blocks/SM for ~66%
+    occupancy. That premise DOES NOT HOLD for the configs in use: at
+    in_features=16,000 the row is 64 KB, exactly one block fits per SM, and ncu
+    measures 33.1% occupancy with DRAM at 1.11% and SM at 35.3%. The kernel did
+    not regress; its design point moved when the configs grew past ~12,288
+    inputs (the 48 KB crossing).
+
+    That is what `_pick_fwd_variant` exists to route around. Two things here are
+    still open, deliberately not changed without measurement:
+      * P=4096 measured ~1.5% faster than 2048 at four of five real shapes. The
+        original ladder topped out at the shipped value, so it never bracketed
+        the optimum from above. Not adopted pending an end-to-end check.
+      * whether 2 blocks/SM at 64 KB is truly unreachable or a near-miss against
+        the per-SM shared budget (a carveout may recover it, with no kernel
+        change, on the path that wins 22 of 25 shapes). See
+        profilings/dendrinet_harness/rnn_prof/probe_shared_budget.py.
+
+    T=512 is unchanged and still the sweet spot. Safe on Ampere (row < 48 KB
+    there at the design point).
+    """
     return 2048, 512
 
 
