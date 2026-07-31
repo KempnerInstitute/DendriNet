@@ -61,6 +61,12 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--steps", type=int, default=8)
     parser.add_argument("--num-workers", type=int, default=8)
     parser.add_argument(
+        "--lr-scale",
+        type=float,
+        default=1.0,
+        help="Multiply every configured optimizer-group learning rate.",
+    )
+    parser.add_argument(
         "--output-dir",
         type=Path,
         default=Path("outputs/profiles/spatial_imagenet"),
@@ -76,6 +82,8 @@ def _validate_args(args: argparse.Namespace) -> None:
         raise ValueError("--warmup-steps cannot be negative")
     if args.num_workers < 0:
         raise ValueError("--num-workers cannot be negative")
+    if args.lr_scale <= 0:
+        raise ValueError("--lr-scale must be positive")
     if not torch.cuda.is_available():
         raise RuntimeError("This benchmark requires a CUDA GPU")
 
@@ -166,6 +174,18 @@ def _optimizer_step(
     return float(loss.detach())
 
 
+@torch.no_grad()
+def _loss_only(
+    *,
+    model: torch.nn.Module,
+    images: torch.Tensor,
+    labels: torch.Tensor,
+    use_amp: bool,
+) -> float:
+    with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=use_amp):
+        return float(F.cross_entropy(model(images), labels))
+
+
 def _profile(
     *,
     model: torch.nn.Module,
@@ -175,6 +195,7 @@ def _profile(
     steps: int,
     optimizer_config,
     param_groups_config,
+    learning_rate_scale: float,
     grad_clip_value: float | None,
     use_amp: bool,
 ) -> dict[str, Any]:
@@ -185,8 +206,19 @@ def _profile(
         model.get_param_groups(param_groups_config),
         optimizer_config,
     )
+    for group in optimizer.param_groups:
+        group["lr"] = float(group["lr"]) * learning_rate_scale
     scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
     iterator = iter(loader)
+
+    initial_batch, iterator = _next_batch(iterator, loader)
+    initial_images, initial_labels = initial_batch
+    initial_loss = _loss_only(
+        model=model,
+        images=initial_images.to(device, non_blocking=True),
+        labels=initial_labels.to(device, non_blocking=True),
+        use_amp=use_amp,
+    )
 
     for _ in range(warmup_steps):
         batch, iterator = _next_batch(iterator, loader)
@@ -245,6 +277,7 @@ def _profile(
         "warmup_steps": warmup_steps,
         "measured_steps": steps,
         "measured_samples": samples,
+        "initial_loss": initial_loss,
         "loss_first": losses[0],
         "loss_last": losses[-1],
         "all_losses_finite": all(torch.isfinite(torch.tensor(losses)).tolist()),
@@ -305,6 +338,7 @@ def main() -> None:
         "gpu_name": torch.cuda.get_device_name(),
         "batch_size": args.batch_size,
         "num_workers": args.num_workers,
+        "learning_rate_scale": args.lr_scale,
         "train_dataset_samples": len(train_dataset),
         "use_amp": bool(common.use_amp),
         **_git_provenance(),
@@ -319,6 +353,7 @@ def main() -> None:
             steps=args.steps,
             optimizer_config=optimizer_config,
             param_groups_config=param_groups,
+            learning_rate_scale=args.lr_scale,
             grad_clip_value=common.grad_clip_value,
             use_amp=bool(common.use_amp),
         )
