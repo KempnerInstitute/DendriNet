@@ -109,6 +109,37 @@ does not compound. `param_linear_tanh` is deliberately excluded: its `(1-exp(-3x
 reaches ~1e5 and amplified that rounding to 4e-4 on parameter gradients, and no config
 selects it.
 
+## NEW — reactivation retains one tensor instead of three (2026-07-30)
+Allocation profiling on the **cuda** path (the earlier pass D had been forced onto `fused`
+at batch 64 by a harness bug) put `parametric.py` at **57.6% of live allocation** —
+14,943 MB, the largest single line in the model. Two changes, both shipped on by default:
+
+1. `(tanh(z)+1)/2 -> sigmoid(2z)` (`1d1b1159`) — removes transient temporaries.
+2. `_PositiveTanhCentered` (`05063123`) — one autograd Function retaining **only** `y`,
+   reconstructing `z = logit(y)` in backward for `grad_m`. Safe *because of* saturation:
+   where the fp32 sigmoid pins to 1.0 and `logit` returns inf, `y(1-y)` is exactly 0 and
+   PyTorch's own sigmoid backward drops the same terms, so bounding the logit argument
+   reproduces the reference rather than approximating it.
+
+12-layer 16k stress config, batch 512, Blackwell, cuda path:
+
+| mode | step (ms) | peak (MB) | saved |
+|---|---|---|---|
+| eager | 852.8 | 28,184.1 | — |
+| + identity | 819.2 | 23,384.7 | 4,799 MB |
+| **+ fused** | 841.8 | **18,551.5** | **9,633 MB (1.52×)** |
+
+The reactivation line itself went 14,943.5 → 4,980.4 MB = **3.0×**, exactly the predicted
+3-retained → 1-retained.
+
+**This is activation memory — the term FSDP does not shard** ([[rnn-activation-memory-dominates]]),
+i.e. the same class as the weight-transform hoist and aimed squarely at the fixed per-GPU
+floor that gates 1M. Worth re-running the 100k multi-GPU gate against it.
+
+Equivalence: fp64 output *and* every gradient bit-identical up to 46% saturation; fp32 gap
+2.4e-07 end-to-end and does not grow with saturation; 200 Adam steps with a saturating
+input end at final-loss relative difference 0.00e+00.
+
 ## Open rows
 | scale | GPU | path | epoch (s) | peak (MB) | notes |
 |---|---|---|---|---|---|

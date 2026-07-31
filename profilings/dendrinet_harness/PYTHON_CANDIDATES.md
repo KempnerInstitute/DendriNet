@@ -71,14 +71,41 @@ verified today measured **1.19× peak end-to-end (4.8 GB)** against precisely th
 **The real #2 is C4**, `branch_dynamics` accumulation, at **36.8% combined** — far larger
 than the "[P] 120 ops" estimate that had it fourth.
 
+### DONE — the reactivation, 28,184 → 18,551 MB peak (1.52×, 9.6 GB)
+
+Both steps shipped and measured end-to-end (cuda, batch 512):
+
+| mode | step (ms) | peak (MB) | vs eager | saved |
+|---|---|---|---|---|
+| eager `(tanh(m(x-b))+1)/2` | 852.8 | 28,184.1 | 1.00× | — |
+| identity `sigmoid(2m(x-b))` | 819.2 | 23,384.7 | 1.21× | 4,799 MB |
+| **fused (retains only y)** | 841.8 | **18,551.5** | **1.52×** | **9,633 MB** |
+
+Output deviation 2.39e-07, grad_x 3.97e-07 — rounding, and the fused path's gradient gap
+is *smaller* than the identity's.
+
+The mechanism was confirmed exactly. Eager retains **three** full-size tensors (`x-b` for
+MulBackward, `tanh(...)` for TanhBackward, and the output); fused retains **one**. The
+line went 14,943.5 → 4,980.4 MB = **3.0×**, precisely 3→1.
+
+Honest trade: fused is **2.7% slower than identity** (841.8 vs 819.2 ms) because its
+backward computes `logit(y)`. Still faster than eager, and it buys another 4.8 GB. Memory
+is the 1M blocker, so that is the right side of the trade.
+
 ### Revised order
 
-1. **Turn on the sigmoid identity.** Already implemented, fp64 bit-identical, no drift over
-   200 Adam steps, 4.8 GB measured. It attacks the 57.6% line and costs nothing new.
-2. **Then attack `parametric.py:57` structurally** — the identity only removes transient
-   temporaries; the two full-size tensors retained for backward remain. Profile the
-   composition of that 14.9 GB before designing the fix.
-3. **Then C4** (`branch_dynamics`, 36.8%).
+1. ~~sigmoid identity~~ — **done**, on by default (`1d1b1159`).
+2. ~~`parametric.py` structural~~ — **done** (`05063123`).
+3. **C4 (`branch_dynamics`) is now #1 at 59.7% of live** — 9,539 MB across
+   `:285` (4,558), `:213` (3,432), `:245` (1,550). Post-fix ranking:
+
+   | MB | share | site |
+   |---:|---:|---|
+   | 9,538.9 | **59.7%** | `branch_dynamics.py` (3 lines) |
+   | 4,980.4 | 31.2% | `parametric.py:101` (already 3× reduced) |
+   | 889.3 | 5.6% | `cuda_gather.py:619` |
+   | 449.7 | 2.8% | `weight_transforms.py:119` (C1, closed) |
+
 4. C3, C5, C6 as cheap ride-alongs. **C1 and C7 are closed.**
 
 ---

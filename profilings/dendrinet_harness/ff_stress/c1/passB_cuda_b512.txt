@@ -1,0 +1,11 @@
+/n/home12/rwhalen/.conda/envs/dendritic_env/lib/python3.11/site-packages/torch/profiler/profiler.py:224: UserWarning: Warning: Profiler clears events at the end of each cycle.Only events from the current cycle will be reported.To keep events across cycles, set acc_events=True.
+  _warn_once(
+
+==============================================================================
+PASS B -- device syncs in one fwd+bwd (path cuda, batch 512)
+==============================================================================
+        2 x     359.60 ms CPU   cudaDeviceSynchronize
+        1 x       0.03 ms CPU   cudaMemcpyAsync
+
+  A sync stalls the CPU until the GPU drains; it costs wall-clock
+  that never appears as kernel time.

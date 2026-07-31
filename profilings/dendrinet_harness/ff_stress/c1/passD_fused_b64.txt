@@ -1,0 +1,9 @@
+
+==============================================================================
+PASS D -- live allocations by source line (path fused, batch 64)
+==============================================================================
+        MB   blocks   share  site
+       621       60   39.9%  parametric.py:57  _positive_tanh_centered
+       477      216   30.6%  ??:0  torch::unwind::unwind()
+       451       60   28.9%  weight_transforms.py:119  apply_weight_transform
+         9       36    0.6%  blocklinear.py:313  forward
