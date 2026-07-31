@@ -13,6 +13,7 @@ import argparse
 import json
 import logging
 import platform
+import subprocess
 import time
 from pathlib import Path
 from typing import Any
@@ -26,6 +27,27 @@ from dendritic_modeling.config import load_config
 from dendritic_modeling.scripts.script_utils.setup_utils import setup_environment
 
 logger = logging.getLogger(__name__)
+
+
+def _git_provenance() -> dict[str, Any]:
+    """Return the checked-out commit and tracked-worktree state."""
+
+    commit = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    status = subprocess.run(
+        ["git", "status", "--porcelain", "--untracked-files=no"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    return {
+        "commit": commit,
+        "tracked_worktree_dirty": bool(status.strip()),
+    }
 
 
 def _parse_args() -> argparse.Namespace:
@@ -269,7 +291,6 @@ def main() -> None:
     result: dict[str, Any] = {
         "schema_version": 1,
         "config": str(args.config.resolve()),
-        "commit": "05893dfae",
         "hostname": platform.node(),
         "torch_version": torch.__version__,
         "gpu_name": torch.cuda.get_device_name(),
@@ -277,6 +298,7 @@ def main() -> None:
         "num_workers": args.num_workers,
         "train_dataset_samples": len(train_dataset),
         "use_amp": bool(common.use_amp),
+        **_git_provenance(),
         **_model_resource_counts(model),
     }
     result.update(
