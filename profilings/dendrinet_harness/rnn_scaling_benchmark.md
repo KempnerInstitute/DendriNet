@@ -158,6 +158,21 @@ Equivalence: fp64 output *and* every gradient bit-identical up to 46% saturation
 2.4e-07 end-to-end and does not grow with saturation; 200 Adam steps with a saturating
 input end at final-loss relative difference 0.00e+00.
 
+## Batch scaling — feedforward stress config, Blackwell, cuda path
+
+| batch | peak (MB) | vs batch 512 |
+|---|---|---|
+| 512 | 13,370.1 | 1.00× |
+| **2048** | **48,810.2** | 3.65× |
+
+Sub-linear in batch because ~450 MB (the transformed weights) is batch-independent.
+Predicted ~52 GB from the batch-512 composition; measured 48.8 GB.
+
+**Batch 2048 was not reachable this morning.** At the pre-fusion 28,184 MB it would have
+needed ~103 GB, which is no single GPU here; it now fits a 96 GB Blackwell with 47 GB spare.
+The transient gap grows with it — 9,880 MB, still ~20% of peak — so that remains the
+un-decomposed term at any batch.
+
 ## Open rows
 | scale | GPU | path | epoch (s) | peak (MB) | notes |
 |---|---|---|---|---|---|
