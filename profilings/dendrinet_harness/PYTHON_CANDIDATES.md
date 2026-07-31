@@ -55,6 +55,9 @@ Search space is the **15 files** that actually execute per step (`ff_stress/pyma
   whole step and until the next forward — on top of whatever autograd retains.
 - Read **only** by `register_forward_param_gradient_scale` (`indexed_sparse.py:553`,
   `blocklinear.py:246`). When dynamic grad scaling is off, it is pure retention.
+- **Upgraded to [P]:** no config under `configs/` enables dynamic grad scaling
+  (`grep` for `dynamic_grad_scal|param_gradient_scale` returns nothing), so on every
+  config you actually run this reference is held for a consumer that never fires.
 - ~1.4 GB at the stress config if it is genuinely unused there.
 - **Fix shape:** store only when the scaling feature is enabled. One conditional.
 - Cheapest item on the list; verify the feature is actually off in your configs first.
@@ -89,14 +92,14 @@ Search space is the **15 files** that actually execute per step (`ff_stress/pyma
 - Measured: **5.2% of the backward** and **~386 MB** of retained int64 that should be int32.
 - Partly undoes the int32-index scaling lever. Small here, **matters at 1M**.
 
-## C7 — `_normalized_sparse_weight` temporaries **[S]**
+## C7 — `_normalized_sparse_weight` temporaries — **CLOSED, not a candidate**
 
-`indexed_sparse.py:297`
+`indexed_sparse.py:297`. When `weight_norm_order` is set this adds four more full-size
+`[O, K]` tensors (`norm`, `safe_norm`, `normalized`, `torch.where`) on top of C1.
 
-- When `weight_norm_order` is set: `norm`, `safe_norm`, `normalized`, and `torch.where` —
-  four more full-size `[O, K]` tensors stacked on top of C1.
-- **Check first whether any config sets it.** If none do, this is zero and should be closed
-  rather than optimized.
+**But every config that mentions it sets `weight_norm_order: null`**, and the function
+returns immediately on that branch. Zero cost on anything you run. Closed before it cost an
+allocation — which is the point of checking liveness first.
 
 ## C8 — `indices.to(flat_x.device)` per forward **[S]**
 
