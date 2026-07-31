@@ -376,6 +376,90 @@ within-checkpoint technical-draw summaries. Projection and MLP initialization
 draws remain technical repeats; biological inference should use one aggregated
 value per independently trained checkpoint.
 
+Image-Source Structural Alignment
+---------------------------------
+
+The ``weight`` analyzer can emit exact source-contact frequency and mean
+effective-conductance profiles. With ``compute_source_region_alignment``, an
+explicit soma-to-class map aligns an image-space profile with
+class-conditional source occupancy estimated on a named reference split. For
+source profile :math:`w_p` normalized to sum to one, it reports
+
+.. math::
+
+   A_{\mathrm{pref}}=\sum_p w_p P(x_p>\tau\mid Y=c_s),\qquad
+   T=A_{\mathrm{pref}}-A_{\mathrm{rest}}.
+
+Contact and conductance weighting are separate quantities. Center/surround
+support mass and within-region preferred/rest alignment are also separate.
+These are structural/activity-alignment statistics, not mutual information or
+causal attribution. Image layers must be declared explicitly; a hidden source
+is never labeled as pixels merely because its dimension matches an image.
+
+The standard ``dendritic-collect-synaptic-support`` collector preserves the
+checkpoint hash chain and exports exact source-activity, spatial-region, and
+skipped source-block records. For each structural block, pathway, dendritic
+depth, profile quantity, and (for activity alignment) foreground threshold, it
+also emits a checkpoint-level equal-soma summary. Each numeric estimand includes
+its mean, population standard deviation, and defined-soma count. These summaries
+require exactly one record for every soma; they never pool trained checkpoints
+or seeds. See
+``configs/examples/synaptic_source_region_alignment_analysis.yaml``.
+
+Source-Tuning Support Analysis
+------------------------------
+
+``source_tuning_support`` asks whether the exact coordinates selected by a
+synaptic pathway are tuned to the preferred class of their target soma. The
+preferred target class is selected on ``reference_split``; source-coordinate
+moments are estimated on an independent ``evaluation_split``. It reports
+uniform-, contact-, and conductance-weighted preferred/rest means, threshold
+exceedance probabilities, standardized mean differences, and excess over the
+uniform eligible-source baseline. For every target soma, it also reports the
+centered class-profile correlation between that target on the reference split
+and every source coordinate on the evaluation split. Classes are equally
+weighted, degenerate profiles are counted explicitly, and exact-contact and
+conductance weighting are again compared with the uniform-source baseline.
+
+Only explicitly declared layer-1 sources with a matching ``[H,W]`` or
+``[C,H,W]`` shape are pixels. Deeper records use native source-neuron
+coordinates. The analysis streams per-class sufficient statistics and never
+stores sample-by-source or sample-by-synapse matrices. Collect checkpoint
+outputs with ``dendritic-collect-source-tuning``. In addition to the exact
+per-soma records, the collector emits one checkpoint summary per structural
+source block. It first applies the declared source-uniform, contact, or
+conductance weighting within each soma, then averages target somas with equal
+weight and records the population standard deviation and defined count. It
+never weights a soma by its total conductance and never aggregates trained
+seeds. The resulting checkpoint rows can be passed to
+``dendritic-summarize-checkpoint-metrics`` so independently trained seeds remain
+the inferential units. See ``configs/examples/source_tuning_support_analysis.yaml``.
+
+Input-Region Interventions
+--------------------------
+
+``input_region_intervention`` performs paired foreground/background or
+center/surround interventions on a frozen image classifier. A named region can
+be removed or retained using numerical zero or a featurewise mean calibrated
+on an independent reference split. Outputs include accuracy and NLL changes,
+E/I soma-population response changes, and—within matched target trees—changes
+in excitatory/inhibitory pre-gate drive, pre-gate voltage, post-gate branch
+output, and soma output. Class-specific and explicitly configured
+identity-soma summaries are available without retaining individual examples.
+
+For direct copied E/I image banks, masking the raw image perturbs both routes;
+the result is differential E/I response propagation, not a pathway-specific
+causal intervention. Later-layer records are likewise propagated responses,
+not pixel receptive fields. Excitatory- and inhibitory-target trees must not be
+pooled, and the positive inhibitory drive should not be interpreted as a
+signed downstream effect: additive units subtract it, whereas shunting units
+place it in the divisor. Statically duplicate complementary masks are rejected.
+Collect checkpoint outputs with
+``dendritic-collect-input-region-interventions``; the collector writes separate
+classification, aggregate-response, per-class, and identity-soma tables
+without aggregating trained seeds. See
+``configs/examples/input_region_intervention_analysis.yaml``.
+
 Ablation Analysis
 -----------------
 

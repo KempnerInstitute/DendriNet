@@ -28,6 +28,11 @@ from .inhibitory_routing_comparison import (
     fixed_budget_inhibitory_routing_comparison,
 )
 from .inhibitory_specialization import InhibitorySpecializationAnalyzer
+from .input_region_intervention import (
+    ImageRegionSpec,
+    InputRegionInterventionAnalyzer,
+    InputRegionInterventionSettings,
+)
 from .jacobian_spectrum import JacobianSpectrumAnalyzer
 from .layer_population_intervention import LocalInhibitoryPopulationInterventionAnalyzer
 from .local_rule_components import LocalRuleComponentAnalyzer
@@ -58,6 +63,7 @@ from .representation_accessibility import (
     population_geometry,
     population_layer_inventory,
 )
+from .source_tuning import SourceTuningOptions, SourceTuningSupportAnalyzer
 from .spike_trains import SpikeTrainAnalyzer
 from .state_transition_jacobian import StateTransitionJacobianAnalyzer
 from .synaptic_activation import SynapticActivationAnalyzer
@@ -77,8 +83,11 @@ __all__ = [
     "ClassAccessibilityProbeAnalyzer",
     "CorrelationAnalyzer",
     "DendriticTimetracesAnalyzer",
+    "ImageRegionSpec",
     "InhibitoryRoutingComparison",
     "InhibitorySpecializationAnalyzer",
+    "InputRegionInterventionAnalyzer",
+    "InputRegionInterventionSettings",
     "JacobianSpectrumAnalyzer",
     "LinearClassAccessibilityAnalyzer",
     "LocalInhibitoryPopulationInterventionAnalyzer",
@@ -90,6 +99,8 @@ __all__ = [
     "ReactivationDynamicsAnalyzer",
     "RepresentationAccessibilityAnalyzer",
     "SameCheckpointCausalInterventionAnalyzer",
+    "SourceTuningOptions",
+    "SourceTuningSupportAnalyzer",
     "SpikeTrainAnalyzer",
     "StateTransitionJacobianAnalyzer",
     "SynapticActivationAnalyzer",

@@ -3633,6 +3633,60 @@ class TestAnalysisManager(unittest.TestCase):
             self.assertEqual(call_kwargs["filename"], "epoch_weight")
             self.assertTrue(call_kwargs["training"])
 
+    def test_weight_analysis_receives_configured_reference_and_runtime(self):
+        """Weight region alignment must use its configured reference split."""
+        config = AnalysisConfig()
+        config.performance_analysis.enabled = False
+        config.weight_analysis.enabled = True
+        config.weight_analysis.params.compute_source_region_alignment = True
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manager = AnalysisManager(
+                model=self.model,
+                data=self.data,
+                analysis_config=config,
+                save_root=tmpdir,
+            )
+            runtime = manager.config.runtime.final
+
+            with patch.object(manager, "weight_analyzer") as mock_analyzer:
+                manager._run_weight_analysis(
+                    filename="final",
+                    training=False,
+                    runtime=runtime,
+                )
+
+            call_kwargs = mock_analyzer.analyze.call_args.kwargs
+            self.assertIs(call_kwargs["reference_dataset"], self.data["valid"])
+            self.assertEqual(call_kwargs["reference_split"], "validation")
+            self.assertIs(call_kwargs["runtime"], runtime)
+
+    def test_weight_analysis_without_region_alignment_needs_no_validation_split(self):
+        """Ordinary structural weight analysis must retain its model-only contract."""
+        config = AnalysisConfig()
+        config.performance_analysis.enabled = False
+        config.weight_analysis.enabled = True
+        data = {key: value for key, value in self.data.items() if key != "valid"}
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            manager = AnalysisManager(
+                model=self.model,
+                data=data,
+                analysis_config=config,
+                save_root=tmpdir,
+            )
+
+            with patch.object(manager, "weight_analyzer") as mock_analyzer:
+                manager._run_weight_analysis(
+                    filename="final",
+                    training=False,
+                    runtime=manager.config.runtime.final,
+                )
+
+            call_kwargs = mock_analyzer.analyze.call_args.kwargs
+            self.assertNotIn("reference_dataset", call_kwargs)
+            self.assertNotIn("reference_split", call_kwargs)
+
     def test_split_dataset_analysis_preserves_custom_test_kwarg(self):
         """Shared split-dataset helper should preserve analyzer-specific kwargs."""
         config = AnalysisConfig()
@@ -3827,7 +3881,7 @@ class TestAnalysisManager(unittest.TestCase):
             ("_run_performance_analysis", "performance", True),
             ("_run_information_analysis", "information", True),
             ("_run_synaptic_turnover_analysis", "synapse_turnover", False),
-            ("_run_weight_analysis", "weight", False),
+            ("_run_weight_analysis", "weight", True),
             ("_run_reactivation_dynamics_analysis", "reactivation_dynamics", True),
             ("_run_local_rule_component_analysis", "local_rule_components", True),
             ("_run_correlation_analysis", "correlation", True),

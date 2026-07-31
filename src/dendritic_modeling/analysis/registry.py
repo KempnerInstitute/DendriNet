@@ -75,6 +75,35 @@ _BUILTIN_ANALYZERS: tuple[AnalyzerSpec, ...] = (
         ),
     ),
     AnalyzerSpec(
+        name="source_tuning_support",
+        config_field="source_tuning_support_analysis",
+        class_path=(
+            "dendritic_modeling.analysis.tools.source_tuning."
+            "SourceTuningSupportAnalyzer"
+        ),
+        attribute_name="source_tuning_support_analyzer",
+        save_subdir="source_tuning_support_analysis",
+        supports_training=False,
+        description=(
+            "Split-safe source-coordinate tuning aligned with exact sparse "
+            "contacts and effective conductances"
+        ),
+    ),
+    AnalyzerSpec(
+        name="input_region_intervention",
+        config_field="input_region_intervention_analysis",
+        class_path=(
+            "dendritic_modeling.analysis.tools.input_region_intervention."
+            "InputRegionInterventionAnalyzer"
+        ),
+        attribute_name="input_region_intervention_analyzer",
+        save_subdir="input_region_intervention",
+        supports_training=False,
+        description=(
+            "Paired image-region interventions with layerwise E/I response propagation"
+        ),
+    ),
+    AnalyzerSpec(
         name="synapse_turnover",
         config_field="synapse_turnover_analysis",
         class_path="dendritic_modeling.analysis.tools.synaptic_turnover.SynapticTurnoverAnalyzer",

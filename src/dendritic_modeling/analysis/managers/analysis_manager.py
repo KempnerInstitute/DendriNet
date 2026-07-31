@@ -179,6 +179,18 @@ class AnalysisManager:
         spec = _registered_analyzer_spec(registry_name)
         return getattr(self, spec.attribute_name)
 
+    def _dataset_for_analysis_split(self, split: str) -> torch.utils.data.Dataset:
+        """Resolve a canonical analysis split name to its dataset object."""
+        canonical = str(split).lower()
+        dataset_key = "valid" if canonical == "validation" else canonical
+        if dataset_key not in self.data or canonical not in {
+            "train",
+            "validation",
+            "test",
+        }:
+            raise ValueError(f"Unknown analysis dataset split: {split!r}")
+        return self.data[dataset_key]
+
     def _call_analysis_analyzer(self, registry_name: str, **kwargs) -> None:
         """Invoke a registered analyzer with precomputed keyword arguments."""
         self._analysis_analyzer(registry_name).analyze(**kwargs)
@@ -478,13 +490,42 @@ class AnalysisManager:
             training=training,
         )
 
-    def _run_weight_analysis(self, *, filename: str, training: bool) -> None:
-        """Run weight analysis."""
-        self._run_training_flag_model_analysis(
-            registry_name="weight",
-            filename=filename,
-            training=training,
-        )
+    def _run_weight_analysis(
+        self,
+        *,
+        filename: str,
+        training: bool,
+        runtime: object | None,
+    ) -> None:
+        """Run weight analysis with its configured structural reference split."""
+        if not self._should_run_registered_analysis("weight", training=training):
+            return
+        analyzer_kwargs = {
+            "model": self.model,
+            "save_path": self._analysis_save_path("weight"),
+            "filename": filename,
+            "training": training,
+            "runtime": runtime,
+        }
+        config = self._analysis_config("weight")
+        params = getattr(config, "params", None)
+        if bool(getattr(params, "compute_source_region_alignment", False)):
+            reference_split = str(
+                getattr(params, "source_region_reference_split", "validation")
+            ).lower()
+            dataset_key = (
+                "valid" if reference_split == "validation" else reference_split
+            )
+            if dataset_key not in self.data:
+                raise ValueError(
+                    "weight-analysis reference split is unavailable: "
+                    f"{reference_split!r}"
+                )
+            analyzer_kwargs.update(
+                reference_dataset=self.data[dataset_key],
+                reference_split=reference_split,
+            )
+        self._call_analysis_analyzer("weight", **analyzer_kwargs)
 
     def _run_training_flag_model_analysis(
         self,
@@ -533,6 +574,67 @@ class AnalysisManager:
             training=training,
             runtime=runtime,
             require_analyzer=True,
+        )
+
+    def _run_source_tuning_support_analysis(
+        self,
+        *,
+        filename: str,
+        training: bool,
+        runtime: object | None,
+    ) -> None:
+        """Run split-safe source tuning with independent preference selection."""
+        if not self._should_run_registered_analysis(
+            "source_tuning_support",
+            training=training,
+            require_analyzer=True,
+        ):
+            return
+        config = self._analysis_config("source_tuning_support")
+        params = getattr(config, "params", None)
+        reference_split = str(getattr(params, "reference_split", "train"))
+        evaluation_split = str(getattr(params, "evaluation_split", "validation"))
+        self._call_analysis_analyzer(
+            "source_tuning_support",
+            model=self.model,
+            data=self._dataset_for_analysis_split(evaluation_split),
+            reference_data=self._dataset_for_analysis_split(reference_split),
+            reference_split_name=reference_split,
+            evaluation_split_name=evaluation_split,
+            device=self.device,
+            save_path=self._analysis_save_path("source_tuning_support"),
+            filename=filename,
+            runtime=runtime,
+        )
+
+    def _run_input_region_intervention_analysis(
+        self,
+        *,
+        filename: str,
+        training: bool,
+        runtime: object | None,
+    ) -> None:
+        """Run paired input-region interventions on the configured split."""
+        if not self._should_run_registered_analysis(
+            "input_region_intervention",
+            training=training,
+            require_analyzer=True,
+        ):
+            return
+        config = self._analysis_config("input_region_intervention")
+        params = getattr(config, "params", None)
+        reference_split = str(getattr(params, "reference_split", "train"))
+        evaluation_split = str(getattr(params, "evaluation_split", "test"))
+        self._call_analysis_analyzer(
+            "input_region_intervention",
+            model=self.model,
+            test_dataset=self._dataset_for_analysis_split(evaluation_split),
+            reference_dataset=self._dataset_for_analysis_split(reference_split),
+            runtime=runtime,
+            reference_runtime=runtime,
+            device=self.device,
+            save_path=self._analysis_save_path("input_region_intervention"),
+            filename=filename,
         )
 
     def _run_local_rule_component_analysis(

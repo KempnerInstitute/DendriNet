@@ -804,6 +804,247 @@ class RepresentationAccessibilityAnalysisConfig(BaseConfig):
 
 
 @dataclass
+class SourceTuningSupportAnalysisParams(BaseConfig):
+    """Split-safe source tuning aligned with exact sparse synaptic support."""
+
+    pathways: list[str] = field(
+        default_factory=lambda: ["ff_excitatory", "ff_inhibitory"]
+    )
+    target_polarities: list[str] = field(
+        default_factory=lambda: ["excitatory", "inhibitory"]
+    )
+    image_shape: Optional[tuple[int, ...]] = None
+    image_source_layers: list[int] = field(default_factory=list)
+    image_source_names: list[str] = field(
+        default_factory=lambda: ["input", "input_e", "input_i"]
+    )
+    image_binarization_threshold: float = 0.5
+    continuous_activity_threshold: float = 0.0
+    input_batch_index: int = 0
+    label_batch_index: int = 1
+    max_reference_samples: Optional[int] = None
+    max_evaluation_samples: Optional[int] = None
+    require_independent_splits: bool = True
+    retain_coordinate_profiles: bool = False
+    epsilon: float = 1e-12
+    reference_split: str = "train"
+    evaluation_split: str = "validation"
+
+    def __post_init__(self) -> None:
+        self.pathways = [str(value) for value in self.pathways]
+        self.target_polarities = [str(value) for value in self.target_polarities]
+        self.image_source_layers = [int(value) for value in self.image_source_layers]
+        self.image_source_names = [str(value) for value in self.image_source_names]
+        if self.image_shape is not None:
+            self.image_shape = tuple(int(value) for value in self.image_shape)
+        self.input_batch_index = int(self.input_batch_index)
+        self.label_batch_index = int(self.label_batch_index)
+        if self.input_batch_index < 0 or self.label_batch_index < 0:
+            raise ValueError("source-tuning batch indices must be non-negative")
+        self.reference_split = str(self.reference_split).lower()
+        self.evaluation_split = str(self.evaluation_split).lower()
+        allowed_splits = {"train", "validation", "test"}
+        if self.reference_split not in allowed_splits:
+            raise ValueError(
+                "source-tuning reference_split must be train, validation, or test"
+            )
+        if self.evaluation_split not in allowed_splits:
+            raise ValueError(
+                "source-tuning evaluation_split must be train, validation, or test"
+            )
+        if self.require_independent_splits and (
+            self.reference_split == self.evaluation_split
+        ):
+            raise ValueError(
+                "source-tuning independent reference and evaluation splits must differ"
+            )
+
+    def to_analyzer_params(self) -> object:
+        """Build the analyzer's immutable package-native options object."""
+        from dendritic_modeling.analysis.tools.source_tuning import SourceTuningOptions
+
+        return SourceTuningOptions(
+            pathways=tuple(self.pathways),
+            target_polarities=tuple(self.target_polarities),
+            image_shape=self.image_shape,
+            image_source_layers=tuple(self.image_source_layers),
+            image_source_names=tuple(self.image_source_names),
+            image_binarization_threshold=float(self.image_binarization_threshold),
+            continuous_activity_threshold=float(self.continuous_activity_threshold),
+            input_batch_index=self.input_batch_index,
+            label_batch_index=self.label_batch_index,
+            max_reference_samples=self.max_reference_samples,
+            max_evaluation_samples=self.max_evaluation_samples,
+            require_independent_splits=bool(self.require_independent_splits),
+            retain_coordinate_profiles=bool(self.retain_coordinate_profiles),
+            epsilon=float(self.epsilon),
+        )
+
+
+@dataclass
+class SourceTuningSupportAnalysisConfig(BaseConfig):
+    """Enable final-only source-tuning/support analysis."""
+
+    enabled: bool = False
+    training: bool = False
+    params: SourceTuningSupportAnalysisParams = field(
+        default_factory=SourceTuningSupportAnalysisParams
+    )
+
+
+@dataclass
+class InputImageRegionConfig(BaseConfig):
+    """One typed image-region definition for a paired input intervention."""
+
+    name: str
+    kind: str
+    center_fraction: float = 0.5
+    foreground_threshold: float = 0.5
+
+    def __post_init__(self) -> None:
+        self.name = str(self.name).strip()
+        self.kind = str(self.kind).lower()
+        if not self.name:
+            raise ValueError("input-region names must be non-empty")
+        if self.kind not in {
+            "central_square",
+            "surround",
+            "foreground",
+            "background",
+        }:
+            raise ValueError(f"unknown input-region kind: {self.kind!r}")
+        self.center_fraction = float(self.center_fraction)
+        self.foreground_threshold = float(self.foreground_threshold)
+
+    def to_image_region_spec(self) -> object:
+        """Build the analyzer's immutable region specification."""
+        from dendritic_modeling.analysis.tools.input_region_intervention import (
+            ImageRegionSpec,
+        )
+
+        return ImageRegionSpec(
+            name=self.name,
+            kind=self.kind,
+            center_fraction=self.center_fraction,
+            foreground_threshold=self.foreground_threshold,
+        )
+
+
+@dataclass
+class InputRegionInterventionAnalysisParams(BaseConfig):
+    """Configuration for paired frozen-checkpoint image-region interventions.
+
+    ``target_population_polarities`` selects the target polarity of dendritic
+    branch-response records. Soma-population responses remain available for all
+    populations so E/I propagation can be compared without conflating source
+    current polarity with target-cell polarity. Records from E- and I-target
+    trees are distinct estimands and must not be pooled.
+    """
+
+    image_shape: Optional[tuple[int, ...]] = None
+    regions: list[InputImageRegionConfig] = field(default_factory=list)
+    operations: list[str] = field(
+        default_factory=lambda: ["remove_only", "retain_only"]
+    )
+    replacement_methods: list[str] = field(
+        default_factory=lambda: ["zero", "reference_mean"]
+    )
+    reference_split: str = "train"
+    evaluation_split: str = "test"
+    max_reference_samples: Optional[int] = None
+    max_evaluation_samples: Optional[int] = None
+    target_population_polarities: list[str] = field(
+        default_factory=lambda: ["excitatory"]
+    )
+    identity_soma_class_mapping: Optional[list[int]] = None
+    identity_soma_population_name: Optional[str] = None
+    identity_soma_network_layer_index: Optional[int] = None
+
+    def __post_init__(self) -> None:
+        if self.image_shape is not None:
+            self.image_shape = tuple(int(value) for value in self.image_shape)
+        normalized_regions = []
+        for value in self.regions:
+            if isinstance(value, InputImageRegionConfig):
+                normalized_regions.append(value)
+            elif isinstance(value, Mapping):
+                normalized_regions.append(InputImageRegionConfig(**dict(value)))
+            else:
+                raise TypeError("input-region definitions must be mappings")
+        self.regions = normalized_regions
+        self.operations = [str(value).lower() for value in self.operations]
+        self.replacement_methods = [
+            str(value).lower() for value in self.replacement_methods
+        ]
+        self.target_population_polarities = [
+            str(value).lower() for value in self.target_population_polarities
+        ]
+        if self.identity_soma_class_mapping is not None:
+            self.identity_soma_class_mapping = [
+                int(value) for value in self.identity_soma_class_mapping
+            ]
+        if self.identity_soma_population_name is not None:
+            self.identity_soma_population_name = str(
+                self.identity_soma_population_name
+            ).strip()
+        if self.identity_soma_network_layer_index is not None:
+            self.identity_soma_network_layer_index = int(
+                self.identity_soma_network_layer_index
+            )
+        self.reference_split = str(self.reference_split).lower()
+        self.evaluation_split = str(self.evaluation_split).lower()
+        allowed_splits = {"train", "validation", "test"}
+        if self.reference_split not in allowed_splits:
+            raise ValueError(
+                "input-region reference_split must be train, validation, or test"
+            )
+        if self.evaluation_split not in allowed_splits:
+            raise ValueError(
+                "input-region evaluation_split must be train, validation, or test"
+            )
+
+    def to_analyzer_params(self) -> object:
+        """Build immutable package-native settings and nested region specs."""
+        from dendritic_modeling.analysis.tools.input_region_intervention import (
+            InputRegionInterventionSettings,
+        )
+
+        if self.image_shape is None:
+            raise ValueError("input-region intervention requires image_shape")
+        if not self.regions:
+            raise ValueError("input-region intervention requires at least one region")
+        return InputRegionInterventionSettings(
+            image_shape=self.image_shape,
+            regions=tuple(region.to_image_region_spec() for region in self.regions),
+            operations=tuple(self.operations),
+            replacement_methods=tuple(self.replacement_methods),
+            reference_split=self.reference_split,
+            evaluation_split=self.evaluation_split,
+            max_reference_samples=self.max_reference_samples,
+            max_evaluation_samples=self.max_evaluation_samples,
+            target_population_polarities=tuple(self.target_population_polarities),
+            identity_soma_class_mapping=(
+                None
+                if self.identity_soma_class_mapping is None
+                else tuple(self.identity_soma_class_mapping)
+            ),
+            identity_soma_population_name=self.identity_soma_population_name,
+            identity_soma_network_layer_index=(self.identity_soma_network_layer_index),
+        )
+
+
+@dataclass
+class InputRegionInterventionAnalysisConfig(BaseConfig):
+    """Enable final-only paired image-region intervention analysis."""
+
+    enabled: bool = False
+    training: bool = False
+    params: InputRegionInterventionAnalysisParams = field(
+        default_factory=InputRegionInterventionAnalysisParams
+    )
+
+
+@dataclass
 class SynapseTurnoverAnalysisParams(BaseConfig):
     """Parameters for synapse turnover analysis.
 
@@ -1330,9 +1571,28 @@ class WeightAnalysisParams(BaseConfig):
       depth, and synaptic pathway.
     - source_support_target_polarities / source_support_pathways: restrict the
       target populations and pathways included in that analysis.
-    - source_support_image_shape: optional image-space shape used only for the
-      package-native audit plot; the saved profiles remain one-dimensional.
+    - source_support_image_shape: optional image-space shape used for the
+      package-native audit plot and source-region alignment; saved support
+      profiles remain one-dimensional.
     - source_support_plot_soma_indices: optional soma subset for that plot.
+
+    Source-region alignment:
+    - compute_source_region_alignment: align exact image-space source-support
+      profiles with class-conditional activity in the configured reference split.
+    - source_region_soma_to_class: explicit class label for every target soma.
+    - source_region_reference_split: ``train``, ``validation``, or ``test``;
+      defaults to validation so final checkpoint analysis does not fit its
+      publication template on the test set.
+    - source_region_image_network_layers: network-layer indices whose source
+      coordinates are explicitly declared to be image pixels. Later layers are
+      skipped even if their width happens to equal the image pixel count.
+    - source_region_foreground_thresholds: pixel thresholds used to define
+      sample-dependent foreground (``x > threshold``) and background.
+    - source_region_center_bounds: optional half-open ``[r0, r1, c0, c1]``
+      center rectangle. When omitted, the centered half-height/half-width
+      rectangle is used.
+    - source_region_max_reference_samples: optional deterministic cap on the
+      reference examples used to estimate class-conditional pixel occupancy.
     """
 
     synapse_weights: bool = True  # Analyze excitatory and inhibitory synapse weights
@@ -1373,6 +1633,15 @@ class WeightAnalysisParams(BaseConfig):
     source_support_image_shape: Optional[tuple[int, int]] = None
     source_support_plot_soma_indices: list[int] = field(default_factory=list)
     source_support_fig_save_format: str = "pdf"
+    compute_source_region_alignment: bool = False
+    source_region_soma_to_class: list[int] = field(default_factory=list)
+    source_region_reference_split: str = "validation"
+    source_region_image_network_layers: list[int] = field(default_factory=lambda: [0])
+    source_region_foreground_thresholds: list[float] = field(
+        default_factory=lambda: [0.0, 0.5]
+    )
+    source_region_center_bounds: Optional[tuple[int, int, int, int]] = None
+    source_region_max_reference_samples: Optional[int] = None
 
     def __post_init__(self) -> None:
         allowed_polarities = {"excitatory", "inhibitory"}
@@ -1393,7 +1662,7 @@ class WeightAnalysisParams(BaseConfig):
         )
         if unknown_polarities:
             raise ValueError(
-                "unknown source-support target polarities: " f"{unknown_polarities}"
+                f"unknown source-support target polarities: {unknown_polarities}"
             )
         unknown_pathways = sorted(set(self.source_support_pathways) - allowed_pathways)
         if unknown_pathways:
@@ -1420,6 +1689,92 @@ class WeightAnalysisParams(BaseConfig):
         ).lstrip(".")
         if not self.source_support_fig_save_format:
             raise ValueError("source_support_fig_save_format cannot be empty")
+        self.compute_source_region_alignment = bool(
+            self.compute_source_region_alignment
+        )
+        self.source_region_soma_to_class = [
+            int(value) for value in self.source_region_soma_to_class
+        ]
+        if any(value < 0 for value in self.source_region_soma_to_class):
+            raise ValueError("source_region_soma_to_class must be non-negative")
+        self.source_region_reference_split = str(
+            self.source_region_reference_split
+        ).lower()
+        if self.source_region_reference_split not in {
+            "train",
+            "validation",
+            "test",
+        }:
+            raise ValueError(
+                "source_region_reference_split must be train, validation, or test"
+            )
+        self.source_region_image_network_layers = [
+            int(value) for value in self.source_region_image_network_layers
+        ]
+        if not self.source_region_image_network_layers:
+            raise ValueError("source_region_image_network_layers cannot be empty")
+        if any(value < -1 for value in self.source_region_image_network_layers):
+            raise ValueError(
+                "source_region_image_network_layers must contain indices >= -1"
+            )
+        if len(set(self.source_region_image_network_layers)) != len(
+            self.source_region_image_network_layers
+        ):
+            raise ValueError("source_region_image_network_layers must be unique")
+        self.source_region_foreground_thresholds = [
+            float(value) for value in self.source_region_foreground_thresholds
+        ]
+        if not self.source_region_foreground_thresholds:
+            raise ValueError("source_region_foreground_thresholds cannot be empty")
+        if not all(
+            math.isfinite(value) for value in self.source_region_foreground_thresholds
+        ):
+            raise ValueError(
+                "source_region_foreground_thresholds must contain finite values"
+            )
+        if len(set(self.source_region_foreground_thresholds)) != len(
+            self.source_region_foreground_thresholds
+        ):
+            raise ValueError("source_region_foreground_thresholds must be unique")
+        if self.source_region_center_bounds is not None:
+            self.source_region_center_bounds = tuple(
+                int(value) for value in self.source_region_center_bounds
+            )
+            if len(self.source_region_center_bounds) != 4:
+                raise ValueError(
+                    "source_region_center_bounds must contain four integers"
+                )
+            if self.source_support_image_shape is None:
+                raise ValueError(
+                    "source_region_center_bounds requires source_support_image_shape"
+                )
+            r0, r1, c0, c1 = self.source_region_center_bounds
+            height, width = self.source_support_image_shape
+            if not (0 <= r0 < r1 <= height and 0 <= c0 < c1 <= width):
+                raise ValueError(
+                    "source_region_center_bounds must lie inside the image shape"
+                )
+        if self.source_region_max_reference_samples is not None:
+            self.source_region_max_reference_samples = int(
+                self.source_region_max_reference_samples
+            )
+            if self.source_region_max_reference_samples < 1:
+                raise ValueError("source_region_max_reference_samples must be positive")
+        if self.compute_source_region_alignment:
+            if not self.compute_source_support:
+                raise ValueError(
+                    "compute_source_region_alignment requires compute_source_support"
+                )
+            if self.source_support_image_shape is None:
+                raise ValueError(
+                    "compute_source_region_alignment requires "
+                    "source_support_image_shape"
+                )
+            if not self.source_region_soma_to_class:
+                raise ValueError(
+                    "compute_source_region_alignment requires an explicit "
+                    "source_region_soma_to_class mapping"
+                )
 
 
 @dataclass
@@ -2191,6 +2546,12 @@ class AnalysisConfig(BaseConfig):
     )
     representation_accessibility_analysis: RepresentationAccessibilityAnalysisConfig = (
         field(default_factory=RepresentationAccessibilityAnalysisConfig)
+    )
+    source_tuning_support_analysis: SourceTuningSupportAnalysisConfig = field(
+        default_factory=SourceTuningSupportAnalysisConfig
+    )
+    input_region_intervention_analysis: InputRegionInterventionAnalysisConfig = field(
+        default_factory=InputRegionInterventionAnalysisConfig
     )
     receptive_field_analysis: ReceptiveFieldAnalysisConfig = field(
         default_factory=ReceptiveFieldAnalysisConfig

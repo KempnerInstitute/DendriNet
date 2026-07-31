@@ -72,6 +72,9 @@ class _AnalyzerInitializer(_RegisteredAnalysisMetadata):
         if constructor_style == "model_params":
             return analyzer_cls(model=model, params=params)
         if constructor_style == "params":
+            params_builder = getattr(params, "to_analyzer_params", None)
+            if callable(params_builder):
+                params = params_builder()
             return analyzer_cls(params)
         raise ValueError(
             "Unsupported analyzer constructor style for "
@@ -235,13 +238,21 @@ _ORDERED_ANALYSIS_SEQUENCE = (
         "_run_representation_accessibility_analysis",
         pass_runtime=True,
     ),
+    _AnalysisSequenceStep(
+        "_run_source_tuning_support_analysis",
+        pass_runtime=True,
+    ),
     _AnalysisSequenceStep("_run_synaptic_turnover_analysis"),
     _AnalysisSequenceStep(
         "_run_test_dataset_analysis_runners",
         pass_runtime=True,
         runners=_PRE_WEIGHT_TEST_DATASET_ANALYSES,
     ),
-    _AnalysisSequenceStep("_run_weight_analysis"),
+    _AnalysisSequenceStep(
+        "_run_input_region_intervention_analysis",
+        pass_runtime=True,
+    ),
+    _AnalysisSequenceStep("_run_weight_analysis", pass_runtime=True),
     _AnalysisSequenceStep("_run_reactivation_dynamics_analysis", pass_runtime=True),
     _AnalysisSequenceStep(
         "_run_test_dataset_analysis_runners",

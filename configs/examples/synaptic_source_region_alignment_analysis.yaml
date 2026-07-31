@@ -1,0 +1,48 @@
+# Structural alignment of exact image-space synaptic support with MNIST source
+# regions. Run this profile on a frozen checkpoint with
+# dendritic-analyze-checkpoint. By default the validation split estimates the
+# publication template; the reference image occupancy is combined with frozen
+# checkpoint support, but checkpoint response activations are not used. Set
+# the split to train or test only for declared sensitivity analyses.
+analysis:
+  runtime:
+    final:
+      mode: stream
+      batch_size: 512
+      num_workers: 0
+      pin_memory: true
+
+  weight:
+    enabled: true
+    training: false
+    params:
+      compute_source_support: true
+      source_support_target_polarities: [excitatory]
+      source_support_pathways: [ff_excitatory, ff_inhibitory]
+      source_support_image_shape: [28, 28]
+
+      compute_source_region_alignment: true
+      # Explicit output-soma identity for a ten-soma MNIST classifier.
+      source_region_soma_to_class: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+      source_region_reference_split: validation
+      # Only layer 0 is declared to receive literal image-pixel coordinates.
+      source_region_image_network_layers: [0]
+      # Foreground is defined separately as x_p > tau for each threshold.
+      source_region_foreground_thresholds: [0.0, 0.5]
+      # Half-open [row_start, row_stop, col_start, col_stop].
+      source_region_center_bounds: [7, 21, 7, 21]
+      source_region_max_reference_samples: null
+
+      # Native support maps remain useful for checkpoint-level auditing.
+      source_support_plot_soma_indices: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+      source_support_fig_save_format: pdf
+
+# Outputs include, for contact frequency and effective conductance separately:
+#   A_pref = sum_p normalized_profile(p) P_ref[x_p > tau | Y = soma class]
+#   A_rest = sum_p normalized_profile(p) P_ref[x_p > tau | Y != soma class]
+#   T = A_pref - A_rest
+# plus foreground/background occupancy enrichment and area-normalized
+# center/surround controls. A_pref, A_rest, and T are also recomputed after
+# normalizing the profile within center and surround. Blocks whose source
+# dimension is not 28*28 are recorded explicitly as skipped rather than
+# interpreted as image pixels.

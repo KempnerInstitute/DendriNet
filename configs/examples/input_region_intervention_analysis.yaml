@@ -1,0 +1,44 @@
+# Final-only paired image-region intervention on a frozen feedforward
+# classifier. Reference-mean replacement is calibrated on train and every
+# intervention is evaluated on the untouched test split.
+analysis:
+  runtime:
+    final:
+      mode: stream
+      batch_size: 512
+      num_workers: 0
+      pin_memory: true
+
+  input_region_intervention:
+    enabled: true
+    training: false
+    params:
+      image_shape: [1, 28, 28]
+      reference_split: train
+      evaluation_split: test
+      # Each region is listed once. remove_only and retain_only already provide
+      # the complementary surround/background estimands, so explicitly adding
+      # both complementary names would duplicate the same intervention masks.
+      regions:
+        - name: center
+          kind: central_square
+          center_fraction: 0.5
+        - name: foreground
+          kind: foreground
+          foreground_threshold: 0.5
+      operations: [remove_only, retain_only]
+      replacement_methods: [zero, reference_mean]
+      max_reference_samples: null
+      max_evaluation_samples: null
+
+      # Safe matched-target default: capture currents in E-target trees. I-target
+      # trees may be requested explicitly, but their records must remain a
+      # separate estimand and must never be pooled with E-target records.
+      # Soma-population responses are recorded for all populations.
+      target_population_polarities: [excitatory]
+
+      # Optional identity readout for tasks where soma i is explicitly assigned
+      # to class i (for example, a 10-soma MNIST classifier):
+      # identity_soma_class_mapping: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+      # identity_soma_population_name: e0
+      # identity_soma_network_layer_index: 0

@@ -65,6 +65,18 @@ _LAZY_IMPORTS = {
         "dendritic_modeling.analysis.tools",
         "LocalInhibitoryPopulationInterventionAnalyzer",
     ),
+    "InputRegionInterventionAnalyzer": (
+        "dendritic_modeling.analysis.tools",
+        "InputRegionInterventionAnalyzer",
+    ),
+    "InputRegionInterventionSettings": (
+        "dendritic_modeling.analysis.tools",
+        "InputRegionInterventionSettings",
+    ),
+    "ImageRegionSpec": (
+        "dendritic_modeling.analysis.tools",
+        "ImageRegionSpec",
+    ),
     "NoisePerturbationAnalyzer": (
         "dendritic_modeling.analysis.metrics",
         "NoisePerturbationAnalyzer",
@@ -96,6 +108,14 @@ _LAZY_IMPORTS = {
     "StateTransitionJacobianAnalyzer": (
         "dendritic_modeling.analysis.tools",
         "StateTransitionJacobianAnalyzer",
+    ),
+    "SourceTuningSupportAnalyzer": (
+        "dendritic_modeling.analysis.tools",
+        "SourceTuningSupportAnalyzer",
+    ),
+    "SourceTuningOptions": (
+        "dendritic_modeling.analysis.tools",
+        "SourceTuningOptions",
     ),
     "SynapticActivationAnalyzer": (
         "dendritic_modeling.analysis.tools",

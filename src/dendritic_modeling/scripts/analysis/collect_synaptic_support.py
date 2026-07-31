@@ -2,9 +2,11 @@
 
 The registered weight analyzer emits one scalar record per soma, dendritic
 depth, and pathway, plus NPZ arrays containing the corresponding source
-profiles. This collector validates both representations and preserves their
-structural coordinates. It performs no across-checkpoint aggregation and never
-treats somas, depths, pathways, or source coordinates as independent replicates.
+profiles. Optional source-region alignment records connect those profiles to a
+declared reference split without using model activity. This collector validates
+all representations and preserves their structural coordinates. It performs no
+across-checkpoint aggregation and never treats somas, depths, pathways, or
+source coordinates as independent replicates.
 """
 
 from __future__ import annotations
@@ -30,7 +32,7 @@ from dendritic_modeling.scripts.analysis.collect_checkpoint_analysis import (
 )
 from dendritic_modeling.scripts.sweeps.control_plane import discover_source_identity
 
-SCHEMA_VERSION = "synaptic_source_support_collection_v1"
+SCHEMA_VERSION = "synaptic_source_support_collection_v2"
 CONFIG_SCHEMA_VERSION = "synaptic_source_support_collection_config_v1"
 RESULT_SUBDIRECTORY = Path("weight_analysis")
 RESULT_FILENAME = "final"
@@ -61,6 +63,76 @@ _SCALAR_FIELDS = {
     "effective_source_fraction",
     "mean_pairwise_branch_jaccard",
 }
+_REGION_COMMON_FIELDS = _STRUCTURAL_FIELDS | {
+    "soma_class",
+    "quantity",
+    "source_profile_key",
+    "reference_split",
+    "reference_sample_count",
+    "preferred_class_sample_count",
+    "rest_class_sample_count",
+}
+_ACTIVITY_BASE_METRIC_FIELDS = {
+    "profile_total_mass",
+    "preferred_foreground_fraction",
+    "preferred_background_fraction",
+    "rest_foreground_fraction",
+    "rest_background_fraction",
+    "preferred_rest_foreground_contrast",
+    "preferred_rest_background_contrast",
+    "uniform_preferred_foreground_occupancy",
+    "uniform_preferred_background_occupancy",
+    "uniform_rest_foreground_occupancy",
+    "uniform_rest_background_occupancy",
+    "preferred_foreground_occupancy_excess",
+    "preferred_background_occupancy_excess",
+    "rest_foreground_occupancy_excess",
+    "rest_background_occupancy_excess",
+    "preferred_foreground_occupancy_enrichment",
+    "preferred_background_occupancy_enrichment",
+    "rest_foreground_occupancy_enrichment",
+    "rest_background_occupancy_enrichment",
+}
+_ACTIVITY_METRIC_FIELDS = _ACTIVITY_BASE_METRIC_FIELDS | {
+    f"{region}_{field}"
+    for region in ("center", "surround")
+    for field in _ACTIVITY_BASE_METRIC_FIELDS
+}
+_ACTIVITY_BOOL_FIELDS = {
+    "profile_has_mass",
+    "center_profile_has_mass",
+    "surround_profile_has_mass",
+}
+_SPATIAL_METRIC_FIELDS = {
+    "profile_total_mass",
+    "center_support_fraction",
+    "surround_support_fraction",
+    "center_pixel_fraction",
+    "surround_pixel_fraction",
+    "center_support_excess",
+    "surround_support_excess",
+    "center_support_enrichment",
+    "surround_support_enrichment",
+    "center_surround_enrichment_contrast",
+}
+_SPATIAL_BOUND_FIELDS = {
+    "center_row_start",
+    "center_row_stop",
+    "center_col_start",
+    "center_col_stop",
+}
+_REGION_CHECKPOINT_STRUCTURAL_FIELDS = (_STRUCTURAL_FIELDS - {"soma_index"}) | {
+    "quantity",
+    "source_profile_key",
+    "reference_split",
+    "reference_sample_count",
+}
+_SOURCE_ACTIVITY_CHECKPOINT_IDENTITY_FIELDS = _REGION_CHECKPOINT_STRUCTURAL_FIELDS | {
+    "foreground_threshold"
+}
+_SPATIAL_REGION_CHECKPOINT_IDENTITY_FIELDS = (
+    _REGION_CHECKPOINT_STRUCTURAL_FIELDS | _SPATIAL_BOUND_FIELDS
+)
 
 
 def _write_csv(path: Path, rows: Sequence[Mapping[str, Any]]) -> None:
@@ -131,6 +203,132 @@ def _validate_support(
                 context=f"source_support.records[{index}].{field}",
             )
     return support, records, metadata
+
+
+def _validate_region_alignment(
+    result: Mapping[str, Any],
+    *,
+    result_path: Path,
+) -> tuple[
+    Mapping[str, Any] | None,
+    list[Mapping[str, Any]],
+    list[Mapping[str, Any]],
+    list[Mapping[str, Any]],
+]:
+    """Validate optional structural source-region alignment records."""
+    alignment = result.get("source_region_alignment")
+    if alignment is None:
+        return None, [], [], []
+    if not isinstance(alignment, dict):
+        raise TypeError(f"source_region_alignment is not a mapping: {result_path}")
+    contract = alignment.get("quantity_contract")
+    if (
+        not isinstance(contract, dict)
+        or contract.get("structural_not_activity_or_information") is not True
+    ):
+        raise ValueError(f"source-region quantity contract is absent: {result_path}")
+    reference = alignment.get("reference")
+    if not isinstance(reference, dict) or reference.get("split") not in {
+        "train",
+        "validation",
+        "test",
+    }:
+        raise ValueError(f"source-region reference split is invalid: {result_path}")
+    activity = alignment.get("source_activity_records")
+    spatial = alignment.get("spatial_region_records")
+    skipped = alignment.get("skipped_profile_blocks")
+    if not all(isinstance(records, list) for records in (activity, spatial, skipped)):
+        raise TypeError(f"source-region record payloads must be lists: {result_path}")
+    assert isinstance(activity, list)
+    assert isinstance(spatial, list)
+    assert isinstance(skipped, list)
+    declared_counts = (
+        ("n_source_activity_records", activity),
+        ("n_spatial_region_records", spatial),
+        ("n_skipped_profile_blocks", skipped),
+    )
+    for count_field, records in declared_counts:
+        if int(alignment.get(count_field, -1)) != len(records):
+            raise ValueError(
+                f"source-region {count_field} is inconsistent: {result_path}"
+            )
+
+    reference_split = str(reference["split"])
+    activity_required = (
+        _REGION_COMMON_FIELDS
+        | {"foreground_threshold"}
+        | _ACTIVITY_METRIC_FIELDS
+        | _ACTIVITY_BOOL_FIELDS
+    )
+    for index, record in enumerate(activity):
+        if not isinstance(record, dict):
+            raise TypeError(f"source-activity record {index} is not a mapping")
+        missing = activity_required - set(record)
+        if missing:
+            raise ValueError(
+                f"source-activity record {index} lacks fields: {sorted(missing)}"
+            )
+        if record["reference_split"] != reference_split:
+            raise ValueError("source-activity record/reference split mismatch")
+        if record["quantity"] not in {
+            "contact_frequency",
+            "mean_effective_conductance",
+        }:
+            raise ValueError(f"source-activity record {index} has invalid quantity")
+        for field in _ACTIVITY_BOOL_FIELDS:
+            if not isinstance(record[field], bool):
+                raise TypeError(f"source-activity {field} must be boolean")
+        for field in _ACTIVITY_METRIC_FIELDS | {"foreground_threshold"}:
+            _finite_or_none(
+                record[field],
+                context=f"source_activity_records[{index}].{field}",
+            )
+
+    spatial_required = (
+        _REGION_COMMON_FIELDS
+        | _SPATIAL_METRIC_FIELDS
+        | _SPATIAL_BOUND_FIELDS
+        | {"profile_has_mass"}
+    )
+    for index, record in enumerate(spatial):
+        if not isinstance(record, dict):
+            raise TypeError(f"spatial-region record {index} is not a mapping")
+        missing = spatial_required - set(record)
+        if missing:
+            raise ValueError(
+                f"spatial-region record {index} lacks fields: {sorted(missing)}"
+            )
+        if record["reference_split"] != reference_split:
+            raise ValueError("spatial-region record/reference split mismatch")
+        if not isinstance(record["profile_has_mass"], bool):
+            raise TypeError("spatial-region profile_has_mass must be boolean")
+        for field in _SPATIAL_METRIC_FIELDS | _SPATIAL_BOUND_FIELDS:
+            _finite_or_none(
+                record[field],
+                context=f"spatial_region_records[{index}].{field}",
+            )
+
+    skip_required = (_STRUCTURAL_FIELDS - {"soma_index"}) | {
+        "declared_image_network_layers",
+        "expected_image_source_dim",
+        "skip_reason",
+    }
+    for index, record in enumerate(skipped):
+        if not isinstance(record, dict):
+            raise TypeError(f"source-region skip record {index} is not a mapping")
+        missing = skip_required - set(record)
+        if missing:
+            raise ValueError(
+                f"source-region skip record {index} lacks fields: {sorted(missing)}"
+            )
+        if record["skip_reason"] not in {
+            "network_layer_not_declared_image_source",
+            "source_dimension_not_image_space",
+        }:
+            raise ValueError(f"source-region skip record {index} has invalid reason")
+        if not isinstance(record["declared_image_network_layers"], list):
+            raise TypeError("declared_image_network_layers must be a list")
+    return alignment, activity, spatial, skipped
 
 
 def _profile_rows(
@@ -236,6 +434,111 @@ def _checkpoint_summary_rows(
     return summaries
 
 
+def _checkpoint_region_summary_rows(
+    rows: Sequence[Mapping[str, Any]],
+    *,
+    identity_fields: set[str],
+    metric_fields: set[str],
+    table_name: str,
+) -> list[dict[str, Any]]:
+    """Reduce one complete technical soma inventory per checkpoint group."""
+    groups: dict[tuple[tuple[str, Any], ...], list[Mapping[str, Any]]] = {}
+    for row in rows:
+        if "job_index" not in row:
+            raise ValueError(f"{table_name} checkpoint summary lacks job_index")
+        job_fields = {
+            key for key in row if key == "job_index" or str(key).startswith("job_")
+        }
+        required = (
+            job_fields
+            | identity_fields
+            | metric_fields
+            | {
+                "soma_index",
+                "n_soma",
+            }
+        )
+        missing = required - set(row)
+        if missing:
+            raise ValueError(
+                f"{table_name} checkpoint summary lacks identity fields: "
+                f"{sorted(missing)}"
+            )
+        identity = tuple(
+            (key, row[key]) for key in sorted(job_fields | identity_fields)
+        )
+        groups.setdefault(identity, []).append(row)
+
+    summaries: list[dict[str, Any]] = []
+    for identity, group_rows in groups.items():
+        summary = dict(identity)
+        n_soma = int(summary["n_soma"])
+        soma_indices = [int(row["soma_index"]) for row in group_rows]
+        if len(soma_indices) != len(set(soma_indices)):
+            raise ValueError(f"{table_name} checkpoint group contains duplicate somas")
+        if len(group_rows) != n_soma or set(soma_indices) != set(range(n_soma)):
+            raise ValueError(
+                f"{table_name} checkpoint group must contain exactly one record "
+                "for every soma"
+            )
+
+        summary.update(
+            {
+                "technical_soma_count": n_soma,
+                "technical_aggregation": "equal_mean_across_somas_within_checkpoint",
+                "soma_weighting": "equal",
+                "technical_somas_are_independent_replicates": False,
+                "trained_checkpoint_is_inference_unit": True,
+            }
+        )
+        for field in sorted(metric_fields):
+            values = [
+                value
+                for row in group_rows
+                if (
+                    value := _finite_or_none(
+                        row.get(field), context=f"{table_name}.{field}"
+                    )
+                )
+                is not None
+            ]
+            summary[f"{field}_defined_count"] = len(values)
+            if not values:
+                summary[f"{field}_mean"] = None
+                summary[f"{field}_sd"] = None
+                continue
+            mean = sum(values) / len(values)
+            variance = sum((value - mean) ** 2 for value in values) / len(values)
+            summary[f"{field}_mean"] = mean
+            summary[f"{field}_sd"] = math.sqrt(variance)
+        summaries.append(summary)
+    return summaries
+
+
+def _checkpoint_source_activity_summary_rows(
+    rows: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Equal-soma checkpoint summaries for source-activity alignment."""
+    return _checkpoint_region_summary_rows(
+        rows,
+        identity_fields=_SOURCE_ACTIVITY_CHECKPOINT_IDENTITY_FIELDS,
+        metric_fields=_ACTIVITY_METRIC_FIELDS,
+        table_name="source-activity alignment",
+    )
+
+
+def _checkpoint_spatial_region_summary_rows(
+    rows: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Equal-soma checkpoint summaries for spatial center/surround alignment."""
+    return _checkpoint_region_summary_rows(
+        rows,
+        identity_fields=_SPATIAL_REGION_CHECKPOINT_IDENTITY_FIELDS,
+        metric_fields=_SPATIAL_METRIC_FIELDS,
+        table_name="spatial-region alignment",
+    )
+
+
 def collect_synaptic_support(
     *,
     jobs_paths: Sequence[Path],
@@ -250,6 +553,9 @@ def collect_synaptic_support(
     hash_cache: dict[Path, str] = {}
     support_rows: list[dict[str, Any]] = []
     profile_rows: list[dict[str, Any]] = []
+    source_activity_rows: list[dict[str, Any]] = []
+    spatial_region_rows: list[dict[str, Any]] = []
+    skipped_region_rows: list[dict[str, Any]] = []
     source_rows: list[dict[str, Any]] = []
 
     for job_index, job in enumerate(jobs):
@@ -278,6 +584,12 @@ def collect_synaptic_support(
             result,
             result_path=result_path,
         )
+        alignment, activity_records, spatial_records, skipped_records = (
+            _validate_region_alignment(
+                result,
+                result_path=result_path,
+            )
+        )
         profiles_name = str(support.get("profiles_file", ""))
         profiles_path = result_path.parent / profiles_name
         if not profiles_name or not profiles_path.is_file():
@@ -300,6 +612,69 @@ def collect_synaptic_support(
                 profiles_path=profiles_path,
             )
         )
+        for record in activity_records:
+            source_activity_rows.append(
+                {
+                    **_job_fields(job_index, job),
+                    **record,
+                    "technical_record_is_independent_replicate": False,
+                    "trained_checkpoint_is_inference_unit": True,
+                }
+            )
+        for record in spatial_records:
+            spatial_region_rows.append(
+                {
+                    **_job_fields(job_index, job),
+                    **record,
+                    "technical_record_is_independent_replicate": False,
+                    "trained_checkpoint_is_inference_unit": True,
+                }
+            )
+        for record in skipped_records:
+            skipped_region_rows.append(
+                {
+                    **_job_fields(job_index, job),
+                    **record,
+                    "technical_record_is_independent_replicate": False,
+                }
+            )
+
+        alignment_artifacts: dict[str, Any] = {
+            "source_region_alignment_present": alignment is not None,
+            "source_activity_record_count": len(activity_records),
+            "spatial_region_record_count": len(spatial_records),
+            "skipped_region_block_count": len(skipped_records),
+        }
+        if alignment is not None:
+            reference = alignment["reference"]
+            alignment_artifacts["source_region_reference_split"] = reference["split"]
+            alignment_artifacts["source_region_foreground_thresholds"] = json.dumps(
+                sorted(
+                    {
+                        float(record["foreground_threshold"])
+                        for record in activity_records
+                    }
+                )
+            )
+            for filename_field, declared_records in (
+                ("source_activity_records_file", activity_records),
+                ("spatial_region_records_file", spatial_records),
+                ("skipped_profile_blocks_file", skipped_records),
+            ):
+                declared = alignment.get(filename_field)
+                if declared is None:
+                    if declared_records:
+                        raise ValueError(
+                            f"{filename_field} is absent despite emitted records"
+                        )
+                    alignment_artifacts[f"{filename_field}_path"] = None
+                    alignment_artifacts[f"{filename_field}_sha256"] = None
+                    continue
+                artifact_path = result_path.parent / str(declared)
+                if not artifact_path.is_file():
+                    raise FileNotFoundError(artifact_path)
+                alignment_artifacts[f"{filename_field}_path"] = str(artifact_path)
+                alignment_artifacts[f"{filename_field}_sha256"] = _sha256(artifact_path)
         source_rows.append(
             {
                 **_job_fields(job_index, job),
@@ -311,6 +686,7 @@ def collect_synaptic_support(
                 "provenance_sha256": _sha256(provenance_path),
                 "support_record_count": len(records),
                 "profile_count": len(metadata) * 2,
+                **alignment_artifacts,
             }
         )
 
@@ -318,6 +694,15 @@ def collect_synaptic_support(
         "checkpoint_support_records.csv": support_rows,
         "checkpoint_support_summary.csv": _checkpoint_summary_rows(support_rows),
         "profile_inventory.csv": profile_rows,
+        "checkpoint_source_activity_alignment_records.csv": source_activity_rows,
+        "checkpoint_source_activity_alignment_summary.csv": (
+            _checkpoint_source_activity_summary_rows(source_activity_rows)
+        ),
+        "checkpoint_spatial_region_alignment_records.csv": spatial_region_rows,
+        "checkpoint_spatial_region_alignment_summary.csv": (
+            _checkpoint_spatial_region_summary_rows(spatial_region_rows)
+        ),
+        "source_region_skipped_blocks.csv": skipped_region_rows,
         "source_artifacts.csv": source_rows,
     }
     for filename, rows in outputs.items():
@@ -330,7 +715,29 @@ def collect_synaptic_support(
         "collected_checkpoint_count": len(jobs),
         "support_record_count": len(support_rows),
         "profile_record_count": len(profile_rows),
-        "aggregation_policy": "none",
+        "source_activity_record_count": len(source_activity_rows),
+        "source_activity_checkpoint_summary_count": len(
+            outputs["checkpoint_source_activity_alignment_summary.csv"]
+        ),
+        "spatial_region_record_count": len(spatial_region_rows),
+        "spatial_region_checkpoint_summary_count": len(
+            outputs["checkpoint_spatial_region_alignment_summary.csv"]
+        ),
+        "skipped_region_block_count": len(skipped_region_rows),
+        "source_region_reference_splits": sorted(
+            {
+                str(row["source_region_reference_split"])
+                for row in source_rows
+                if row.get("source_region_reference_split") is not None
+            }
+        ),
+        "source_region_foreground_thresholds": sorted(
+            {float(row["foreground_threshold"]) for row in source_activity_rows}
+        ),
+        "aggregation_policy": "equal_soma_mean_within_checkpoint_only",
+        "within_checkpoint_soma_weighting": "equal",
+        "technical_soma_aggregation_performed": True,
+        "trained_seed_aggregation_performed": False,
         "trained_checkpoint_is_inference_unit": True,
         "soma_depth_pathway_records_are_technical": True,
         "collector_code_identity": discover_source_identity(
