@@ -38,7 +38,8 @@ reference configs and reusable examples.
 | Soma-to-dendrite feedback | `examples/population_network_soma_feedback.yaml` |
 | Dense-to-sparse developmental pruning | `examples/population_network_dense_to_sparse_cifar10.yaml` |
 | Indexed adaptive rewiring | `examples/population_network_indexed_rewire_mnist.yaml` |
-| Raw ImageNet spatial DendriNet | `vision/imagenet_raw_spatial_dendrinet_alexnet_matched_bp.yaml` |
+| Raw ImageNet spatial DendriNet, backpropagation | `vision/imagenet_raw_spatial_dendrinet_alexnet_matched_bp.yaml` |
+| Raw ImageNet spatial DendriNet, local credit assignment | `vision/imagenet_raw_spatial_dendrinet_alexnet_matched_localca.yaml` |
 | Local credit assignment | `examples/population_network_local_learning_mnist.yaml` |
 | Frozen-checkpoint representation analysis | `examples/representation_accessibility_analysis.yaml` |
 | Transformer FFN replacement | `examples/transformer_replacement_synthetic_distillation.yaml` |
