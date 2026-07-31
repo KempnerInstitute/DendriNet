@@ -280,6 +280,8 @@ Error Broadcast
    the soma stage and fall back to a scalar at wider dendritic stages.
    ``"per_soma_shared"`` -- repeat each soma error only over compartments in
    that soma's subtree, preserving ancestry at every dendritic stage.
+   ``"per_soma_shuffled"`` -- preserve the same feedback bandwidth and values
+   but reassign each soma error to the wrong subtree using ``broadcast_seed``.
    ``"local_mismatch"`` -- locally computed mismatch signal.
 
 ``broadcast_bandwidth``

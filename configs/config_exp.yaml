@@ -539,7 +539,8 @@ training:
     learning_strategy_config:
       rule_variant: "3f"                # str: "3f" | "4f" | "5f" | "stdp" | "3f_vh" | "4f_vh" | "5f_vh"
       error_mode: "auto"               # str: "auto" | "mse" | "ce" | "bce"
-      error_broadcast_mode: "scalar"    # str: "scalar" | legacy "per_soma" | "per_soma_shared" | "local_mismatch" | "low_rank" | "path_transport" | "pathway_vector"
+      error_broadcast_mode: "scalar"    # str: "scalar" | legacy "per_soma" | "per_soma_shared" | "per_soma_shuffled" | "local_mismatch" | "low_rank" | "path_transport" | "pathway_vector"
+      broadcast_seed: 0                 # int: fixed seed for randomized routing controls
       error_noise_sigma: 0.0           # float: Additive Gaussian noise on broadcast error (0 = off)
       broadcast_rank: 4                 # int: Rank for low-rank vectorized broadcast
       broadcast_init_scale: 1.0         # float: Scale for low-rank random broadcast

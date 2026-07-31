@@ -76,6 +76,38 @@ class LocalLearningBroadcastMixin(
         """Apply bandwidth reduction to the broadcast error signal."""
         return apply_broadcast_bandwidth(self.local_cfg, e_n, bandwidth)
 
+    def _shuffle_soma_error(self, delta: torch.Tensor) -> torch.Tensor:
+        """Reassign soma errors through one fixed, seed-controlled derangement.
+
+        This preserves the number and marginal distribution of feedback values
+        while sending each neuron's value to the wrong anatomical subtree.
+        """
+        if delta.dim() == 1:
+            delta = delta.unsqueeze(-1)
+        elif delta.dim() != 2:
+            delta = delta.reshape(delta.size(0), -1)
+
+        n_soma = int(delta.size(1))
+        if n_soma <= 1:
+            return delta
+
+        seed = int(getattr(self.local_cfg, "broadcast_seed", 0))
+        cache = getattr(self, "_broadcast_cache", None)
+        if cache is None:
+            cache = {}
+            self._broadcast_cache = cache
+        cache_key = ("per_soma_shuffled", seed, n_soma)
+        permutation = cache.get(cache_key)
+        if permutation is None:
+            generator = torch.Generator()
+            generator.manual_seed(seed)
+            order = torch.randperm(n_soma, generator=generator)
+            permutation = torch.empty_like(order)
+            permutation[order] = order.roll(-1)
+            cache[cache_key] = permutation
+
+        return delta.index_select(1, permutation.to(device=delta.device))
+
     @staticmethod
     def _compute_layer_total_conductance(
         rec: dict[str, Any], v_n: torch.Tensor
@@ -152,6 +184,13 @@ class LocalLearningBroadcastMixin(
             e_n = delta
         elif bmode in {"per_soma_shared", "per_soma_tree"}:
             expanded = expand_soma_error_to_compartments(delta, out_features)
+            if isinstance(expanded, torch.Tensor):
+                e_n = expanded.to(device=v_n.device, dtype=v_n.dtype)
+            else:
+                e_n = delta_scalar.expand(-1, out_features)
+        elif bmode == "per_soma_shuffled":
+            shuffled = self._shuffle_soma_error(delta)
+            expanded = expand_soma_error_to_compartments(shuffled, out_features)
             if isinstance(expanded, torch.Tensor):
                 e_n = expanded.to(device=v_n.device, dtype=v_n.dtype)
             else:

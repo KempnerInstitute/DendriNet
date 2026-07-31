@@ -14,7 +14,9 @@ class _BroadcastProbe(LocalLearningBroadcastMixin):
         self.local_cfg = SimpleNamespace(
             error_noise_sigma=0.0,
             broadcast_bandwidth="full",
+            broadcast_seed=17,
         )
+        self._broadcast_cache = {}
 
 
 def _compute(mode: str, delta: torch.Tensor, out_features: int) -> torch.Tensor:
@@ -53,3 +55,27 @@ def test_per_soma_shared_preserves_exact_soma_width():
     out = _compute("per_soma_shared", delta, out_features=2)
 
     torch.testing.assert_close(out, delta)
+
+
+def test_per_soma_shuffled_preserves_values_and_bandwidth_but_breaks_routing():
+    probe = _BroadcastProbe()
+    delta = torch.tensor([[1.0, 2.0, 3.0, 4.0]])
+    v_n = torch.zeros(1, 8)
+    kwargs = {
+        "rec": {},
+        "layer_idx": 0,
+        "out_features": 8,
+        "v_n": v_n,
+        "delta": delta,
+        "delta_scalar": delta.mean(dim=1, keepdim=True),
+        "broadcast_state": SimpleNamespace(mode="per_soma_shuffled"),
+    }
+
+    first = probe._compute_local_broadcast_error(**kwargs)
+    second = probe._compute_local_broadcast_error(**kwargs)
+    routed = first[:, ::2]
+
+    torch.testing.assert_close(first, second)
+    torch.testing.assert_close(first[:, 0::2], first[:, 1::2])
+    torch.testing.assert_close(routed.sort(dim=1).values, delta.sort(dim=1).values)
+    assert not bool((routed == delta).any())

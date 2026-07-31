@@ -611,6 +611,7 @@ def _apply_cli_overrides(config, args) -> None:
     learning_rate_overrides = {
         argument_name: getattr(args, argument_name, None)
         for argument_name in (
+            "lr",
             "topk_lr",
             "blocklinear_lr",
             "reactivation_lr",
@@ -622,8 +623,8 @@ def _apply_cli_overrides(config, args) -> None:
         for argument_name, value in learning_rate_overrides.items():
             if value is None:
                 continue
-            if value <= 0:
-                raise ValueError(f"--{argument_name} must be positive")
+            if value < 0:
+                raise ValueError(f"--{argument_name} must be non-negative")
             setattr(param_groups, argument_name, value)
             logger.info("Override %s: %s", argument_name, value)
 
@@ -1561,6 +1562,7 @@ def _parse_cli_args():
             "scalar",
             "per_soma",
             "per_soma_shared",
+            "per_soma_shuffled",
             "local_mismatch",
             "low_rank",
             "path_transport",
@@ -1579,6 +1581,12 @@ def _parse_cli_args():
         type=int,
         default=None,
         help="Override the number of main-training epochs.",
+    )
+    parser.add_argument(
+        "--lr",
+        type=float,
+        default=None,
+        help="Override the main trainer's fallback learning rate.",
     )
     parser.add_argument(
         "--topk_lr",

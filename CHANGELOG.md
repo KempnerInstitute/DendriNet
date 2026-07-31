@@ -81,3 +81,7 @@
   feedback at every dendritic stage. The legacy ``per_soma`` mode is
   width-matched with scalar fallback; ``per_soma_shared`` explicitly repeats
   each soma coordinate only along its own subtree.
+- Added a seed-controlled shuffled-ancestry LocalCA feedback control that
+  preserves feedback bandwidth and values while assigning them to the wrong
+  soma subtrees. Learning-rate experiment overrides now accept zero so a
+  decoder-only control can freeze every core optimizer group exactly.

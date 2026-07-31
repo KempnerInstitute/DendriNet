@@ -112,6 +112,7 @@ def test_apply_cli_overrides_updates_config_fields():
                 common=SimpleNamespace(
                     epochs=10,
                     param_groups=SimpleNamespace(
+                        lr=1e-3,
                         topk_lr=1e-3,
                         blocklinear_lr=1e-4,
                         reactivation_lr=1e-4,
@@ -138,6 +139,7 @@ def test_apply_cli_overrides_updates_config_fields():
         run_name="new_run",
         seed=99,
         epochs=3,
+        lr=0.0,
         topk_lr=5e-5,
         blocklinear_lr=2e-5,
         reactivation_lr=1e-5,
@@ -157,6 +159,7 @@ def test_apply_cli_overrides_updates_config_fields():
     assert config.outputs.run_name == "new_run"
     assert config.experiment.seed == 99
     assert config.training.main.common.epochs == 3
+    assert config.training.main.common.param_groups.lr == 0.0
     assert config.training.main.common.param_groups.topk_lr == 5e-5
     assert config.training.main.common.param_groups.blocklinear_lr == 2e-5
     assert config.training.main.common.param_groups.reactivation_lr == 1e-5
