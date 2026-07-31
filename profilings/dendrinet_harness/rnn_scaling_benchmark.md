@@ -173,6 +173,56 @@ needed ~103 GB, which is no single GPU here; it now fits a 96 GB Blackwell with 
 The transient gap grows with it — 9,880 MB, still ~20% of peak — so that remains the
 un-decomposed term at any batch.
 
+## 1M gate re-run WITH the fusions — still OOM, and the reason is now known (job 36607767)
+
+Re-ran `scale_1m_5k.yaml` on 4× A100-40GB with every memory fix active. Result: **OOM at
+38,995 MB/GPU, tried to allocate 2.98 GiB** — *byte-identical to the pre-fusion baseline.*
+
+That identity is the finding. The traceback says why:
+
+```
+fsdp_utils.py:324  wrap_model_with_fsdp
+  FSDP.__init__
+    _init_param_handle_from_module
+      _sync_module_params_and_buffers      <- OOM here
+```
+
+**It dies inside `FSDP.__init__`, before a single forward pass.** Every rank materializes
+the entire unsharded 1M model (**37.63 GB allocated**) and then `sync_module_states=True`
+tries to broadcast, needing 2.98 GiB more than the card has.
+
+**So the 1M blocker is model materialization, not activation memory.** Everything in this
+ledger's recent work — the reactivation fusion, the shunt fusion, int32 indices — operates
+on forward/backward activations. The 1M model never reaches a forward, which is exactly why
+the number did not move by even a megabyte. The 2.11× is real and will apply the moment the
+model fits; it simply cannot help this failure.
+
+### What the 37.63 GB is, and what would shard
+
+1M neurons (800k E + 200k I) × ~5k synapses:
+
+| term | size | shardable by FSDP? |
+|---|---|---|
+| `pre_w` (parameters) | ~20 GB | **yes** — but only after init succeeds |
+| `connection_indices` (buffers) | ~20 GB | **no** — FSDP does not shard buffers |
+
+This also resolves the ledger's open question above. It noted that `idx` alone (18.6 GB)
+"is not sufficient to explain the floor" — the rest is the parameter tensor, which FSDP
+*would* shard if it could get past initialization.
+
+### The two things 1M actually needs
+
+1. **Deferred / meta-device init** (`param_init_fn`, currently `None` at `fsdp_utils.py:264`;
+   `sync_module_states` defaults True at :143). Construct on `meta`, let FSDP materialize
+   only each rank's shard, so no rank ever holds the full 40 GB. Would put parameters at
+   ~5 GB/rank on 4 GPUs.
+2. **Do something about the replicated index buffer** — ~20 GB/rank at 1M and untouched by
+   sharding. `IndexedSparseLinear` already carries an `init_mode="per_rank"`, which is the
+   thread to pull: if every rank regenerates identical indices from a shared seed, the
+   broadcast is unnecessary and the buffer need never be synced.
+
+Both are systems work on the init path. Neither is a kernel change nor an activation-memory problem.
+
 ## Open rows
 | scale | GPU | path | epoch (s) | peak (MB) | notes |
 |---|---|---|---|---|---|
