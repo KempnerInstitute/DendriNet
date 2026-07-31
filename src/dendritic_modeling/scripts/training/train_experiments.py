@@ -627,13 +627,21 @@ def _apply_cli_overrides(config, args) -> None:
         for argument_name in ("train_samples_per_class", "val_samples_per_class")
     }
     if any(value is not None for value in sample_overrides.values()):
-        imagenet_params = config.data.dataset_params.imagenet
+        dataset_params = config.data.dataset_params
+        imagenet_params = (
+            dataset_params["imagenet"]
+            if isinstance(dataset_params, dict)
+            else dataset_params.imagenet
+        )
         for argument_name, value in sample_overrides.items():
             if value is None:
                 continue
             if value < 1:
                 raise ValueError(f"--{argument_name} must be positive")
-            setattr(imagenet_params, argument_name, value)
+            if isinstance(imagenet_params, dict):
+                imagenet_params[argument_name] = value
+            else:
+                setattr(imagenet_params, argument_name, value)
             logger.info("Override ImageNet %s: %s", argument_name, value)
 
 

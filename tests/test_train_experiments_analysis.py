@@ -120,12 +120,12 @@ def test_apply_cli_overrides_updates_config_fields():
             )
         ),
         data=SimpleNamespace(
-            dataset_params=SimpleNamespace(
-                imagenet=SimpleNamespace(
-                    train_samples_per_class=None,
-                    val_samples_per_class=None,
-                )
-            )
+            dataset_params={
+                "imagenet": {
+                    "train_samples_per_class": None,
+                    "val_samples_per_class": None,
+                }
+            }
         ),
         outputs=SimpleNamespace(results_dir="old_dir", run_name="old_run"),
         experiment=SimpleNamespace(seed=1),
@@ -155,8 +155,8 @@ def test_apply_cli_overrides_updates_config_fields():
     assert config.training.main.common.param_groups.blocklinear_lr == 2e-5
     assert config.training.main.common.param_groups.reactivation_lr == 1e-5
     assert config.training.main.common.param_groups.decoder_lr == 3e-5
-    assert config.data.dataset_params.imagenet.train_samples_per_class == 2
-    assert config.data.dataset_params.imagenet.val_samples_per_class == 1
+    assert config.data.dataset_params["imagenet"]["train_samples_per_class"] == 2
+    assert config.data.dataset_params["imagenet"]["val_samples_per_class"] == 1
 
 
 def test_apply_cli_overrides_ignores_missing_args_object():
