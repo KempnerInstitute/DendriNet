@@ -1545,6 +1545,7 @@ def _parse_cli_args():
             "freeze_branches",
             "fa",
             "dfa",
+            "soma_dfa",
             "shunting_fa",
             "shunting_dfa",
             "local_ca",

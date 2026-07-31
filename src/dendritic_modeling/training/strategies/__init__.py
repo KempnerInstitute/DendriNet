@@ -13,6 +13,7 @@ from dendritic_modeling.training.strategies.layerwise import LayerWiseTrainer
 from dendritic_modeling.training.strategies.local_learning import LocalCreditAssignment
 from dendritic_modeling.training.strategies.multi_stage import MultiStageTrainer
 from dendritic_modeling.training.strategies.recurrent_trainer import RecurrentTrainer
+from dendritic_modeling.training.strategies.soma_dfa import SomaDFATrainer
 from dendritic_modeling.training.strategies.specialized import (
     HomeostaticControlTrainer,
     TrainOnlyMReactivation,
@@ -32,6 +33,7 @@ __all__ = [
     "MultiStageTrainer",
     "RecurrentTrainer",
     "ShuntingFeedbackAlignmentTrainer",
+    "SomaDFATrainer",
     "TrainOnlyMReactivation",
     "Trainer",
     "TwoStepTrainer",

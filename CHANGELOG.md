@@ -85,3 +85,8 @@
   preserves feedback bandwidth and values while assigning them to the wrong
   soma subtrees. Learning-rate experiment overrides now accept zero so a
   decoder-only control can freeze every core optimizer group exactly.
+- Added an explicit soma-level DFA baseline for dendritic classifiers. It uses
+  a fixed random output-to-soma projection, an exact supervised decoder
+  update, and exact differentiation only within each dendritic core. This
+  avoids applying the legacy dense-layer DFA implementation to compact indexed
+  synapses.
