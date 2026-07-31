@@ -1438,9 +1438,46 @@ presynaptic cells are allowed to compete for those TopK slots.
 
 Pathway names are ``ee``, ``ie``, ``ei``, ``ii`` for feedforward/current-layer
 connections, and ``rec_ee``, ``rec_ie``, ``rec_ei``, ``rec_ii`` for recurrent
-connections. Supported methods are ``fixed_indegree``, ``bernoulli``, and
+connections. Supported mask methods are ``fixed_indegree``, ``bernoulli``, and
 ``distance``. With DeepST, rewiring is constrained to stay inside the structured
 mask.
+
+``method: spatial_morphology`` is the compact image-specific alternative. It
+does not create a dense mask. It directly assigns exactly K fixed pixel indices
+to every branch according to the tree's nested spatial regions:
+
+.. code-block:: yaml
+
+   model:
+     core:
+       type: tensor_map
+       architecture:
+         excitatory_layer_sizes: [9916]
+         inhibitory_layer_sizes: []
+         excitatory_branch_factors: [3, 3, 3, 3]
+       connectivity:
+         ee_synapses_per_branch_per_layer: [32]
+         ie_synapses_per_branch_per_layer: [8]
+         structured:
+           enabled: true
+           method: spatial_morphology
+           seed: 42
+           spatial:
+             input_shape: [3, 224, 224]
+             split_axes: [height, width, height, width]
+       sparsity:
+         type: indexed
+         indexed:
+           index_dtype: int32
+           recompute_backward: true
+           persistent_indices: false
+
+``split_axes`` is listed from soma to distal leaves and must have the same
+length as the branch-factor list. The raw tensor is interpreted in CHW order.
+Every soma has independent weights and independently sampled indices; only the
+geometric partition is shared. Thus the mapping preserves image geometry
+without convolution or parameter sharing. The current implementation requires
+fixed ``indexed`` sparsity and rejects global ``indexed_rewire``.
 
 Multi-Stage Training
 --------------------

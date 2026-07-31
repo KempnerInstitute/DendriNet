@@ -60,6 +60,7 @@ def create_branch_sparse_layer(
     synapse_type: str = "exc",
     pathway: str | None = None,
     forbidden_input_index_per_output: Any = None,
+    connection_indices: Any = None,
     connection_mask: Any = None,
 ):
     """Create a sparse synapse layer using a branch layer's configuration."""
@@ -70,6 +71,12 @@ def create_branch_sparse_layer(
         K = in_features
 
     layer_type = normalize_sparse_layer_type(owner.topk_type)
+    if connection_indices is not None and layer_type != "indexed":
+        raise ValueError(
+            "Direct structured connection indices currently require "
+            "sparsity.type='indexed'. Adaptive rewiring would leave the "
+            "configured spatial regions."
+        )
 
     if layer_type == "standard":
         return get_sparse_layer(
@@ -206,6 +213,7 @@ def create_branch_sparse_layer(
             weight_transform=owner.weight_transform,
             weight_norm_order=owner.topk_weight_norm_order,
             gamma=_pathway_gamma(owner, synapse_type),
+            connection_indices=connection_indices,
             connection_mask=connection_mask,
             forbidden_input_index_per_output=forbidden_input_index_per_output,
             seed=_indexed_synapse_seed(owner, pathway=pathway),
@@ -265,6 +273,7 @@ def create_registered_branch_sparse_layer(
     synapse_type: str = "exc",
     pathway: str | None = None,
     forbidden_input_index_per_output: Any = None,
+    connection_indices: Any = None,
     connection_mask: Any = None,
 ):
     """Create a sparse branch pathway and register its dynamic gradient scaler."""
@@ -278,6 +287,7 @@ def create_registered_branch_sparse_layer(
         synapse_type=synapse_type,
         pathway=pathway,
         forbidden_input_index_per_output=forbidden_input_index_per_output,
+        connection_indices=connection_indices,
         connection_mask=connection_mask,
     )
     gradient_scaler.register_topk_dynamic(layer)

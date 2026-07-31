@@ -41,3 +41,19 @@
 - Consolidated population-network config validation and warning-only legacy alias handling.
 - Refactored local-learning and information-analysis helper modules.
 - Verified feedforward and population-format numerical behavior against develop and pre-cleanup baselines.
+
+## 2026-07
+
+- Scaled indexed recurrent DendriNets to one million neurons with FSDP and
+  added reproducible single-node and strong-scaling benchmark controls.
+- Expanded checkpoint-bound empirical analysis for representation access,
+  reactivation operating states, synaptic support, perturbations, and
+  provenance-checked result collection.
+- Added deterministic `spatial_morphology` connectivity for image DendriNets.
+  Dendritic paths recursively partition a `(C, H, W)` input and store compact
+  fixed sparse indices without a dense branch-by-pixel mask or convolutional
+  weight sharing.
+- Added a raw-ImageNet `[3, 3, 3, 3]` DendriNet experiment with no learned
+  vision backbone. Its 61,103,392 trainable parameters closely match AlexNet,
+  and its fixed connectivity can be regenerated instead of stored in
+  checkpoints.

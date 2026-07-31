@@ -51,6 +51,7 @@ class StructuredConnectivityConfig(BaseConfig):
     indegree: Optional[int] = None
     distance_kernel: str = "none"
     distance_sigma: float = 1.0
+    spatial: dict[str, Any] = field(default_factory=dict)
     pathways: dict[str, Any] = field(default_factory=dict)
 
 

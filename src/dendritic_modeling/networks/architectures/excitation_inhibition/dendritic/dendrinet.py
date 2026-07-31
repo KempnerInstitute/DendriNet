@@ -25,6 +25,9 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.d
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.synapse_config import (
     DendriticSynapseConfig,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.spatial_morphology import (
+    sample_configured_indices,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.structured_mask import (
     sample_configured_mask,
 )
@@ -89,6 +92,64 @@ def _sample_dendrinet_structured_masks(
     return excitatory_connection_mask, inhibitory_connection_mask
 
 
+def _sample_dendrinet_structured_indices(
+    structured_connectivity,
+    *,
+    structured_excitatory_pathway,
+    structured_inhibitory_pathway,
+    out_dim,
+    excitatory_input_dim,
+    excitatory_synapses_per_branch,
+    inhibitory_input_dim,
+    inhibitory_synapses_per_branch,
+    n_soma,
+    branch_factors,
+    index_dtype,
+    structured_layer_idx,
+    level_idx,
+):
+    """Sample optional compact excitatory and inhibitory indices."""
+
+    excitatory_connection_indices = None
+    if (
+        excitatory_input_dim is not None
+        and excitatory_synapses_per_branch is not None
+        and excitatory_synapses_per_branch > 0
+    ):
+        excitatory_connection_indices = sample_configured_indices(
+            structured_connectivity,
+            pathway=structured_excitatory_pathway,
+            out_features=out_dim,
+            in_features=excitatory_input_dim,
+            synapses_per_branch=excitatory_synapses_per_branch,
+            owner_count=n_soma,
+            branch_factors=branch_factors,
+            layer_idx=structured_layer_idx,
+            level_idx=level_idx,
+            index_dtype=index_dtype,
+        )
+
+    inhibitory_connection_indices = None
+    if (
+        inhibitory_input_dim is not None
+        and inhibitory_synapses_per_branch is not None
+        and inhibitory_synapses_per_branch > 0
+    ):
+        inhibitory_connection_indices = sample_configured_indices(
+            structured_connectivity,
+            pathway=structured_inhibitory_pathway,
+            out_features=out_dim,
+            in_features=inhibitory_input_dim,
+            synapses_per_branch=inhibitory_synapses_per_branch,
+            owner_count=n_soma,
+            branch_factors=branch_factors,
+            layer_idx=structured_layer_idx,
+            level_idx=level_idx,
+            index_dtype=index_dtype,
+        )
+    return excitatory_connection_indices, inhibitory_connection_indices
+
+
 def _make_dendrinet_branch_layer(
     *,
     output_dim,
@@ -100,6 +161,8 @@ def _make_dendrinet_branch_layer(
     layer_idx,
     synapse_config,
     branch_extra_kwargs,
+    excitatory_connection_indices=None,
+    inhibitory_connection_indices=None,
     excitatory_connection_mask=None,
     inhibitory_connection_mask=None,
 ):
@@ -113,6 +176,8 @@ def _make_dendrinet_branch_layer(
             inhibitory_synapses_per_branch=inhibitory_synapses_per_branch,
             input_branch_factor=input_branch_factor,
             layer_idx=layer_idx,
+            excitatory_connection_indices=excitatory_connection_indices,
+            inhibitory_connection_indices=inhibitory_connection_indices,
             excitatory_connection_mask=excitatory_connection_mask,
             inhibitory_connection_mask=inhibitory_connection_mask,
         ),
@@ -171,6 +236,7 @@ def _build_dendrinet_branch_layers(
     *,
     n_soma,
     n_branch_layers,
+    branch_factors,
     layer_sizes,
     input_branch_factors,
     excitatory_input_dim,
@@ -188,6 +254,8 @@ def _build_dendrinet_branch_layers(
     """Build DendriNet branch layers in forward construction order."""
 
     branch_layers = []
+    indexed_config = getattr(synapse_config, "indexed", None)
+    index_dtype = getattr(indexed_config, "index_dtype", "int64")
     for i in range(n_branch_layers):
         (
             excitatory_connection_mask,
@@ -204,12 +272,32 @@ def _build_dendrinet_branch_layers(
             structured_layer_idx=structured_layer_idx,
             level_idx=i,
         )
+        (
+            excitatory_connection_indices,
+            inhibitory_connection_indices,
+        ) = _sample_dendrinet_structured_indices(
+            structured_connectivity,
+            structured_excitatory_pathway=structured_excitatory_pathway,
+            structured_inhibitory_pathway=structured_inhibitory_pathway,
+            out_dim=layer_sizes[i],
+            excitatory_input_dim=excitatory_input_dim,
+            excitatory_synapses_per_branch=excitatory_synapses_per_branch,
+            inhibitory_input_dim=inhibitory_input_dim,
+            inhibitory_synapses_per_branch=inhibitory_synapses_per_branch,
+            n_soma=n_soma,
+            branch_factors=branch_factors,
+            index_dtype=index_dtype,
+            structured_layer_idx=structured_layer_idx,
+            level_idx=i,
+        )
         lyr = _make_dendrinet_branch_layer(
             output_dim=layer_sizes[i],
             excitatory_input_dim=excitatory_input_dim,
             excitatory_synapses_per_branch=excitatory_synapses_per_branch,
             inhibitory_input_dim=inhibitory_input_dim,
             inhibitory_synapses_per_branch=inhibitory_synapses_per_branch,
+            excitatory_connection_indices=excitatory_connection_indices,
+            inhibitory_connection_indices=inhibitory_connection_indices,
             excitatory_connection_mask=excitatory_connection_mask,
             inhibitory_connection_mask=inhibitory_connection_mask,
             input_branch_factor=input_branch_factors[i],
@@ -236,6 +324,24 @@ def _build_dendrinet_branch_layers(
             structured_layer_idx=structured_layer_idx,
             level_idx=soma_level_idx,
         )
+        (
+            excitatory_connection_indices,
+            inhibitory_connection_indices,
+        ) = _sample_dendrinet_structured_indices(
+            structured_connectivity,
+            structured_excitatory_pathway=structured_excitatory_pathway,
+            structured_inhibitory_pathway=structured_inhibitory_pathway,
+            out_dim=n_soma,
+            excitatory_input_dim=excitatory_input_dim,
+            excitatory_synapses_per_branch=excitatory_synapses_per_branch,
+            inhibitory_input_dim=inhibitory_input_dim,
+            inhibitory_synapses_per_branch=inhibitory_synapses_per_branch,
+            n_soma=n_soma,
+            branch_factors=branch_factors,
+            index_dtype=index_dtype,
+            structured_layer_idx=structured_layer_idx,
+            level_idx=soma_level_idx,
+        )
         branch_layers.append(
             _make_dendrinet_branch_layer(
                 output_dim=n_soma,
@@ -243,6 +349,8 @@ def _build_dendrinet_branch_layers(
                 excitatory_synapses_per_branch=excitatory_synapses_per_branch,
                 inhibitory_input_dim=inhibitory_input_dim,
                 inhibitory_synapses_per_branch=inhibitory_synapses_per_branch,
+                excitatory_connection_indices=excitatory_connection_indices,
+                inhibitory_connection_indices=inhibitory_connection_indices,
                 excitatory_connection_mask=excitatory_connection_mask,
                 inhibitory_connection_mask=inhibitory_connection_mask,
                 input_branch_factor=input_branch_factors[-1],
@@ -259,6 +367,8 @@ def _build_dendrinet_branch_layers(
                 excitatory_synapses_per_branch=None,
                 inhibitory_input_dim=None,
                 inhibitory_synapses_per_branch=None,
+                excitatory_connection_indices=None,
+                inhibitory_connection_indices=None,
                 input_branch_factor=input_branch_factors[-1],
                 layer_idx=0,
                 synapse_config=synapse_config,
@@ -400,6 +510,7 @@ class DendriNet(nn.Module):
         branch_layers = _build_dendrinet_branch_layers(
             n_soma=n_soma,
             n_branch_layers=self.n_branch_layers,
+            branch_factors=self.branch_factors,
             layer_sizes=layer_sizes,
             input_branch_factors=input_branch_factors,
             excitatory_input_dim=excitatory_input_dim,

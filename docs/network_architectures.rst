@@ -2094,6 +2094,46 @@ Supported methods:
    ``pre_positions`` and ``post_positions`` arrays and supports
    ``distance_kernel: gaussian`` or ``exponential``.
 
+``spatial_morphology``
+   Generates compact fixed indices instead of a dense mask. Every soma maps
+   its complete dendritic tree onto a ``(C, H, W)`` input. Root-to-leaf paths
+   recursively divide the image along ``spatial.split_axes``, and each branch
+   samples exactly its configured synapse count from the rectangle it owns.
+   There is no spatial weight sharing, so this is not a convolution.
+
+   .. code-block:: yaml
+
+      architecture:
+        excitatory_layer_sizes: [9916]
+        excitatory_branch_factors: [3, 3, 3, 3]
+      connectivity:
+        ee_synapses_per_branch_per_layer: [32]
+        ie_synapses_per_branch_per_layer: [8]
+        structured:
+          enabled: true
+          method: spatial_morphology
+          seed: 42
+          spatial:
+            input_shape: [3, 224, 224]
+            # Anatomical order: soma toward distal leaves.
+            split_axes: [height, width, height, width]
+      sparsity:
+        type: indexed
+        indexed:
+          index_dtype: int32
+          recompute_backward: true
+          persistent_indices: false
+
+   The input is flattened in CHW order only at execution time. The configured
+   ``input_shape`` must multiply to the pathway input dimension, and
+   ``split_axes`` must contain one entry per branch factor. Supported axes are
+   ``height``/``y`` and ``width``/``x``. Sampling is deterministic under
+   ``structured.seed`` and unique within each branch.
+
+   This method currently requires ``sparsity.type: indexed``. Global adaptive
+   rewiring is rejected because it could move a synapse outside the branch's
+   spatial region. No dense ``[branches, pixels]`` tensor is created.
+
 Scalar and list-valued ``probability``/``indegree`` use repeat-last semantics
 over network layers. With DeepST, rewiring stays inside the allowed mask.
 

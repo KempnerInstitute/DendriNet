@@ -361,7 +361,7 @@ def _resolve_pathway_config(config, pathway: str) -> dict:
     # method="bernoulli" even when the user only configured selected pathways.
     # Treat global defaults as a real root-level rule only when they include
     # the parameters needed to sample a mask.
-    root_has_rule = any(
+    root_has_mask_rule = any(
         key in root_defaults and root_defaults.get(key) is not None
         for key in (
             "probability",
@@ -374,6 +374,12 @@ def _resolve_pathway_config(config, pathway: str) -> dict:
             "inventory_counts",
             "feature_ranges",
         )
+    )
+    # ``StructuredConnectivityConfig`` always carries an empty ``spatial``
+    # mapping. Do not mistake that typed default for a root-level rule when
+    # only selected pathways are configured.
+    root_has_rule = root_has_mask_rule or bool(
+        _to_plain_mapping(root_defaults.get("spatial", {}))
     )
     if not pathway_cfg and not root_has_rule:
         return {}
@@ -396,9 +402,10 @@ def sample_configured_mask(
 ) -> torch.Tensor | None:
     """Sample a hard connectivity mask from a structured config block.
 
-    Supported methods are ``"bernoulli"``/``"probability"``,
+    Supported mask methods are ``"bernoulli"``/``"probability"``,
     ``"fixed_indegree"``, ``"distance"``, ``"level_feature_blocks"``, and
-    ``"inventory_feature_blocks"``.
+    ``"inventory_feature_blocks"``. ``"spatial_morphology"`` is handled
+    separately as compact sparse indices and therefore returns no dense mask.
     Scalar or list-valued
     ``probability``/``indegree`` fields use repeat-last semantics by layer.
     """
@@ -408,6 +415,10 @@ def sample_configured_mask(
 
     method = str(cfg.get("method", "bernoulli")).lower()
     if method in {"none", "dense", "all"}:
+        return None
+    # Spatial morphology is represented directly as compact [out, K] indices.
+    # Returning None here avoids materializing an ImageNet-scale Boolean mask.
+    if method in {"spatial_morphology", "morphology_spatial"}:
         return None
 
     if method in {"level_feature_blocks", "level_blocks"}:

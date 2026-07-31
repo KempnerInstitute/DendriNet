@@ -169,6 +169,8 @@ class DendriticBranchLayer(nn.Module):
         initialization_namespace="",
         epsilon=1e-8,  # Numerical stability constant.
         weight_transform="exp",  # Weight transformation for positive weights
+        excitatory_connection_indices=None,
+        inhibitory_connection_indices=None,
         excitatory_connection_mask=None,
         inhibitory_connection_mask=None,
         recurrent_connection_mask=None,
@@ -215,6 +217,12 @@ class DendriticBranchLayer(nn.Module):
             rec_inhibitory_connection_mask = (
                 provided_branch_config.rec_inhibitory_connection_mask
             )
+            excitatory_connection_indices = (
+                provided_branch_config.excitatory_connection_indices
+            )
+            inhibitory_connection_indices = (
+                provided_branch_config.inhibitory_connection_indices
+            )
         if output_dim is None:
             raise ValueError("DendriticBranchLayer requires output_dim")
         self.branch_config = DendriticBranchConfig.from_kwargs(
@@ -235,6 +243,8 @@ class DendriticBranchLayer(nn.Module):
                 rec_inhibitory_forbidden_input_index_per_output
             ),
             layer_idx=layer_idx,
+            excitatory_connection_indices=excitatory_connection_indices,
+            inhibitory_connection_indices=inhibitory_connection_indices,
             excitatory_connection_mask=excitatory_connection_mask,
             inhibitory_connection_mask=inhibitory_connection_mask,
             recurrent_connection_mask=recurrent_connection_mask,
@@ -266,6 +276,8 @@ class DendriticBranchLayer(nn.Module):
             excitatory_synapses_per_branch=excitatory_synapses_per_branch,
             inhibitory_input_dim=inhibitory_input_dim,
             inhibitory_synapses_per_branch=inhibitory_synapses_per_branch,
+            excitatory_connection_indices=excitatory_connection_indices,
+            inhibitory_connection_indices=inhibitory_connection_indices,
             excitatory_connection_mask=excitatory_connection_mask,
             inhibitory_connection_mask=inhibitory_connection_mask,
         )
@@ -491,6 +503,8 @@ class DendriticBranchLayer(nn.Module):
         excitatory_synapses_per_branch: int | None,
         inhibitory_input_dim: int | None,
         inhibitory_synapses_per_branch: int | None,
+        excitatory_connection_indices,
+        inhibitory_connection_indices,
         excitatory_connection_mask,
         inhibitory_connection_mask,
     ) -> None:
@@ -505,6 +519,7 @@ class DendriticBranchLayer(nn.Module):
                 gradient_scaler=gradient_scaler,
                 synapse_type="exc",
                 pathway="ff_excitatory",
+                connection_indices=excitatory_connection_indices,
                 connection_mask=excitatory_connection_mask,
             )
             self.excitatory_input_dim = excitatory_input_dim
@@ -527,6 +542,7 @@ class DendriticBranchLayer(nn.Module):
                 gradient_scaler=gradient_scaler,
                 synapse_type="inh",
                 pathway="ff_inhibitory",
+                connection_indices=inhibitory_connection_indices,
                 connection_mask=inhibitory_connection_mask,
             )
             self.inhibitory_input_dim = inhibitory_input_dim
@@ -695,6 +711,7 @@ class DendriticBranchLayer(nn.Module):
         synapse_type="exc",
         pathway=None,
         forbidden_input_index_per_output=None,
+        connection_indices=None,
         connection_mask=None,
     ):
         """Helper function that picks which topk class to use based on strategy."""
@@ -710,6 +727,7 @@ class DendriticBranchLayer(nn.Module):
                 synapse_type=synapse_type,
                 pathway=pathway,
                 forbidden_input_index_per_output=forbidden_input_index_per_output,
+                connection_indices=connection_indices,
                 connection_mask=connection_mask,
             )
 
@@ -724,6 +742,7 @@ class DendriticBranchLayer(nn.Module):
         synapse_type="exc",
         pathway=None,
         forbidden_input_index_per_output=None,
+        connection_indices=None,
         connection_mask=None,
     ):
         """Create a sparse synapse layer and register gradient scaling hooks."""
@@ -740,6 +759,7 @@ class DendriticBranchLayer(nn.Module):
                 synapse_type=synapse_type,
                 pathway=pathway,
                 forbidden_input_index_per_output=forbidden_input_index_per_output,
+                connection_indices=connection_indices,
                 connection_mask=connection_mask,
             )
 

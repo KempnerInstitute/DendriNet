@@ -1,0 +1,216 @@
+"""Tests for direct morphology-aligned spatial sparse indices."""
+
+import torch
+
+from dendritic_modeling.config import StructuredConnectivityConfig
+from dendritic_modeling.networks import DendriNet
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.spatial_morphology import (
+    sample_configured_indices,
+    sample_spatial_morphology_indices,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.structured_mask import (
+    sample_configured_mask,
+)
+
+
+def _spatial_config(seed: int = 17) -> dict:
+    return {
+        "enabled": True,
+        "method": "spatial_morphology",
+        "seed": seed,
+        "spatial": {
+            "input_shape": [1, 8, 8],
+            "split_axes": ["height", "width"],
+        },
+    }
+
+
+def _assert_indices_in_rectangle(
+    indices: torch.Tensor,
+    *,
+    y_bounds: tuple[int, int],
+    x_bounds: tuple[int, int],
+    width: int = 8,
+) -> None:
+    y = indices // width
+    x = indices % width
+    assert bool(((y >= y_bounds[0]) & (y < y_bounds[1])).all())
+    assert bool(((x >= x_bounds[0]) & (x < x_bounds[1])).all())
+
+
+def test_spatial_indices_follow_root_to_leaf_rectangles() -> None:
+    distal = sample_spatial_morphology_indices(
+        input_shape=[1, 8, 8],
+        out_features=12,
+        in_features=64,
+        synapses_per_branch=3,
+        owner_count=3,
+        branch_factors=[2, 2],
+        level_idx=0,
+        split_axes=["height", "width"],
+        seed=11,
+    )
+    assert distal.shape == (12, 3)
+
+    expected_quadrants = [
+        ((0, 4), (0, 4)),
+        ((0, 4), (4, 8)),
+        ((4, 8), (0, 4)),
+        ((4, 8), (4, 8)),
+    ]
+    for owner in range(3):
+        for local_branch, (y_bounds, x_bounds) in enumerate(expected_quadrants):
+            row = distal[owner * 4 + local_branch]
+            _assert_indices_in_rectangle(
+                row,
+                y_bounds=y_bounds,
+                x_bounds=x_bounds,
+            )
+            assert row.unique().numel() == row.numel()
+
+    proximal = sample_spatial_morphology_indices(
+        input_shape=[1, 8, 8],
+        out_features=6,
+        in_features=64,
+        synapses_per_branch=4,
+        owner_count=3,
+        branch_factors=[2, 2],
+        level_idx=1,
+        split_axes=["height", "width"],
+        seed=11,
+    )
+    for owner in range(3):
+        _assert_indices_in_rectangle(
+            proximal[owner * 2],
+            y_bounds=(0, 4),
+            x_bounds=(0, 8),
+        )
+        _assert_indices_in_rectangle(
+            proximal[owner * 2 + 1],
+            y_bounds=(4, 8),
+            x_bounds=(0, 8),
+        )
+
+
+def test_configured_spatial_indices_are_deterministic_and_seeded() -> None:
+    kwargs = {
+        "pathway": "ee",
+        "out_features": 8,
+        "in_features": 64,
+        "synapses_per_branch": 3,
+        "owner_count": 2,
+        "branch_factors": [2, 2],
+        "layer_idx": 0,
+        "level_idx": 0,
+    }
+    first = sample_configured_indices(_spatial_config(17), **kwargs)
+    repeated = sample_configured_indices(_spatial_config(17), **kwargs)
+    changed = sample_configured_indices(_spatial_config(18), **kwargs)
+    assert first is not None
+    assert repeated is not None
+    assert changed is not None
+    assert torch.equal(first, repeated)
+    assert not torch.equal(first, changed)
+
+
+def test_empty_typed_spatial_default_does_not_create_a_root_rule() -> None:
+    config = StructuredConnectivityConfig(
+        enabled=True,
+        pathways={"ee": {"method": "fixed_indegree", "indegree": 2}},
+    )
+
+    assert (
+        sample_configured_mask(
+            config,
+            pathway="ie",
+            out_features=3,
+            in_features=5,
+        )
+        is None
+    )
+
+
+def test_dendrinet_uses_spatial_indices_without_dense_masks() -> None:
+    model = DendriNet(
+        n_soma=2,
+        branch_factors=[2, 2],
+        excitatory_input_dim=64,
+        excitatory_synapses_per_branch=3,
+        inhibitory_input_dim=64,
+        inhibitory_synapses_per_branch=2,
+        somatic_synapses=False,
+        topk_type="indexed",
+        indexed_index_dtype="int32",
+        indexed_persistent_indices=False,
+        reactivate=True,
+        reactivation_type="param_tanh",
+        weight_transform="softplus",
+        structured_connectivity=_spatial_config(),
+    )
+
+    active_layers = model.branch_layers[:-1]
+    assert len(active_layers) == 2
+    for layer in active_layers:
+        assert layer.branch_config.excitatory_connection_mask is None
+        assert layer.branch_config.inhibitory_connection_mask is None
+        assert layer.branch_config.excitatory_connection_indices is not None
+        assert layer.branch_config.inhibitory_connection_indices is not None
+        assert layer.branch_excitation.connection_indices.dtype == torch.int32
+        assert layer.branch_inhibition.connection_indices.dtype == torch.int32
+    assert not any(key.endswith("connection_indices") for key in model.state_dict())
+
+    x = torch.rand(4, 64, requires_grad=True)
+    output = model(x, x)
+    assert output.shape == (4, 2)
+    output.square().mean().backward()
+    assert x.grad is not None
+    assert torch.isfinite(x.grad).all()
+
+
+def test_spatial_indices_reject_adaptive_global_rewiring() -> None:
+    try:
+        DendriNet(
+            n_soma=1,
+            branch_factors=[2, 2],
+            excitatory_input_dim=64,
+            excitatory_synapses_per_branch=3,
+            somatic_synapses=False,
+            topk_type="indexed_rewire",
+            structured_connectivity=_spatial_config(),
+        )
+    except ValueError as error:
+        assert "require sparsity.type='indexed'" in str(error)
+    else:
+        raise AssertionError("Expected spatial indices with global rewiring to fail")
+
+
+def test_spatial_indices_validate_input_shape_and_region_capacity() -> None:
+    try:
+        sample_spatial_morphology_indices(
+            input_shape=[1, 7, 8],
+            out_features=4,
+            in_features=64,
+            synapses_per_branch=2,
+            owner_count=1,
+            branch_factors=[2, 2],
+            level_idx=0,
+        )
+    except ValueError as error:
+        assert "does not match" in str(error)
+    else:
+        raise AssertionError("Expected a mismatched input shape to fail")
+
+    try:
+        sample_spatial_morphology_indices(
+            input_shape=[1, 4, 4],
+            out_features=4,
+            in_features=16,
+            synapses_per_branch=5,
+            owner_count=1,
+            branch_factors=[2, 2],
+            level_idx=0,
+        )
+    except ValueError as error:
+        assert "containing only 4 input features" in str(error)
+    else:
+        raise AssertionError("Expected an overfull branch region to fail")

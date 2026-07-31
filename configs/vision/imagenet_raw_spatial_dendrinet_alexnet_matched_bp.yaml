@@ -1,0 +1,231 @@
+# Raw ImageNet -> fixed spatial dendritic tree -> linear classifier.
+#
+# There is no CNN, learned patch embedding, pooling backbone, or pretrained
+# component. The tensor-map wrapper performs only an on-the-fly flatten before
+# the DendriNet. Every soma owns a full-image [3,3,3,3] tree. Root-to-leaf
+# paths partition the image height, width, height, then width, and each branch
+# stores only its configured compact indices.
+#
+# Active trainable parameter count:
+#   E branch synapses: 38,077,440
+#   I branch synapses:  9,519,360
+#   axial couplings:    1,189,920
+#   reactivation:       2,399,672
+#   1000-way readout:   9,917,000
+#   total:             61,103,392
+# This differs from torchvision AlexNet (61,100,840) by 2,552 parameters.
+
+experiment:
+  seed: 42
+  train_valid_split: 0.98
+  fast_mode: true
+  enable_profiling: false
+  enable_hooks: false
+  checkpointing:
+    enabled: true
+    save_every_n_epochs: 10
+    checkpoint_dir: "results/checkpoints/"
+
+data:
+  dataset_name: "imagenet"
+  base_dir: "/n/holylfs06/LABS/kempner_shared/Everyone/testbed/vision/imagenet_1k"
+  processing:
+    # Keep samples spatial and stream them from disk. The tensor-map core
+    # flattens each batch without materializing a flattened ImageNet dataset.
+    flatten: false
+    # Conductance inputs remain nonnegative in [0, 1].
+    normalize: false
+  dataset_params:
+    imagenet:
+      transform_preset: "pretrained"
+      loader_backend: "imagefolder"
+      allow_flatten_materialize: false
+      train_samples_per_class: null
+      val_samples_per_class: null
+
+model:
+  task: "classification"
+  encoder:
+    type: "identity"
+    params:
+      input_dim: null
+
+  core:
+    # tensor_map adds only nn.Flatten before the ordinary DendriNet.
+    type: "tensor_map"
+    architecture:
+      excitatory_layer_sizes: [9916]
+      inhibitory_layer_sizes: []
+      excitatory_branch_factors: [3, 3, 3, 3]
+      inhibitory_branch_factors: [1]
+      inhibitory_network_type: "dendritic"
+
+    connectivity:
+      ee_synapses_per_branch_per_layer: [32]
+      ei_synapses_per_branch_per_layer: [0]
+      ie_synapses_per_branch_per_layer: [8]
+      ii_synapses_per_branch_per_layer: [0]
+      structured:
+        enabled: true
+        method: "spatial_morphology"
+        seed: 42
+        spatial:
+          # CHW order must match torch.Tensor.flatten(start_dim=1).
+          input_shape: [3, 224, 224]
+          # Anatomical order from soma toward distal leaves.
+          split_axes: ["height", "width", "height", "width"]
+
+    transfer:
+      # Duplicate the same nonnegative pixels into direct E and I conductance
+      # streams; this matches the main-paper architecture without explicit I cells.
+      input_mode: 1
+      independent_pathways: false
+      output_activation: null
+      allow_direct_inhibitory_stream: true
+
+    morphology:
+      somatic_synapses: false
+      use_shunting: true
+      weight_transform: "softplus"
+      dbl_init_method: "analytical_expectation"
+
+    sparsity:
+      init_method: "xavier_normal"
+      noise_level: 0.0
+      type: "indexed"
+      weight_norm_order: null
+      gamma: 1.0
+      gradient_scaling: "none"
+      indexed:
+        seed: 42
+        index_dtype: "int32"
+        output_chunk_size: 8192
+        workspace_mb: 256
+        cache_transformed_weights: false
+        recompute_backward: true
+        # Regenerate the deterministic map rather than storing ~181 MiB of
+        # indices in every checkpoint.
+        persistent_indices: false
+        init_mode: "per_rank"
+
+    reactivation:
+      enabled: true
+      type: "param_tanh"
+      init_policy: "analytical"
+      init_m: 1.5
+      init_b: 0.5
+      gradient_scaling: "none"
+
+    blocklinear:
+      gradient_scaling: "none"
+      efficient: true
+
+    implementation:
+      adaptive_initialization: false
+      print_hooks: false
+
+  decoder:
+    type: "MLP"
+    params:
+      hidden_dims: []
+      activation: "relu"
+      output_dim: 1000
+
+training:
+  encoder:
+    strategy: "standard"
+    common:
+      epochs: 0
+
+  main:
+    strategy: "standard"
+    common:
+      epochs: 90
+      batch_size: 16
+      num_workers: 8
+      pin_memory: true
+      persistent_workers: true
+      prefetch_factor: 4
+      profile_dataloader: true
+      shuffle: true
+      grad_clip_value: 5.0
+      loss_function: "cat_nll"
+      early_stopping: false
+      load_best_state_dict: false
+      plot_losses: true
+      suppress_prints: false
+      print_every: 1
+      use_amp: true
+      enable_nan_checking: false
+      enable_adaptive_clipping: false
+      weight_decay_rate: 0.0
+      weight_boosting: false
+      checkpointing: true
+      checkpoint_interval: 10
+      param_groups:
+        lr: 0.001
+        split_params: true
+        topk_lr: 0.001
+        blocklinear_lr: 0.0001
+        reactivation_lr: 0.0001
+        decoder_lr: 0.001
+    optimizer:
+      name: "adamw"
+      weight_decay: 0.01
+    strategies:
+      standard: {}
+
+analysis:
+  runtime:
+    training:
+      mode: "stream"
+      batch_size: 32
+      num_workers: 4
+      pin_memory: true
+      persistent_workers: true
+      prefetch_factor: 2
+      max_batches: 20
+    final:
+      mode: "stream"
+      batch_size: 32
+      num_workers: 4
+      pin_memory: true
+      persistent_workers: true
+      prefetch_factor: 2
+  performance:
+    enabled: true
+    training: false
+    params:
+      accuracy: true
+      auc: false
+      categorical_loglikelihood: true
+      mse: false
+      cosine_similarity: false
+    training_splits: ["valid"]
+    final_splits: ["valid", "test"]
+  information: {enabled: false, training: false, params: {}}
+  correlation: {enabled: false, training: false, params: {}}
+  ablation: {enabled: false, training: false, params: {}}
+  synapse_turnover: {enabled: false, training: false, params: {}}
+  noise_perturbation: {enabled: false, training: false, params: {}}
+  weight: {enabled: false, training: false, params: {}}
+  single_layer_contribution: {enabled: false, training: false, params: {}}
+  synaptic_activation: {enabled: false, training: false, params: {}}
+  branch_activation: {enabled: false, training: false, params: {}}
+  compartment_statistics: {enabled: false, training: false, params: {}}
+  compartment_snr: {enabled: false, training: false, params: {}}
+
+wandb:
+  use_wandb: false
+  project: "dendritic-imagenet"
+  group: "raw-spatial-dendrinet"
+  tags: ["imagenet", "raw-input", "spatial-morphology", "alexnet-matched", "bp"]
+
+outputs:
+  run_name: "imagenet_raw_spatial_dendrinet_alexnet_matched_bp"
+  results_dir: "outputs"
+
+# The model fits on one H200. Use DDP later only for throughput after a
+# one-GPU profile; FSDP is not needed for parameter memory.
+distributed:
+  mode: "none"
