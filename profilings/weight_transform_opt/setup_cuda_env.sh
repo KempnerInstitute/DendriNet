@@ -33,8 +33,26 @@ if ! command -v conda >/dev/null 2>&1; then
 fi
 conda activate dendritic_env
 
+# 5. Give each GPU ARCHITECTURE its own extension build directory.
+#    torch caches JIT extensions under ~/.cache/torch_extensions/<pyver_cuver>/<name>/
+#    keyed by name only -- NOT by architecture. So an A100 (sm_80) job and a
+#    Blackwell (sm_120) job share one directory: the second one to start finds a
+#    .so built for the wrong arch, rebuilds, takes the build lock, and the other
+#    job blocks on that lock. It looks exactly like a hang, with no output,
+#    because nothing has failed -- it is waiting.
+#    Keying the directory by compute capability makes concurrent multi-arch jobs
+#    independent, and means each arch keeps its own warm cache.
+_CC="$(python - <<'PY' 2>/dev/null
+import torch
+print("sm%d%d" % torch.cuda.get_device_capability() if torch.cuda.is_available() else "nocuda")
+PY
+)"
+export TORCH_EXTENSIONS_DIR="${HOME}/.cache/torch_extensions_${_CC:-unknown}"
+mkdir -p "$TORCH_EXTENSIONS_DIR"
+
 # --- verify everything resolved ---
 echo "---- CUDA + dendritic_env ----"
+echo "ext cache : $TORCH_EXTENSIONS_DIR"
 echo "nvcc      : $(command -v nvcc || echo MISSING)"
 nvcc --version 2>/dev/null | tail -1
 echo "CUDA_HOME : ${CUDA_HOME:-MISSING}"
