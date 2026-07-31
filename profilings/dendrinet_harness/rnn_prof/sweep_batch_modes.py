@@ -28,6 +28,7 @@ import argparse
 import gc
 import importlib.util
 import json
+import os
 import sys
 import time
 
@@ -112,7 +113,18 @@ def main():
     core = core.to("cuda").train()
     print("model built; sweeping\n", flush=True)
 
+    os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
+
     rows = []
+
+    def flush():
+        # Written after every cell. This sweep takes ~20 min on a live
+        # allocation; losing it to a missing directory or a preemption at the
+        # last line is not an acceptable failure mode.
+        with open(a.out, "w") as fh:
+            json.dump({"gpu": gpu, "capacity_mb": capacity, "config": a.config,
+                       "path": a.path, "rows": rows}, fh, indent=1)
+
     print(f"{'mode':>12}{'batch':>7}{'step ms':>11}{'peak MB':>11}  status", flush=True)
     for name, ident, fused, shunt in MODES:
         set_positive_tanh_sigmoid(ident)
@@ -125,6 +137,7 @@ def main():
                              "batch": b, "status": "oom", "step_ms": None,
                              "peak_mb": None})
                 print(f"{name:>12}{b:>7}{'—':>11}{'—':>11}  oom (skipped)", flush=True)
+                flush()
                 continue
             iters = 5 if b <= 1024 else 3
             try:
@@ -133,6 +146,7 @@ def main():
                              "batch": b, "status": "ok", "step_ms": ms,
                              "peak_mb": peak})
                 print(f"{name:>12}{b:>7}{ms:>11.1f}{peak:>11.1f}  ok", flush=True)
+                flush()
             except torch.OutOfMemoryError:
                 oomed = True
                 _clear()
@@ -140,13 +154,12 @@ def main():
                              "batch": b, "status": "oom", "step_ms": None,
                              "peak_mb": None})
                 print(f"{name:>12}{b:>7}{'—':>11}{'—':>11}  OOM", flush=True)
+                flush()
 
     set_positive_tanh_sigmoid(True)
     set_fused_positive_tanh(True)
     set_fused_shunt(True)
-    with open(a.out, "w") as fh:
-        json.dump({"gpu": gpu, "capacity_mb": capacity, "config": a.config,
-                   "path": a.path, "rows": rows}, fh, indent=1)
+    flush()
     print(f"\nwrote {a.out}  ({sum(r['status'] == 'ok' for r in rows)}/{len(rows)} ok)")
     return 0
 
