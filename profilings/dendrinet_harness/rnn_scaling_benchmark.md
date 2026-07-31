@@ -192,6 +192,46 @@ original "tight but plausible" was right.
 Raw data: `ff_stress/batchsweep/blackwell.json` (untracked — `profilings/**/*.json` is
 gitignored by project convention).
 
+## REAL-TRAINER VALIDATION (2026-07-31) — the 2.19x is real, but it is not the peak
+
+Everything above was measured on a synthetic step (`out.float().pow(2).mean().backward()`,
+no optimizer, no loss head, no data loader). This runs `train_experiments.py` for one real
+epoch — Adam, cross-entropy, real CIFAR-10 — twice, differing only by
+`DENDRINET_POSITIVE_TANH_SIGMOID`.
+
+**The real trainer uses mixed precision** (`autocast` + `GradScaler`), which the fp32
+profiling harness did not. The fused paths had never been tested in half precision.
+
+| | eager | eager (control) | fused | |
+|---|---|---|---|---|
+| `_epoch_train` peak | **16,927.1 MB** | — | **9,646.6 MB** | **1.75×** |
+| process peak (torch allocated) | 59,606.4 MB | 59,606.4 MB | 59,599.9 MB | **1.0001×** |
+| epoch wall-clock | 152 s | 154 s | 153 s | neutral |
+| train loss | 2.5568 | 2.5568 | 2.5557 | 4.3e-04 |
+| valid loss | 2.3123 | 2.3123 | 2.3132 | 3.9e-04 |
+
+**The control run matters.** The config sets `deterministic: false`, so a loss difference
+means nothing without knowing the run-to-run spread. Two eager runs came out **bit-identical**
+(2.5568 / 2.3123 both), so the fused difference is attributable — and it is 4e-04, consistent
+with half-precision rounding rather than a defect.
+
+**The training phase does respond: 1.75×.** That is consistent with the synthetic 2.02× at
+batch 256 once ~2.6 GB of mode-independent optimizer state (params + grads + Adam moments)
+is added to both sides.
+
+**But the process peak does not move at all.** `_epoch_train` peaks at 9.6 GB against a
+59.6 GB process peak, and the two modes differ by 6.5 MB. **Something outside the training
+and validation phases allocates ~60 GB** — six times the training step — and it is
+unaffected by any of this work. It is not in `_epoch_train` or `_epoch_valid_stats`, and the
+log shows no analysis phase after training. **Unlocated; this is now the binding constraint
+on this config's memory, and it is larger than anything fixed today.**
+
+Half-precision equivalence, checked because the trainer forced the question: no NaN/Inf at
+any saturation fraction up to 60%, output bit-identical, and gradient deviations of 1–2.5 ulp
+in both bf16 (7.6e-03–2.0e-02) and fp16 (1.0e-03–2.4e-03) — at the format's own floor, and
+**not growing with saturation**, so the `logit(y)` reconstruction does not degrade in half
+precision.
+
 ## Open rows
 | scale | GPU | path | epoch (s) | peak (MB) | notes |
 |---|---|---|---|---|---|

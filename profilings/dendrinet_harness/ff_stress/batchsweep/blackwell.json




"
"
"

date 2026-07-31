@@ -1,0 +1,224 @@
+{
+ "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+ "capacity_mb": 97251.75,
+ "config": "configs/examples/kernel_stress_ab/kernel_stress_12L_16k_cuda.yaml",
+ "path": "cuda",
+ "rows": [
+  {
+   "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+   "capacity_mb": 97251.75,
+   "mode": "eager",
+   "batch": 128,
+   "status": "ok",
+   "step_ms": 205.5466515943408,
+   "peak_mb": 7924.82373046875
+  },
+  {
+   "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+   "capacity_mb": 97251.75,
+   "mode": "eager",
+   "batch": 256,
+   "status": "ok",
+   "step_ms": 417.619730765,
+   "peak_mb": 14361.94091796875
+  },
+  {
+   "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+   "capacity_mb": 97251.75,
+   "mode": "eager",
+   "batch": 512,
+   "status": "ok",
+   "step_ms": 836.3734915852547,
+   "peak_mb": 27236.17529296875
+  },
+  {
+   "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+   "capacity_mb": 97251.75,
+   "mode": "eager",
+   "batch": 1024,
+   "status": "ok",
+   "step_ms": 1680.1889138296247,
+   "peak_mb": 52984.64404296875
+  },
+  {
+   "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+   "capacity_mb": 97251.75,
+   "mode": "eager",
+   "batch": 2048,
+   "status": "oom",
+   "step_ms": null,
+   "peak_mb": null
+  },
+  {
+   "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+   "capacity_mb": 97251.75,
+   "mode": "eager",
+   "batch": 4096,
+   "status": "oom",
+   "step_ms": null,
+   "peak_mb": null
+  },
+  {
+   "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+   "capacity_mb": 97251.75,
+   "mode": "identity",
+   "batch": 128,
+   "status": "ok",
+   "step_ms": 195.6620253622532,
+   "peak_mb": 6723.35107421875
+  },
+  {
+   "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+   "capacity_mb": 97251.75,
+   "mode": "identity",
+   "batch": 256,
+   "status": "ok",
+   "step_ms": 403.72805199585855,
+   "peak_mb": 11949.53076171875
+  },
+  {
+   "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+   "capacity_mb": 97251.75,
+   "mode": "identity",
+   "batch": 512,
+   "status": "ok",
+   "step_ms": 816.879392368719,
+   "peak_mb": 22401.89013671875
+  },
+  {
+   "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+   "capacity_mb": 97251.75,
+   "mode": "identity",
+   "batch": 1024,
+   "status": "ok",
+   "step_ms": 1639.3752445932478,
+   "peak_mb": 43306.60888671875
+  },
+  {
+   "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+   "capacity_mb": 97251.75,
+   "mode": "identity",
+   "batch": 2048,
+   "status": "ok",
+   "step_ms": 3357.346192623178,
+   "peak_mb": 85116.04638671875
+  },
+  {
+   "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+   "capacity_mb": 97251.75,
+   "mode": "identity",
+   "batch": 4096,
+   "status": "oom",
+   "step_ms": null,
+   "peak_mb": null
+  },
+  {
+   "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+   "capacity_mb": 97251.75,
+   "mode": "fused-act",
+   "batch": 128,
+   "status": "ok",
+   "step_ms": 197.3492578137666,
+   "peak_mb": 5503.498046875
+  },
+  {
+   "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+   "capacity_mb": 97251.75,
+   "mode": "fused-act",
+   "batch": 256,
+   "status": "ok",
+   "step_ms": 411.40248719602823,
+   "peak_mb": 9518.740234375
+  },
+  {
+   "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+   "capacity_mb": 97251.75,
+   "mode": "fused-act",
+   "batch": 512,
+   "status": "ok",
+   "step_ms": 833.3236443810165,
+   "peak_mb": 17549.224609375
+  },
+  {
+   "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+   "capacity_mb": 97251.75,
+   "mode": "fused-act",
+   "batch": 1024,
+   "status": "ok",
+   "step_ms": 1673.6503648106009,
+   "peak_mb": 33610.193359375
+  },
+  {
+   "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+   "capacity_mb": 97251.75,
+   "mode": "fused-act",
+   "batch": 2048,
+   "status": "ok",
+   "step_ms": 3427.688689980035,
+   "peak_mb": 65732.130859375
+  },
+  {
+   "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+   "capacity_mb": 97251.75,
+   "mode": "fused-act",
+   "batch": 4096,
+   "status": "oom",
+   "step_ms": null,
+   "peak_mb": null
+  },
+  {
+   "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+   "capacity_mb": 97251.75,
+   "mode": "fused-shunt",
+   "batch": 128,
+   "status": "ok",
+   "step_ms": 192.99257239326835,
+   "peak_mb": 4292.560546875
+  },
+  {
+   "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+   "capacity_mb": 97251.75,
+   "mode": "fused-shunt",
+   "batch": 256,
+   "status": "ok",
+   "step_ms": 406.1726795975119,
+   "peak_mb": 7096.865234375
+  },
+  {
+   "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+   "capacity_mb": 97251.75,
+   "mode": "fused-shunt",
+   "batch": 512,
+   "status": "ok",
+   "step_ms": 823.8084034062922,
+   "peak_mb": 12705.474609375
+  },
+  {
+   "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+   "capacity_mb": 97251.75,
+   "mode": "fused-shunt",
+   "batch": 1024,
+   "status": "ok",
+   "step_ms": 1659.0088377706707,
+   "peak_mb": 23922.693359375
+  },
+  {
+   "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+   "capacity_mb": 97251.75,
+   "mode": "fused-shunt",
+   "batch": 2048,
+   "status": "ok",
+   "step_ms": 3400.3073389952383,
+   "peak_mb": 46357.130859375
+  },
+  {
+   "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+   "capacity_mb": 97251.75,
+   "mode": "fused-shunt",
+   "batch": 4096,
+   "status": "ok",
+   "step_ms": 7114.859848593672,
+   "peak_mb": 91226.005859375
+  }
+ ]
+}
