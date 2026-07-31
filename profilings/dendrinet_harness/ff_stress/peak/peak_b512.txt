@@ -1,0 +1,46 @@
+GPU NVIDIA RTX PRO 6000 Blackwell Server Edition
+path=cuda  batch=512
+
+====================================================================================
+LIVE AT PEAK  (8,038 events, peak at event 3,218)
+====================================================================================
+        MB   share  site
+   4,968.8   40.5%  parametric.py:173  forward
+   4,453.9   36.3%  parametric.py:171  forward
+     562.5    4.6%  parametric.py:197  backward
+     443.1    3.6%  weight_transforms.py:119  apply_weight_transform
+     291.4    2.4%  <no frames>
+     281.2    2.3%  parametric.py:184  backward
+     281.2    2.3%  parametric.py:185  backward
+     281.2    2.3%  parametric.py:189  backward
+     281.2    2.3%  parametric.py:193  backward
+     281.2    2.3%  parametric.py:194  backward
+      85.9    0.7%  population_sources.py:38  _concat_or_none
+      39.1    0.3%  cuda_gather.py:664  backward
+       9.5    0.1%  parametric.py:222  run
+       8.9    0.1%  blocklinear.py:313  forward
+       6.0    0.0%  transfer.py:111  forward
+       0.5    0.0%  parametric.py:183  backward
+
+  trace peak 12,276.0 MB   torch-reported peak 13,351.6 MB
+
+====================================================================================
+TRANSIENT CONTRIBUTION  (live at peak, minus what survives the step)
+====================================================================================
+        MB  site
+   4,453.9  parametric.py:171  forward
+     562.5  parametric.py:197  backward
+     281.2  parametric.py:184  backward
+     281.2  parametric.py:185  backward
+     281.2  parametric.py:189  backward
+     281.2  parametric.py:193  backward
+     281.2  parametric.py:194  backward
+      85.9  population_sources.py:38  _concat_or_none
+      39.1  cuda_gather.py:664  backward
+       9.5  parametric.py:222  run
+       6.0  transfer.py:111  forward
+       0.5  parametric.py:183  backward
+       0.0  profile_peak_transients.py:80  step
+       0.0  __init__.py:231  _make_grads
+
+  transient total 6,563.6 MB of a 12,276.0 MB peak

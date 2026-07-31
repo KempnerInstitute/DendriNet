@@ -107,21 +107,30 @@ class _PositiveTanhCentered(torch.autograd.Function):
     def backward(ctx, grad_out):
         y, scale, center_t = ctx.saved_tensors
         needs_x, needs_scale, needs_center = ctx.needs_input_grad[:3]
+        # Same allocation discipline as _ShuntDividePositiveTanh.backward: build
+        # gs in one buffer, and derive both gradients from gs rather than keeping
+        # a second scaled copy alive.
         two_m = scale + scale
-        gs = grad_out * y * (1.0 - y)          # g * dy/dz
-        reduce_dims = tuple(range(gs.dim() - 1))
+        reduce_dims = tuple(range(y.dim() - 1))
 
-        grad_x = gs * two_m if needs_x else None
+        gs = y * y
+        torch.sub(y, gs, out=gs)               # y - y^2 = y(1-y) = dy/dz
+        gs.mul_(grad_out)                      # -> g * dy/dz
+
         grad_scale = None
         if needs_scale:
             # z = logit(y); eps bounds ONLY the logit argument. Where y has
             # saturated, gs is exactly 0, so the finite stand-in contributes 0.
-            eps = torch.finfo(y.dtype).eps
-            z = torch.logit(y, eps)
+            z = torch.logit(y, torch.finfo(y.dtype).eps)
             grad_scale = (gs * z).sum(dim=reduce_dims) / scale
+            del z
         grad_center = None
         if needs_center and center_t is not None:
-            grad_center = -(gs * two_m).sum(dim=reduce_dims)
+            # -(gs*2m).sum == -2m * gs.sum, so the full-size scaled copy the old
+            # spelling built is unnecessary.
+            grad_center = -gs.sum(dim=reduce_dims) * two_m
+        # Last use of gs, so it can become grad_x in place.
+        grad_x = gs.mul_(two_m) if needs_x else None
         return grad_x, grad_scale, grad_center
 
 
@@ -180,24 +189,44 @@ class _ShuntDividePositiveTanh(torch.autograd.Function):
     def backward(ctx, grad_out):
         de, y, scale, center_t = ctx.saved_tensors
         needs_n, needs_d, _, needs_scale, needs_center = ctx.needs_input_grad[:5]
+        # Written for allocation count, not readability. A peak-trace put the
+        # original spelling of this backward at 1,968 MB -- 16% of the whole step
+        # peak -- across seven full-size temporaries, three of which were pure
+        # redundancy: logit(y) computed twice, `gs` kept alive only to build `gv`,
+        # and grad_d re-dividing by `de` that grad_n had already divided by.
         two_m = scale + scale
-        gs = grad_out * y * (1.0 - y)              # dL/dy * dy/dz
-        gv = gs * two_m                            # dL/dv
-        reduce_dims = tuple(range(gs.dim() - 1))
+        reduce_dims = tuple(range(y.dim() - 1))
         eps_f = torch.finfo(y.dtype).eps
+
+        # gv = grad_out * y*(1-y) * 2m, in ONE buffer: square, subtract into the
+        # same storage, then two in-place multiplies. `y` is a saved tensor and is
+        # only ever read.
+        gv = y * y
+        torch.sub(y, gv, out=gv)                   # y - y^2 = y(1-y) = dy/dz
+        gv.mul_(grad_out).mul_(two_m)              # -> dL/dv
+
+        # logit ONCE. Reused twice below, and finally overwritten to become grad_d.
+        z = torch.logit(y, eps_f) if (needs_scale or needs_d) else None
+
+        grad_scale = None
+        if needs_scale:
+            # grad_m = sum(gs*z)/scale, and gs = gv/2m, so this needs gv only --
+            # which is why `gs` no longer has to survive.
+            grad_scale = (gv * z).sum(dim=reduce_dims) / (two_m * scale)
+        grad_center = None
+        if needs_center and center_t is not None:
+            grad_center = -gv.sum(dim=reduce_dims)
 
         grad_n = gv / de if needs_n else None
         grad_d = None
         if needs_d:
             center = center_t if center_t is not None else ctx.center_val
-            v = torch.logit(y, eps_f) / two_m + center
-            grad_d = -(gv * v) / de
-        grad_scale = None
-        if needs_scale:
-            grad_scale = (gs * torch.logit(y, eps_f)).sum(dim=reduce_dims) / scale
-        grad_center = None
-        if needs_center and center_t is not None:
-            grad_center = -gv.sum(dim=reduce_dims)
+            z.div_(two_m).add_(center)             # z is now v, no new buffer
+            if grad_n is not None:
+                # grad_d = -(gv*v)/de = -grad_n*v: reuse the division already done.
+                grad_d = z.mul_(grad_n).neg_()
+            else:
+                grad_d = z.mul_(gv).div_(de).neg_()
         return grad_n, grad_d, None, grad_scale, grad_center
 
 
