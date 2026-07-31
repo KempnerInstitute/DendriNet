@@ -262,6 +262,7 @@ class LocalCreditAssignment(
             train_loss_base=train_loss_base,
             train_loss_reg=train_loss_reg,
             n_batches=len(train_loader),
+            device=self.device,
         )
 
     def train(

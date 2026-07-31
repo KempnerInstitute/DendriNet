@@ -715,6 +715,26 @@ def test_average_local_epoch_losses_preserves_legacy_division():
     ) == (2.0, 1.0, 0.0)
 
 
+def test_average_local_epoch_losses_reduces_distributed_totals(monkeypatch):
+    monkeypatch.setattr(torch.distributed, "is_available", lambda: True)
+    monkeypatch.setattr(torch.distributed, "is_initialized", lambda: True)
+    monkeypatch.setattr(torch.distributed, "get_world_size", lambda: 4)
+
+    def fake_all_reduce(tensor, op=None):
+        assert op == torch.distributed.ReduceOp.SUM
+        tensor.mul_(4)
+
+    monkeypatch.setattr(torch.distributed, "all_reduce", fake_all_reduce)
+
+    assert _average_local_epoch_losses(
+        train_loss=6.0,
+        train_loss_base=3.0,
+        train_loss_reg=1.5,
+        n_batches=3,
+        device=torch.device("cpu"),
+    ) == (2.0, 1.0, 0.5)
+
+
 def test_average_distributed_gradients_averages_manual_grads(monkeypatch):
     model = nn.Linear(2, 1)
     model.weight.grad = torch.tensor([[2.0, -4.0]])

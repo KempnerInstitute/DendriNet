@@ -68,3 +68,5 @@
   use 3F/4F/5F credit assignment without dense branch-by-input updates.
 - Reused recorded LocalCA predictions for pointwise training losses, removing a
   redundant full-model forward pass while preserving model-dependent fallbacks.
+- Aggregated LocalCA training-loss totals across DDP ranks so distributed
+  learning curves report the full epoch rather than one rank's data shard.

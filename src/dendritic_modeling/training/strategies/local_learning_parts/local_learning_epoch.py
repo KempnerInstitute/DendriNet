@@ -173,8 +173,31 @@ def _average_local_epoch_losses(
     train_loss_base: float,
     train_loss_reg: float,
     n_batches: int,
+    device: torch.device | str | None = None,
 ) -> tuple[float, float, float]:
-    """Average local-learning epoch loss totals with legacy division semantics."""
+    """Average local-learning epoch loss totals over batches and DDP ranks."""
+
+    if (
+        device is not None
+        and dist.is_available()
+        and dist.is_initialized()
+        and dist.get_world_size() > 1
+    ):
+        totals = torch.tensor(
+            [
+                train_loss,
+                train_loss_base,
+                train_loss_reg,
+                float(n_batches),
+            ],
+            device=device,
+            dtype=torch.float64,
+        )
+        dist.all_reduce(totals, op=dist.ReduceOp.SUM)
+        train_loss = float(totals[0].item())
+        train_loss_base = float(totals[1].item())
+        train_loss_reg = float(totals[2].item())
+        n_batches = int(totals[3].item())
 
     return (
         train_loss / n_batches,
