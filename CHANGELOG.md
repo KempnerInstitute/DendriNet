@@ -66,3 +66,5 @@
 - Added compact fixed-index LocalCA gradients and explicit DDP averaging for
   manually assigned local-rule gradients, enabling large spatial DendriNets to
   use 3F/4F/5F credit assignment without dense branch-by-input updates.
+- Reused recorded LocalCA predictions for pointwise training losses, removing a
+  redundant full-model forward pass while preserving model-dependent fallbacks.

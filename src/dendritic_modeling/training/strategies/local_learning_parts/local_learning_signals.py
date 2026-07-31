@@ -178,16 +178,19 @@ def _map_decoder_input_error(
 
 class LocalLearningSignalMixin:
     def _compute_logging_loss(
-        self, model: BaseModel, x: torch.Tensor, y: torch.Tensor
+        self,
+        model: BaseModel,
+        x: torch.Tensor,
+        y: torch.Tensor,
+        predictions: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        """Compute scalar loss for logging using configured loss function.
+        """Compute the configured scalar loss, reusing predictions when supported."""
 
-
-
-        Uses the existing loss_function for compatibility with reporting.
-
-        """
-
+        if predictions is not None:
+            try:
+                return self.loss_function.from_predictions(predictions, y)
+            except NotImplementedError:
+                pass
         return self.loss_function(model, x, y)
 
     def _warn_decoder_soma_fallback_once(self, message: str) -> None:

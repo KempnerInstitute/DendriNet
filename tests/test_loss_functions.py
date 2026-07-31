@@ -365,6 +365,17 @@ class TestCategoricalNLLLoss:
                 _reduce_tensor_loss(expected, reduction),
             )
 
+    def test_precomputed_predictions_match_model_forward(self, log_softmax_model):
+        x = torch.randn(4, 10)
+        y = torch.randint(0, 5, (4,))
+        logits = log_softmax_model(x)
+        loss_fn = CategoricalNLLLoss()
+
+        torch.testing.assert_close(
+            loss_fn.from_predictions(logits, y),
+            loss_fn(log_softmax_model, x, y),
+        )
+
 
 class TestVaeElboLoss:
     """Test the VaeElboLoss class."""

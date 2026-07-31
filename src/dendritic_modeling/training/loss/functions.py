@@ -145,6 +145,17 @@ class LossFunction(nn.Module):
     ) -> torch.Tensor:
         raise NotImplementedError
 
+    def from_predictions(
+        self, predictions: torch.Tensor, y: torch.Tensor
+    ) -> torch.Tensor:
+        """Evaluate a pointwise loss from outputs that were already computed.
+
+        Model-dependent losses intentionally inherit this default so callers can
+        fall back to ``forward(model, x, y)`` without changing their semantics.
+        """
+
+        raise NotImplementedError
+
 
 class MSELoss(LossFunction):
     def __init__(self, reduction: str = "mean"):
@@ -155,7 +166,12 @@ class MSELoss(LossFunction):
     def forward(
         self, model: nn.Module, x: torch.Tensor, y: torch.Tensor
     ) -> torch.Tensor:
-        return self.mse(model(x), y)
+        return self.from_predictions(model(x), y)
+
+    def from_predictions(
+        self, predictions: torch.Tensor, y: torch.Tensor
+    ) -> torch.Tensor:
+        return self.mse(predictions, y)
 
 
 class LogMSELoss(MSELoss):
@@ -166,7 +182,12 @@ class LogMSELoss(MSELoss):
     def forward(
         self, model: nn.Module, x: torch.Tensor, y: torch.Tensor
     ) -> torch.Tensor:
-        mse = super().forward(model, x, y)
+        return self.from_predictions(model(x), y)
+
+    def from_predictions(
+        self, predictions: torch.Tensor, y: torch.Tensor
+    ) -> torch.Tensor:
+        mse = super().from_predictions(predictions, y)
         return torch.log(mse + 1e-12)
 
 
@@ -179,7 +200,12 @@ class CrossEntropyLoss(LossFunction):
     def forward(
         self, model: nn.Module, x: torch.Tensor, y: torch.Tensor
     ) -> torch.Tensor:
-        return self.ce(model(x), y)
+        return self.from_predictions(model(x), y)
+
+    def from_predictions(
+        self, predictions: torch.Tensor, y: torch.Tensor
+    ) -> torch.Tensor:
+        return self.ce(predictions, y)
 
 
 class BCELoss(LossFunction):
@@ -191,7 +217,12 @@ class BCELoss(LossFunction):
     def forward(
         self, model: nn.Module, x: torch.Tensor, y: torch.Tensor
     ) -> torch.Tensor:
-        return self.bce(model(x), y)
+        return self.from_predictions(model(x), y)
+
+    def from_predictions(
+        self, predictions: torch.Tensor, y: torch.Tensor
+    ) -> torch.Tensor:
+        return self.bce(predictions, y)
 
 
 class CategoricalNLLLoss(LossFunction):
@@ -202,8 +233,12 @@ class CategoricalNLLLoss(LossFunction):
     def forward(
         self, model: nn.Module, x: torch.Tensor, y: torch.Tensor
     ) -> torch.Tensor:
-        logits = model(x)
-        nll = -1 * Categorical(logits=logits).log_prob(y)
+        return self.from_predictions(model(x), y)
+
+    def from_predictions(
+        self, predictions: torch.Tensor, y: torch.Tensor
+    ) -> torch.Tensor:
+        nll = -1 * Categorical(logits=predictions).log_prob(y)
         return _reduce_tensor_loss(nll, self.reduction)
 
 

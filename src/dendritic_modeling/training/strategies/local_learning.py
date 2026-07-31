@@ -189,8 +189,14 @@ class LocalCreditAssignment(
             # Forward once to obtain outputs and local signals.
             y_hat, layer_records = _forward_with_local_recorders(self, model, x_batch)
 
-            # Compute scalar loss for logging (no backward)
-            loss = self._compute_logging_loss(model, x_batch, y_batch)
+            # Reuse the recorded forward for pointwise losses. Model-dependent
+            # losses retain the compatibility fallback to a separate evaluation.
+            loss = self._compute_logging_loss(
+                model,
+                x_batch,
+                y_batch,
+                predictions=y_hat,
+            )
             train_loss, train_loss_base, train_loss_reg = (
                 _accumulate_local_logging_loss(
                     train_loss=train_loss,

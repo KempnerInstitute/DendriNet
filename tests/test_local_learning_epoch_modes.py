@@ -7,6 +7,7 @@ from torch import nn
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
     TopKLinear,
 )
+from dendritic_modeling.training.loss.functions import CategoricalNLLLoss
 from dendritic_modeling.training.strategies.local_learning import (
     _accumulate_backprop_gradients,
     _apply_decoder_local_gradients,
@@ -53,6 +54,9 @@ from dendritic_modeling.training.strategies.local_learning_parts.local_learning_
     _reactivation_output_slope,
     _resolve_stdp_post_signal,
     _scale_reactivation_error,
+)
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_signals import (
+    LocalLearningSignalMixin,
 )
 from dendritic_modeling.training.strategies.local_learning_parts.local_learning_state import (
     _LayerModulators,
@@ -671,6 +675,35 @@ def test_accumulate_local_logging_loss_updates_total_and_base_only():
     assert train_loss == 1.25
     assert train_loss_base == 2.25
     assert train_loss_reg == 3.0
+
+
+def test_local_logging_loss_reuses_precomputed_predictions():
+    class _Probe(LocalLearningSignalMixin):
+        loss_function = CategoricalNLLLoss()
+
+    class _CountingModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.calls = 0
+
+        def forward(self, x):
+            self.calls += 1
+            return x
+
+    model = _CountingModel()
+    logits = torch.tensor([[2.0, -1.0], [-0.5, 1.5]])
+    targets = torch.tensor([0, 1])
+
+    loss = _Probe()._compute_logging_loss(
+        model,
+        logits,
+        targets,
+        predictions=logits,
+    )
+
+    expected = CategoricalNLLLoss().from_predictions(logits, targets)
+    torch.testing.assert_close(loss, expected)
+    assert model.calls == 0
 
 
 def test_average_local_epoch_losses_preserves_legacy_division():
