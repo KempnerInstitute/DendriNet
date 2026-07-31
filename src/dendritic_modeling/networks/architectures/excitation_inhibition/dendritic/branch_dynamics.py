@@ -6,6 +6,10 @@ from typing import Any
 
 import torch
 
+from dendritic_modeling.networks.activations.parametric import (
+    fused_shunt_reactivation,
+)
+
 ADDITIVE_MODES = frozenset({"raw", "tangent_matched", "conductance_normalized"})
 
 
@@ -280,7 +284,29 @@ def forward_branch_dynamics(
             active_pathways.add("I_rec")
 
     denominator = None
-    if owner.use_shunting:
+    # When the shunt divide feeds a positive-tanh reactivation, the two can be one
+    # autograd Function. Unfused, DivBackward pins BOTH its operands (the
+    # accumulated numerator and the `denominator + epsilon` allocated here) and
+    # the activation pins its output -- measured at 2.92 full-size tensors, 14,533
+    # MB, 60% of live allocation. Fused, the numerator is not needed at all
+    # (dL/dn = dL/dv/(d+eps)) and `voltage` is reconstructible from the output, so
+    # only two survive.
+    #
+    # Deliberately skipped when anything downstream needs `voltage` itself --
+    # diagnostics and analysis-current capture both store it, and both are off by
+    # default. If they are on, correctness wins and we take the plain path.
+    fused_shunt = None
+    if (
+        owner.use_shunting
+        and not store_diagnostics
+        and not getattr(owner, "_store_analysis_currents", False)
+    ):
+        fused_shunt = fused_shunt_reactivation(owner.reactivation)
+
+    voltage = None
+    if fused_shunt is not None:
+        denominator = shunt_denominator
+    elif owner.use_shunting:
         denominator = shunt_denominator
         voltage = shunt_numerator / (denominator + owner.epsilon)
     else:
@@ -320,7 +346,10 @@ def forward_branch_dynamics(
     ]:
         owner.compute_grad_scales(g_total=denominator if owner.use_shunting else None)
 
-    result = owner.reactivation(voltage)
+    if fused_shunt is not None:
+        result = fused_shunt(shunt_numerator, denominator, owner.epsilon)
+    else:
+        result = owner.reactivation(voltage)
     if getattr(owner, "_store_analysis_currents", False):
         owner._last_analysis_currents = {
             # Canonical stage-explicit analysis names.

@@ -125,6 +125,106 @@ class _PositiveTanhCentered(torch.autograd.Function):
         return grad_x, grad_scale, grad_center
 
 
+_USE_FUSED_SHUNT = os.environ.get("DENDRINET_FUSED_SHUNT", "1") != "0"
+
+
+def set_fused_shunt(enabled: bool) -> None:
+    """Enable/disable fusing the shunt divide into the positive-tanh."""
+    global _USE_FUSED_SHUNT
+    _USE_FUSED_SHUNT = bool(enabled)
+
+
+def fused_shunt_enabled() -> bool:
+    return _USE_FUSED_SHUNT
+
+
+class _ShuntDividePositiveTanh(torch.autograd.Function):
+    """``y = sigmoid(2m(n/(d+eps) - c))``, retaining only ``d+eps`` and ``y``.
+
+    Measured composition of the unfused pair (12L/16k, cuda, batch 512): the
+    divide holds **1.92** full-size tensors and the reactivation **1.00**, for
+    2.92 total against a one-tensor cost of 4,969 MB. `DivBackward` pins both of
+    its operands -- the accumulated numerator and the ``d+eps`` that line 285
+    allocates -- and the activation pins its output.
+
+    Fusing drops that to **2**, because the numerator is not actually needed:
+
+        dL/dv = g*y(1-y)*2m          from y
+        dL/dn = dL/dv / (d+eps)      no n
+        dL/dd = -dL/dv * v / (d+eps) needs v, and v = c + logit(y)/(2m)
+        dL/dm = (1/m) * sum(g*s*z),  z = logit(y)
+        dL/dc = -sum(dL/dv)
+
+    Only ``d+eps`` and ``y`` survive; ``v`` and ``z`` are reconstructed.
+
+    The reconstruction carries the same safety argument as
+    :class:`_PositiveTanhCentered`: where the fp32 sigmoid saturates, ``logit``
+    returns +-inf, but ``y*(1-y)`` is exactly 0 there, so ``dL/dv`` is 0 and
+    every term that would multiply the infinity is annihilated. Bounding only the
+    logit argument replaces inf with a finite stand-in and reproduces the
+    reference. Note this makes the v-reconstruction safe for dL/dd *because*
+    dL/dd carries the same factor -- it is not a separate assumption.
+    """
+
+    @staticmethod
+    def forward(ctx, numerator, denominator, eps, scale, center):
+        de = denominator + eps
+        two_m = scale + scale
+        y = torch.sigmoid(two_m * (numerator / de - center))
+        center_t = center if torch.is_tensor(center) else None
+        ctx.save_for_backward(de, y, scale, center_t)
+        ctx.center_val = None if center_t is not None else float(center)
+        return y
+
+    @staticmethod
+    def backward(ctx, grad_out):
+        de, y, scale, center_t = ctx.saved_tensors
+        needs_n, needs_d, _, needs_scale, needs_center = ctx.needs_input_grad[:5]
+        two_m = scale + scale
+        gs = grad_out * y * (1.0 - y)              # dL/dy * dy/dz
+        gv = gs * two_m                            # dL/dv
+        reduce_dims = tuple(range(gs.dim() - 1))
+        eps_f = torch.finfo(y.dtype).eps
+
+        grad_n = gv / de if needs_n else None
+        grad_d = None
+        if needs_d:
+            center = center_t if center_t is not None else ctx.center_val
+            v = torch.logit(y, eps_f) / two_m + center
+            grad_d = -(gv * v) / de
+        grad_scale = None
+        if needs_scale:
+            grad_scale = (gs * torch.logit(y, eps_f)).sum(dim=reduce_dims) / scale
+        grad_center = None
+        if needs_center and center_t is not None:
+            grad_center = -gv.sum(dim=reduce_dims)
+        return grad_n, grad_d, None, grad_scale, grad_center
+
+
+def fused_shunt_reactivation(reactivation):
+    """Return ``(numerator, denominator, eps) -> y`` if the pair can be fused.
+
+    Returns ``None`` when any precondition fails, so the caller keeps the plain
+    divide-then-activate path. Fusing is only valid for the positive-tanh family;
+    any other reactivation has a different backward.
+    """
+    if not (_USE_SIGMOID_IDENTITY and _USE_FUSED_POSITIVE_TANH and _USE_FUSED_SHUNT):
+        return None
+    if isinstance(reactivation, ParametricTanh):
+        center = reactivation.b
+    elif isinstance(reactivation, ParametricTanhOnlyM):
+        center = reactivation.fixed_b
+    else:
+        return None
+
+    def run(numerator, denominator, eps):
+        return _ShuntDividePositiveTanh.apply(
+            numerator, denominator, float(eps), reactivation.log_m.exp(), center
+        )
+
+    return run
+
+
 def _positive_tanh_centered(scale, x, center):
     """(tanh(scale * (x - center)) + 1) / 2.
 

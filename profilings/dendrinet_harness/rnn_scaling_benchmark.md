@@ -123,14 +123,22 @@ at batch 64 by a harness bug) put `parametric.py` at **57.6% of live allocation*
 
 12-layer 16k stress config, batch 512, Blackwell, cuda path:
 
+3. `_ShuntDividePositiveTanh` — fuses the **shunt divide** into the same Function. The
+   accumulation chain was a red herring (`a+b` retains nothing); the cost was `DivBackward`
+   pinning *both* operands of `voltage = n/(d+eps)`. Fused, the numerator is never needed
+   (`dL/dn = dL/dv/(d+eps)`) and `v` is reconstructible from `y`.
+
 | mode | step (ms) | peak (MB) | saved |
 |---|---|---|---|
-| eager | 852.8 | 28,184.1 | — |
-| + identity | 819.2 | 23,384.7 | 4,799 MB |
-| **+ fused** | 841.8 | **18,551.5** | **9,633 MB (1.52×)** |
+| eager | 857.7 | 28,184.1 | — |
+| + identity | 820.5 | 23,384.7 | 4,799 MB |
+| + fused activation | 841.1 | 18,551.5 | 9,633 MB (1.52×) |
+| **+ fused shunt** | 844.8 | **14,343.3** | **13,841 MB (1.96×)** |
 
-The reactivation line itself went 14,943.5 → 4,980.4 MB = **3.0×**, exactly the predicted
-3-retained → 1-retained.
+Mechanism confirmed by re-profiling against an arithmetic one-tensor cost of 4,968.8 MB:
+the reactivation went 3 retained tensors → 1, and the divide+activation pair went
+**2.92 → 1.92**, with `branch_dynamics` now holding 0.00 MB. Step time stays below eager
+throughout.
 
 **This is activation memory — the term FSDP does not shard** ([[rnn-activation-memory-dominates]]),
 i.e. the same class as the weight-transform hoist and aimed squarely at the fixed per-GPU

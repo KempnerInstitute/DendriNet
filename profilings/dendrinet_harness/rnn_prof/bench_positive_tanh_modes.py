@@ -23,10 +23,17 @@ import torch
 
 from dendritic_modeling.networks.activations.parametric import (
     set_fused_positive_tanh,
+    set_fused_shunt,
     set_positive_tanh_sigmoid,
 )
 
-MODES = [("eager", False, False), ("identity", True, False), ("fused", True, True)]
+# (name, sigmoid identity, fused positive-tanh, fused shunt divide)
+MODES = [
+    ("eager", False, False, False),
+    ("identity", True, False, False),
+    ("fused-act", True, True, False),
+    ("fused-shunt", True, True, True),
+]
 
 
 def _load_profiler():
@@ -37,9 +44,10 @@ def _load_profiler():
     return pd
 
 
-def measure(pd, cfg, batch, path, identity, fused, iters):
+def measure(pd, cfg, batch, path, identity, fused, shunt, iters):
     set_positive_tanh_sigmoid(identity)
     set_fused_positive_tanh(fused)
+    set_fused_shunt(shunt)
     torch.manual_seed(0)
     core, dim, _ = pd.build_core_from_config(cfg)
     pd.apply_path(core, path)
@@ -97,20 +105,20 @@ def main():
     print(f"path={a.path}  batch={a.batch}\n")
 
     res = {}
-    for name, ident, fused in MODES:
-        res[name] = measure(pd, a.config, a.batch, a.path, ident, fused, a.iters)
+    for name, ident, fused, shunt in MODES:
+        res[name] = measure(pd, a.config, a.batch, a.path, ident, fused, shunt, a.iters)
         print(f"  measured {name}")
 
     base_ms, base_mb, base_out, base_g = res["eager"]
     print(f"\n{'mode':>10}{'step (ms)':>12}{'peak (MB)':>12}{'vs eager':>11}"
           f"{'mem saved':>12}")
-    for name, _, _ in MODES:
+    for name, *_ in MODES:
         ms, mb, _, _ = res[name]
         print(f"{name:>10}{ms:>12.1f}{mb:>12.1f}{base_mb / mb:>10.2f}x"
               f"{(base_mb - mb):>11.0f} MB")
 
     print(f"\n{'mode':>10}{'max rel d out':>16}{'max rel d grad_x':>19}")
-    for name, _, _ in MODES:
+    for name, *_ in MODES:
         _, _, o, g = res[name]
         ro = (o - base_out).abs().max().item() / (base_out.abs().max().item() or 1)
         rg = (g - base_g).abs().max().item() / (base_g.abs().max().item() or 1)
@@ -118,6 +126,7 @@ def main():
 
     set_positive_tanh_sigmoid(True)
     set_fused_positive_tanh(True)
+    set_fused_shunt(True)
     return 0
 
 

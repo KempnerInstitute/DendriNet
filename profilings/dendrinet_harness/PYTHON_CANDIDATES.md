@@ -96,17 +96,54 @@ is the 1M blocker, so that is the right side of the trade.
 
 1. ~~sigmoid identity~~ — **done**, on by default (`1d1b1159`).
 2. ~~`parametric.py` structural~~ — **done** (`05063123`).
-3. **C4 (`branch_dynamics`) is now #1 at 59.7% of live** — 9,539 MB across
-   `:285` (4,558), `:213` (3,432), `:245` (1,550). Post-fix ranking:
+3. ~~C4 (`branch_dynamics`)~~ — **done** (`_ShuntDividePositiveTanh`).
+
+### C4 DONE — fused shunt divide, another 4.2 GB
+
+The accumulation chain was a red herring: `a + b` retains nothing for backward, so every
+intermediate is freed as it is superseded. The cost was the **divide** — `DivBackward` pins
+both operands, so `voltage = n / (d + eps)` held the numerator *and* the `d+eps` it
+allocated, while the activation held `y`. Measured: **2.92 full-size tensors** against a
+one-tensor cost of 4,968.8 MB.
+
+Fusing the divide into the reactivation that consumes it (same function, line 323) drops
+that to 2, because the numerator is never needed — `dL/dn = dL/dv/(d+eps)` — and `v` is
+reconstructible from `y` as `c + logit(y)/(2m)`, the same trick as `z`, resting on the same
+saturation argument.
+
+**Confirmed by re-profiling: 2.92 → 1.92 tensors**, and the three `branch_dynamics` lines
+now hold **0.00 MB** — the allocation moved inside the fused Function.
+
+### Cumulative, 12L/16k stress config, cuda, batch 512
+
+| mode | step (ms) | peak (MB) | vs eager | saved |
+|---|---|---|---|---|
+| eager | 857.7 | 28,184.1 | 1.00× | — |
+| + identity | 820.5 | 23,384.7 | 1.21× | 4,799 MB |
+| + fused activation | 841.1 | 18,551.5 | 1.52× | 9,633 MB |
+| **+ fused shunt** | 844.8 | **14,343.3** | **1.96×** | **13,841 MB** |
+
+Output deviation 2.39e-07 throughout; grad_x 7.08e-07. Step time stays *below* eager.
+
+Equivalence (`check_fused_shunt.py`): output bit-identical; in **fp64 every gradient — n, d,
+log_m, b — agrees to ~1e-16**, i.e. machine epsilon, so the derivation is exact rather than
+approximate. Guarded off whenever diagnostics or analysis-current capture need `voltage`
+itself, and only ever applied to the positive-tanh family.
+
+4. **Next: C5, C6, C3 as cheap ride-alongs.** New ranking (live ≈ 11.0 GB):
 
    | MB | share | site |
    |---:|---:|---|
-   | 9,538.9 | **59.7%** | `branch_dynamics.py` (3 lines) |
-   | 4,980.4 | 31.2% | `parametric.py:101` (already 3× reduced) |
-   | 889.3 | 5.6% | `cuda_gather.py:619` |
-   | 449.7 | 2.8% | `weight_transforms.py:119` (C1, closed) |
+   | 4,980.3 | 45.3% | `parametric.py:173` — `y` |
+   | 4,559.4 | 41.5% | `parametric.py:171` — `d+eps` |
+   | 890.0 | 8.1% | `cuda_gather.py:619` |
+   | 449.1 | 4.1% | `weight_transforms.py:119` (C1, closed) |
 
-4. C3, C5, C6 as cheap ride-alongs. **C1 and C7 are closed.**
+   Both remaining big items are now irreducible for a divide-then-activate: any two of
+   `{n, d+eps, v}` suffice and two are required. Further cuts need a different idea
+   (recompute across the layer boundary, or checkpointing), not another fusion.
+
+5. **C1, C2, C3, C7 are closed.**
 
 ---
 
