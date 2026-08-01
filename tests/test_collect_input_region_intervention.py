@@ -233,6 +233,26 @@ def test_validate_result_accepts_all_five_aggregate_record_levels(tmp_path):
     assert len(intervention["assigned_soma_class_response_records"]) == 2
 
 
+def test_validate_result_accepts_fraction_summary_roundoff(tmp_path):
+    result = _result()
+    fraction = result["interventions"][0]["named_region_feature_fraction"]
+    fraction["mean"] = 0.24999999999999994
+    fraction["minimum"] = 0.24999999999999997
+    fraction["maximum"] = 0.24999999999999997
+
+    _validate_result(result, result_path=tmp_path / "final.json")
+
+
+def test_validate_result_rejects_material_fraction_ordering_error(tmp_path):
+    result = _result()
+    fraction = result["interventions"][0]["named_region_feature_fraction"]
+    fraction["mean"] = 0.2
+    fraction["minimum"] = 0.25
+
+    with pytest.raises(ValueError, match="minimum/mean/maximum ordering"):
+        _validate_result(result, result_path=tmp_path / "final.json")
+
+
 def test_collector_writes_separate_tables_and_preserves_scientific_coordinates(
     tmp_path,
 ):

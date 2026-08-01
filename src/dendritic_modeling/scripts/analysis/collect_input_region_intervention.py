@@ -37,6 +37,7 @@ RESULT_SCHEMA_VERSION = 1
 ANALYZER_NAME = "input_region_intervention"
 RESULT_SUBDIRECTORY = "input_region_intervention"
 RESULT_FILENAME = "final.json"
+_SUMMARY_ORDER_ABS_TOLERANCE = 1e-12
 
 _TOP_LEVEL_FIELDS = {
     "schema_version",
@@ -254,7 +255,19 @@ def _validate_fraction_summary(
         raise ValueError(f"{context} standard deviation must be non-negative")
     if not all(0.0 <= values[field] <= 1.0 for field in ("mean", "minimum", "maximum")):
         raise ValueError(f"{context} coverage statistics must lie in [0, 1]")
-    if values["minimum"] > values["mean"] or values["mean"] > values["maximum"]:
+    minimum_above_mean = values["minimum"] > values["mean"] and not math.isclose(
+        values["minimum"],
+        values["mean"],
+        rel_tol=0.0,
+        abs_tol=_SUMMARY_ORDER_ABS_TOLERANCE,
+    )
+    mean_above_maximum = values["mean"] > values["maximum"] and not math.isclose(
+        values["mean"],
+        values["maximum"],
+        rel_tol=0.0,
+        abs_tol=_SUMMARY_ORDER_ABS_TOLERANCE,
+    )
+    if minimum_above_mean or mean_above_maximum:
         raise ValueError(f"{context} minimum/mean/maximum ordering is invalid")
     return summary
 
