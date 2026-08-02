@@ -239,7 +239,17 @@ class LocalLearningPathTransportBroadcastMixin:
         parent_rec: dict[str, Any],
         parent_v: torch.Tensor,
     ) -> torch.Tensor:
-        """Return stabilized parent total resistance for path transport."""
+        """Return the parent voltage gain used by exact path transport.
+
+        Conductance dynamics contribute the input resistance ``1 / G_tot``.
+        Raw additive dynamics have unit voltage gain and must not inherit the
+        conductance denominator merely because their records expose the same
+        excitatory, inhibitory, and coupling fields.
+        """
+
+        resolve_mode = getattr(self, "_resolve_layer_dynamics_mode", None)
+        if callable(resolve_mode) and resolve_mode(parent_rec) != "conductance":
+            return torch.ones_like(parent_v)
 
         parent_g_tot = self._compute_layer_total_conductance(parent_rec, parent_v)
         return 1.0 / (parent_g_tot + 1e-8)

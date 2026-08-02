@@ -349,6 +349,22 @@ def test_parent_resistance_total_preserves_stabilized_formula():
     assert calls[0][1] is parent_v
 
 
+def test_parent_resistance_total_is_unit_gain_for_additive_dynamics():
+    transport = LocalLearningPathTransportBroadcastMixin()
+    parent_rec = {"name": "parent"}
+    parent_v = torch.zeros(2, 2, dtype=torch.float64)
+    transport._resolve_layer_dynamics_mode = lambda _rec: "additive"
+
+    def fail_if_called(*_args):
+        raise AssertionError("additive transport must not use total conductance")
+
+    transport._compute_layer_total_conductance = fail_if_called
+
+    resistance = transport._parent_resistance_total(parent_rec, parent_v)
+
+    torch.testing.assert_close(resistance, torch.ones_like(parent_v))
+
+
 def test_scalar_edge_mean_factor_preserves_shape_and_formula():
     parent_signal = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
     parent_act_deriv = torch.tensor([[0.5, 0.25], [1.0, 0.75]])

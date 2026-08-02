@@ -254,10 +254,47 @@ class SweepManager:
                 repo_root / "src/dendritic_modeling/networks/architectures/"
                 "excitation_inhibition/dendritic/initialize_methods.py",
                 repo_root / "src/dendritic_modeling/config/reactivation.py",
+                repo_root / "src/dendritic_modeling/config/model_aliases.py",
+                repo_root / "src/dendritic_modeling/networks/architectures/"
+                "factory.py",
+                repo_root / "src/dendritic_modeling/networks/architectures/"
+                "excitation_inhibition/ei_network.py",
+                repo_root / "src/dendritic_modeling/networks/architectures/"
+                "excitation_inhibition/ei_layer.py",
+                repo_root / "src/dendritic_modeling/networks/architectures/"
+                "excitation_inhibition/dendritic/dendrinet.py",
                 repo_root / "src/dendritic_modeling/networks/architectures/"
                 "excitation_inhibition/dendritic/branch_layer.py",
                 repo_root / "src/dendritic_modeling/networks/architectures/"
                 "excitation_inhibition/dendritic/synapse_config.py",
+                repo_root / "src/dendritic_modeling/networks/architectures/"
+                "excitation_inhibition/synapse/factory.py",
+                repo_root / "src/dendritic_modeling/networks/architectures/"
+                "excitation_inhibition/synapse/topk.py",
+                repo_root / "src/dendritic_modeling/networks/architectures/"
+                "excitation_inhibition/synapse/indexed_sparse.py",
+                repo_root / "src/dendritic_modeling/networks/architectures/"
+                "excitation_inhibition/synapse/spatial_morphology.py",
+                repo_root / "src/dendritic_modeling/networks/architectures/"
+                "excitation_inhibition/synapse/structured_mask.py",
+                repo_root / "src/dendritic_modeling/training/strategies/"
+                "local_learning.py",
+                repo_root / "src/dendritic_modeling/training/strategies/"
+                "local_learning_parts/local_learning_broadcast_mixin.py",
+                repo_root / "src/dendritic_modeling/training/strategies/"
+                "local_learning_parts/local_learning_broadcast_transport_mixin.py",
+                repo_root / "src/dendritic_modeling/training/strategies/"
+                "local_learning_parts/local_learning_rule_mixin.py",
+                repo_root / "src/dendritic_modeling/training/strategies/"
+                "local_learning_parts/local_learning_topk_mixin.py",
+                repo_root / "src/dendritic_modeling/training/strategies/"
+                "local_learning_parts/local_learning_signals.py",
+                repo_root / "src/dendritic_modeling/training/strategies/"
+                "local_learning_parts/local_learning_post_factors_mixin.py",
+                repo_root / "src/dendritic_modeling/training/strategies/"
+                "local_learning_parts/local_learning_gradient_utils.py",
+                repo_root / "src/dendritic_modeling/training/strategies/"
+                "local_learning_parts/local_learning_epoch.py",
                 *([generator_source] if generator_source else []),
             ],
             generator_identity=(

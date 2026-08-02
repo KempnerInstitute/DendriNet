@@ -748,11 +748,25 @@ def _record_model_size_summary(unwrapped_model, config, run_save_path: str) -> i
     if wandb.run is not None:
         wandb.log({"nparams": nparams})
     save_dict({"nparams": nparams}, run_save_path, "nparams")
-    save_dict(
-        model_resource_summary(unwrapped_model),
-        run_save_path,
-        "model_resources.json",
-    )
+    resources = model_resource_summary(unwrapped_model)
+    resources["runtime_device"] = "cuda" if torch.cuda.is_available() else "cpu"
+    resources["cuda_peak_memory_allocated_bytes"] = None
+    resources["cuda_peak_memory_reserved_bytes"] = None
+    if torch.cuda.is_available():
+        try:
+            device = torch.cuda.current_device()
+            resources["cuda_device_name"] = torch.cuda.get_device_name(device)
+            resources["cuda_peak_memory_allocated_bytes"] = int(
+                torch.cuda.max_memory_allocated(device)
+            )
+            resources["cuda_peak_memory_reserved_bytes"] = int(
+                torch.cuda.max_memory_reserved(device)
+            )
+        except (AssertionError, RuntimeError) as error:
+            # Some login/test environments expose a CUDA-enabled build without
+            # assigning a usable device. Preserve a valid resource artifact.
+            resources["cuda_memory_measurement_error"] = str(error)
+    save_dict(resources, run_save_path, "model_resources.json")
 
     suggestions = suggest_optimal_config_for_model_size(nparams)
     if suggestions:
@@ -1428,6 +1442,18 @@ def _setup_training_environment(
 def main(config_path: str, args=None):
     rank, local_rank, world_size = setup_distributed()
     is_main = rank == 0
+
+    # Measure the complete per-process model build and training footprint.
+    # Reset before dataset/model setup so architecture comparisons use the same
+    # scope and the final resource artifact can be collected without rerunning.
+    if torch.cuda.is_available():
+        try:
+            # ``setup_distributed`` already selects the local device for DDP.
+            # Let PyTorch resolve the current device here; passing an integer
+            # before the first CUDA context exists fails on some Slurm nodes.
+            torch.cuda.reset_peak_memory_stats()
+        except (AssertionError, RuntimeError) as error:
+            logger.warning("CUDA peak-memory reset was unavailable: %s", error)
 
     prepared_config = _load_and_prepare_training_config(
         config_path,

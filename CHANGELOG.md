@@ -90,3 +90,9 @@
   update, and exact differentiation only within each dendritic core. This
   avoids applying the legacy dense-layer DFA implementation to compact indexed
   synapses.
+- Corrected exact path-transport feedback for raw additive dendrites to use
+  unit parent voltage gain; conductance-based dendrites continue to use the
+  exact input-resistance factor $1/G_{\mathrm{tot}}$.
+- Expanded frozen sweep provenance to hash all model, synapse, and local-rule
+  implementation files used by prospective experiments, and added matched
+  peak CUDA-memory fields to post-training resource summaries.
