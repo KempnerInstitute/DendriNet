@@ -11,6 +11,11 @@ from dendritic_modeling.config.conversion import (
 )
 
 _BASELINE_RNN_TYPES = {"gru", "lstm", "vanilla_rnn", "rnn"}
+_HETEROGENEOUS_LEAK_CTRNN_TYPES = {
+    "heterogeneous_leak_ctrnn",
+    "heterogeneous_ctrnn",
+}
+_LEGENDRE_MEMORY_TYPES = {"legendre_memory"}
 _POPULATION_NETWORK_TYPES = {
     "population_network",
 }
@@ -213,6 +218,10 @@ def is_recurrent_core_config(core_cfg: Any) -> bool:
     """Detect whether a model core config should use recurrent wrappers."""
     core_type = _core_type(core_cfg)
     if core_type in _BASELINE_RNN_TYPES:
+        return True
+    if core_type in _HETEROGENEOUS_LEAK_CTRNN_TYPES:
+        return True
+    if core_type in _LEGENDRE_MEMORY_TYPES:
         return True
     if core_type in _POPULATION_NETWORK_TYPES:
         return _population_network_requires_recurrent_wrapper(core_cfg)

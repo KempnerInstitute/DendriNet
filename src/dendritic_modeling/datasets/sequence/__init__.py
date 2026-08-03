@@ -1,8 +1,16 @@
 """Sequence dataset package."""
 
+from dendritic_modeling.datasets.sequence.bayesian_timing import (
+    BayesianReadySetGoDataset,
+    default_observed_interval_bounds,
+    discrete_bayesian_interval_posterior,
+    discrete_weber_likelihood,
+)
 from dendritic_modeling.datasets.sequence.decision_tasks import (
     ContextDependentDecisionDataset,
+    ContextualReadySetGoDataset,
     HierarchicalTemporalDataset,
+    ReadySetGoDataset,
     SwitchingContextDecisionDataset,
     TimescaleGeneralizationDataset,
 )
@@ -20,6 +28,9 @@ from dendritic_modeling.datasets.sequence.memory_tasks import (
     SequentialMNISTDataset,
     VariableDelayDMSDataset,
 )
+from dendritic_modeling.datasets.sequence.multiscale_working_memory import (
+    SpeededDistractorDMSDataset,
+)
 from dendritic_modeling.datasets.sequence.neuro_tasks import (
     GainModulatedContextualComparisonDataset,
     OculomotorDelayedResponseDataset,
@@ -36,7 +47,9 @@ from dendritic_modeling.datasets.sequence.signal_tasks import (
 
 __all__ = [
     "AddingProblemDataset",
+    "BayesianReadySetGoDataset",
     "ContextDependentDecisionDataset",
+    "ContextualReadySetGoDataset",
     "CopyTaskDataset",
     "GainModulatedContextualComparisonDataset",
     "HierarchicalTemporalDataset",
@@ -44,14 +57,19 @@ __all__ = [
     "MultiFrequencyDataset",
     "MultiSineForecastDataset",
     "OculomotorDelayedResponseDataset",
+    "ReadySetGoDataset",
     "RomoDelayComparisonDataset",
     "SequentialMNISTDataset",
+    "SpeededDistractorDMSDataset",
     "StringerV1Dataset",
     "SwitchingContextDecisionDataset",
     "SwitchingLDSDataset",
     "TimescaleGeneralizationDataset",
     "VariableDelayDMSDataset",
     "_resolve_stringer_session_file",
+    "default_observed_interval_bounds",
+    "discrete_bayesian_interval_posterior",
+    "discrete_weber_likelihood",
     "get_registered_sequence_dataset_names",
     "get_sequence_dataset_builder",
     "get_sequence_datasets",

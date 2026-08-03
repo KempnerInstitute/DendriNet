@@ -20,6 +20,11 @@ from dendritic_modeling.analysis.utils.effective_synapses import (
     EffectiveSynapseSnapshot,
     effective_synapse_snapshot,
 )
+from dendritic_modeling.analysis.utils.linear_memory import (
+    LinearMemoryCurveMetadata,
+    LinearMemoryCurveResult,
+    estimate_linear_memory_curve,
+)
 from dendritic_modeling.analysis.utils.model_resources import (
     StaticDendriticResourceSummary,
     SynapseResourceRecord,
@@ -37,21 +42,27 @@ from dendritic_modeling.analysis.utils.recurrent_introspection import (
     recurrent_population_summary,
 )
 from dendritic_modeling.analysis.utils.state_transition import (
+    BlockSubspaceSingularValueEstimate,
     PopulationStateCodec,
     SingularValueEstimate,
     StateTensorSpec,
     StateTransitionLinearization,
     StateTransitionProduct,
     UnsupportedPopulationStateError,
+    leading_matrix_free_singular_value_block_subspace,
     leading_state_transition_singular_value,
+    leading_state_transition_singular_value_block_subspace,
 )
 
 __all__ = [
     "ROMO_PHASE_ORDER",
+    "BlockSubspaceSingularValueEstimate",
     "CausalInterventionBatch",
     "EffectiveSynapseSnapshot",
     "FixedMeanCalibration",
     "InterventionAudit",
+    "LinearMemoryCurveMetadata",
+    "LinearMemoryCurveResult",
     "ManualCausalForwardResult",
     "PathwayInterventionTarget",
     "PopulationRecord",
@@ -68,11 +79,14 @@ __all__ = [
     "calibrate_fixed_mean_pathways",
     "dendritic_level_widths",
     "effective_synapse_snapshot",
+    "estimate_linear_memory_curve",
     "evaluate_same_checkpoint_intervention",
     "is_recurrent_core",
     "iter_recurrent_populations",
     "iter_routing_entries",
+    "leading_matrix_free_singular_value_block_subspace",
     "leading_state_transition_singular_value",
+    "leading_state_transition_singular_value_block_subspace",
     "manual_population_classifier_forward",
     "model_resource_summary",
     "persistent_state_scalars",

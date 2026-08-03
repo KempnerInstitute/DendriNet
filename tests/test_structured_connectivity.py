@@ -865,6 +865,31 @@ def test_indexed_sparse_linear_seed_none_follows_global_rng():
     assert not torch.equal(first.connection_indices, third.connection_indices)
 
 
+@pytest.mark.parametrize("invalid_k", [1.5, True])
+def test_indexed_sparse_linear_rejects_non_integer_k(invalid_k):
+    with pytest.raises(TypeError, match="K must be an integer"):
+        IndexedSparseLinear(
+            in_features=7,
+            out_features=5,
+            K=invalid_k,
+            seed=11,
+        )
+
+
+@pytest.mark.parametrize("invalid_chunk_size", [1.5, True])
+def test_indexed_sparse_linear_rejects_non_integer_output_chunk_size(
+    invalid_chunk_size,
+):
+    with pytest.raises(TypeError, match="output_chunk_size must be an integer"):
+        IndexedSparseLinear(
+            in_features=7,
+            out_features=5,
+            K=3,
+            output_chunk_size=invalid_chunk_size,
+            seed=11,
+        )
+
+
 def test_unmasked_index_sampler_is_chunked_reproducible_and_unique(monkeypatch):
     """Sparse initialization should avoid per-row full input permutations."""
     monkeypatch.setattr(

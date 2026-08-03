@@ -187,6 +187,8 @@ def test_core_config_asdict_keys():
         "unified_ei",
         "recurrent_ei",
         "baseline_rnn",
+        "heterogeneous_leak_ctrnn",
+        "legendre_memory",
         "population_network",
     }
     assert expected_keys == set(d.keys())

@@ -4,6 +4,7 @@ from typing import Optional, Union
 import torch
 from torch import nn
 from torch.distributions import Categorical, Normal
+from torch.nn import functional as F
 
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import (
@@ -206,6 +207,332 @@ class CrossEntropyLoss(LossFunction):
         self, predictions: torch.Tensor, y: torch.Tensor
     ) -> torch.Tensor:
         return self.ce(predictions, y)
+
+
+class TemporalEventCrossEntropyLoss(LossFunction):
+    """Cross-entropy for predicting one event time from a sequence of logits.
+
+    Predictions must have shape ``[batch, time]`` or ``[batch, time, 1]``.
+    Targets may be integer event indices with shape ``[batch]`` or normalized
+    non-negative temporal target distributions with shape ``[batch, time]``.
+    The latter supports smooth timing targets without treating each timestep as
+    an independent binary decision.
+    """
+
+    temporal_event_loss = True
+
+    def __init__(self, reduction: str = "mean"):
+        super().__init__(reduction)
+        self._loss_name = "Temporal Event Cross Entropy"
+
+    def forward(
+        self, model: nn.Module, x: torch.Tensor, y: torch.Tensor
+    ) -> torch.Tensor:
+        return self.from_predictions(model(x), y)
+
+    def from_predictions(
+        self, predictions: torch.Tensor, y: torch.Tensor
+    ) -> torch.Tensor:
+        if predictions.ndim == 3 and predictions.shape[-1] == 1:
+            logits = predictions.squeeze(-1)
+        elif predictions.ndim == 2:
+            logits = predictions
+        else:
+            raise ValueError(
+                "temporal event predictions must have shape [batch, time] or "
+                f"[batch, time, 1], got {list(predictions.shape)}"
+            )
+
+        if y.ndim == 1:
+            if y.shape[0] != logits.shape[0]:
+                raise ValueError("temporal event target batch dimension changed")
+            if y.dtype == torch.bool or y.is_floating_point() or y.is_complex():
+                raise TypeError("hard temporal event targets must use an integer dtype")
+            return F.cross_entropy(logits, y.long(), reduction=self.reduction)
+
+        if y.shape != logits.shape:
+            raise ValueError(
+                "soft temporal event targets must match [batch, time] logits, "
+                f"got target {list(y.shape)} and logits {list(logits.shape)}"
+            )
+        if not y.is_floating_point():
+            raise TypeError("soft temporal event targets must be floating point")
+        if not torch.isfinite(y).all() or bool((y < 0).any()):
+            raise ValueError(
+                "soft temporal event targets must be finite and non-negative"
+            )
+        target_mass = y.sum(dim=1, keepdim=True)
+        if bool((target_mass <= 0).any()):
+            raise ValueError("each soft temporal event target must have positive mass")
+        normalized_target = y / target_mass
+        per_sample = -(normalized_target * F.log_softmax(logits, dim=1)).sum(dim=1)
+        return _reduce_tensor_loss(per_sample, self.reduction)
+
+
+class MaskedDualTaskTemporalLoss(LossFunction):
+    """Balanced binary-logit loss for packed fast and memory supervision.
+
+    Predictions must be ``[batch, time, 2]`` logits. Targets must be floating
+    ``[batch, time, 4]`` tensors containing ``fast_label``, ``fast_mask``,
+    ``memory_label``, and ``memory_mask``. Each of the fast-positive,
+    fast-negative, memory-positive, and memory-negative strata receives equal
+    weight. Single-process training loss calls require all four strata in the
+    batch. Distributed training and validation instead use additive stratum
+    statistics, so individual batches on one DDP rank may omit a stratum as
+    long as every stratum is present in the corresponding global batch.
+
+    The two outputs are independent binary logits. Evaluation must apply a
+    sigmoid and threshold each head separately; an argmax across heads is not a
+    valid prediction rule.
+    """
+
+    sequence_prediction_loss = True
+    exact_sequence_validation_statistics = True
+    exact_distributed_training_statistics = True
+
+    def __init__(self, reduction: str = "mean"):
+        if reduction != "mean":
+            raise ValueError("masked dual-task temporal loss only supports mean")
+        super().__init__(reduction)
+        self._loss_name = "Masked Dual-Task Temporal Loss"
+
+    def forward(
+        self, model: nn.Module, x: torch.Tensor, y: torch.Tensor
+    ) -> torch.Tensor:
+        return self.from_predictions(model(x), y)
+
+    def _validated_strata(
+        self,
+        predictions: torch.Tensor,
+        y: torch.Tensor,
+        *,
+        require_nonempty: bool,
+    ) -> tuple[
+        torch.Tensor,
+        torch.Tensor,
+        tuple[tuple[torch.Tensor, str], ...],
+    ]:
+        if predictions.ndim != 3 or predictions.shape[-1] != 2:
+            raise ValueError(
+                "masked dual-task predictions must have shape [batch, time, 2], "
+                f"got {list(predictions.shape)}"
+            )
+        if y.ndim != 3 or y.shape[-1] != 4:
+            raise ValueError(
+                "masked dual-task targets must have shape [batch, time, 4], "
+                f"got {list(y.shape)}"
+            )
+        if y.shape[:2] != predictions.shape[:2]:
+            raise ValueError(
+                "masked dual-task target batch and time dimensions must match "
+                "predictions"
+            )
+        if not predictions.is_floating_point():
+            raise TypeError("masked dual-task predictions must be floating point")
+        if not y.is_floating_point():
+            raise TypeError("masked dual-task targets must be floating point")
+        fast_label, fast_mask, memory_label, memory_mask = y.unbind(dim=-1)
+        target_checks = torch.stack(
+            (
+                torch.isfinite(predictions).all(),
+                torch.isfinite(y).all(),
+                ((fast_label == 0) | (fast_label == 1)).all(),
+                ((memory_label == 0) | (memory_label == 1)).all(),
+                ((fast_mask == 0) | (fast_mask == 1)).all(),
+                ((memory_mask == 0) | (memory_mask == 1)).all(),
+            )
+        ).detach()
+        (
+            predictions_finite,
+            targets_finite,
+            fast_binary,
+            memory_binary,
+            fast_mask_binary,
+            memory_mask_binary,
+        ) = (bool(value) for value in target_checks.cpu().tolist())
+        if not predictions_finite:
+            raise ValueError("masked dual-task predictions must be finite")
+        if not targets_finite:
+            raise ValueError("masked dual-task targets must be finite")
+        if not fast_binary:
+            raise ValueError("fast_label must be binary")
+        if not memory_binary:
+            raise ValueError("memory_label must be binary")
+        if not fast_mask_binary:
+            raise ValueError("fast_mask must be binary")
+        if not memory_mask_binary:
+            raise ValueError("memory_mask must be binary")
+
+        fast_active = fast_mask.bool()
+        memory_active = memory_mask.bool()
+        strata = (
+            (fast_active & fast_label.bool(), "fast-positive"),
+            (fast_active & ~fast_label.bool(), "fast-negative"),
+            (memory_active & memory_label.bool(), "memory-positive"),
+            (memory_active & ~memory_label.bool(), "memory-negative"),
+        )
+        if require_nonempty:
+            counts = torch.stack(
+                [selection.sum() for selection, _name in strata]
+            ).detach()
+            missing = [
+                name
+                for count, (_selection, name) in zip(
+                    counts.cpu().tolist(),
+                    strata,
+                    strict=True,
+                )
+                if int(count) <= 0
+            ]
+            if missing:
+                raise ValueError(
+                    f"masked dual-task {missing[0]} stratum must be nonempty"
+                )
+        return fast_label, memory_label, strata
+
+    def _pointwise_losses(
+        self,
+        predictions: torch.Tensor,
+        fast_label: torch.Tensor,
+        memory_label: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        return (
+            F.binary_cross_entropy_with_logits(
+                predictions[..., 0], fast_label, reduction="none"
+            ),
+            F.binary_cross_entropy_with_logits(
+                predictions[..., 1], memory_label, reduction="none"
+            ),
+        )
+
+    def from_predictions(
+        self, predictions: torch.Tensor, y: torch.Tensor
+    ) -> torch.Tensor:
+        fast_label, memory_label, strata = self._validated_strata(
+            predictions,
+            y,
+            require_nonempty=True,
+        )
+
+        fast_pointwise, memory_pointwise = self._pointwise_losses(
+            predictions,
+            fast_label,
+            memory_label,
+        )
+        fast_loss = 0.5 * (
+            fast_pointwise[strata[0][0]].mean() + fast_pointwise[strata[1][0]].mean()
+        )
+        memory_loss = 0.5 * (
+            memory_pointwise[strata[2][0]].mean()
+            + memory_pointwise[strata[3][0]].mean()
+        )
+        return 0.5 * fast_loss + 0.5 * memory_loss
+
+    def validation_sums_and_counts(
+        self,
+        predictions: torch.Tensor,
+        y: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Return additive float64 sufficient statistics for exact validation."""
+
+        sums, counts = self.training_sums_and_counts(predictions, y)
+        return sums.to(torch.float64), counts
+
+    def training_sums_and_counts(
+        self,
+        predictions: torch.Tensor,
+        y: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Return differentiable local sums and detached integer counts.
+
+        Sums retain the pointwise-loss dtype and autograd graph. This lets a
+        distributed trainer normalize each rank's differentiable contribution
+        by global counts without attempting to all-reduce an autograd tensor.
+        """
+
+        fast_label, memory_label, strata = self._validated_strata(
+            predictions,
+            y,
+            require_nonempty=False,
+        )
+        fast_pointwise, memory_pointwise = self._pointwise_losses(
+            predictions,
+            fast_label,
+            memory_label,
+        )
+        pointwise = (
+            fast_pointwise,
+            fast_pointwise,
+            memory_pointwise,
+            memory_pointwise,
+        )
+        sums = torch.stack(
+            [
+                values[selection].sum()
+                for values, (selection, _name) in zip(
+                    pointwise,
+                    strata,
+                    strict=True,
+                )
+            ]
+        )
+        counts = torch.stack(
+            [selection.sum(dtype=torch.int64) for selection, _name in strata]
+        )
+        return sums, counts
+
+    def reduce_distributed_training_sums_and_counts(
+        self,
+        local_sums: torch.Tensor,
+        global_counts: torch.Tensor,
+        *,
+        world_size: int,
+    ) -> torch.Tensor:
+        """Build the rank-local scalar whose DDP-averaged gradient is global.
+
+        DDP averages parameter gradients across ranks. Multiplying each local
+        contribution by ``world_size`` therefore makes the post-all-reduce
+        gradient equal to the gradient of the equal-weight global stratum
+        means.
+        """
+
+        if isinstance(world_size, bool) or not isinstance(world_size, int):
+            raise TypeError("masked dual-task DDP world size must be an integer")
+        if world_size <= 0:
+            raise ValueError("masked dual-task DDP world size must be positive")
+        return world_size * self.reduce_validation_sums_and_counts(
+            local_sums,
+            global_counts,
+        )
+
+    def reduce_validation_sums_and_counts(
+        self,
+        sums: torch.Tensor,
+        counts: torch.Tensor,
+    ) -> torch.Tensor:
+        """Reduce globally accumulated four-stratum validation statistics."""
+
+        if tuple(sums.shape) != (4,) or tuple(counts.shape) != (4,):
+            raise ValueError(
+                "masked dual-task validation statistics must have shape [4]"
+            )
+        if not torch.isfinite(sums).all():
+            raise ValueError("masked dual-task validation sums must be finite")
+        missing = (counts <= 0).detach().cpu().tolist()
+        if any(missing):
+            names = (
+                "fast-positive",
+                "fast-negative",
+                "memory-positive",
+                "memory-negative",
+            )
+            first = next(
+                name for name, absent in zip(names, missing, strict=True) if absent
+            )
+            raise ValueError(
+                f"masked dual-task global {first} stratum must be nonempty"
+            )
+        return (sums / counts.to(dtype=sums.dtype)).mean()
 
 
 class BCELoss(LossFunction):
@@ -742,6 +1069,16 @@ def _register_builtin_loss_functions() -> None:
         "ce",
         CrossEntropyLoss,
         aliases=("cross_entropy",),
+    )
+    register_loss_function(
+        "temporal_event_ce",
+        TemporalEventCrossEntropyLoss,
+        aliases=("temporal_event_cross_entropy",),
+    )
+    register_loss_function(
+        "masked_dual_task_temporal",
+        MaskedDualTaskTemporalLoss,
+        aliases=("masked_dual_task",),
     )
     register_loss_function(
         "bce",

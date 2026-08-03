@@ -38,8 +38,12 @@ from dendritic_modeling.networks.architectures.excitation_inhibition import (
 )
 from dendritic_modeling.networks.architectures.factory_recurrent import (
     _BASELINE_RNN_TYPES,
+    _HETEROGENEOUS_LEAK_CTRNN_TYPES,
+    _LEGENDRE_MEMORY_TYPES,
     _POPULATION_NETWORK_TYPES,
     _build_baseline_rnn_architecture,
+    _build_heterogeneous_leak_ctrnn_architecture,
+    _build_legendre_memory_architecture,
     _build_population_network_architecture,
 )
 from dendritic_modeling.networks.architectures.factory_spatial import (
@@ -101,6 +105,8 @@ _BUILTIN_ARCHITECTURE_TYPES: frozenset[str] = frozenset(
     set(_EINET_TYPES)
     | set(_UNIFIED_EI_TYPES)
     | set(_BASELINE_RNN_TYPES)
+    | set(_HETEROGENEOUS_LEAK_CTRNN_TYPES)
+    | set(_LEGENDRE_MEMORY_TYPES)
     | set(_POPULATION_NETWORK_TYPES)
     | set(_SPATIAL_DENDRITIC_TYPES)
     | set(_SPATIAL_DENDRITIC_CONV_TYPES)
@@ -479,6 +485,15 @@ def _build_builtin_architecture_registry() -> dict[str, ArchitectureBuilder]:
     builders.update(dict.fromkeys(_UNIFIED_EI_TYPES, _build_unified_ei_architecture))
     builders.update(
         dict.fromkeys(_BASELINE_RNN_TYPES, _build_baseline_rnn_architecture)
+    )
+    builders.update(
+        dict.fromkeys(
+            _HETEROGENEOUS_LEAK_CTRNN_TYPES,
+            _build_heterogeneous_leak_ctrnn_architecture,
+        )
+    )
+    builders.update(
+        dict.fromkeys(_LEGENDRE_MEMORY_TYPES, _build_legendre_memory_architecture)
     )
     builders.update(
         dict.fromkeys(_POPULATION_NETWORK_TYPES, _build_population_network_architecture)

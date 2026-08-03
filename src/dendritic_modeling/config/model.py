@@ -307,6 +307,11 @@ class CoreConfig(BaseConfig):
     recurrent_ei: dict[str, Any] = field(default_factory=dict)
     # Optional config payload for baseline recurrent cores (gru/lstm/vanilla_rnn).
     baseline_rnn: dict[str, Any] = field(default_factory=dict)
+    # Sparse point-state control with a prespecified multiset of leak time
+    # constants. Kept plain to avoid coupling typed config to architecture code.
+    heterogeneous_leak_ctrnn: dict[str, Any] = field(default_factory=dict)
+    # Fixed Legendre Delay Network memory with sparse learned input/readout maps.
+    legendre_memory: dict[str, Any] = field(default_factory=dict)
     # Canonical population/layer/connection schema for feedforward or recurrent
     # named-population dendritic networks.
     population_network: dict[str, Any] = field(default_factory=dict)

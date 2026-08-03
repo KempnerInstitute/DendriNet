@@ -17,6 +17,9 @@ from dendritic_modeling.networks.architectures.recurrent import (
     PopulationNetworkConfig,
     StatefulDendriNet,
 )
+from dendritic_modeling.networks.architectures.recurrent.dendritic_geometry import (
+    sum_level_values_by_output_owner,
+)
 from dendritic_modeling.networks.architectures.recurrent.ei_state import DendriNetState
 from dendritic_modeling.networks.utils.weight_transforms import inverse_weight_transform
 
@@ -676,6 +679,267 @@ def test_paper_control_operating_point_and_ce_gradients_are_nonsaturated() -> No
     assert all(
         torch.count_nonzero(trace) == 0 for trace in final_pyr_state.trace_branch
     )
+
+
+def test_all_active_star_is_parameter_state_and_initialization_matched() -> None:
+    torch.manual_seed(817)
+    hierarchical = _paper_population_network("hierarchical")
+    torch.manual_seed(817)
+    star = _paper_population_network("all_active_star")
+
+    assert hierarchical.state_dict().keys() == star.state_dict().keys()
+    for key, reference_value in hierarchical.state_dict().items():
+        assert torch.equal(reference_value, star.state_dict()[key]), key
+
+    exact_resources = {
+        "total_parameters": 125344,
+        "trainable_parameters": 125344,
+        "synapse_candidate_parameters": 122112,
+        "candidate_synapse_slots": 121264,
+        "active_synapses": 14368,
+        "persistent_state_scalars_per_sample": 4320,
+    }
+    hierarchical_resources = model_resource_summary(hierarchical)
+    star_resources = model_resource_summary(star)
+    for name, expected in exact_resources.items():
+        assert hierarchical_resources[name] == expected
+        assert star_resources[name] == expected
+
+    star_pyr = star.layers[0].populations["pyr"]
+    assert star_pyr.is_all_active_star
+    assert not hasattr(star_pyr, "parallel_readout_projections")
+    assert [
+        (
+            layer.branches_to_output.in_features,
+            layer.branches_to_output.out_features,
+            layer.branches_to_output.block_size,
+        )
+        for layer in star_pyr.branch_layers[1:]
+    ] == [(576, 192, 3), (192, 64, 3)]
+
+
+def test_all_active_star_reaches_every_serial_shaped_branch_state() -> None:
+    network = _paper_population_network("all_active_star")
+    pyr = network.layers[0].populations["pyr"]
+    x = torch.linspace(0.05, 0.95, 22).reshape(2, 11)
+
+    _, state = network.layers[0].step(network.input_projection(x))
+    pyr_state = state.population_states["pyr"]
+
+    assert torch.count_nonzero(pyr_state.trace_branch[0]) == 0
+    assert torch.count_nonzero(pyr_state.trace_branch[1]) > 0
+    assert torch.count_nonzero(pyr_state.trace_branch[2]) > 0
+    assert sum(trace.shape[-1] for trace in pyr_state.trace_branch[1:]) == 256
+    assert [trace.shape[-1] for trace in pyr_state.trace_branch] == pyr.level_dims
+
+
+def test_all_active_star_arm_state_is_isolated_from_receiver_local_path() -> None:
+    population = _small_population("all_active_star")
+    base_state = population.init_state(2, torch.device("cpu"))
+    perturbed_state = base_state.clone()
+    perturbed_state.trace_branch[1].fill_(0.4)
+    x = torch.zeros(2, 6)
+    recurrent = torch.zeros(2, 4)
+    middle_outputs: list[torch.Tensor] = []
+
+    hook = population.branch_layers[1].reactivation.register_forward_hook(
+        lambda _module, _args, output: middle_outputs.append(output.detach().clone())
+    )
+    base_output, base_next = population.step(
+        x, recurrent_input=recurrent, state=base_state
+    )
+    perturbed_output, perturbed_next = population.step(
+        x, recurrent_input=recurrent, state=perturbed_state
+    )
+    hook.remove()
+
+    assert not torch.equal(base_output, perturbed_output)
+    assert not torch.equal(base_next.trace_branch[1], perturbed_next.trace_branch[1])
+    assert torch.equal(base_next.trace_branch[2], perturbed_next.trace_branch[2])
+    assert len(middle_outputs) == 2
+    assert torch.equal(middle_outputs[0], middle_outputs[1])
+    for trace_name in ("trace_E", "trace_E_rec", "trace_I", "trace_I_rec"):
+        base_traces = getattr(base_next, trace_name)
+        perturbed_traces = getattr(perturbed_next, trace_name)
+        for level_idx in range(population.n_levels):
+            assert torch.equal(base_traces[level_idx], perturbed_traces[level_idx]), (
+                trace_name,
+                level_idx,
+            )
+
+
+def test_all_active_star_soma_equation_and_single_reactivation() -> None:
+    population = _small_population("all_active_star")
+    counts = [0] * population.n_levels
+    hooks = []
+    for level_idx, layer in enumerate(population.branch_layers):
+        hooks.append(
+            layer.reactivation.register_forward_hook(
+                lambda _module, _args, _output, idx=level_idx: counts.__setitem__(
+                    idx, counts[idx] + 1
+                )
+            )
+        )
+
+    x = torch.linspace(0.05, 0.65, 12).reshape(2, 6)
+    recurrent = torch.linspace(0.1, 0.8, 8).reshape(2, 4)
+    output, state = population.step(x, recurrent_input=recurrent)
+    for hook in hooks:
+        hook.remove()
+
+    assert counts == [1, 1, 1]
+    soma = population.branch_layers[-1]
+    zeros = torch.zeros_like(state.trace_branch[-1])
+    _, local_denominator = soma.voltage_from_currents(
+        trace_E=state.trace_E[-1],
+        trace_E_rec=state.trace_E_rec[-1],
+        trace_I=state.trace_I[-1],
+        trace_I_rec=state.trace_I_rec[-1],
+        trace_branch=zeros,
+        branch_conductance=zeros,
+    )
+    assert local_denominator is not None
+
+    direct_current = torch.zeros_like(output)
+    direct_conductance = torch.zeros_like(output[:1])
+    for level_idx in range(1, population.n_levels):
+        aggregation = population.branch_layers[level_idx].branches_to_output
+        direct_current = direct_current + sum_level_values_by_output_owner(
+            state.trace_branch[level_idx], population.n_soma
+        )
+        direct_conductance = direct_conductance + sum_level_values_by_output_owner(
+            aggregation.sum_conductances().unsqueeze(0), population.n_soma
+        )
+    soma_numerator = state.trace_E[-1] + state.trace_E_rec[-1]
+    pooled_voltage = (soma_numerator + direct_current) / (
+        local_denominator + direct_conductance + soma.epsilon
+    )
+    expected = soma.reactivation(pooled_voltage)
+    assert torch.equal(output, expected)
+
+
+def test_all_active_star_level_silencing_removes_arm_conductance() -> None:
+    population = _small_population("all_active_star")
+    silencing = torch.tensor([[0.0, 1.0, 0.0], [0.0, 0.0, 0.0]])
+    population.set_level_silencing(silencing)
+
+    x = torch.linspace(0.05, 0.65, 6).repeat(2, 1)
+    recurrent = torch.linspace(0.1, 0.8, 4).repeat(2, 1)
+    output, state = population.step(x, recurrent_input=recurrent)
+
+    # The dynamic current of the silenced sample/arm is removed during trace
+    # integration. Its matching static conductance must also leave the soma
+    # denominator; otherwise the nominally silent arm still shunts the output.
+    assert torch.count_nonzero(state.trace_branch[1][0]) == 0
+    assert torch.count_nonzero(state.trace_branch[1][1]) > 0
+
+    soma = population.branch_layers[-1]
+    zeros = torch.zeros_like(state.trace_branch[-1])
+    _, local_denominator = soma.voltage_from_currents(
+        trace_E=state.trace_E[-1],
+        trace_E_rec=state.trace_E_rec[-1],
+        trace_I=state.trace_I[-1],
+        trace_I_rec=state.trace_I_rec[-1],
+        trace_branch=zeros,
+        branch_conductance=zeros,
+    )
+    assert local_denominator is not None
+
+    direct_current = torch.zeros_like(output)
+    masked_conductance = torch.zeros_like(output)
+    unmasked_conductance = torch.zeros_like(output[:1])
+    for level_idx in range(1, population.n_levels):
+        aggregation = population.branch_layers[level_idx].branches_to_output
+        direct_current = direct_current + sum_level_values_by_output_owner(
+            state.trace_branch[level_idx], population.n_soma
+        )
+        owner_conductance = sum_level_values_by_output_owner(
+            aggregation.sum_conductances().unsqueeze(0), population.n_soma
+        )
+        keep = 1.0 - silencing[:, level_idx].unsqueeze(-1)
+        masked_conductance = masked_conductance + owner_conductance * keep
+        unmasked_conductance = unmasked_conductance + owner_conductance
+
+    soma_numerator = state.trace_E[-1] + state.trace_E_rec[-1]
+    expected = soma.reactivation(
+        (soma_numerator + direct_current)
+        / (local_denominator + masked_conductance + soma.epsilon)
+    )
+    stale_static_shunt = soma.reactivation(
+        (soma_numerator + direct_current)
+        / (local_denominator + unmasked_conductance + soma.epsilon)
+    )
+
+    assert torch.equal(output, expected)
+    assert not torch.allclose(output[0], stale_static_shunt[0])
+    assert torch.equal(output[1], stale_static_shunt[1])
+
+
+def test_all_active_star_aggregators_receive_finite_nonzero_gradients() -> None:
+    population = _small_population("all_active_star")
+    state = None
+    for step in range(3):
+        x = torch.linspace(0.1 + step * 0.01, 0.7 + step * 0.01, 12).reshape(2, 6)
+        recurrent = torch.linspace(0.05, 0.45, 8).reshape(2, 4)
+        output, state = population.step(x, recurrent_input=recurrent, state=state)
+    decoder = torch.tensor(
+        [[-0.8, -0.3, 0.2, 0.7], [0.6, 0.1, -0.4, -0.9]],
+        dtype=output.dtype,
+    )
+    loss = F.cross_entropy(output @ decoder.T, torch.tensor([0, 1]))
+    loss.backward()
+
+    for layer in population.branch_layers[1:]:
+        gradient = layer.branches_to_output.log_weight.grad
+        assert gradient is not None
+        assert torch.isfinite(gradient).all()
+        assert torch.count_nonzero(gradient) > 0
+
+
+def test_output_owner_sum_preserves_owner_major_coordinates() -> None:
+    values = torch.arange(48, dtype=torch.float32).reshape(2, 24)
+    expected = values.reshape(2, 4, 6).sum(dim=-1)
+    assert torch.equal(sum_level_values_by_output_owner(values, 4), expected)
+
+    with pytest.raises(ValueError, match="feature dimension"):
+        sum_level_values_by_output_owner(torch.tensor(1.0), 4)
+    with pytest.raises(ValueError, match="positive integer"):
+        sum_level_values_by_output_owner(values, 0)
+    with pytest.raises(ValueError, match="must be divisible"):
+        sum_level_values_by_output_owner(values, 5)
+
+
+def test_all_active_star_validation_is_fail_closed() -> None:
+    cases = [
+        ({"branch_factors": []}, "at least two levels"),
+        ({"dynamics_mode": "spike"}, "spiking soma dynamics"),
+        ({"dendritic_spikes_enabled": True}, "dendritic spikes"),
+        ({"soma_feedback_enabled": True}, "soma feedback"),
+        ({"use_shunting": False}, "additive/non-shunting dynamics"),
+        ({"rec_excitatory_synapses": 0}, "requires a recurrent population"),
+        (
+            {"blocklinear_strategy": "conductance_dynamic"},
+            "blocklinear gradient scaling",
+        ),
+        ({"weight_transform": "identity"}, "positive weight_transform"),
+        (
+            {
+                "synapse_types": {
+                    "enabled": True,
+                    "excitatory": [{"name": "AMPA", "fraction": 1.0, "tau": None}],
+                    "inhibitory": [{"name": "GABA_A", "fraction": 1.0, "tau": None}],
+                }
+            },
+            "typed synapses",
+        ),
+    ]
+    for overrides, message in cases:
+        with pytest.raises(ValueError, match=message):
+            _small_population("all_active_star", **overrides)
+
+    population = _small_population("all_active_star")
+    with pytest.raises(RuntimeError, match="recurrent-only; call step"):
+        population(torch.full((2, 6), 0.25))
 
 
 def test_parallel_mode_validation_is_fail_closed() -> None:

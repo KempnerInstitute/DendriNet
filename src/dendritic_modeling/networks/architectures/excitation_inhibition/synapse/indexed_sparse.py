@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from math import log
+from numbers import Integral
 
 import torch
 import torch.nn as nn
@@ -71,8 +72,9 @@ class IndexedSparseLinear(nn.Module):
     ):
         super().__init__()
 
-        if not isinstance(K, int):
-            K = int(K)
+        if isinstance(K, bool) or not isinstance(K, Integral):
+            raise TypeError("K must be an integer")
+        K = int(K)
         if K < 1:
             raise ValueError("K must be >= 1")
         if K > in_features:
@@ -80,6 +82,11 @@ class IndexedSparseLinear(nn.Module):
                 f"K must be <= number of input features. "
                 f"(K={K}, in_features={in_features})"
             )
+        if isinstance(output_chunk_size, bool) or not isinstance(
+            output_chunk_size, Integral
+        ):
+            raise TypeError("output_chunk_size must be an integer")
+        output_chunk_size = int(output_chunk_size)
         if output_chunk_size < 1:
             raise ValueError("output_chunk_size must be >= 1")
         if workspace_mb is not None and float(workspace_mb) <= 0:

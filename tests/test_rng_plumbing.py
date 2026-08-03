@@ -146,6 +146,44 @@ def test_setup_environment_separates_dataset_and_model_rng(monkeypatch, tmp_path
     assert propagated_initialization_seeds == [101, 202]
 
 
+def test_standard_setup_propagates_flat_recurrent_core_seed_defaults():
+    for core_type, parameter_name in (
+        ("heterogeneous_leak_ctrnn", "heterogeneous_leak_ctrnn"),
+        ("legendre_memory", "legendre_memory"),
+    ):
+        model_config = ModelConfig()
+        model_config.core.type = core_type
+        setattr(model_config.core, parameter_name, {})
+
+        setup_utils._apply_initialization_seed_defaults(model_config, model_seed=101)
+        setup_utils._apply_topology_seed_defaults(model_config, topology_seed=202)
+
+        parameters = getattr(model_config.core, parameter_name)
+        assert parameters["initialization_seed"] == 101
+        assert parameters["topology_seed"] == 202
+
+
+def test_standard_setup_preserves_explicit_flat_recurrent_core_seeds():
+    for core_type, parameter_name in (
+        ("heterogeneous_ctrnn", "heterogeneous_leak_ctrnn"),
+        ("legendre_memory", "legendre_memory"),
+    ):
+        model_config = ModelConfig()
+        model_config.core.type = core_type
+        setattr(
+            model_config.core,
+            parameter_name,
+            {"initialization_seed": 17, "topology_seed": 19},
+        )
+
+        setup_utils._apply_initialization_seed_defaults(model_config, model_seed=101)
+        setup_utils._apply_topology_seed_defaults(model_config, topology_seed=202)
+
+        parameters = getattr(model_config.core, parameter_name)
+        assert parameters["initialization_seed"] == 17
+        assert parameters["topology_seed"] == 19
+
+
 def test_legacy_seed_config_resolves_all_streams_compatibly(tmp_path):
     config_path = tmp_path / "legacy_seed.yaml"
     config_path.write_text("experiment:\n  seed: 19\n", encoding="utf-8")
@@ -451,6 +489,11 @@ def test_evaluation_and_probe_seeds_reach_runtime_consumers(tmp_path):
     assert evaluation_draws[0] == evaluation_draws[1]
 
     probe_draws = []
+    # This test isolates RNG plumbing, not analyzer construction. Information
+    # analyses now correctly require both an enabled config and an initialized
+    # analyzer, so provide the smallest sentinel satisfying that runtime gate.
+    config.information_analysis.enabled = True
+    manager.information_analyzer = SimpleNamespace(analysis_split="test")
     manager._run_logged_test_dataset_analysis = lambda **_kwargs: probe_draws.append(
         (torch.rand(1).item(), np.random.random(), random.random())
     )

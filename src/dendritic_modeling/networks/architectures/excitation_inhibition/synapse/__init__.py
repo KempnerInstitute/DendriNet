@@ -12,6 +12,9 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.cre
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.deepst import (
     DeepstLinear,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.degree_grouped_indexed import (
+    DegreeGroupedIndexedLinear,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.dense_to_sparse import (
     DenseToSparseLinear,
 )
@@ -53,6 +56,7 @@ __all__ = [
     "TOPK_INIT_METHODS",
     "CreditGatedDeepstLinear",
     "DeepstLinear",
+    "DegreeGroupedIndexedLinear",
     "DenseToSparseLinear",
     "IndexedDynamicTopKLinear",
     "IndexedRewireLinear",

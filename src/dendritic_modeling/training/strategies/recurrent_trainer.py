@@ -136,6 +136,38 @@ class RecurrentTrainer(Trainer):
         """
         output = model(x_batch, seq_lengths=seq_lengths)
 
+        # Event-time prediction treats the time axis as one categorical
+        # distribution.  It must be evaluated before the generic many-to-many
+        # flattening below, which intentionally treats timesteps independently.
+        if bool(getattr(self.loss_function, "temporal_event_loss", False)):
+            return self.loss_function.from_predictions(output, y_batch)
+
+        if bool(getattr(self.loss_function, "sequence_prediction_loss", False)):
+            if (
+                self._is_distributed
+                and self._uses_exact_distributed_training_statistics()
+            ):
+                local_sums, local_counts = self.loss_function.training_sums_and_counts(
+                    output, y_batch
+                )
+                global_counts = local_counts.detach().clone()
+                dist.all_reduce(global_counts, op=dist.ReduceOp.SUM)
+                gradient_objective = (
+                    self.loss_function.reduce_distributed_training_sums_and_counts(
+                        local_sums,
+                        global_counts,
+                        world_size=dist.get_world_size(),
+                    )
+                )
+                global_sums = local_sums.detach().to(torch.float64)
+                dist.all_reduce(global_sums, op=dist.ReduceOp.SUM)
+                global_value = self.loss_function.reduce_validation_sums_and_counts(
+                    global_sums,
+                    global_counts,
+                ).to(dtype=gradient_objective.dtype)
+                return gradient_objective + (global_value - gradient_objective.detach())
+            return self.loss_function.from_predictions(output, y_batch)
+
         if output.dim() <= 2:
             # output_mode="last" or "mean" -- already reduced, standard loss
             return self.task_loss(output, y_batch)
@@ -214,6 +246,19 @@ class RecurrentTrainer(Trainer):
         if self.scheduler is not None:
             self.scheduler.step()
 
+        # Average detached loss totals across ranks so recurrent DDP training
+        # curves are rank-invariant. The exact stratified path already returns
+        # the same global-batch value on every rank, which this preserves.
+        if self._is_distributed:
+            statistics = torch.tensor(
+                [total_loss, float(n_batches)],
+                device=self.device,
+                dtype=torch.float64,
+            )
+            dist.all_reduce(statistics, op=dist.ReduceOp.SUM)
+            total_loss = statistics[0].item()
+            n_batches = int(statistics[1].item())
+
         avg_loss = total_loss / max(n_batches, 1)
         return avg_loss, avg_loss, 0.0  # (total, base, reg=0)
 
@@ -227,10 +272,84 @@ class RecurrentTrainer(Trainer):
         self._build_scheduler(self.epochs)
         return super().train(model, train_data, valid_data)
 
+    def _uses_exact_sequence_validation_statistics(self) -> bool:
+        return bool(
+            getattr(
+                self.loss_function,
+                "exact_sequence_validation_statistics",
+                False,
+            )
+        )
+
+    def _uses_exact_distributed_training_statistics(self) -> bool:
+        return bool(
+            getattr(
+                self.loss_function,
+                "exact_distributed_training_statistics",
+                False,
+            )
+        )
+
+    def _sequence_validation_sums_and_counts(
+        self,
+        model: BaseModel,
+        x_batch: torch.Tensor,
+        y_batch: torch.Tensor,
+        seq_lengths: torch.Tensor | None,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        output = model(x_batch, seq_lengths=seq_lengths)
+        return self.loss_function.validation_sums_and_counts(output, y_batch)
+
+    def _epoch_valid_exact_stats(
+        self,
+        model: BaseModel,
+        valid_loader: DataLoader,
+    ) -> _ValidationLossStats:
+        """Accumulate exact dataset-level sequence-loss sufficient statistics."""
+
+        model.eval()
+        sums = torch.zeros(4, device=self.device, dtype=torch.float64)
+        counts = torch.zeros(4, device=self.device, dtype=torch.int64)
+        n_batches = 0
+        n_samples = 0
+        with torch.no_grad():
+            for batch in valid_loader:
+                if len(batch) == 3:
+                    x_batch, y_batch, seq_lengths = batch
+                    seq_lengths = seq_lengths.to(self.device)
+                else:
+                    x_batch, y_batch = batch
+                    seq_lengths = None
+                x_batch = x_batch.to(self.device)
+                y_batch = y_batch.to(self.device)
+                batch_sums, batch_counts = self._sequence_validation_sums_and_counts(
+                    model,
+                    x_batch,
+                    y_batch,
+                    seq_lengths,
+                )
+                sums += batch_sums
+                counts += batch_counts
+                n_batches += 1
+                n_samples += int(y_batch.shape[0])
+        exact_loss = self.loss_function.reduce_validation_sums_and_counts(
+            sums,
+            counts,
+        ).item()
+        return _ValidationLossStats(
+            batch_loss_sum=exact_loss * n_batches,
+            batch_count=n_batches,
+            sample_weighted_loss_sum=exact_loss * n_samples,
+            sample_count=n_samples,
+        )
+
     def _epoch_valid_stats(
         self, model: BaseModel, valid_loader: DataLoader
     ) -> _ValidationLossStats:
         """Collect sequence-aware batch- and sample-level loss aggregates."""
+        if self._uses_exact_sequence_validation_statistics():
+            return self._epoch_valid_exact_stats(model, valid_loader)
+
         model.eval()
         batch_loss_sum = 0.0
         n_batches = 0
@@ -271,6 +390,9 @@ class RecurrentTrainer(Trainer):
         self, model: BaseModel, valid_loader: DataLoader
     ) -> float:
         """Distributed validation using recurrent sequence-aware loss."""
+        if self._uses_exact_sequence_validation_statistics():
+            return self._epoch_valid_exact_distributed(model, valid_loader)
+
         model.eval()
         weighted_loss_sum = 0.0
         total_examples = 0
@@ -317,3 +439,59 @@ class RecurrentTrainer(Trainer):
         )
         dist.all_reduce(stats, op=dist.ReduceOp.SUM)
         return stats[0].item() / max(stats[1].item(), 1.0)
+
+    def _epoch_valid_exact_distributed(
+        self,
+        model: BaseModel,
+        valid_loader: DataLoader,
+    ) -> float:
+        """All-reduce exact four-stratum statistics without local-count gates."""
+
+        model.eval()
+        sums = torch.zeros(4, device=self.device, dtype=torch.float64)
+        counts = torch.zeros(4, device=self.device, dtype=torch.int64)
+        sampler = valid_loader.sampler
+        real_count = (
+            len(sampler.real_indices)
+            if isinstance(sampler, PaddedDistributedEvalSampler)
+            else None
+        )
+        seen = 0
+        with torch.no_grad():
+            for batch in valid_loader:
+                if len(batch) == 3:
+                    x_batch, y_batch, seq_lengths = batch
+                    seq_lengths = seq_lengths.to(self.device)
+                else:
+                    x_batch, y_batch = batch
+                    seq_lengths = None
+                x_batch = x_batch.to(self.device)
+                y_batch = y_batch.to(self.device)
+                batch_size = int(y_batch.shape[0])
+                if real_count is not None:
+                    real_in_batch = min(batch_size, real_count - seen)
+                    seen += batch_size
+                    if real_in_batch <= 0:
+                        continue
+                    if real_in_batch < batch_size:
+                        x_batch = x_batch[:real_in_batch]
+                        y_batch = y_batch[:real_in_batch]
+                        if seq_lengths is not None:
+                            seq_lengths = seq_lengths[:real_in_batch]
+                batch_sums, batch_counts = self._sequence_validation_sums_and_counts(
+                    model,
+                    x_batch,
+                    y_batch,
+                    seq_lengths,
+                )
+                sums += batch_sums
+                counts += batch_counts
+
+        reduced = torch.cat((sums, counts.to(dtype=torch.float64)))
+        dist.all_reduce(reduced, op=dist.ReduceOp.SUM)
+        global_sums = reduced[:4]
+        global_counts = reduced[4:].to(dtype=torch.int64)
+        return self.loss_function.reduce_validation_sums_and_counts(
+            global_sums,
+            global_counts,
+        ).item()

@@ -168,8 +168,10 @@ class PopulationConfig(BaseConfig):
     # Appended to retain the positional constructor order of all legacy fields.
     # ``parallel_readout`` removes serial child-to-parent drive and pools every
     # non-soma level directly into the soma readout while retaining the same
-    # per-level state banks.
-    cross_level_mode: str = "hierarchical"  # hierarchical | parallel_readout
+    # per-level state banks. ``all_active_star`` retains the serial child
+    # aggregators as independent, leaky star-arm drives, but prevents one arm's
+    # state from entering the next level's local computation.
+    cross_level_mode: str = "hierarchical"
 
     # Appended indexed-synapse scaling controls. Defaults preserve legacy
     # topology storage, checkpoint, and initialization behavior.
@@ -201,9 +203,14 @@ class PopulationConfig(BaseConfig):
                 f"got {self.indexed_init_mode!r}"
             )
         self.cross_level_mode = str(self.cross_level_mode).lower()
-        if self.cross_level_mode not in {"hierarchical", "parallel_readout"}:
+        if self.cross_level_mode not in {
+            "hierarchical",
+            "parallel_readout",
+            "all_active_star",
+        }:
             raise ValueError(
-                "cross_level_mode must be 'hierarchical' or 'parallel_readout', "
+                "cross_level_mode must be 'hierarchical', 'parallel_readout', "
+                "or 'all_active_star', "
                 f"got {self.cross_level_mode!r}"
             )
         if any(b < 1 for b in self.branch_factors):

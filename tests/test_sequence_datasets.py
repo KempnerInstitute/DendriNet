@@ -25,6 +25,7 @@ from dendritic_modeling.datasets.sequence.factory import (
 from dendritic_modeling.datasets.sequence_datasets import (
     AddingProblemDataset,
     ContextDependentDecisionDataset,
+    ContextualReadySetGoDataset,
     CopyTaskDataset,
     GainModulatedContextualComparisonDataset,
     HierarchicalTemporalDataset,
@@ -32,6 +33,7 @@ from dendritic_modeling.datasets.sequence_datasets import (
     MultiFrequencyDataset,
     MultiSineForecastDataset,
     OculomotorDelayedResponseDataset,
+    ReadySetGoDataset,
     RomoDelayComparisonDataset,
     SequentialMNISTDataset,
     StringerV1Dataset,
@@ -177,6 +179,77 @@ def test_sequence_builder_explicit_split_merges_common_and_split_kwargs():
         {"noise_std": 0.1, "seed": 1},
     ]
     assert common_defaults == {"noise_std": 0.1, "seed": 1}
+
+
+@pytest.mark.parametrize("malformed", (None, ["bad"], 3, "bad"))
+def test_sequence_builder_rejects_non_mapping_split_blocks(malformed):
+    class RecordingDataset:
+        def __init__(self, *, n_samples, **params):
+            self.n_samples = n_samples
+            self.params = params
+
+    with pytest.raises(TypeError, match="split parameters must be a mapping"):
+        build_explicit_or_deferred_split(
+            dataset_cls=RecordingDataset,
+            kwargs={"train": malformed},
+            common_defaults={},
+            n_train=4,
+            min_test_size=2,
+        )
+
+
+def test_sequence_builder_rejects_split_local_encoding_variant():
+    class RecordingDataset:
+        def __init__(self, *, n_samples, **params):
+            self.n_samples = n_samples
+            self.params = params
+
+    with pytest.raises(ValueError, match="positive_input_encoding"):
+        build_explicit_or_deferred_split(
+            dataset_cls=RecordingDataset,
+            kwargs={
+                "train": {
+                    "n_samples": 4,
+                    "positive_input_encoding": False,
+                }
+            },
+            common_defaults={"positive_input_encoding": True},
+            n_train=4,
+            min_test_size=2,
+        )
+
+
+@pytest.mark.parametrize(
+    "dataset_name",
+    (
+        "timescale_generalization_positive",
+        "ready_set_go_positive",
+        "contextual_ready_set_go_positive",
+        "bayesian_ready_set_go_positive",
+        "speeded_distractor_dms_positive",
+    ),
+)
+def test_registered_split_builders_reject_malformed_split_blocks(dataset_name):
+    with pytest.raises(TypeError, match="split parameters must be a mapping"):
+        get_sequence_datasets(dataset_name, train=["bad"])
+
+
+@pytest.mark.parametrize(
+    "dataset_name",
+    (
+        "timescale_generalization_positive",
+        "ready_set_go_positive",
+        "contextual_ready_set_go_positive",
+        "bayesian_ready_set_go_positive",
+        "speeded_distractor_dms_positive",
+    ),
+)
+def test_positive_dataset_alias_cannot_be_overridden_within_a_split(dataset_name):
+    with pytest.raises(ValueError, match="positive_input_encoding"):
+        get_sequence_datasets(
+            dataset_name,
+            train={"n_samples": 4, "positive_input_encoding": False},
+        )
 
 
 def test_sequence_builder_deferred_split_uses_derived_test_size():
@@ -1028,6 +1101,30 @@ def test_context_and_timescale_datasets():
     assert torch.all(scd_ds.switch_mask[:, 0])
     assert torch.any(scd_ds.cue_mask)
 
+    rsg_ds = ReadySetGoDataset(
+        n_samples=8,
+        sample_intervals=(8, 12),
+        set_min_step=14,
+        set_max_step=16,
+        pulse_duration=1,
+        target_sigma=1.5,
+        post_go_duration=8,
+        sequence_duration=40,
+        input_noise_std=0.0,
+        mean_distractors_per_trial=2.0,
+        distractor_amplitude=0.5,
+        positive_input_encoding=True,
+        seed=17,
+    )
+    rsg_inputs, rsg_target = rsg_ds[0]
+    assert rsg_inputs.shape == (rsg_ds.sequence_duration, 3)
+    assert rsg_target.shape == (rsg_ds.sequence_duration,)
+    assert rsg_target.sum().item() == pytest.approx(1.0)
+    assert int(rsg_target.argmax()) == int(rsg_ds.go_steps[0])
+    assert torch.all(rsg_inputs >= 0.0)
+    assert torch.all(rsg_ds.go_steps - rsg_ds.set_steps == rsg_ds.production_intervals)
+    assert torch.all(rsg_ds.set_steps - rsg_ds.ready_steps == rsg_ds.sample_intervals)
+
     tg_ds = TimescaleGeneralizationDataset(
         n_samples=3,
         stimulus_dim=5,
@@ -1044,3 +1141,395 @@ def test_context_and_timescale_datasets():
     assert int(tg_seq_len) >= 3 + 2 + 2
     assert int(tg_seq_len) <= 3 + 4 + 2
     assert torch.all(tg_inputs >= 0.0)
+
+
+def test_ready_set_go_explicit_splits_and_invalid_duration():
+    built = get_sequence_datasets(
+        "ready_set_go_positive",
+        train_valid_split=0.8,
+        train={
+            "n_samples": 6,
+            "sample_intervals": [8, 12],
+        },
+        valid={
+            "n_samples": 4,
+            "sample_intervals": [10],
+        },
+        test={
+            "n_samples": 4,
+            "sample_intervals": [14],
+        },
+        set_min_step=18,
+        set_max_step=20,
+        pulse_duration=1,
+        target_sigma=1.5,
+        post_go_duration=8,
+        sequence_duration=None,
+        input_noise_std=0.0,
+        mean_distractors_per_trial=0.0,
+        seed=23,
+    )
+    train_ds, valid_ds, test_ds = built
+    assert len(train_ds) == 6
+    assert len(valid_ds) == 4
+    assert len(test_ds) == 4
+    assert set(train_ds.sample_intervals.tolist()) <= {8, 12}
+    assert set(valid_ds.sample_intervals.tolist()) == {10}
+    assert set(test_ds.sample_intervals.tolist()) == {14}
+    assert train_ds.sequence_duration == valid_ds.sequence_duration
+    assert valid_ds.sequence_duration == test_ds.sequence_duration
+    assert test_ds.sequence_duration == 43
+    assert (train_ds.seed, valid_ds.seed, test_ds.seed) == (23, 24, 25)
+
+    with pytest.raises(ValueError, match="too short"):
+        ReadySetGoDataset(
+            n_samples=1,
+            sample_intervals=(20,),
+            set_min_step=22,
+            set_max_step=22,
+            post_go_duration=8,
+            sequence_duration=10,
+        )
+
+
+@pytest.mark.parametrize(
+    "dataset_name",
+    (
+        "ready_set_go_positive",
+        "contextual_ready_set_go_positive",
+    ),
+)
+def test_timing_builders_reject_unimplemented_standard_label_noise(dataset_name):
+    with pytest.raises(ValueError, match="label_noise_rate=0"):
+        get_sequence_datasets(
+            dataset_name,
+            n_samples=4,
+            label_noise_rate=0.1,
+        )
+
+
+@pytest.mark.parametrize(
+    ("dataset_name", "extra"),
+    (
+        ("ready_set_go_positive", {}),
+        (
+            "contextual_ready_set_go_positive",
+            {"minimum_competing_go_separation": 3},
+        ),
+    ),
+)
+def test_timing_explicit_splits_require_distinct_seeds(dataset_name, extra):
+    with pytest.raises(ValueError, match="seeds must be distinct"):
+        get_sequence_datasets(
+            dataset_name,
+            train={"n_samples": 4, "seed": 17},
+            valid={"n_samples": 4, "seed": 17},
+            test={"n_samples": 4, "seed": 19},
+            sample_intervals=(8, 12),
+            set_min_step=20,
+            set_max_step=24,
+            pulse_duration=1,
+            context_duration=2,
+            target_sigma=1.0,
+            post_go_duration=4,
+            sequence_duration=45,
+            input_noise_std=0.0,
+            mean_distractors_per_trial=0.0,
+            **extra,
+        )
+
+
+def test_ready_set_go_is_seeded_balanced_and_has_no_go_input():
+    kwargs = {
+        "n_samples": 31,
+        "sample_intervals": (8, 12, 16),
+        "set_min_step": 20,
+        "set_max_step": 25,
+        "pulse_duration": 1,
+        "target_sigma": 1.5,
+        "post_go_duration": 8,
+        "sequence_duration": 55,
+        "input_noise_std": 0.0,
+        "mean_distractors_per_trial": 0.0,
+        "seed": 117,
+    }
+    first = ReadySetGoDataset(**kwargs)
+    torch.manual_seed(999999)
+    second = ReadySetGoDataset(**kwargs)
+    different = ReadySetGoDataset(**{**kwargs, "seed": 118})
+
+    assert torch.equal(first.inputs, second.inputs)
+    assert torch.equal(first.targets, second.targets)
+    assert not torch.equal(first.inputs, different.inputs)
+    counts = torch.bincount(
+        torch.searchsorted(first.sample_interval_values, first.sample_intervals),
+        minlength=3,
+    )
+    assert int(counts.max() - counts.min()) <= 1
+    assert torch.equal(first.set_steps - first.ready_steps, first.sample_intervals)
+    assert torch.all(first.set_steps >= first.set_min_step)
+    assert torch.all(first.set_steps <= first.set_max_step)
+    for sample_idx, go_step in enumerate(first.go_steps.tolist()):
+        assert torch.equal(first.inputs[sample_idx, go_step, :2], torch.zeros(2))
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "error", "message"),
+    [
+        ({"sample_intervals": (8.5,)}, TypeError, "integers"),
+        ({"sample_intervals": (True,)}, TypeError, "integers"),
+        (
+            {"sample_intervals": (2,), "pulse_duration": 3},
+            ValueError,
+            "overlap",
+        ),
+        ({"post_go_duration": 1}, ValueError, "four target"),
+        ({"distractor_pulse_duration": 1000}, ValueError, "cannot exceed"),
+    ],
+)
+def test_ready_set_go_rejects_invalid_geometry(kwargs, error, message):
+    base = {
+        "n_samples": 2,
+        "sample_intervals": (8,),
+        "set_min_step": 10,
+        "set_max_step": 10,
+        "pulse_duration": 1,
+        "target_sigma": 1.0,
+        "post_go_duration": 4,
+        "sequence_duration": 30,
+    }
+    with pytest.raises(error, match=message):
+        ReadySetGoDataset(**{**base, **kwargs})
+
+
+def test_contextual_ready_set_go_has_paired_counterfactual_inputs_and_targets():
+    kwargs = {
+        "n_samples": 30,
+        "sample_intervals": (8, 12, 16),
+        "set_min_step": 22,
+        "set_max_step": 30,
+        "pulse_duration": 1,
+        "context_start_step": 0,
+        "context_duration": 3,
+        "minimum_competing_go_separation": 5,
+        "target_sigma": 1.0,
+        "post_go_duration": 4,
+        "sequence_duration": 60,
+        "input_noise_std": 0.05,
+        "mean_distractors_per_trial": 2.0,
+        "distractor_amplitude": 0.5,
+        "positive_input_encoding": True,
+        "seed": 311,
+    }
+    first = ContextualReadySetGoDataset(**kwargs)
+    torch.manual_seed(999999)
+    second = ContextualReadySetGoDataset(**kwargs)
+    different = ContextualReadySetGoDataset(**{**kwargs, "seed": 312})
+
+    assert first.is_counterfactual_paired
+    assert first.n_counterfactual_pairs == first.n_samples // 2
+    assert torch.equal(first.inputs, second.inputs)
+    assert torch.equal(first.targets, second.targets)
+    assert torch.equal(first.pair_ids, second.pair_ids)
+    assert torch.equal(first.counterfactual_indices, second.counterfactual_indices)
+    assert not torch.equal(first.inputs, different.inputs)
+    assert torch.all(first.inputs >= 0.0)
+    assert torch.equal(
+        first.counterfactual_indices[first.counterfactual_indices],
+        torch.arange(first.n_samples),
+    )
+    assert torch.all(first.counterfactual_indices != torch.arange(first.n_samples))
+    assert torch.any(
+        torch.abs(first.counterfactual_indices - torch.arange(first.n_samples)) > 1
+    )
+    rows = torch.arange(first.n_samples)
+    selected = first.context_indices
+    assert torch.equal(
+        first.stream_set_steps - first.stream_ready_steps,
+        first.stream_intervals,
+    )
+    assert torch.equal(
+        first.stream_go_steps - first.stream_set_steps,
+        first.stream_production_intervals,
+    )
+    assert torch.all(first.stream_intervals[:, 0] != first.stream_intervals[:, 1])
+    assert torch.equal(first.sample_intervals, first.stream_intervals[rows, selected])
+    assert torch.equal(first.set_steps, first.stream_set_steps[rows, selected])
+    assert torch.equal(first.go_steps, first.stream_go_steps[rows, selected])
+    assert torch.allclose(
+        first.targets.sum(dim=1), torch.ones(first.n_samples), atol=1e-6
+    )
+
+    interval_counts = []
+    for context in range(2):
+        assert int((first.context_indices == context).sum()) == first.n_samples // 2
+        for interval in kwargs["sample_intervals"]:
+            interval_counts.append(
+                int(
+                    (
+                        (first.context_indices == context)
+                        & (first.sample_intervals == interval)
+                    ).sum()
+                )
+            )
+    assert max(interval_counts) - min(interval_counts) <= 1
+    assert torch.equal(
+        torch.bincount(first.pair_ids, minlength=first.n_samples // 2),
+        torch.full((first.n_samples // 2,), 2, dtype=torch.long),
+    )
+
+    allowed_difference = torch.zeros(
+        first.sequence_duration, first.input_dim, dtype=torch.bool
+    )
+    allowed_difference[
+        first.context_start_step : first.context_start_step + first.context_duration,
+        4:6,
+    ] = True
+    for sample_idx in range(first.n_samples):
+        partner_idx = int(first.counterfactual_indices[sample_idx])
+        if sample_idx > partner_idx:
+            continue
+        pair_indices = torch.tensor([sample_idx, partner_idx])
+        assert set(first.context_indices[pair_indices].tolist()) == {0, 1}
+        assert first.pair_ids[sample_idx] == first.pair_ids[partner_idx]
+        assert torch.equal(
+            first.stream_intervals[sample_idx],
+            first.stream_intervals[partner_idx],
+        )
+        assert torch.equal(
+            first.stream_set_steps[sample_idx],
+            first.stream_set_steps[partner_idx],
+        )
+        assert torch.equal(
+            first.stream_cue_gains[sample_idx],
+            first.stream_cue_gains[partner_idx],
+        )
+        assert torch.equal(
+            first.distractor_mask[sample_idx],
+            first.distractor_mask[partner_idx],
+        )
+        observed_difference = first.inputs[sample_idx] != first.inputs[partner_idx]
+        assert not torch.any(observed_difference & ~allowed_difference)
+        assert torch.any(observed_difference & allowed_difference)
+        assert first.go_steps[sample_idx] != first.go_steps[partner_idx]
+        assert (
+            abs(int(first.go_steps[sample_idx]) - int(first.go_steps[partner_idx]))
+            >= first.minimum_competing_go_separation
+        )
+        assert int(first.targets[sample_idx].argmax()) == int(
+            first.go_steps[sample_idx]
+        )
+        assert int(first.targets[partner_idx].argmax()) == int(
+            first.go_steps[partner_idx]
+        )
+
+
+def test_contextual_ready_set_go_explicit_splits_share_geometry_and_pairing():
+    train_ds, valid_ds, test_ds = get_sequence_datasets(
+        "contextual_ready_set_go_positive",
+        train={"n_samples": 12, "sample_intervals": [8, 12]},
+        valid={"n_samples": 8, "sample_intervals": [10, 14]},
+        test={"n_samples": 8, "sample_intervals": [16, 20]},
+        set_min_step=24,
+        set_max_step=30,
+        pulse_duration=1,
+        context_start_step=0,
+        context_duration=2,
+        minimum_competing_go_separation=3,
+        target_sigma=1.0,
+        post_go_duration=4,
+        sequence_duration=None,
+        input_noise_std=0.0,
+        mean_distractors_per_trial=0.0,
+        seed=41,
+    )
+    assert (len(train_ds), len(valid_ds), len(test_ds)) == (12, 8, 8)
+    assert train_ds.sequence_duration == valid_ds.sequence_duration
+    assert valid_ds.sequence_duration == test_ds.sequence_duration == 55
+    assert (train_ds.seed, valid_ds.seed, test_ds.seed) == (41, 42, 43)
+    assert set(train_ds.sample_intervals.tolist()) == {8, 12}
+    assert set(valid_ds.sample_intervals.tolist()) == {10, 14}
+    assert set(test_ds.sample_intervals.tolist()) == {16, 20}
+    for dataset in (train_ds, valid_ds, test_ds):
+        assert dataset.is_counterfactual_paired
+        assert torch.all(dataset.inputs >= 0.0)
+        assert torch.all(
+            dataset.competing_go_separations >= dataset.minimum_competing_go_separation
+        )
+
+
+def test_contextual_ready_set_go_deferred_split_keeps_pairs_together():
+    train_ds, valid_ds, test_ds = get_sequence_datasets(
+        "contextual_ready_set_go_positive",
+        n_samples=20,
+        train_valid_split=0.8,
+        sample_intervals=(8, 12),
+        set_min_step=16,
+        set_max_step=20,
+        pulse_duration=1,
+        context_start_step=0,
+        context_duration=2,
+        minimum_competing_go_separation=3,
+        target_sigma=1.0,
+        post_go_duration=4,
+        sequence_duration=40,
+        input_noise_std=0.0,
+        mean_distractors_per_trial=0.0,
+        seed=51,
+        split_seed=91,
+    )
+    assert len(train_ds) == 16
+    assert len(valid_ds) == 4
+    assert len(test_ds) == 2000
+    assert train_ds.dataset is valid_ds.dataset
+    full_dataset = train_ds.dataset
+    train_indices = set(train_ds.indices)
+    valid_indices = set(valid_ds.indices)
+    assert train_indices.isdisjoint(valid_indices)
+    assert train_indices | valid_indices == set(range(len(full_dataset)))
+    for indices in (train_indices, valid_indices):
+        for sample_idx in indices:
+            assert int(full_dataset.counterfactual_indices[sample_idx]) in indices
+    train_pair_ids = set(full_dataset.pair_ids[list(train_indices)].tolist())
+    valid_pair_ids = set(full_dataset.pair_ids[list(valid_indices)].tolist())
+    assert train_pair_ids.isdisjoint(valid_pair_ids)
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"n_samples": 3}, "even"),
+        ({"sample_intervals": (8,)}, "at least two"),
+        ({"minimum_competing_go_separation": 0}, "positive"),
+        (
+            {
+                "sample_intervals": (8, 12),
+                "set_min_step": 20,
+                "set_max_step": 20,
+                "minimum_competing_go_separation": 5,
+            },
+            "infeasible",
+        ),
+        ({"context_start_step": 10, "context_duration": 3}, "earliest"),
+    ],
+)
+def test_contextual_ready_set_go_rejects_shortcut_prone_or_invalid_geometry(
+    kwargs, message
+):
+    base = {
+        "n_samples": 4,
+        "sample_intervals": (8, 12),
+        "set_min_step": 20,
+        "set_max_step": 24,
+        "pulse_duration": 1,
+        "context_start_step": 0,
+        "context_duration": 2,
+        "minimum_competing_go_separation": 3,
+        "target_sigma": 1.0,
+        "post_go_duration": 4,
+        "sequence_duration": 45,
+        "input_noise_std": 0.0,
+        "mean_distractors_per_trial": 0.0,
+    }
+    with pytest.raises(ValueError, match=message):
+        ContextualReadySetGoDataset(**{**base, **kwargs})

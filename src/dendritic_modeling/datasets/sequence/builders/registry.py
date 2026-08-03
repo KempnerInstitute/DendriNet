@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
+from dendritic_modeling.datasets.sequence.builders.bayesian_timing import (
+    BAYESIAN_TIMING_SEQUENCE_BUILDERS,
+)
 from dendritic_modeling.datasets.sequence.builders.common import SequenceDatasetBuilder
 from dendritic_modeling.datasets.sequence.builders.decision import (
     DECISION_SEQUENCE_BUILDERS,
@@ -34,6 +37,7 @@ def merge_sequence_dataset_builders(
 
 
 SEQUENCE_DATASET_BUILDERS = merge_sequence_dataset_builders(
+    BAYESIAN_TIMING_SEQUENCE_BUILDERS,
     DECISION_SEQUENCE_BUILDERS,
     MEMORY_SEQUENCE_BUILDERS,
     NEURO_SEQUENCE_BUILDERS,

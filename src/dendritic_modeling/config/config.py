@@ -472,6 +472,10 @@ def _build_core_config(core_data: Any) -> CoreConfig:
         unified_ei=_to_plain_dict(unified_ei),
         recurrent_ei=_to_plain_dict(core_dict.get("recurrent_ei", {})),
         baseline_rnn=_to_plain_dict(core_dict.get("baseline_rnn", {})),
+        heterogeneous_leak_ctrnn=_to_plain_dict(
+            core_dict.get("heterogeneous_leak_ctrnn", {})
+        ),
+        legendre_memory=_to_plain_dict(core_dict.get("legendre_memory", {})),
         population_network=_to_plain_dict(core_dict.get("population_network", {})),
     )
 

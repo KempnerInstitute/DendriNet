@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import torch
-from torch.utils.data import random_split
+from torch.utils.data import Subset, random_split
 
 from dendritic_modeling.datasets.registry import build_registered_dataset
 from dendritic_modeling.datasets.sequence.builders import (
@@ -24,6 +24,43 @@ def _split_train_valid(
     train_valid_split: float,
     split_seed: int,
 ) -> tuple[Any, Any, Any]:
+    if bool(getattr(train_full, "is_counterfactual_paired", False)):
+        if not 0.0 <= train_valid_split <= 1.0:
+            raise ValueError("train_valid_split must lie in [0, 1]")
+        pair_ids = getattr(train_full, "pair_ids", None)
+        if not isinstance(pair_ids, torch.Tensor) or pair_ids.ndim != 1:
+            raise ValueError(
+                "counterfactually paired datasets must expose one-dimensional pair_ids"
+            )
+        if pair_ids.numel() != len(train_full):
+            raise ValueError("pair_ids must have one entry per dataset sample")
+        unique_pairs, counts = torch.unique(
+            pair_ids.detach().cpu(), sorted=True, return_counts=True
+        )
+        if unique_pairs.numel() == 0 or not torch.all(counts == 2):
+            raise ValueError("every counterfactual pair_id must occur exactly twice")
+
+        n_pairs = int(unique_pairs.numel())
+        n_train_pairs = int(n_pairs * train_valid_split)
+        if 0.0 < train_valid_split < 1.0:
+            if n_pairs == 1:
+                n_train_pairs = 1
+            else:
+                n_train_pairs = min(max(n_train_pairs, 1), n_pairs - 1)
+        permutation = torch.randperm(
+            n_pairs, generator=torch.Generator().manual_seed(split_seed)
+        )
+        train_pair_ids = unique_pairs[permutation[:n_train_pairs]]
+        train_mask = torch.isin(pair_ids.detach().cpu(), train_pair_ids)
+        train_indices = torch.nonzero(train_mask, as_tuple=False).flatten().tolist()
+        valid_indices = torch.nonzero(~train_mask, as_tuple=False).flatten().tolist()
+        train_ds = Subset(train_full, train_indices)
+        if valid_indices:
+            valid_ds = Subset(train_full, valid_indices)
+        else:
+            valid_ds = test_ds
+        return train_ds, valid_ds, test_ds
+
     n_train = int(len(train_full) * train_valid_split)
     n_valid = len(train_full) - n_train
     if n_valid > 0:

@@ -182,6 +182,22 @@ def _apply_initialization_seed_defaults(
         _config_child(core, "initialization_seed", model_seed)
     )
 
+    core_type = str(_config_child(core, "type", "")).strip().lower()
+    for parameter_name, active_types in (
+        (
+            "heterogeneous_leak_ctrnn",
+            {"heterogeneous_leak_ctrnn", "heterogeneous_ctrnn"},
+        ),
+        ("legendre_memory", {"legendre_memory"}),
+    ):
+        parameters = _config_child(core, parameter_name, None)
+        if core_type in active_types or parameters:
+            _set_config_default(
+                parameters,
+                "initialization_seed",
+                core_initialization_seed,
+            )
+
     unified_ei = _config_child(core, "unified_ei", None)
     for layer_idx, layer in enumerate(_config_child(unified_ei, "layers", []) or []):
         _seed_population_initialization(
@@ -254,6 +270,18 @@ def _apply_topology_seed_defaults(
     core = _config_child(model_config, "core", None)
     if core is None:
         return
+
+    core_type = str(_config_child(core, "type", "")).strip().lower()
+    for parameter_name, active_types in (
+        (
+            "heterogeneous_leak_ctrnn",
+            {"heterogeneous_leak_ctrnn", "heterogeneous_ctrnn"},
+        ),
+        ("legendre_memory", {"legendre_memory"}),
+    ):
+        parameters = _config_child(core, parameter_name, None)
+        if core_type in active_types or parameters:
+            _set_config_default(parameters, "topology_seed", topology_seed)
 
     sparsity = _config_child(core, "sparsity", None)
     _set_config_default(_config_child(sparsity, "indexed", None), "seed", topology_seed)

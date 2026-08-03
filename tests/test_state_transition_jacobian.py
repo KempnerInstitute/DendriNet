@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 import torch
 
 from dendritic_modeling.analysis.tools.state_transition_jacobian import (
@@ -10,8 +11,10 @@ from dendritic_modeling.analysis.tools.state_transition_jacobian import (
 from dendritic_modeling.analysis.utils.state_transition import (
     PopulationStateCodec,
     StateTransitionLinearization,
+    StateTransitionProduct,
     UnsupportedPopulationStateError,
     leading_state_transition_singular_value,
+    leading_state_transition_singular_value_block_subspace,
 )
 from dendritic_modeling.networks.architectures.recurrent import (
     PopulationLayerConfig,
@@ -181,6 +184,70 @@ def test_power_iteration_matches_dense_leading_singular_value() -> None:
         seed=7,
     )
     assert abs(estimate.singular_value - expected) < 2e-6
+
+
+def test_block_krylov_matches_dense_state_jacobian_with_residual_certificate() -> None:
+    network, state, input_t = _trajectory_point()
+    linearization = StateTransitionLinearization(network, state, input_t)
+    dense_jacobian = torch.autograd.functional.jacobian(
+        linearization.transition,
+        linearization.state_vector,
+    )
+    expected = torch.linalg.svdvals(dense_jacobian)[0].item()
+
+    estimate = leading_state_transition_singular_value_block_subspace(
+        linearization,
+        block_size=3,
+        max_iterations=4,
+        relative_residual_tolerance=1e-9,
+        absolute_residual_tolerance=1e-11,
+        seed=37,
+    )
+
+    assert estimate.converged
+    assert estimate.singular_value == pytest.approx(expected, rel=1e-9, abs=1e-10)
+    assert estimate.relative_residual_norm <= 1.1e-9
+    assert estimate.matvec_calls == 3 * estimate.iterations
+    assert estimate.rmatvec_calls == 3 * estimate.iterations
+
+
+def test_block_krylov_public_defaults_cover_a_small_state_space() -> None:
+    network, state, input_t = _trajectory_point()
+    linearization = StateTransitionLinearization(network, state, input_t)
+
+    estimate = leading_state_transition_singular_value_block_subspace(linearization)
+
+    assert estimate.block_size == 6
+    assert estimate.maximum_subspace_dimension == linearization.dimension == 12
+    assert estimate.maximum_matvec_calls == 12
+    assert estimate.maximum_rmatvec_calls == 12
+
+
+def test_state_transition_product_rejects_a_different_network_object() -> None:
+    network, state, input_t = _trajectory_point()
+    first = StateTransitionLinearization(network, state, input_t)
+
+    other_network, other_state, other_input = _trajectory_point()
+    with torch.no_grad():
+        next(other_network.parameters()).add_(0.25)
+    second = StateTransitionLinearization(other_network, other_state, other_input)
+
+    with pytest.raises(ValueError, match="same network object"):
+        StateTransitionProduct([first, second])
+
+
+def test_state_transition_product_rejects_nonconsecutive_points() -> None:
+    network, state, input_t = _trajectory_point()
+    first = StateTransitionLinearization(network, state, input_t)
+    repeated_point = StateTransitionLinearization(network, state, input_t)
+
+    with pytest.raises(ValueError, match="must be consecutive"):
+        StateTransitionProduct([first, repeated_point])
+
+    consecutive_state = first.codec.unflatten(first.next_state_vector)
+    consecutive = StateTransitionLinearization(network, consecutive_state, input_t)
+    product = StateTransitionProduct([first, consecutive])
+    assert product.dimension == first.dimension
 
 
 def test_analyzer_metadata_distinguishes_state_jacobian_from_weight_spectrum() -> None:

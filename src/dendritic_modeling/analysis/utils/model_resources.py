@@ -291,7 +291,21 @@ def persistent_state_scalars(core: torch.nn.Module) -> int:
 def model_resource_summary(model: torch.nn.Module) -> dict[str, Any]:
     """Return auditable parameter, connectivity, and state accounting."""
 
+    core = getattr(model, "core_network", model)
     records = synapse_resource_records(model)
+    record_provider = getattr(core, "connectivity_resource_records", None)
+    if callable(record_provider):
+        provided = record_provider()
+        if not isinstance(provided, list):
+            raise TypeError("connectivity_resource_records() must return a list")
+        records.extend(
+            (
+                record
+                if isinstance(record, SynapseResourceRecord)
+                else SynapseResourceRecord(**record)
+            )
+            for record in provided
+        )
     total_parameters = int(sum(parameter.numel() for parameter in model.parameters()))
     trainable_parameters = int(
         sum(
@@ -303,8 +317,7 @@ def model_resource_summary(model: torch.nn.Module) -> dict[str, Any]:
     synapse_candidate_parameters = int(
         sum(record.candidate_parameters for record in records)
     )
-    core = getattr(model, "core_network", model)
-    return {
+    summary = {
         "total_parameters": total_parameters,
         "trainable_parameters": trainable_parameters,
         "synapse_candidate_parameters": synapse_candidate_parameters,
@@ -316,6 +329,10 @@ def model_resource_summary(model: torch.nn.Module) -> dict[str, Any]:
         "persistent_state_scalars_per_sample": persistent_state_scalars(core),
         "synapses": [asdict(record) for record in records],
     }
+    ledger_provider = getattr(core, "resource_ledger", None)
+    if callable(ledger_provider):
+        summary["mechanism_ledger"] = ledger_provider()
+    return summary
 
 
 __all__ = [
