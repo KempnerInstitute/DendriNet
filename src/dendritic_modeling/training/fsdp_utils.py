@@ -270,6 +270,18 @@ def get_fsdp_config(
     # Store gradient checkpointing flag for later use (not directly an FullyShardedDataParallel param)
     config["_gradient_checkpointing"] = gradient_checkpointing
 
+    # cpu_init: leave the model on CPU until FSDP wraps it (see _wrap_model).
+    # The 1M gate died INSIDE FSDP.__init__: every rank ran `model.to(device)`
+    # before wrapping, materializing the full unsharded model (37.6 GB at 1M)
+    # on each GPU, and _sync_module_params_and_buffers then OOMed asking for
+    # 2.98 GiB more. With cpu_init, FSDP's own device_id machinery moves states
+    # per wrapped unit, so combined with auto_wrap_policy=indexed_synapses the
+    # per-rank init peak is bounded by the largest synapse module plus the
+    # accumulated shards -- never the whole model. Default off.
+    config["_cpu_init"] = bool(
+        fsdp_config_dict.get("cpu_init", False) if fsdp_config_dict else False
+    )
+
     return config
 
 
@@ -290,8 +302,9 @@ def wrap_model_with_fsdp(
     if fsdp_config is None:
         fsdp_config = get_fsdp_config()
 
-    # Extract gradient checkpointing flag (not an FullyShardedDataParallel parameter)
+    # Extract private flags (not FullyShardedDataParallel parameters)
     gradient_checkpointing = fsdp_config.pop("_gradient_checkpointing", False)
+    fsdp_config.pop("_cpu_init", None)   # consumed by the strategy's _wrap_model
 
     # Special handling for dendritic models
     if hasattr(model, "net") and isinstance(model.net, ExcitationInhibitionNetwork):

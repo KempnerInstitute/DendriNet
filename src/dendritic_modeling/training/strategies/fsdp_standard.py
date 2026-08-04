@@ -13,6 +13,7 @@ from typing import Any, Optional
 
 import torch
 import torch.distributed as dist
+from torch.distributed.fsdp import FullyShardedDataParallel
 from torch.cuda.amp import GradScaler, autocast
 from torch.utils.data import DataLoader, Dataset, TensorDataset
 
@@ -320,8 +321,18 @@ class FSDPTrainer(Trainer):
 
     def _wrap_model(self, model: BaseModel) -> BaseModel:
         """Wrap model with FSDP."""
-        # Move base model to device first
-        model = model.to(self.device)
+        # cpu_init: do NOT move the model to the GPU before wrapping. Doing so
+        # materializes the full unsharded model on every rank (37.6 GB at 1M --
+        # the measured cause of the 1M gate's OOM inside FSDP.__init__).
+        # FSDP's device_id machinery moves each wrapped unit's states itself,
+        # so the CPU-resident model reaches the GPU shard-by-shard. Whatever
+        # FSDP does not manage (readout head, encoder under 10M params) is
+        # moved explicitly afterwards -- child-wise, skipping any subtree that
+        # contains an FSDP instance, so sharded storage is never re-touched.
+        cpu_init = bool((self.fsdp_config or {}).get("_cpu_init", False))
+        if not cpu_init:
+            # Historical behavior: move base model to device first.
+            model = model.to(self.device)
 
         # Wrap with FSDP
         if hasattr(model, "core_network"):
@@ -350,6 +361,18 @@ class FSDPTrainer(Trainer):
         else:
             # Wrap entire model
             model = wrap_model_with_fsdp(model, self.fsdp_config)
+
+        if cpu_init:
+            for child in model.children():
+                if not any(
+                    isinstance(m, FullyShardedDataParallel) for m in child.modules()
+                ):
+                    child.to(self.device)
+            # Root-level tensors owned directly by the wrapper module, if any.
+            for tensor in list(model.parameters(recurse=False)) + list(
+                model.buffers(recurse=False)
+            ):
+                tensor.data = tensor.data.to(self.device)
 
         return model
 
