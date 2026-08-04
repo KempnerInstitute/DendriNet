@@ -23,6 +23,13 @@ import torch
 from torch.distributions.multivariate_normal import MultivariateNormal
 from torch.utils.data import TensorDataset
 
+from dendritic_modeling.utils.nested_tree_geometry import (
+    dendritic_layer_sizes as _dendritic_layer_sizes,
+    n_internal_nodes_from_branch_factors as _n_internal_nodes_from_branch_factors,
+    n_leaves_from_branch_factors as _n_leaves_from_branch_factors,
+    normalize_branch_factors as _normalize_branch_factors,
+)
+
 logger = logging.getLogger(__name__)
 
 _SyntheticDatasetTriplet = tuple[TensorDataset, TensorDataset, TensorDataset]
@@ -1469,48 +1476,6 @@ def _combine_binary(vals: torch.Tensor, op: str) -> torch.Tensor:
         else:
             raise ValueError(f"Unknown op: {op}")
     return out
-
-
-def _normalize_branch_factors(
-    branch_factors: list[int] | tuple[int, ...],
-) -> tuple[int, ...]:
-    """Validate proximal→distal branch factors and return a normalized tuple."""
-    if not branch_factors:
-        raise ValueError("branch_factors must be a non-empty sequence of integers")
-    normalized = tuple(int(b) for b in branch_factors)
-    if any(b < 2 for b in normalized):
-        raise ValueError(
-            f"each branch factor must be >= 2 (proximal→distal), got {branch_factors}"
-        )
-    return normalized
-
-
-def _n_leaves_from_branch_factors(branch_factors: tuple[int, ...]) -> int:
-    n_leaves = 1
-    for b in branch_factors:
-        n_leaves *= b
-    return n_leaves
-
-
-def _dendritic_layer_sizes(branch_factors: tuple[int, ...]) -> list[int]:
-    """Return root→distal layer sizes ``[1, b0, b0*b1, …, n_leaves]``."""
-    sizes = [1]
-    for b in branch_factors:
-        sizes.append(sizes[-1] * int(b))
-    return sizes
-
-
-def _n_internal_nodes_from_branch_factors(
-    branch_factors: tuple[int, ...],
-    auxiliary_root: bool,
-) -> int:
-    """Count internal aux nodes (optionally including the root)."""
-    sizes = _dendritic_layer_sizes(branch_factors)
-    # Non-root, non-leaf compartment levels.
-    n_internal = sum(sizes[1:-1])
-    if auxiliary_root:
-        n_internal += 1
-    return int(n_internal)
 
 
 def _nested_reduce_by_branch_factors(

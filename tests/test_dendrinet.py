@@ -60,6 +60,8 @@ class TestDendriNet(unittest.TestCase):
                 inhibitory_synapses_per_branch=2,
                 structured_layer_idx=6,
                 level_idx=1,
+                n_soma=2,
+                branch_factors=[2, 2],
             )
 
         self.assertEqual(masks, ("exc-mask", "inh-mask"))
@@ -72,6 +74,8 @@ class TestDendriNet(unittest.TestCase):
                     in_features=7,
                     layer_idx=6,
                     level_idx=1,
+                    n_soma=2,
+                    branch_factors=[2, 2],
                 ),
                 call(
                     structured_connectivity,
@@ -80,6 +84,8 @@ class TestDendriNet(unittest.TestCase):
                     in_features=5,
                     layer_idx=6,
                     level_idx=1,
+                    n_soma=2,
+                    branch_factors=[2, 2],
                 ),
             ]
         )
@@ -147,6 +153,7 @@ class TestDendriNet(unittest.TestCase):
                 structured_inhibitory_pathway="ie",
                 synapse_config=synapse_config,
                 branch_extra_kwargs=extra_kwargs,
+                branch_factors=[2],
             )
 
         self.assertEqual(layers, ["distal", "soma"])
@@ -163,6 +170,8 @@ class TestDendriNet(unittest.TestCase):
                     inhibitory_synapses_per_branch=2,
                     structured_layer_idx=6,
                     level_idx=0,
+                    n_soma=2,
+                    branch_factors=[2],
                 ),
                 call(
                     "structured",
@@ -175,6 +184,8 @@ class TestDendriNet(unittest.TestCase):
                     inhibitory_synapses_per_branch=2,
                     structured_layer_idx=6,
                     level_idx=1,
+                    n_soma=2,
+                    branch_factors=[2],
                 ),
             ]
         )
@@ -233,6 +244,7 @@ class TestDendriNet(unittest.TestCase):
                 structured_inhibitory_pathway="ie",
                 synapse_config="synapse",
                 branch_extra_kwargs={},
+                branch_factors=[],
             )
 
         self.assertEqual(layers, ["soma"])
