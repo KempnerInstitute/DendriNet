@@ -54,6 +54,9 @@
   Dendritic paths recursively partition a `(C, H, W)` input and store compact
   fixed sparse indices without a dense branch-by-pixel mask or convolutional
   weight sharing.
+- Sweep collection now records the effective structured-connectivity policy and
+  a canonical `synaptic_routing` label, so global-indexed and
+  morphology-aligned runs can be summarized without array-index inference.
 - Added a raw-ImageNet `[3, 3, 3, 3]` DendriNet experiment with no learned
   vision backbone. Its 61,103,392 trainable parameters closely match AlexNet,
   and its fixed connectivity can be regenerated instead of stored in
