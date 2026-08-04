@@ -22,6 +22,7 @@ EXPECTED_PROFILE_PAIRS = {
     ("kempner_dev", "kempner_priority"),
     ("kempner_dev", "kempner_eng"),
     ("kempner_dev", "kempner_requeue"),
+    ("kempner_dev", "kempner_rtx"),
     ("kempner_bsabatini_lab", "kempner_h100"),
     ("kempner_bsabatini_lab", "kempner_h100_priority"),
 }
@@ -86,8 +87,8 @@ def test_scheduler_policy_contains_exactly_the_approved_pairs() -> None:
         (profile.account, profile.partition) for profile in ALLOWED_SCHEDULER_PROFILES
     }
     assert observed == EXPECTED_PROFILE_PAIRS
-    assert len(ALLOWED_SCHEDULER_PROFILES) == 5
-    assert len({profile.profile_id for profile in ALLOWED_SCHEDULER_PROFILES}) == 5
+    assert len(ALLOWED_SCHEDULER_PROFILES) == 6
+    assert len({profile.profile_id for profile in ALLOWED_SCHEDULER_PROFILES}) == 6
 
     for profile in ALLOWED_SCHEDULER_PROFILES:
         assert validate_scheduler_profile(profile.account, profile.partition) == profile
