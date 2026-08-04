@@ -707,6 +707,25 @@ Each module follows the same ``enabled``/``training``/``params`` pattern.
 ``noise_perturbation``
    Evaluates robustness to input noise at configurable noise levels.
 
+   Frozen-checkpoint noise and ``multiplicative_gain`` outputs can be aligned
+   with the clean test accuracy from the same checkpoint using::
+
+      dendritic-collect-perturbation-response --config perturbation_collection.yaml
+
+   The collection config explicitly declares the immutable job ledger, output
+   directory, expected checkpoint count, and task chance accuracy. The output
+   contains absolute perturbed accuracy, clean-minus-perturbed accuracy loss,
+   and chance-corrected retention
+
+   .. math::
+
+      R = \frac{A_{\mathrm{perturbed}}-A_{\mathrm{chance}}}
+               {A_{\mathrm{clean}}-A_{\mathrm{chance}}}.
+
+   Stochastic noise samples remain technical draws within a checkpoint. The
+   collector performs no across-checkpoint aggregation; pass its tidy output to
+   ``dendritic-summarize-checkpoint-metrics`` for seed-level inference.
+
 ``compartment_statistics``
    Per-compartment (E, I, branch, soma) activation statistics.
 
