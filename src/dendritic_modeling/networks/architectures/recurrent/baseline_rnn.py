@@ -2,6 +2,7 @@
 Baseline RNN wrappers (GRU, LSTM, Vanilla RNN) with same interface as EINetwork.
 """
 
+import math
 from dataclasses import dataclass, field
 from typing import Union
 
@@ -39,6 +40,17 @@ class BaselineRNNConfig:
     # backward compatibility with existing checkpoints/configs; new configs
     # should explicitly set lstm_forget_bias=1.0.
     lstm_forget_bias: float = 0.0
+    # GRU-only: exact effective update-gate biases used at initialization. A
+    # positive update bias favors carrying the previous hidden state because
+    # PyTorch uses h_t = (1 - z_t) * n_t + z_t * h_{t-1}. The final
+    # round(hidden_dim * gru_slow_fraction) coordinates form a deterministic
+    # slow group; the remaining coordinates form the fast group. When any of
+    # these options is nondefault, bias_hh is zeroed for the update gate and
+    # bias_ih is set to these targets. All-zero defaults preserve PyTorch's
+    # initialization exactly rather than activating target initialization.
+    gru_fast_update_bias: float = 0.0
+    gru_slow_update_bias: float = 0.0
+    gru_slow_fraction: float = 0.0
 
 
 class BaselineRNN(BaseNetwork):
@@ -89,13 +101,16 @@ class BaselineRNN(BaseNetwork):
             dropout=config.dropout if config.num_layers > 1 else 0.0,
         )
 
-        # Apply paper-fair initialization options on top of PyTorch defaults.
-        # These are no-ops when init_method="default" and lstm_forget_bias=0.0,
-        # so existing training runs that did not set them are unaffected.
+        # Apply opt-in recurrent initialization on top of PyTorch defaults.
+        # These are no-ops under the configuration defaults, so existing
+        # training runs that did not set them are unaffected.
         self._apply_recurrent_init(
             cell_type,
             init_method=str(config.init_method).lower(),
             lstm_forget_bias=float(config.lstm_forget_bias),
+            gru_fast_update_bias=float(config.gru_fast_update_bias),
+            gru_slow_update_bias=float(config.gru_slow_update_bias),
+            gru_slow_fraction=float(config.gru_slow_fraction),
         )
 
         self.output_layernorm = (
@@ -108,6 +123,9 @@ class BaselineRNN(BaseNetwork):
         cell_type: str,
         init_method: str = "default",
         lstm_forget_bias: float = 0.0,
+        gru_fast_update_bias: float = 0.0,
+        gru_slow_update_bias: float = 0.0,
+        gru_slow_fraction: float = 0.0,
     ) -> None:
         """Optionally re-initialize the recurrent kernels for training stability.
 
@@ -125,10 +143,38 @@ class BaselineRNN(BaseNetwork):
           rows ``H:2H``. ``nn.LSTM`` keeps two bias vectors (``bias_ih_l*``
           and ``bias_hh_l*``); we add the offset to ``bias_ih_l*`` only so
           the effective forget-bias offset is exactly the supplied value.
+        - GRU update-gate targets split every layer's hidden coordinates into
+          deterministic fast and slow groups. PyTorch stacks GRU gates as
+          ``[r, z, n]``. The final ``round(H * gru_slow_fraction)`` update-gate
+          entries receive ``gru_slow_update_bias`` and the rest receive
+          ``gru_fast_update_bias``. In this opt-in mode, the corresponding
+          ``bias_hh_l*`` slice is zeroed and ``bias_ih_l*`` is set to the
+          target, so their sum is exactly the configured effective bias.
         """
         if init_method not in ("default", "orthogonal"):
             raise ValueError(
                 f"Unknown init_method '{init_method}'. Choose from: default, orthogonal"
+            )
+
+        gru_bias_values = {
+            "gru_fast_update_bias": gru_fast_update_bias,
+            "gru_slow_update_bias": gru_slow_update_bias,
+            "gru_slow_fraction": gru_slow_fraction,
+        }
+        for name, value in gru_bias_values.items():
+            if not math.isfinite(value):
+                raise ValueError(f"{name} must be finite, got {value}")
+        if not 0.0 <= gru_slow_fraction <= 1.0:
+            raise ValueError(
+                "gru_slow_fraction must be in the inclusive range [0, 1], "
+                f"got {gru_slow_fraction}"
+            )
+        if cell_type != "gru" and any(
+            value != 0.0 for value in gru_bias_values.values()
+        ):
+            raise ValueError(
+                "GRU update-bias options require cell_type='gru'; "
+                f"got cell_type='{cell_type}'"
             )
 
         H = self.config.hidden_dim
@@ -148,6 +194,19 @@ class BaselineRNN(BaseNetwork):
                 for name, p in self.rnn.named_parameters():
                     if name.startswith("bias_ih_"):
                         p[H : 2 * H].add_(lstm_forget_bias)
+
+        gru_target_init = any(value != 0.0 for value in gru_bias_values.values())
+        if cell_type == "gru" and gru_target_init:
+            n_slow = math.floor(H * gru_slow_fraction + 0.5)
+            n_fast = H - n_slow
+            with torch.no_grad():
+                for name, p in self.rnn.named_parameters():
+                    if name.startswith("bias_ih_"):
+                        update_bias = p[H : 2 * H]
+                        update_bias[:n_fast].fill_(gru_fast_update_bias)
+                        update_bias[n_fast:].fill_(gru_slow_update_bias)
+                    elif name.startswith("bias_hh_"):
+                        p[H : 2 * H].zero_()
 
     @property
     def is_recurrent(self) -> bool:
