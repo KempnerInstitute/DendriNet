@@ -232,6 +232,31 @@ in both bf16 (7.6e-03–2.0e-02) and fp16 (1.0e-03–2.4e-03) — at the format'
 **not growing with saturation**, so the `logit(y)` reconstruction does not degrade in half
 precision.
 
+## The unlocated 60 GB: FOUND and FIXED (2026-08-04)
+
+The real trainer's process peak (59.6 GB vs a 9.6 GB training step) was localized by a
+whole-run allocator-trace replay: **`effective_synapse_snapshot`**, called per pathway from
+the unconditional post-training save path, materializes ~5 dense `[144,000 x 16,000]`
+matrices per indexed layer (8,911.1 MB each) to produce five integers of connectivity
+reporting. ~55 GB of dense copies of layers whose entire design is K=40 sparsity —
+mode-independent, after training, 6x the training step.
+
+Fix (`fd9533a6`): `_indexed_record_counts` computes the same scatters in <=256 MB row
+chunks. Bit-exact by construction (chunked scatter, not analytic re-derivation); EXACT
+MATCH on duplicate-index / forbidden / relu traps, and `model_resources.json` from the
+real 60-pathway model is byte-identical across paths. Legacy path retained behind
+`DENDRINET_DENSE_RESOURCE_RECORDS=1` and for cached-mask / candidate_mask() / stochastic
+modules.
+
+| real trainer, 12L/16k, batch 256, 1 epoch | before | after |
+|---|---|---|
+| process peak (trace replay) | 59,558 MB | **9,598 MB (6.2x)** |
+| where the peak occurs | post-training reporting | **the training step itself** |
+
+With this, the process peak IS the training-step peak, whose composition is the known
+structural floor (y, d+eps, optimizer state). The feedforward single-GPU memory story is
+now closed end to end: synthetic harness, real trainer, and save path all agree.
+
 ## Open rows
 | scale | GPU | path | epoch (s) | peak (MB) | notes |
 |---|---|---|---|---|---|
