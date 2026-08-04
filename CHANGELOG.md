@@ -49,7 +49,8 @@
 - Expanded checkpoint-bound empirical analysis for representation access,
   reactivation operating states, synaptic support, perturbations, and
   provenance-checked result collection.
-- Added deterministic `spatial_morphology` connectivity for image DendriNets.
+- Added deterministic `spatial_morphology` connectivity for image DendriNets,
+  including feedforward populations in the `population_network` schema.
   Dendritic paths recursively partition a `(C, H, W)` input and store compact
   fixed sparse indices without a dense branch-by-pixel mask or convolutional
   weight sharing.

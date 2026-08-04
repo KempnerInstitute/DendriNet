@@ -2136,6 +2136,15 @@ Supported methods:
    indexed synapses also expose compact 3F/4F/5F local-credit gradients, so
    ``local_ca`` does not construct that dense tensor during an update.
 
+   ``population_network`` exposes the same option as
+   ``population_defaults.structured_connectivity`` (or as a per-population
+   override), together with ``topk_type: indexed``. It applies to active
+   feedforward E and I image pathways at every configured dendritic depth. A
+   root-level rule applies to both banks; a ``pathways`` mapping can select one
+   bank or give them distinct seeds. Spatial image routing on active recurrent
+   pathways is rejected because recurrent population coordinates do not carry
+   a ``(C,H,W)`` image geometry.
+
 Scalar and list-valued ``probability``/``indegree`` use repeat-last semantics
 over network layers. With DeepST, rewiring stays inside the allowed mask.
 

@@ -37,6 +37,14 @@ _AXIS_ALIASES = {
 }
 
 
+def uses_spatial_morphology(config, pathway: str) -> bool:
+    """Return whether one configured pathway uses spatial image routing."""
+
+    pathway_config = _resolve_pathway_config(config, pathway)
+    method = str(pathway_config.get("method", "")).strip().lower()
+    return method in SPATIAL_MORPHOLOGY_METHODS
+
+
 def _positive_int_tuple(
     values: Sequence[int],
     *,
@@ -364,4 +372,5 @@ __all__ = [
     "SPATIAL_MORPHOLOGY_METHODS",
     "sample_configured_indices",
     "sample_spatial_morphology_indices",
+    "uses_spatial_morphology",
 ]

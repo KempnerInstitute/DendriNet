@@ -16,6 +16,10 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.b
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.synapse_config import (
     DendriticSynapseConfig,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.spatial_morphology import (
+    sample_configured_indices,
+    uses_spatial_morphology,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.structured_mask import (
     sample_configured_mask,
 )
@@ -69,6 +73,56 @@ def _stateful_connection_mask(
     )
 
 
+def _stateful_connection_indices(
+    *,
+    pop_config: PopulationConfig,
+    direct_connection_masks,
+    pathway: str,
+    in_dim: int | None,
+    out_dim: int,
+    synapses_per_branch: int | None,
+    level_idx: int,
+) -> torch.Tensor | None:
+    """Resolve compact spatial indices for one feedforward pathway."""
+    if (
+        in_dim is None
+        or synapses_per_branch is None
+        or synapses_per_branch <= 0
+        or direct_connection_masks.get(pathway) is not None
+    ):
+        return None
+    return sample_configured_indices(
+        pop_config.structured_connectivity,
+        pathway=pathway,
+        out_features=out_dim,
+        in_features=in_dim,
+        synapses_per_branch=synapses_per_branch,
+        owner_count=pop_config.n_neurons,
+        branch_factors=pop_config.branch_factors,
+        layer_idx=pop_config.structured_layer_idx,
+        level_idx=level_idx,
+        index_dtype=pop_config.indexed_index_dtype,
+    )
+
+
+def _reject_spatial_recurrent_pathway(
+    *,
+    pop_config: PopulationConfig,
+    direct_connection_masks,
+    pathway: str,
+    in_dim: int | None,
+) -> None:
+    """Reject image-grid routing on active recurrent population states."""
+    if in_dim is None or direct_connection_masks.get(pathway) is not None:
+        return
+    if uses_spatial_morphology(pop_config.structured_connectivity, pathway):
+        raise ValueError(
+            "spatial_morphology is supported for feedforward image pathways "
+            "only; configure it under the feedforward pathway keys instead "
+            f"of active recurrent pathway {pathway!r}"
+        )
+
+
 def _build_stateful_branch_layers(
     *,
     pop_config: PopulationConfig,
@@ -92,6 +146,27 @@ def _build_stateful_branch_layers(
     direct_connection_masks = connection_masks_by_pathway or {}
     common_synapse_config = DendriticSynapseConfig.from_population_config(pop_config)
     is_soma_level = n_levels - 1
+
+    _reject_spatial_recurrent_pathway(
+        pop_config=pop_config,
+        direct_connection_masks=direct_connection_masks,
+        pathway=pop_config.rec_excitatory_pathway,
+        in_dim=(
+            recurrent_excitatory_input_dim
+            if any(count > 0 for count in synapse_layout.rec_exc_by_level)
+            else None
+        ),
+    )
+    _reject_spatial_recurrent_pathway(
+        pop_config=pop_config,
+        direct_connection_masks=direct_connection_masks,
+        pathway=pop_config.rec_inhibitory_pathway,
+        in_dim=(
+            recurrent_inhibitory_input_dim
+            if any(count > 0 for count in synapse_layout.rec_inh_by_level)
+            else None
+        ),
+    )
 
     for level_idx, out_dim in enumerate(level_dims):
         recurrent_self_forbidden = None
@@ -144,6 +219,15 @@ def _build_stateful_branch_layers(
                 output_dim=out_dim,
                 excitatory_input_dim=exc_in,
                 excitatory_synapses_per_branch=exc_syn,
+                excitatory_connection_indices=_stateful_connection_indices(
+                    pop_config=pop_config,
+                    direct_connection_masks=direct_connection_masks,
+                    pathway=pop_config.ff_excitatory_pathway,
+                    in_dim=exc_in,
+                    out_dim=out_dim,
+                    synapses_per_branch=exc_syn,
+                    level_idx=level_idx,
+                ),
                 excitatory_connection_mask=_stateful_connection_mask(
                     pop_config=pop_config,
                     direct_connection_masks=direct_connection_masks,
@@ -155,6 +239,15 @@ def _build_stateful_branch_layers(
                 ),
                 inhibitory_input_dim=inh_in,
                 inhibitory_synapses_per_branch=inh_syn,
+                inhibitory_connection_indices=_stateful_connection_indices(
+                    pop_config=pop_config,
+                    direct_connection_masks=direct_connection_masks,
+                    pathway=pop_config.ff_inhibitory_pathway,
+                    in_dim=inh_in,
+                    out_dim=out_dim,
+                    synapses_per_branch=inh_syn,
+                    level_idx=level_idx,
+                ),
                 inhibitory_connection_mask=_stateful_connection_mask(
                     pop_config=pop_config,
                     direct_connection_masks=direct_connection_masks,

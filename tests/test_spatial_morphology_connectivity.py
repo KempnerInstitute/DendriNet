@@ -11,6 +11,12 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.spa
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.structured_mask import (
     sample_configured_mask,
 )
+from dendritic_modeling.networks.architectures.recurrent.ei_config import (
+    PopulationConfig,
+)
+from dendritic_modeling.networks.architectures.recurrent.stateful_dendrinet import (
+    StatefulDendriNet,
+)
 
 
 def _spatial_config(seed: int = 17) -> dict:
@@ -165,6 +171,108 @@ def test_dendrinet_uses_spatial_indices_without_dense_masks() -> None:
     output.square().mean().backward()
     assert x.grad is not None
     assert torch.isfinite(x.grad).all()
+
+
+def _stateful_spatial_model(seed: int = 17) -> StatefulDendriNet:
+    return StatefulDendriNet(
+        pop_config=PopulationConfig(
+            n_neurons=2,
+            branch_factors=[2, 2],
+            ff_excitatory_synapses=3,
+            ff_inhibitory_synapses=2,
+            rec_excitatory_synapses=0,
+            rec_inhibitory_synapses=0,
+            somatic_synapses=False,
+            topk_type="indexed",
+            indexed_seed=seed,
+            indexed_index_dtype="int32",
+            indexed_persistent_indices=False,
+            structured_connectivity=_spatial_config(seed),
+            reactivate=True,
+            reactivation_type="param_tanh",
+            weight_transform="softplus",
+        ),
+        excitatory_input_dim=64,
+        inhibitory_input_dim=64,
+    )
+
+
+def test_stateful_dendrinet_uses_spatial_indices_without_dense_masks() -> None:
+    model = _stateful_spatial_model()
+
+    active_layers = model.branch_layers[:-1]
+    assert len(active_layers) == 2
+    for layer in active_layers:
+        assert layer.branch_config.excitatory_connection_mask is None
+        assert layer.branch_config.inhibitory_connection_mask is None
+        assert layer.branch_config.excitatory_connection_indices is not None
+        assert layer.branch_config.inhibitory_connection_indices is not None
+        assert layer.branch_excitation.connection_indices.dtype == torch.int32
+        assert layer.branch_inhibition.connection_indices.dtype == torch.int32
+    assert not any(key.endswith("connection_indices") for key in model.state_dict())
+
+    x = torch.rand(4, 64, requires_grad=True)
+    output = model(x, x)
+    assert output.shape == (4, 2)
+    output.square().mean().backward()
+    assert x.grad is not None
+    assert torch.isfinite(x.grad).all()
+
+
+def test_stateful_spatial_indices_are_deterministic_and_seeded() -> None:
+    first = _stateful_spatial_model(17)
+    repeated = _stateful_spatial_model(17)
+    changed = _stateful_spatial_model(18)
+
+    first_indices = first.branch_layers[0].branch_excitation.connection_indices
+    repeated_indices = repeated.branch_layers[0].branch_excitation.connection_indices
+    changed_indices = changed.branch_layers[0].branch_excitation.connection_indices
+    assert torch.equal(first_indices, repeated_indices)
+    assert not torch.equal(first_indices, changed_indices)
+
+
+def test_stateful_spatial_indices_reject_nonindexed_sparsity() -> None:
+    try:
+        StatefulDendriNet(
+            pop_config=PopulationConfig(
+                n_neurons=1,
+                branch_factors=[2, 2],
+                ff_excitatory_synapses=3,
+                ff_inhibitory_synapses=0,
+                somatic_synapses=False,
+                topk_type="indexed_rewire",
+                structured_connectivity=_spatial_config(),
+            ),
+            excitatory_input_dim=64,
+        )
+    except ValueError as error:
+        assert "require sparsity.type='indexed'" in str(error)
+    else:
+        raise AssertionError("Expected stateful spatial indices to require indexed")
+
+
+def test_stateful_spatial_indices_reject_active_recurrent_pathways() -> None:
+    try:
+        StatefulDendriNet(
+            pop_config=PopulationConfig(
+                n_neurons=1,
+                branch_factors=[2, 2],
+                ff_excitatory_synapses=3,
+                ff_inhibitory_synapses=0,
+                rec_excitatory_synapses=2,
+                rec_inhibitory_synapses=0,
+                somatic_synapses=False,
+                topk_type="indexed",
+                structured_connectivity=_spatial_config(),
+            ),
+            excitatory_input_dim=64,
+            recurrent_excitatory_input_dim=64,
+        )
+    except ValueError as error:
+        assert "feedforward image pathways only" in str(error)
+        assert "rec_ee" in str(error)
+    else:
+        raise AssertionError("Expected recurrent spatial image routing to fail")
 
 
 def test_spatial_indices_reject_adaptive_global_rewiring() -> None:

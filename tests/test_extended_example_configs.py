@@ -24,6 +24,7 @@ POPULATION_NETWORK_EXAMPLES = [
     "configs/examples/population_network_heterogeneous_feedforward.yaml",
     "configs/examples/population_network_two_layer.yaml",
     "configs/examples/population_network_cifar10.yaml",
+    "configs/examples/population_network_spatial_morphology_cifar10.yaml",
     "configs/examples/population_network_dense_to_sparse_cifar10.yaml",
     "configs/examples/population_network_indexed_rewire_mnist.yaml",
     "configs/examples/population_network_normalized_additive_mnist.yaml",

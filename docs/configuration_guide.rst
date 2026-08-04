@@ -1481,6 +1481,33 @@ fixed ``indexed`` sparsity and rejects global ``indexed_rewire``. The
 ``local_ca`` 3F/4F/5F rules update only the stored indexed contacts and remain
 compact under DDP; local gradients are averaged explicitly across ranks.
 
+The same method is available to feedforward populations in a
+``population_network``. In that schema, put the rule and fixed-index controls
+inside the target population defaults (or population override):
+
+.. code-block:: yaml
+
+   population_defaults:
+     ff_excitatory_synapses: 40
+     ff_inhibitory_synapses: 10
+     topk_type: indexed
+     indexed_seed: 42
+     indexed_index_dtype: int32
+     indexed_persistent_indices: false
+     structured_connectivity:
+       enabled: true
+       method: spatial_morphology
+       seed: 42
+       spatial:
+         input_shape: [3, 32, 32]
+         split_axes: [height, width, height, width]
+
+Both direct image banks (for example ``input_e`` and ``input_i``) then use the
+same nested regions while sampling their configured E and I contact counts
+independently. Image-grid routing is not defined for recurrent population-state
+pathways; configure pathway-specific rules when a population also has active
+recurrent connections.
+
 Multi-Stage Training
 --------------------
 
