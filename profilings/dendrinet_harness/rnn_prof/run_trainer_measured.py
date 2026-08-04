@@ -65,10 +65,64 @@ def _instrument():
                 print(f"  instrumented {cls_name}.{meth}", flush=True)
 
 
+def _report_peak_from_trace() -> None:
+    """Replay the allocator event trace; attribute the live set AT the peak.
+
+    The phase wrappers localised the training step (9.6 GB) and validation
+    (7.5 GB), yet the process peaks at 59.6 GB -- so the spike is outside every
+    wrapped phase, and wrapping more functions is guessing. The trace replay
+    (same method that cracked the transient gap) answers with a file:line.
+
+    The history buffer is a ring: if the spike is late in the run (it is --
+    the counter measured from the LAST phase's entry still reaches 59.6 GB),
+    its events are retained even though early-training events are evicted.
+    """
+    import collections
+    import os as _os
+
+    snap = torch.cuda.memory._snapshot()
+    events = (snap.get("device_traces") or [[]])[0]
+    if not events:
+        print("PEAK_TRACE: no events captured", flush=True)
+        return
+    live, total, best_total, best_live, best_i = {}, 0, -1, None, 0
+    for i, e in enumerate(events):
+        act = e.get("action")
+        if act == "alloc":
+            live[e["addr"]] = (e["size"], e.get("frames"))
+            total += e["size"]
+            if total > best_total:
+                best_total, best_live, best_i = total, dict(live), i
+        elif act in ("free_completed", "free_requested"):
+            got = live.pop(e["addr"], None)
+            if got is not None:
+                total -= got[0]
+    if best_live is None:
+        print("PEAK_TRACE: no alloc events", flush=True)
+        return
+    by_site = collections.Counter()
+    for size, frames in best_live.values():
+        f = next((q for q in (frames or [])
+                  if "dendritic_modeling" in (q.get("filename") or "")),
+                 (frames or [{}])[0])
+        by_site[f"{_os.path.basename(f.get('filename', '?'))}:"
+                f"{f.get('line', '?')}  {f.get('name', '?')}"] += size
+    print(f"PEAK_TRACE: {len(events):,} events, replay-peak "
+          f"{best_total / 2**20:,.1f} MB at event {best_i:,}", flush=True)
+    for k, sz in by_site.most_common(12):
+        print(f"PEAK_TRACE:{sz / 2**20:>11,.1f} MB  {k[:70]}", flush=True)
+
+
 def main() -> int:
     args = T._parse_cli_args()
     _instrument()
     torch.cuda.reset_peak_memory_stats()
+    try:
+        torch.cuda.memory._record_memory_history(
+            enabled="all", context="all", stacks="python", max_entries=6_000_000
+        )
+    except TypeError:
+        torch.cuda.memory._record_memory_history(max_entries=6_000_000)
     rc = 0
     try:
         T.main(config_path=args.config, args=args)
@@ -76,6 +130,8 @@ def main() -> int:
         rc = int(e.code or 0)
     finally:
         torch.cuda.synchronize()
+        _report_peak_from_trace()
+        torch.cuda.memory._record_memory_history(enabled=None)
         print(f"TORCH_PEAK_ALLOCATED_MB={torch.cuda.max_memory_allocated() / 2**20:.1f}",
               flush=True)
         print(f"TORCH_PEAK_RESERVED_MB={torch.cuda.max_memory_reserved() / 2**20:.1f}",

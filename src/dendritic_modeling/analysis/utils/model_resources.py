@@ -183,6 +183,97 @@ def static_dendritic_resource_summary(
     )
 
 
+def _indexed_record_counts(synapse: torch.nn.Module):
+    """Snapshot-equivalent counts for indexed-sparse layers, without the snapshot.
+
+    ``effective_synapse_snapshot`` was found -- by an allocator-trace replay of a
+    full trainer run -- to dominate the PROCESS peak of training this repo's
+    stress configs: for an indexed layer, its ``weight()``/``weight_mask()``
+    calls each materialize a dense ``[out_features, in_features]`` matrix, and
+    the snapshot holds ~5 of them at once (~45 GB at 144,000 x 16,000) to
+    produce what the resource record actually consumes: five integers. That one
+    reporting call was 6x the training step's own peak.
+
+    Every count the record needs is index-arithmetic, independent of weight
+    values, so this computes the SAME scatters the dense path performs -- in
+    bounded row chunks -- rather than re-deriving the statistics analytically
+    (which would have to re-prove semantics for duplicate indices, connection
+    masks, and forbidden entries). Bit-exact by construction; verified against
+    the snapshot path by check_resource_records_equiv.py.
+
+    Returns ``None`` whenever the legacy path's richer semantics could apply
+    (cached forward mask, a candidate_mask() method, stochastic selection, or
+    ``DENDRINET_DENSE_RESOURCE_RECORDS=1``), so behaviour changes only where
+    the two paths are provably identical.
+    """
+    import os
+
+    from dendritic_modeling.analysis.utils.effective_synapses import (
+        _selection_is_stochastic,
+    )
+
+    if os.environ.get("DENDRINET_DENSE_RESOURCE_RECORDS", "0") == "1":
+        return None
+    idx = getattr(synapse, "connection_indices", None)
+    if not isinstance(idx, torch.Tensor) or idx.dim() != 2:
+        return None
+    if isinstance(getattr(synapse, "_last_forward_weight_mask", None), torch.Tensor):
+        return None                       # snapshot would use the cached mask
+    if callable(getattr(synapse, "candidate_mask", None)):
+        return None                       # snapshot would call it; do not guess
+    if _selection_is_stochastic(synapse):
+        return None                       # legacy path raises the right error
+
+    out_features = int(synapse.out_features)
+    in_features = int(synapse.in_features)
+    device = idx.device
+
+    # active mask == scatter ones at indices, clamp, count -- exactly
+    # weight_mask().clamp(0,1).ne(0), i.e. UNIQUE indices per row, chunked so no
+    # more than ~256 MB of dense rows ever exists.
+    realized_k = torch.empty(out_features, dtype=torch.long)
+    rows_per_chunk = max(1, (256 * 2**20) // max(in_features * 4, 1))
+    ones = None
+    for start in range(0, out_features, rows_per_chunk):
+        end = min(start + rows_per_chunk, out_features)
+        block = torch.zeros(end - start, in_features, device=device)
+        if ones is None or ones.shape[0] != end - start:
+            ones = torch.ones(end - start, idx.shape[1], device=device)
+        block.scatter_add_(1, idx[start:end].to(device=device, dtype=torch.long), ones)
+        realized_k[start:end] = block.clamp_max(1).ne(0).sum(dim=-1).cpu()
+    active_synapses = int(realized_k.sum().item())
+
+    # candidate mask == ones * connection_mask with forbidden entries zeroed.
+    connection_mask = getattr(synapse, "connection_mask", None)
+    forbidden = getattr(synapse, "_forbidden_input_index_per_output", None)
+    has_forbidden = isinstance(forbidden, torch.Tensor) and forbidden.numel() > 0
+    if isinstance(connection_mask, torch.Tensor) and connection_mask.numel() > 0:
+        candidate = int(connection_mask.ne(0).sum().item())
+        if has_forbidden:
+            valid = forbidden >= 0
+            if bool(valid.any()):
+                rows = torch.arange(connection_mask.shape[0],
+                                    device=connection_mask.device)[valid.to(connection_mask.device)]
+                cols = forbidden.to(connection_mask.device)[valid.to(connection_mask.device)]
+                candidate -= int(connection_mask[rows, cols].ne(0).sum().item())
+    else:
+        candidate = out_features * in_features
+        if has_forbidden:
+            candidate -= int((forbidden >= 0).sum().item())
+
+    rk = realized_k.to(dtype=torch.float32)
+    return {
+        "candidate_slots": candidate,
+        "active_synapses": active_synapses,
+        "realized_k_min": int(rk.min().item()),
+        "realized_k_max": int(rk.max().item()),
+        "realized_k_mean": float(rk.mean().item()),
+        "selection_policy": str(getattr(synapse, "selection",
+                                        type(synapse).__name__)).lower(),
+        "mask_source": "deterministic_current",
+    }
+
+
 def synapse_resource_records(model: torch.nn.Module) -> list[SynapseResourceRecord]:
     """Return one realized-connectivity record per dendritic pathway."""
 
@@ -197,18 +288,32 @@ def synapse_resource_records(model: torch.nn.Module) -> list[SynapseResourceReco
             if synapse is None or id(synapse) in seen:
                 continue
             seen.add(id(synapse))
+            common = dict(
+                module=f"{branch_name}.{attr}",
+                pathway=pathway,
+                soma_relative_depth=int(depth),
+                candidate_parameters=int(
+                    sum(parameter.numel() for parameter in synapse.parameters())
+                ),
+            )
+            fast = _indexed_record_counts(synapse)
+            if fast is not None:
+                records.append(
+                    SynapseResourceRecord(
+                        out_features=int(synapse.out_features),
+                        in_features=int(synapse.in_features),
+                        **common,
+                        **fast,
+                    )
+                )
+                continue
             snapshot = effective_synapse_snapshot(synapse)
             realized_k = snapshot.realized_k.to(dtype=torch.float32)
             records.append(
                 SynapseResourceRecord(
-                    module=f"{branch_name}.{attr}",
-                    pathway=pathway,
-                    soma_relative_depth=int(depth),
                     out_features=int(snapshot.active_mask.shape[0]),
                     in_features=int(snapshot.active_mask.shape[1]),
-                    candidate_parameters=int(
-                        sum(parameter.numel() for parameter in synapse.parameters())
-                    ),
+                    **common,
                     candidate_slots=int(snapshot.candidate_mask.ne(0).sum().item()),
                     active_synapses=int(snapshot.active_mask.ne(0).sum().item()),
                     realized_k_min=int(realized_k.min().item()),
