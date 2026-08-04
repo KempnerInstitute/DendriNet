@@ -1,19 +1,29 @@
-# TRAINABLE variant of kernel_stress_12L_16k_cuda.yaml.
+# TRAINABLE variant of kernel_stress_12L_16k_cuda.yaml. Differs from its parent
+# in exactly two knobs, both required:
 #
-# The parent collapses to EXACTLY chance (valid_loss 2.3027 vs ln(10)=2.30259)
-# and pins there -- the model learns to ignore its input and emit the uniform
-# prior. Cause is not the data and not the size: the positive-tanh has gain
-# m/2 at its midpoint, so m=1.5 retains 0.678 of input variance per layer,
-# and 0.678^12 leaves 2.5e-02. The signal is erased by depth before it
-# reaches the readout.
+#   reactivation_init_policy: analytical -> fixed
+#   reactivation_init_m:      1.5        -> 4.0
 #
-# m=2.5 gives ~0.98 per layer -> 1.17 after 12, i.e. signal preserved.
-# Differs from the parent ONLY in reactivation_init_m (1.5 -> 2.5), so every
-# stress dimension is untouched: 12 layers, 16000E/2000I, K=40, branch [3,3],
-# 123M params, 116M contacts, identical memory and compute profile.
-# Kernel stress-test A/B [gather=cuda]: 12 layers x 16000E/2000I, branch [3,3], indexed_rewire.
-# Variant differs from siblings ONLY in indexed_use_*_gather flags (off|fused|triton|cuda).
-# Precedence cuda->triton->fused->loop; each variant sets exactly one path on.
+# Why. The parent converges onto EXACTLY chance (2.3027 vs ln(10)=2.30259): a
+# batch-std probe shows input-dependence contracting ~6.3x PER LAYER (~sqrt(K),
+# K=40 -- the shunt averages ~K synaptic inputs, so relative fluctuations fall
+# as 1/sqrt(K); a law-of-large-numbers collapse). After 12 layers the output
+# retains 8e-09 of the signal and the readout learns the uniform prior.
+#
+# Why policy=fixed: under `analytical`, _apply_reactivation_init() overwrites m
+# and IGNORES reactivation_init_m -- an earlier variant set m=2.5 and silently
+# trained at m=1.5 (verified via init_gate_stats.json). Only `fixed` honors it.
+#
+# Why m=4.0, measured not derived (probe_signal_death.py --sweep-m): the viable
+# window is a KNIFE EDGE --
+#     m=3.5 -> 1.5e-03 of input signal (collapse)   m=4.0 -> 4.4e-02 (survives)
+#     m=4.5 -> exactly 0.0 (hard saturation: every unit pinned to its rail)
+# Two analytic candidates both failed the sweep: m=2.5 (still collapsed,
+# 1.2e-06) and m=12.6 from the sqrt(K) gain argument (saturated, 0.0).
+#
+# Every stress dimension is untouched: 12 layers, 16000E/2000I, K=40, branch
+# [3,3], 123M params, 116M contacts -- identical memory and compute profile.
+# UNVERIFIED for training until a 5-epoch run drops below 2.3026.
 experiment:
   seed: 42
   train_valid_split: 0.8
@@ -59,8 +69,8 @@ model:
           use_additive_normalization: false
           reactivate: true
           reactivation_type: param_tanh
-          reactivation_init_policy: analytical
-          reactivation_init_m: 2.5
+          reactivation_init_policy: fixed
+          reactivation_init_m: 4.0
           reactivation_init_b: 0.5
           dbl_init_method: analytical_expectation
           weight_transform: softplus
@@ -110,8 +120,8 @@ model:
           use_additive_normalization: false
           reactivate: true
           reactivation_type: param_tanh
-          reactivation_init_policy: analytical
-          reactivation_init_m: 2.5
+          reactivation_init_policy: fixed
+          reactivation_init_m: 4.0
           reactivation_init_b: 0.5
           dbl_init_method: analytical_expectation
           weight_transform: softplus
@@ -163,8 +173,8 @@ model:
           use_additive_normalization: false
           reactivate: true
           reactivation_type: param_tanh
-          reactivation_init_policy: analytical
-          reactivation_init_m: 2.5
+          reactivation_init_policy: fixed
+          reactivation_init_m: 4.0
           reactivation_init_b: 0.5
           dbl_init_method: analytical_expectation
           weight_transform: softplus
@@ -216,8 +226,8 @@ model:
           use_additive_normalization: false
           reactivate: true
           reactivation_type: param_tanh
-          reactivation_init_policy: analytical
-          reactivation_init_m: 2.5
+          reactivation_init_policy: fixed
+          reactivation_init_m: 4.0
           reactivation_init_b: 0.5
           dbl_init_method: analytical_expectation
           weight_transform: softplus
@@ -269,8 +279,8 @@ model:
           use_additive_normalization: false
           reactivate: true
           reactivation_type: param_tanh
-          reactivation_init_policy: analytical
-          reactivation_init_m: 2.5
+          reactivation_init_policy: fixed
+          reactivation_init_m: 4.0
           reactivation_init_b: 0.5
           dbl_init_method: analytical_expectation
           weight_transform: softplus
@@ -322,8 +332,8 @@ model:
           use_additive_normalization: false
           reactivate: true
           reactivation_type: param_tanh
-          reactivation_init_policy: analytical
-          reactivation_init_m: 2.5
+          reactivation_init_policy: fixed
+          reactivation_init_m: 4.0
           reactivation_init_b: 0.5
           dbl_init_method: analytical_expectation
           weight_transform: softplus
@@ -375,8 +385,8 @@ model:
           use_additive_normalization: false
           reactivate: true
           reactivation_type: param_tanh
-          reactivation_init_policy: analytical
-          reactivation_init_m: 2.5
+          reactivation_init_policy: fixed
+          reactivation_init_m: 4.0
           reactivation_init_b: 0.5
           dbl_init_method: analytical_expectation
           weight_transform: softplus
@@ -428,8 +438,8 @@ model:
           use_additive_normalization: false
           reactivate: true
           reactivation_type: param_tanh
-          reactivation_init_policy: analytical
-          reactivation_init_m: 2.5
+          reactivation_init_policy: fixed
+          reactivation_init_m: 4.0
           reactivation_init_b: 0.5
           dbl_init_method: analytical_expectation
           weight_transform: softplus
@@ -481,8 +491,8 @@ model:
           use_additive_normalization: false
           reactivate: true
           reactivation_type: param_tanh
-          reactivation_init_policy: analytical
-          reactivation_init_m: 2.5
+          reactivation_init_policy: fixed
+          reactivation_init_m: 4.0
           reactivation_init_b: 0.5
           dbl_init_method: analytical_expectation
           weight_transform: softplus
@@ -534,8 +544,8 @@ model:
           use_additive_normalization: false
           reactivate: true
           reactivation_type: param_tanh
-          reactivation_init_policy: analytical
-          reactivation_init_m: 2.5
+          reactivation_init_policy: fixed
+          reactivation_init_m: 4.0
           reactivation_init_b: 0.5
           dbl_init_method: analytical_expectation
           weight_transform: softplus
@@ -587,8 +597,8 @@ model:
           use_additive_normalization: false
           reactivate: true
           reactivation_type: param_tanh
-          reactivation_init_policy: analytical
-          reactivation_init_m: 2.5
+          reactivation_init_policy: fixed
+          reactivation_init_m: 4.0
           reactivation_init_b: 0.5
           dbl_init_method: analytical_expectation
           weight_transform: softplus
@@ -640,8 +650,8 @@ model:
           use_additive_normalization: false
           reactivate: true
           reactivation_type: param_tanh
-          reactivation_init_policy: analytical
-          reactivation_init_m: 2.5
+          reactivation_init_policy: fixed
+          reactivation_init_m: 4.0
           reactivation_init_b: 0.5
           dbl_init_method: analytical_expectation
           weight_transform: softplus
