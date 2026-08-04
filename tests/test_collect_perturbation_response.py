@@ -25,7 +25,7 @@ def _write_run(tmp_path: Path) -> tuple[Path, Path]:
     config.write_text("seed: 7\n")
     checkpoint.write_bytes(b"checkpoint")
     analysis.write_text(
-        "analysis:\n" "  noise_perturbation:\n" "    params:\n" "      n_samples: 5\n"
+        "analysis:\n  noise_perturbation:\n    params:\n      n_samples: 5\n"
     )
     output = tmp_path / "run"
     results = {
