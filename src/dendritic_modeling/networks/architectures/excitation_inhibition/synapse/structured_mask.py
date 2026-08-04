@@ -392,13 +392,15 @@ def sample_configured_mask(
     layer_idx: int = 0,
     level_idx: int = 0,
     n_levels: int | None = None,
+    n_soma: int | None = None,
+    branch_factors=None,
     device: torch.device | str | None = None,
 ) -> torch.Tensor | None:
     """Sample a hard connectivity mask from a structured config block.
 
     Supported methods are ``"bernoulli"``/``"probability"``,
-    ``"fixed_indegree"``, ``"distance"``, ``"level_feature_blocks"``, and
-    ``"inventory_feature_blocks"``.
+    ``"fixed_indegree"``, ``"distance"``, ``"level_feature_blocks"``,
+    ``"inventory_feature_blocks"``, and ``"nested_multixor_blocks"``.
     Scalar or list-valued
     ``probability``/``indegree`` fields use repeat-last semantics by layer.
     """
@@ -505,10 +507,45 @@ def sample_configured_mask(
             device=device,
         )
 
+    if method in {"nested_multixor_blocks", "nested_multixor", "multixor_blocks"}:
+        from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.nested_multixor_mask import (
+            build_nested_multixor_connection_mask,
+        )
+
+        if n_soma is None or branch_factors is None:
+            raise ValueError(
+                f"Structured connectivity pathway '{pathway}' method "
+                "'nested_multixor_blocks' requires n_soma and branch_factors "
+                "from the DendriNet build scope."
+            )
+        task_branch_factors = cfg.get("task_branch_factors", None)
+        if task_branch_factors is None:
+            raise ValueError(
+                f"Structured connectivity pathway '{pathway}' requires "
+                "'task_branch_factors' for method='nested_multixor_blocks'."
+            )
+        dims_per_leaf = cfg.get("dims_per_leaf", None)
+        if dims_per_leaf is None:
+            raise ValueError(
+                f"Structured connectivity pathway '{pathway}' requires "
+                "'dims_per_leaf' for method='nested_multixor_blocks'."
+            )
+        return build_nested_multixor_connection_mask(
+            out_features=out_features,
+            in_features=in_features,
+            level_idx=level_idx,
+            n_soma=int(n_soma),
+            branch_factors=branch_factors,
+            task_branch_factors=task_branch_factors,
+            dims_per_leaf=int(dims_per_leaf),
+            auxiliary_root=bool(cfg.get("auxiliary_root", False)),
+            device=device,
+        )
+
     raise ValueError(
         f"Unknown structured connectivity method '{method}'. "
         "Choose from: bernoulli, fixed_indegree, distance, "
-        "level_feature_blocks, inventory_feature_blocks, none."
+        "level_feature_blocks, inventory_feature_blocks, nested_multixor_blocks, none."
     )
 
 

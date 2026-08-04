@@ -39,6 +39,8 @@ def _sample_dendrinet_structured_mask(
     synapses_per_branch,
     structured_layer_idx,
     level_idx,
+    n_soma,
+    branch_factors,
 ):
     """Sample an optional structured mask for one DendriNet pathway."""
     if in_dim is None or synapses_per_branch is None or synapses_per_branch <= 0:
@@ -50,6 +52,8 @@ def _sample_dendrinet_structured_mask(
         in_features=in_dim,
         layer_idx=structured_layer_idx,
         level_idx=level_idx,
+        n_soma=n_soma,
+        branch_factors=branch_factors,
     )
 
 
@@ -65,6 +69,8 @@ def _sample_dendrinet_structured_masks(
     inhibitory_synapses_per_branch,
     structured_layer_idx,
     level_idx,
+    n_soma,
+    branch_factors,
 ):
     """Sample optional excitatory and inhibitory masks for one DendriNet level."""
 
@@ -76,6 +82,8 @@ def _sample_dendrinet_structured_masks(
         synapses_per_branch=excitatory_synapses_per_branch,
         structured_layer_idx=structured_layer_idx,
         level_idx=level_idx,
+        n_soma=n_soma,
+        branch_factors=branch_factors,
     )
     inhibitory_connection_mask = _sample_dendrinet_structured_mask(
         structured_connectivity,
@@ -85,6 +93,8 @@ def _sample_dendrinet_structured_masks(
         synapses_per_branch=inhibitory_synapses_per_branch,
         structured_layer_idx=structured_layer_idx,
         level_idx=level_idx,
+        n_soma=n_soma,
+        branch_factors=branch_factors,
     )
     return excitatory_connection_mask, inhibitory_connection_mask
 
@@ -184,6 +194,7 @@ def _build_dendrinet_branch_layers(
     structured_inhibitory_pathway,
     synapse_config,
     branch_extra_kwargs,
+    branch_factors,
 ):
     """Build DendriNet branch layers in forward construction order."""
 
@@ -203,6 +214,8 @@ def _build_dendrinet_branch_layers(
             inhibitory_synapses_per_branch=inhibitory_synapses_per_branch,
             structured_layer_idx=structured_layer_idx,
             level_idx=i,
+            n_soma=n_soma,
+            branch_factors=branch_factors,
         )
         lyr = _make_dendrinet_branch_layer(
             output_dim=layer_sizes[i],
@@ -235,6 +248,8 @@ def _build_dendrinet_branch_layers(
             inhibitory_synapses_per_branch=inhibitory_synapses_per_branch,
             structured_layer_idx=structured_layer_idx,
             level_idx=soma_level_idx,
+            n_soma=n_soma,
+            branch_factors=branch_factors,
         )
         branch_layers.append(
             _make_dendrinet_branch_layer(
@@ -413,6 +428,7 @@ class DendriNet(nn.Module):
             structured_inhibitory_pathway=structured_inhibitory_pathway,
             synapse_config=synapse_config,
             branch_extra_kwargs=branch_extra_kwargs,
+            branch_factors=branch_factors,
         )
         self.branch_layers = nn.ModuleList(branch_layers)
         self.branch_configs = tuple(layer.branch_config for layer in branch_layers)
