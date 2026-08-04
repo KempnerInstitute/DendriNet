@@ -435,6 +435,26 @@ seeds. The resulting checkpoint rows can be passed to
 ``dendritic-summarize-checkpoint-metrics`` so independently trained seeds remain
 the inferential units. See ``configs/examples/source_tuning_support_analysis.yaml``.
 
+Validation-selected training epochs
+-----------------------------------
+
+``dendritic-select-validation-epochs`` compares checkpoint-selection criteria
+without selecting on held-out data.  It consumes the long-form
+``training_history.csv`` and ``checkpoint_units.csv`` written by
+``dendritic-collect-sweep-metrics``.  For every independently trained
+checkpoint, each declared ``valid_*`` criterion selects one epoch; ties can be
+resolved to the earliest or latest epoch.  Declared validation and test metrics
+from that epoch are then written to wide and long tables.  Metrics named
+``test_*`` may be reported but are rejected as selectors.  The long table can
+be passed directly to ``dendritic-summarize-checkpoint-metrics`` for paired
+seed-level comparisons between selection rules.
+
+The selection config must declare the history and checkpoint-unit tables,
+their join columns, metadata to carry forward, the expected unit and epoch
+counts, selection criteria, and report metrics.  Both inputs and outputs are
+hashed in ``selection_provenance.json``.  See
+``configs/examples/validation_epoch_selection.yaml``.
+
 Input-Region Interventions
 --------------------------
 

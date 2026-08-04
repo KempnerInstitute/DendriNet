@@ -73,6 +73,7 @@ dendritic-collect-synaptic-support = "dendritic_modeling.scripts.analysis.collec
 dendritic-collect-source-tuning = "dendritic_modeling.scripts.analysis.collect_source_tuning_support:main"
 dendritic-collect-input-region-interventions = "dendritic_modeling.scripts.analysis.collect_input_region_intervention:main"
 dendritic-summarize-checkpoint-metrics = "dendritic_modeling.scripts.analysis.summarize_checkpoint_metrics:main"
+dendritic-select-validation-epochs = "dendritic_modeling.scripts.analysis.select_validation_epochs:main"
 dendritic-poisson-exposure-transfer = "dendritic_modeling.scripts.analysis.run_poisson_exposure_transfer:main"
 dendritic-collect-poisson-transfer = "dendritic_modeling.scripts.analysis.collect_poisson_exposure_transfer:main"
 dendritic-collect-sweep-metrics = "dendritic_modeling.scripts.sweeps.collect_sweep_metrics:main"
