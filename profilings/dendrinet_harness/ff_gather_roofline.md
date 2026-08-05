@@ -101,8 +101,14 @@ the A100 sweep shows no-stage winning at 1.77×/1.28×/1.11× (IN=24k row, blk/S
 reuse=3.3, unlike Blackwell) and 1.08× at the stress config's dominant (16k→144k) shape at
 blk/SM=2. The picker is now architecture-aware: Blackwell keeps its 25/25-validated rule;
 sm80 uses `blk/SM<=1 OR (blk/SM==2 AND O>=100k)` (one accepted ~1% giveback at (24k,16k));
-unmeasured architectures default to staged. End-to-end on A100: **1.012×, bit-identical**. Only K=40 was swept; the reuse term carries K
-on mechanism, not measurement. The **backward is untouched** — `gather_gradx_stage_kernel`
+unmeasured architectures default to staged. End-to-end on A100: **1.012×, bit-identical**. **K measured (2026-08-05), and the reuse mechanism was WRONG across K**: at K=10, no-stage
+wins every O at 1 block/SM (1.50-1.84×, even at reuse≈1 — the old rule missed all of them);
+at K=80 staging wins almost everywhere and the old rule would have picked slower kernels at
+two cells (0.76×, 0.93×) — an active regression, not a forfeited win. The true discriminator
+is K itself (staging amortizes over K gathers/row). Picker now uses measured K-bands:
+K≤20 → no-stage at 1 blk/SM unconditionally; 20<K≤60 → the validated reuse≥120 rule;
+K>60 → staged (its single winning cell is one data point; no rule gets fitted to one point).
+End-to-end regression check after the change: 1.082×, bit-identical. The **backward is untouched** — `gather_gradx_stage_kernel`
 needs its shared buffer for fast atomics, so the same trick does not transfer directly.
 
 Also: my earlier "forward tile P is closed at 1.00×" used a ladder topping out at the

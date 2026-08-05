@@ -577,10 +577,23 @@ def _pick_fwd_variant(IN: int, O: int, K: int) -> tuple[str, int, int]:
     reuse = (O * K) / max(IN, 1)
     cc = torch.cuda.get_device_capability()
     if cc[0] >= 10:
-        # Blackwell rule, validated on the full 5x5 (IN, O) sweep: 25/25 cells
-        # classified correctly (bench_gather_crossover.py, batch 512, K=40).
-        if blocks_per_sm <= 1 and reuse >= _NOSTAGE_MIN_REUSE:
-            return ("nostage", ns_P, 512)
+        # Blackwell, from three 5x5 (IN, O) sweeps at K=10/40/80
+        # (bench_gather_crossover.py --K, batch 512). The dominant factor is K
+        # itself, not reuse: staging amortizes its IN*4-byte row over K gathers
+        # per output, so low K starves it and high K feeds it. Measured bands at
+        # 1 block/SM:
+        #   K=10: no-stage wins EVERY O (1.50-1.84x, even at reuse ~1) -- the
+        #         old reuse>=120 rule missed every one of these wins;
+        #   K=40: mixed; reuse>=120 classifies all 25 cells correctly;
+        #   K=80: staging wins almost everywhere -- the old rule would have
+        #         PICKED SLOWER KERNELS at two cells (0.76x, 0.93x). Its single
+        #         win cell (16k->144k, 1.26x) is one point; no rule is fitted
+        #         to one point, so K>60 stays staged and forfeits it.
+        if blocks_per_sm <= 1:
+            if K <= 20:
+                return ("nostage", ns_P, 512)
+            if K <= 60 and reuse >= _NOSTAGE_MIN_REUSE:
+                return ("nostage", ns_P, 512)
     elif cc == (8, 0):
         # A100 rule, from its own sweep -- the Blackwell rule transplanted there
         # forfeits measured wins (1.77x/1.28x/1.11x at IN=24k; 1.08x at the
