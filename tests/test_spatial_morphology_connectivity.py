@@ -1,5 +1,7 @@
 """Tests for direct morphology-aligned spatial sparse indices."""
 
+import math
+
 import torch
 
 from dendritic_modeling.config import StructuredConnectivityConfig
@@ -173,6 +175,42 @@ def test_dendrinet_uses_spatial_indices_without_dense_masks() -> None:
     assert torch.isfinite(x.grad).all()
 
 
+def test_dendrinet_overlapping_grid_runs_panel_k_morphologies() -> None:
+    config = {
+        "enabled": True,
+        "method": "spatial_morphology",
+        "seed": 23,
+        "spatial": {
+            "input_shape": [3, 32, 32],
+            "region_mode": "overlapping_grid",
+            "minimum_window_shape": [4, 4],
+        },
+    }
+    for branch_factors in ([120], [10, 11], [8, 2, 6], [3, 3, 3, 3]):
+        model = DendriNet(
+            n_soma=2,
+            branch_factors=branch_factors,
+            excitatory_input_dim=3072,
+            excitatory_synapses_per_branch=40,
+            inhibitory_input_dim=3072,
+            inhibitory_synapses_per_branch=10,
+            somatic_synapses=False,
+            topk_type="indexed",
+            indexed_index_dtype="int32",
+            indexed_persistent_indices=False,
+            reactivate=True,
+            reactivation_type="param_tanh",
+            weight_transform="softplus",
+            structured_connectivity=config,
+        )
+        image = torch.rand(2, 3072, requires_grad=True)
+        output = model(image, image)
+        assert output.shape == (2, 2)
+        output.square().mean().backward()
+        assert image.grad is not None
+        assert torch.isfinite(image.grad).all()
+
+
 def _stateful_spatial_model(seed: int = 17) -> StatefulDendriNet:
     return StatefulDendriNet(
         pop_config=PopulationConfig(
@@ -322,3 +360,77 @@ def test_spatial_indices_validate_input_shape_and_region_capacity() -> None:
         assert "containing only 4 input features" in str(error)
     else:
         raise AssertionError("Expected an overfull branch region to fail")
+
+
+def test_overlapping_grid_supports_resource_matched_morphologies() -> None:
+    morphologies = ([120], [10, 11], [8, 2, 6], [3, 3, 3, 3])
+    for branch_factors in morphologies:
+        for level_idx in range(len(branch_factors)):
+            active_factors = branch_factors[: len(branch_factors) - level_idx]
+            branches = math.prod(active_factors)
+            indices = sample_spatial_morphology_indices(
+                input_shape=[3, 32, 32],
+                out_features=branches,
+                in_features=3072,
+                synapses_per_branch=40,
+                owner_count=1,
+                branch_factors=branch_factors,
+                level_idx=level_idx,
+                region_mode="overlapping_grid",
+                minimum_window_shape=[4, 4],
+                seed=23,
+            )
+            assert indices.shape == (branches, 40)
+            assert bool((indices >= 0).all())
+            assert bool((indices < 3072).all())
+            assert all(row.unique().numel() == 40 for row in indices)
+
+
+def test_overlapping_grid_is_deterministic_and_spatially_local() -> None:
+    options = {
+        "input_shape": [3, 32, 32],
+        "out_features": 120,
+        "in_features": 3072,
+        "synapses_per_branch": 40,
+        "owner_count": 1,
+        "branch_factors": [120],
+        "level_idx": 0,
+        "region_mode": "overlapping_grid",
+        "minimum_window_shape": [4, 4],
+    }
+    first = sample_spatial_morphology_indices(**options, seed=23)
+    repeated = sample_spatial_morphology_indices(**options, seed=23)
+    changed = sample_spatial_morphology_indices(**options, seed=24)
+    assert torch.equal(first, repeated)
+    assert not torch.equal(first, changed)
+
+    # Forty of the 48 available RGB coordinates force every row to occupy its
+    # local 4x4 window while remaining unique within the branch.
+    spatial = first.remainder(32 * 32)
+    y = spatial // 32
+    x = spatial % 32
+    assert bool(((y.max(dim=1).values - y.min(dim=1).values) < 4).all())
+    assert bool(((x.max(dim=1).values - x.min(dim=1).values) < 4).all())
+
+
+def test_configured_overlapping_grid_options_are_forwarded() -> None:
+    config = _spatial_config(23)
+    config["spatial"].update(
+        {
+            "input_shape": [3, 32, 32],
+            "region_mode": "overlapping_grid",
+            "minimum_window_shape": [4, 4],
+        }
+    )
+    indices = sample_configured_indices(
+        config,
+        pathway="ee",
+        out_features=120,
+        in_features=3072,
+        synapses_per_branch=40,
+        owner_count=1,
+        branch_factors=[120],
+        level_idx=0,
+    )
+    assert indices is not None
+    assert indices.shape == (120, 40)

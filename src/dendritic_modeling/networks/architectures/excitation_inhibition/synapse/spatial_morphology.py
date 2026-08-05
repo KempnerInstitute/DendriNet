@@ -27,6 +27,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.str
 from dendritic_modeling.utils.stable_hash import stable_seed_offset
 
 SPATIAL_MORPHOLOGY_METHODS = frozenset({"spatial_morphology", "morphology_spatial"})
+SPATIAL_REGION_MODES = frozenset({"partition", "overlapping_grid"})
 _AXIS_ALIASES = {
     "h": "height",
     "height": "height",
@@ -150,6 +151,126 @@ def _path_rectangle(
     return y0, y1, x0, x1
 
 
+def _balanced_grid_shape(
+    factor: int,
+    *,
+    region_height: float,
+    region_width: float,
+) -> tuple[int, int]:
+    """Factor one branch fan-out into the most nearly square spatial grid."""
+
+    candidates: list[tuple[float, int, int]] = []
+    for rows in range(1, int(math.sqrt(factor)) + 1):
+        if factor % rows:
+            continue
+        columns = factor // rows
+        for grid_rows, grid_columns in ((rows, columns), (columns, rows)):
+            cell_height = region_height / grid_rows
+            cell_width = region_width / grid_columns
+            aspect_penalty = abs(math.log(cell_height / cell_width))
+            candidates.append((aspect_penalty, grid_rows, grid_columns))
+    _, rows, columns = min(candidates)
+    return rows, columns
+
+
+def _overlapping_grid_rectangle(
+    *,
+    height: int,
+    width: int,
+    path: tuple[int, ...],
+    branch_factors: tuple[int, ...],
+    minimum_window_shape: tuple[int, int],
+) -> tuple[int, int, int, int]:
+    """Return a nested, possibly overlapping image window for one path.
+
+    Branch fan-out is placed on a two-dimensional grid inside the parent's
+    continuous image region.  The final discrete window is expanded around
+    the cell center when necessary.  This permits more terminal branches than
+    disjoint image cells while keeping every branch spatially localized.
+    """
+
+    y0, y1 = 0.0, 1.0
+    x0, x1 = 0.0, 1.0
+    final_grid = (1, 1)
+    final_child = (0, 0)
+    final_parent = (y0, y1, x0, x1)
+    for child, factor in zip(path, branch_factors):
+        rows, columns = _balanced_grid_shape(
+            factor,
+            region_height=(y1 - y0) * height,
+            region_width=(x1 - x0) * width,
+        )
+        row, column = divmod(child, columns)
+        parent_y0, parent_y1 = y0, y1
+        parent_x0, parent_x1 = x0, x1
+        final_grid = (rows, columns)
+        final_child = (row, column)
+        final_parent = (parent_y0, parent_y1, parent_x0, parent_x1)
+        y0 = parent_y0 + (parent_y1 - parent_y0) * row / rows
+        y1 = parent_y0 + (parent_y1 - parent_y0) * (row + 1) / rows
+        x0 = parent_x0 + (parent_x1 - parent_x0) * column / columns
+        x1 = parent_x0 + (parent_x1 - parent_x0) * (column + 1) / columns
+
+    center_y = 0.5 * (y0 + y1) * height
+    center_x = 0.5 * (x0 + x1) * width
+    base_height = max(1, math.ceil(y1 * height) - math.floor(y0 * height))
+    base_width = max(1, math.ceil(x1 * width) - math.floor(x0 * width))
+    window_height = min(height, max(base_height, minimum_window_shape[0]))
+    window_width = min(width, max(base_width, minimum_window_shape[1]))
+
+    parent_y0, parent_y1, parent_x0, parent_x1 = final_parent
+
+    def _window_start(
+        *,
+        parent_lower: float,
+        parent_upper: float,
+        grid_count: int,
+        child_index: int,
+        window_size: int,
+        full_size: int,
+        center: float,
+    ) -> int:
+        parent_lower_px = max(0, math.floor(parent_lower * full_size))
+        parent_upper_px = min(full_size, math.ceil(parent_upper * full_size))
+        if parent_upper_px - parent_lower_px >= window_size:
+            lowest = parent_lower_px
+            highest = parent_upper_px - window_size
+        else:
+            centered = round(center - window_size / 2)
+            radius = max(0, grid_count - 1)
+            lowest = max(0, centered - radius // 2)
+            highest = min(full_size - window_size, lowest + radius)
+            lowest = max(0, highest - radius)
+        if grid_count <= 1 or highest <= lowest:
+            return min(max(0, round(center - window_size / 2)), full_size - window_size)
+        return round(lowest + (highest - lowest) * child_index / (grid_count - 1))
+
+    lower_y = _window_start(
+        parent_lower=parent_y0,
+        parent_upper=parent_y1,
+        grid_count=final_grid[0],
+        child_index=final_child[0],
+        window_size=window_height,
+        full_size=height,
+        center=center_y,
+    )
+    lower_x = _window_start(
+        parent_lower=parent_x0,
+        parent_upper=parent_x1,
+        grid_count=final_grid[1],
+        child_index=final_child[1],
+        window_size=window_width,
+        full_size=width,
+        center=center_x,
+    )
+    return (
+        lower_y,
+        lower_y + window_height,
+        lower_x,
+        lower_x + window_width,
+    )
+
+
 def _rectangle_candidates(
     *,
     channels: int,
@@ -242,6 +363,8 @@ def sample_spatial_morphology_indices(
     branch_factors: Sequence[int],
     level_idx: int,
     split_axes: Sequence[str] | None = None,
+    region_mode: str = "partition",
+    minimum_window_shape: Sequence[int] | None = None,
     seed: int = 0,
     index_dtype: str | torch.dtype = "int64",
 ) -> torch.Tensor:
@@ -264,7 +387,29 @@ def sample_spatial_morphology_indices(
             f"{channels}*{height}*{width} != {in_features}"
         )
     factors = _positive_int_tuple(branch_factors, name="branch_factors")
-    axes = _normalize_split_axes(split_axes, depth=len(factors))
+    normalized_region_mode = str(region_mode).strip().lower()
+    if normalized_region_mode not in SPATIAL_REGION_MODES:
+        choices = ", ".join(sorted(SPATIAL_REGION_MODES))
+        raise ValueError(
+            f"Unknown spatial.region_mode {region_mode!r}; choose from {choices}"
+        )
+    axes = (
+        _normalize_split_axes(split_axes, depth=len(factors))
+        if normalized_region_mode == "partition"
+        else ()
+    )
+    if minimum_window_shape is None:
+        window_shape = (1, 1)
+    else:
+        window_shape = _positive_int_tuple(
+            minimum_window_shape,
+            name="spatial.minimum_window_shape",
+            expected_length=2,
+        )
+    if window_shape[0] > height or window_shape[1] > width:
+        raise ValueError(
+            "spatial.minimum_window_shape cannot exceed the input height or width"
+        )
     if owner_count < 1:
         raise ValueError("owner_count must be positive")
     if level_idx < 0 or level_idx > len(factors):
@@ -294,13 +439,22 @@ def sample_spatial_morphology_indices(
 
     for local_branch_idx in range(branches_per_owner):
         path = _branch_path(local_branch_idx, active_factors)
-        rectangle = _path_rectangle(
-            height=height,
-            width=width,
-            path=path,
-            branch_factors=active_factors,
-            split_axes=active_axes,
-        )
+        if normalized_region_mode == "partition":
+            rectangle = _path_rectangle(
+                height=height,
+                width=width,
+                path=path,
+                branch_factors=active_factors,
+                split_axes=active_axes,
+            )
+        else:
+            rectangle = _overlapping_grid_rectangle(
+                height=height,
+                width=width,
+                path=path,
+                branch_factors=active_factors,
+                minimum_window_shape=window_shape,
+            )
         candidates = _rectangle_candidates(
             channels=channels,
             height=height,
@@ -363,6 +517,8 @@ def sample_configured_indices(
         branch_factors=branch_factors,
         level_idx=level_idx,
         split_axes=spatial.get("split_axes"),
+        region_mode=str(spatial.get("region_mode", "partition")),
+        minimum_window_shape=spatial.get("minimum_window_shape"),
         seed=seed,
         index_dtype=index_dtype,
     )
@@ -370,6 +526,7 @@ def sample_configured_indices(
 
 __all__ = [
     "SPATIAL_MORPHOLOGY_METHODS",
+    "SPATIAL_REGION_MODES",
     "sample_configured_indices",
     "sample_spatial_morphology_indices",
     "uses_spatial_morphology",

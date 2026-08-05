@@ -58,7 +58,11 @@ Population-network examples should use:
   same-dendrite turnover of weak synapses without a dense score matrix
 - `topk_type: indexed` with `structured_connectivity.method:
   spatial_morphology` when each image branch should receive fixed contacts from
-  its own nested spatial region
+  its own nested spatial region. The default `spatial.region_mode: partition`
+  uses disjoint child regions. High-fan-out trees can instead use
+  `spatial.region_mode: overlapping_grid` with an explicit
+  `spatial.minimum_window_shape`, which places child regions on nested grids
+  and expands undersized terminal regions into localized overlapping windows
 - `topk_type: indexed_dynamic` only when the experiment specifically needs a
   fixed candidate pool for comparison
 - `efficient_blocklinear: true` when populations have multi-level branch

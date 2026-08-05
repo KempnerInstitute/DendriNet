@@ -346,7 +346,56 @@ class TestConfigExtractor(unittest.TestCase):
 
         self.assertEqual(params["structured_connectivity_enabled"], True)
         self.assertEqual(params["structured_connectivity_method"], "spatial_morphology")
+        self.assertEqual(params["spatial_region_mode"], "partition")
         self.assertEqual(params["synaptic_routing"], "spatial_morphology")
+
+    def test_extract_population_network_overlapping_spatial_routing(self):
+        """Overlapping spatial windows must remain a distinct sweep axis."""
+        config = OmegaConf.create(
+            {
+                "model": {
+                    "core": {
+                        "type": "population_network",
+                        "population_network": {
+                            "layers": [
+                                {
+                                    "readout_population": "e0",
+                                    "population_defaults": {
+                                        "topk_type": "indexed",
+                                        "structured_connectivity": {
+                                            "enabled": True,
+                                            "method": "spatial_morphology",
+                                            "seed": 42,
+                                            "spatial": {
+                                                "input_shape": [3, 32, 32],
+                                                "region_mode": "overlapping_grid",
+                                                "minimum_window_shape": [4, 4],
+                                            },
+                                        },
+                                    },
+                                    "populations": [
+                                        {
+                                            "name": "e0",
+                                            "polarity": "excitatory",
+                                            "n_neurons": 64,
+                                            "branch_factors": [120],
+                                        }
+                                    ],
+                                }
+                            ]
+                        },
+                    }
+                }
+            }
+        )
+
+        params = self.extractor._extract_model_params(config)
+
+        self.assertEqual(params["spatial_region_mode"], "overlapping_grid")
+        self.assertEqual(
+            params["synaptic_routing"],
+            "spatial_morphology_overlapping_grid",
+        )
 
     def test_extract_population_network_distinguishes_inhibitory_routes(self):
         def _config(source, populations):

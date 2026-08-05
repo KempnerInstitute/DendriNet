@@ -69,6 +69,10 @@ model:
               spatial:
                 input_shape: [3, 32, 32]
                 split_axes: ["height", "width", "height", "width"]
+                # High-fan-out morphologies whose disjoint terminal regions
+                # cannot hold K unique contacts may instead use:
+                # region_mode: "overlapping_grid"
+                # minimum_window_shape: [4, 4]
             blocklinear_strategy: "none"
             reactivation_strategy: "none"
             efficient_blocklinear: true
