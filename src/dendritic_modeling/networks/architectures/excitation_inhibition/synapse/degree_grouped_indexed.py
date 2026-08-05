@@ -132,13 +132,84 @@ def _balanced_connection_rows(
     return rows
 
 
+def _validate_connection_mask(
+    connection_mask: torch.Tensor,
+    *,
+    degrees: torch.Tensor,
+    input_dim: int,
+    output_dim: int,
+) -> torch.Tensor:
+    """Validate a hard allowed-source mask against heterogeneous row degrees."""
+
+    mask = torch.as_tensor(connection_mask, dtype=torch.bool, device="cpu")
+    expected = (output_dim, input_dim)
+    if tuple(mask.shape) != expected:
+        raise ValueError(
+            f"connection_mask must have shape {expected}, got {tuple(mask.shape)}"
+        )
+    allowed_counts = mask.sum(dim=1)
+    invalid = allowed_counts < degrees
+    if bool(invalid.any()):
+        row = int(torch.nonzero(invalid, as_tuple=False)[0].item())
+        raise ValueError(
+            "connection_mask must allow at least the requested degree in every "
+            f"row; row {row} allows {int(allowed_counts[row].item())} sources "
+            f"for degree {int(degrees[row].item())}"
+        )
+    return mask.contiguous()
+
+
+def _balanced_masked_connection_rows(
+    degrees: torch.Tensor,
+    *,
+    connection_mask: torch.Tensor,
+    seed: int,
+) -> list[torch.Tensor]:
+    """Build deterministic supports balanced within equal-eligibility classes.
+
+    Rows with the same degree and allowed-source set form one equivalence class.
+    A seeded cyclic assignment then balances source usage within that class while
+    keeping every row unique.  This is the constrained analogue of
+    :func:`_balanced_connection_rows`; asymmetric eligibility intentionally need
+    not produce globally equal source outdegrees.
+    """
+
+    rows = [torch.empty(0, dtype=torch.long) for _ in range(degrees.numel())]
+    classes: dict[tuple[int, tuple[int, ...]], list[int]] = {}
+    for row, degree in enumerate(degrees.tolist()):
+        if degree == 0:
+            continue
+        allowed = tuple(
+            torch.nonzero(connection_mask[row], as_tuple=False).flatten().tolist()
+        )
+        classes.setdefault((degree, allowed), []).append(row)
+
+    generator = torch.Generator(device="cpu")
+    generator.manual_seed(int(seed))
+    for (degree, allowed_tuple), class_rows in classes.items():
+        allowed = torch.tensor(allowed_tuple, dtype=torch.long)
+        source_order = allowed[torch.randperm(allowed.numel(), generator=generator)]
+        row_order = torch.tensor(class_rows, dtype=torch.long)
+        row_order = row_order[torch.randperm(row_order.numel(), generator=generator)]
+        cursor = int(torch.randint(allowed.numel(), (1,), generator=generator).item())
+        for row in row_order.tolist():
+            positions = (
+                torch.arange(degree, dtype=torch.long) + cursor
+            ) % allowed.numel()
+            rows[row] = source_order[positions]
+            cursor += degree
+    return rows
+
+
 class DegreeGroupedIndexedLinear(nn.Module):
     """Sparse linear map with exact, potentially heterogeneous row degrees.
 
     The implementation composes the existing fixed-index sparse kernel by
     grouping output rows that share a degree.  It supports zero-degree rows,
-    exact total contact budgets, deterministic topology, and guaranteed source
-    coverage whenever the total number of contacts is at least ``input_dim``.
+    exact total contact budgets, and deterministic topology.  The unrestricted
+    construction guarantees source coverage whenever the total number of
+    contacts is at least ``input_dim``.  A supplied hard mask constrains every
+    selected index; requested source coverage is verified and fails closed.
     """
 
     def __init__(
@@ -149,6 +220,7 @@ class DegreeGroupedIndexedLinear(nn.Module):
         *,
         seed: int,
         require_source_coverage: bool = False,
+        connection_mask: torch.Tensor | None = None,
         weight_transform: WeightTransformType = "exp",
         row_sum_init: float | None = None,
         output_chunk_size: int = 2048,
@@ -184,11 +256,46 @@ class DegreeGroupedIndexedLinear(nn.Module):
         self.require_source_coverage = bool(require_source_coverage)
         self.register_buffer("degrees", degree_tensor)
 
-        connection_rows = _balanced_connection_rows(
-            degree_tensor,
-            input_dim=self.input_dim,
-            seed=int(seed),
+        if connection_mask is None:
+            normalized_mask = torch.empty(0, dtype=torch.bool)
+            candidate_slots = self.output_dim * self.input_dim
+            mask_source = "seeded_balanced_indices"
+            connection_rows = _balanced_connection_rows(
+                degree_tensor,
+                input_dim=self.input_dim,
+                seed=int(seed),
+            )
+        else:
+            normalized_mask = _validate_connection_mask(
+                connection_mask,
+                degrees=degree_tensor,
+                input_dim=self.input_dim,
+                output_dim=self.output_dim,
+            )
+            if self.require_source_coverage and bool(
+                (~normalized_mask.any(dim=0)).any()
+            ):
+                missing = torch.nonzero(
+                    ~normalized_mask.any(dim=0), as_tuple=False
+                ).flatten()
+                raise ValueError(
+                    "connection_mask excludes sources required for source coverage: "
+                    f"{missing.tolist()}"
+                )
+            candidate_slots = int(normalized_mask.sum().item())
+            mask_source = "configured_mask_seeded_balanced_indices"
+            connection_rows = _balanced_masked_connection_rows(
+                degree_tensor,
+                connection_mask=normalized_mask,
+                seed=int(seed),
+            )
+        self.register_buffer(
+            "_allowed_connection_mask",
+            normalized_mask,
+            persistent=False,
         )
+        self._candidate_slots = int(candidate_slots)
+        self._mask_source = mask_source
         self.groups = nn.ModuleList()
         for degree in sorted(set(degree_tensor.tolist())):
             if degree == 0:
@@ -261,13 +368,13 @@ class DegreeGroupedIndexedLinear(nn.Module):
             "out_features": self.output_dim,
             "in_features": self.input_dim,
             "candidate_parameters": self.total_contacts,
-            "candidate_slots": self.output_dim * self.input_dim,
+            "candidate_slots": self._candidate_slots,
             "active_synapses": self.total_contacts,
             "realized_k_min": int(self.degrees.min().item()),
             "realized_k_max": int(self.degrees.max().item()),
             "realized_k_mean": float(self.degrees.float().mean().item()),
             "selection_policy": "indexed_fixed_degree_grouped",
-            "mask_source": "seeded_balanced_indices",
+            "mask_source": self._mask_source,
         }
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:

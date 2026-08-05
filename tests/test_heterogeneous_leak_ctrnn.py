@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from collections import Counter
 from dataclasses import asdict
 
@@ -58,9 +59,36 @@ def _small_config(**overrides) -> HeterogeneousLeakCTRNNConfig:
     return HeterogeneousLeakCTRNNConfig(**payload)
 
 
+def _structured_point_config(**overrides) -> HeterogeneousLeakCTRNNConfig:
+    payload = {
+        "input_dim": 5,
+        "input_projection_dims": [],
+        "input_contacts": 2800,
+        "recurrent_excitatory_contacts": 2800,
+        "recurrent_inhibitory_contacts": 656,
+        "readout_contacts": 64,
+        "input_routing": {
+            "method": "tau_feature_blocks",
+            "require_source_coverage": True,
+            "ranges_by_tau": [
+                [[2, 4]],
+                [[0, 2], [4, 5]],
+                [[0, 2], [4, 5]],
+            ],
+        },
+    }
+    payload.update(overrides)
+    return HeterogeneousLeakCTRNNConfig(**payload)
+
+
 @pytest.fixture(scope="module")
 def paper_control() -> HeterogeneousLeakCTRNN:
     return HeterogeneousLeakCTRNN(HeterogeneousLeakCTRNNConfig())
+
+
+@pytest.fixture(scope="module")
+def structured_point_control() -> HeterogeneousLeakCTRNN:
+    return HeterogeneousLeakCTRNN(_structured_point_config())
 
 
 def test_degree_grouped_indexed_is_exact_deterministic_and_covered() -> None:
@@ -131,6 +159,94 @@ def test_degree_grouped_indexed_validation_is_fail_closed() -> None:
             2,
             [1, 1],
             seed=1,
+            require_source_coverage=True,
+        )
+
+
+def test_degree_grouped_indexed_hard_mask_is_exact_balanced_and_deterministic() -> None:
+    degrees = torch.tensor([1, 2, 1, 0, 2, 1, 1])
+    mask = torch.tensor(
+        [
+            [1, 1, 0, 0, 0],
+            [1, 1, 0, 0, 0],
+            [0, 0, 1, 1, 0],
+            [0, 0, 0, 0, 0],
+            [0, 0, 1, 1, 1],
+            [0, 0, 0, 0, 1],
+            [1, 0, 0, 0, 1],
+        ],
+        dtype=torch.bool,
+    )
+    first = DegreeGroupedIndexedLinear(
+        5,
+        7,
+        degrees,
+        seed=23,
+        connection_mask=mask,
+        require_source_coverage=True,
+        row_sum_init=0.8,
+    )
+    repeated = DegreeGroupedIndexedLinear(
+        5,
+        7,
+        degrees,
+        seed=23,
+        connection_mask=mask,
+        require_source_coverage=True,
+        row_sum_init=0.8,
+    )
+
+    indices = first.connection_indices_padded()
+    assert torch.equal(indices, repeated.connection_indices_padded())
+    for row, degree in enumerate(degrees.tolist()):
+        selected = indices[row, :degree]
+        assert selected.unique().numel() == degree
+        assert bool(mask[row, selected].all())
+        assert torch.equal(
+            indices[row, degree:],
+            torch.full_like(indices[row, degree:], -1),
+        )
+    assert bool((first.source_outdegrees() > 0).all())
+    counts = first.connectivity_resource_counts()
+    assert counts["candidate_slots"] == int(mask.sum())
+    assert counts["active_synapses"] == int(degrees.sum())
+    assert counts["mask_source"] == "configured_mask_seeded_balanced_indices"
+
+    x = torch.arange(10, dtype=torch.float32).reshape(2, 5)
+    output = first(x)
+    expected = torch.zeros(2, 7)
+    for row, degree in enumerate(degrees.tolist()):
+        if degree:
+            expected[:, row] = 0.8 * x[:, indices[row, :degree]].mean(dim=-1)
+    torch.testing.assert_close(output, expected, rtol=1e-6, atol=1e-7)
+
+
+def test_degree_grouped_indexed_hard_mask_validation_is_fail_closed() -> None:
+    with pytest.raises(ValueError, match="shape"):
+        DegreeGroupedIndexedLinear(
+            3,
+            2,
+            [1, 1],
+            seed=1,
+            connection_mask=torch.ones(2, 2, dtype=torch.bool),
+        )
+    with pytest.raises(ValueError, match="requested degree"):
+        DegreeGroupedIndexedLinear(
+            3,
+            2,
+            [2, 1],
+            seed=1,
+            connection_mask=torch.tensor([[1, 0, 0], [0, 1, 0]]),
+        )
+    with pytest.raises(ValueError, match="excludes sources"):
+        DegreeGroupedIndexedLinear(
+            3,
+            3,
+            [1, 1, 1],
+            seed=1,
+            connection_mask=torch.tensor(
+                [[1, 1, 0], [1, 1, 0], [1, 1, 0]], dtype=torch.bool
+            ),
             require_source_coverage=True,
         )
 
@@ -210,6 +326,145 @@ def test_paper_control_exact_state_tau_owner_and_contact_ledger(
     ) == (6784, 5056, 2528, 768)
     assert ledger["excitatory_readout_mode"] == "positive_linear"
     assert ledger["excitatory_readout_bounded"] is False
+
+
+def test_unrestricted_default_fixed_support_is_bitwise_unchanged(
+    paper_control: HeterogeneousLeakCTRNN,
+) -> None:
+    expected = {
+        "input_drive": "829ca9334039f5d766b05fe19e7c879f36a19d4a544b30fc27667559347e18b0",
+        "recurrent_excitation": "1fb6b752fc14d6733b8e13f824b795ce2a20245e8a97f3e9954e2baec6590f97",
+        "recurrent_inhibition": "f6e147c7bf59f4f911a9ce8c11206d02a39bf0ce71f40270d3bc9afc323a4aac",
+    }
+    for name, expected_sha256 in expected.items():
+        indices = (
+            getattr(paper_control, name)
+            .connection_indices_padded()
+            .cpu()
+            .contiguous()
+            .numpy()
+            .tobytes()
+        )
+        assert hashlib.sha256(indices).hexdigest() == expected_sha256
+    ledger = paper_control.resource_ledger()
+    assert ledger["input_projection_mode"] == "mlp"
+    assert ledger["input_routing_method"] == "unrestricted"
+    assert ledger["input_routing_hard"] is False
+    assert ledger["input_routing_candidate_slots"] == 2800 * 64
+    assert ledger["input_source_ranges_by_tau"] is None
+
+
+def test_structured_point_exact_state_tau_contact_and_routing_ledger(
+    structured_point_control: HeterogeneousLeakCTRNN,
+) -> None:
+    model = structured_point_control
+    assert isinstance(model.input_projection, torch.nn.Identity)
+    assert model.init_state(1, torch.device("cpu")).voltage.shape == (1, 2800)
+    assert model.init_state(1, torch.device("cpu")).outputs.shape == (1, 80)
+    assert Counter(model.taus.tolist()) == Counter({125.0: 1728, 25.0: 768, 5.0: 304})
+
+    input_indices = model.input_drive.connection_indices_padded()
+    assert input_indices.shape == (2800, 1)
+    allowed_by_tau = ({2, 3}, {0, 1, 4}, {0, 1, 4})
+    for tau_index, allowed in enumerate(allowed_by_tau):
+        rows = model.tau_indices == tau_index
+        selected = input_indices[rows, 0]
+        assert set(selected.tolist()).issubset(allowed)
+        assert set(selected.tolist()) == allowed
+    eligibility_classes = (
+        (model.tau_indices == 0, {2, 3}),
+        (model.tau_indices != 0, {0, 1, 4}),
+    )
+    for rows, allowed in eligibility_classes:
+        selected = input_indices[rows, 0]
+        per_source = torch.bincount(selected, minlength=5)[sorted(allowed)]
+        assert int(per_source.max() - per_source.min()) <= 1
+    assert bool((model.input_drive.source_outdegrees() > 0).all())
+
+    summary = model_resource_summary(model)
+    assert summary["total_parameters"] == 9120
+    assert summary["synapse_candidate_parameters"] == 6320
+    assert summary["non_synaptic_parameters"] == 2800
+    assert summary["candidate_synapse_slots"] == 232912
+    assert summary["active_synapses"] == 6320
+    assert summary["persistent_state_scalars_per_sample"] == 2880
+    assert [record["active_synapses"] for record in summary["synapses"]] == [
+        2800,
+        2800,
+        656,
+        64,
+    ]
+    ledger = summary["mechanism_ledger"]
+    assert ledger["reachable_carried_state_scalars_per_sample"] == 2880
+    assert ledger["tau_counts"] == {"125.0": 1728, "25.0": 768, "5.0": 304}
+    assert ledger["active_learned_contacts"] == 6320
+    assert ledger["input_projection_mode"] == "identity"
+    assert ledger["projected_input_dim"] == 5
+    assert ledger["input_routing_method"] == "tau_feature_blocks"
+    assert ledger["input_routing_hard"] is True
+    assert ledger["input_routing_require_source_coverage"] is True
+    assert ledger["input_routing_candidate_slots"] == 6672
+    assert ledger["input_source_ranges_by_tau"] == {
+        "125.0": [[2, 4]],
+        "25.0": [[0, 2], [4, 5]],
+        "5.0": [[0, 2], [4, 5]],
+    }
+
+
+def test_structured_point_forbidden_raw_features_have_zero_direct_derivative(
+    structured_point_control: HeterogeneousLeakCTRNN,
+) -> None:
+    model = structured_point_control
+    state = model.init_state(1, torch.device("cpu"))
+    x = torch.tensor([[0.2, 0.3, 0.4, 0.5, 0.6]], requires_grad=True)
+
+    def next_voltage(raw_input: torch.Tensor) -> torch.Tensor:
+        return model.step(raw_input, state)[1].voltage
+
+    jacobian = torch.autograd.functional.jacobian(next_voltage, x)[0, :, 0, :]
+    assert bool((jacobian.abs().sum(dim=1) > 0).all())
+    allowed_by_tau = ({2, 3}, {0, 1, 4}, {0, 1, 4})
+    for tau_index, allowed in enumerate(allowed_by_tau):
+        rows = model.tau_indices == tau_index
+        forbidden = sorted(set(range(5)) - allowed)
+        assert torch.count_nonzero(jacobian[rows][:, forbidden]) == 0
+
+    def next_outputs(raw_input: torch.Tensor) -> torch.Tensor:
+        return model.step(raw_input, state)[1].outputs
+
+    output_jacobian = torch.autograd.functional.jacobian(next_outputs, x)[0, :, 0, :]
+    assert bool((output_jacobian.abs().sum(dim=1) > 0).all())
+
+
+def test_structured_and_unrestricted_point_keep_state_recurrence_and_readout_fixed(
+    structured_point_control: HeterogeneousLeakCTRNN,
+) -> None:
+    structured = structured_point_control
+    unrestricted = HeterogeneousLeakCTRNN(_structured_point_config(input_routing=None))
+    for name in ("taus", "tau_indices", "owner_polarity", "owner_indices"):
+        assert torch.equal(getattr(structured, name), getattr(unrestricted, name))
+    for name in ("recurrent_excitation", "recurrent_inhibition"):
+        assert torch.equal(
+            getattr(structured, name).connection_indices_padded(),
+            getattr(unrestricted, name).connection_indices_padded(),
+        )
+    assert torch.equal(
+        structured.exc_readout.connection_indices,
+        unrestricted.exc_readout.connection_indices,
+    )
+    assert not torch.equal(
+        structured.input_drive.connection_indices_padded(),
+        unrestricted.input_drive.connection_indices_padded(),
+    )
+    structured_parameters = dict(structured.named_parameters())
+    unrestricted_parameters = dict(unrestricted.named_parameters())
+    assert structured_parameters.keys() == unrestricted_parameters.keys()
+    for name, parameter in structured_parameters.items():
+        assert torch.equal(parameter, unrestricted_parameters[name]), name
+    for model in (structured, unrestricted):
+        ledger = model.resource_ledger()
+        assert ledger["reachable_carried_state_scalars_per_sample"] == 2880
+        assert ledger["active_learned_contacts"] == 6320
 
 
 def test_small_control_manual_step_reconstructs_true_equation() -> None:
@@ -515,6 +770,52 @@ def test_standard_yaml_config_preserves_and_builds_ctrnn_payload(tmp_path) -> No
     assert regressor.core_network.output_dim == 2
 
 
+def test_standard_yaml_builds_identity_tau_routed_ctrnn(tmp_path) -> None:
+    config_path = tmp_path / "structured_point_ctrnn.yaml"
+    ctrnn_payload = asdict(_structured_point_config())
+    routing = ctrnn_payload["input_routing"]
+    assert routing is not None
+    routing["ranges_by_tau"] = [
+        [[int(start), int(stop)] for start, stop in tau_ranges]
+        for tau_ranges in routing["ranges_by_tau"]
+    ]
+    payload = {
+        "data": {"dataset_name": "mnist"},
+        "model": {
+            "task": "regression",
+            "encoder": {
+                "type": "identity",
+                "params": {"input_dim": 5, "input_shape": None},
+            },
+            "core": {
+                "type": "heterogeneous_leak_ctrnn",
+                "heterogeneous_leak_ctrnn": ctrnn_payload,
+            },
+            "decoder": {
+                "type": "MLP",
+                "params": {
+                    "hidden_dims": [],
+                    "activation": "relu",
+                    "output_dim": 1,
+                },
+            },
+        },
+        "training": {"main": {"common": {"epochs": 1}}},
+    }
+    config_path.write_text(yaml.safe_dump(payload), encoding="utf-8")
+    load_config.cache_clear()
+    config = load_config(str(config_path))
+    regressor, _ = initialize_model(config.model)
+
+    core = regressor.core_network
+    assert isinstance(core, HeterogeneousLeakCTRNN)
+    assert isinstance(core.input_projection, torch.nn.Identity)
+    assert core.config.input_projection_dims == []
+    assert core.config.input_routing is not None
+    assert core.config.input_routing.method == "tau_feature_blocks"
+    assert core.resource_ledger()["active_learned_contacts"] == 6320
+
+
 def test_true_carried_state_codec_and_matrix_free_jvp_vjp() -> None:
     model = HeterogeneousLeakCTRNN(_small_config())
     input_t = torch.tensor([[0.3, 0.7]])
@@ -545,6 +846,36 @@ def test_true_carried_state_codec_and_matrix_free_jvp_vjp() -> None:
     torch.testing.assert_close(torch.dot(cotangent, jvp), torch.dot(vjp, direction))
 
 
+def test_flat_point_voltage_transition_has_no_serial_cross_channel_jacobian() -> None:
+    model = HeterogeneousLeakCTRNN(
+        _small_config(
+            input_projection_dims=[],
+            input_contacts=12,
+            input_routing={
+                "method": "tau_feature_blocks",
+                "ranges_by_tau": [[[0, 1]], [[1, 2]]],
+                "require_source_coverage": True,
+            },
+        )
+    )
+    state = model.init_state(1, torch.device("cpu"))
+    state.voltage.copy_(torch.linspace(-0.2, 0.3, 12).reshape(1, 12))
+    state.outputs.copy_(torch.linspace(0.1, 0.4, 3).reshape(1, 3))
+    x = torch.tensor([[0.25, 0.75]])
+
+    def voltage_transition(voltage: torch.Tensor) -> torch.Tensor:
+        replaced = HeterogeneousLeakCTRNNState(voltage=voltage, outputs=state.outputs)
+        return model.step(x, replaced)[1].voltage
+
+    jacobian = torch.autograd.functional.jacobian(
+        voltage_transition,
+        state.voltage,
+    )[0, :, 0, :]
+    expected = torch.diag(model.decays)
+    torch.testing.assert_close(jacobian, expected)
+    assert torch.count_nonzero(jacobian - torch.diag(torch.diagonal(jacobian))) == 0
+
+
 def test_config_validation_rejects_inexact_or_unreachable_controls() -> None:
     with pytest.raises(ValueError, match="positive values"):
         _small_config(tau_values=[9.0, 0.0])
@@ -568,6 +899,59 @@ def test_config_validation_rejects_inexact_or_unreachable_controls() -> None:
         _small_config(excitatory_readout_mode="normalized")
     with pytest.raises(ValueError, match=r"readout_scale must equal 1\.0"):
         _small_config(excitatory_readout_mode="convex", readout_scale=0.5)
+    with pytest.raises(ValueError, match=r"requires input_projection_dims=\[\]"):
+        _small_config(
+            input_routing={
+                "method": "tau_feature_blocks",
+                "ranges_by_tau": [[[0, 1]], [[1, 2]]],
+            }
+        )
+    with pytest.raises(ValueError, match="one entry per tau_values"):
+        _small_config(
+            input_projection_dims=[],
+            input_routing={
+                "method": "tau_feature_blocks",
+                "ranges_by_tau": [[[0, 2]]],
+            },
+        )
+    with pytest.raises(ValueError, match="must satisfy"):
+        _small_config(
+            input_projection_dims=[],
+            input_routing={
+                "method": "tau_feature_blocks",
+                "ranges_by_tau": [[[0, 3]], [[1, 4]]],
+            },
+        )
+    with pytest.raises(ValueError, match="must not overlap"):
+        _small_config(
+            input_projection_dims=[],
+            input_routing={
+                "method": "tau_feature_blocks",
+                "ranges_by_tau": [
+                    [[0, 2], [1, 2]],
+                    [[0, 2]],
+                ],
+            },
+        )
+    with pytest.raises(ValueError, match="excludes raw features"):
+        _small_config(
+            input_projection_dims=[],
+            input_contacts=12,
+            input_routing={
+                "method": "tau_feature_blocks",
+                "ranges_by_tau": [[[0, 1]], [[0, 1]]],
+            },
+        )
+    with pytest.raises(ValueError, match="maximum input row degree"):
+        _small_config(
+            input_projection_dims=[],
+            input_contacts=24,
+            input_routing={
+                "method": "tau_feature_blocks",
+                "ranges_by_tau": [[[0, 1]], [[0, 2]]],
+                "require_source_coverage": True,
+            },
+        )
 
 
 @pytest.mark.parametrize(

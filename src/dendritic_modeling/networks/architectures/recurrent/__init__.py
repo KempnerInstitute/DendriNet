@@ -36,6 +36,7 @@ from dendritic_modeling.networks.architectures.recurrent.heterogeneous_leak_ctrn
     HeterogeneousLeakCTRNN,
     HeterogeneousLeakCTRNNConfig,
     HeterogeneousLeakCTRNNState,
+    TauFeatureInputRoutingConfig,
     TauOwnerPatternConfig,
 )
 from dendritic_modeling.networks.architectures.recurrent.legendre_memory import (
@@ -105,6 +106,7 @@ __all__ = [
     "SynapseTypeConfig",
     "SynapseTypeGroup",
     "SynapseTypeSet",
+    "TauFeatureInputRoutingConfig",
     "TauOwnerPatternConfig",
     "build_synapse_type_set",
     "compute_input_branch_factors",

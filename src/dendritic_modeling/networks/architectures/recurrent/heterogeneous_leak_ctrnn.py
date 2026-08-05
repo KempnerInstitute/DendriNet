@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from numbers import Real
+from numbers import Integral, Real
 from typing import Any
 
 import torch
@@ -50,6 +50,47 @@ class TauOwnerPatternConfig:
             raise ValueError("tau_counts must contain non-negative integers")
 
 
+@dataclass
+class TauFeatureInputRoutingConfig:
+    """Hard raw-input feature ranges assigned to each configured tau bank."""
+
+    ranges_by_tau: list[list[tuple[int, int] | list[int]]]
+    method: str = "tau_feature_blocks"
+    require_source_coverage: bool = True
+
+    def __post_init__(self) -> None:
+        if self.method != "tau_feature_blocks":
+            raise ValueError("input_routing method must be 'tau_feature_blocks'")
+        if not isinstance(self.require_source_coverage, bool):
+            raise TypeError("input_routing require_source_coverage must be boolean")
+        if not isinstance(self.ranges_by_tau, (list, tuple)):
+            raise TypeError("input_routing ranges_by_tau must be a sequence")
+
+        normalized: list[list[tuple[int, int]]] = []
+        for tau_ranges in self.ranges_by_tau:
+            if not isinstance(tau_ranges, (list, tuple)) or not tau_ranges:
+                raise ValueError(
+                    "every input_routing ranges_by_tau entry must be nonempty"
+                )
+            normalized_tau_ranges = []
+            for bounds in tau_ranges:
+                if not isinstance(bounds, (list, tuple)) or len(bounds) != 2:
+                    raise ValueError(
+                        "input_routing feature ranges must be [start, stop] pairs"
+                    )
+                start, stop = bounds
+                if any(
+                    isinstance(value, bool) or not isinstance(value, Integral)
+                    for value in (start, stop)
+                ):
+                    raise TypeError(
+                        "input_routing feature-range bounds must be integers"
+                    )
+                normalized_tau_ranges.append((int(start), int(stop)))
+            normalized.append(normalized_tau_ranges)
+        self.ranges_by_tau = normalized
+
+
 def _paper_tau_owner_patterns() -> list[TauOwnerPatternConfig]:
     return [
         TauOwnerPatternConfig(
@@ -78,6 +119,7 @@ class HeterogeneousLeakCTRNNConfig:
     owner_tau_patterns: list[TauOwnerPatternConfig | dict[str, Any]] = field(
         default_factory=_paper_tau_owner_patterns
     )
+    input_routing: TauFeatureInputRoutingConfig | dict[str, Any] | None = None
     dt: float = 1.0
     input_contacts: int = 6784
     recurrent_excitatory_contacts: int = 5056
@@ -108,6 +150,14 @@ class HeterogeneousLeakCTRNNConfig:
             )
             for pattern in self.owner_tau_patterns
         ]
+        if isinstance(self.input_routing, dict):
+            self.input_routing = TauFeatureInputRoutingConfig(**self.input_routing)
+        elif self.input_routing is not None and not isinstance(
+            self.input_routing, TauFeatureInputRoutingConfig
+        ):
+            raise TypeError(
+                "input_routing must be a TauFeatureInputRoutingConfig, mapping, or None"
+            )
         integer_fields = (
             "input_dim",
             "n_excitatory_outputs",
@@ -127,11 +177,13 @@ class HeterogeneousLeakCTRNNConfig:
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, int) or value < 0:
                 raise ValueError(f"{name} must be a non-negative integer")
-        if not self.input_projection_dims or any(
+        if any(
             isinstance(value, bool) or not isinstance(value, int) or value < 1
             for value in self.input_projection_dims
         ):
-            raise ValueError("input_projection_dims must contain positive integers")
+            raise ValueError(
+                "input_projection_dims must be empty or contain positive integers"
+            )
         if not self.tau_values:
             raise ValueError("tau_values must contain positive values that are finite")
         resolved_tau_values: list[float] = []
@@ -199,7 +251,9 @@ class HeterogeneousLeakCTRNNConfig:
                     "every owner tau pattern must sum to channels_per_output"
                 )
 
-        projected_dim = self.input_projection_dims[-1]
+        self._validate_input_routing()
+
+        projected_dim = self.projected_input_dim
         self._validate_contact_budget(
             "input_contacts",
             self.input_contacts,
@@ -240,6 +294,56 @@ class HeterogeneousLeakCTRNNConfig:
     @property
     def hidden_dim(self) -> int:
         return self.n_outputs * self.channels_per_output
+
+    @property
+    def projected_input_dim(self) -> int:
+        if self.input_projection_dims:
+            return self.input_projection_dims[-1]
+        return self.input_dim
+
+    def _validate_input_routing(self) -> None:
+        routing = self.input_routing
+        if routing is None:
+            return
+        if self.input_projection_dims:
+            raise ValueError(
+                "tau_feature_blocks input_routing requires input_projection_dims=[] "
+                "so hard routing applies to raw input features"
+            )
+        if len(routing.ranges_by_tau) != len(self.tau_values):
+            raise ValueError(
+                "input_routing ranges_by_tau must have one entry per tau_values entry"
+            )
+
+        maximum_row_degree = math.ceil(self.input_contacts / self.hidden_dim)
+        all_allowed = torch.zeros(self.input_dim, dtype=torch.bool)
+        for tau_index, tau_ranges in enumerate(routing.ranges_by_tau):
+            allowed = torch.zeros(self.input_dim, dtype=torch.bool)
+            for start, stop in tau_ranges:
+                if start < 0 or stop > self.input_dim or stop <= start:
+                    raise ValueError(
+                        "input_routing feature ranges must satisfy "
+                        "0 <= start < stop <= input_dim; "
+                        f"got [{start}, {stop}] for tau index {tau_index}"
+                    )
+                if bool(allowed[start:stop].any()):
+                    raise ValueError(
+                        "input_routing feature ranges must not overlap within a "
+                        f"tau entry; overlap at tau index {tau_index}"
+                    )
+                allowed[start:stop] = True
+            if int(allowed.sum().item()) < maximum_row_degree:
+                raise ValueError(
+                    "input_routing must allow at least the maximum input row "
+                    f"degree ({maximum_row_degree}) for tau index {tau_index}"
+                )
+            all_allowed |= allowed
+        if routing.require_source_coverage and not bool(all_allowed.all()):
+            missing = torch.nonzero(~all_allowed, as_tuple=False).flatten().tolist()
+            raise ValueError(
+                "input_routing excludes raw features required for source coverage: "
+                f"{missing}"
+            )
 
     def _validate_contact_budget(
         self,
@@ -358,7 +462,8 @@ class HeterogeneousLeakCTRNN(BaseNetwork):
 
         categories = owner_polarity[self.owner_indices] * len(config.tau_values)
         categories = categories + tau_indices
-        projection_dim = config.input_projection_dims[-1]
+        projection_dim = config.projected_input_dim
+        input_connection_mask = self._build_input_connection_mask()
         common_sparse = {
             "weight_transform": "exp",
             "output_chunk_size": config.indexed_output_chunk_size,
@@ -379,7 +484,12 @@ class HeterogeneousLeakCTRNN(BaseNetwork):
                     seed=_seed(config.topology_seed, "input_degrees"),
                 ),
                 seed=_seed(config.topology_seed, "input_support"),
-                require_source_coverage=True,
+                require_source_coverage=(
+                    True
+                    if config.input_routing is None
+                    else config.input_routing.require_source_coverage
+                ),
+                connection_mask=input_connection_mask,
                 row_sum_init=config.input_scale,
                 **common_sparse,
             )
@@ -426,7 +536,9 @@ class HeterogeneousLeakCTRNN(BaseNetwork):
     def current_taus(self) -> torch.Tensor:
         return self.taus
 
-    def _build_input_projection(self) -> nn.Sequential:
+    def _build_input_projection(self) -> nn.Module:
+        if not self.config.input_projection_dims:
+            return nn.Identity()
         layers: list[nn.Module] = []
         previous = self.config.input_dim
         with torch.random.fork_rng(devices=[]):
@@ -436,6 +548,22 @@ class HeterogeneousLeakCTRNN(BaseNetwork):
                 layers.append(nn.ReLU())
                 previous = width
         return nn.Sequential(*layers)
+
+    def _build_input_connection_mask(self) -> torch.Tensor | None:
+        routing = self.config.input_routing
+        if routing is None:
+            return None
+        mask = torch.zeros(
+            self.config.hidden_dim,
+            self.config.input_dim,
+            dtype=torch.bool,
+        )
+        for tau_index, tau_ranges in enumerate(routing.ranges_by_tau):
+            allowed = torch.zeros(self.config.input_dim, dtype=torch.bool)
+            for start, stop in tau_ranges:
+                allowed[start:stop] = True
+            mask[self.tau_indices == tau_index] = allowed
+        return mask
 
     def _build_state_layout(self) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         excitatory_patterns: list[TauOwnerPatternConfig] = []
@@ -792,6 +920,36 @@ class HeterogeneousLeakCTRNN(BaseNetwork):
             ),
             "tau_counts": tau_counts,
             "fixed_channel_to_owner_wires": self.config.hidden_dim,
+            "input_projection_mode": (
+                "mlp" if self.config.input_projection_dims else "identity"
+            ),
+            "projected_input_dim": self.config.projected_input_dim,
+            "input_routing_method": (
+                "unrestricted"
+                if self.config.input_routing is None
+                else self.config.input_routing.method
+            ),
+            "input_routing_hard": self.config.input_routing is not None,
+            "input_routing_require_source_coverage": (
+                True
+                if self.config.input_routing is None
+                else self.config.input_routing.require_source_coverage
+            ),
+            "input_routing_candidate_slots": int(
+                self.input_drive.connectivity_resource_counts()["candidate_slots"]
+            ),
+            "input_source_ranges_by_tau": (
+                None
+                if self.config.input_routing is None
+                else {
+                    str(float(tau)): [list(bounds) for bounds in ranges]
+                    for tau, ranges in zip(
+                        self.config.tau_values,
+                        self.config.input_routing.ranges_by_tau,
+                        strict=True,
+                    )
+                }
+            ),
             "input_contacts": self.config.input_contacts,
             "recurrent_excitatory_contacts": (
                 self.config.recurrent_excitatory_contacts
@@ -814,5 +972,6 @@ __all__ = [
     "HeterogeneousLeakCTRNN",
     "HeterogeneousLeakCTRNNConfig",
     "HeterogeneousLeakCTRNNState",
+    "TauFeatureInputRoutingConfig",
     "TauOwnerPatternConfig",
 ]
