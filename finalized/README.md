@@ -79,3 +79,13 @@ env: `DENDRINET_POSITIVE_TANH_SIGMOID=0`, `DENDRINET_POSITIVE_TANH_FUSED=0`,
 - `docs/rnn_scaling_benchmark.md` — the ledger: every number above with its method and caveats.
 - `docs/ff_gather_roofline.md` — the kernel investigation, including the failed hypotheses.
 - `docs/OPEN_WORK.md` — what is deliberately not done (A100 crossover retune, K≠40 sweep, 12L trainability, 1M steady state).
+
+## Closing result (2026-08-05)
+
+The engineering contract — *the machinery changes nothing about what training does* —
+was verified by a four-arm trajectory overlay on the real trainer, on both Blackwell
+and A100 (`harness/closeout_overlay.sh`): the loss-curve deviation induced by the full
+optimization stack, and separately by swapping the gather kernel (cuda↔fused), is
+smaller than or equal to the deviation between two identical unoptimized runs.
+The feedforward single-GPU engineering track is closed; exceptions and handoffs are
+listed in `docs/rnn_scaling_benchmark.md` under "CLOSED".

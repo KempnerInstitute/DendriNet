@@ -288,6 +288,37 @@ Three exits, in increasing effort:
 3. **Shard the idx buffer** — the real systems item; removes the 19 GB replication that
    dominates the floor.
 
+## CLOSED: feedforward, single-GPU, engineering track (2026-08-05)
+
+Closing evidence: four-arm trajectory overlay on the real trainer (5 epochs each,
+`closeout_overlay.sh`), on BOTH architectures, with the acceptance criterion fixed before
+running: optimization-induced deviation is judged against the eager-vs-eager control gap,
+not against zero. Every arm's gather path is a logged fact, not an inference.
+
+| max |Δloss| across all 10 points | Blackwell | A100-80GB |
+|---|---|---|
+| eager vs eager control (noise floor) | 1.19e-02 | 3.88e-03 |
+| reactivation stack ON vs eager | **2.75e-03** | **3.81e-03** |
+| fused gather kernel vs cuda kernel | **5.47e-03** | **2.29e-03** |
+
+On both cards the optimizations' effect on training is **smaller than or equal to the
+difference between two identical eager runs** — statistically invisible. Corroborating
+live speed: the cuda arm trained in 90 s vs the fused arm's 277 s (3.1×), on the same
+trainer, same epoch count.
+
+**Closed** = operators bit-identical/≤4e-7; 2.19× peak memory at the proven structural
+floor; batch 1024→4096; process peak = training step; save path fixed; equivalence at
+operator, half-precision, optimizer-trajectory, and now real-trainer-trajectory level,
+cross-architecture. Lab entry point: `finalized/`.
+
+**Excepted** (declared, not forgotten): A100 forward-variant crossover unmeasured (the
+picker degrades to a no-op there); gather picker swept at K=40 only; staged-forward P=4096
+unadopted (~1.5%).
+
+**Handed off**: raw-input learning / morphology co-design → research track (screen with
+`probe_signal_death.py`); multi-GPU + 1M steady state → scaling track (init fixed; boundary
+measured: replicated idx needs 80 GB cards, 8 ranks, or idx sharding).
+
 ## Open rows
 | scale | GPU | path | epoch (s) | peak (MB) | notes |
 |---|---|---|---|---|---|
