@@ -2,9 +2,11 @@
 
 from dendritic_modeling.datasets.sequence.bayesian_timing import (
     BayesianReadySetGoDataset,
+    FactualBayesianReadySetGoDataset,
     default_observed_interval_bounds,
     discrete_bayesian_interval_posterior,
     discrete_weber_likelihood,
+    finite_gaussian_motor_kernel,
 )
 from dendritic_modeling.datasets.sequence.decision_tasks import (
     ContextDependentDecisionDataset,
@@ -51,6 +53,7 @@ __all__ = [
     "ContextDependentDecisionDataset",
     "ContextualReadySetGoDataset",
     "CopyTaskDataset",
+    "FactualBayesianReadySetGoDataset",
     "GainModulatedContextualComparisonDataset",
     "HierarchicalTemporalDataset",
     "LorenzSequenceDataset",
@@ -70,6 +73,7 @@ __all__ = [
     "default_observed_interval_bounds",
     "discrete_bayesian_interval_posterior",
     "discrete_weber_likelihood",
+    "finite_gaussian_motor_kernel",
     "get_registered_sequence_dataset_names",
     "get_sequence_dataset_builder",
     "get_sequence_datasets",

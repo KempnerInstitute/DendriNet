@@ -18,6 +18,8 @@ _SEQUENCE_DATASET_NAMES = (
     "hierarchical_temporal",
     "bayesian_ready_set_go",
     "bayesian_ready_set_go_positive",
+    "factual_bayesian_ready_set_go",
+    "factual_bayesian_ready_set_go_positive",
     "ready_set_go",
     "ready_set_go_positive",
     "contextual_ready_set_go",

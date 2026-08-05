@@ -124,6 +124,38 @@ def default_observed_interval_bounds(
     return max(int(minimum_interval), math.floor(lower)), math.ceil(upper)
 
 
+def finite_gaussian_motor_kernel(
+    *,
+    sigma: float,
+    tail_sigma: float = 4.0,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Return a finite normalized Gaussian kernel over integer motor offsets.
+
+    ``tail_sigma`` declares the symmetric truncation radius in units of
+    ``sigma``.  The realized integer radius is ``ceil(sigma * tail_sigma)``.
+    A zero-width kernel is the exact deterministic outcome at offset zero.
+    Returned offsets use ``torch.long`` and probabilities use ``float64``.
+    """
+
+    motor_sigma = _finite_nonnegative(sigma, name="sigma")
+    if (
+        isinstance(tail_sigma, bool)
+        or not isinstance(tail_sigma, Real)
+        or not math.isfinite(float(tail_sigma))
+        or float(tail_sigma) <= 0.0
+    ):
+        raise ValueError("tail_sigma must be finite and positive")
+    radius = math.ceil(motor_sigma * float(tail_sigma)) if motor_sigma > 0.0 else 0
+    offsets = torch.arange(-radius, radius + 1, dtype=torch.long)
+    if motor_sigma == 0.0:
+        probabilities = torch.ones(1, dtype=torch.float64)
+    else:
+        offsets_float = offsets.to(torch.float64)
+        mass = torch.exp(-0.5 * (offsets_float / motor_sigma).square())
+        probabilities = mass / mass.sum()
+    return offsets, probabilities
+
+
 def discrete_weber_likelihood(
     latent_intervals: Sequence[int] | torch.Tensor,
     observed_intervals: Sequence[int] | torch.Tensor,
@@ -756,9 +788,488 @@ class BayesianReadySetGoDataset(Dataset):
         return self.inputs[index], self.targets[index]
 
 
+class FactualBayesianReadySetGoDataset(Dataset):
+    """Factual-outcome Bayesian Ready--Set--Go trials with hard Go targets.
+
+    Each independent trial first samples a balanced context ``c``, then a
+    latent interval ``theta`` from ``p(theta | c)`` and a noisy measurement
+    ``o`` from :func:`discrete_weber_likelihood`.  Set time is sampled
+    independently of those variables and Ready is placed at ``Set - o``.
+    Finally, one integer production interval is sampled from a declared,
+    finite Gaussian motor kernel centered on the rounded value of
+    ``production_scale * theta``.  The target is the resulting integer Go
+    step, directly consumable by ``temporal_event_ce``.
+
+    This dataset intentionally contains only factual, unpaired observations.
+    It neither computes analytical posteriors nor creates cue-swapped
+    counterfactuals.  The generative supports, kernels, and sampled latent
+    variables remain public attributes so a run can be audited without
+    changing its training target.
+    """
+
+    lineage_name = "factual_bayesian_ready_set_go_v1"
+
+    def __init__(
+        self,
+        n_samples: int = 10000,
+        prior_supports: tuple[tuple[int, ...], tuple[int, ...]] = (
+            (24, 28, 32, 36, 40),
+            (40, 45, 50, 55, 60),
+        ),
+        prior_probabilities: tuple[tuple[float, ...], tuple[float, ...]] | None = None,
+        weber_fraction: float = 0.12,
+        measurement_noise_floor: float = 0.0,
+        observed_interval_min: int | None = None,
+        observed_interval_max: int | None = None,
+        likelihood_tail_sigma: float = 4.0,
+        production_scale: float = 1.0,
+        motor_sigma: float = 2.0,
+        motor_tail_sigma: float = 4.0,
+        motor_seed: int | None = None,
+        set_step_values: tuple[int, ...] | None = None,
+        set_min_step: int | None = None,
+        set_max_step: int | None = None,
+        pulse_duration: int = 2,
+        context_start_step: int = 0,
+        context_duration: int = 10,
+        context_gain: float = 1.0,
+        post_go_duration: int = 0,
+        sequence_duration: int | None = None,
+        cue_gain_min: float = 0.7,
+        cue_gain_max: float = 1.3,
+        input_noise_std: float = 0.05,
+        mean_distractors_per_trial: float = 1.0,
+        distractor_amplitude: float = 1.0,
+        distractor_pulse_duration: int = 2,
+        positive_input_encoding: bool = True,
+        seed: int = 0,
+    ) -> None:
+        super().__init__()
+        if (
+            isinstance(n_samples, bool)
+            or not isinstance(n_samples, Integral)
+            or n_samples <= 0
+        ):
+            raise ValueError("n_samples must be a positive integer")
+
+        supports = tuple(
+            _positive_integer_tuple(support, name="prior support")
+            for support in prior_supports
+        )
+        if len(supports) != 2:
+            raise ValueError("prior_supports must describe exactly two priors")
+        supports = (supports[0], supports[1])
+        probabilities = _validated_prior_probabilities(supports, prior_probabilities)
+        union_support = tuple(sorted(set(supports[0]).union(supports[1])))
+
+        weber = _finite_nonnegative(weber_fraction, name="weber_fraction")
+        noise_floor = _finite_nonnegative(
+            measurement_noise_floor, name="measurement_noise_floor"
+        )
+        if (
+            isinstance(likelihood_tail_sigma, bool)
+            or not isinstance(likelihood_tail_sigma, Real)
+            or not math.isfinite(float(likelihood_tail_sigma))
+            or float(likelihood_tail_sigma) <= 0.0
+        ):
+            raise ValueError("likelihood_tail_sigma must be finite and positive")
+        motor_offsets, motor_probabilities = finite_gaussian_motor_kernel(
+            sigma=motor_sigma,
+            tail_sigma=motor_tail_sigma,
+        )
+        motor_noise = float(motor_sigma)
+
+        integer_options = {
+            "pulse_duration": pulse_duration,
+            "context_start_step": context_start_step,
+            "context_duration": context_duration,
+            "post_go_duration": post_go_duration,
+            "distractor_pulse_duration": distractor_pulse_duration,
+            "seed": seed,
+        }
+        if any(
+            isinstance(value, bool) or not isinstance(value, Integral)
+            for value in integer_options.values()
+        ):
+            raise TypeError("step, duration, and seed options must be integers")
+        if motor_seed is not None and (
+            isinstance(motor_seed, bool) or not isinstance(motor_seed, Integral)
+        ):
+            raise TypeError("motor_seed must be an integer or None")
+        if pulse_duration <= 0 or context_duration <= 0:
+            raise ValueError("cue and context durations must be positive")
+        if context_start_step < 0:
+            raise ValueError("context_start_step must be non-negative")
+        if post_go_duration < 0:
+            raise ValueError("post_go_duration must be non-negative")
+        if distractor_pulse_duration <= 0:
+            raise ValueError("distractor_pulse_duration must be positive")
+
+        derived_min, derived_max = default_observed_interval_bounds(
+            supports,
+            weber_fraction=weber,
+            measurement_noise_floor=noise_floor,
+            likelihood_tail_sigma=float(likelihood_tail_sigma),
+            minimum_interval=pulse_duration,
+        )
+        if observed_interval_min is None:
+            observed_interval_min = derived_min
+        if observed_interval_max is None:
+            observed_interval_max = derived_max
+        if any(
+            isinstance(value, bool) or not isinstance(value, Integral)
+            for value in (observed_interval_min, observed_interval_max)
+        ):
+            raise TypeError("observed interval bounds must be integers or None")
+        if observed_interval_min < pulse_duration:
+            raise ValueError(
+                "observed_interval_min must prevent Ready/Set pulse overlap"
+            )
+        if observed_interval_max < observed_interval_min:
+            raise ValueError("observed interval bounds must be ordered")
+        observed_values = tuple(
+            range(int(observed_interval_min), int(observed_interval_max) + 1)
+        )
+
+        if (
+            isinstance(production_scale, bool)
+            or not isinstance(production_scale, Real)
+            or not math.isfinite(float(production_scale))
+            or float(production_scale) <= 0.0
+        ):
+            raise ValueError("production_scale must be finite and positive")
+        production_centers = tuple(
+            round(float(production_scale) * interval) for interval in union_support
+        )
+        motor_radius = int(motor_offsets.abs().max())
+        minimum_production = min(production_centers) - motor_radius
+        maximum_production = max(production_centers) + motor_radius
+        if minimum_production < pulse_duration:
+            raise ValueError("the finite motor kernel must not overlap the Set pulse")
+        production_values = tuple(range(minimum_production, maximum_production + 1))
+
+        if not math.isfinite(context_gain) or context_gain <= 0.0:
+            raise ValueError("context_gain must be finite and positive")
+        if (
+            not math.isfinite(cue_gain_min)
+            or not math.isfinite(cue_gain_max)
+            or cue_gain_min <= 0.0
+            or cue_gain_max < cue_gain_min
+        ):
+            raise ValueError("cue gain bounds must be positive and ordered")
+        input_noise = _finite_nonnegative(input_noise_std, name="input_noise_std")
+        distractor_rate = _finite_nonnegative(
+            mean_distractors_per_trial, name="mean_distractors_per_trial"
+        )
+        distractor_gain = _finite_nonnegative(
+            distractor_amplitude, name="distractor_amplitude"
+        )
+
+        if set_step_values is not None:
+            if set_min_step is not None or set_max_step is not None:
+                raise ValueError(
+                    "set_step_values is mutually exclusive with Set-time bounds"
+                )
+            set_values = _positive_integer_tuple(
+                set_step_values, name="set_step_values"
+            )
+            set_sampling = "balanced_explicit_grid"
+        else:
+            if set_min_step is None:
+                set_min_step = (
+                    int(observed_interval_max)
+                    + context_start_step
+                    + context_duration
+                    + 10
+                )
+            if set_max_step is None:
+                translation_span = max(
+                    40, int(observed_interval_max) - int(observed_interval_min)
+                )
+                set_max_step = int(set_min_step) + translation_span
+            if any(
+                isinstance(value, bool) or not isinstance(value, Integral)
+                for value in (set_min_step, set_max_step)
+            ):
+                raise TypeError(
+                    "set_min_step and set_max_step must be integers or None"
+                )
+            if set_max_step < set_min_step:
+                raise ValueError("Set-time bounds must be ordered")
+            set_values = tuple(range(int(set_min_step), int(set_max_step) + 1))
+            set_sampling = "balanced_integer_range_grid"
+        set_min_step = min(set_values)
+        set_max_step = max(set_values)
+        earliest_ready = set_min_step - int(observed_interval_max)
+        if context_start_step + context_duration > earliest_ready:
+            raise ValueError(
+                "prior context must end no later than the earliest possible Ready pulse"
+            )
+
+        required_duration = (
+            int(set_max_step) + maximum_production + post_go_duration + 1
+        )
+        if sequence_duration is None:
+            sequence_duration = required_duration
+        if isinstance(sequence_duration, bool) or not isinstance(
+            sequence_duration, Integral
+        ):
+            raise TypeError("sequence_duration must be an integer or None")
+        if sequence_duration < required_duration:
+            raise ValueError(
+                "sequence_duration is too short for the complete factual outcome: "
+                f"need at least {required_duration}, got {sequence_duration}"
+            )
+        if distractor_pulse_duration > sequence_duration:
+            raise ValueError("distractor pulse cannot exceed sequence duration")
+
+        self.n_samples = int(n_samples)
+        self.seed = int(seed)
+        self.motor_seed_was_derived = motor_seed is None
+        self.motor_seed = (
+            (self.seed * 6364136223846793005 + 1442695040888963407) % (2**63 - 1)
+            if motor_seed is None
+            else int(motor_seed)
+        )
+        if self.motor_seed == self.seed:
+            raise ValueError("motor_seed must differ from the trial-data seed")
+        self.input_dim = 5
+        self.is_factual_only = True
+        self.is_counterfactual_paired = False
+        self.target_kind = "hard_integer_go_step"
+        self.context_sampling = "balanced_binary"
+        self.latent_sampling = "largest_remainder_stratified_conditional_prior"
+        self.set_sampling = set_sampling
+        self.prior_supports = supports
+        self.prior_support_probabilities = probabilities
+        self.latent_interval_values = torch.tensor(union_support, dtype=torch.long)
+        self.observed_interval_values = torch.tensor(observed_values, dtype=torch.long)
+        self.production_interval_values = torch.tensor(
+            production_values, dtype=torch.long
+        )
+        self.production_centers = torch.tensor(production_centers, dtype=torch.long)
+        self.motor_offset_values = motor_offsets
+        self.weber_fraction = weber
+        self.measurement_noise_floor = noise_floor
+        self.likelihood_tail_sigma = float(likelihood_tail_sigma)
+        self.production_scale = float(production_scale)
+        self.motor_sigma = motor_noise
+        self.motor_tail_sigma = float(motor_tail_sigma)
+        self.motor_radius = int(motor_radius)
+        self.set_step_values = torch.tensor(set_values, dtype=torch.long)
+        self.set_min_step = int(set_min_step)
+        self.set_max_step = int(set_max_step)
+        self.pulse_duration = int(pulse_duration)
+        self.context_start_step = int(context_start_step)
+        self.context_duration = int(context_duration)
+        self.context_gain = float(context_gain)
+        self.post_go_duration = int(post_go_duration)
+        self.sequence_duration = int(sequence_duration)
+        self.cue_gain_min = float(cue_gain_min)
+        self.cue_gain_max = float(cue_gain_max)
+        self.input_noise_std = input_noise
+        self.mean_distractors_per_trial = distractor_rate
+        self.distractor_amplitude = distractor_gain
+        self.distractor_pulse_duration = int(distractor_pulse_duration)
+        self.positive_input_encoding = bool(positive_input_encoding)
+
+        support_lookup = {value: index for index, value in enumerate(union_support)}
+        prior_matrix = torch.zeros(2, len(union_support), dtype=torch.float64)
+        for context_index, (support, prior_values) in enumerate(
+            zip(supports, probabilities, strict=True)
+        ):
+            for interval, probability in zip(support, prior_values, strict=True):
+                prior_matrix[context_index, support_lookup[interval]] = probability
+        self.prior_probabilities = prior_matrix
+        self.prior_support_mask = prior_matrix > 0.0
+        self.measurement_likelihood = discrete_weber_likelihood(
+            self.latent_interval_values,
+            self.observed_interval_values,
+            weber_fraction=self.weber_fraction,
+            measurement_noise_floor=self.measurement_noise_floor,
+        )
+
+        self.motor_kernel_probabilities = motor_probabilities
+        self.motor_kernel = torch.zeros(
+            len(union_support), len(production_values), dtype=torch.float64
+        )
+        for latent_index, center in enumerate(production_centers):
+            first_index = center - motor_radius - minimum_production
+            last_index = first_index + len(self.motor_offset_values)
+            self.motor_kernel[latent_index, first_index:last_index] = (
+                self.motor_kernel_probabilities
+            )
+
+        self.inputs = torch.zeros(
+            self.n_samples, self.sequence_duration, self.input_dim
+        )
+        self.targets = torch.zeros(self.n_samples, dtype=torch.long)
+        self.context_indices = torch.zeros(self.n_samples, dtype=torch.long)
+        self.latent_support_indices = torch.zeros(self.n_samples, dtype=torch.long)
+        self.latent_interval_indices = torch.zeros(self.n_samples, dtype=torch.long)
+        self.latent_intervals = torch.zeros(self.n_samples, dtype=torch.long)
+        self.observed_interval_indices = torch.zeros(self.n_samples, dtype=torch.long)
+        self.observed_intervals = torch.zeros(self.n_samples, dtype=torch.long)
+        self.ready_steps = torch.zeros(self.n_samples, dtype=torch.long)
+        self.set_steps = torch.zeros(self.n_samples, dtype=torch.long)
+        self.set_step_indices = torch.zeros(self.n_samples, dtype=torch.long)
+        self.motor_offset_indices = torch.zeros(self.n_samples, dtype=torch.long)
+        self.motor_offsets = torch.zeros(self.n_samples, dtype=torch.long)
+        self.production_interval_indices = torch.zeros(self.n_samples, dtype=torch.long)
+        self.production_intervals = torch.zeros(self.n_samples, dtype=torch.long)
+        self.go_steps = torch.zeros(self.n_samples, dtype=torch.long)
+        self.cue_gains = torch.zeros(self.n_samples)
+        self.distractor_mask = torch.zeros(
+            self.n_samples, self.sequence_duration, dtype=torch.bool
+        )
+
+        generator = torch.Generator().manual_seed(self.seed)
+        context_schedule = torch.arange(self.n_samples) % 2
+        context_schedule = context_schedule[
+            torch.randperm(self.n_samples, generator=generator)
+        ]
+        latent_support_schedule = torch.full((self.n_samples,), -1, dtype=torch.long)
+        latent_schedule = torch.full((self.n_samples,), -1, dtype=torch.long)
+        for context_index in range(2):
+            trial_indices = torch.nonzero(
+                context_schedule == context_index, as_tuple=False
+            ).flatten()
+            categories = _stratified_categories(
+                trial_indices.numel(),
+                torch.tensor(probabilities[context_index], dtype=torch.float64),
+                generator=generator,
+            )
+            latent_support_schedule[trial_indices] = categories
+            support_values = torch.tensor(supports[context_index], dtype=torch.long)
+            latent_schedule[trial_indices] = support_values[categories]
+
+        # This independently shuffled grid is never a function of context,
+        # latent interval, measurement, or motor outcome.
+        set_index_schedule = torch.arange(self.n_samples) % len(set_values)
+        set_index_schedule = set_index_schedule[
+            torch.randperm(self.n_samples, generator=generator)
+        ]
+        set_schedule = self.set_step_values[set_index_schedule]
+        motor_generator = torch.Generator().manual_seed(self.motor_seed)
+
+        for sample_index in range(self.n_samples):
+            context_index = int(context_schedule[sample_index])
+            latent_support_index = int(latent_support_schedule[sample_index])
+            latent_interval = int(latent_schedule[sample_index])
+            latent_index = support_lookup[latent_interval]
+            observed_index = int(
+                torch.multinomial(
+                    self.measurement_likelihood[latent_index],
+                    1,
+                    generator=generator,
+                )[0]
+            )
+            observed_interval = observed_values[observed_index]
+            motor_offset_index = int(
+                torch.multinomial(
+                    self.motor_kernel_probabilities,
+                    1,
+                    generator=motor_generator,
+                )[0]
+            )
+            motor_offset = int(self.motor_offset_values[motor_offset_index])
+            production_interval = production_centers[latent_index] + motor_offset
+            production_index = production_interval - minimum_production
+            set_index = int(set_index_schedule[sample_index])
+            set_step = int(set_schedule[sample_index])
+            ready_step = set_step - observed_interval
+            go_step = set_step + production_interval
+            cue_gain = float(
+                torch.empty(1)
+                .uniform_(
+                    self.cue_gain_min,
+                    self.cue_gain_max,
+                    generator=generator,
+                )
+                .item()
+            )
+
+            self.context_indices[sample_index] = context_index
+            self.latent_support_indices[sample_index] = latent_support_index
+            self.latent_interval_indices[sample_index] = latent_index
+            self.latent_intervals[sample_index] = latent_interval
+            self.observed_interval_indices[sample_index] = observed_index
+            self.observed_intervals[sample_index] = observed_interval
+            self.ready_steps[sample_index] = ready_step
+            self.set_step_indices[sample_index] = set_index
+            self.set_steps[sample_index] = set_step
+            self.motor_offset_indices[sample_index] = motor_offset_index
+            self.motor_offsets[sample_index] = motor_offset
+            self.production_interval_indices[sample_index] = production_index
+            self.production_intervals[sample_index] = production_interval
+            self.go_steps[sample_index] = go_step
+            self.targets[sample_index] = go_step
+            self.cue_gains[sample_index] = cue_gain
+
+            self.inputs[
+                sample_index, ready_step : ready_step + self.pulse_duration, 0
+            ] = cue_gain
+            self.inputs[sample_index, set_step : set_step + self.pulse_duration, 1] = (
+                cue_gain
+            )
+            self.inputs[
+                sample_index,
+                self.context_start_step : self.context_start_step
+                + self.context_duration,
+                2 + context_index,
+            ] = self.context_gain
+
+            n_distractors = int(
+                torch.poisson(
+                    torch.tensor(self.mean_distractors_per_trial),
+                    generator=generator,
+                ).item()
+            )
+            if n_distractors > 0 and self.distractor_amplitude > 0.0:
+                latest_start = self.sequence_duration - self.distractor_pulse_duration
+                for _ in range(n_distractors):
+                    start = int(
+                        torch.randint(
+                            0,
+                            latest_start + 1,
+                            (1,),
+                            generator=generator,
+                        ).item()
+                    )
+                    stop = start + self.distractor_pulse_duration
+                    self.inputs[
+                        sample_index, start:stop, 4
+                    ] += self.distractor_amplitude
+                    self.distractor_mask[sample_index, start:stop] = True
+
+            if self.input_noise_std > 0.0:
+                self.inputs[sample_index] += self.input_noise_std * torch.randn(
+                    self.sequence_duration,
+                    self.input_dim,
+                    generator=generator,
+                )
+            if self.positive_input_encoding:
+                self.inputs[sample_index].clamp_(min=0.0)
+
+        if not torch.equal(self.targets, self.go_steps):
+            raise RuntimeError("hard Go targets do not match sampled outcomes")
+        if torch.any(self.targets < 0) or torch.any(
+            self.targets >= self.sequence_duration
+        ):
+            raise RuntimeError("sampled Go target lies outside the sequence")
+
+    def __len__(self) -> int:
+        return self.n_samples
+
+    def __getitem__(self, index: int):
+        return self.inputs[index], self.targets[index]
+
+
 __all__ = [
     "BayesianReadySetGoDataset",
+    "FactualBayesianReadySetGoDataset",
     "default_observed_interval_bounds",
     "discrete_bayesian_interval_posterior",
     "discrete_weber_likelihood",
+    "finite_gaussian_motor_kernel",
 ]
