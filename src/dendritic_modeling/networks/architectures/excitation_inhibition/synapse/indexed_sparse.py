@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from math import log
 
 import torch
 import torch.nn as nn
+
+_logger = logging.getLogger(__name__)
+_GATHER_PATHS_LOGGED: set[str] = set()
 
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_common import (
     _connection_generator,
@@ -521,6 +525,23 @@ class IndexedSparseLinear(nn.Module):
             and flat_x.is_cuda
             and triton_gather_available()
         )
+        resolved = ("cuda" if use_cuda else "triton" if use_triton
+                    else "fused" if self.use_fused_gather else "loop")
+        if resolved not in _GATHER_PATHS_LOGGED:
+            # Once per process per path. The fall-through above is deliberately
+            # silent so a flag can never break a run -- but silence also means a
+            # broken toolchain quietly demotes cuda to loop and every downstream
+            # claim about "which kernel the run used" becomes inference. This
+            # makes it a logged fact instead.
+            _GATHER_PATHS_LOGGED.add(resolved)
+            _logger.info(
+                "indexed gather path resolved: %s (flags: cuda=%s triton=%s "
+                "fused=%s; available: cuda=%s triton=%s)",
+                resolved, self.use_cuda_gather, self.use_triton_gather,
+                self.use_fused_gather,
+                cuda_gather_available() if flat_x.is_cuda else "n/a",
+                triton_gather_available() if flat_x.is_cuda else "n/a",
+            )
         if use_cuda:
             out = cuda_sparse_gather(flat_x, indices, weight)
         elif use_triton:
