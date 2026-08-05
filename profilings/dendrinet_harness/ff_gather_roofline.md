@@ -183,6 +183,22 @@ Gradients agree to ≤3.3e-07. `_CudaSparseGather.backward` now uses
 The two directions do not agree, and assuming they would is what produced the wrong forward
 rule in the first place.
 
+### HYBRID prefix-staging shipped (2026-08-05) — the gap between the incumbents
+
+`gather_fwd_wpo_hy_kernel` stages only the first S elements of the x-row (S=8192/12288 →
+3/2 blocks/SM on Blackwell instead of 1) and reads the tail via `__ldg`/L2 (99.4% hit).
+Accumulation order identical to both incumbents → **bit-identical outputs, asserted**.
+
+Three-way sweep (each variant P-swept; hybrid also S-swept): hybrid wins exactly where
+staging is occupancy-capped AND no-stage lacks output work to amortize — IN=16k, O≤48k at
+K=40 (**1.22–1.34×** over the best incumbent) and the whole K=10 row (**1.08–1.09×** over
+no-stage). It loses at O=144k (no-stage keeps it) and outside blk/SM=1 (staged keeps it).
+
+Dispatch-order lesson: at (16k,48k) `reuse=120` fired the no-stage band before the hybrid
+one and silently forfeited the 1.22× — caught because the first e2e run gained only 0.1%.
+Hybrid now tests first for small/mid O. End-to-end after the fix: **1.091×, bit-identical**
+(was 1.083× pre-hybrid). Blackwell-only bands; A100 not yet swept for hybrid.
+
 ### The lever this exposes
 
 The shared-memory staging is what costs the occupancy, and the **99.44% L2 hit rate says

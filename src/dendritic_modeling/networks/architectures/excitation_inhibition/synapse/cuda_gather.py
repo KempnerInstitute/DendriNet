@@ -41,6 +41,7 @@ _CPP_SRC = (
     "torch::Tensor gather_fwd_cuda(torch::Tensor x, torch::Tensor idx, torch::Tensor w, int B_O, int B_M);\n"
     "torch::Tensor gather_fwd_wpo_cuda(torch::Tensor x, torch::Tensor idx, torch::Tensor w, int P, int T);\n"
     "torch::Tensor gather_fwd_wpo_ns_cuda(torch::Tensor x, torch::Tensor idx, torch::Tensor w, int P, int T);\n"
+    "torch::Tensor gather_fwd_wpo_hy_cuda(torch::Tensor x, torch::Tensor idx, torch::Tensor w, int P, int T, int S);\n"
     "std::vector<torch::Tensor> gather_bwd_cuda(torch::Tensor grad_out, torch::Tensor x, "
     "torch::Tensor idx, torch::Tensor w, int B_O, int B_M);\n"
     "std::vector<torch::Tensor> gather_bwd_wpo_cuda(torch::Tensor grad_out, torch::Tensor goT, "
@@ -192,6 +193,66 @@ torch::Tensor gather_fwd_wpo_cuda(torch::Tensor x, torch::Tensor idx, torch::Ten
     { cudaError_t e = cudaGetLastError();
       TORCH_CHECK(e == cudaSuccess, "gather_fwd_wpo launch failed: ", cudaGetErrorString(e),
                   " (P=", P, " T=", T, " shmem=", shmem, ")"); }
+    return out;
+}
+
+// ---- forward wpo, HYBRID staging ----------------------------------------------------
+// The staged kernel's IN*4-byte row caps Blackwell at 1 block/SM (33% occupancy;
+// probe_shared_budget.py: 2 blocks would need 128,000 B against a 102,400 B/SM
+// budget -- a hard limit, not a near-miss). The un-staged kernel gets full
+// occupancy but pays ~5x more L2 requests and wins only 3/25 shapes at K=40.
+//
+// Hybrid: stage only the FIRST S elements of the x-row (S chosen so several
+// blocks fit an SM); gathers with ix < S hit shared, the tail falls through to
+// __ldg and the L2 that already runs at a 99.4% hit rate. With uniform indices,
+// a fraction S/IN of gathers stays on-chip while occupancy triples.
+//
+// Accumulation order and (o,k) ownership are IDENTICAL to the staged and
+// un-staged kernels, so outputs must be bit-identical -- the select changes
+// where a value is read from, never what is summed or in what order.
+__global__ void gather_fwd_wpo_hy_kernel(
+        const float* __restrict__ x, const int* __restrict__ idx,
+        const float* __restrict__ w, float* __restrict__ out,
+        int M, int O, int IN, int K, int P, int S) {
+    extern __shared__ float s_x[];                 // S floats: the staged PREFIX
+    int o_base = blockIdx.x * P, m = blockIdx.y;
+    int T = blockDim.x, t = threadIdx.x;
+    const float* __restrict__ x_m = x + (long)m * IN;
+    for (int c = t; c < S; c += T) s_x[c] = x_m[c];
+    __syncthreads();
+    int warp = t >> 5, lane = t & 31, W = T >> 5;
+    for (int po = warp; po < P; po += W) {
+        int o = o_base + po;
+        if (o >= O) continue;
+        long base = (long)o * K;
+        float p = 0.0f;
+        for (int k = lane; k < K; k += 32) {
+            int ix = idx[base + k];
+            float xv = (ix < S) ? s_x[ix] : __ldg(x_m + ix);
+            p += xv * w[base + k];
+        }
+        #pragma unroll
+        for (int off = 16; off > 0; off >>= 1) p += __shfl_down_sync(0xffffffffu, p, off);
+        if (lane == 0) out[(long)m * O + o] = p;
+    }
+}
+
+torch::Tensor gather_fwd_wpo_hy_cuda(torch::Tensor x, torch::Tensor idx, torch::Tensor w,
+                                     int P, int T, int S) {
+    int M = x.size(0), IN = x.size(1), O = idx.size(0), K = idx.size(1);
+    TORCH_CHECK(S >= 0 && S <= IN, "hybrid stage prefix S out of range");
+    auto out = torch::empty({M, O}, x.options());
+    dim3 grid((O + P - 1) / P, M), block(T);
+    size_t shmem = (size_t)S * sizeof(float);
+    if (shmem > 48 * 1024)
+        cudaFuncSetAttribute(gather_fwd_wpo_hy_kernel,
+                             cudaFuncAttributeMaxDynamicSharedMemorySize, (int)shmem);
+    gather_fwd_wpo_hy_kernel<<<grid, block, shmem>>>(
+        x.data_ptr<float>(), idx.data_ptr<int>(), w.data_ptr<float>(),
+        out.data_ptr<float>(), M, O, IN, K, P, S);
+    { cudaError_t e = cudaGetLastError();
+      TORCH_CHECK(e == cudaSuccess, "gather_fwd_wpo_hy launch failed: ", cudaGetErrorString(e),
+                  " (P=", P, " T=", T, " S=", S, ")"); }
     return out;
 }
 
@@ -434,6 +495,7 @@ def _load_ext():
             cpp_sources=_CPP_SRC,
             cuda_sources=_CUDA_SRC,
             functions=["gather_fwd_cuda", "gather_fwd_wpo_cuda", "gather_fwd_wpo_ns_cuda",
+                       "gather_fwd_wpo_hy_cuda",
                        "gather_bwd_cuda", "gather_bwd_wpo_cuda", "gather_bwd_wpo_cuda2",
                        "cuda_gather_max_optin_shared"],
             verbose=False,
@@ -589,11 +651,27 @@ def _pick_fwd_variant(IN: int, O: int, K: int) -> tuple[str, int, int]:
         #         PICKED SLOWER KERNELS at two cells (0.76x, 0.93x). Its single
         #         win cell (16k->144k, 1.26x) is one point; no rule is fitted
         #         to one point, so K>60 stays staged and forfeits it.
+        # Hybrid prefix-staging (gather_fwd_wpo_hy_kernel) slots into the gap
+        # between the incumbents: 1-block/SM shapes without enough output work
+        # for the un-staged kernel to amortize. Measured (bench_gather_hybrid,
+        # bit-identical everywhere): K=10 row 1.08-1.09x over no-stage; K=40 at
+        # IN=16k O<=48k 1.22-1.34x over the best incumbent; loses at O=144k
+        # (no-stage keeps it, 0.94x) and at IN=24k K=40 (untested interior ->
+        # staged keeps it, conservative).
+        hy_P = 4096 if O >= 96_000 else (2048 if O >= 24_000 else 1024)
         if blocks_per_sm <= 1:
             if K <= 20:
-                return ("nostage", ns_P, 512)
-            if K <= 60 and reuse >= _NOSTAGE_MIN_REUSE:
-                return ("nostage", ns_P, 512)
+                return ("hybrid", hy_P, 512)
+            if K <= 60:
+                # Hybrid FIRST for small/mid O: at (16k, 48k) it beats no-stage
+                # 3.51 vs 4.27 ms, but reuse=120 there would fire the no-stage
+                # band if tested first -- the dispatch order is part of the
+                # measurement. no-stage keeps only the very largest O (144k:
+                # 9.74 vs hybrid 10.36).
+                if IN <= 20_000 and O <= 96_000:
+                    return ("hybrid", hy_P, 512)
+                if reuse >= _NOSTAGE_MIN_REUSE:
+                    return ("nostage", ns_P, 512)
     elif cc == (8, 0):
         # A100 rule, from its own sweep -- the Blackwell rule transplanted there
         # forfeits measured wins (1.77x/1.28x/1.11x at IN=24k; 1.08x at the
@@ -673,7 +751,10 @@ class _CudaSparseGather(torch.autograd.Function):
         idx32 = idx.contiguous().to(torch.int32)
         IN, K = xf.size(1), idx32.size(1)
         variant, P, T = _pick_fwd_variant(IN, idx32.size(0), K)
-        if variant == "nostage":               # no shared -> not occupancy-capped, no IN ceiling
+        if variant == "hybrid":                # prefix-staged: multi-block occupancy + L2 tail
+            out = ext.gather_fwd_wpo_hy_cuda(xf, idx32, wf, P, T,
+                                             8192 if K <= 20 else 12288)
+        elif variant == "nostage":             # no shared -> not occupancy-capped, no IN ceiling
             out = ext.gather_fwd_wpo_ns_cuda(xf, idx32, wf, P, T)
         elif _wpo_ok(IN, K):                   # Phase-4 warp-per-output forward (~4.5x over v2)
             out = ext.gather_fwd_wpo_cuda(xf, idx32, wf, P, T)
