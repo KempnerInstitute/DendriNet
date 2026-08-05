@@ -510,7 +510,13 @@ def _pick_wpo_params() -> tuple[int, int]:
 
     T=512 is unchanged and still the sweet spot. Safe on Ampere (row < 48 KB
     there at the design point).
+
+    DENDRINET_STAGED_FWD_P overrides P for A/B measurement without a code flip.
     """
+    import os
+    override = os.environ.get("DENDRINET_STAGED_FWD_P")
+    if override:
+        return int(override), 512
     return 2048, 512
 
 

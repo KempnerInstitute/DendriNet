@@ -30,7 +30,6 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse imp
 
 INS = [3072, 4000, 8000, 16000, 24000]
 OUTS = [2000, 8000, 16000, 48000, 144000]
-K = 40
 P_STAGED = [4096, 2048, 1024, 512]
 P_NOSTAGE = [2048, 512, 128, 64, 32]
 
@@ -62,6 +61,9 @@ def best(fn, ladder):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--batch", type=int, default=512)
+    ap.add_argument("--K", type=int, default=40,
+                    help="synapses per output; the picker rule was fitted at 40 "
+                         "and carries K through reuse=O*K/IN on mechanism only")
     a = ap.parse_args()
     if not (torch.cuda.is_available() and cg.cuda_gather_available()):
         print("needs CUDA + built extension")
@@ -70,6 +72,7 @@ def main():
     dev = torch.device("cuda")
     optin = cg._optin_shared()
     M = a.batch
+    K = a.K
     print(f"GPU {torch.cuda.get_device_name(0)}  optin={optin:,} B  "
           f"batch={M}  K={K}\n")
     print("cell = speedup of NO-STAGE over STAGED (>1 means drop the shared staging)")
