@@ -569,8 +569,23 @@ def _pick_fwd_variant(IN: int, O: int, K: int) -> tuple[str, int, int]:
         return ("staged", *_pick_wpo_params())
     blocks_per_sm = optin // max(IN * 4, 1)
     reuse = (O * K) / max(IN, 1)
-    if blocks_per_sm <= 1 and reuse >= _NOSTAGE_MIN_REUSE:
-        return ("nostage", ns_P, 512)
+    cc = torch.cuda.get_device_capability()
+    if cc[0] >= 10:
+        # Blackwell rule, validated on the full 5x5 (IN, O) sweep: 25/25 cells
+        # classified correctly (bench_gather_crossover.py, batch 512, K=40).
+        if blocks_per_sm <= 1 and reuse >= _NOSTAGE_MIN_REUSE:
+            return ("nostage", ns_P, 512)
+    elif cc == (8, 0):
+        # A100 rule, from its own sweep -- the Blackwell rule transplanted there
+        # forfeits measured wins (1.77x/1.28x/1.11x at IN=24k; 1.08x at the
+        # stress config's dominant IN=16k -> 144k shape). On sm80 the un-staged
+        # kernel wins whenever staged occupancy collapses to 1 block/SM, EVEN at
+        # low reuse (1.11x at reuse=3.3 -- unlike Blackwell), and additionally
+        # at 2 blocks/SM when the output dimension is very large. One accepted
+        # ~1% giveback at (24k, 16k), measured 0.99.
+        if blocks_per_sm <= 1 or (blocks_per_sm == 2 and O >= 100_000):
+            return ("nostage", ns_P, 512)
+    # Unmeasured architectures keep the staged kernel -- the safe default.
     return ("staged", *_pick_wpo_params())
 
 

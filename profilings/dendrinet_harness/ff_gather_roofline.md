@@ -95,9 +95,13 @@ can. Both halves of that were misleading:
 to v2 — the measured best. The 1.086× end-to-end win is unaffected; it comes entirely from
 below-ceiling shapes.
 
-**Caveats.** Measured on Blackwell only. A100 has a larger optin (166,912 B), so `blk/SM`
-at IN=16,000 is 2 and the rule selects `staged` — a no-op there, not a regression, but the
-crossover has not been re-measured on A100. Only K=40 was swept; the reuse term carries K
+**A100 measured (2026-08-05) — the "no-op there" claim was wrong in spirit.** The
+transplanted Blackwell rule never picked a slower kernel on A100, but it forfeited wins:
+the A100 sweep shows no-stage winning at 1.77×/1.28×/1.11× (IN=24k row, blk/SM=1 — even at
+reuse=3.3, unlike Blackwell) and 1.08× at the stress config's dominant (16k→144k) shape at
+blk/SM=2. The picker is now architecture-aware: Blackwell keeps its 25/25-validated rule;
+sm80 uses `blk/SM<=1 OR (blk/SM==2 AND O>=100k)` (one accepted ~1% giveback at (24k,16k));
+unmeasured architectures default to staged. End-to-end on A100: **1.012×, bit-identical**. Only K=40 was swept; the reuse term carries K
 on mechanism, not measurement. The **backward is untouched** — `gather_gradx_stage_kernel`
 needs its shared buffer for fast atomics, so the same trick does not transfer directly.
 
