@@ -1,19 +1,21 @@
-# LEARNING + stress feedforward: 3 layers of the 12L/16k stress config.
+# 3-layer variant of the 12L/16k stress config (layers 0-2, nothing else changed).
 #
-# The 12-layer parent converges onto exactly chance (2.3027 = ln 10): the shunt
-# averages ~K synaptic inputs, contracting input-dependence ~6.3x per layer
-# (~sqrt(K=40) LLN collapse, measured by probe_signal_death.py), so 12 layers
-# retain 8e-9 of the signal and the readout learns the uniform prior. Three
-# layers retain ~0.31 at the same default gain -- the collapse driver is DEPTH,
-# and depth is not what the kernels or the memory work stress: every operator
-# (cuda gather at in=16k/out=144k/K=40, fused reactivation+shunt) sees identical
-# per-layer shapes here.
+# STATUS (measured, 2026-08-04): exercises every kernel at identical per-layer
+# shapes and runs the full real trainer (gather path logged: cuda), but does NOT
+# learn standalone from raw CIFAR pixels -- and per probe_signal_death.py it
+# cannot at ANY reactivation gain: best case (m=4.0) retains 0.40% of input
+# signal after its 15 shunt stages; the entry layer alone contracts ~28x.
+# An earlier header claimed ~31% survival at default gain; that was wrong
+# (module-vs-layer arithmetic) and is retracted. Depth is not the only killer:
+# the 12L parent at m=4 retains MORE signal (4.4%) than this 3L config, because
+# past-critical gain re-amplifies across depth. Making any raw-input indexed
+# feedforward learn is a MORPHOLOGY question (connectivity/width/gain co-design),
+# owned by the research track -- screen candidates with probe_signal_death.py
+# before spending training runs.
 #
-# Differs from the parent ONLY by keeping layers 0-2 of 12. Widths, K, branch
-# factors, gather flags (cuda), decoder, and training block are untouched.
-# Kernel stress-test A/B [gather=cuda]: 12 layers x 16000E/2000I, branch [3,3], indexed_rewire.
-# Variant differs from siblings ONLY in indexed_use_*_gather flags (off|fused|triton|cuda).
-# Precedence cuda->triton->fused->loop; each variant sets exactly one path on.
+# Engineering use: fast real-trainer runs (~35 s/epoch A100) with all kernels
+# active and verified -- the trajectory-equivalence (eager vs fused vs cuda)
+# vehicle for the feedforward closing evidence.
 experiment:
   seed: 42
   train_valid_split: 0.8
