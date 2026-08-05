@@ -197,7 +197,12 @@ no-stage). It loses at O=144k (no-stage keeps it) and outside blk/SM=1 (staged k
 Dispatch-order lesson: at (16k,48k) `reuse=120` fired the no-stage band before the hybrid
 one and silently forfeited the 1.22× — caught because the first e2e run gained only 0.1%.
 Hybrid now tests first for small/mid O. End-to-end after the fix: **1.091×, bit-identical**
-(was 1.083× pre-hybrid). Blackwell-only bands; A100 not yet swept for hybrid.
+(was 1.083× pre-hybrid). A100 swept (2026-08-05): **the hybrid loses every cell there** (best 1.01×, worst 0.64×) —
+a clean measured negative under the pre-committed >1.03× bar, so it earns no A100 band and
+the sm80 picker correctly never dispatches it. The mechanism explains the split: A100's
+167 KB/SM already fits 2 staged blocks at IN=16k, so the staged kernel is not
+occupancy-crippled there and the hybrid's split-source reads are pure cost. The hybrid is
+a **Blackwell-specific** win — the architecture whose shared budget forces 1 block/SM.
 
 ### The lever this exposes
 
