@@ -257,6 +257,37 @@ With this, the process peak IS the training-step peak, whose composition is the 
 structural floor (y, d+eps, optimizer state). The feedforward single-GPU memory story is
 now closed end to end: synthetic harness, real trainer, and save path all agree.
 
+## cpu_init + per-synapse wrapping: 100k regression PASS, 1M OOM MOVED (2026-08-04)
+
+Re-ran both gates with `cpu_init: true` + `auto_wrap_policy: indexed_synapses`
+(jobs 37256960 / 37256964).
+
+**100k, 4x A100-40GB — PASS, losses byte-identical** to the pre-fix run (Train 1.0037,
+Valid 0.6953). Peak 17,737 → **16,033 MB/GPU**. Honest cost: epoch 56.23 → **72.25 s**
+(1.29x slower) — per-synapse FSDP units mean more all-gathers. The granularity that makes
+init fit is paid in communication; a coarser wrap tier is a future speed lever.
+
+**1M, 4x A100-40GB — still OOM, but the failure MOVED**, which is the point:
+
+| | before | after |
+|---|---|---|
+| dies in | `FSDP.__init__` → `_sync_module_params_and_buffers` | `_alloc_storage` (unshard all-gather, first forward) |
+| meaning | every rank materializes the whole 37.6 GB model | init PASSES; steady state does not fit |
+| resident at failure | — | 33.87 GB allocated + 2.38 GiB unshard ask vs 39.49 GB |
+
+The steady-state arithmetic now measured, not estimated: replicated int32 idx (~19 GB) +
+fp32 flat-param shard (~5.2 GB) + grads + bf16 working copies ≈ 34 GB **before optimizer
+state even exists**. 4x A100-40GB cannot hold 1M/5k with a replicated index buffer,
+independent of any further activation work.
+
+Three exits, in increasing effort:
+1. **Bigger cards**: 4x A100-80GB (partition `gpu`) or Blackwell — fits trivially; would
+   give the first real 1M training epoch. Cheapest decisive next step.
+2. **More ranks**: 8x A100-40 (2 nodes) — shards halve → ~29 GB + activations; likely fits
+   but needs multi-node FSDP.
+3. **Shard the idx buffer** — the real systems item; removes the 19 GB replication that
+   dominates the floor.
+
 ## Open rows
 | scale | GPU | path | epoch (s) | peak (MB) | notes |
 |---|---|---|---|---|---|

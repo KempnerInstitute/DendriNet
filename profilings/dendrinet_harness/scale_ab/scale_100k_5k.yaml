@@ -310,6 +310,11 @@ distributed:
     limit_all_gathers: true
     forward_prefetch: false
     sync_module_states: true
+    # Init fixes for the 1M gate: wrap per sparse-synapse module so no
+    # rank ever materializes the whole model, and keep the model on CPU
+    # until FSDP places each unit itself.
+    auto_wrap_policy: indexed_synapses
+    cpu_init: true
     use_orig_params: true
     backward_prefetch: BACKWARD_POST
     # This expresses the required runtime policy, but the current recurrent
