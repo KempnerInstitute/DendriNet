@@ -341,12 +341,14 @@ class ExcitationInhibitionLayer(nn.Module):
         adaptive_target_conductance=5.0,
         structured_connectivity=None,
         structured_layer_idx: int = 0,
+        split_input_stream: bool = False,
         **kwargs,
     ):
         super().__init__()
         if synapse_mode not in ["ei", "mlp"]:
             raise ValueError(f"synapse_mode must be 'ei' or 'mlp', got: {synapse_mode}")
         self.synapse_mode = synapse_mode
+        self.split_input_stream = bool(split_input_stream)
         structured_enabled = _structured_connectivity_enabled(structured_connectivity)
         if self.synapse_mode == "mlp" and structured_enabled:
             raise ValueError(
@@ -391,15 +393,31 @@ class ExcitationInhibitionLayer(nn.Module):
             adaptive_target_conductance=adaptive_target_conductance,
         )
 
+        # Contiguous dual-excitatory split: I receives only the i_stream as
+        # excitatory drive (no feedforward II). E still uses e_stream.
+        if self.split_input_stream and build_inhibitory_cells:
+            if inhibitory_input_dim is None:
+                raise ValueError(
+                    "split_input_stream requires inhibitory_input_dim "
+                    "(i_stream size) when building inhibitory cells"
+                )
+            inhibitory_excitatory_input_dim = inhibitory_input_dim
+            inhibitory_ff_inhibitory_input_dim = None
+            inhibitory_ii_synapses = 0
+        else:
+            inhibitory_excitatory_input_dim = excitatory_input_dim
+            inhibitory_ff_inhibitory_input_dim = inhibitory_input_dim
+            inhibitory_ii_synapses = ii_synapses_per_branch
+
         self.inhibitory_cells = _build_inhibitory_cells(
             n_inhibitory_cells=n_inhibitory_cells,
             inhibitory_branch_factors=inhibitory_branch_factors,
-            excitatory_input_dim=excitatory_input_dim,
+            excitatory_input_dim=inhibitory_excitatory_input_dim,
             ei_synapses_per_branch=ei_synapses_per_branch,
             build_inhibitory_cells=build_inhibitory_cells,
             inhibitory_network_type=inhibitory_network_type,
-            inhibitory_input_dim=inhibitory_input_dim,
-            ii_synapses_per_branch=ii_synapses_per_branch,
+            inhibitory_input_dim=inhibitory_ff_inhibitory_input_dim,
+            ii_synapses_per_branch=inhibitory_ii_synapses,
             somatic_synapses=somatic_synapses,
             synapse_mode=self.synapse_mode,
             common_synapse_config=common_synapse_config,
@@ -481,37 +499,58 @@ class ExcitationInhibitionLayer(nn.Module):
         inhibitory_x: Optional[torch.Tensor] = None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """
-        x: shape [batch, excitatory_input_dim]
-        inhibitory_input: shape [batch, inhibitory_input_dim], or None
+        e_stream: shape [batch, excitatory_input_dim]
+        i_stream: shape [batch, inhibitory_input_dim], or None
+
+        When ``split_input_stream`` is True, ``inhibitory_x`` is treated as an
+        excitatory stream onto I cells (and as direct IE onto E when no I cells).
         Returns:
             excitatory_output, inhibitory_output
         """
+        e_stream, i_stream = excitatory_x, inhibitory_x
+
         if self.synapse_mode == "mlp":
             # Merge inputs into one signed synapse bank.
             def _cat(a: torch.Tensor, b: Optional[torch.Tensor]) -> torch.Tensor:
                 return torch.cat([a, b], dim=-1) if b is not None else a
 
             if isinstance(self.inhibitory_cells, DendriNet):
-                inh_in = _cat(excitatory_x, inhibitory_x)
-                inhibitory_x = self.inhibitory_cells(inh_in, None)
+                if self.split_input_stream:
+                    # Dual-excitatory split: I sees only i_stream.
+                    inh_in = i_stream if i_stream is not None else e_stream
+                else:
+                    inh_in = _cat(e_stream, i_stream)
+                i_stream = self.inhibitory_cells(inh_in, None)
             elif isinstance(self.inhibitory_cells, nn.Sequential):
-                inhibitory_x = self.inhibitory_cells(excitatory_x)
+                if self.split_input_stream:
+                    inh_in = i_stream if i_stream is not None else e_stream
+                else:
+                    inh_in = e_stream
+                i_stream = self.inhibitory_cells(inh_in)
 
             exc_in = (
-                _cat(excitatory_x, inhibitory_x)
+                _cat(e_stream, i_stream)
                 if self.concat_inhibitory_to_excitatory
-                else excitatory_x
+                else e_stream
             )
-            excitatory_x = self.excitatory_cells(exc_in, None)
+            e_stream = self.excitatory_cells(exc_in, None)
         else:
             if isinstance(self.inhibitory_cells, DendriNet):
-                inhibitory_x = self.inhibitory_cells(excitatory_x, inhibitory_x)
+                if self.split_input_stream:
+                    # I.ei <- i_stream; no feedforward II.
+                    i_stream = self.inhibitory_cells(i_stream, None)
+                else:
+                    i_stream = self.inhibitory_cells(e_stream, i_stream)
             elif isinstance(self.inhibitory_cells, nn.Sequential):
-                inhibitory_x = self.inhibitory_cells(excitatory_x)
+                if self.split_input_stream:
+                    inh_in = i_stream if i_stream is not None else e_stream
+                else:
+                    inh_in = e_stream
+                i_stream = self.inhibitory_cells(inh_in)
 
-            excitatory_x = self.excitatory_cells(excitatory_x, inhibitory_x)
+            e_stream = self.excitatory_cells(e_stream, i_stream)
 
-        return excitatory_x, inhibitory_x
+        return e_stream, i_stream
 
 
 __all__ = ["ExcitationInhibitionLayer"]

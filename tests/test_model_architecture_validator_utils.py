@@ -348,6 +348,52 @@ def test_validate_model_architecture_allows_input_mode0_independent_pathways():
     assert validate_model_architecture(config) is True
 
 
+def test_validate_model_architecture_allows_split_input_stream():
+    config = _make_valid_config(
+        transfer_overrides={
+            "input_mode": 0,
+            "split_input_stream": True,
+            "e_stream_dims": 400,
+        }
+    )
+    assert validate_model_architecture(config) is True
+
+
+def test_validate_model_architecture_rejects_split_and_independent_pathways():
+    config = _make_valid_config(
+        transfer_overrides={
+            "input_mode": 0,
+            "independent_pathways": True,
+            "split_input_stream": True,
+            "e_stream_dims": 400,
+            "excitatory_dim": 400,
+            "inhibitory_dim": 384,
+        }
+    )
+    validator = ModelArchitectureValidator(config)
+    assert validator.validate() is False
+    assert any("mutually exclusive" in err for err in validator.errors)
+
+
+def test_initial_layer_input_dims_preserve_split_input_stream():
+    assert _initial_layer_input_dims(
+        input_dim=12,
+        independent_pathways=False,
+        excitatory_dim=None,
+        inhibitory_dim=None,
+        split_input_stream=True,
+        e_stream_dims=4,
+    ) == (4, 8)
+    assert _initial_layer_input_dims(
+        input_dim=12,
+        independent_pathways=False,
+        excitatory_dim=None,
+        inhibitory_dim=None,
+        split_input_stream=True,
+        e_stream_dims=None,
+    ) == (12, 12)
+
+
 def test_validate_model_architecture_detects_invalid_input_mode():
     config = _make_valid_config(transfer_overrides={"input_mode": 2})
     validator = ModelArchitectureValidator(config)

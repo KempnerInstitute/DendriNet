@@ -419,6 +419,7 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         ie_synapses_per_branch: int,
         ii_synapses_per_branch: int,
         extra_kwargs: dict[str, Any],
+        split_input_stream: bool = False,
     ) -> ExcitationInhibitionLayer:
         """Build one EI layer from resolved dimensions and per-layer schedules."""
 
@@ -435,6 +436,7 @@ class ExcitationInhibitionNetwork(BaseNetwork):
             inhibitory_input_dim=layer_spec["inhibitory_input_dim"],
             ie_synapses_per_branch=ie_synapses_per_branch,
             ii_synapses_per_branch=ii_synapses_per_branch,
+            split_input_stream=split_input_stream,
             reactivate=self.reactivate,
             reactivation_init_m=self.reactivation_init_m,
             reactivation_init_b=self.reactivation_init_b,
@@ -560,9 +562,13 @@ class ExcitationInhibitionNetwork(BaseNetwork):
 
         excitatory_input_dim = self.transfer_fn.excitatory_dim
         inhibitory_input_dim = self.transfer_fn.inhibitory_dim
+        split_input_stream = bool(getattr(self.transfer_fn, "split_input_stream", False))
 
         # Build each layer
         for i in range(num_layers):
+            # Contiguous dual-excitatory split applies only at the first layer.
+            layer_split = split_input_stream and i == 0
+            layer_ii = 0 if layer_split else ii_syn[i]
             layer_spec = _resolve_ei_layer_build_spec(
                 layer_idx=i,
                 excitatory_layer_sizes=excitatory_layer_sizes,
@@ -570,7 +576,7 @@ class ExcitationInhibitionNetwork(BaseNetwork):
                 excitatory_input_dim=excitatory_input_dim,
                 inhibitory_input_dim=inhibitory_input_dim,
                 ei_synapses_per_branch=ei_syn[i],
-                ii_synapses_per_branch=ii_syn[i],
+                ii_synapses_per_branch=layer_ii,
             )
 
             layer = self._make_ei_layer(
@@ -579,8 +585,9 @@ class ExcitationInhibitionNetwork(BaseNetwork):
                 ee_synapses_per_branch=ee_syn[i],
                 ei_synapses_per_branch=ei_syn[i],
                 ie_synapses_per_branch=ie_syn[i],
-                ii_synapses_per_branch=ii_syn[i],
+                ii_synapses_per_branch=layer_ii,
                 extra_kwargs=kwargs,
+                split_input_stream=layer_split,
             )
             layers.append(layer)
 
@@ -658,19 +665,21 @@ class ExcitationInhibitionNetwork(BaseNetwork):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward logic:
-        - TransferLayer splits/duplicates input based on input_mode and independent_pathways
+        - TransferLayer splits/duplicates input based on input_mode,
+          independent_pathways, and split_input_stream
         - All EI layers now build and process their own inhibitory cells
-        - First layer's inhibitory cells receive the same input as excitatory cells
+        - With split_input_stream, first-layer I cells receive only the i_stream
+          as excitatory drive; otherwise first-layer I cells share the E stream
         - Subsequent layers receive outputs from previous layers
         """
-        excitatory_x, inhibitory_x = self.transfer_fn(x)
-        self._check_nonneg_network_input(excitatory_x, inhibitory_x)
+        e_stream, i_stream = self.transfer_fn(x)
+        self._check_nonneg_network_input(e_stream, i_stream)
 
         # Optimized: Use direct iteration over ModuleList
         for layer in self.layers:
-            excitatory_x, inhibitory_x = layer(excitatory_x, inhibitory_x)
+            e_stream, i_stream = layer(e_stream, i_stream)
 
-        return excitatory_x
+        return e_stream
 
     @property
     def branch_layers(self):

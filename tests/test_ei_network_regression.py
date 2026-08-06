@@ -533,6 +533,133 @@ class TestTransferFunction:
         with pytest.raises(ValueError, match="expected last input dimension 7"):
             transfer(torch.randn(3, 8))
 
+    @pytest.mark.parametrize(
+        "e_stream_dims",
+        [4, ":4", "0:4", slice(None, 4), slice(0, 4)],
+    )
+    def test_transfer_split_input_stream_prefix_shapes(self, e_stream_dims):
+        transfer = TransferLayer(
+            input_dim=7,
+            transfer_params={
+                "input_mode": 0,
+                "split_input_stream": True,
+                "e_stream_dims": e_stream_dims,
+            },
+        )
+        x = torch.arange(21, dtype=torch.float32).reshape(3, 7)
+        e_stream, i_stream = transfer(x)
+        assert transfer.split_input_stream is True
+        assert transfer.excitatory_dim == 4
+        assert transfer.inhibitory_dim == 3
+        assert e_stream.shape == (3, 4)
+        assert i_stream.shape == (3, 3)
+        assert torch.allclose(e_stream, x[..., :4])
+        assert torch.allclose(i_stream, x[..., 4:])
+
+    def test_transfer_split_input_stream_omitted_dims_reverts_to_identity(self):
+        transfer = TransferLayer(
+            input_dim=7,
+            transfer_params={"input_mode": 0, "split_input_stream": True},
+        )
+        x = torch.randn(3, 7)
+        e_stream, i_stream = transfer(x)
+        assert transfer.split_input_stream is False
+        assert e_stream.shape == (3, 7)
+        assert i_stream.shape == (3, 7)
+        assert torch.allclose(e_stream, x)
+        assert torch.allclose(i_stream, x)
+
+    def test_transfer_split_input_stream_mutual_exclusion(self):
+        with pytest.raises(ValueError, match="mutually exclusive"):
+            TransferLayer(
+                input_dim=7,
+                transfer_params={
+                    "input_mode": 0,
+                    "independent_pathways": True,
+                    "split_input_stream": True,
+                    "e_stream_dims": 4,
+                    "excitatory_dim": 4,
+                    "inhibitory_dim": 3,
+                },
+            )
+
+    def test_transfer_split_input_stream_rejects_bad_k(self):
+        with pytest.raises(ValueError, match="0 < k < input_dim"):
+            TransferLayer(
+                input_dim=7,
+                transfer_params={
+                    "input_mode": 0,
+                    "split_input_stream": True,
+                    "e_stream_dims": 7,
+                },
+            )
+
+    def test_transfer_split_input_stream_rejects_non_prefix_slice(self):
+        with pytest.raises(ValueError, match="prefix slice"):
+            TransferLayer(
+                input_dim=7,
+                transfer_params={
+                    "input_mode": 0,
+                    "split_input_stream": True,
+                    "e_stream_dims": "1:4",
+                },
+            )
+
+
+class TestSplitInputStreamNetwork:
+    def _split_config(self, *, input_mode):
+        if input_mode == 0:
+            config = _config_with_inhibitory_layers(
+                input_mode=0, inhibitory_layer_sizes=[5]
+            )
+        else:
+            config = _config_with_inhibitory_layers(
+                input_mode=1, inhibitory_layer_sizes=[]
+            )
+            config["transfer"]["allow_direct_inhibitory_stream"] = True
+        config["transfer"]["split_input_stream"] = True
+        config["transfer"]["e_stream_dims"] = 12
+        config["connectivity"]["ee_synapses_per_branch_per_layer"] = [5]
+        config["connectivity"]["ie_synapses_per_branch_per_layer"] = [3]
+        return config
+
+    def test_input_mode0_wires_i_to_i_stream_only(self):
+        config = self._split_config(input_mode=0)
+        net = get_architecture("dendritic_shunting", config, input_dim=INPUT_DIM)
+        layer0 = net.layers[0]
+        assert layer0.split_input_stream is True
+        assert net.transfer_fn.excitatory_dim == 12
+        assert net.transfer_fn.inhibitory_dim == 8
+        assert layer0.inhibitory_cells is not None
+        # I.ee source is i_stream dim; II bank is absent.
+        assert layer0.inhibitory_cells.branch_layers[0].excitatory_input_dim == 8
+        assert layer0.inhibitory_cells.branch_layers[0].input_inhibitory is False
+        # E.ee source is e_stream dim; IE comes from I-cell outputs.
+        assert layer0.excitatory_cells.branch_layers[0].excitatory_input_dim == 12
+        assert layer0.excitatory_cells.branch_layers[0].inhibitory_input_dim == 5
+
+        x = torch.rand(BATCH, INPUT_DIM)
+        y = net(x)
+        assert y.shape == (BATCH, OUTPUT_DIM)
+
+    def test_input_mode0_mlp_forward(self):
+        config = self._split_config(input_mode=0)
+        net = get_architecture("dendritic_mlp", config, input_dim=INPUT_DIM)
+        assert net.layers[0].split_input_stream is True
+        y = net(torch.rand(BATCH, INPUT_DIM))
+        assert y.shape == (BATCH, OUTPUT_DIM)
+
+    def test_input_mode1_routes_i_stream_to_e_ie(self):
+        config = self._split_config(input_mode=1)
+        net = get_architecture("dendritic_shunting", config, input_dim=INPUT_DIM)
+        layer0 = net.layers[0]
+        assert layer0.split_input_stream is True
+        assert layer0.inhibitory_cells is None
+        assert layer0.excitatory_cells.branch_layers[0].excitatory_input_dim == 12
+        assert layer0.excitatory_cells.branch_layers[0].inhibitory_input_dim == 8
+        y = net(torch.rand(BATCH, INPUT_DIM))
+        assert y.shape == (BATCH, OUTPUT_DIM)
+
 
 # ---------------------------------------------------------------------------
 # EI Layer with synapse_mode="mlp"
