@@ -396,6 +396,9 @@ def sample_configured_mask(
             task_branch_factors=task_branch_factors,
             dims_per_leaf=int(dims_per_leaf),
             auxiliary_root=bool(cfg.get("auxiliary_root", False)),
+            include_internal_latents=bool(
+                cfg.get("include_internal_latents", False)
+            ),
             device=device,
         )
 

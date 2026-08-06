@@ -1517,12 +1517,17 @@ def _nested_reduce_with_internal_aux(
     branch_factors: tuple[int, ...],
     internal_op: str,
     auxiliary_root: bool,
+    include_internal_latents: bool = False,
 ) -> torch.Tensor:
     """
-    Reduce leaf bits with per-internal-node aux bits (distal→proximal).
+    Reduce leaf bits with optional per-internal-node aux bits (distal→proximal).
 
-    At each non-root internal node, combines children with that node's aux bit via
-    ``internal_op``. At the root, includes an aux bit only when
+    When ``include_internal_latents`` is False, every level is children-only
+    (classic tree-over-leaves) and ``auxiliary_root`` / ``aux_bits`` are ignored
+    aside from requiring an empty aux trailing dim.
+
+    When True, each non-root internal node combines children with that node's
+    aux bit via ``internal_op``. The root includes an aux bit only when
     ``auxiliary_root`` is True (children-only otherwise).
 
     ``aux_bits`` are ordered distal→proximal (root last when present), matching
@@ -1530,8 +1535,11 @@ def _nested_reduce_with_internal_aux(
     """
     values = leaf_bits
     expected_leaves = _n_leaves_from_branch_factors(branch_factors)
+    use_root_aux = bool(include_internal_latents) and bool(auxiliary_root)
     expected_aux = _n_internal_nodes_from_branch_factors(
-        branch_factors, auxiliary_root=auxiliary_root
+        branch_factors,
+        auxiliary_root=use_root_aux,
+        include_internal_latents=include_internal_latents,
     )
     if values.shape[-1] != expected_leaves:
         raise ValueError(
@@ -1547,6 +1555,7 @@ def _nested_reduce_with_internal_aux(
         raise ValueError(
             f"aux_bits trailing dim {aux_bits.shape[-1]} does not match "
             f"n_internal={expected_aux} for branch_factors={branch_factors}, "
+            f"include_internal_latents={include_internal_latents}, "
             f"auxiliary_root={auxiliary_root}"
         )
 
@@ -1562,7 +1571,10 @@ def _nested_reduce_with_internal_aux(
         n_groups = n // b
         values = values.view(values.shape[0], n_groups, b)
         is_root_step = step_idx == len(factors) - 1
-        if is_root_step and not auxiliary_root:
+        children_only = (not include_internal_latents) or (
+            is_root_step and not use_root_aux
+        )
+        if children_only:
             values = _combine_binary(values, internal_op)
             continue
         level_aux = aux_bits[:, aux_offset : aux_offset + n_groups]
@@ -1575,7 +1587,9 @@ def _nested_reduce_with_internal_aux(
     if aux_offset != expected_aux:
         raise ValueError(
             f"Consumed {aux_offset} aux bits but expected {expected_aux} "
-            f"(branch_factors={branch_factors}, auxiliary_root={auxiliary_root})"
+            f"(branch_factors={branch_factors}, "
+            f"include_internal_latents={include_internal_latents}, "
+            f"auxiliary_root={auxiliary_root})"
         )
     return values.squeeze(-1)
 
@@ -1628,6 +1642,7 @@ def create_nested_multixor_dataset(
     dims_per_leaf: int = 64,
     latent_dims: int = 2,
     distractor_scale: float = 0.25,
+    include_internal_latents: bool = False,
     auxiliary_root: bool = False,
     seed: Optional[int] = None,
 ) -> tuple[TensorDataset, TensorDataset, TensorDataset]:
@@ -1636,24 +1651,23 @@ def create_nested_multixor_dataset(
 
     ``branch_factors`` uses the EINet proximal→distal convention and may be any
     valid schedule (not only ``[2, 2]``). Leaf count is ``prod(branch_factors)``.
-    Each leaf and each non-root internal node has a low-D latent in
-    ``[0, 1]^{latent_dims}`` that determines its bit via ``leaf_op``. When
-    ``auxiliary_root=True``, the root/soma also gets an aux latent (pair with
-    model ``somatic_synapses=True``); default ``False`` matches
-    ``somatic_synapses=False``.
+    Each leaf has a low-D latent in ``[0, 1]^{latent_dims}`` that determines its
+    bit via ``leaf_op``.
+
+    When ``include_internal_latents=False`` (default), only leaf blocks appear in
+    the input and labels are classic children-only tree composition
+    (``auxiliary_root`` is ignored). When ``True``, each non-root internal node
+    also gets an aux latent embedded as a dedicated block and included in the
+    cascading ``internal_op``. Root/soma aux requires both
+    ``include_internal_latents=True`` and ``auxiliary_root=True`` (pair with
+    model ``somatic_synapses=True``).
 
     Latents are **population-embedded** into contiguous blocks of size
     ``dims_per_leaf`` (shared nonnegative random projection + optional
     within-block distractor mix). Layout is leaf blocks in leaf order, then
-    internal aux blocks in distal→proximal reduction order (root aux last if
-    present), so
+    (when enabled) internal aux blocks in distal→proximal reduction order
+    (root aux last if present), so
     ``input_dim = (n_leaves + n_internal) * dims_per_leaf``.
-
-    Labels combine children with each node's aux bit via ``internal_op`` while
-    walking distal→proximal. The root uses children only unless
-    ``auxiliary_root`` is set. Sparse synapses recover a node most reliably by
-    sampling that node's block — distal for leaves, proximal for non-root
-    internals, soma for root aux when enabled.
 
     Default ``leaf_op='and'`` + ``internal_op='xor'`` does **not** collapse to flat
     parity of the raw input dimensions. ``leaf_op='xor'`` + ``internal_op='xor'``
@@ -1672,7 +1686,9 @@ def create_nested_multixor_dataset(
     branch_factors = _normalize_branch_factors(branch_factors)
     dims_per_leaf = int(dims_per_leaf)
     latent_dims = int(latent_dims)
+    include_internal_latents = bool(include_internal_latents)
     auxiliary_root = bool(auxiliary_root)
+    use_root_aux = include_internal_latents and auxiliary_root
     if latent_dims < 1:
         raise ValueError(f"latent_dims must be >= 1, got {latent_dims}")
     if dims_per_leaf < latent_dims:
@@ -1682,7 +1698,9 @@ def create_nested_multixor_dataset(
 
     n_leaves = _n_leaves_from_branch_factors(branch_factors)
     n_internal = _n_internal_nodes_from_branch_factors(
-        branch_factors, auxiliary_root=auxiliary_root
+        branch_factors,
+        auxiliary_root=use_root_aux,
+        include_internal_latents=include_internal_latents,
     )
     n_blocks = n_leaves + n_internal
     input_dim = n_blocks * dims_per_leaf
@@ -1719,7 +1737,8 @@ def create_nested_multixor_dataset(
         aux_bits,
         branch_factors,
         internal_op=internal_op,
-        auxiliary_root=auxiliary_root,
+        auxiliary_root=use_root_aux,
+        include_internal_latents=include_internal_latents,
     ).long()
 
     projection = _make_population_projection(latent_dims, dims_per_leaf)
@@ -2080,6 +2099,7 @@ _SYNTHETIC_DATASET_SPECS: dict[str, _SyntheticDatasetSpec] = {
             "dims_per_leaf": 64,
             "latent_dims": 2,
             "distractor_scale": 0.25,
+            "include_internal_latents": False,
             "auxiliary_root": False,
             "seed": None,
         },

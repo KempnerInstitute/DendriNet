@@ -167,11 +167,17 @@ class DatasetParamsConfig(BaseConfig):
     contextual_gain: dict[str, Any] = field(
         default_factory=lambda: {
             "base_dataset": "mnist",
-            "n_layered_images": 2,
+            "n_regions": 2,
             "min_gain_factor": 0.01,
             "max_gain_factor": 1.0,
             "gain_sampling": "log_uniform",
-            "poisson_sampling": True,
+            "region_poisson": True,
+            "n_context_bits": 0,
+            "context_dim": 50,
+            "context_rule": "bit_id",
+            "context_seed": 0,
+            "context_gain": False,
+            "context_poisson": False,
         }
     )
 
@@ -219,6 +225,7 @@ class DatasetParamsConfig(BaseConfig):
             "dims_per_leaf": 64,
             "latent_dims": 2,
             "distractor_scale": 0.25,
+            "include_internal_latents": False,
             "auxiliary_root": False,
         }
     )

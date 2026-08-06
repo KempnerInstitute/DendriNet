@@ -142,15 +142,46 @@ def test_nested_multixor_shapes_and_binary_labels():
         branch_factors=branch_factors,
         dims_per_leaf=dims_per_leaf,
         latent_dims=latent_dims,
+        include_internal_latents=False,
         auxiliary_root=False,
         seed=0,
     )
-    # 4 leaves + 2 non-root internals
-    input_dim = 6 * dims_per_leaf
+    # Default: leaf blocks only
+    input_dim = 4 * dims_per_leaf
     for split in (train, valid, test):
         assert split.tensors[0].shape[1] == input_dim
         assert set(split.tensors[1].unique().tolist()).issubset({0, 1})
     assert len(train) > 0 and len(valid) > 0 and len(test) > 0
+
+
+def test_nested_multixor_shapes_with_internal_latents():
+    dims_per_leaf = 8
+    train, _, _ = create_nested_multixor_dataset(
+        n_samples=64,
+        branch_factors=[2, 2],
+        dims_per_leaf=dims_per_leaf,
+        latent_dims=2,
+        include_internal_latents=True,
+        auxiliary_root=False,
+        seed=0,
+    )
+    # 4 leaves + 2 non-root internals
+    assert train.tensors[0].shape[1] == 6 * dims_per_leaf
+
+
+def test_nested_multixor_auxiliary_root_ignored_without_internal_latents():
+    dims = 8
+    train, _, _ = create_nested_multixor_dataset(
+        n_samples=64,
+        branch_factors=[2, 2],
+        dims_per_leaf=dims,
+        latent_dims=2,
+        distractor_scale=0.0,
+        include_internal_latents=False,
+        auxiliary_root=True,
+        seed=0,
+    )
+    assert train.tensors[0].shape[1] == 4 * dims
 
 
 def test_nested_multixor_rejects_invalid_branch_factors():
@@ -171,6 +202,27 @@ def test_nested_multixor_rejects_dims_per_leaf_smaller_than_latent_dims():
         )
 
 
+def test_nested_multixor_schedule_shapes_leaves_only():
+    dims = 8
+    cases = [
+        ([2, 2], 4),
+        ([2, 3], 6),
+        ([3, 3, 3], 27),
+        ([2], 2),
+    ]
+    for branch_factors, n_blocks in cases:
+        train, _, _ = create_nested_multixor_dataset(
+            n_samples=64,
+            branch_factors=branch_factors,
+            dims_per_leaf=dims,
+            latent_dims=2,
+            distractor_scale=0.0,
+            include_internal_latents=False,
+            seed=0,
+        )
+        assert train.tensors[0].shape[1] == n_blocks * dims
+
+
 def test_nested_multixor_schedule_shapes_auxiliary_root_false():
     dims = 8
     cases = [
@@ -186,6 +238,7 @@ def test_nested_multixor_schedule_shapes_auxiliary_root_false():
             dims_per_leaf=dims,
             latent_dims=2,
             distractor_scale=0.0,
+            include_internal_latents=True,
             auxiliary_root=False,
             seed=0,
         )
@@ -205,6 +258,7 @@ def test_nested_multixor_schedule_shapes_auxiliary_root_true():
             dims_per_leaf=dims,
             latent_dims=2,
             distractor_scale=0.0,
+            include_internal_latents=True,
             auxiliary_root=True,
             seed=0,
         )
@@ -239,6 +293,7 @@ def test_nested_multixor_labels_ignore_within_block_distractors():
         (2, 2),
         internal_op="xor",
         auxiliary_root=False,
+        include_internal_latents=True,
     )
 
     blocks_a = _population_embed_leaf_blocks(
@@ -257,6 +312,7 @@ def test_nested_multixor_labels_ignore_within_block_distractors():
         (2, 2),
         internal_op="xor",
         auxiliary_root=False,
+        include_internal_latents=True,
     )
     assert torch.equal(labels, labels_again)
 
@@ -301,14 +357,24 @@ def test_nested_multixor_reduce_respects_distal_then_proximal_order():
     leaves = torch.tensor([[1, 0, 1, 0, 1, 0]], dtype=torch.long)
     aux = torch.tensor([[1, 0]], dtype=torch.long)
     out = _nested_reduce_with_internal_aux(
-        leaves, aux, (2, 3), internal_op="xor", auxiliary_root=False
+        leaves,
+        aux,
+        (2, 3),
+        internal_op="xor",
+        auxiliary_root=False,
+        include_internal_latents=True,
     )
     assert out.tolist() == [0]
 
     # Same with root aux: xor(1,1, a_root=1)=1
     aux_root = torch.tensor([[1, 0, 1]], dtype=torch.long)
     out_root = _nested_reduce_with_internal_aux(
-        leaves, aux_root, (2, 3), internal_op="xor", auxiliary_root=True
+        leaves,
+        aux_root,
+        (2, 3),
+        internal_op="xor",
+        auxiliary_root=True,
+        include_internal_latents=True,
     )
     assert out_root.tolist() == [1]
 
@@ -316,13 +382,36 @@ def test_nested_multixor_reduce_respects_distal_then_proximal_order():
     flat_leaves = leaves
     flat_aux = torch.zeros(1, 0, dtype=torch.long)
     flat = _nested_reduce_with_internal_aux(
-        flat_leaves, flat_aux, (6,), internal_op="xor", auxiliary_root=False
+        flat_leaves,
+        flat_aux,
+        (6,),
+        internal_op="xor",
+        auxiliary_root=False,
+        include_internal_latents=False,
     )
     assert flat.tolist() == [1]
 
+    # Children-only nested [2,2]: xor(1,0)=1, xor(1,0)=1, xor(1,1)=0
+    nested_leaves = torch.tensor([[1, 0, 1, 0]], dtype=torch.long)
+    nested_empty = torch.zeros(1, 0, dtype=torch.long)
+    nested_children = _nested_reduce_with_internal_aux(
+        nested_leaves,
+        nested_empty,
+        (2, 2),
+        internal_op="xor",
+        auxiliary_root=False,
+        include_internal_latents=False,
+    )
+    assert nested_children.tolist() == [0]
+
     with pytest.raises(ValueError, match="does not match"):
         _nested_reduce_with_internal_aux(
-            leaves, aux, (2, 2), internal_op="xor", auxiliary_root=False
+            leaves,
+            aux,
+            (2, 2),
+            internal_op="xor",
+            auxiliary_root=False,
+            include_internal_latents=True,
         )
 
 
@@ -348,6 +437,7 @@ def test_nested_multixor_and_xor_differs_from_flat_parity():
         (2, 2),
         internal_op="xor",
         auxiliary_root=False,
+        include_internal_latents=True,
     )
 
     all_latents = torch.cat([leaf_latents, internal_latents], dim=1)
@@ -380,6 +470,7 @@ def test_nested_multixor_xor_xor_matches_node_parity():
         (2, 2),
         internal_op="xor",
         auxiliary_root=False,
+        include_internal_latents=True,
     )
 
     parity = xor_leaves[:, 0]
@@ -398,6 +489,7 @@ def test_nested_multixor_shuffle_leaves_changes_labels():
         "dims_per_leaf": 8,
         "latent_dims": 2,
         "distractor_scale": 0.25,
+        "include_internal_latents": True,
         "auxiliary_root": False,
         "seed": 7,
     }
@@ -624,6 +716,7 @@ def test_get_synthetic_datasets_dispatch():
                 "dims_per_leaf": 8,
                 "latent_dims": 2,
                 "distractor_scale": 0.25,
+                "include_internal_latents": False,
                 "auxiliary_root": False,
                 "seed": 22,
             },

@@ -14,6 +14,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.top
     TopKLinear,
 )
 from dendritic_modeling.utils.nested_tree_geometry import (
+    descendant_leaf_indices,
     n_blocks_from_branch_factors,
     task_block_index_for_node,
 )
@@ -27,23 +28,71 @@ def _allowed_blocks(mask_row: torch.Tensor, dims: int) -> list[int]:
 def test_task_block_layout_aux_order():
     bf = (2, 2)
     assert task_block_index_for_node(
-        bf, depth_from_root=2, index_in_layer=0, auxiliary_root=False
+        bf,
+        depth_from_root=2,
+        index_in_layer=0,
+        auxiliary_root=False,
+        include_internal_latents=True,
     ) == 0
     assert task_block_index_for_node(
-        bf, depth_from_root=1, index_in_layer=0, auxiliary_root=False
+        bf,
+        depth_from_root=1,
+        index_in_layer=0,
+        auxiliary_root=False,
+        include_internal_latents=True,
     ) == 4
     assert task_block_index_for_node(
-        bf, depth_from_root=1, index_in_layer=1, auxiliary_root=False
+        bf,
+        depth_from_root=1,
+        index_in_layer=1,
+        auxiliary_root=False,
+        include_internal_latents=True,
     ) == 5
     assert (
         task_block_index_for_node(
-            bf, depth_from_root=0, index_in_layer=0, auxiliary_root=False
+            bf,
+            depth_from_root=0,
+            index_in_layer=0,
+            auxiliary_root=False,
+            include_internal_latents=True,
         )
         is None
     )
     assert task_block_index_for_node(
-        bf, depth_from_root=0, index_in_layer=0, auxiliary_root=True
+        bf,
+        depth_from_root=0,
+        index_in_layer=0,
+        auxiliary_root=True,
+        include_internal_latents=True,
     ) == 6
+
+
+def test_task_block_layout_leaves_only():
+    bf = (2, 2)
+    assert n_blocks_from_branch_factors(
+        bf, auxiliary_root=True, include_internal_latents=False
+    ) == 4
+    assert task_block_index_for_node(
+        bf,
+        depth_from_root=2,
+        index_in_layer=3,
+        include_internal_latents=False,
+    ) == 3
+    assert (
+        task_block_index_for_node(
+            bf,
+            depth_from_root=1,
+            index_in_layer=0,
+            include_internal_latents=False,
+        )
+        is None
+    )
+    assert descendant_leaf_indices(
+        bf, depth_from_root=1, index_in_layer=0
+    ) == [0, 1]
+    assert descendant_leaf_indices(
+        bf, depth_from_root=1, index_in_layer=1
+    ) == [2, 3]
 
 
 def test_exact_match_assignment_and_mask_n_soma2():
@@ -51,12 +100,18 @@ def test_exact_match_assignment_and_mask_n_soma2():
     task_bf = (2, 2)
     dims = 50
     n_soma = 2
-    in_features = n_blocks_from_branch_factors(task_bf, auxiliary_root=False) * dims
+    in_features = (
+        n_blocks_from_branch_factors(
+            task_bf, auxiliary_root=False, include_internal_latents=True
+        )
+        * dims
+    )
 
     per_soma = assign_compartment_blocks_per_soma(
         model_branch_factors=model_bf,
         task_branch_factors=task_bf,
         auxiliary_root=False,
+        include_internal_latents=True,
     )
     # distal, proximal, soma
     assert per_soma[0] == [[0], [1], [2], [3]]
@@ -72,6 +127,7 @@ def test_exact_match_assignment_and_mask_n_soma2():
         task_branch_factors=task_bf,
         dims_per_leaf=dims,
         auxiliary_root=False,
+        include_internal_latents=True,
     )
     proximal = build_nested_multixor_connection_mask(
         out_features=n_soma * 2,
@@ -82,6 +138,7 @@ def test_exact_match_assignment_and_mask_n_soma2():
         task_branch_factors=task_bf,
         dims_per_leaf=dims,
         auxiliary_root=False,
+        include_internal_latents=True,
     )
 
     for soma in range(n_soma):
@@ -93,16 +150,57 @@ def test_exact_match_assignment_and_mask_n_soma2():
             assert _allowed_blocks(proximal[row], dims) == [4 + local]
 
 
+def test_exact_match_leaves_only_subtree_cover():
+    model_bf = (2, 2)
+    task_bf = (2, 2)
+    dims = 10
+    n_soma = 1
+    in_features = (
+        n_blocks_from_branch_factors(
+            task_bf, include_internal_latents=False
+        )
+        * dims
+    )
+
+    per_soma = assign_compartment_blocks_per_soma(
+        model_branch_factors=model_bf,
+        task_branch_factors=task_bf,
+        include_internal_latents=False,
+    )
+    assert per_soma[0] == [[0], [1], [2], [3]]
+    assert per_soma[1] == [[0, 1], [2, 3]]
+    assert per_soma[2] == [[]]
+
+    proximal = build_nested_multixor_connection_mask(
+        out_features=2,
+        in_features=in_features,
+        level_idx=1,
+        n_soma=n_soma,
+        branch_factors=model_bf,
+        task_branch_factors=task_bf,
+        dims_per_leaf=dims,
+        include_internal_latents=False,
+    )
+    assert _allowed_blocks(proximal[0], dims) == [0, 1]
+    assert _allowed_blocks(proximal[1], dims) == [2, 3]
+
+
 def test_deeper_prefix_extra_distal_leaf_only():
     model_bf = (2, 2, 2)
     task_bf = (2, 2)
     dims = 10
-    in_features = n_blocks_from_branch_factors(task_bf, auxiliary_root=False) * dims
+    in_features = (
+        n_blocks_from_branch_factors(
+            task_bf, auxiliary_root=False, include_internal_latents=True
+        )
+        * dims
+    )
 
     per_soma = assign_compartment_blocks_per_soma(
         model_branch_factors=model_bf,
         task_branch_factors=task_bf,
         auxiliary_root=False,
+        include_internal_latents=True,
     )
     # Extra distal (8): pairs share leaf blocks 0..3
     assert per_soma[0] == [[0], [0], [1], [1], [2], [2], [3], [3]]
@@ -120,6 +218,7 @@ def test_deeper_prefix_extra_distal_leaf_only():
         task_branch_factors=task_bf,
         dims_per_leaf=dims,
         auxiliary_root=False,
+        include_internal_latents=True,
     )
     for row in range(8):
         blocks = _allowed_blocks(finest[row], dims)
@@ -131,12 +230,18 @@ def test_same_depth_mismatch_parent_child_and_coverage():
     model_bf = (2, 3)
     task_bf = (2, 2)
     dims = 8
-    in_features = n_blocks_from_branch_factors(task_bf, auxiliary_root=False) * dims
+    in_features = (
+        n_blocks_from_branch_factors(
+            task_bf, auxiliary_root=False, include_internal_latents=True
+        )
+        * dims
+    )
 
     per_soma = assign_compartment_blocks_per_soma(
         model_branch_factors=model_bf,
         task_branch_factors=task_bf,
         auxiliary_root=False,
+        include_internal_latents=True,
     )
     distal = per_soma[0]
     proximal = per_soma[1]
@@ -167,22 +272,26 @@ def test_same_depth_mismatch_parent_child_and_coverage():
         task_branch_factors=task_bf,
         dims_per_leaf=dims,
         auxiliary_root=False,
+        include_internal_latents=True,
     )
     for row in range(6):
         assert len(_allowed_blocks(mask[row], dims)) >= 1
 
 
 def test_flat_cover_all_blocks():
-    model_bf = (6,)  # flattened [2,2] non-soma count
+    model_bf = (6,)  # flattened [2,2] non-soma count with aux
     task_bf = (2, 2)
     dims = 5
-    n_blocks = n_blocks_from_branch_factors(task_bf, auxiliary_root=False)
+    n_blocks = n_blocks_from_branch_factors(
+        task_bf, auxiliary_root=False, include_internal_latents=True
+    )
     in_features = n_blocks * dims
 
     per_soma = assign_compartment_blocks_per_soma(
         model_branch_factors=model_bf,
         task_branch_factors=task_bf,
         auxiliary_root=False,
+        include_internal_latents=True,
     )
     flat = per_soma[0]
     assert len(flat) == 6
@@ -199,16 +308,37 @@ def test_flat_cover_all_blocks():
         task_branch_factors=task_bf,
         dims_per_leaf=dims,
         auxiliary_root=False,
+        include_internal_latents=True,
     )
     for row in range(12):
         assert mask[row].sum() == dims
+
+
+def test_flat_cover_leaves_only():
+    model_bf = (4,)
+    task_bf = (2, 2)
+    dims = 5
+    n_blocks = n_blocks_from_branch_factors(task_bf, include_internal_latents=False)
+    assert n_blocks == 4
+    per_soma = assign_compartment_blocks_per_soma(
+        model_branch_factors=model_bf,
+        task_branch_factors=task_bf,
+        include_internal_latents=False,
+    )
+    seen = {b for row in per_soma[0] for b in row}
+    assert seen == {0, 1, 2, 3}
 
 
 def test_topk_respects_block_mask_with_k_ne_dims():
     dims = 50
     k = 5
     task_bf = (2, 2)
-    in_features = n_blocks_from_branch_factors(task_bf, auxiliary_root=False) * dims
+    in_features = (
+        n_blocks_from_branch_factors(
+            task_bf, auxiliary_root=False, include_internal_latents=True
+        )
+        * dims
+    )
     mask = build_nested_multixor_connection_mask(
         out_features=4,
         in_features=in_features,
@@ -218,6 +348,7 @@ def test_topk_respects_block_mask_with_k_ne_dims():
         task_branch_factors=task_bf,
         dims_per_leaf=dims,
         auxiliary_root=False,
+        include_internal_latents=True,
     )
     layer = TopKLinear(
         in_features=in_features,
@@ -245,6 +376,7 @@ def test_in_features_mismatch_raises():
             task_branch_factors=(2, 2),
             dims_per_leaf=50,
             auxiliary_root=False,
+            include_internal_latents=True,
         )
 
 
@@ -254,6 +386,7 @@ def test_unsupported_deeper_prefix_raises():
             model_branch_factors=(3, 2, 2),
             task_branch_factors=(2, 2),
             auxiliary_root=False,
+            include_internal_latents=True,
         )
 
 
@@ -263,13 +396,19 @@ def test_shallower_model_raises():
             model_branch_factors=(2, 2),
             task_branch_factors=(2, 2, 2),
             auxiliary_root=False,
+            include_internal_latents=True,
         )
 
 
 def test_dendrinet_applies_nested_multixor_ee_mask():
     dims = 10
     task_bf = [2, 2]
-    in_dim = n_blocks_from_branch_factors(tuple(task_bf), auxiliary_root=False) * dims
+    in_dim = (
+        n_blocks_from_branch_factors(
+            tuple(task_bf), auxiliary_root=False, include_internal_latents=True
+        )
+        * dims
+    )
     structured = {
         "enabled": True,
         "pathways": {
@@ -278,6 +417,7 @@ def test_dendrinet_applies_nested_multixor_ee_mask():
                 "task_branch_factors": task_bf,
                 "dims_per_leaf": dims,
                 "auxiliary_root": False,
+                "include_internal_latents": True,
             }
         },
     }
@@ -309,13 +449,24 @@ def test_dataset_geometry_helpers_still_work():
         create_nested_multixor_dataset,
     )
 
-    train, _, _ = create_nested_multixor_dataset(
+    train_leaves, _, _ = create_nested_multixor_dataset(
         n_samples=32,
         branch_factors=[2, 2],
         dims_per_leaf=8,
         distractor_scale=0.0,
+        include_internal_latents=False,
         auxiliary_root=False,
         seed=0,
     )
-    x, _ = train.tensors
-    assert x.shape[1] == 6 * 8
+    assert train_leaves.tensors[0].shape[1] == 4 * 8
+
+    train_aux, _, _ = create_nested_multixor_dataset(
+        n_samples=32,
+        branch_factors=[2, 2],
+        dims_per_leaf=8,
+        distractor_scale=0.0,
+        include_internal_latents=True,
+        auxiliary_root=False,
+        seed=0,
+    )
+    assert train_aux.tensors[0].shape[1] == 6 * 8

@@ -9,40 +9,74 @@ from .poisson import PoissonGeneratorDataset
 
 
 class ContextualGainDataset(PoissonGeneratorDataset):
-    """Overlay ``n_layered_images`` examples with independent gains; label by max gain.
+    """Concatenate ``n_regions`` examples with independent gains; label by max gain.
 
-    For each requested index, layer 0 is that example and the remaining layers are
-    sampled without replacement from the rest of the corpus. Each layer receives an
-    independent gain on
-    ``[min_gain_factor / n, max_gain_factor / n]`` (or ``_max_gf`` in place of
-    ``max_gain_factor`` when set). The returned input is the gain-weighted sum of
-    layers; the label is the class of the max-gain layer (lowest layer index on ties).
+    For each requested index, region 0 is that example and the remaining regions are
+    sampled without replacement from the rest of the corpus. Each region receives an
+    independent gain on ``[min_gain_factor, max_gain_factor]`` (or ``_max_gf`` in place
+    of ``max_gain_factor`` when set). Regions are concatenated along ``dim=-1``.
 
-    If ``poisson_sampling`` is True, returns ``poisson(x)`` with no duration/tau
-    rescaling.
+    Optional context bits are embedded with a fixed projection ``W``, optionally
+    gain-scaled and Poisson-sampled, then concatenated after the image stream.
+    Labels are ``(max_gain_digit + ctx) mod n_classes`` where ``ctx`` comes from
+    ``context_rule`` (``bit_id`` or ``xor``).
+
+    Image and context Poisson are controlled separately via ``region_poisson`` and
+    ``context_poisson`` (no duration/tau rescaling).
     """
 
     def __init__(
         self,
         base_inputs: torch.Tensor,
         base_labels: torch.Tensor,
-        n_layered_images: int = 2,
+        n_regions: int = 2,
         min_gain_factor: float = 0.01,
         max_gain_factor: float = 1.0,
         gain_sampling: str = "log_uniform",
-        poisson_sampling: bool = True,
+        region_poisson: bool = True,
+        n_context_bits: int = 0,
+        context_dim: int = 50,
+        context_rule: str = "bit_id",
+        context_seed: int = 0,
+        context_gain: bool = False,
+        context_poisson: bool = False,
     ):
-        n_layered_images = int(n_layered_images)
-        if n_layered_images < 1:
+        n_regions = int(n_regions)
+        if n_regions < 1:
             raise ValueError(
-                f"n_layered_images must be >= 1, got {n_layered_images}"
+                f"n_regions must be >= 1, got {n_regions}"
             )
         n_pool = int(base_inputs.shape[0])
-        if n_layered_images > n_pool:
+        if n_regions > n_pool:
             raise ValueError(
-                f"n_layered_images ({n_layered_images}) cannot exceed dataset "
+                f"n_regions ({n_regions}) cannot exceed dataset "
                 f"size ({n_pool})"
             )
+
+        n_context_bits = int(n_context_bits)
+        if n_context_bits < 0:
+            raise ValueError(
+                f"n_context_bits must be >= 0, got {n_context_bits}"
+            )
+        context_rule = str(context_rule).strip().lower()
+        if context_rule not in {"bit_id", "xor"}:
+            raise ValueError(
+                "context_rule must be 'bit_id' or 'xor', "
+                f"got {context_rule!r}"
+            )
+
+        if n_context_bits > 0:
+            context_dim = int(context_dim)
+            if context_dim < 1:
+                raise ValueError(
+                    f"context_dim must be >= 1 when n_context_bits > 0, "
+                    f"got {context_dim}"
+                )
+            if base_inputs.ndim != 2:
+                raise ValueError(
+                    "ContextualGainDataset with n_context_bits > 0 requires "
+                    f"flattened base_inputs (ndim == 2), got ndim={base_inputs.ndim}"
+                )
 
         super().__init__(
             base_inputs,
@@ -55,9 +89,24 @@ class ContextualGainDataset(PoissonGeneratorDataset):
             max_gain_factor=float(max_gain_factor),
             uniform_gain=True,
             gain_sampling=gain_sampling,
-            poisson_sampling=poisson_sampling,
+            poisson_sampling=False,
         )
-        self.n_layered_images = n_layered_images
+        self.n_regions = n_regions
+        self.region_poisson = bool(region_poisson)
+        self.n_context_bits = n_context_bits
+        self.context_dim = int(context_dim)
+        self.context_rule = context_rule
+        self.context_seed = int(context_seed)
+        self.context_gain = bool(context_gain)
+        self.context_poisson = bool(context_poisson)
+        self.n_classes = int(base_labels.max().item()) + 1
+
+        if n_context_bits > 0:
+            g = torch.Generator().manual_seed(self.context_seed)
+            W = torch.rand(n_context_bits, self.context_dim, generator=g)
+            self.context_projection = W / float(n_context_bits)
+        else:
+            self.context_projection = None
 
     @staticmethod
     def _primary_indices(idx, n_pool: int, device: torch.device) -> torch.Tensor:
@@ -97,15 +146,26 @@ class ContextualGainDataset(PoissonGeneratorDataset):
             return float(max_gain.detach().cpu().item())
         return float(max_gain)
 
+    def _context_scalar(self, bits: torch.Tensor) -> torch.Tensor:
+        """Map bit patterns ``(B, k)`` to discrete context scalars ``(B,)``."""
+        if self.context_rule == "xor":
+            return bits.sum(dim=-1) % 2
+        # bit_id: MSB-first integer encode
+        k = bits.shape[-1]
+        powers = (2 ** torch.arange(k - 1, -1, -1, device=bits.device)).to(bits.dtype)
+        return (bits * powers).sum(dim=-1)
+
     def __getitem__(self, idx):
         batched = self._is_batched_index(idx)
         n_pool = int(self.base_inputs.shape[0])
         device = self.base_inputs.device
-        n_layers = self.n_layered_images
+        n_regions = self.n_regions
+        use_context = self.n_context_bits > 0
+        use_context_gain = use_context and self.context_gain
 
         primary = self._primary_indices(idx, n_pool, device)
         B = int(primary.numel())
-        layer_idx = self._sample_layer_indices(primary, n_layers=n_layers)
+        layer_idx = self._sample_layer_indices(primary, n_layers=n_regions)
 
         layer_inputs = self.base_inputs[layer_idx]  # (B, n, *features)
         layer_labels = self.base_labels[layer_idx]  # (B, n)
@@ -116,30 +176,48 @@ class ContextualGainDataset(PoissonGeneratorDataset):
         min_gain = float(min_gain)
         max_gain = self._resolve_max_gain()
 
-        lo = min_gain / n_layers
-        hi = max_gain / n_layers
+        n_gain_streams = n_regions + (1 if use_context_gain else 0)
         gains = self._sample_gain_singlestage(
-            lo,
-            hi,
+            min_gain,
+            max_gain,
             gain_sampling=self.gain_sampling,
-            shape=(B, n_layers),
+            shape=(B, n_gain_streams),
             dtype=layer_inputs.dtype,
             device=device,
         )
+        if use_context_gain:
+            g_ctx = gains[..., 0]
+            g_img = gains[..., 1:]
+        else:
+            g_ctx = None
+            g_img = gains
 
         feature_ndim = layer_inputs.ndim - 2
-        gain_view = gains.reshape(B, n_layers, *([1] * feature_ndim))
-        composed = (layer_inputs * gain_view).sum(dim=1)
+        gain_view = g_img.reshape(B, n_regions, *([1] * feature_ndim))
+        images = torch.cat((layer_inputs * gain_view).unbind(dim=1), dim=-1)
+        if self.region_poisson:
+            images = torch.poisson(images)
 
-        winner = gains.argmax(dim=-1)
+        winner = g_img.argmax(dim=-1)
         labels = layer_labels[torch.arange(B, device=device), winner]
 
-        if self.poisson_sampling:
-            composed = torch.poisson(composed)
+        if use_context:
+            bits = torch.randint(
+                0, 2, (B, self.n_context_bits), device=device, dtype=layer_inputs.dtype
+            )
+            W = self.context_projection.to(device=device, dtype=layer_inputs.dtype)
+            ctx = bits @ W
+            if g_ctx is not None:
+                ctx = ctx * g_ctx.unsqueeze(-1)
+            if self.context_poisson:
+                ctx = torch.poisson(ctx)
+            images = torch.cat([images, ctx], dim=-1)
+            ctx_scalar = self._context_scalar(bits).long()
+            labels = (labels + ctx_scalar) % self.n_classes
 
         if not batched:
-            return composed[0], labels[0]
-        return composed, labels
+            return images[0], labels[0]
+        return images, labels
 
 
 __all__ = ["ContextualGainDataset"]

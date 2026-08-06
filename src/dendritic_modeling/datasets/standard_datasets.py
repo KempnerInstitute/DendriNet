@@ -1084,30 +1084,48 @@ def _load_poisson_generator_from_options(
 def _wrap_contextual_gain_dataset(
     dataset: Dataset,
     *,
-    n_layered_images: int,
+    n_regions: int,
     min_gain_factor: float,
     max_gain_factor: float,
     gain_sampling: str,
-    poisson_sampling: bool,
+    region_poisson: bool,
+    n_context_bits: int,
+    context_dim: int,
+    context_rule: str,
+    context_seed: int,
+    context_gain: bool,
+    context_poisson: bool,
 ) -> ContextualGainDataset:
     """Wrap one tensor-like dataset with contextual multi-image gain overlay."""
     return ContextualGainDataset(
         *dataset[:],
-        n_layered_images=n_layered_images,
+        n_regions=n_regions,
         min_gain_factor=min_gain_factor,
         max_gain_factor=max_gain_factor,
         gain_sampling=gain_sampling,
-        poisson_sampling=poisson_sampling,
+        region_poisson=region_poisson,
+        n_context_bits=n_context_bits,
+        context_dim=context_dim,
+        context_rule=context_rule,
+        context_seed=context_seed,
+        context_gain=context_gain,
+        context_poisson=context_poisson,
     )
 
 
 def load_contextual_gain_datasets(
     base_dataset: str,
-    n_layered_images: int = 2,
+    n_regions: int = 2,
     min_gain_factor: float = 0.01,
     max_gain_factor: float = 1.0,
     gain_sampling: str = "log_uniform",
-    poisson_sampling: bool = True,
+    region_poisson: bool = True,
+    n_context_bits: int = 0,
+    context_dim: int = 50,
+    context_rule: str = "bit_id",
+    context_seed: int = 0,
+    context_gain: bool = False,
+    context_poisson: bool = False,
     train_valid_split: float = 0.8,
     flatten: bool = False,
     task_data_path: Optional[str] = None,
@@ -1134,11 +1152,17 @@ def load_contextual_gain_datasets(
         raise ValueError(f"Unknown base dataset: {base_dataset}")
 
     kwargs = {
-        "n_layered_images": n_layered_images,
+        "n_regions": n_regions,
         "min_gain_factor": min_gain_factor,
         "max_gain_factor": max_gain_factor,
         "gain_sampling": gain_sampling,
-        "poisson_sampling": poisson_sampling,
+        "region_poisson": region_poisson,
+        "n_context_bits": n_context_bits,
+        "context_dim": context_dim,
+        "context_rule": context_rule,
+        "context_seed": context_seed,
+        "context_gain": context_gain,
+        "context_poisson": context_poisson,
     }
     return (
         _wrap_contextual_gain_dataset(train_ds, **kwargs),
@@ -1153,7 +1177,7 @@ def _load_contextual_gain_from_options(
     p = options.parameters
     return load_contextual_gain_datasets(
         base_dataset=options.base_dataset,
-        n_layered_images=int(p.get("n_layered_images", 2)),
+        n_regions=int(p.get("n_regions", 2)),
         min_gain_factor=(
             options.min_gain_factor
             if options.min_gain_factor is not None
@@ -1165,7 +1189,18 @@ def _load_contextual_gain_from_options(
             else float(p.get("max_gain_factor", 1.0))
         ),
         gain_sampling=options.gain_sampling,
-        poisson_sampling=options.poisson_sampling,
+        region_poisson=bool(
+            p.get(
+                "region_poisson",
+                p.get("poisson_sampling", options.poisson_sampling),
+            )
+        ),
+        n_context_bits=int(p.get("n_context_bits", 0)),
+        context_dim=int(p.get("context_dim", 50)),
+        context_rule=str(p.get("context_rule", "bit_id")),
+        context_seed=int(p.get("context_seed", 0)),
+        context_gain=bool(p.get("context_gain", False)),
+        context_poisson=bool(p.get("context_poisson", False)),
         train_valid_split=options.train_valid_split,
         flatten=options.flatten,
         task_data_path=options.task_data_path,
