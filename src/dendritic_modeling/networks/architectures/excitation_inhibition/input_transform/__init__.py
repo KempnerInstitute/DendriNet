@@ -4,8 +4,18 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.input_trans
 from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.index import (
     IndexInputTransform,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.prefix_split import (
+    PrefixSplitInputTransform,
+    resolve_e_stream_prefix_k,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.transfer import (
     TransferLayer,
 )
 
-__all__ = ["IdentityInputTransform", "IndexInputTransform", "TransferLayer"]
+__all__ = [
+    "IdentityInputTransform",
+    "IndexInputTransform",
+    "PrefixSplitInputTransform",
+    "TransferLayer",
+    "resolve_e_stream_prefix_k",
+]

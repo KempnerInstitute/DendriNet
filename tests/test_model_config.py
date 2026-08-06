@@ -103,6 +103,8 @@ def test_transfer_function_config_defaults():
     assert cfg.input_mode == 1
     assert cfg.input_transform is None
     assert cfg.independent_pathways is False
+    assert cfg.split_input_stream is False
+    assert cfg.e_stream_dims is None
 
 
 def test_implementation_config_defaults():

@@ -12,6 +12,9 @@ class TransferFunctionConfig(BaseConfig):
     input_mode: int = 1
     input_transform: Optional[str] = None
     independent_pathways: bool = False
+    split_input_stream: bool = False
+    # Prefix length or slice string (":k" / "0:k") designating E-stream dims.
+    e_stream_dims: Optional[Any] = None
     excitatory_dim: Optional[int] = None
     inhibitory_dim: Optional[int] = None
     output_activation: Optional[str] = None

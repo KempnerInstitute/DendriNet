@@ -129,14 +129,44 @@ def _previous_layer_inhibitory_size(
     return 0
 
 
+def _resolve_split_stream_dims(
+    *,
+    input_dim: int,
+    split_input_stream: bool,
+    e_stream_dims: Any,
+) -> tuple[int, int] | None:
+    """Return (e_dim, i_dim) when contiguous split is effective, else None."""
+    if not split_input_stream or e_stream_dims is None:
+        return None
+    try:
+        from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.prefix_split import (
+            resolve_e_stream_prefix_k,
+        )
+
+        k = resolve_e_stream_prefix_k(e_stream_dims, input_dim=input_dim)
+    except ValueError:
+        return None
+    return k, input_dim - k
+
+
 def _initial_layer_input_dims(
     *,
     input_dim: int,
     independent_pathways: bool,
     excitatory_dim: int | None,
     inhibitory_dim: int | None,
+    split_input_stream: bool = False,
+    e_stream_dims: Any = None,
 ) -> tuple[int, int]:
     """Resolve first-layer excitatory and inhibitory input dimensions."""
+    split_dims = _resolve_split_stream_dims(
+        input_dim=input_dim,
+        split_input_stream=split_input_stream,
+        e_stream_dims=e_stream_dims,
+    )
+    if split_dims is not None:
+        return split_dims
+
     if independent_pathways:
         return (
             excitatory_dim if excitatory_dim else input_dim // 2,
@@ -155,6 +185,8 @@ def _layer_input_dims(
     inhibitory_dim: int | None,
     excitatory_layer_sizes: list[int],
     inhibitory_layer_sizes: list[int],
+    split_input_stream: bool = False,
+    e_stream_dims: Any = None,
 ) -> tuple[int, int]:
     """Resolve excitatory and inhibitory input dimensions for a validator layer."""
     if layer_idx == 0:
@@ -163,6 +195,8 @@ def _layer_input_dims(
             independent_pathways=independent_pathways,
             excitatory_dim=excitatory_dim,
             inhibitory_dim=inhibitory_dim,
+            split_input_stream=split_input_stream,
+            e_stream_dims=e_stream_dims,
         )
 
     return (
@@ -180,9 +214,18 @@ def _ie_inhibitory_source_dim(
     excitatory_dim: int | None,
     inhibitory_dim: int | None,
     inhibitory_layer_sizes: list[int],
+    split_input_stream: bool = False,
+    e_stream_dims: Any = None,
 ) -> int:
     """Resolve the source dimension used to validate IE synapse counts."""
     if input_mode == 1:
+        split_dims = _resolve_split_stream_dims(
+            input_dim=input_dim,
+            split_input_stream=split_input_stream,
+            e_stream_dims=e_stream_dims,
+        )
+        if split_dims is not None:
+            return split_dims[1]
         if independent_pathways:
             return inhibitory_dim if inhibitory_dim else input_dim // 2
 
@@ -245,6 +288,10 @@ class ModelArchitectureValidator:
         self.independent_pathways = self.transfer_params.get(
             "independent_pathways", False
         )
+        self.split_input_stream = bool(
+            self.transfer_params.get("split_input_stream", False)
+        )
+        self.e_stream_dims = self.transfer_params.get("e_stream_dims", None)
 
         # Get dataset name from data config
         data_config = self._get_config_value("data", {})
@@ -297,6 +344,23 @@ class ModelArchitectureValidator:
         """Check input-mode values that are invalid independent of routing split."""
         if self.input_mode not in {0, 1}:
             self.errors.append(f"input_mode must be 0 or 1, got {self.input_mode}")
+        if self.independent_pathways and self.split_input_stream:
+            self.errors.append(
+                "independent_pathways and split_input_stream are mutually "
+                "exclusive; only one may be True"
+            )
+        if self.split_input_stream and self.e_stream_dims is not None:
+            split_dims = _resolve_split_stream_dims(
+                input_dim=self.input_dim,
+                split_input_stream=True,
+                e_stream_dims=self.e_stream_dims,
+            )
+            if split_dims is None:
+                self.errors.append(
+                    "split_input_stream e_stream_dims must be a prefix length "
+                    f"with 0 < k < input_dim ({self.input_dim}), got "
+                    f"{self.e_stream_dims!r}"
+                )
 
     def check_layer_dimensions(self):
         """Check layer size consistency"""
@@ -347,6 +411,8 @@ class ModelArchitectureValidator:
                 inhibitory_dim=self.inhibitory_dim,
                 excitatory_layer_sizes=self.excitatory_layer_sizes,
                 inhibitory_layer_sizes=self.inhibitory_layer_sizes,
+                split_input_stream=self.split_input_stream,
+                e_stream_dims=self.e_stream_dims,
             )
 
             # Inhibitory input to excitatory cells comes from same layer (if exists)
@@ -386,6 +452,8 @@ class ModelArchitectureValidator:
                     excitatory_dim=self.excitatory_dim,
                     inhibitory_dim=self.inhibitory_dim,
                     inhibitory_layer_sizes=self.inhibitory_layer_sizes,
+                    split_input_stream=self.split_input_stream,
+                    e_stream_dims=self.e_stream_dims,
                 )
 
                 # Check IE constraint
@@ -531,6 +599,13 @@ class ModelArchitectureValidator:
 
     def check_transfer_dimensions(self):
         """Check transfer function dimension settings"""
+        split_dims = _resolve_split_stream_dims(
+            input_dim=self.input_dim,
+            split_input_stream=self.split_input_stream,
+            e_stream_dims=self.e_stream_dims,
+        )
+        if split_dims is not None:
+            return
         if self.independent_pathways:
             # With independent pathways, check if dimensions are auto-set
             if not self.excitatory_dim or not self.inhibitory_dim:
@@ -566,6 +641,7 @@ class ModelArchitectureValidator:
         logger.info("Configuration validation summary:")
         logger.info(f"  Input mode: {self.input_mode}")
         logger.info(f"  Independent pathways: {self.independent_pathways}")
+        logger.info(f"  Split input stream: {self.split_input_stream}")
         logger.info(f"  Number of layers: {self.num_layers}")
 
         if self.errors:

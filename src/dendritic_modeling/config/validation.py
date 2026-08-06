@@ -264,6 +264,46 @@ def _validate_legacy_ei_core(core: Any, errors: list[str]) -> None:
         if dim <= 0:
             errors.append(f"transfer.{field_name} must be > 0 when set, got {value}")
 
+    independent_pathways = bool(_get(transfer, "independent_pathways", False))
+    split_input_stream = bool(_get(transfer, "split_input_stream", False))
+    if independent_pathways and split_input_stream:
+        errors.append(
+            "transfer.independent_pathways and transfer.split_input_stream "
+            "are mutually exclusive; only one may be True"
+        )
+    e_stream_dims = _get(transfer, "e_stream_dims", None)
+    if split_input_stream and e_stream_dims is not None:
+        if isinstance(e_stream_dims, bool):
+            errors.append(
+                "transfer.e_stream_dims must be an int or prefix slice string, "
+                f"got {e_stream_dims!r}"
+            )
+        elif isinstance(e_stream_dims, int):
+            if int(e_stream_dims) <= 0:
+                errors.append(
+                    "transfer.e_stream_dims must be > 0 when set as an int, "
+                    f"got {e_stream_dims}"
+                )
+        elif isinstance(e_stream_dims, str):
+            text = e_stream_dims.strip()
+            if ":" not in text:
+                try:
+                    if int(text) <= 0:
+                        errors.append(
+                            "transfer.e_stream_dims must be > 0 when set as an int, "
+                            f"got {e_stream_dims!r}"
+                        )
+                except (TypeError, ValueError):
+                    errors.append(
+                        "transfer.e_stream_dims must be an int or prefix slice "
+                        f"string (':k' / '0:k'), got {e_stream_dims!r}"
+                    )
+        elif not isinstance(e_stream_dims, slice):
+            errors.append(
+                "transfer.e_stream_dims must be an int, slice, or prefix slice "
+                f"string, got {type(e_stream_dims).__name__}: {e_stream_dims!r}"
+            )
+
 
 def _canonical_external_source(source: str) -> str | None:
     return _EXTERNAL_ALIASES.get(str(source).lower())

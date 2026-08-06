@@ -10,6 +10,10 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.input_trans
 from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.index import (
     IndexInputTransform,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.prefix_split import (
+    PrefixSplitInputTransform,
+    resolve_e_stream_prefix_k,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -22,12 +26,23 @@ class TransferLayer(nn.Module):
         self.independent_pathways = independent_pathways = transfer_params.get(
             "independent_pathways", False
         )
+        split_input_stream_flag = bool(
+            transfer_params.get("split_input_stream", False)
+        )
+        e_stream_dims = transfer_params.get("e_stream_dims", None)
+
         if input_dim is None or int(input_dim) <= 0:
             raise ValueError(f"input_dim must be a positive integer, got {input_dim}")
         input_dim = int(input_dim)
         self.input_dim = input_dim
         if input_mode not in {0, 1}:
             raise ValueError(f"Invalid input_mode: {input_mode}")
+
+        if independent_pathways and split_input_stream_flag:
+            raise ValueError(
+                "independent_pathways and split_input_stream are mutually exclusive; "
+                "only one may be True"
+            )
 
         # Add output activation option
         self.output_activation = transfer_params.get("output_activation", None)
@@ -45,6 +60,11 @@ class TransferLayer(nn.Module):
             self.activation_fn = nn.Identity()
         else:
             raise ValueError(f"Unknown output_activation: {self.output_activation}")
+
+        # Effective split only when flag is on and e_stream_dims is provided.
+        # Flag on with omitted dims reverts to identity (same as flag False).
+        effective_split = split_input_stream_flag and e_stream_dims is not None
+        self.split_input_stream = effective_split
 
         if independent_pathways:
             # Get dimensions from transfer_params, checking for None, 0, or missing
@@ -76,8 +96,24 @@ class TransferLayer(nn.Module):
                     "split_seed", transfer_params.get("seed", None)
                 ),
             )
+        elif effective_split:
+            # Contiguous prefix split: first k dims -> e_stream, rest -> i_stream.
+            # Validate k eagerly so bad configs fail at construction.
+            k = resolve_e_stream_prefix_k(e_stream_dims, input_dim=input_dim)
+            self.pathway_split = PrefixSplitInputTransform(
+                input_dim=input_dim,
+                e_stream_dims=k,
+            )
+            excitatory_input_dim = k
+            inhibitory_input_dim = input_dim - k
         else:
-            # When independent_pathways is False, both use full input_dim
+            # When independent_pathways / split_input_stream are inactive,
+            # both streams use the full input_dim (identity copy).
+            if split_input_stream_flag and e_stream_dims is None:
+                logger.info(
+                    "split_input_stream=True but e_stream_dims is omitted/None; "
+                    "reverting to identity transfer (same as split_input_stream=False)"
+                )
             excitatory_input_dim = input_dim
             inhibitory_input_dim = input_dim
             self.pathway_split = IdentityInputTransform()
@@ -91,9 +127,9 @@ class TransferLayer(nn.Module):
             # When input_mode=0, inhibitory dimension is the same as excitatory
             # The first EI layer will build inhibitory cells
             self.inhibitory_dim = inhibitory_input_dim
-        elif input_mode == 1 and independent_pathways:
+        elif input_mode == 1 and (independent_pathways or effective_split):
             self.inhibitory_dim = int(input_dim - self.excitatory_dim)
-        elif input_mode == 1 and not independent_pathways:
+        elif input_mode == 1 and not independent_pathways and not effective_split:
             self.inhibitory_dim = self.excitatory_dim
         else:
             raise ValueError(f"Invalid input_mode: {input_mode}")
@@ -104,11 +140,11 @@ class TransferLayer(nn.Module):
                 f"TransferLayer expected last input dimension {self.input_dim}, "
                 f"got {x.shape[-1]}"
             )
-        x1, x2 = self.pathway_split(x)
+        e_stream, i_stream = self.pathway_split(x)
 
         # Apply activation function if specified
-        x1 = self.activation_fn(x1)
-        x2 = self.activation_fn(x2)
+        e_stream = self.activation_fn(e_stream)
+        i_stream = self.activation_fn(i_stream)
 
         # No longer process inhibitory cells here - just return the split/duplicated input
-        return x1, x2
+        return e_stream, i_stream
