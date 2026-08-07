@@ -586,13 +586,10 @@ def _pick_wpo_params() -> tuple[int, int]:
 # "nostage" force one variant, for A/B and for reverting without a code change.
 _FWD_VARIANT = os.environ.get("DENDRINET_GATHER_FWD_VARIANT", "auto").strip().lower()
 
-# Below this much index reuse the un-staged kernel's extra L2 traffic does not pay
-# for itself. reuse = O*K/IN = gathers issued per element of the x-row.
-_NOSTAGE_MIN_REUSE = 120.0
 
 
 def _pick_fwd_variant(IN: int, O: int, K: int) -> tuple[str, int, int]:
-    """Choose the forward gather kernel: ("staged"|"nostage", P, T).
+    """Choose the forward gather kernel: ("staged"|"nostage"|"hybrid", P, T).
 
     The staged kernel asks for IN*4 bytes of shared, so it fits
     ``optin // (IN*4)`` blocks per SM. Once that is 1, it is occupancy-capped
@@ -601,24 +598,14 @@ def _pick_fwd_variant(IN: int, O: int, K: int) -> tuple[str, int, int]:
     can win. It does not *always* win, because it issues ~5x more L2 requests,
     and that only pays back when there are enough outputs to fill the grid.
 
-    Measured on Blackwell, batch 512, K=40, over a 5x5 (IN, O) grid -- no-stage
-    won 3 cells and lost 22 (see bench_gather_crossover.py):
-
-        IN \\ O      2,000   8,000  16,000  48,000  144,000   blk/SM
-         3,072      0.91    0.92    0.91    0.92     0.89        8
-         4,000      0.90    0.89    0.88    0.86     0.88        6
-         8,000      0.78    0.74    0.63    0.71     0.82        3
-        16,000      0.84    0.81    0.87    1.11     1.50        1
-        24,000      0.73    0.70    0.72    0.84     1.06        1
-
-    ``blk/SM <= 1 and reuse >= 120`` classifies all 25 cells correctly. Note the
-    boundary moves with IN (at 16,000 it crosses by O=48,000; at 24,000 not until
-    144,000) because a larger x-row is less L2-resident -- which is why this is a
-    two-term rule and not a threshold on either axis alone.
-
-    Only K=40 was swept; the reuse term carries K on the assumption that gathers
-    per staged element is what matters, which is the mechanism but not measured
-    across K.
+    Every band is fitted per-architecture from measured sweeps -- see the
+    branch comments below and profilings/dendrinet_harness/rnn_prof/logs/
+    edges_{blackwell,h100,a100}. The reuse=O*K/IN heuristic that originally
+    generalized the K=40 fit was RETIRED once the dense-K edge sweeps showed
+    it selecting measurably slower kernels (0.58-0.89x cells at IN=24k,
+    K=50-60): the bands are lookup tables over measured cells, not mechanism
+    extrapolations. check_picker_dispatch.py asserts code-vs-measurement
+    agreement per architecture.
     """
     ns_P = 64 if O >= 96_000 else 32
     if _FWD_VARIANT == "staged":
@@ -636,52 +623,106 @@ def _pick_fwd_variant(IN: int, O: int, K: int) -> tuple[str, int, int]:
         # 1.11-1.20x there. Do not assume the two directions agree.)
         return ("staged", *_pick_wpo_params())
     blocks_per_sm = optin // max(IN * 4, 1)
-    reuse = (O * K) / max(IN, 1)
     cc = torch.cuda.get_device_capability()
     if cc[0] >= 10:
-        # Blackwell, from three 5x5 (IN, O) sweeps at K=10/40/80
-        # (bench_gather_crossover.py --K, batch 512). The dominant factor is K
+        # Blackwell (measured on RTX PRO 6000 Server, sm_120, optin 101,376 B).
+        # Fitted from 5x5 (IN, O) sweeps at K=10/40/80 plus the dense-K edge
+        # sweep (logs/edges_blackwell: K=15..70 on the deciding shapes, batches
+        # 64/128/512, hybrid re-swept at 128 and 512). The dominant factor is K
         # itself, not reuse: staging amortizes its IN*4-byte row over K gathers
-        # per output, so low K starves it and high K feeds it. Measured bands at
-        # 1 block/SM:
-        #   K=10: no-stage wins EVERY O (1.50-1.84x, even at reuse ~1) -- the
-        #         old reuse>=120 rule missed every one of these wins;
-        #   K=40: mixed; reuse>=120 classifies all 25 cells correctly;
-        #   K=80: staging wins almost everywhere -- the old rule would have
-        #         PICKED SLOWER KERNELS at two cells (0.76x, 0.93x). Its single
-        #         win cell (16k->144k, 1.26x) is one point; no rule is fitted
-        #         to one point, so K>60 stays staged and forfeits it.
-        # Hybrid prefix-staging (gather_fwd_wpo_hy_kernel) slots into the gap
-        # between the incumbents: 1-block/SM shapes without enough output work
-        # for the un-staged kernel to amortize. Measured (bench_gather_hybrid,
-        # bit-identical everywhere): K=10 row 1.08-1.09x over no-stage; K=40 at
-        # IN=16k O<=48k 1.22-1.34x over the best incumbent; loses at O=144k
-        # (no-stage keeps it, 0.94x) and at IN=24k K=40 (untested interior ->
-        # staged keeps it, conservative).
+        # per output, so low K starves it and high K feeds it. Measured bands
+        # at 1 block/SM:
+        #   K<=20: no-stage beats staged at every O (1.17-1.89x); hybrid beats
+        #          no-stage where measured (1.03-1.09x) and takes the band.
+        #   K>20, IN<=20k: O>=96k stays no-stage at EVERY K through 80
+        #          (1.18-1.53x measured at 25/30/40/50/60/70/80 -- the old
+        #          interpolated K<=60 cap forfeited 1.27-1.28x at 70/80);
+        #          O<=96k is the hybrid's region (1.19-1.34x at K=40, held at
+        #          batch 128).
+        #   K>20, IN>20k: no-stage survives only at O>=96k AND K<=40
+        #          (1.06-1.30x); the win dies between K=40 and 50 (0.89x at
+        #          50, 0.69x at 60) and the old reuse>=120 rule shipped
+        #          exactly those regressions plus (24k,48k,K60)=0.58x. The
+        #          reuse term is RETIRED here -- every band below is a
+        #          measured cell, not a mechanism extrapolation.
+        # Batch: winner sets identical at 64/128/512 for every band cell.
+        # Batch-64-only anomaly: no-stage wins tiny-O cells (IN=3-4k, O=2000,
+        # 1.22-1.27x on ~30us kernels) that stay staged -- declined; the
+        # picker has no batch input and the absolute cost is launch noise.
+        # Hybrid at (24k, O>=96k, K<=20) is untested interior, as originally.
+        # sm_100 (B200) is unmeasured: its ~232 KB optin pushes these INs to
+        # >=3 blocks/SM, where the blk/SM predicate already keeps staged.
         hy_P = 4096 if O >= 96_000 else (2048 if O >= 24_000 else 1024)
         if blocks_per_sm <= 1:
             if K <= 20:
                 return ("hybrid", hy_P, 512)
-            if K <= 60:
-                # Hybrid FIRST for small/mid O: at (16k, 48k) it beats no-stage
-                # 3.51 vs 4.27 ms, but reuse=120 there would fire the no-stage
-                # band if tested first -- the dispatch order is part of the
-                # measurement. no-stage keeps only the very largest O (144k:
-                # 9.74 vs hybrid 10.36).
-                if IN <= 20_000 and O <= 96_000:
+            if IN <= 20_000:
+                if K <= 60 and O <= 96_000 and (K <= 50 or O < 40_000):
+                    # Hybrid FIRST here: at (16k, 48k, K40) it beats no-stage
+                    # 3.51 vs 4.27 ms -- dispatch order is part of the fit.
+                    # K edge verified at shipped config (bench_shipped_bands):
+                    # 1.21x at (48k, K50) but 0.94x at (48k, K60) -> that
+                    # corner is staged; small O keeps hybrid through K=60.
                     return ("hybrid", hy_P, 512)
-                if reuse >= _NOSTAGE_MIN_REUSE:
+                if O >= 96_000:
                     return ("nostage", ns_P, 512)
+            elif O >= 96_000 and K <= 40:
+                return ("nostage", ns_P, 512)
     elif cc == (8, 0):
-        # A100 rule, from its own sweep -- the Blackwell rule transplanted there
-        # forfeits measured wins (1.77x/1.28x/1.11x at IN=24k; 1.08x at the
-        # stress config's dominant IN=16k -> 144k shape). On sm80 the un-staged
-        # kernel wins whenever staged occupancy collapses to 1 block/SM, EVEN at
-        # low reuse (1.11x at reuse=3.3 -- unlike Blackwell), and additionally
-        # at 2 blocks/SM when the output dimension is very large. One accepted
-        # ~1% giveback at (24k, 16k), measured 0.99.
-        if blocks_per_sm <= 1 or (blocks_per_sm == 2 and O >= 100_000):
-            return ("nostage", ns_P, 512)
+        # A100 (sm80, optin 167,936 B), REFIT from the dense edge sweep
+        # (logs/edges_a100). The original K=40-only rule ("no-stage whenever
+        # 1 blk/SM") shipped regressions at high K + small O: measured 0.94x
+        # (K50), 0.81x (K60), 0.70x (K70), 0.58-0.70x (K80, O<=16k), all at
+        # IN=24k. Measured bands:
+        #   1 blk/SM (IN > ~21k): no-stage EVERYWHERE for K<=40 (1.02-2.06x;
+        #     one accepted 0.99 at O=16k, K=40); for K>40 only O>=40k keeps
+        #     it (1.29-1.69x at 48k/144k -- the small-O side flips to staged).
+        #   2 blk/SM (IN ~14-21k): the whole row for K<=15 (1.11-1.24x);
+        #     O>=40k up to K<=25 (1.05-1.09x at 48k); the largest O>=100k at
+        #     any K (1.29x at K20 tapering to ~1.01 by K>=60, never below 1.0
+        #     -- band kept).
+        # Batch: every band cell holds at 64/128 (1.01-1.78x). Tiny-O
+        # batch-64 anomalies (IN=3-4k, O=2k, 1.00-1.03x) declined as on
+        # Blackwell. No-stage P is K-banded from the sweeps' per-cell best-P
+        # modes (512 low-K/small-O, 64 mid, 32 high-K); the shipped-band
+        # verify times exactly this dispatch against staged per cell.
+        sm80_p = 512 if (K <= 20 or O < 40_000) else (64 if K <= 40 else 32)
+        if blocks_per_sm == 2 and 40_000 <= O < 100_000 and K > 10:
+            # (16k, 48k) column: shipped-band verify measured P=512/64 LOSING
+            # the win there (0.81-0.95x vs staged); the sweeps' best P is 128
+            # at K=15/20/25 and 128 restores it. K=10 stays 512 (verified).
+            sm80_p = 128
+        if blocks_per_sm <= 1:
+            if K <= 40 or O >= 40_000:
+                return ("nostage", sm80_p, 512)
+        elif blocks_per_sm == 2:
+            # Trimmed to the cells that win on BOTH sm80 variants: the 40GB
+            # card (~20% less bandwidth, same cc so the picker cannot tell)
+            # tips the marginal cells negative -- (48k,K25) and (144k,K>=50)
+            # measured 0.93-0.95x there vs 0.99-1.05x on 80GB. Dropping them
+            # costs ~nothing on 80GB and keeps the never-worse guarantee.
+            if K <= 15 or (K <= 20 and O >= 40_000) or (K <= 40 and O >= 100_000):
+                return ("nostage", sm80_p, 512)
+    elif cc[0] == 9:
+        # H100 (sm90, optin 232,448 B), from the full edge sweep
+        # (logs/edges_h100: 5x5 grids at K=10/40/80, batches 64/128/512, dense
+        # K=15..70 on the deciding shapes, hybrid at two batches). The 2.3x
+        # larger shared budget changes the answer wholesale: staged keeps
+        # >=3 blocks/SM up to IN~19k and wins EVERY such cell at every K and
+        # every batch swept. No-stage wins only at 2 blocks/SM (IN ~19-29k):
+        #   K<=15: the whole row, 1.05-1.09x;
+        #   K=20..60: only the very largest O (the 144k cell, 1.05-1.30x,
+        #             peak at K=30); K>=70 nothing (0.96x/0.85x).
+        # Winner set is IDENTICAL at batch 64/128/512 (1.11-1.15x) -- no batch
+        # dependence found. The hybrid kernel LOSES everywhere here
+        # (0.54-0.94x, both batches): it exists to fix an occupancy collapse
+        # sm90 does not have in this IN range; measured negative, no band.
+        # 1 block/SM (IN 29-58k) is beyond the measured grid -> staged default.
+        # Fitted on H100; H200 is also cc 9.0 with the same SM/shared budget
+        # (faster HBM shifts margins, not mechanisms) and takes this branch.
+        if blocks_per_sm == 2 and (K <= 15 or (K <= 60 and O >= 100_000)):
+            # best no-stage P on sm90 is 512 in nearly every winning cell
+            return ("nostage", 512, 512)
     # Unmeasured architectures keep the staged kernel -- the safe default.
     return ("staged", *_pick_wpo_params())
 

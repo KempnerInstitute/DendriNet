@@ -64,7 +64,13 @@ def main():
     ap.add_argument("--K", type=int, default=40,
                     help="synapses per output; the picker rule was fitted at 40 "
                          "and carries K through reuse=O*K/IN on mechanism only")
+    ap.add_argument("--ins", type=str, default="",
+                    help="comma-separated in_features override (default: full grid)")
+    ap.add_argument("--outs", type=str, default="",
+                    help="comma-separated out_features override (default: full grid)")
     a = ap.parse_args()
+    ins = [int(s) for s in a.ins.split(",")] if a.ins else INS
+    outs = [int(s) for s in a.outs.split(",")] if a.outs else OUTS
     if not (torch.cuda.is_available() and cg.cuda_gather_available()):
         print("needs CUDA + built extension")
         return 1
@@ -77,14 +83,14 @@ def main():
           f"batch={M}  K={K}\n")
     print("cell = speedup of NO-STAGE over STAGED (>1 means drop the shared staging)")
     header = "in \\ out"
-    print("\n" + f"{header:>10}" + "".join(f"{o:>12,}" for o in OUTS)
+    print("\n" + f"{header:>10}" + "".join(f"{o:>12,}" for o in outs)
           + f"{'blk/SM':>9}")
 
     winners = {}
-    for in_f in INS:
+    for in_f in ins:
         blocks = optin // (in_f * 4)
         row = f"{in_f:>10,}"
-        for out_f in OUTS:
+        for out_f in outs:
             idx = torch.randint(0, in_f, (out_f, K), device=dev,
                                 dtype=torch.int32).contiguous()
             w = (torch.randn(out_f, K, device=dev) * 0.05).contiguous()

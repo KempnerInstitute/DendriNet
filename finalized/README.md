@@ -73,6 +73,7 @@ env: `DENDRINET_POSITIVE_TANH_SIGMOID=0`, `DENDRINET_POSITIVE_TANH_FUSED=0`,
 **Boundaries we found (measured, handed to the research track)**
 18. The stress configs cannot learn from raw pixels at *any* depth or gain — the shunt's ~√K per-stage averaging erases input signal (entry layer alone: ~28×). This is architecture, not kernels: kernel outputs are bit-identical to the reference. Screen candidate morphologies with `harness/probe_signal_death.py` (~2 min) before spending training runs.
 19. The backward gather kernel is *proven* optimal — all three alternative designs were built, measured, and lost (0.47×, 0.06×, 0.4×). Its 33% occupancy is the price of atomic locality, not a defect.
+20. Picker edge closure (2026-08-06) — the forward-kernel picker is now a measured lookup table on **every** architecture we run: H100 (new), Blackwell, and both A100 variants, each swept across batch (64–512) and K (10–80). The sweeps caught the old heuristic shipping 0.58–0.94× regressions at cells it had extrapolated to; those are fixed, and two standing checks (`checks/check_picker_dispatch.py`, no GPU needed; `checks/bench_shipped_bands.py`, on-GPU) fail loudly if code and measurement ever drift. One command re-fits a new GPU model: `harness/sweep_picker_edges.sh <outdir>` (~45 min).
 
 ## Docs
 

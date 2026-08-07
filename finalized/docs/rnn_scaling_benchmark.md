@@ -288,6 +288,76 @@ Three exits, in increasing effort:
 3. **Shard the idx buffer** — the real systems item; removes the 19 GB replication that
    dominates the floor.
 
+## CLOSED: feedforward, single-GPU, engineering track (2026-08-05)
+
+Closing evidence: four-arm trajectory overlay on the real trainer (5 epochs each,
+`closeout_overlay.sh`), on BOTH architectures, with the acceptance criterion fixed before
+running: optimization-induced deviation is judged against the eager-vs-eager control gap,
+not against zero. Every arm's gather path is a logged fact, not an inference.
+
+| max |Δloss| across all 10 points | Blackwell | A100-80GB |
+|---|---|---|
+| eager vs eager control (noise floor) | 1.19e-02 | 3.88e-03 |
+| reactivation stack ON vs eager | **2.75e-03** | **3.81e-03** |
+| fused gather kernel vs cuda kernel | **5.47e-03** | **2.29e-03** |
+
+On both cards the optimizations' effect on training is **smaller than or equal to the
+difference between two identical eager runs** — statistically invisible. Corroborating
+live speed: the cuda arm trained in 90 s vs the fused arm's 277 s (3.1×), on the same
+trainer, same epoch count.
+
+**Closed** = operators bit-identical/≤4e-7; 2.19× peak memory at the proven structural
+floor; batch 1024→4096; process peak = training step; save path fixed; equivalence at
+operator, half-precision, optimizer-trajectory, and now real-trainer-trajectory level,
+cross-architecture. Lab entry point: `finalized/`.
+
+**Excepted** (declared, not forgotten) -- REVISED 2026-08-06, the original three items
+(A100 crossover unmeasured, K=40-only sweep, P=4096) were all closed by measurement; the
+remaining declared set: H200 unmeasured (takes the measured sm90 branch -- same cc/SM/
+shared budget, margins may shift); H100 1-blk/SM regime (IN 29-58k) beyond the swept
+grid, staged default; B200/sm100 unmeasured (its 232 KB optin routes these INs to >=3
+blk/SM where the blk/SM predicate keeps staged); batch-64 tiny-O no-stage wins (~30 us
+cells) declined, the picker has no batch input; Triton path correct but unoptimized
+(1.6-1.8x behind cuda, kept as the no-nvcc fallback).
+
+## Picker edge closure -- 2026-08-06
+The three declared forward-picker edges, closed by measurement on three architectures
+(`sweep_picker_edges.sh`, one run each -> `rnn_prof/logs/edges_{h100,blackwell,a100}`):
+- **(a) H100**: new sm90 branch. Staged nearly everywhere (232 KB shared keeps >=3
+  blk/SM to IN~19k); no-stage only at 2 blk/SM (whole row K<=15, the 144k cell to
+  K<=60); hybrid loses everywhere (0.54-0.94x), no band. Dispatch verified live;
+  shipped-band verify PASS 12/12.
+- **(b) batch**: winner sets identical at batch 64/128/512 on every arch's band cells.
+- **(c) K edges**: the interpolated edges were wrong BOTH ways. Blackwell: the
+  reuse>=120 rule shipped 0.58-0.89x regressions (IN=24k, K=50-60) and forfeited
+  1.27-1.28x wins at (16k,144k,K70/80) -- reuse heuristic RETIRED, bands are measured
+  lookups. A100: the K-blind rule shipped 0.58-0.94x at high-K small-O and forfeited
+  the K<=15 whole-row wins at 2 blk/SM -- refit with K-banded no-stage P.
+- **Shipped-band verify** (`bench_shipped_bands.py`: sweeps report per-cell BEST P,
+  dispatch ships BANDED P -- this times the exact dispatched config vs staged per
+  winner cell): caught 3 A100 cells (P=128 refit) and 1 Blackwell cell (hybrid
+  (48k,K60) trimmed at 0.94x).
+- **sm80 hardware variants**: A100-40GB (same cc, ~20% less bandwidth) tips 5 marginal
+  cells negative (0.93-0.95x) that the 80GB fit had at 0.99-1.05x. Band trimmed to the
+  cells that win on BOTH variants -- costs ~nothing on 80GB, restores never-worse on
+  40GB.
+- Standing regression tests: `check_picker_dispatch.py` (per-arch expected winner sets;
+  simulate mode needs no GPU) + `bench_shipped_bands.py` (hardware). Final states:
+  H100 12 cells PASS; Blackwell 37 cells, A100 37 cells (80GB re-verify queued).
+
+## 1M gate -- 2026-08-06 (4x H100-80GB, job 37522508)
+Init + FSDP wrap + full FORWARD of the first 1M x 5k batch all succeed (the cpu_init
+fix holds at scale). OOM in the first `loss.backward()` inside the fused gather:
+992 MiB requested with 2.55 GiB reserved-but-unallocated and 651 MiB free -- a
+FRAGMENTATION miss, not capacity (74.4 GiB truly allocated of 79.2). peak_per_gpu
+80,967 MB. Retry queued with PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+(allocator policy only, no numeric effect); next lever if it misses: low-precision
+optimizer state (~7.8 GB/rank).
+
+**Handed off**: raw-input learning / morphology co-design → research track (screen with
+`probe_signal_death.py`); multi-GPU + 1M steady state → scaling track (init fixed; boundary
+measured: replicated idx needs 80 GB cards, 8 ranks, or idx sharding).
+
 ## Open rows
 | scale | GPU | path | epoch (s) | peak (MB) | notes |
 |---|---|---|---|---|---|
