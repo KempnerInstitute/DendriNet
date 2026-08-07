@@ -1,5 +1,8 @@
 """Sequence dataset package."""
 
+from dendritic_modeling.datasets.sequence.bayesian_timing import (
+    FactualBayesianReadySetGoDataset,
+)
 from dendritic_modeling.datasets.sequence.decision_tasks import (
     ContextDependentDecisionDataset,
     HierarchicalTemporalDataset,
