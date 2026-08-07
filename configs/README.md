@@ -28,6 +28,7 @@ reference configs and reusable examples.
 | --- | --- |
 | Feedforward E/I MNIST | `examples/population_network_feedforward.yaml` |
 | CIFAR-10 E/I training recipe | `examples/population_network_cifar10.yaml` |
+| Morphology-aligned CIFAR-10 image routing | `examples/population_network_spatial_morphology_cifar10.yaml` |
 | Normalized additive inhibition | `examples/population_network_normalized_additive_mnist.yaml` |
 | Heterogeneous E/I populations in one layer | `examples/population_network_heterogeneous_feedforward.yaml` |
 | Explicit two-layer population routing | `examples/population_network_two_layer.yaml` |
@@ -53,6 +54,13 @@ Population-network examples should use:
 - `topk_type: dense_to_sparse` when the experiment is about learned pruning
 - `topk_type: indexed_rewire` when the experiment needs memory-efficient
   same-dendrite turnover of weak synapses without a dense score matrix
+- `topk_type: indexed` with `structured_connectivity.method:
+  spatial_morphology` when each image branch should receive fixed contacts from
+  its own nested spatial region. The default `spatial.region_mode: partition`
+  uses disjoint child regions. High-fan-out trees can instead use
+  `spatial.region_mode: overlapping_grid` with an explicit
+  `spatial.minimum_window_shape`, which places child regions on nested grids
+  and expands undersized terminal regions into localized overlapping windows
 - `topk_type: indexed_dynamic` only when the experiment specifically needs a
   fixed candidate pool for comparison
 - `efficient_blocklinear: true` when populations have multi-level branch

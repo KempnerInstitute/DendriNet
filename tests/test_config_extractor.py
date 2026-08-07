@@ -247,6 +247,7 @@ class TestConfigExtractor(unittest.TestCase):
                                         "use_shunting": False,
                                         "use_additive_normalization": True,
                                         "blocklinear_strategy": "conductance_dynamic",
+                                        "topk_type": "indexed",
                                         "topk_strategy": "none",
                                         "reactivation_strategy": "none",
                                         "reactivation_init_policy": "occupancy_quantile",
@@ -294,12 +295,107 @@ class TestConfigExtractor(unittest.TestCase):
         self.assertEqual(params["independent_pathways"], False)
         self.assertEqual(params["network_layer_count"], 1)
         self.assertEqual(params["blocklinear_strategy"], "conductance_dynamic")
+        self.assertEqual(params["topk_type"], "indexed")
         self.assertEqual(params["topk_strategy"], "none")
         self.assertEqual(params["reactivation_strategy"], "none")
         self.assertEqual(params["reactivation_init_policy"], "occupancy_quantile")
         self.assertEqual(params["reactivate"], True)
         self.assertEqual(params["dbl_init_method"], "analytical_expectation")
         self.assertEqual(params["init_method"], "xavier_normal")
+        self.assertEqual(params["structured_connectivity_enabled"], False)
+        self.assertEqual(params["structured_connectivity_method"], "none")
+        self.assertEqual(params["synaptic_routing"], "global_fixed_index")
+
+    def test_extract_population_network_spatial_routing(self):
+        """Spatial routing must be an explicit standard sweep axis."""
+        config = OmegaConf.create(
+            {
+                "model": {
+                    "core": {
+                        "type": "population_network",
+                        "population_network": {
+                            "layers": [
+                                {
+                                    "readout_population": "e0",
+                                    "population_defaults": {
+                                        "topk_type": "indexed",
+                                        "structured_connectivity": {
+                                            "enabled": True,
+                                            "method": "spatial_morphology",
+                                            "seed": 42,
+                                            "spatial": {"input_shape": [3, 32, 32]},
+                                        },
+                                    },
+                                    "populations": [
+                                        {
+                                            "name": "e0",
+                                            "polarity": "excitatory",
+                                            "n_neurons": 64,
+                                            "branch_factors": [2, 2, 2, 2],
+                                        }
+                                    ],
+                                }
+                            ]
+                        },
+                    }
+                }
+            }
+        )
+
+        params = self.extractor._extract_model_params(config)
+
+        self.assertEqual(params["structured_connectivity_enabled"], True)
+        self.assertEqual(params["structured_connectivity_method"], "spatial_morphology")
+        self.assertEqual(params["spatial_region_mode"], "partition")
+        self.assertEqual(params["synaptic_routing"], "spatial_morphology")
+
+    def test_extract_population_network_overlapping_spatial_routing(self):
+        """Overlapping spatial windows must remain a distinct sweep axis."""
+        config = OmegaConf.create(
+            {
+                "model": {
+                    "core": {
+                        "type": "population_network",
+                        "population_network": {
+                            "layers": [
+                                {
+                                    "readout_population": "e0",
+                                    "population_defaults": {
+                                        "topk_type": "indexed",
+                                        "structured_connectivity": {
+                                            "enabled": True,
+                                            "method": "spatial_morphology",
+                                            "seed": 42,
+                                            "spatial": {
+                                                "input_shape": [3, 32, 32],
+                                                "region_mode": "overlapping_grid",
+                                                "minimum_window_shape": [4, 4],
+                                            },
+                                        },
+                                    },
+                                    "populations": [
+                                        {
+                                            "name": "e0",
+                                            "polarity": "excitatory",
+                                            "n_neurons": 64,
+                                            "branch_factors": [120],
+                                        }
+                                    ],
+                                }
+                            ]
+                        },
+                    }
+                }
+            }
+        )
+
+        params = self.extractor._extract_model_params(config)
+
+        self.assertEqual(params["spatial_region_mode"], "overlapping_grid")
+        self.assertEqual(
+            params["synaptic_routing"],
+            "spatial_morphology_overlapping_grid",
+        )
 
     def test_extract_population_network_distinguishes_inhibitory_routes(self):
         def _config(source, populations):

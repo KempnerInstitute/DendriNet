@@ -1,0 +1,37 @@
+# Select epochs using validation metrics from a standard sweep collection.
+# The paths are illustrative; generate both CSV files first with
+# dendritic-collect-sweep-metrics and update the expected counts.
+schema_version: validation_epoch_selection_v1
+history:
+  path: /path/to/sweep_collection/training_history.csv
+units:
+  path: /path/to/sweep_collection/checkpoint_units.csv
+join_columns: [sweep_name, config_id, seed]
+metadata_columns:
+  - dataset
+  - use_shunting
+  - reactivation_init_policy
+  - ee_value
+  - ie_value
+  - branch_factors
+  - readout_n_neurons
+expected_unit_count: 24
+expected_epochs_per_unit: 300
+epoch_column: epoch_number
+metric_column: metric
+value_column: value
+selectors:
+  - name: validation_nll
+    metric: valid_categorical_loglikelihood
+    objective: max
+    tie_break: earliest
+  - name: validation_accuracy
+    metric: valid_accuracy
+    objective: max
+    tie_break: earliest
+report_metrics:
+  - valid_accuracy
+  - test_accuracy
+  - valid_categorical_loglikelihood
+  - test_categorical_loglikelihood
+output_dir: /path/to/validation_epoch_selection

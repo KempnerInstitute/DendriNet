@@ -342,8 +342,11 @@ The three declared forward-picker edges, closed by measurement on three architec
   cells that win on BOTH variants -- costs ~nothing on 80GB, restores never-worse on
   40GB.
 - Standing regression tests: `check_picker_dispatch.py` (per-arch expected winner sets;
-  simulate mode needs no GPU) + `bench_shipped_bands.py` (hardware). Final states:
-  H100 12 cells PASS; Blackwell 37 cells, A100 37 cells (80GB re-verify queued).
+  simulate mode needs no GPU) + `bench_shipped_bands.py` (hardware). Final states
+  (2026-08-07): H100 12/12 PASS (hardware); Blackwell 37/37 MATCH+PASS (hardware);
+  A100 37/37 MATCH+PASS on the 40GB variant, and every kept cell passed on 80GB in
+  the pre-trim run (its only flag, (48k,K25) at 0.95x, is a since-trimmed cell).
+  **CUDA level CLOSED on every measured architecture.**
 
 ## 1M gate -- 2026-08-06 (4x H100-80GB, job 37522508)
 Init + FSDP wrap + full FORWARD of the first 1M x 5k batch all succeed (the cpu_init

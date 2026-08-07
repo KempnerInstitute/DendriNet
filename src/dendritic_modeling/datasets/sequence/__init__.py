@@ -38,6 +38,7 @@ __all__ = [
     "AddingProblemDataset",
     "ContextDependentDecisionDataset",
     "CopyTaskDataset",
+    "FactualBayesianReadySetGoDataset",
     "GainModulatedContextualComparisonDataset",
     "HierarchicalTemporalDataset",
     "LorenzSequenceDataset",

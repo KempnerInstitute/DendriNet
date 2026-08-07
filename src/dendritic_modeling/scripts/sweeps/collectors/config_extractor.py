@@ -249,6 +249,61 @@ class ConfigExtractor:
             return unique[0]
         return "mixed:" + "|".join(sorted(str(value) for value in unique))
 
+    def _summarize_structured_connectivity(
+        self, layers: list
+    ) -> tuple[bool | str, str, str]:
+        """Summarize the effective structured-routing policy across populations."""
+        values: list[tuple[bool, str, str]] = []
+        for layer in layers:
+            if not isinstance(layer, dict):
+                continue
+            defaults = layer.get("population_defaults") or {}
+            if not isinstance(defaults, dict):
+                defaults = {}
+            populations = layer.get("populations") or []
+            population_records = populations if isinstance(populations, list) else []
+            if not population_records:
+                population_records = [{}]
+            for population in population_records:
+                if not isinstance(population, dict):
+                    continue
+                overrides = population.get("population") or {}
+                if not isinstance(overrides, dict):
+                    overrides = {}
+                declaration = overrides.get(
+                    "structured_connectivity",
+                    defaults.get("structured_connectivity", {}),
+                )
+                declaration = self._to_plain_container(declaration) or {}
+                if not isinstance(declaration, dict):
+                    declaration = {}
+                enabled = bool(declaration.get("enabled", False))
+                method = str(declaration.get("method", "none")) if enabled else "none"
+                spatial = declaration.get("spatial") or {}
+                if not isinstance(spatial, dict):
+                    spatial = {}
+                region_mode = (
+                    str(spatial.get("region_mode", "partition"))
+                    if enabled
+                    and method in {"spatial_morphology", "morphology_spatial"}
+                    else "none"
+                )
+                value = (enabled, method, region_mode)
+                if value not in values:
+                    values.append(value)
+
+        if not values:
+            return False, "none", "none"
+        if len(values) == 1:
+            return values[0]
+        methods = "|".join(
+            sorted(
+                f"{int(enabled)}:{method}:{region_mode}"
+                for enabled, method, region_mode in values
+            )
+        )
+        return "mixed", f"mixed:{methods}", "mixed"
+
     def _extract_population_network_params(self, population_network) -> dict:
         """Extract sweep axes from canonical ``population_network`` configs.
 
@@ -270,6 +325,7 @@ class ConfigExtractor:
         params["network_layer_count"] = len(layers)
         for field in (
             "blocklinear_strategy",
+            "topk_type",
             "topk_strategy",
             "reactivation_strategy",
             "reactivation_init_policy",
@@ -280,6 +336,26 @@ class ConfigExtractor:
             value = self._summarize_population_field(layers, field)
             if value is not None:
                 params[field] = value
+
+        structured_enabled, structured_method, spatial_region_mode = (
+            self._summarize_structured_connectivity(layers)
+        )
+        params["structured_connectivity_enabled"] = structured_enabled
+        params["structured_connectivity_method"] = structured_method
+        params["spatial_region_mode"] = spatial_region_mode
+        if structured_enabled is True:
+            params["synaptic_routing"] = (
+                f"{structured_method}_{spatial_region_mode}"
+                if structured_method in {"spatial_morphology", "morphology_spatial"}
+                and spatial_region_mode != "partition"
+                else structured_method
+            )
+        elif structured_enabled is False and params.get("topk_type") == "indexed":
+            params["synaptic_routing"] = "global_fixed_index"
+        elif structured_enabled == "mixed":
+            params["synaptic_routing"] = "mixed"
+        else:
+            params["synaptic_routing"] = "unstructured"
 
         first_layer = layers[0]
         if not isinstance(first_layer, dict):
