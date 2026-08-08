@@ -24,6 +24,9 @@ from dendritic_modeling.training.strategies.two_step import (
     TwoStepTrainer,
     TwoStepTrainerWithKL,
 )
+from dendritic_modeling.training.strategies.vision_distillation import (
+    VisionDistillationTrainer,
+)
 
 __all__ = [
     "FeedbackAlignmentTrainer",
@@ -38,5 +41,6 @@ __all__ = [
     "Trainer",
     "TwoStepTrainer",
     "TwoStepTrainerWithKL",
+    "VisionDistillationTrainer",
     "VoltageStabilizationTrainer",
 ]

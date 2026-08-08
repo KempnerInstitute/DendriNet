@@ -1,0 +1,95 @@
+# Online teacher-supervision gate for the complete dendritic AlexNet.
+#
+# The supervised, fixed-output-scale, and reactivation-calibration pilots all
+# remained at chance. Package-native branch analysis localized the failure to
+# progressive loss of feature variance across the composed dendritic blocks.
+# This gate tests whether a frozen pretrained AlexNet can prevent that collapse
+# by supervising the seven matched tensor boundaries. The logits-only arm is a
+# control for ordinary teacher soft targets; the boundary arm adds explicit
+# conv1--conv5 and fc6--fc7 feature supervision.
+
+extends: dendritic_alexnet_imagenet_output_scale_pilot.yaml
+
+slurm_config:
+  run_name: dendritic_alexnet_imagenet_distillation_pilot
+  account: kempner_dev
+  partition: kempner_rtx
+  time: "01:30:00"
+  gpus_per_node: 4
+  max_concurrent_jobs: 1
+
+experiment_settings:
+  seeds_per_condition: 1
+  base_seed: 71400
+
+sweep_variants:
+  - name: teacher_logits_only
+    overrides:
+      training.main.strategies.vision_distillation.boundary_weights: {}
+      training.main.strategies.vision_distillation.feature_weight: 0.0
+  - name: teacher_all_boundaries
+    overrides:
+      training.main.strategies.vision_distillation.boundary_weights:
+        conv1: 1.0
+        conv2: 1.0
+        conv3: 1.0
+        conv4: 1.0
+        conv5: 1.0
+        fc6: 1.0
+        fc7: 1.0
+      training.main.strategies.vision_distillation.feature_weight: 1.0
+
+sweep_contract:
+  expected_config_count: 2
+
+base_config:
+  experiment:
+    seed: 71400
+    checkpointing:
+      enabled: true
+      save_every_n_epochs: 5
+      checkpoint_dir: null
+
+  model:
+    learned_output_scale: false
+    output_scale_mode: fixed
+    fixed_output_scale: 10.0
+    core:
+      initialization_seed: 71400
+      vision:
+        seed: 71400
+      connectivity:
+        structured:
+          seed: 71400
+      sparsity:
+        indexed:
+          seed: 71400
+
+  training:
+    main:
+      strategy: vision_distillation
+      common:
+        epochs: 5
+        load_best_state_dict: false
+      strategies:
+        vision_distillation:
+          teacher_backbone: alexnet
+          teacher_weights: IMAGENET1K_V1
+          boundary_weights: {}
+          feature_weight: 0.0
+          logit_kl_weight: 1.0
+          supervised_weight: 1.0
+          temperature: 2.0
+          relative_mse_epsilon: 1.0e-6
+
+  analysis:
+    performance:
+      final_splits: [valid]
+
+  wandb:
+    group: iclr2027_dendritic_alexnet_distillation_pilot
+    tags: [iclr2027, alexnet, full_dendritic, boundary_distillation]
+
+  outputs:
+    run_name: dendritic_alexnet_imagenet_distillation_pilot
+    results_dir: /n/holylfs06/LABS/kempner_project_b/Lab/dendritic/HS/dendritic_scaling/iclr2027/vision/full_model_distillation_pilot

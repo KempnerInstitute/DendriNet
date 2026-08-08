@@ -74,6 +74,7 @@ from dendritic_modeling.config.training import (
     TrainingConfig,
     TrainingStrategiesConfig,
     TransformerReplacementTrainingConfig,
+    VisionDistillationStrategyConfig,
     VisionReplacementTrainingConfig,
     VoltageStabilizationStrategyConfig,
 )
@@ -595,6 +596,7 @@ def _build_training_strategies_config(strategies_data: Any) -> TrainingStrategie
         "freeze_layers": FreezeLayersStrategyConfig,
         "freeze_branches": FreezeBranchesStrategyConfig,
         "freeze_branch_kl": FreezeBranchKLStrategyConfig,
+        "vision_distillation": VisionDistillationStrategyConfig,
     }
 
     built: dict[str, Any] = {}

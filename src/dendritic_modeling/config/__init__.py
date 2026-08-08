@@ -141,6 +141,7 @@ from dendritic_modeling.config.training import (
     TrainingConfig,
     TrainingStrategiesConfig,
     TransformerReplacementTrainingConfig,
+    VisionDistillationStrategyConfig,
     VisionReplacementTrainingConfig,
     VoltageStabilizationStrategyConfig,
 )
@@ -263,6 +264,7 @@ __all__ = [
     "TransferFunctionConfig",
     "TransformerReplacementConfig",
     "TransformerReplacementTrainingConfig",
+    "VisionDistillationStrategyConfig",
     "VisionReplacementTrainingConfig",
     "VoltageStabilizationStrategyConfig",
     "WandbConfig",

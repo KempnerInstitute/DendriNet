@@ -273,7 +273,7 @@ Set ``training.main.strategy`` to one of:
 ``standard``, ``fa``, ``dfa``, ``shunting_fa``, ``shunting_dfa``,
 ``local_ca``, ``freeze_layers``, ``freeze_branches``, ``freeze_branch_kl``,
 ``voltage_stabilization``, ``homeostatic_control``,
-``multi_stage``, ``recurrent``
+``multi_stage``, ``recurrent``, ``vision_distillation``
 
 Strategy-specific configuration usually lives under
 ``training.main.strategies.<name>``. Local credit assignment uses the direct
@@ -617,6 +617,40 @@ images and teacher logits/features and choose ``train_target: replacement_only``
 When checkpoint saving is enabled, the trainer always writes the replacement
 core and also writes the decoder or full student state for train targets that
 update those parameters.
+
+Complete AlexNet-shaped students can instead use online matched-boundary
+distillation through ``training.main.strategy: vision_distillation``. The
+trainer keeps a frozen pretrained AlexNet on each training rank and combines a
+weighted mean of relative feature MSE at ``conv1``--``conv5``, ``fc6``, and
+``fc7`` with temperature-scaled logit KL and ordinary label cross-entropy.
+Boundary weights are normalized by their sum, so adding a boundary does not
+silently increase the feature-loss scale. For example:
+
+.. code-block:: yaml
+
+   training:
+     main:
+       strategy: vision_distillation
+       strategies:
+         vision_distillation:
+           teacher_backbone: alexnet
+           teacher_weights: IMAGENET1K_V1
+           boundary_weights:
+             conv1: 1.0
+             conv2: 1.0
+             conv3: 1.0
+             conv4: 1.0
+             conv5: 1.0
+             fc6: 1.0
+             fc7: 1.0
+           feature_weight: 1.0
+           logit_kl_weight: 1.0
+           supervised_weight: 1.0
+           temperature: 2.0
+
+This strategy requires the complete ``dendritic_alexnet`` tensor contract;
+single-span replacement distillation continues to use
+``training.vision_replacement``.
 
 The runnable examples page includes ``configs/vision/alexnet_fc7_dendritic_500.yaml``,
 which replaces AlexNet ``fc7`` with a 500E-only dendritic tensor-map core. See
