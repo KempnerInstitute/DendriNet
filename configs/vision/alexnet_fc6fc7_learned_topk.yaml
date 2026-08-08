@@ -1,0 +1,17 @@
+# Full-candidate learned-TopK companion for the fc6+fc7 replacement boundary.
+extends: alexnet_fc6_learned_topk.yaml
+
+slurm_config:
+  run_name: alexnet_fc6fc7_learned_topk
+
+base_config:
+  model:
+    vision_replacement:
+      target_modules:
+        - classifier.1
+        - classifier.2
+        - classifier.3
+        - classifier.4
+        - classifier.5
+  outputs:
+    run_name: alexnet_fc6fc7_learned_topk

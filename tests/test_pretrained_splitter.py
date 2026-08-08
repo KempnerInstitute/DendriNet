@@ -341,6 +341,23 @@ class TestBuildSplitPlan:
         assert "classifier.1" in plan.replaced_names
         assert "classifier.5" in plan.replaced_names
 
+    def test_omit_layers_filtered_from_replacement_span(self):
+        """Omitted dropout is absent from a retained fc6+fc7 control."""
+        plan = build_split_plan(
+            "alexnet",
+            weights=None,
+            replace_start="classifier.1",
+            replace_end="classifier.5",
+            omit_layers=["classifier.0", "classifier.3"],
+        )
+
+        assert plan.replaced_names == [
+            "classifier.1",
+            "classifier.2",
+            "classifier.4",
+            "classifier.5",
+        ]
+
     def test_target_modules_resolve_contiguous_replacement_span(self):
         with patch(
             "dendritic_modeling.networks.architectures.classical.pretrained._load_backbone",

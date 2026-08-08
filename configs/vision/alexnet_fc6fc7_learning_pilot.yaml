@@ -1,0 +1,35 @@
+# One-seed learning gate for the fc6+fc7 span before the 35-checkpoint
+# confirmation cohort is authorized.
+extends: alexnet_fc6fc7_replacement_benchmark.yaml
+
+slurm_config:
+  run_name: alexnet_fc6fc7_learning_pilot
+  account: kempner_dev
+  partition: kempner_eng
+  time: "02:00:00"
+  max_concurrent_jobs: 1
+
+experiment_settings:
+  seeds_per_condition: 1
+  base_seed: 41
+
+sweep_variants:
+  - name: dendritic_global_indexed
+    overrides: {}
+
+sweep_contract:
+  expected_config_count: 1
+
+base_config:
+  experiment:
+    checkpointing:
+      enabled: false
+  training:
+    main:
+      common:
+        epochs: 10
+        early_stopping: false
+        load_best_state_dict: true
+  outputs:
+    run_name: alexnet_fc6fc7_learning_pilot
+    results_dir: /n/holylfs06/LABS/kempner_project_b/Lab/dendritic/HS/dendritic_scaling/iclr2027/vision/fc6fc7_learning_pilot

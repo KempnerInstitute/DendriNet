@@ -641,10 +641,11 @@ def build_split_plan(
     )
 
     prefix_filtered = _filter_omitted_layers(prefix_layers, omit_layers)
+    replaced_filtered = _filter_omitted_layers(replaced_layers, omit_layers)
     suffix_filtered = _filter_omitted_layers(suffix_layers, omit_layers)
 
     prefix_names, prefix_modules = _names_and_modules(prefix_filtered)
-    replaced_names, replaced_modules = _names_and_modules(replaced_layers)
+    replaced_names, replaced_modules = _names_and_modules(replaced_filtered)
     suffix_names, suffix_modules = _names_and_modules(suffix_filtered)
 
     # Compute prefix output shape
