@@ -432,6 +432,7 @@ def prepare_trainer_config(
                 "freeze_branch_kl",
                 "multi_stage",
                 "recurrent",
+                "vision_distillation",
             }
             and selected_strategy in strategies_dict
         ):

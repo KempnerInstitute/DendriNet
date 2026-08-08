@@ -213,6 +213,25 @@ class FreezeBranchKLStrategyConfig(BaseConfig):
 
 
 @dataclass
+class VisionDistillationStrategyConfig(BaseConfig):
+    """Online feature and logit distillation for AlexNet-shaped students.
+
+    Boundary losses are a weighted mean, so enabling more boundaries does not
+    implicitly increase the overall feature-loss scale. An empty mapping keeps
+    intermediate feature supervision disabled.
+    """
+
+    teacher_backbone: str = "alexnet"
+    teacher_weights: str = "IMAGENET1K_V1"
+    boundary_weights: dict[str, float] = field(default_factory=dict)
+    feature_weight: float = 1.0
+    logit_kl_weight: float = 1.0
+    supervised_weight: float = 1.0
+    temperature: float = 2.0
+    relative_mse_epsilon: float = 1e-6
+
+
+@dataclass
 class TrainingStrategiesConfig(BaseConfig):
     """Training strategies configuration."""
 
@@ -235,6 +254,9 @@ class TrainingStrategiesConfig(BaseConfig):
     )
     freeze_branch_kl: FreezeBranchKLStrategyConfig = field(
         default_factory=FreezeBranchKLStrategyConfig
+    )
+    vision_distillation: VisionDistillationStrategyConfig = field(
+        default_factory=VisionDistillationStrategyConfig
     )
 
 

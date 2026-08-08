@@ -34,6 +34,7 @@ from dendritic_modeling.training.strategies import (
     Trainer,
     TwoStepTrainer,
     TwoStepTrainerWithKL,
+    VisionDistillationTrainer,
     VoltageStabilizationTrainer,
 )
 from dendritic_modeling.utils.hooks import iter_child_modules_of_type
@@ -54,6 +55,7 @@ _TRAINER_CLASS_GLOBALS = (
     Trainer,
     TwoStepTrainer,
     TwoStepTrainerWithKL,
+    VisionDistillationTrainer,
     VoltageStabilizationTrainer,
 )
 
@@ -68,6 +70,7 @@ TRAINER_STRATEGY_REGISTRY: dict[str, dict[str, Any]] = {
     "freeze_branch_kl": {"class": "TwoStepTrainerWithKL"},
     "voltage_stabilization": {"class": "VoltageStabilizationTrainer"},
     "homeostatic_control": {"class": "HomeostaticControlTrainer"},
+    "vision_distillation": {"class": "VisionDistillationTrainer"},
 }
 
 SHUNTING_FEEDBACK_ALIGNMENT_MODES = {
