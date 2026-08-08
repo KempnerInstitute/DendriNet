@@ -67,7 +67,8 @@ base_config:
 
   data:
     dataset_name: imagenet
-    base_dir: ""                         # Set to an ImageNet-1k root.
+    # Same ImageNet-1k release used by the frozen AlexNet width screens.
+    base_dir: /n/holylfs06/LABS/kempner_shared/Everyone/testbed/vision/imagenet_1k
     processing:
       flatten: false
       normalize: true
