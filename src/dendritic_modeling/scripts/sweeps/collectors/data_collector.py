@@ -58,7 +58,7 @@ class DataCollector:
         all_data = []
         for i, config_dir in enumerate(config_dirs):
             if (i + 1) % 50 == 0:
-                logger.info(f"Processing {i+1}/{len(config_dirs)}...")
+                logger.info(f"Processing {i + 1}/{len(config_dirs)}...")
 
             data = self._collect_single_config(config_dir)
             if data:
@@ -642,6 +642,8 @@ class DataCollector:
         for key in (
             "total_parameters",
             "trainable_parameters",
+            "core_total_parameters",
+            "core_trainable_parameters",
             "synapse_candidate_parameters",
             "non_synaptic_parameters",
             "candidate_synapse_slots",

@@ -1,10 +1,11 @@
-"""Direct sparse indices for morphology-aligned spatial connectivity.
+"""Direct sparse indices for spatially constrained dendritic connectivity.
 
 The sampler in this module maps a dendritic tree onto a ``(C, H, W)`` input
 without constructing a dense ``[n_branches, C * H * W]`` mask.  Every soma
-owns the full image.  Moving from the soma toward the leaves recursively
-partitions that image according to the configured branch factors and split
-axes.  A branch samples exactly ``K`` unique input features from its rectangle.
+owns the full image.  A branch samples exactly ``K`` unique input features from
+its assigned rectangle.  Rectangles can follow a nested morphology-aligned map
+or be independently relocated while preserving the aligned map's window-size
+distribution.
 
 No weights are shared between somas or spatial locations.  This is therefore
 an anatomical sparse-connectivity prior, not a convolution.
@@ -27,7 +28,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.str
 from dendritic_modeling.utils.stable_hash import stable_seed_offset
 
 SPATIAL_MORPHOLOGY_METHODS = frozenset({"spatial_morphology", "morphology_spatial"})
-SPATIAL_REGION_MODES = frozenset({"partition", "overlapping_grid"})
+SPATIAL_REGION_MODES = frozenset({"partition", "overlapping_grid", "random_windows"})
 _AXIS_ALIASES = {
     "h": "height",
     "height": "height",
@@ -271,6 +272,127 @@ def _overlapping_grid_rectangle(
     )
 
 
+def _randomly_place_rectangle(
+    rectangle: tuple[int, int, int, int],
+    *,
+    height: int,
+    width: int,
+    generator: torch.Generator,
+) -> tuple[int, int, int, int]:
+    """Place a reference-sized window uniformly without tree alignment."""
+
+    y0, y1, x0, x1 = rectangle
+    window_height = y1 - y0
+    window_width = x1 - x0
+    lower_y = int(
+        torch.randint(
+            height - window_height + 1,
+            (1,),
+            generator=generator,
+        ).item()
+    )
+    lower_x = int(
+        torch.randint(
+            width - window_width + 1,
+            (1,),
+            generator=generator,
+        ).item()
+    )
+    return (
+        lower_y,
+        lower_y + window_height,
+        lower_x,
+        lower_x + window_width,
+    )
+
+
+def spatial_morphology_rectangles(
+    *,
+    input_shape: Sequence[int],
+    branch_factors: Sequence[int],
+    level_idx: int,
+    split_axes: Sequence[str] | None = None,
+    region_mode: str = "partition",
+    minimum_window_shape: Sequence[int] | None = None,
+    seed: int = 0,
+) -> tuple[tuple[int, int, int, int], ...]:
+    """Return the spatial window assigned to every local branch at one level.
+
+    ``random_windows`` first obtains the exact window sizes of the aligned
+    ``overlapping_grid`` construction, then places each window independently
+    and uniformly over the image.  It therefore preserves the per-level window
+    size distribution while removing parent--child spatial alignment.
+    """
+
+    _channels, height, width = _positive_int_tuple(
+        input_shape,
+        name="spatial.input_shape",
+        expected_length=3,
+    )
+    factors = _positive_int_tuple(branch_factors, name="branch_factors")
+    normalized_region_mode = str(region_mode).strip().lower()
+    if normalized_region_mode not in SPATIAL_REGION_MODES:
+        choices = ", ".join(sorted(SPATIAL_REGION_MODES))
+        raise ValueError(
+            f"Unknown spatial.region_mode {region_mode!r}; choose from {choices}"
+        )
+    axes = (
+        _normalize_split_axes(split_axes, depth=len(factors))
+        if normalized_region_mode == "partition"
+        else ()
+    )
+    window_shape = (
+        (1, 1)
+        if minimum_window_shape is None
+        else _positive_int_tuple(
+            minimum_window_shape,
+            name="spatial.minimum_window_shape",
+            expected_length=2,
+        )
+    )
+    if window_shape[0] > height or window_shape[1] > width:
+        raise ValueError(
+            "spatial.minimum_window_shape cannot exceed the input height or width"
+        )
+    if level_idx < 0 or level_idx > len(factors):
+        raise ValueError(f"level_idx must be in [0, {len(factors)}], got {level_idx}")
+
+    anatomical_depth = len(factors) - level_idx
+    active_factors = factors[:anatomical_depth]
+    active_axes = axes[:anatomical_depth]
+    branches_per_owner = math.prod(active_factors)
+    generator = torch.Generator(device="cpu")
+    generator.manual_seed(int(seed) % ((1 << 63) - 1))
+    rectangles: list[tuple[int, int, int, int]] = []
+    for local_branch_idx in range(branches_per_owner):
+        path = _branch_path(local_branch_idx, active_factors)
+        if normalized_region_mode == "partition":
+            rectangle = _path_rectangle(
+                height=height,
+                width=width,
+                path=path,
+                branch_factors=active_factors,
+                split_axes=active_axes,
+            )
+        else:
+            rectangle = _overlapping_grid_rectangle(
+                height=height,
+                width=width,
+                path=path,
+                branch_factors=active_factors,
+                minimum_window_shape=window_shape,
+            )
+            if normalized_region_mode == "random_windows":
+                rectangle = _randomly_place_rectangle(
+                    rectangle,
+                    height=height,
+                    width=width,
+                    generator=generator,
+                )
+        rectangles.append(rectangle)
+    return tuple(rectangles)
+
+
 def _rectangle_candidates(
     *,
     channels: int,
@@ -366,6 +488,7 @@ def sample_spatial_morphology_indices(
     region_mode: str = "partition",
     minimum_window_shape: Sequence[int] | None = None,
     seed: int = 0,
+    region_seed: int | None = None,
     index_dtype: str | torch.dtype = "int64",
 ) -> torch.Tensor:
     """Generate compact branch indices for a full-image dendritic map.
@@ -387,29 +510,6 @@ def sample_spatial_morphology_indices(
             f"{channels}*{height}*{width} != {in_features}"
         )
     factors = _positive_int_tuple(branch_factors, name="branch_factors")
-    normalized_region_mode = str(region_mode).strip().lower()
-    if normalized_region_mode not in SPATIAL_REGION_MODES:
-        choices = ", ".join(sorted(SPATIAL_REGION_MODES))
-        raise ValueError(
-            f"Unknown spatial.region_mode {region_mode!r}; choose from {choices}"
-        )
-    axes = (
-        _normalize_split_axes(split_axes, depth=len(factors))
-        if normalized_region_mode == "partition"
-        else ()
-    )
-    if minimum_window_shape is None:
-        window_shape = (1, 1)
-    else:
-        window_shape = _positive_int_tuple(
-            minimum_window_shape,
-            name="spatial.minimum_window_shape",
-            expected_length=2,
-        )
-    if window_shape[0] > height or window_shape[1] > width:
-        raise ValueError(
-            "spatial.minimum_window_shape cannot exceed the input height or width"
-        )
     if owner_count < 1:
         raise ValueError("owner_count must be positive")
     if level_idx < 0 or level_idx > len(factors):
@@ -419,7 +519,6 @@ def sample_spatial_morphology_indices(
 
     anatomical_depth = len(factors) - level_idx
     active_factors = factors[:anatomical_depth]
-    active_axes = axes[:anatomical_depth]
     branches_per_owner = math.prod(active_factors)
     expected_out_features = owner_count * branches_per_owner
     if int(out_features) != expected_out_features:
@@ -430,6 +529,15 @@ def sample_spatial_morphology_indices(
 
     generator = torch.Generator(device="cpu")
     generator.manual_seed(int(seed) % ((1 << 63) - 1))
+    rectangles = spatial_morphology_rectangles(
+        input_shape=input_shape,
+        branch_factors=factors,
+        level_idx=level_idx,
+        split_axes=split_axes,
+        region_mode=region_mode,
+        minimum_window_shape=minimum_window_shape,
+        seed=seed if region_seed is None else region_seed,
+    )
     indices = torch.empty(
         int(out_features),
         int(synapses_per_branch),
@@ -437,24 +545,7 @@ def sample_spatial_morphology_indices(
     )
     owner_offsets = torch.arange(owner_count, dtype=torch.long) * branches_per_owner
 
-    for local_branch_idx in range(branches_per_owner):
-        path = _branch_path(local_branch_idx, active_factors)
-        if normalized_region_mode == "partition":
-            rectangle = _path_rectangle(
-                height=height,
-                width=width,
-                path=path,
-                branch_factors=active_factors,
-                split_axes=active_axes,
-            )
-        else:
-            rectangle = _overlapping_grid_rectangle(
-                height=height,
-                width=width,
-                path=path,
-                branch_factors=active_factors,
-                minimum_window_shape=window_shape,
-            )
+    for local_branch_idx, rectangle in enumerate(rectangles):
         candidates = _rectangle_candidates(
             channels=channels,
             height=height,
@@ -508,6 +599,20 @@ def sample_configured_indices(
             int(in_features),
         )
     ) % ((1 << 63) - 1)
+    configured_region_seed = spatial.get("region_seed")
+    region_base_seed = (
+        base_seed if configured_region_seed is None else int(configured_region_seed)
+    )
+    region_seed = (
+        region_base_seed
+        + stable_seed_offset(
+            "spatial_morphology_regions",
+            int(layer_idx),
+            int(level_idx),
+            int(in_features),
+            tuple(int(value) for value in branch_factors),
+        )
+    ) % ((1 << 63) - 1)
     return sample_spatial_morphology_indices(
         input_shape=spatial.get("input_shape", ()),
         out_features=out_features,
@@ -520,6 +625,7 @@ def sample_configured_indices(
         region_mode=str(spatial.get("region_mode", "partition")),
         minimum_window_shape=spatial.get("minimum_window_shape"),
         seed=seed,
+        region_seed=region_seed,
         index_dtype=index_dtype,
     )
 
@@ -529,5 +635,6 @@ __all__ = [
     "SPATIAL_REGION_MODES",
     "sample_configured_indices",
     "sample_spatial_morphology_indices",
+    "spatial_morphology_rectangles",
     "uses_spatial_morphology",
 ]

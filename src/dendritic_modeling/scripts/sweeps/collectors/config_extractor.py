@@ -121,9 +121,27 @@ class ConfigExtractor:
                 if hasattr(core, "architecture"):
                     arch = core.architecture
                     if hasattr(arch, "excitatory_layer_sizes"):
-                        params["excitatory_layers"] = arch.excitatory_layer_sizes
+                        excitatory_layers = self._to_plain_container(
+                            arch.excitatory_layer_sizes
+                        )
+                        params["excitatory_layers"] = excitatory_layers
+                        if (
+                            isinstance(excitatory_layers, list)
+                            and excitatory_layers
+                            and len(set(excitatory_layers)) == 1
+                        ):
+                            params["excitatory_width"] = excitatory_layers[0]
                     if hasattr(arch, "inhibitory_layer_sizes"):
-                        params["inhibitory_layers"] = arch.inhibitory_layer_sizes
+                        inhibitory_layers = self._to_plain_container(
+                            arch.inhibitory_layer_sizes
+                        )
+                        params["inhibitory_layers"] = inhibitory_layers
+                        if (
+                            isinstance(inhibitory_layers, list)
+                            and inhibitory_layers
+                            and len(set(inhibitory_layers)) == 1
+                        ):
+                            params["inhibitory_width"] = inhibitory_layers[0]
                     if hasattr(arch, "excitatory_branch_factors"):
                         branch_factors = arch.excitatory_branch_factors
                         if (
@@ -632,6 +650,9 @@ class ConfigExtractor:
         params = {}
 
         try:
+            if hasattr(config, "_sweep_variant"):
+                params["sweep_variant"] = str(config._sweep_variant)
+
             if hasattr(config, "experiment"):
                 exp = config.experiment
                 if hasattr(exp, "seed"):

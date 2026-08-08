@@ -503,6 +503,7 @@ def _build_pretrained_replacement_config(
         enabled=bool(pr_dict.get("enabled", False)),
         backbone=str(pr_dict.get("backbone", "alexnet")),
         weights=pr_dict.get("weights", "IMAGENET1K_V1"),
+        core_source=str(pr_dict.get("core_source", "configured")),
         input_shape=list(pr_dict.get("input_shape", [3, 224, 224])),
         replace=ReplacementRegionConfig(
             start=str(replace_dict.get("start", "")),

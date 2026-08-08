@@ -314,12 +314,24 @@ def model_resource_summary(model: torch.nn.Module) -> dict[str, Any]:
             if parameter.requires_grad
         )
     )
+    core_total_parameters = int(
+        sum(parameter.numel() for parameter in core.parameters())
+    )
+    core_trainable_parameters = int(
+        sum(
+            parameter.numel()
+            for parameter in core.parameters()
+            if parameter.requires_grad
+        )
+    )
     synapse_candidate_parameters = int(
         sum(record.candidate_parameters for record in records)
     )
     summary = {
         "total_parameters": total_parameters,
         "trainable_parameters": trainable_parameters,
+        "core_total_parameters": core_total_parameters,
+        "core_trainable_parameters": core_trainable_parameters,
         "synapse_candidate_parameters": synapse_candidate_parameters,
         "non_synaptic_parameters": total_parameters - synapse_candidate_parameters,
         "candidate_synapse_slots": int(

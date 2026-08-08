@@ -79,6 +79,36 @@ class SweepManager:
         self.sweep_type = "unified"  # For backward compatibility in output
 
     @staticmethod
+    def _load_composed_config(config_path: str) -> tuple[object, list[Path]]:
+        """Load a sweep YAML with an optional relative ``extends`` chain.
+
+        Composition happens before validation and generation. Child mappings
+        deep-merge over their parent, while lists replace parent lists. Every
+        source path is returned for the frozen provenance manifest.
+        """
+
+        def _load(path: Path, stack: tuple[Path, ...]):
+            resolved = path.expanduser().resolve()
+            if resolved in stack:
+                cycle = " -> ".join(str(item) for item in (*stack, resolved))
+                raise ValueError(f"Sweep config extends cycle: {cycle}")
+            raw = OmegaConf.load(resolved)
+            parent_reference = raw.get("extends")
+            if "extends" in raw:
+                del raw["extends"]
+            if parent_reference is None:
+                return raw, [resolved]
+            if not isinstance(parent_reference, str) or not parent_reference.strip():
+                raise TypeError("Sweep config extends must be one non-empty path")
+            parent_path = Path(parent_reference)
+            if not parent_path.is_absolute():
+                parent_path = resolved.parent / parent_path
+            parent, sources = _load(parent_path, (*stack, resolved))
+            return OmegaConf.merge(parent, raw), [*sources, resolved]
+
+        return _load(Path(config_path), ())
+
+    @staticmethod
     def _expected_config_count(config, observed_count: int) -> int:
         """Resolve and enforce an optional predeclared factorial size."""
         declared = OmegaConf.select(config, "sweep_contract.expected_config_count")
@@ -127,7 +157,7 @@ class SweepManager:
         print(f"Generating sweep from {config_path}")
 
         # Load configuration
-        config = OmegaConf.load(config_path)
+        config, composed_config_sources = self._load_composed_config(config_path)
 
         # Ensure slurm section exists and normalize account/partition defaults.
         if "slurm_config" not in config or config.slurm_config is None:
@@ -208,14 +238,29 @@ class SweepManager:
         )
 
         # Save configurations
-        config_paths = self.generator.save_configs(sweep_configs, sweep_output_dir)
+        execution_results_dir = config.get("execution_results_dir")
+        if execution_results_dir is not None:
+            if not isinstance(execution_results_dir, str) or not execution_results_dir:
+                raise TypeError("execution_results_dir must be one non-empty path")
+            execution_results_dir = os.path.abspath(
+                os.path.expanduser(execution_results_dir)
+            )
+        config_paths = self.generator.save_configs(
+            sweep_configs,
+            sweep_output_dir,
+            execution_results_dir=execution_results_dir,
+        )
         print(f"Saved configurations to: {os.path.join(sweep_output_dir, 'configs')}")
+        if execution_results_dir is not None:
+            print(f"Execution results root: {execution_results_dir}")
 
         # Create job scripts
         print("Creating job scripts...")
         slurm_config = config.get("slurm_config", {})
         # Add run_name to slurm_config so it can be used for job naming
         slurm_config["run_name"] = run_name
+        if execution_results_dir is not None:
+            slurm_config["execution_results_dir"] = execution_results_dir
 
         # Override exclude_nodes from command line if provided
         if exclude_nodes:
@@ -255,8 +300,7 @@ class SweepManager:
                 "excitation_inhibition/dendritic/initialize_methods.py",
                 repo_root / "src/dendritic_modeling/config/reactivation.py",
                 repo_root / "src/dendritic_modeling/config/model_aliases.py",
-                repo_root / "src/dendritic_modeling/networks/architectures/"
-                "factory.py",
+                repo_root / "src/dendritic_modeling/networks/architectures/factory.py",
                 repo_root / "src/dendritic_modeling/networks/architectures/"
                 "excitation_inhibition/ei_network.py",
                 repo_root / "src/dendritic_modeling/networks/architectures/"
@@ -296,6 +340,7 @@ class SweepManager:
                 repo_root / "src/dendritic_modeling/training/strategies/"
                 "local_learning_parts/local_learning_epoch.py",
                 *([generator_source] if generator_source else []),
+                *composed_config_sources,
             ],
             generator_identity=(
                 f"{type(self.generator).__module__}.{type(self.generator).__qualname__}"
@@ -308,6 +353,7 @@ class SweepManager:
             "output_dir": sweep_output_dir,
             "num_configs": len(sweep_configs),
             "config_paths": config_paths,
+            "execution_results_dir": execution_results_dir,
             "job_scripts": job_scripts,
             "original_config": config_path,
             "frozen_manifest": str(manifest_path),

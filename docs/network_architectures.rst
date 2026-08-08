@@ -802,6 +802,13 @@ synapse type. Example configs live in ``configs/vision/``:
      - Tensor-map replacement around AlexNet fully connected layers.
    * - ``configs/vision/pretrained_alexnet_conv.yaml``
      - Spatial dendritic convolution replacement for feature-map blocks.
+   * - ``configs/vision/alexnet_fc6_replacement_benchmark.yaml``
+     - Matched AlexNet fc6 comparison of global indexed, random-local,
+       tree-aligned local, fixed-index sparse point, factorized dense MLP, and
+       retained pretrained-span cores.
+   * - ``configs/vision/alexnet_fc6_learned_topk.yaml``
+     - Full learned-TopK companion using the same fc6 boundary and optimization
+       protocol; report its stored and active parameter counts separately.
 
 Minimal skeleton:
 
@@ -812,6 +819,7 @@ Minimal skeleton:
        enabled: true
        backbone: alexnet
        weights: IMAGENET1K_V1
+       core_source: configured
        input_shape: [3, 224, 224]
        target_modules: [classifier.4, classifier.5]
        omit_layers: [classifier.0, classifier.3]
@@ -838,6 +846,23 @@ standard trainer; block-output distillation from cached tensors uses
 ``training.vision_replacement``. Distillation can train only the replacement
 core, the replacement plus decoder, or the full student model; saved artifacts
 include the parameters required by the selected train target.
+
+For a training-matched dense reference, set
+``vision_replacement.core_source: pretrained_span``. The runtime then keeps the
+original target modules and their pretrained weights as the trainable core,
+while retaining the same prefix, suffix, boundaries, data path, and trainer.
+This reference is dense and therefore should not be described as
+parameter-matched to a sparse or dendritic replacement.
+
+Fixed spatial routing can also act on a flattened feature map when its native
+CHW geometry is known. For example, replacing AlexNet fc6 exposes the
+``[256, 6, 6]`` tensor entering that layer. Declare
+``connectivity.structured.pathways.ee`` and ``.ei`` as
+``spatial_morphology`` to constrain only the two direct feature-map pathways;
+leave ``ie`` undeclared so local inhibitory-population outputs are sampled in
+their own non-spatial index space. The fc6 benchmark configs above demonstrate
+global, random-window, and morphology-aligned routing under one tensor
+boundary.
 
 Transformer FFN Replacement
 ---------------------------
@@ -2129,6 +2154,17 @@ Supported methods:
    ``split_axes`` must contain one entry per branch factor. Supported axes are
    ``height``/``y`` and ``width``/``x``. Sampling is deterministic under
    ``structured.seed`` and unique within each branch.
+
+   ``spatial.region_mode`` can be ``partition`` (disjoint recursive regions),
+   ``overlapping_grid`` (nested aligned windows with an optional
+   ``minimum_window_shape``), or ``random_windows``. The random-window control
+   preserves every aligned branch window's height and width but relocates each
+   one independently and uniformly, thereby preserving local fan-in and the
+   per-depth size distribution without preserving tree alignment. Set
+   ``spatial.region_seed`` to control window placement independently from the
+   pathway-specific contact seed. E and I pathways share the region geometry
+   and independently sample fixed contacts inside it. Indices do not change
+   during training in any of these modes.
 
    This method currently requires ``sparsity.type: indexed``. Global adaptive
    rewiring is rejected because it could move a synapse outside the branch's

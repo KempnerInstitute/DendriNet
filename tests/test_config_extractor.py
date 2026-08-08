@@ -165,13 +165,41 @@ class TestConfigExtractor(unittest.TestCase):
     def test_extract_experiment_params(self):
         """Test extraction of experiment parameters."""
         config = OmegaConf.create(
-            {"experiment": {"seed": 42}, "data": {"dataset_name": "cifar10"}}
+            {
+                "_sweep_variant": "spatial_aligned",
+                "experiment": {"seed": 42},
+                "data": {"dataset_name": "cifar10"},
+            }
         )
 
         params = self.extractor._extract_experiment_params(config)
 
         self.assertEqual(params["seed"], 42)
         self.assertEqual(params["dataset"], "cifar10")
+        self.assertEqual(params["sweep_variant"], "spatial_aligned")
+
+    def test_extracts_uniform_population_widths(self):
+        """Uniform legacy E/I layer sizes expose scalar sweep coordinates."""
+        config = OmegaConf.create(
+            {
+                "model": {
+                    "core": {
+                        "type": "einet",
+                        "architecture": {
+                            "excitatory_layer_sizes": [256, 256],
+                            "inhibitory_layer_sizes": [64, 64],
+                        },
+                    }
+                }
+            }
+        )
+
+        params = self.extractor._extract_model_params(config)
+
+        self.assertEqual(params["excitatory_layers"], [256, 256])
+        self.assertEqual(params["excitatory_width"], 256)
+        self.assertEqual(params["inhibitory_layers"], [64, 64])
+        self.assertEqual(params["inhibitory_width"], 64)
 
     def test_extract_model_params_normalizes_deprecated_network_type(self):
         """Deprecated network type aliases should extract as canonical names."""

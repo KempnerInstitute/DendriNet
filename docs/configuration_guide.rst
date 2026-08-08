@@ -521,6 +521,7 @@ using ``model.pretrained_replacement`` still load as a compatibility alias.
        enabled: true
        backbone: "alexnet"                    # torchvision model name
        weights: "IMAGENET1K_V1"               # pretrained weights (null = random init)
+       core_source: "configured"               # or "pretrained_span" control
        input_shape: [3, 224, 224]
 
        # Backbone modules to replace. They must form one contiguous span.
@@ -542,6 +543,13 @@ using ``model.pretrained_replacement`` still load as a compatibility alias.
        architecture:
          excitatory_layer_sizes: [4096]       # must match suffix input dim
          # ... rest of EINet config ...
+
+Set ``core_source: pretrained_span`` to retain the exact modules and loaded
+weights named by ``target_modules`` as the core. The prefix and suffix follow
+the same split and trainability policy, while the retained span remains
+trainable. This is useful as a training-matched dense reference; it is not a
+parameter-matched sparse control. ``configured`` remains the default and uses
+``model.core`` as the replacement.
 
 Alternative pretrained-replacement cores:
 
@@ -611,6 +619,13 @@ Additional vision replacement configs:
   replacement around AlexNet FC layers
 - ``configs/vision/pretrained_alexnet_conv.yaml`` — spatial vision
   replacement example for AlexNet conv/feature maps
+- ``configs/vision/alexnet_fc6_replacement_benchmark.yaml`` — AlexNet fc6
+  replacement benchmark with compact global/random-local/tree-aligned
+  dendritic variants, fixed-index sparse point and factorized dense controls,
+  and the exact retained pretrained span
+- ``configs/vision/alexnet_fc6_learned_topk.yaml`` — full learned-TopK
+  companion, separated for its much larger candidate storage and runtime
+  request
 - ``scripts/test_pretrained_training.sh`` — generates a temporary 1-epoch AlexNet smoke config
 
 Transformer MLP / FFN Replacement
@@ -1481,6 +1496,24 @@ fixed ``indexed`` sparsity and rejects global ``indexed_rewire``. The
 ``local_ca`` 3F/4F/5F rules update only the stored indexed contacts and remain
 compact under DDP; local gradients are averaged explicitly across ranks.
 
+``spatial.region_mode`` selects the geometry used by the fixed indices:
+
+``partition``
+   Recursively partitions the image into disjoint morphology-aligned regions.
+``overlapping_grid``
+   Uses nested morphology-aligned windows, permitting overlap and enforcing
+   ``minimum_window_shape`` where a disjoint terminal region would be too small.
+``random_windows``
+   Starts from the exact ``overlapping_grid`` window shape assigned to each
+   branch, then places each window independently and uniformly over the image.
+   This preserves the number of contacts and per-level window-size distribution
+   while removing parent--child spatial alignment. ``spatial.region_seed``
+   optionally fixes window placement separately from contact sampling. E and I
+   banks use the same branch windows but independently sample their contacts.
+
+All three modes generate the index map once at model construction; the indices
+remain fixed throughout training.
+
 The same method is available to feedforward populations in a
 ``population_network``. In that schema, put the rule and fixed-index controls
 inside the target population defaults (or population override):
@@ -1500,10 +1533,12 @@ inside the target population defaults (or population override):
        seed: 42
        spatial:
          input_shape: [3, 32, 32]
-         split_axes: [height, width, height, width]
+         region_mode: random_windows
+         minimum_window_shape: [4, 4]
+         region_seed: 42
 
 Both direct image banks (for example ``input_e`` and ``input_i``) then use the
-same nested regions while sampling their configured E and I contact counts
+same branch regions while sampling their configured E and I contact counts
 independently. Image-grid routing is not defined for recurrent population-state
 pathways; configure pathway-specific rules when a population also has active
 recurrent connections.

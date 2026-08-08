@@ -376,6 +376,7 @@ def _build_from_pretrained_replacement(model_config: ModelConfig):
     """
     from dendritic_modeling.networks.architectures.classical.pretrained import (
         build_encoder_decoder_from_plan,
+        build_pretrained_core_from_plan,
         build_split_plan,
     )
     from dendritic_modeling.networks.architectures.factory import (
@@ -392,7 +393,18 @@ def _build_from_pretrained_replacement(model_config: ModelConfig):
     # Enable spatial mode when the core is a spatial dendritic type.
     # This preserves TensorSpec metadata and skips auto-flatten on the encoder.
     core_type = (getattr(model_config.core, "type", "") or "").lower()
+    core_source = str(getattr(pr, "core_source", "configured")).strip().lower()
+    if core_source not in {"configured", "pretrained_span"}:
+        raise ValueError(
+            "vision_replacement.core_source must be 'configured' or "
+            f"'pretrained_span', got {core_source!r}"
+        )
+    use_pretrained_span = core_source == "pretrained_span"
     is_spatial_conv = core_type in _SPATIAL_DENDRITIC_CONV_TYPES
+    # The configured core type declares the replacement interface even when
+    # ``pretrained_span`` supplies the implementation.  This lets an exact
+    # retained convolution span use the identical spatial boundary as a
+    # dendritic-convolution replacement.
     spatial = core_type in _SPATIAL_DENDRITIC_TYPES or is_spatial_conv
 
     plan = build_split_plan(
@@ -415,7 +427,9 @@ def _build_from_pretrained_replacement(model_config: ModelConfig):
     # Build the core network.
     core_params = _config_to_plain_dict(model_config.core)
 
-    if is_spatial_conv:
+    if use_pretrained_span:
+        core_network = build_pretrained_core_from_plan(plan, freeze=False)
+    elif is_spatial_conv:
         # ----- Validate spatial contract -----
         if plan.prefix_output_spec is None:
             raise ValueError(

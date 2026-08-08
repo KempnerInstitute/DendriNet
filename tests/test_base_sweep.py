@@ -5,6 +5,7 @@ Tests for scripts sweeps unified base_sweep module to improve coverage.
 import os
 import tempfile
 from datetime import datetime
+from pathlib import Path
 
 import pytest
 from omegaconf import DictConfig, OmegaConf
@@ -112,6 +113,25 @@ class TestBaseSweepGenerator:
         """Test that abstract methods raise TypeError when not implemented."""
         with pytest.raises(TypeError):
             BaseSweepGenerator("test")
+
+    def test_save_configs_can_separate_staging_and_execution_results(self, tmp_path):
+        generator = ConcreteSweepGenerator("test")
+        staging = generator.create_output_directory(str(tmp_path), prefix="staging")
+        execution = tmp_path / "execution"
+        configs = generator.generate_configs(OmegaConf.create({"outputs": {}}))
+
+        paths = generator.save_configs(
+            configs,
+            staging,
+            execution_results_dir=str(execution),
+        )
+
+        assert Path(paths[0]).is_relative_to(Path(staging) / "configs")
+        assert OmegaConf.load(paths[2]).outputs.results_dir == str(
+            execution / "config_2"
+        )
+        assert (Path(staging) / "results").is_symlink()
+        assert (Path(staging) / "results").readlink() == execution
 
 
 class TestBaseSweepAnalyzer:
@@ -415,6 +435,45 @@ class TestSweepJobManager:
                 assert f"#SBATCH --output={tmp_dir}/jobs/output_%A_%a.out" in content
                 assert f"#SBATCH --error={tmp_dir}/jobs/error_%A_%a.err" in content
                 assert "/jobs/%A_%a/" not in content
+
+    def test_create_array_job_script_with_torchrun_launcher(self, slurm_config):
+        """Array jobs can launch one distributed training run per task."""
+        slurm_config.launcher = "torchrun"
+        slurm_config.gpus_per_node = 4
+        manager = SweepJobManager(slurm_config)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            script_path = os.path.join(tmp_dir, "array_job.sh")
+            manager._create_array_job_script(
+                script_path,
+                ["config1.yaml", "config2.yaml"],
+                tmp_dir,
+            )
+
+            with open(script_path) as f:
+                content = f.read()
+        assert "-m torch.distributed.run --standalone --nproc_per_node=4" in content
+        assert '"$CONFIG" --output_dir "$OUTPUT_FOLDER_PATH"' in content
+
+    def test_array_job_uses_external_execution_results_root(self, slurm_config):
+        slurm_config.execution_results_dir = "/project/large/results"
+        manager = SweepJobManager(slurm_config)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            script_path = os.path.join(tmp_dir, "array_job.sh")
+            manager._create_array_job_script(
+                script_path,
+                ["config1.yaml", "config2.yaml"],
+                tmp_dir,
+            )
+
+            with open(script_path) as f:
+                content = f.read()
+        assert 'EXECUTION_RESULTS_DIR="/project/large/results"' in content
+        assert (
+            'OUTPUT_FOLDER_PATH="${EXECUTION_RESULTS_DIR}/config_'
+            '${SLURM_ARRAY_TASK_ID}"' in content
+        )
 
     def test_create_main_submission_script(self, slurm_config):
         """Test creation of main submission script."""

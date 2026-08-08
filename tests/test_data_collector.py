@@ -203,6 +203,8 @@ class TestDataCollector(unittest.TestCase):
                 {
                     "total_parameters": 120,
                     "trainable_parameters": 110,
+                    "core_total_parameters": 100,
+                    "core_trainable_parameters": 95,
                     "synapse_candidate_parameters": 90,
                     "non_synaptic_parameters": 30,
                     "candidate_synapse_slots": 80,
@@ -228,6 +230,8 @@ class TestDataCollector(unittest.TestCase):
 
         data = collector._load_model_resources(config_dir)
         self.assertEqual(data["resource_trainable_parameters"], 110)
+        self.assertEqual(data["resource_core_total_parameters"], 100)
+        self.assertEqual(data["resource_core_trainable_parameters"], 95)
         self.assertEqual(data["resource_active_synapses"], 12)
         self.assertEqual(data["resource_ff_excitatory_active_synapses"], 7)
         self.assertEqual(data["resource_ff_inhibitory_candidate_slots"], 30)

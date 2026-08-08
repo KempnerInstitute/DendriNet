@@ -23,6 +23,7 @@ def _build_sweep_request(
     return OmegaConf.create(
         {
             "sweep_config": sweep_definition.get("sweep_config", {}),
+            "sweep_variants": sweep_definition.get("sweep_variants", []),
             "filter_config": sweep_definition.get("filter_config", {}),
             "experiment_settings": sweep_definition.get("experiment_settings", {}),
             "base_config": base_training_config,
@@ -152,7 +153,7 @@ class TestUnifiedSweepGenerator:
         config = OmegaConf.create({"filter_config": {}, "experiment_settings": {}})
         # Should raise ValueError when validation fails
         with pytest.raises(
-            ValueError, match="Either sweep_config must have parameters"
+            ValueError, match="At least one of sweep_config, sweep_variants"
         ):
             generator.validate_config(config)
 
@@ -161,8 +162,100 @@ class TestUnifiedSweepGenerator:
         config = OmegaConf.create({"sweep_config": {}, "filter_config": {}})
         # Should raise ValueError when validation fails
         with pytest.raises(
-            ValueError, match="Either sweep_config must have parameters"
+            ValueError, match="At least one of sweep_config, sweep_variants"
         ):
+            generator.validate_config(config)
+
+    def test_named_sweep_variants_apply_correlated_overrides_before_grid(
+        self, generator, base_model_config
+    ):
+        """A named recipe remains one axis and is exported in every config."""
+
+        request = OmegaConf.create(
+            {
+                "sweep_variants": [
+                    {
+                        "name": "indexed_dendritic",
+                        "overrides": {
+                            "model.network.kind": "dendritic",
+                            "model.network.sparsity": "indexed",
+                        },
+                    },
+                    {
+                        "name": "matched_dense_mlp",
+                        "overrides": {
+                            "model.network.kind": "mlp",
+                            "model.network.sparsity": "dense",
+                        },
+                    },
+                ],
+                "sweep_config": {"training.main.trainer.learning_rate": [0.01, 0.02]},
+                "filter_config": {},
+                "experiment_settings": {
+                    "seeds_per_condition": 2,
+                    "base_seed": 51,
+                    "seed_paths": ["model.network.topology_seed"],
+                },
+                "base_config": base_model_config,
+            }
+        )
+
+        assert generator.validate_config(request)
+        configs = generator.generate_configs(request)
+
+        assert len(configs) == 8
+        observed = {
+            (
+                cfg._sweep_variant,
+                cfg.model.network.kind,
+                cfg.model.network.sparsity,
+                cfg.training.main.trainer.learning_rate,
+                cfg.experiment.seed,
+                cfg.model.network.topology_seed,
+            )
+            for cfg in configs
+        }
+        assert observed == {
+            (name, kind, sparsity, learning_rate, seed, seed)
+            for name, kind, sparsity in (
+                ("indexed_dendritic", "dendritic", "indexed"),
+                ("matched_dense_mlp", "mlp", "dense"),
+            )
+            for learning_rate in (0.01, 0.02)
+            for seed in (51, 52)
+        }
+
+    @pytest.mark.parametrize(
+        ("variants", "error", "message"),
+        [
+            ({"name": "x", "overrides": {}}, TypeError, "must be a list"),
+            ([{"name": "", "overrides": {}}], ValueError, "name cannot be empty"),
+            (
+                [
+                    {"name": "same", "overrides": {}},
+                    {"name": "same", "overrides": {}},
+                ],
+                ValueError,
+                "Duplicate sweep variant name",
+            ),
+            (
+                [{"name": "bad", "overrides": []}],
+                TypeError,
+                "overrides must be a dot-path mapping",
+            ),
+        ],
+    )
+    def test_named_sweep_variants_fail_closed(
+        self, generator, variants, error, message
+    ):
+        config = OmegaConf.create(
+            {
+                "sweep_variants": variants,
+                "sweep_config": {},
+                "filter_config": {},
+            }
+        )
+        with pytest.raises(error, match=message):
             generator.validate_config(config)
 
     def test_apply_ei_filter_maintain_ratio(self, generator):

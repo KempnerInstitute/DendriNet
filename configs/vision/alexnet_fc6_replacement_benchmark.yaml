@@ -1,0 +1,257 @@
+# AlexNet fc6 replacement benchmark.
+#
+# The frozen convolutional prefix emits the native 256 x 6 x 6 feature map
+# (flattened in CHW order). The configured core replaces fc6 + ReLU and emits
+# 4,096 features for the retained pretrained fc7/fc8 suffix. Named variants
+# keep complete model recipes correlated and expose a stable `sweep_variant`
+# column to the standard sweep collector.
+#
+# Generate locally:
+#   dendritic-sweep --config configs/vision/alexnet_fc6_replacement_benchmark.yaml \
+#     --generate-only --output-dir local_sweep_runs
+
+slurm_config:
+  run_name: alexnet_fc6_replacement_benchmark
+  account: ""                           # Set for the target cluster.
+  partition: ""                         # Set for the target cluster.
+  time: "05:00:00"
+  nodes: 1
+  ntasks_per_node: 1
+  gpus_per_node: 4
+  launcher: torchrun
+  cpus_per_task: 32
+  mem: 160GB
+  max_concurrent_jobs: 4
+  exclude_nodes: []
+  modules_to_load: []
+  conda_env_path: ""
+  training_script: src/dendritic_modeling/scripts/training/train_experiments.py
+
+experiment_settings:
+  seeds_per_condition: 5
+  base_seed: 41
+  # The support map and weight initialization are both part of the seeded
+  # experimental unit, matching the established wide-layer protocol.
+  seed_paths:
+    - model.core.sparsity.indexed.seed
+    - model.core.connectivity.structured.seed
+
+sweep_variants:
+  - name: dendritic_global_indexed
+    overrides: {}
+  - name: dendritic_random_local_indexed
+    overrides:
+      model.core.connectivity.structured:
+        enabled: true
+        method: bernoulli
+        seed: 41
+        pathways:
+          ee:
+            method: spatial_morphology
+            spatial:
+              input_shape: [256, 6, 6]
+              region_mode: random_windows
+              minimum_window_shape: [2, 2]
+          ei:
+            method: spatial_morphology
+            spatial:
+              input_shape: [256, 6, 6]
+              region_mode: random_windows
+              minimum_window_shape: [2, 2]
+  - name: dendritic_tree_aligned_indexed
+    overrides:
+      model.core.connectivity.structured:
+        enabled: true
+        method: bernoulli
+        seed: 41
+        pathways:
+          ee:
+            method: spatial_morphology
+            spatial:
+              input_shape: [256, 6, 6]
+              region_mode: overlapping_grid
+              minimum_window_shape: [2, 2]
+          ei:
+            method: spatial_morphology
+            spatial:
+              input_shape: [256, 6, 6]
+              region_mode: overlapping_grid
+              minimum_window_shape: [2, 2]
+  - name: sparse_point_indexed
+    overrides:
+      model.core.type: sparse_active_matched_point
+  - name: matched_dense_mlp
+    overrides:
+      model.core.type: point_mlp
+  - name: exact_pretrained_fc6
+    overrides:
+      model.vision_replacement.core_source: pretrained_span
+      model.core.type: identity
+      training.main.common.param_groups.lr: 0.0001
+
+sweep_config: {}
+filter_config:
+  mode: default
+sweep_contract:
+  expected_config_count: 30
+
+base_config:
+  experiment:
+    seed: 41
+    train_valid_split: 0.8
+    deterministic: true
+    cudnn_benchmark: false
+    allow_tf32: false
+    float32_matmul_precision: highest
+    enable_hooks: false
+    checkpointing:
+      enabled: true
+      save_every_n_epochs: 10
+      checkpoint_dir: outputs/checkpoints
+
+  data:
+    dataset_name: imagenet
+    base_dir: ""                         # Set to an ImageNet-1k root.
+    processing:
+      flatten: false
+      normalize: true
+    dataset_params:
+      imagenet:
+        transform_preset: pretrained
+        loader_backend: auto
+        allow_flatten_materialize: false
+
+  model:
+    task: classification
+    vision_replacement:
+      enabled: true
+      backbone: alexnet
+      weights: IMAGENET1K_V1
+      core_source: configured
+      input_shape: [3, 224, 224]
+      target_modules: [classifier.1, classifier.2]
+      omit_layers: [classifier.0, classifier.3]
+      trainability:
+        encoder: {mode: frozen}
+        decoder: {mode: trainable}
+    core:
+      type: einet
+      architecture:
+        excitatory_layer_sizes: [4096]
+        inhibitory_layer_sizes: [820]
+        excitatory_branch_factors: [2, 2]
+        inhibitory_branch_factors: [2, 2]
+        inhibitory_network_type: dendritic
+        mlp_inhibitory_network_params:
+          hidden_dims: []
+          activation: relu
+      connectivity:
+        # Direct conv-feature input -> E, direct conv-feature input -> I,
+        # and same-step local I -> E, respectively.
+        ee_synapses_per_branch_per_layer: [40]
+        ei_synapses_per_branch_per_layer: [10]
+        ie_synapses_per_branch_per_layer: [10]
+        ii_synapses_per_branch_per_layer: [0]
+        structured:
+          enabled: false
+          seed: 41
+      transfer:
+        input_mode: 0
+        independent_pathways: false
+        excitatory_dim: null
+        inhibitory_dim: null
+        output_activation: relu
+      morphology:
+        somatic_synapses: false
+        use_shunting: true
+        weight_transform: softplus
+        dbl_init_method: analytical_expectation
+      sparsity:
+        type: indexed
+        init_method: xavier_normal
+        noise_level: 0.0
+        weight_norm_order: null
+        gamma: 1.0
+        gradient_scaling: none
+        indexed:
+          seed: 41
+          index_dtype: int32
+          output_chunk_size: 2048
+          workspace_mb: 128
+          cache_transformed_weights: false
+          recompute_backward: true
+          persistent_indices: true
+          init_mode: per_rank
+      reactivation:
+        enabled: true
+        type: param_tanh
+        init_policy: analytical
+        init_m: 1.5
+        init_b: 0.5
+        gradient_scaling: none
+      blocklinear:
+        gradient_scaling: none
+        efficient: true
+      implementation:
+        adaptive_initialization: false
+        print_hooks: false
+
+  training:
+    encoder:
+      strategy: standard
+      common:
+        epochs: 0
+    main:
+      strategy: standard
+      common:
+        epochs: 50
+        # Per-rank batch; four DDP ranks give global batch 256.
+        batch_size: 64
+        num_workers: 8
+        pin_memory: true
+        persistent_workers: true
+        prefetch_factor: 4
+        shuffle: true
+        loss_function: cat_nll
+        early_stopping: true
+        patience: 50
+        load_best_state_dict: true
+        plot_losses: true
+        suppress_prints: false
+        print_every: 1
+        grad_clip_value: 5.0
+        use_amp: true
+        weight_decay_rate: 0.0
+        weight_boosting: false
+        param_groups:
+          lr: 0.001
+          split_params: true
+          topk_lr: 0.001
+          blocklinear_lr: 0.0001
+          reactivation_lr: 0.0001
+          decoder_lr: 0.0001
+          encoder_lr: 0.0
+      optimizer:
+        name: adam
+      strategies:
+        standard: {}
+
+  analysis:
+    performance:
+      enabled: true
+      training: false
+      params:
+        accuracy: true
+        auc: false
+        categorical_loglikelihood: true
+      final_splits: [valid, test]
+
+  wandb:
+    use_wandb: false
+
+  outputs:
+    run_name: alexnet_fc6_replacement_benchmark
+    results_dir: outputs
+
+  distributed:
+    mode: ddp

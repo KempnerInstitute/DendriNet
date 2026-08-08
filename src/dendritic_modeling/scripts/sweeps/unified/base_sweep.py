@@ -75,19 +75,46 @@ class BaseSweepGenerator(ABC):
 
         return output_dir
 
-    def save_configs(self, configs: list[DictConfig], output_dir: str) -> list[str]:
+    def save_configs(
+        self,
+        configs: list[DictConfig],
+        output_dir: str,
+        execution_results_dir: Optional[str] = None,
+    ) -> list[str]:
         """
         Save generated configurations to files.
 
         Args:
             configs: List of configurations to save
             output_dir: Directory to save configurations
+            execution_results_dir: Optional root used by training jobs for
+                checkpoints and metrics. This permits lightweight sweep
+                manifests and job scripts to be staged separately from large
+                execution outputs.
 
         Returns:
             List of paths to saved configuration files
         """
         config_dir = os.path.join(output_dir, "configs")
-        results_base_dir = os.path.join(output_dir, "results")
+        results_base_dir = execution_results_dir or os.path.join(output_dir, "results")
+        if execution_results_dir is not None:
+            staged_results = Path(output_dir) / "results"
+            if staged_results.is_symlink():
+                if os.readlink(staged_results) != execution_results_dir:
+                    raise FileExistsError(
+                        f"staged results link has a different target: {staged_results}"
+                    )
+            else:
+                if staged_results.exists():
+                    if any(staged_results.iterdir()):
+                        raise FileExistsError(
+                            "cannot replace non-empty staged results directory: "
+                            f"{staged_results}"
+                        )
+                    staged_results.rmdir()
+                staged_results.symlink_to(
+                    execution_results_dir, target_is_directory=True
+                )
         config_paths = []
 
         for i, config in enumerate(configs):
@@ -211,7 +238,7 @@ class BaseSweepAnalyzer(ABC):
                     f.write("-" * 30 + "\n")
                     for i, config_info in enumerate(best_configs[:5]):
                         f.write(
-                            f"{i+1}. Score: {config_info['score']:.4f} "
+                            f"{i + 1}. Score: {config_info['score']:.4f} "
                             f"(Config ID: {config_info['config_id']})\n"
                         )
             except Exception as e:
@@ -365,12 +392,21 @@ class SweepJobManager:
             training_script = self.slurm_config.get(
                 "training_script", "src/dendritic_modeling/scripts/train_experiments.py"
             )
+            launcher = str(self.slurm_config.get("launcher", "python")).lower()
+            if launcher not in {"python", "torchrun"}:
+                raise ValueError("slurm_config.launcher must be 'python' or 'torchrun'")
+            launch_prefix = "$PYTHON_BIN"
+            if launcher == "torchrun":
+                launch_prefix += (
+                    " -u -m torch.distributed.run --standalone "
+                    f"--nproc_per_node={self.slurm_config.get('gpus_per_node', 1)}"
+                )
 
             for config_path in config_paths:
                 rel_config_path = os.path.relpath(
                     os.path.abspath(config_path), start=repo_root
                 )
-                f.write(f"$PYTHON_BIN {training_script} {rel_config_path}\n")
+                f.write(f"{launch_prefix} {training_script} {rel_config_path}\n")
 
         # Make executable
         os.chmod(script_path, 0o755)
@@ -436,9 +472,9 @@ class SweepJobManager:
 
             # Array job with optional concurrent limit
             if num_configs > max_concurrent:
-                f.write(f"#SBATCH --array=0-{num_configs-1}%{max_concurrent}\n")
+                f.write(f"#SBATCH --array=0-{num_configs - 1}%{max_concurrent}\n")
             else:
-                f.write(f"#SBATCH --array=0-{num_configs-1}\n")
+                f.write(f"#SBATCH --array=0-{num_configs - 1}\n")
 
             # Use the existing jobs directory directly.  Some Slurm site
             # wrappers create `%A_%a` directories automatically, but vanilla
@@ -498,6 +534,11 @@ class SweepJobManager:
             f.write("# Path to output directory\n")
             f.write(f'OUTPUT_DIR="{output_dir}"\n\n')
 
+            execution_results_dir = self.slurm_config.get("execution_results_dir")
+            if execution_results_dir:
+                f.write("# External root for checkpoints and metrics\n")
+                f.write(f'EXECUTION_RESULTS_DIR="{execution_results_dir}"\n\n')
+
             # Array job config selection
             f.write("# Array job: select config based on SLURM_ARRAY_TASK_ID\n")
             f.write("CONFIG_FILES=(\n")
@@ -513,9 +554,16 @@ class SweepJobManager:
             f.write('RUN_NAME="sweep_${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}"\n\n')
 
             f.write("# Path to the folder to save outputs for this specific run\n")
-            f.write(
-                'OUTPUT_FOLDER_PATH="${OUTPUT_DIR}/results/config_${SLURM_ARRAY_TASK_ID}"\n\n'
-            )
+            if execution_results_dir:
+                f.write(
+                    'OUTPUT_FOLDER_PATH="${EXECUTION_RESULTS_DIR}/config_'
+                    '${SLURM_ARRAY_TASK_ID}"\n\n'
+                )
+            else:
+                f.write(
+                    'OUTPUT_FOLDER_PATH="${OUTPUT_DIR}/results/config_'
+                    '${SLURM_ARRAY_TASK_ID}"\n\n'
+                )
 
             f.write("# Create output directory\n")
             f.write("mkdir -p ${OUTPUT_FOLDER_PATH}\n\n")
@@ -529,6 +577,15 @@ class SweepJobManager:
                 "training_script",
                 "src/dendritic_modeling/scripts/training/train_experiments.py",
             )
+            launcher = str(self.slurm_config.get("launcher", "python")).lower()
+            if launcher not in {"python", "torchrun"}:
+                raise ValueError("slurm_config.launcher must be 'python' or 'torchrun'")
+            launch_prefix = "$PYTHON -u"
+            if launcher == "torchrun":
+                launch_prefix += (
+                    " -m torch.distributed.run --standalone "
+                    f"--nproc_per_node={self.slurm_config.get('gpus_per_node', 1)}"
+                )
 
             f.write("# Run experiment with srun\n")
             f.write("srun \\\n")
@@ -537,11 +594,11 @@ class SweepJobManager:
 
             if training_script.startswith("/"):
                 f.write(
-                    f'  $PYTHON -u {training_script} "$CONFIG" --output_dir "$OUTPUT_FOLDER_PATH"\n\n'
+                    f'  {launch_prefix} {training_script} "$CONFIG" --output_dir "$OUTPUT_FOLDER_PATH"\n\n'
                 )
             else:
                 f.write(
-                    f'  $PYTHON -u $(pwd)/{training_script} "$CONFIG" --output_dir "$OUTPUT_FOLDER_PATH"\n\n'
+                    f'  {launch_prefix} $(pwd)/{training_script} "$CONFIG" --output_dir "$OUTPUT_FOLDER_PATH"\n\n'
                 )
 
             f.write("end_time=$(date +%s)\n")

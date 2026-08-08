@@ -9,6 +9,7 @@ from dendritic_modeling.networks import DendriNet
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.spatial_morphology import (
     sample_configured_indices,
     sample_spatial_morphology_indices,
+    spatial_morphology_rectangles,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.structured_mask import (
     sample_configured_mask,
@@ -434,3 +435,83 @@ def test_configured_overlapping_grid_options_are_forwarded() -> None:
     )
     assert indices is not None
     assert indices.shape == (120, 40)
+
+
+def test_random_windows_preserve_aligned_window_shape_distribution() -> None:
+    for branch_factors in ([120], [10, 11], [8, 2, 6], [3, 3, 3, 3]):
+        for level_idx in range(len(branch_factors)):
+            options = {
+                "input_shape": [3, 32, 32],
+                "branch_factors": branch_factors,
+                "level_idx": level_idx,
+                "minimum_window_shape": [4, 4],
+            }
+            aligned = spatial_morphology_rectangles(
+                **options,
+                region_mode="overlapping_grid",
+                seed=23,
+            )
+            randomized = spatial_morphology_rectangles(
+                **options,
+                region_mode="random_windows",
+                seed=23,
+            )
+            aligned_shapes = sorted((y1 - y0, x1 - x0) for y0, y1, x0, x1 in aligned)
+            randomized_shapes = sorted(
+                (y1 - y0, x1 - x0) for y0, y1, x0, x1 in randomized
+            )
+            assert randomized_shapes == aligned_shapes
+
+
+def test_random_windows_are_deterministic_seeded_and_not_tree_aligned() -> None:
+    options = {
+        "input_shape": [3, 32, 32],
+        "branch_factors": [3, 3, 3, 3],
+        "level_idx": 0,
+        "region_mode": "random_windows",
+        "minimum_window_shape": [4, 4],
+    }
+    first = spatial_morphology_rectangles(**options, seed=23)
+    repeated = spatial_morphology_rectangles(**options, seed=23)
+    changed = spatial_morphology_rectangles(**options, seed=24)
+    aligned = spatial_morphology_rectangles(
+        **{**options, "region_mode": "overlapping_grid"},
+        seed=23,
+    )
+    assert first == repeated
+    assert first != changed
+    assert first != aligned
+
+
+def test_configured_random_windows_share_e_i_regions_but_not_indices() -> None:
+    config = {
+        "enabled": True,
+        "method": "spatial_morphology",
+        "seed": 23,
+        "spatial": {
+            "input_shape": [3, 32, 32],
+            "region_mode": "random_windows",
+            "minimum_window_shape": [4, 4],
+            "region_seed": 101,
+        },
+    }
+    options = {
+        "out_features": 120,
+        "in_features": 3072,
+        "synapses_per_branch": 48,
+        "owner_count": 1,
+        "branch_factors": [120],
+        "level_idx": 0,
+    }
+    excitatory = sample_configured_indices(config, pathway="ee", **options)
+    inhibitory = sample_configured_indices(config, pathway="ie", **options)
+    assert excitatory is not None
+    assert inhibitory is not None
+    assert not torch.equal(excitatory, inhibitory)
+    # With all 48 RGB coordinates selected from each 4x4 window, sorting
+    # removes the independent pathway-specific traversal and exposes the
+    # shared spatial candidate set.
+    assert torch.equal(
+        excitatory.sort(dim=1).values,
+        inhibitory.sort(dim=1).values,
+    )

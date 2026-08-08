@@ -180,7 +180,7 @@ def _require_split_index(
     """Return a split boundary index while preserving legacy error text."""
     if layer_name not in all_names:
         raise ValueError(
-            f"{arg_name}='{layer_name}' not found. " f"Available layers: {all_names}"
+            f"{arg_name}='{layer_name}' not found. Available layers: {all_names}"
         )
     return all_names.index(layer_name)
 
@@ -345,6 +345,7 @@ class BackboneSplitPlan:
 
     # Modules (from a single loaded model instance)
     prefix_modules: list[nn.Module]
+    replaced_modules: list[nn.Module]
     suffix_modules: list[nn.Module]
 
     # Shape metadata (flattened path — always populated)
@@ -407,7 +408,7 @@ def _resolve_replacement_span(
 
     if not replace_start or not replace_end:
         raise ValueError(
-            "Vision replacement requires replace.start/replace.end or " "target_modules"
+            "Vision replacement requires replace.start/replace.end or target_modules"
         )
 
     start_idx = _require_layer_index(all_names, replace_start, backbone=backbone)
@@ -449,7 +450,7 @@ def _require_layer_index(
 ) -> int:
     if layer_name not in all_names:
         raise ValueError(
-            f"Layer {layer_name!r} not found in {backbone}. " f"Available: {all_names}"
+            f"Layer {layer_name!r} not found in {backbone}. Available: {all_names}"
         )
     return all_names.index(layer_name)
 
@@ -643,7 +644,7 @@ def build_split_plan(
     suffix_filtered = _filter_omitted_layers(suffix_layers, omit_layers)
 
     prefix_names, prefix_modules = _names_and_modules(prefix_filtered)
-    replaced_names, _ = _names_and_modules(replaced_layers)
+    replaced_names, replaced_modules = _names_and_modules(replaced_layers)
     suffix_names, suffix_modules = _names_and_modules(suffix_filtered)
 
     # Compute prefix output shape
@@ -678,6 +679,7 @@ def build_split_plan(
         replaced_names=replaced_names,
         suffix_names=suffix_names,
         prefix_modules=prefix_modules,
+        replaced_modules=replaced_modules,
         suffix_modules=suffix_modules,
         input_size=input_size,
         prefix_output_dim=prefix_output_dim,
@@ -739,11 +741,59 @@ def build_encoder_decoder_from_plan(
     return encoder, decoder
 
 
+def build_pretrained_core_from_plan(
+    plan: BackboneSplitPlan,
+    *,
+    freeze: bool = False,
+) -> BackboneSegment:
+    """Retain the loaded replacement span as a training-matched dense core.
+
+    The prefix, core boundary, suffix, and training pipeline then match a
+    configured replacement, while the original modules and pretrained weights
+    in the declared span remain intact. Flat and spatial spans are both
+    supported; spatial spans preserve their ``(C,H,W)`` interface.
+    """
+
+    if plan.is_spatial:
+        input_spec = plan.prefix_output_spec
+        expected_spec = plan.suffix_input_spec
+        if input_spec is None or expected_spec is None:
+            raise ValueError("Spatial retained span is missing interface metadata")
+        core = BackboneSegment(
+            plan.replaced_modules,
+            plan.replaced_names,
+            freeze=freeze,
+            input_size=(1, input_spec.channels, input_spec.height, input_spec.width),
+            auto_flatten=False,
+        )
+        if core.output_spec != expected_spec:
+            raise ValueError(
+                "Retained pretrained spatial span output does not match the suffix: "
+                f"{core.output_spec} != {expected_spec}"
+            )
+        return core
+
+    core = BackboneSegment(
+        plan.replaced_modules,
+        plan.replaced_names,
+        freeze=freeze,
+        input_size=(1, plan.prefix_output_dim),
+        auto_flatten=True,
+    )
+    if core.output_dim != plan.suffix_input_dim:
+        raise ValueError(
+            "Retained pretrained span output_dim does not match the suffix: "
+            f"{core.output_dim} != {plan.suffix_input_dim}"
+        )
+    return core
+
+
 __all__ = [
     "BackboneSegment",
     "BackboneSplitPlan",
     "TensorSpec",
     "build_encoder_decoder_from_plan",
+    "build_pretrained_core_from_plan",
     "build_split_plan",
     "list_backbone_layers",
 ]

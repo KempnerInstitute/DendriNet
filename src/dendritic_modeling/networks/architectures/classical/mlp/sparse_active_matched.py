@@ -175,8 +175,7 @@ class SparseActiveMatchedPointAffine(nn.Module):
         )
         if normalized_output_activation not in {"none", "relu"}:
             raise ValueError(
-                "SparseActiveMatchedPointAffine supports only the fixed ReLU "
-                "interface"
+                "SparseActiveMatchedPointAffine supports only the fixed ReLU interface"
             )
 
         if target_active_parameters is None:
@@ -341,6 +340,27 @@ class SparseActiveMatchedPointAffine(nn.Module):
         """Return the exact number of learned scalars used in every forward."""
 
         return self.actual_active_parameters
+
+    def connectivity_resource_records(self) -> list[dict[str, Any]]:
+        """Expose the fixed sparse affine support to standard resource tools."""
+
+        return [
+            {
+                "module": "sparse_point_affine",
+                "pathway": "point_affine",
+                "soma_relative_depth": 0,
+                "out_features": self.output_dim,
+                "in_features": self.input_dim,
+                "candidate_parameters": self.weight_parameters,
+                "candidate_slots": self.output_dim * self.input_dim,
+                "active_synapses": self.weight_parameters,
+                "realized_k_min": self.base_fan_in,
+                "realized_k_max": self.maximum_fan_in,
+                "realized_k_mean": self.weight_parameters / self.output_dim,
+                "selection_policy": "fixed_index",
+                "mask_source": "connection_indices",
+            }
+        ]
 
     def connectivity_support_sha256(self) -> str:
         """Return a canonical hash of the exact output-to-input support."""

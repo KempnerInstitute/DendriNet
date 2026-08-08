@@ -7,6 +7,7 @@ import math
 import pytest
 import torch
 
+from dendritic_modeling.analysis.utils.model_resources import model_resource_summary
 from dendritic_modeling.networks.architectures.classical.mlp import (
     SparseActiveMatchedPointAffine,
 )
@@ -121,6 +122,19 @@ def test_exact_publication_parameter_and_storage_contract() -> None:
     assert 40_222_528 + 1_376_320 + 4_097_000 == 45_695_848
     assert 1_376_320 + 4_097_000 == 5_473_320
     assert 1_376_320 * 4 + 10_978_304 == 16_483_584
+
+
+def test_standard_resource_summary_counts_sparse_affine_support() -> None:
+    control = _control(input_dim=8, output_dim=8, target=27, seed=41)
+
+    summary = model_resource_summary(control)
+
+    assert summary["core_total_parameters"] == 27
+    assert summary["core_trainable_parameters"] == 27
+    assert summary["synapse_candidate_parameters"] == 19
+    assert summary["candidate_synapse_slots"] == 64
+    assert summary["active_synapses"] == 19
+    assert summary["synapses"][0]["pathway"] == "point_affine"
 
 
 def test_support_is_unique_balanced_seed_keyed_and_label_independent() -> None:

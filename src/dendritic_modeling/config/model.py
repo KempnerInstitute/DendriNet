@@ -400,6 +400,10 @@ class PretrainedReplacementConfig(BaseConfig):
     enabled: bool = False
     backbone: str = "alexnet"
     weights: Optional[str] = "IMAGENET1K_V1"
+    # ``configured`` constructs model.core as the replacement. The
+    # ``pretrained_span`` control retains the original modules and weights in
+    # the declared span while using the same replacement training pipeline.
+    core_source: str = "configured"
     input_shape: list[int] = field(default_factory=lambda: [3, 224, 224])
     replace: ReplacementRegionConfig = field(default_factory=ReplacementRegionConfig)
     target_modules: list[str] = field(default_factory=list)

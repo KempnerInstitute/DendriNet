@@ -8,6 +8,7 @@ import torch.nn as nn
 
 from dendritic_modeling.networks.architectures.classical.pretrained import (
     BackboneSegment,
+    TensorSpec,
     _extract_layers,
     _filter_omitted_layers,
     _flatten_model_layers,
@@ -1025,6 +1026,122 @@ training:
         assert isinstance(model.decoder_network, BackboneSegment)
         assert model.encoder_network.output_dim == 16
         assert model.decoder_network.output_dim == 10
+
+        x = torch.randn(2, 3, 8, 8)
+        with torch.no_grad():
+            out = model(x)
+        assert out.shape == (2, 10)
+
+    def test_initialize_model_can_retrain_exact_pretrained_span(self, tmp_path):
+        """The retained-span control keeps the declared backbone modules."""
+        from dendritic_modeling.config import load_config
+        from dendritic_modeling.scripts.script_utils.setup_utils import initialize_model
+
+        yaml_content = """\
+experiment:
+  seed: 42
+
+data:
+  dataset_name: "imagenet"
+  base_dir: "/tmp/fake"
+  processing:
+    flatten: false
+
+model:
+  task: "classification"
+  vision_replacement:
+    enabled: true
+    backbone: "mini_alexnet"
+    weights: null
+    core_source: "pretrained_span"
+    input_shape: [3, 8, 8]
+    target_modules: ["classifier.4", "classifier.5"]
+    omit_layers: ["classifier.0", "classifier.3"]
+    trainability:
+      encoder: {mode: "frozen"}
+      decoder: {mode: "trainable"}
+  core:
+    type: "identity"
+"""
+        config_path = tmp_path / "retained_span.yaml"
+        config_path.write_text(yaml_content)
+        backbone = _MiniAlexNet()
+        retained_weight = backbone.classifier[4].weight.detach().clone()
+
+        with patch(
+            "dendritic_modeling.networks.architectures.classical.pretrained._load_backbone",
+            return_value=backbone,
+        ):
+            config = load_config(str(config_path))
+            model, _encoder_network = initialize_model(config.model)
+
+        assert config.model.vision_replacement.core_source == "pretrained_span"
+        assert isinstance(model.core_network, BackboneSegment)
+        assert model.core_network._layer_names == ["classifier.4", "classifier.5"]
+        assert model.core_network.output_dim == 16
+        assert torch.equal(model.core_network.layers[0].weight, retained_weight)
+        assert all(
+            not parameter.requires_grad
+            for parameter in model.encoder_network.parameters()
+        )
+        assert all(
+            parameter.requires_grad for parameter in model.core_network.parameters()
+        )
+        assert all(
+            parameter.requires_grad for parameter in model.decoder_network.parameters()
+        )
+
+        x = torch.randn(2, 3, 8, 8)
+        with torch.no_grad():
+            out = model(x)
+        assert out.shape == (2, 10)
+
+    def test_initialize_model_can_retrain_exact_spatial_span(self, tmp_path):
+        """A retained convolution and activation preserve their 4D boundary."""
+        from dendritic_modeling.config import load_config
+        from dendritic_modeling.scripts.script_utils.setup_utils import initialize_model
+
+        yaml_content = """\
+experiment:
+  seed: 42
+
+data:
+  dataset_name: "imagenet"
+  base_dir: "/tmp/fake"
+  processing:
+    flatten: false
+
+model:
+  task: "classification"
+  vision_replacement:
+    enabled: true
+    backbone: "mini_alexnet"
+    weights: null
+    core_source: "pretrained_span"
+    input_shape: [3, 8, 8]
+    target_modules: ["features.0", "features.1"]
+    trainability:
+      encoder: {mode: "frozen"}
+      decoder: {mode: "trainable"}
+  core:
+    type: "hierarchical_dendritic_conv"
+"""
+        config_path = tmp_path / "retained_conv_span.yaml"
+        config_path.write_text(yaml_content)
+        backbone = _MiniAlexNet()
+        retained_weight = backbone.features[0].weight.detach().clone()
+
+        with patch(
+            "dendritic_modeling.networks.architectures.classical.pretrained._load_backbone",
+            return_value=backbone,
+        ):
+            config = load_config(str(config_path))
+            model, _encoder_network = initialize_model(config.model)
+
+        assert isinstance(model.core_network, BackboneSegment)
+        assert model.core_network._layer_names == ["features.0", "features.1"]
+        assert model.core_network.output_spec == TensorSpec(8, 8, 8)
+        assert torch.equal(model.core_network.layers[0].weight, retained_weight)
 
         x = torch.randn(2, 3, 8, 8)
         with torch.no_grad():

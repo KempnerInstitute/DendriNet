@@ -41,9 +41,18 @@ class _StubGenerator:
     def generate_configs(self, config) -> list:
         return [OmegaConf.create({"experiment": {"seed": seed}}) for seed in (11, 12)]
 
-    def save_configs(self, configs: list, output_dir: str) -> list[str]:
+    def save_configs(
+        self,
+        configs: list,
+        output_dir: str,
+        execution_results_dir: str | None = None,
+    ) -> list[str]:
         paths = []
         for index, config in enumerate(configs):
+            if execution_results_dir is not None:
+                config.outputs = {
+                    "results_dir": str(Path(execution_results_dir) / f"config_{index}")
+                }
             path = Path(output_dir) / "configs" / f"stub_{index}.yaml"
             OmegaConf.save(config, path)
             paths.append(str(path))
@@ -80,6 +89,63 @@ def _write_sweep_yaml(
     if slurm_config is not None:
         payload["slurm_config"] = slurm_config
     path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+
+
+def test_sweep_config_extends_deep_merges_and_tracks_sources(tmp_path: Path) -> None:
+    parent = tmp_path / "parent.yaml"
+    child_dir = tmp_path / "project"
+    child_dir.mkdir()
+    child = child_dir / "child.yaml"
+    parent.write_text(
+        yaml.safe_dump(
+            {
+                "slurm_config": {"time": "01:00:00", "gpus_per_node": 1},
+                "sweep_config": {"model.core.type": ["einet"]},
+                "base_config": {
+                    "data": {"dataset_name": "imagenet", "base_dir": ""},
+                    "outputs": {"results_dir": "outputs"},
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    child.write_text(
+        yaml.safe_dump(
+            {
+                "extends": "../parent.yaml",
+                "slurm_config": {"time": "05:00:00"},
+                "base_config": {
+                    "data": {"base_dir": "/datasets/imagenet"},
+                    "outputs": {"results_dir": "/results/fc6"},
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    config, sources = sweep_manager_module.SweepManager._load_composed_config(
+        str(child)
+    )
+
+    assert sources == [parent.resolve(), child.resolve()]
+    assert config.slurm_config.time == "05:00:00"
+    assert config.slurm_config.gpus_per_node == 1
+    assert config.sweep_config["model.core.type"] == ["einet"]
+    assert config.base_config.data.dataset_name == "imagenet"
+    assert config.base_config.data.base_dir == "/datasets/imagenet"
+    assert config.base_config.outputs.results_dir == "/results/fc6"
+
+
+def test_sweep_config_extends_cycle_fails_closed(tmp_path: Path) -> None:
+    first = tmp_path / "first.yaml"
+    second = tmp_path / "second.yaml"
+    first.write_text("extends: second.yaml\n", encoding="utf-8")
+    second.write_text("extends: first.yaml\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="extends cycle"):
+        sweep_manager_module.SweepManager._load_composed_config(str(first))
 
 
 def test_scheduler_policy_contains_exactly_the_approved_pairs() -> None:
@@ -205,6 +271,32 @@ def test_sweep_manager_generate_only_keeps_placeholders_and_freezes_manifest(
         manifest["original_yaml"]["sha256"]
         != manifest["resolved_original_yaml"]["sha256"]
     )
+
+
+def test_sweep_manager_separates_staging_from_execution_results(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config_path = tmp_path / "sweep.yaml"
+    _write_sweep_yaml(config_path)
+    execution_root = tmp_path / "large-results"
+    payload = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    payload["execution_results_dir"] = str(execution_root)
+    config_path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+    monkeypatch.setattr(sweep_manager_module, "SweepJobManager", _StubJobManager)
+    manager = sweep_manager_module.SweepManager()
+    manager.generator = _StubGenerator()
+
+    sweep = manager.generate_sweep(
+        str(config_path),
+        output_dir=str(tmp_path / "staging"),
+        generate_only=True,
+    )
+
+    assert Path(sweep["output_dir"]).is_relative_to(tmp_path / "staging")
+    assert sweep["execution_results_dir"] == str(execution_root)
+    generated = OmegaConf.load(sweep["config_paths"][1])
+    assert generated.outputs.results_dir == str(execution_root / "config_1")
 
 
 def test_sweep_manager_dry_run_keeps_missing_scheduler_as_placeholder(

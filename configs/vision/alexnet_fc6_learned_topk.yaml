@@ -1,0 +1,180 @@
+# Full learned-TopK companion to alexnet_fc6_replacement_benchmark. It uses the
+# same fc6 boundary, E/I architecture, optimizer, data split, and seeds, but
+# stores the full branch-by-input candidate bank and dynamically selects K
+# active contacts per forward pass. This reproduces the package's established
+# standard TopK control. It is separate because its 291,987,456 candidate
+# synaptic parameters have a much larger compute/storage regime than indexed
+# routing or the parameter-matched point controls.
+
+slurm_config:
+  run_name: alexnet_fc6_learned_topk
+  account: ""
+  partition: ""
+  time: "20:00:00"
+  nodes: 1
+  ntasks_per_node: 1
+  gpus_per_node: 4
+  launcher: torchrun
+  cpus_per_task: 32
+  mem: 200GB
+  max_concurrent_jobs: 1
+  exclude_nodes: []
+  modules_to_load: []
+  conda_env_path: ""
+  training_script: src/dendritic_modeling/scripts/training/train_experiments.py
+
+experiment_settings:
+  seeds_per_condition: 5
+  base_seed: 41
+
+sweep_variants:
+  - name: dendritic_full_topk
+    overrides: {}
+sweep_config: {}
+filter_config:
+  mode: default
+sweep_contract:
+  expected_config_count: 5
+
+base_config:
+  experiment:
+    seed: 41
+    train_valid_split: 0.8
+    deterministic: true
+    cudnn_benchmark: false
+    allow_tf32: false
+    float32_matmul_precision: highest
+    enable_hooks: false
+    checkpointing:
+      enabled: true
+      save_every_n_epochs: 10
+      checkpoint_dir: outputs/checkpoints
+
+  data:
+    dataset_name: imagenet
+    base_dir: ""
+    processing:
+      flatten: false
+      normalize: true
+    dataset_params:
+      imagenet:
+        transform_preset: pretrained
+        loader_backend: auto
+        allow_flatten_materialize: false
+
+  model:
+    task: classification
+    vision_replacement:
+      enabled: true
+      backbone: alexnet
+      weights: IMAGENET1K_V1
+      core_source: configured
+      input_shape: [3, 224, 224]
+      target_modules: [classifier.1, classifier.2]
+      omit_layers: [classifier.0, classifier.3]
+      trainability:
+        encoder: {mode: frozen}
+        decoder: {mode: trainable}
+    core:
+      type: einet
+      architecture:
+        excitatory_layer_sizes: [4096]
+        inhibitory_layer_sizes: [820]
+        excitatory_branch_factors: [2, 2]
+        inhibitory_branch_factors: [2, 2]
+        inhibitory_network_type: dendritic
+        mlp_inhibitory_network_params:
+          hidden_dims: []
+          activation: relu
+      connectivity:
+        ee_synapses_per_branch_per_layer: [40]
+        ei_synapses_per_branch_per_layer: [10]
+        ie_synapses_per_branch_per_layer: [10]
+        ii_synapses_per_branch_per_layer: [0]
+        structured: {enabled: false}
+      transfer:
+        input_mode: 0
+        independent_pathways: false
+        excitatory_dim: null
+        inhibitory_dim: null
+        output_activation: relu
+      morphology:
+        somatic_synapses: false
+        use_shunting: true
+        weight_transform: softplus
+        dbl_init_method: analytical_expectation
+      sparsity:
+        type: standard
+        init_method: xavier_normal
+        noise_level: 0.0
+        weight_norm_order: null
+        gamma: 1.0
+        temperature: 0.0
+        ultrafast: false
+        gradient_scaling: none
+      reactivation:
+        enabled: true
+        type: param_tanh
+        init_policy: analytical
+        init_m: 1.5
+        init_b: 0.5
+        gradient_scaling: none
+      blocklinear:
+        gradient_scaling: none
+        efficient: true
+      implementation:
+        adaptive_initialization: false
+        print_hooks: false
+
+  training:
+    encoder:
+      strategy: standard
+      common: {epochs: 0}
+    main:
+      strategy: standard
+      common:
+        epochs: 50
+        batch_size: 64
+        num_workers: 8
+        pin_memory: true
+        persistent_workers: true
+        prefetch_factor: 4
+        shuffle: true
+        loss_function: cat_nll
+        early_stopping: true
+        patience: 50
+        load_best_state_dict: true
+        plot_losses: true
+        suppress_prints: false
+        print_every: 1
+        grad_clip_value: 5.0
+        use_amp: true
+        weight_decay_rate: 0.0
+        weight_boosting: false
+        param_groups:
+          lr: 0.001
+          split_params: true
+          topk_lr: 0.001
+          blocklinear_lr: 0.0001
+          reactivation_lr: 0.0001
+          decoder_lr: 0.0001
+          encoder_lr: 0.0
+      optimizer: {name: adam}
+      strategies:
+        standard: {}
+
+  analysis:
+    performance:
+      enabled: true
+      training: false
+      params:
+        accuracy: true
+        auc: false
+        categorical_loglikelihood: true
+      final_splits: [valid, test]
+
+  wandb: {use_wandb: false}
+  outputs:
+    run_name: alexnet_fc6_learned_topk
+    results_dir: outputs
+  distributed: {mode: ddp}

@@ -52,6 +52,8 @@ slurm_config:
   time: "12:00:00"                           # Wall-clock time limit (HH:MM:SS)
   nodes: 1                                   # Nodes per job
   ntasks_per_node: 1                         # Tasks per node
+  gpus_per_node: 1                           # GPUs allocated to each array task
+  launcher: "python"                         # "python" or multi-GPU "torchrun"
   cpus_per_task: 12                          # CPU cores per task
   mem: 200GB                                 # Memory per node
   max_concurrent_jobs: 32                    # Max simultaneous array elements
@@ -70,6 +72,28 @@ slurm_config:
 experiment_settings:
   seeds_per_condition: 5                     # Random seeds per parameter combo
   base_seed: 0                               # First seed value (seeds: 0,1,...,N-1)
+  # Optional: make fixed topology part of each seeded experimental unit.
+  # seed_paths:
+  #   - model.core.sparsity.indexed.seed
+  #   - model.core.connectivity.structured.seed
+
+# Optional: stage YAMLs/job scripts locally (or with --output-dir) while
+# training writes large checkpoints and metrics to this separate root. Each
+# generated config receives execution_results_dir/config_<index>.
+# execution_results_dir: "/project/results/my_sweep"
+
+# Optional named correlated recipes. Use this when one comparison condition
+# changes several paths together (for example an architecture and its sparsity
+# implementation). Each recipe is crossed with the ordinary grid below.
+# sweep_variants:
+#   - name: indexed_dendritic
+#     overrides:
+#       model.core.type: einet
+#       model.core.sparsity.type: indexed
+#   - name: matched_dense_mlp
+#     overrides:
+#       model.core.type: point_mlp
+#       model.core.sparsity.type: indexed
 
 
 # ============================================================================
