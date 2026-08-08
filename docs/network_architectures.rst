@@ -1290,6 +1290,20 @@ Optional periodic quantile maintenance is available for controlled ablations
 and diagnostics. The relevant trainer fields live under
 ``training.<strategy>.common``:
 
+``reactivation_initialization_batch_size``
+   Batch size used by the one-time data-driven reactivation initialization.
+   Reduce this for deep spatial networks whose calibration hooks retain many
+   intermediate voltage tensors. The default is ``256`` for backward
+   compatibility.
+
+``reactivation_initialization_num_batches``
+   Number of batches used by the one-time initialization. The default is
+   ``3``. This is separate from periodic training-time recalibration.
+
+``reactivation_initialization_max_iterations``
+   Optional cap on the iterative one-time calibration. ``null`` uses the
+   convergence-based package default.
+
 ``reactivation_update_mode``
    ``"backprop"`` keeps optimizer or local-rule learning of ``(m, b)``.
    ``"quantile"`` freezes those direct updates and refreshes ``(m, b)``

@@ -59,6 +59,13 @@ class CommonTrainerConfig(BaseConfig):
     # Record compact decoder-input, logit, and gradient statistics for the
     # first FSDP optimizer step. Disabled by default to avoid extra reductions.
     log_first_step_diagnostics: bool = False
+    # Data-driven reactivation initialization can retain intermediate voltage
+    # tensors for every dendritic layer. These controls let deep or spatial
+    # models bound that one-time calibration without changing its estimator.
+    reactivation_initialization_batch_size: int = 256
+    reactivation_initialization_num_batches: int = 3
+    # None iterates to convergence with the package default cap.
+    reactivation_initialization_max_iterations: Optional[int] = None
     weight_decay_rate: float = 0.01
     weight_boosting: bool = False
     # Periodic reactivation recalibration during training.

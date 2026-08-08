@@ -53,6 +53,9 @@ base_config:
   training:
     main:
       common:
+        reactivation_initialization_batch_size: 2
+        reactivation_initialization_num_batches: 2
+        reactivation_initialization_max_iterations: null
         reactivation_recalibration_mode: occupancy_quantile
         reactivation_recalibration_start_epoch: 1
         reactivation_recalibration_num_batches: 3

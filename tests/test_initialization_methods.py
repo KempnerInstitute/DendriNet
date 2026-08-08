@@ -664,6 +664,73 @@ class TestEmpiricalCalibration:
         assert recorded_kwargs["persistent_workers"] is True
         assert "prefetch_factor" not in recorded_kwargs
 
+    def test_maybe_calibrate_uses_configured_initialization_budget(self, monkeypatch):
+        """Deep models can bound one-time calibration through typed config."""
+
+        class DummyCore:
+            pass
+
+        class DummyModelCfg:
+            core = DummyCore()
+
+        class DummyCommon:
+            num_workers = 0
+            pin_memory = False
+            persistent_workers = False
+            prefetch_factor = None
+            reactivation_initialization_batch_size = 2
+            reactivation_initialization_num_batches = 2
+            reactivation_initialization_max_iterations = 1
+
+        class DummyMain:
+            common = DummyCommon()
+
+        class DummyTraining:
+            main = DummyMain()
+
+        class DummyConfig:
+            model = DummyModelCfg()
+            training = DummyTraining()
+
+        class PolicyModule(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.reactivation_init_policy = "quantile"
+                self.weight = torch.nn.Parameter(torch.zeros(1))
+
+        dataset = torch.utils.data.TensorDataset(
+            torch.randn(8, 4), torch.zeros(8, dtype=torch.long)
+        )
+        recorded_kwargs = {}
+
+        class RecordingDataLoader:
+            def __init__(self, dataset, **kwargs):
+                del dataset
+                recorded_kwargs.update(kwargs)
+
+            def __iter__(self):
+                yield torch.zeros(2, 4), torch.zeros(2, dtype=torch.long)
+                yield torch.ones(2, 4), torch.zeros(2, dtype=torch.long)
+
+        monkeypatch.setattr(
+            "dendritic_modeling.scripts.training.train_experiments.DataLoader",
+            RecordingDataLoader,
+        )
+        with patch(
+            "dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize.calibrate_reactivation_from_data"
+        ) as mock_calibrate:
+            mock_calibrate.return_value = {"layer": {"m": 1.0, "b": 0.0, "V_std": 1.0}}
+            _maybe_calibrate_data_driven_reactivation(
+                config=DummyConfig(),
+                model=PolicyModule(),
+                train_dataset=dataset,
+                is_main=False,
+            )
+
+        assert recorded_kwargs["batch_size"] == 2
+        mock_calibrate.assert_called_once()
+        assert len(mock_calibrate.call_args.args[1]) == 2
+
     def test_maybe_calibrate_ignores_stale_config_when_layer_policies_exist(self):
         """Built module policies should override stale YAML-level init policy."""
 

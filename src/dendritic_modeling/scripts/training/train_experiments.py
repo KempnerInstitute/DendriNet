@@ -174,8 +174,8 @@ def _maybe_calibrate_data_driven_reactivation(
     model,
     train_dataset,
     is_main: bool = True,
-    n_batches: int = 3,
-    batch_size: int = 256,
+    n_batches: int | None = None,
+    batch_size: int | None = None,
     n_iterations: int | None = None,
 ):
     """Run and report data-driven reactivation calibration when requested."""
@@ -236,6 +236,26 @@ def _maybe_calibrate_data_driven_reactivation(
     common_config = getattr(
         getattr(getattr(config, "training", None), "main", None), "common", None
     )
+    if n_batches is None:
+        n_batches = int(
+            getattr(common_config, "reactivation_initialization_num_batches", 3)
+        )
+    if batch_size is None:
+        batch_size = int(
+            getattr(common_config, "reactivation_initialization_batch_size", 256)
+        )
+    if n_iterations is None:
+        configured_iterations = getattr(
+            common_config,
+            "reactivation_initialization_max_iterations",
+            None,
+        )
+        if configured_iterations is not None:
+            n_iterations = int(configured_iterations)
+    n_batches = max(1, int(n_batches))
+    batch_size = max(1, int(batch_size))
+    if n_iterations is not None:
+        n_iterations = max(1, int(n_iterations))
     experiment_config = getattr(config, "experiment", None)
     configured_loader_seed = getattr(experiment_config, "loader_seed", None)
     calibration_loader_seed = int(
