@@ -247,7 +247,14 @@ class SparseActiveMatchedPointAffine(nn.Module):
         self.all_outputs_active = True
 
         self.base_weight = nn.Parameter(torch.empty(self.output_dim, self.base_fan_in))
-        self.extra_weight = nn.Parameter(torch.empty(self.higher_fan_in_row_count))
+        if self.higher_fan_in_row_count:
+            self.extra_weight = nn.Parameter(torch.empty(self.higher_fan_in_row_count))
+        else:
+            # An empty Parameter is never used by ``forward`` and is therefore
+            # reported as unfinished by DistributedDataParallel.  Registering
+            # ``None`` preserves the exact zero-scalar accounting without
+            # advertising a trainable parameter that cannot receive a gradient.
+            self.register_parameter("extra_weight", None)
         self.bias = nn.Parameter(torch.empty(self.output_dim))
         self.activation = nn.ReLU()
         self._initialize_parameters()
@@ -270,6 +277,7 @@ class SparseActiveMatchedPointAffine(nn.Module):
             nonlinearity="relu",
         )
         if self.higher_fan_in_row_count:
+            assert self.extra_weight is not None
             high_rows = self.extra_output_connection_indices.to(self.base_weight.device)
             with torch.no_grad():
                 scaled_high_rows = self.base_weight.index_select(
@@ -316,6 +324,7 @@ class SparseActiveMatchedPointAffine(nn.Module):
             ).sum(dim=-1)
 
         if self.higher_fan_in_row_count:
+            assert self.extra_weight is not None
             extra_inputs = flat_x.index_select(
                 1, self.extra_connection_indices.to(flat_x.device)
             )

@@ -217,6 +217,18 @@ def test_forward_uses_signed_weights_relu_and_every_output() -> None:
     assert torch.equal(control(torch.ones(8)), torch.zeros(8))
 
 
+def test_divisible_target_registers_no_unused_empty_parameter() -> None:
+    control = _control(input_dim=8, output_dim=8, target=24)
+
+    assert control.higher_fan_in_row_count == 0
+    assert control.extra_weight is None
+    assert sum(parameter.numel() for parameter in control.parameters()) == 24
+
+    output = control(torch.ones(4, 8))
+    output.sum().backward()
+    assert all(parameter.grad is not None for parameter in control.parameters())
+
+
 def test_autocast_prefix_forward_backward_matches_fp32_reference() -> None:
     """Reduced prefix activations must share one sparse accumulator dtype."""
 
