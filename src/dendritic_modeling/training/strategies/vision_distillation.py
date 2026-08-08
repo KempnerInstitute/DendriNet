@@ -140,7 +140,13 @@ class AlexNetBoundaryDistillationLoss(LossFunction):
 
     @staticmethod
     def _student_boundary_modules(core: nn.Module) -> list[nn.Module]:
-        return [*list(core.spatial_blocks), *list(core.feedforward_blocks)[:2]]
+        spatial = getattr(core, "spatial_output_adapters", core.spatial_blocks)
+        feedforward = getattr(
+            core,
+            "feedforward_output_adapters",
+            core.feedforward_blocks,
+        )
+        return [*list(spatial), *list(feedforward)[:2]]
 
     def _feature_loss(
         self,

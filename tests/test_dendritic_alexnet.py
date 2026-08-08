@@ -101,6 +101,7 @@ def test_dendritic_alexnet_preserves_channel_and_class_contracts():
         "class_mapping": "one_excitatory_soma_per_class",
         "num_classes": 3,
         "propagated_population": "excitatory",
+        "inter_block_output_adapter": "identity",
         "component_seeds": [11, 12, 13, 14, 15, 16, 17, 18],
     }
 
@@ -109,3 +110,28 @@ def test_dendritic_alexnet_assigns_distinct_component_seeds():
     model = get_architecture("dendritic_alexnet", _tiny_config(), input_dim=3)
 
     assert model.component_seeds == (11, 12, 13, 14, 15, 16, 17, 18)
+
+
+def test_dendritic_alexnet_can_learn_positive_per_channel_output_scales():
+    config = _tiny_config()
+    config["vision"]["output_adapter"] = {
+        "mode": "learned_per_channel",
+        "spatial_initial_scale": 2.0,
+        "classifier_initial_scale": [3.0, 4.0],
+    }
+    model = get_architecture("dendritic_alexnet", config, input_dim=3)
+
+    assert model.architecture_contract()["inter_block_output_adapter"] == (
+        "learned_per_channel"
+    )
+    assert len(model.spatial_output_adapters) == 5
+    assert len(model.feedforward_output_adapters) == 3
+    torch.testing.assert_close(
+        model.spatial_output_adapters[0].log_scale.exp(),
+        torch.full((2,), 2.0),
+    )
+    torch.testing.assert_close(
+        model.feedforward_output_adapters[0].log_scale.exp(),
+        torch.full((5,), 3.0),
+    )
+    assert torch.isfinite(model(torch.randn(2, 3, 64, 64))).all()

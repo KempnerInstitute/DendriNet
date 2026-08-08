@@ -3,6 +3,7 @@ import torch
 from dendritic_modeling.networks.architectures.replacement import (
     LayerwiseTokenReplacementStack,
     NonNegativeInputAdapter,
+    PositiveFeatureScale,
     SpatialNonNegativeInputAdapter,
     TokenReplacementCell,
 )
@@ -32,6 +33,24 @@ def test_spatial_signed_split_preserves_bchw_channel_identity():
     assert y.shape == (2, 6, 5, 7)
     assert torch.all(y >= 0)
     torch.testing.assert_close(y[:, :3] - y[:, 3:], x)
+
+
+def test_positive_feature_scale_preserves_layout_and_nonnegativity():
+    adapter = PositiveFeatureScale(
+        3,
+        feature_axis=1,
+        initial_scale=2.0,
+        per_feature=True,
+    )
+    x = torch.rand(2, 3, 5, 7)
+
+    y = adapter(x)
+
+    assert y.shape == x.shape
+    assert torch.all(y >= 0)
+    torch.testing.assert_close(y, 2.0 * x)
+    y.mean().backward()
+    assert adapter.log_scale.grad is not None
 
 
 def test_transformer_ffn_uses_shared_cell_without_state_dict_key_migration():

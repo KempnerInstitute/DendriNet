@@ -652,6 +652,16 @@ This strategy requires the complete ``dendritic_alexnet`` tensor contract;
 single-span replacement distillation continues to use
 ``training.vision_replacement``.
 
+The complete model can also place a positivity-preserving gain after every
+spatial block and after fc6/fc7. Configure
+``model.core.vision.output_adapter.mode`` as ``identity`` (default),
+``learned_global``, or ``learned_per_channel``. These adapters do not mix
+channels or add offsets; they only calibrate the amplitude passed to the next
+dendritic block. Scalar or per-boundary initial values are accepted through
+``spatial_initial_scale`` (five values) and ``classifier_initial_scale`` (two
+values). Learned gains are included in ordinary parameter and storage
+accounting.
+
 The runnable examples page includes ``configs/vision/alexnet_fc7_dendritic_500.yaml``,
 which replaces AlexNet ``fc7`` with a 500E-only dendritic tensor-map core. See
 :doc:`examples` for all four primary example configs.
@@ -674,6 +684,9 @@ Additional vision replacement configs:
 - ``configs/vision/alexnet_fc6_learned_topk.yaml`` — full learned-TopK
   companion, separated for its much larger candidate storage and runtime
   request
+- ``configs/vision/dendritic_alexnet_imagenet_output_adapter_pilot.yaml`` —
+  full-model boundary-distillation gate for positive global versus per-channel
+  inter-block calibration
 - ``scripts/test_pretrained_training.sh`` — generates a temporary 1-epoch AlexNet smoke config
 
 Transformer MLP / FFN Replacement

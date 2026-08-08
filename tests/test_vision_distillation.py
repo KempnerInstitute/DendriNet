@@ -4,6 +4,7 @@ import pytest
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.networks.architectures.replacement import PositiveFeatureScale
 from dendritic_modeling.training.strategies.vision_distillation import (
     AlexNetBoundaryDistillationLoss,
 )
@@ -34,18 +35,39 @@ class _TinyStudentCore(nn.Module):
     def __init__(self):
         super().__init__()
         self.spatial_blocks = nn.ModuleList(nn.Identity() for _ in range(5))
+        self.spatial_output_adapters = nn.ModuleList(
+            PositiveFeatureScale(3, feature_axis=1) for _ in range(5)
+        )
         self.feedforward_blocks = nn.ModuleList(
             [nn.Linear(48, 48), nn.Linear(48, 48), nn.Linear(48, 3)]
         )
+        self.feedforward_output_adapters = nn.ModuleList(
+            [
+                PositiveFeatureScale(48, feature_axis=-1),
+                PositiveFeatureScale(48, feature_axis=-1),
+                nn.Identity(),
+            ]
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        for block in self.spatial_blocks:
-            x = block(x)
+        for block, adapter in zip(
+            self.spatial_blocks,
+            self.spatial_output_adapters,
+            strict=True,
+        ):
+            x = adapter(block(x))
         x = torch.flatten(x, 1)
-        for index, block in enumerate(self.feedforward_blocks):
+        for index, (block, adapter) in enumerate(
+            zip(
+                self.feedforward_blocks,
+                self.feedforward_output_adapters,
+                strict=True,
+            )
+        ):
             x = block(x)
             if index < 2:
                 x = torch.relu(x)
+            x = adapter(x)
         return x
 
 
@@ -85,6 +107,7 @@ def test_alexnet_boundary_distillation_is_finite_and_differentiable(monkeypatch)
     assert torch.isfinite(loss)
     loss.backward()
     assert student.core_network.feedforward_blocks[0].weight.grad is not None
+    assert student.core_network.spatial_output_adapters[0].log_scale.grad is not None
     assert all(parameter.grad is None for parameter in loss_fn.teacher.parameters())
 
 

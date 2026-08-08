@@ -1,0 +1,75 @@
+# Inter-block output-calibration gate for the complete dendritic AlexNet.
+#
+# Every adapter is a positive gain and therefore preserves the E-soma channel
+# identity and nonnegative interface. The global arm asks whether a single gain
+# per boundary is enough; the per-channel arm allows the amplitudes of matched
+# AlexNet channels to differ without introducing a dense readout.
+
+extends: dendritic_alexnet_imagenet_distillation_pilot.yaml
+
+slurm_config:
+  run_name: dendritic_alexnet_imagenet_output_adapter_pilot
+  account: kempner_dev
+  partition: kempner_rtx
+  time: "01:30:00"
+  gpus_per_node: 4
+  max_concurrent_jobs: 1
+
+experiment_settings:
+  seeds_per_condition: 1
+  base_seed: 71500
+
+sweep_variants:
+  - name: learned_global_boundary_scale
+    overrides:
+      model.core.vision.output_adapter.mode: learned_global
+  - name: learned_per_channel_boundary_scale
+    overrides:
+      model.core.vision.output_adapter.mode: learned_per_channel
+
+sweep_contract:
+  expected_config_count: 2
+
+base_config:
+  experiment:
+    seed: 71500
+
+  model:
+    core:
+      initialization_seed: 71500
+      vision:
+        seed: 71500
+        output_adapter:
+          mode: learned_global
+          spatial_initial_scale: 1.0
+          classifier_initial_scale: 1.0
+      connectivity:
+        structured:
+          seed: 71500
+      sparsity:
+        indexed:
+          seed: 71500
+
+  training:
+    main:
+      strategies:
+        vision_distillation:
+          boundary_weights:
+            conv1: 1.0
+            conv2: 1.0
+            conv3: 1.0
+            conv4: 1.0
+            conv5: 1.0
+            fc6: 1.0
+            fc7: 1.0
+          feature_weight: 1.0
+          logit_kl_weight: 1.0
+          supervised_weight: 1.0
+
+  wandb:
+    group: iclr2027_dendritic_alexnet_output_adapter_pilot
+    tags: [iclr2027, alexnet, full_dendritic, output_adapter]
+
+  outputs:
+    run_name: dendritic_alexnet_imagenet_output_adapter_pilot
+    results_dir: /n/holylfs06/LABS/kempner_project_b/Lab/dendritic/HS/dendritic_scaling/iclr2027/vision/full_model_output_adapter_pilot
