@@ -183,6 +183,24 @@ class TestFactoryAliases:
                 core, HierarchicalDendriticConv
             ), f"Failed for alias: {alias}"
 
+    def test_sparse_active_matched_point_conv_matches_reference(self, einet_config):
+        """The spatial point control shares patches and matches active scalars."""
+
+        einet_config["sparsity"] = {
+            **einet_config["sparsity"],
+            "type": "indexed",
+            "indexed": {"seed": 17, "output_chunk_size": 32},
+        }
+        reference = get_architecture(
+            "hierarchical_dendritic_conv", einet_config, input_dim=16
+        )
+        point = get_architecture(
+            "sparse_active_matched_point_conv", einet_config, input_dim=16
+        )
+        x = torch.rand(2, 16, 8, 8)
+        assert point(x).shape == reference(x).shape == (2, 32, 8, 8)
+        assert point.get_effective_params() == reference.get_effective_params()
+
 
 # ---------------------------------------------------------------------------
 # Gradient flow

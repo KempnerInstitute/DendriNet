@@ -25,6 +25,11 @@ _SPATIAL_DENDRITIC_CONV_TYPES: set[str] = {
     "spatial_dendritic_conv",
 }
 
+_SPATIAL_PATCH_POINT_TYPES: set[str] = {
+    "sparse_active_matched_point_conv",
+    "spatial_sparse_active_matched_point",
+}
+
 
 def _build_spatial_dendritic_architecture(
     type: str,
@@ -85,9 +90,37 @@ def _build_spatial_dendritic_conv_architecture(
     )
 
 
+def _build_spatial_patch_point_architecture(
+    type: str,
+    parameters: dict[str, Any] | DictConfig,
+    input_dim: int | None,
+    suffix_input_dim: int | None,
+) -> nn.Module:
+    """Build a shared-patch fixed-index affine control."""
+
+    del type, suffix_input_dim
+    from dendritic_modeling.networks.architectures.classical.cnn.sparse_active_matched import (
+        SparseActiveMatchedPointConv,
+    )
+
+    if input_dim is None:
+        raise ValueError("input_dim is required for a spatial sparse point core")
+    raw_params = _to_plain_mapping(parameters)
+    spatial_cfg = _to_plain_mapping(raw_params.get("spatial", {}))
+    return SparseActiveMatchedPointConv(
+        config=parameters,
+        in_channels=input_dim,
+        kernel_size=spatial_cfg.get("kernel_size", 3),
+        stride=spatial_cfg.get("stride", 1),
+        padding=spatial_cfg.get("padding", 0),
+    )
+
+
 __all__ = [
     "_SPATIAL_DENDRITIC_CONV_TYPES",
     "_SPATIAL_DENDRITIC_TYPES",
+    "_SPATIAL_PATCH_POINT_TYPES",
     "_build_spatial_dendritic_architecture",
     "_build_spatial_dendritic_conv_architecture",
+    "_build_spatial_patch_point_architecture",
 ]

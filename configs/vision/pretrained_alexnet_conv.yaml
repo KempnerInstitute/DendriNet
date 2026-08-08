@@ -1,19 +1,18 @@
 # ============================================================================
 # Pretrained AlexNet Conv Layer Replacement (Hierarchical Dendritic Conv)
 # ============================================================================
-# Replaces conv layers features.6-8 (the last conv block) inside a pretrained
+# Replaces the exact conv5 + ReLU span, features.10-11, inside a pretrained
 # AlexNet with a HierarchicalDendriticConv core. The dendritic conv applies
 # F.unfold to extract local 3x3 patches, runs a shared DendriNet on all
 # patches, and reshapes back to spatial output.
 #
-# NOTE: This is a multi-layer replacement (Conv2d+ReLU+Conv2d -> one dendritic
-# operator). The dendritic conv acts as a learned surrogate with user-chosen
-# local geometry, NOT a faithful 1:1 conv replacement.
+# The configured dendritic operator and the retained native span share the
+# same 3x3, stride-1, padding-1 spatial interface.
 #
 # Pipeline:
-#   prefix (encoder) = features.0..5                     -> (B, 192, 13, 13)
+#   prefix (encoder) = features.0..9                     -> (B, 256, 13, 13)
 #   core (dendritic) = shared DendriNet on 3x3 patches   -> (B, 256, 13, 13)
-#   suffix (decoder) = features.9..12 + avgpool + fc     -> 1000 classes
+#   suffix (decoder) = features.12 + avgpool + fc        -> 1000 classes
 #
 # Run:
 #   PYTHONPATH=src:$PYTHONPATH python \
@@ -49,8 +48,9 @@ model:
     enabled: true
     backbone: "alexnet"
     weights: "IMAGENET1K_V1"
+    core_source: "configured"
     input_shape: [3, 224, 224]
-    target_modules: ["features.6", "features.7", "features.8"]  # conv-ReLU-conv span
+    target_modules: ["features.10", "features.11"]  # exact conv5 + ReLU span
     trainability:
       encoder:
         mode: "frozen"
@@ -73,7 +73,7 @@ model:
       inhibitory_branch_factors: [3, 3]
       inhibitory_network_type: "dendritic"
     connectivity:
-      ee_synapses_per_branch_per_layer: [16]   # K out of 192x3x3 = 1728 patch dim
+      ee_synapses_per_branch_per_layer: [16]   # K out of 256x3x3 = 2304 patch dim
       ei_synapses_per_branch_per_layer: [8]
       ie_synapses_per_branch_per_layer: [8]
       ii_synapses_per_branch_per_layer: [0]

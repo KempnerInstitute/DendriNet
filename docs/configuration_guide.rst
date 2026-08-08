@@ -618,7 +618,10 @@ Additional vision replacement configs:
 - ``configs/vision/pretrained_alexnet_fc.yaml`` — tensor-map vision
   replacement around AlexNet FC layers
 - ``configs/vision/pretrained_alexnet_conv.yaml`` — spatial vision
-  replacement example for AlexNet conv/feature maps
+  replacement example for the exact AlexNet conv5 plus ReLU span
+- ``configs/vision/alexnet_conv5_replacement_benchmark.yaml`` — matched conv5
+  comparison of shunting/additive dendritic operators, a fixed-index sparse
+  point convolution, and the exact retained pretrained span
 - ``configs/vision/alexnet_fc6_replacement_benchmark.yaml`` — AlexNet fc6
   replacement benchmark with compact global/random-local/tree-aligned
   dendritic variants, fixed-index sparse point and factorized dense controls,

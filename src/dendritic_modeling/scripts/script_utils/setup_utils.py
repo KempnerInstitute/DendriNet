@@ -382,6 +382,7 @@ def _build_from_pretrained_replacement(model_config: ModelConfig):
     from dendritic_modeling.networks.architectures.factory import (
         _SPATIAL_DENDRITIC_CONV_TYPES,
         _SPATIAL_DENDRITIC_TYPES,
+        _SPATIAL_PATCH_POINT_TYPES,
     )
 
     pr = _active_vision_replacement_config(model_config)
@@ -400,7 +401,9 @@ def _build_from_pretrained_replacement(model_config: ModelConfig):
             f"'pretrained_span', got {core_source!r}"
         )
     use_pretrained_span = core_source == "pretrained_span"
-    is_spatial_conv = core_type in _SPATIAL_DENDRITIC_CONV_TYPES
+    is_spatial_conv = core_type in (
+        _SPATIAL_DENDRITIC_CONV_TYPES | _SPATIAL_PATCH_POINT_TYPES
+    )
     # The configured core type declares the replacement interface even when
     # ``pretrained_span`` supplies the implementation.  This lets an exact
     # retained convolution span use the identical spatial boundary as a

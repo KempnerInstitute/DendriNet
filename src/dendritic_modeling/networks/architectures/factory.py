@@ -49,8 +49,10 @@ from dendritic_modeling.networks.architectures.factory_recurrent import (
 from dendritic_modeling.networks.architectures.factory_spatial import (
     _SPATIAL_DENDRITIC_CONV_TYPES,
     _SPATIAL_DENDRITIC_TYPES,
+    _SPATIAL_PATCH_POINT_TYPES,
     _build_spatial_dendritic_architecture,
     _build_spatial_dendritic_conv_architecture,
+    _build_spatial_patch_point_architecture,
 )
 from dendritic_modeling.networks.architectures.factory_unified import (
     _build_unified_ei_architecture,
@@ -110,6 +112,7 @@ _BUILTIN_ARCHITECTURE_TYPES: frozenset[str] = frozenset(
     | set(_POPULATION_NETWORK_TYPES)
     | set(_SPATIAL_DENDRITIC_TYPES)
     | set(_SPATIAL_DENDRITIC_CONV_TYPES)
+    | set(_SPATIAL_PATCH_POINT_TYPES)
     | {
         "active_param_mlp",
         "alexnet",
@@ -504,6 +507,11 @@ def _build_builtin_architecture_registry() -> dict[str, ArchitectureBuilder]:
     builders.update(
         dict.fromkeys(
             _SPATIAL_DENDRITIC_CONV_TYPES, _build_spatial_dendritic_conv_architecture
+        )
+    )
+    builders.update(
+        dict.fromkeys(
+            _SPATIAL_PATCH_POINT_TYPES, _build_spatial_patch_point_architecture
         )
     )
     builders.update(dict.fromkeys(_EINET_TYPES, _build_einet_architecture))

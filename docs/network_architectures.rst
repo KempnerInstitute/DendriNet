@@ -782,6 +782,12 @@ Two dendritic core styles are supported:
    spatial tensor for convolutional suffixes. Use ``model.core.spatial`` to set
    ``kernel_size``, ``stride``, and ``padding``.
 
+``sparse_active_matched_point_conv``
+   Applies one fixed-index sparse affine control to every shared local patch.
+   Its trainable scalar count is derived from the same structured E/I config as
+   ``hierarchical_dendritic_conv``, so it provides an active-parameter-matched
+   spatial control without dendritic branch dynamics.
+
 Core options are the same dendritic options used elsewhere: shunting/additive
 mode, branch factors, synapse counts, reactivation initialization, and sparse
 synapse type. Example configs live in ``configs/vision/``:
@@ -801,7 +807,12 @@ synapse type. Example configs live in ``configs/vision/``:
    * - ``configs/vision/pretrained_alexnet_fc.yaml``
      - Tensor-map replacement around AlexNet fully connected layers.
    * - ``configs/vision/pretrained_alexnet_conv.yaml``
-     - Spatial dendritic convolution replacement for feature-map blocks.
+     - Spatial dendritic convolution replacement for the exact AlexNet conv5
+       plus ReLU span.
+   * - ``configs/vision/alexnet_conv5_replacement_benchmark.yaml``
+     - Matched AlexNet conv5 comparison of shunting and additive dendritic
+       operators, a fixed-index sparse point convolution, and the retained
+       pretrained span.
    * - ``configs/vision/alexnet_fc6_replacement_benchmark.yaml``
      - Matched AlexNet fc6 comparison of global indexed, random-local,
        tree-aligned local, fixed-index sparse point, factorized dense MLP, and
