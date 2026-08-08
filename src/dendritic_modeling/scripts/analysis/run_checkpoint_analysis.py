@@ -114,6 +114,11 @@ def run_checkpoint_analysis(
     config.outputs.results_dir = str(output_dir)
     config.outputs.run_name = "checkpoint_analysis"
     config.outputs.exact_run_dir = True
+    # Training provenance may request a complete dataset inventory. Re-emitting
+    # that inventory for every frozen-checkpoint analysis is redundant and can
+    # be multi-gigabyte for ImageFolder datasets. The analysis provenance below
+    # already binds the training config, checkpoint, analysis config, and code.
+    config.experiment.record_dataset_fingerprints = False
 
     run_save_path, train_ds, valid_ds, test_ds, model, _ = setup_environment(
         model_config=config.model,
