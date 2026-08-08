@@ -564,6 +564,17 @@ Alternative pretrained-replacement cores:
   a shared hierarchical dendritic core to produce a spatial feature map for the
   suffix. Use this for convolutional suffixes that still expect spatial input.
 
+The convolutional output contract is channel aligned. At each output position,
+one excitatory soma produces one output channel; the same soma/channel mapping
+and the same E/I parameters are shared over all positions. Only the excitatory
+soma map is propagated in the standard ``(B,C,H,W)`` tensor. The inhibitory
+population is local to each output position and modulates the excitatory tree
+there, but is not exposed as a second feature stream. Consequently, two
+``hierarchical_dendritic_conv`` layers can be composed with ordinary pooling or
+normalization layers without losing channel or spatial identity. The method
+``spatial_output_contract()`` exposes this mapping for audits and experiment
+manifests.
+
 Current spatial-replacement scope:
 
 - ``hierarchical_dendritic_tensor_map`` is intended for flat suffixes or small

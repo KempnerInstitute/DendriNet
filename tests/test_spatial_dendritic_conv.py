@@ -102,6 +102,37 @@ class TestHierarchicalDendriticConv:
         assert core.out_channels == 32
         assert core.output_dim == 32
 
+    def test_output_contract_is_channel_aligned(self, einet_config):
+        core = get_architecture(
+            "hierarchical_dendritic_conv",
+            einet_config,
+            input_dim=16,
+        )
+
+        assert core.spatial_output_contract() == {
+            "input_layout": "BCHW",
+            "patch_layout": "channel_y_x_flat",
+            "output_layout": "BCHW",
+            "spatial_weight_sharing": True,
+            "output_channels": 32,
+            "excitatory_somas_per_location": 32,
+            "channel_mapping": "one_excitatory_soma_per_output_channel",
+            "propagated_population": "excitatory",
+            "inhibitory_population_scope": "local_per_output_position",
+        }
+
+    def test_identical_patches_emit_identical_channel_vectors(self, einet_config):
+        einet_config["spatial"]["padding"] = 0
+        core = get_architecture(
+            "hierarchical_dendritic_conv",
+            einet_config,
+            input_dim=16,
+        )
+
+        output = core(torch.ones(1, 16, 5, 5))
+        reference = output[:, :, :1, :1].expand_as(output)
+        torch.testing.assert_close(output, reference)
+
     def test_stride_reduces_spatial(self, einet_config):
         """Stride > 1 should reduce spatial dimensions."""
         einet_config["spatial"]["stride"] = 2

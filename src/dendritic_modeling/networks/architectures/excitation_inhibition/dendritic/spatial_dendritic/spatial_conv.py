@@ -164,6 +164,28 @@ class HierarchicalDendriticConv(BaseNetwork):
         W_out = (W + 2 * self.padding[1] - self.kernel_size[1]) // self.stride[1] + 1
         return (H_out, W_out)
 
+    def spatial_output_contract(self) -> dict[str, int | str | bool]:
+        """Describe how local dendritic outputs form the next feature map.
+
+        One shared E/I network is evaluated at every output position. Its
+        excitatory soma index is the output-channel index, so channel identity
+        is consistent across the full image. The local inhibitory population
+        contributes inside that position's E/I computation but is not emitted
+        as a second feature stream.
+        """
+
+        return {
+            "input_layout": "BCHW",
+            "patch_layout": "channel_y_x_flat",
+            "output_layout": "BCHW",
+            "spatial_weight_sharing": True,
+            "output_channels": self.out_channels,
+            "excitatory_somas_per_location": self.out_channels,
+            "channel_mapping": "one_excitatory_soma_per_output_channel",
+            "propagated_population": "excitatory",
+            "inhibitory_population_scope": "local_per_output_position",
+        }
+
     # ------------------------------------------------------------------
     # Training hook delegation
     # ------------------------------------------------------------------
