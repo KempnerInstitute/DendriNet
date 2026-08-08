@@ -2,8 +2,10 @@
 #
 # Combine the analytical/static fixed-scale-10 arm from the registered output
 # scale pilot with these three arms to form a 2 x 2 diagnostic of analytical
-# versus occupancy initialization and static versus periodically recalibrated
-# reactivation. All arms share the same data order and model seed.
+# versus occupancy reactivation initialization and static versus periodically
+# recalibrated reactivation. Branch-weight initialization remains the valid
+# analytical-expectation rule in every arm. All arms share the same data order
+# and model seed.
 
 extends: dendritic_alexnet_imagenet_output_scale_pilot.yaml
 
@@ -24,19 +26,19 @@ sweep_variants:
     overrides:
       model.core.morphology.dbl_init_method: analytical_expectation
       model.core.reactivation.init_policy: analytical
-      training.main.common.reactivation_update_mode: quantile
+      training.main.common.reactivation_update_mode: backprop
       training.main.common.recalibrate_reactivation_every: 1
   - name: occupancy_static_scale_10
     overrides:
-      model.core.morphology.dbl_init_method: occupancy_quantile
+      model.core.morphology.dbl_init_method: analytical_expectation
       model.core.reactivation.init_policy: occupancy_quantile
       training.main.common.reactivation_update_mode: backprop
       training.main.common.recalibrate_reactivation_every: 0
   - name: occupancy_recalibrated_scale_10
     overrides:
-      model.core.morphology.dbl_init_method: occupancy_quantile
+      model.core.morphology.dbl_init_method: analytical_expectation
       model.core.reactivation.init_policy: occupancy_quantile
-      training.main.common.reactivation_update_mode: quantile
+      training.main.common.reactivation_update_mode: backprop
       training.main.common.recalibrate_reactivation_every: 1
 
 sweep_contract:

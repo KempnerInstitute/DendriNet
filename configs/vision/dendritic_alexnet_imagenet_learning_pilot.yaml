@@ -25,7 +25,8 @@ sweep_variants:
   - name: full_dendritic_additive
     overrides:
       model.core.morphology.use_shunting: false
-      model.core.morphology.dbl_init_method: occupancy_quantile
+      model.core.morphology.dbl_init_method: analytical_expectation
+      model.core.reactivation.init_policy: occupancy_quantile
 
 sweep_contract:
   expected_config_count: 2
