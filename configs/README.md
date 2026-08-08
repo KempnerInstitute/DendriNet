@@ -44,6 +44,7 @@ reference configs and reusable examples.
 | End-to-end dendritic AlexNet canary | `vision/dendritic_alexnet_imagenet_canary.yaml` |
 | Full-model shunting/additive learning pilot | `vision/dendritic_alexnet_imagenet_learning_pilot.yaml` |
 | Full-model fixed-output-scale learning gate | `vision/dendritic_alexnet_imagenet_output_scale_pilot.yaml` |
+| Full-model initialization/reactivation gate | `vision/dendritic_alexnet_imagenet_initialization_gate.yaml` |
 | AlexNet fc6+fc7 replacement benchmark | `vision/alexnet_fc6fc7_replacement_benchmark.yaml` |
 | AlexNet fc6+fc7 learned-TopK control | `vision/alexnet_fc6fc7_learned_topk.yaml` |
 | AlexNet fc6+fc7 learning pilot | `vision/alexnet_fc6fc7_learning_pilot.yaml` |

@@ -1,0 +1,65 @@
+# Initialization and reactivation gate for the complete dendritic AlexNet.
+#
+# Combine the analytical/static fixed-scale-10 arm from the registered output
+# scale pilot with these three arms to form a 2 x 2 diagnostic of analytical
+# versus occupancy initialization and static versus periodically recalibrated
+# reactivation. All arms share the same data order and model seed.
+
+extends: dendritic_alexnet_imagenet_output_scale_pilot.yaml
+
+slurm_config:
+  run_name: dendritic_alexnet_imagenet_initialization_gate
+  account: kempner_dev
+  partition: kempner_rtx
+  time: "01:00:00"
+  gpus_per_node: 4
+  max_concurrent_jobs: 2
+
+experiment_settings:
+  seeds_per_condition: 1
+  base_seed: 71200
+
+sweep_variants:
+  - name: analytical_recalibrated_scale_10
+    overrides:
+      model.core.morphology.dbl_init_method: analytical_expectation
+      model.core.reactivation.init_policy: analytical
+      training.main.common.reactivation_update_mode: quantile
+      training.main.common.recalibrate_reactivation_every: 1
+  - name: occupancy_static_scale_10
+    overrides:
+      model.core.morphology.dbl_init_method: occupancy_quantile
+      model.core.reactivation.init_policy: occupancy_quantile
+      training.main.common.reactivation_update_mode: backprop
+      training.main.common.recalibrate_reactivation_every: 0
+  - name: occupancy_recalibrated_scale_10
+    overrides:
+      model.core.morphology.dbl_init_method: occupancy_quantile
+      model.core.reactivation.init_policy: occupancy_quantile
+      training.main.common.reactivation_update_mode: quantile
+      training.main.common.recalibrate_reactivation_every: 1
+
+sweep_contract:
+  expected_config_count: 3
+
+base_config:
+  model:
+    learned_output_scale: false
+    output_scale_mode: fixed
+    fixed_output_scale: 10.0
+
+  training:
+    main:
+      common:
+        reactivation_recalibration_mode: occupancy_quantile
+        reactivation_recalibration_start_epoch: 1
+        reactivation_recalibration_num_batches: 3
+        reactivation_recalibration_ema_alpha: 1.0
+
+  wandb:
+    group: iclr2027_dendritic_alexnet_initialization_gate
+    tags: [iclr2027, alexnet, full_dendritic, initialization_gate]
+
+  outputs:
+    run_name: dendritic_alexnet_imagenet_initialization_gate
+    results_dir: /n/holylfs06/LABS/kempner_project_b/Lab/dendritic/HS/dendritic_scaling/iclr2027/vision/full_model_initialization_gate
