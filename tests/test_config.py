@@ -356,12 +356,14 @@ class TestConfigDataclasses(unittest.TestCase):
             {
                 "mixed_precision": False,
                 "limit_all_gathers": False,
+                "cpu_init": True,
                 "unknown_field": "ignored",
             },
         )
 
         self.assertFalse(config.mixed_precision)
         self.assertFalse(config.limit_all_gathers)
+        self.assertTrue(config.cpu_init)
         self.assertEqual(config.sharding_strategy, "FULL_SHARD")
         self.assertFalse(hasattr(config, "unknown_field"))
 

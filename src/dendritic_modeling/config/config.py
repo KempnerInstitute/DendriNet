@@ -327,6 +327,9 @@ class FSDPConfig(BaseConfig):
     # module. This bounds parameter all-gathers for contact-heavy models while
     # leaving the historical whole-model policy unchanged by default.
     auto_wrap_policy: str = "none"
+    # Let FSDP move and shard wrapped units directly from CPU instead of first
+    # materializing the complete, unsharded model on every GPU.
+    cpu_init: bool = False
     reduce_communication_overhead: bool = True
     limit_all_gathers: bool = True
     forward_prefetch: bool = True

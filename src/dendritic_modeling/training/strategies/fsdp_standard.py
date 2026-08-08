@@ -13,8 +13,8 @@ from typing import Any, Optional
 
 import torch
 import torch.distributed as dist
-from torch.distributed.fsdp import FullyShardedDataParallel
 from torch.cuda.amp import GradScaler, autocast
+from torch.distributed.fsdp import FullyShardedDataParallel
 from torch.utils.data import DataLoader, Dataset, TensorDataset
 
 try:  # PyTorch exposes the FSDP-aware scaler from this submodule.

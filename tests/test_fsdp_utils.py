@@ -1181,7 +1181,7 @@ def test_fsdp_training_reuses_cached_core_outputs_across_epochs(
     loader = DataLoader(TensorDataset(inputs, targets), batch_size=2)
     model = CacheModel()
     monkeypatch.setattr(
-        "dendritic_modeling.training.strategies.fsdp_standard." "wrap_model_with_fsdp",
+        "dendritic_modeling.training.strategies.fsdp_standard.wrap_model_with_fsdp",
         lambda wrapped_model, _config: wrapped_model,
     )
     monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
@@ -1233,7 +1233,7 @@ def test_fsdp_best_valid_loss_tracks_history_without_early_stopping(
     model = nn.Linear(2, 2)
     loader = DataLoader(TensorDataset(torch.ones(1, 2), torch.zeros(1)), batch_size=1)
     monkeypatch.setattr(
-        "dendritic_modeling.training.strategies.fsdp_standard." "wrap_model_with_fsdp",
+        "dendritic_modeling.training.strategies.fsdp_standard.wrap_model_with_fsdp",
         lambda wrapped_model, _config: wrapped_model,
     )
     monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
@@ -1874,6 +1874,56 @@ class TestCreateFSDPWrapPolicy:
         assert result is True
 
 
+def test_fsdp_trainer_cpu_init_defers_full_model_transfer(monkeypatch):
+    class TrackingModule(nn.Linear):
+        def __init__(self):
+            super().__init__(2, 2)
+            self.to_calls = 0
+
+        def to(self, *args, **kwargs):
+            self.to_calls += 1
+            return super().to(*args, **kwargs)
+
+    class TrackingModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.net = nn.Linear(2, 2)
+            self.decoder_network = TrackingModule()
+            self.root_parameter = nn.Parameter(torch.ones(1))
+            self.to_calls = 0
+
+        def to(self, *args, **kwargs):
+            self.to_calls += 1
+            return super().to(*args, **kwargs)
+
+    class FakeFSDP(nn.Module):
+        def __init__(self, module):
+            super().__init__()
+            self.module = module
+
+    trainer = FSDPTrainer.__new__(FSDPTrainer)
+    trainer.device = torch.device("cpu")
+    trainer.fsdp_config = {"_cpu_init": True}
+    model = TrackingModel()
+
+    monkeypatch.setattr(
+        "dendritic_modeling.training.strategies.fsdp_standard.FullyShardedDataParallel",
+        FakeFSDP,
+    )
+    monkeypatch.setattr(
+        "dendritic_modeling.training.strategies.fsdp_standard.wrap_model_with_fsdp",
+        lambda module, _config: FakeFSDP(module),
+    )
+
+    wrapped = trainer._wrap_model(model)
+
+    assert wrapped is model
+    assert model.to_calls == 0
+    assert isinstance(model.net, FakeFSDP)
+    assert model.decoder_network.to_calls == 1
+    assert model.root_parameter.device.type == "cpu"
+
+
 class TestGetFSDPConfig:
     """Test get_fsdp_config function."""
 
@@ -1906,6 +1956,14 @@ class TestGetFSDPConfig:
             IndexedSparseLinear,
             IndexedDynamicTopKLinear,
         }
+
+    @patch("torch.cuda.current_device", return_value=0)
+    def test_get_fsdp_config_preserves_private_cpu_init_flag(
+        self, _mock_current_device
+    ):
+        assert get_fsdp_config()["_cpu_init"] is False
+        config = get_fsdp_config(fsdp_config_dict={"cpu_init": True})
+        assert config["_cpu_init"] is True
 
     @patch("torch.cuda.current_device", return_value=0)
     def test_get_fsdp_config_rejects_unknown_auto_wrap_policy(
@@ -2072,6 +2130,18 @@ class TestWrapModelWithFSDP:
 
         mock_fsdp.assert_called_once()
         assert wrapped_model == simple_model
+
+    @patch("dendritic_modeling.training.fsdp_utils.FullyShardedDataParallel")
+    def test_wrap_model_does_not_forward_private_cpu_init_flag(
+        self, mock_fsdp, simple_model, mock_fsdp_config
+    ):
+        mock_fsdp.return_value = simple_model
+        mock_fsdp_config["_cpu_init"] = True
+
+        wrap_model_with_fsdp(simple_model, mock_fsdp_config)
+
+        assert "_cpu_init" not in mock_fsdp.call_args.kwargs
+        assert mock_fsdp_config["_cpu_init"] is True
 
     @patch("dendritic_modeling.training.fsdp_utils.FullyShardedDataParallel")
     def test_wrap_model_no_distributed(self, mock_fsdp, simple_model, mock_fsdp_config):

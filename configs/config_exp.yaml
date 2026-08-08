@@ -1067,6 +1067,8 @@ distributed:
     mixed_precision: true                 # bool: FSDP mixed precision (BF16 compute, FP32 reduce)
     cpu_offload: false                    # bool: Offload params to CPU (saves GPU memory, slower)
     min_num_params: 1000000               # int: Min params to shard a module
+    auto_wrap_policy: "none"              # str: "none" | "indexed_synapses"
+    cpu_init: false                       # bool: Let FSDP shard wrapped units before moving them to GPU
     reduce_communication_overhead: true   # bool: Reduce communication overhead
     limit_all_gathers: true              # bool: Limit concurrent all-gathers
     forward_prefetch: true                # bool: Prefetch next FSDP unit in forward

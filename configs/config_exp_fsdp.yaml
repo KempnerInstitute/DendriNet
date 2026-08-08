@@ -269,6 +269,7 @@ distributed:
   mode: fsdp
   fsdp:
     backward_prefetch: BACKWARD_POST
+    cpu_init: false
     cpu_offload: false
     forward_prefetch: true
     gradient_checkpointing: false

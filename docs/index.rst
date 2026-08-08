@@ -84,6 +84,7 @@ alias configs are supported for saved experiments and comparison runs.
 
    config_reference
    available_components
+   iss373_integration_notes
    contributing
 
 Indices and Tables

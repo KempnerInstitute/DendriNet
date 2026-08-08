@@ -296,6 +296,7 @@ distributed:
     cpu_offload: false
     min_num_params: 1000000
     auto_wrap_policy: indexed_synapses
+    cpu_init: true
     reduce_communication_overhead: true
     limit_all_gathers: true
     forward_prefetch: false

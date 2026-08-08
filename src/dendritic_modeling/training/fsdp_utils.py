@@ -301,10 +301,14 @@ def wrap_model_with_fsdp(
     """
     if fsdp_config is None:
         fsdp_config = get_fsdp_config()
+    else:
+        # Private strategy flags must not reach FSDP, but callers may reuse the
+        # same configuration while wrapping multiple model components.
+        fsdp_config = dict(fsdp_config)
 
     # Extract private flags (not FullyShardedDataParallel parameters)
     gradient_checkpointing = fsdp_config.pop("_gradient_checkpointing", False)
-    fsdp_config.pop("_cpu_init", None)   # consumed by the strategy's _wrap_model
+    fsdp_config.pop("_cpu_init", None)  # consumed by the strategy's _wrap_model
 
     # Special handling for dendritic models
     if hasattr(model, "net") and isinstance(model.net, ExcitationInhibitionNetwork):

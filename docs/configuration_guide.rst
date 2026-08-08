@@ -1580,6 +1580,8 @@ Set ``distributed.mode`` to choose the runtime:
        sharding_strategy: "FULL_SHARD"
        mixed_precision: true
        cpu_offload: false
+       auto_wrap_policy: "none"  # or "indexed_synapses"
+       cpu_init: false           # shard wrapped units before moving to GPU
 
 - ``none`` — single-GPU, plain ``python`` (default)
 - ``ddp`` — DistributedDataParallel via ``torchrun``.  Best when the model
@@ -1593,7 +1595,11 @@ config.  The training config only selects the *mode*; the scheduler decides
 the resources.
 
 FSDP-specific knobs (sharding strategy, mixed precision, CPU offload, etc.)
-live under ``distributed.fsdp``.
+live under ``distributed.fsdp``.  For contact-heavy models, combine
+``auto_wrap_policy: indexed_synapses`` with ``cpu_init: true`` so FSDP wraps
+and moves each indexed sparse-synapse unit without first placing the complete
+unsharded model on every GPU.  ``cpu_init`` is opt-in; the default preserves
+the historical eager device transfer.
 
 Launch Commands
 ~~~~~~~~~~~~~~~
