@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 import torch
 import torch.nn as nn
 
@@ -47,8 +49,7 @@ class NonNegativeInputAdapter(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if self.validate_shape and x.shape[-1] != self.input_dim:
             raise ValueError(
-                f"Expected input feature dimension {self.input_dim}, got "
-                f"{x.shape[-1]}"
+                f"Expected input feature dimension {self.input_dim}, got {x.shape[-1]}"
             )
         if self.transform == "identity":
             return x
@@ -107,4 +108,62 @@ class SpatialNonNegativeInputAdapter(nn.Module):
             f"input_channels={self.input_channels}, "
             f"output_channels={self.output_channels}, "
             f"transform={self.transform!r}"
+        )
+
+
+class PositiveFeatureScale(nn.Module):
+    """Apply a positive scalar or featurewise gain without changing layout.
+
+    The adapter preserves non-negativity and channel identity. It is therefore
+    suitable between dendritic blocks, where an unrestricted affine projection
+    would obscure the representation being tested.
+    """
+
+    def __init__(
+        self,
+        num_features: int,
+        *,
+        feature_axis: int,
+        initial_scale: float = 1.0,
+        per_feature: bool = True,
+        learnable: bool = True,
+    ):
+        super().__init__()
+        self.num_features = int(num_features)
+        self.feature_axis = int(feature_axis)
+        self.per_feature = bool(per_feature)
+        self.learnable = bool(learnable)
+        initial_scale = float(initial_scale)
+        if self.num_features < 1:
+            raise ValueError("num_features must be positive")
+        if not math.isfinite(initial_scale) or initial_scale <= 0:
+            raise ValueError("initial_scale must be finite and positive")
+        size = self.num_features if self.per_feature else 1
+        value = torch.full((size,), math.log(initial_scale), dtype=torch.float32)
+        if self.learnable:
+            self.log_scale = nn.Parameter(value)
+        else:
+            self.register_buffer("log_scale", value)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        axis = (
+            self.feature_axis if self.feature_axis >= 0 else x.ndim + self.feature_axis
+        )
+        if axis < 0 or axis >= x.ndim:
+            raise ValueError(
+                f"feature_axis={self.feature_axis} is invalid for shape {tuple(x.shape)}"
+            )
+        if self.per_feature and x.shape[axis] != self.num_features:
+            raise ValueError(
+                f"Expected {self.num_features} features on axis {axis}, "
+                f"got {x.shape[axis]}"
+            )
+        shape = [1] * x.ndim
+        shape[axis] = self.log_scale.numel()
+        return x * self.log_scale.exp().view(shape)
+
+    def extra_repr(self) -> str:
+        return (
+            f"num_features={self.num_features}, feature_axis={self.feature_axis}, "
+            f"per_feature={self.per_feature}, learnable={self.learnable}"
         )

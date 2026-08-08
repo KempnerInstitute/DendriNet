@@ -16,6 +16,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.ei_network 
     ConfigurableEINetwork,
 )
 from dendritic_modeling.networks.architectures.replacement import (
+    PositiveFeatureScale,
     SpatialNonNegativeInputAdapter,
 )
 from dendritic_modeling.networks.base import BaseNetwork
@@ -36,6 +37,47 @@ def _pair(value: int | Sequence[int]) -> tuple[int, int]:
         return items
     scalar = int(value)
     return (scalar, scalar)
+
+
+def _scale_list(value: Any, *, name: str, length: int) -> list[float]:
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        result = [float(item) for item in value]
+        if len(result) != length:
+            raise ValueError(f"{name} must contain {length} values, got {len(result)}")
+        return result
+    return [float(value)] * length
+
+
+def _output_scale_adapter(
+    *,
+    num_features: int,
+    feature_axis: int,
+    mode: str,
+    initial_scale: float,
+) -> nn.Module:
+    normalized = str(mode).strip().lower()
+    if normalized in {"identity", "none", "off"}:
+        return nn.Identity()
+    if normalized in {"learned_global", "global"}:
+        return PositiveFeatureScale(
+            num_features,
+            feature_axis=feature_axis,
+            initial_scale=initial_scale,
+            per_feature=False,
+            learnable=True,
+        )
+    if normalized in {"learned_per_channel", "per_channel", "per_feature"}:
+        return PositiveFeatureScale(
+            num_features,
+            feature_axis=feature_axis,
+            initial_scale=initial_scale,
+            per_feature=True,
+            learnable=True,
+        )
+    raise ValueError(
+        "vision.output_adapter.mode must be identity, learned_global, or "
+        f"learned_per_channel, got {mode!r}"
+    )
 
 
 def _block_config(
@@ -115,6 +157,18 @@ class DendriticAlexNet(BaseNetwork):
         if not 0 <= dropout < 1:
             raise ValueError("vision.dropout must be in [0, 1)")
         seed = int(vision.get("seed", config.get("initialization_seed", 0) or 0))
+        output_adapter = dict(vision.get("output_adapter", {}))
+        output_adapter_mode = str(output_adapter.get("mode", "identity"))
+        spatial_initial_scales = _scale_list(
+            output_adapter.get("spatial_initial_scale", 1.0),
+            name="vision.output_adapter.spatial_initial_scale",
+            length=5,
+        )
+        classifier_initial_scales = _scale_list(
+            output_adapter.get("classifier_initial_scale", 1.0),
+            name="vision.output_adapter.classifier_initial_scale",
+            length=2,
+        )
 
         self.input_adapter = SpatialNonNegativeInputAdapter(
             int(input_channels),
@@ -129,6 +183,7 @@ class DendriticAlexNet(BaseNetwork):
         feature_modules: list[nn.Module] = []
         current_channels = self.input_adapter.output_channels
         self.spatial_blocks = nn.ModuleList()
+        self.spatial_output_adapters = nn.ModuleList()
         for index, (out_channels, kernel, stride, padding) in enumerate(
             zip(channels, kernels, strides, paddings, strict=True)
         ):
@@ -150,7 +205,15 @@ class DendriticAlexNet(BaseNetwork):
                 padding=padding,
             )
             self.spatial_blocks.append(block)
+            adapter = _output_scale_adapter(
+                num_features=out_channels,
+                feature_axis=1,
+                mode=output_adapter_mode,
+                initial_scale=spatial_initial_scales[index],
+            )
+            self.spatial_output_adapters.append(adapter)
             feature_modules.append(block)
+            feature_modules.append(adapter)
             if index in pool_after:
                 feature_modules.append(
                     nn.MaxPool2d(kernel_size=pool_kernel, stride=pool_stride)
@@ -163,6 +226,7 @@ class DendriticAlexNet(BaseNetwork):
         fc_sizes = [*classifier_widths, num_classes]
         fc_modules: list[nn.Module] = []
         self.feedforward_blocks = nn.ModuleList()
+        self.feedforward_output_adapters = nn.ModuleList()
         current_dim = flat_dim
         for index, out_dim in enumerate(fc_sizes):
             inhibitory_size = (
@@ -183,7 +247,19 @@ class DendriticAlexNet(BaseNetwork):
             if index < len(classifier_widths):
                 fc_modules.append(nn.Dropout(p=dropout))
             fc_modules.append(block)
+            if index < len(classifier_widths):
+                adapter = _output_scale_adapter(
+                    num_features=out_dim,
+                    feature_axis=-1,
+                    mode=output_adapter_mode,
+                    initial_scale=classifier_initial_scales[index],
+                )
+            else:
+                adapter = nn.Identity()
+            self.feedforward_output_adapters.append(adapter)
+            fc_modules.append(adapter)
             current_dim = out_dim
+        self.output_adapter_mode = output_adapter_mode
         self.classifier = nn.Sequential(*fc_modules)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -204,6 +280,7 @@ class DendriticAlexNet(BaseNetwork):
             "class_mapping": "one_excitatory_soma_per_class",
             "num_classes": self.num_classes,
             "propagated_population": "excitatory",
+            "inter_block_output_adapter": self.output_adapter_mode,
             "component_seeds": list(self.component_seeds),
         }
 
