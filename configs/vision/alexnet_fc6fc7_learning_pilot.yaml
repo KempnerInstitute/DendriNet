@@ -8,6 +8,7 @@ slurm_config:
   partition: kempner_eng
   time: "02:00:00"
   max_concurrent_jobs: 1
+  conda_env_path: /n/holylabs/kempner_dev/Users/hsafaai/venvs/dendritic_empirical_cu128_20260722
 
 experiment_settings:
   seeds_per_condition: 1
@@ -24,6 +25,11 @@ base_config:
   experiment:
     checkpointing:
       enabled: false
+  data:
+    base_dir: /n/holylfs06/LABS/kempner_shared/Everyone/testbed/vision/imagenet_1k
+    dataset_params:
+      imagenet:
+        loader_backend: imagefolder
   training:
     main:
       common:
