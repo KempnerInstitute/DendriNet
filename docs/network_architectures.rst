@@ -419,6 +419,7 @@ E-I Network Configuration
          type: "indexed_rewire"
          indexed:
            seed: 42
+           projection_backend: eager
            rewire_frequency: 100
            rewire_quantile: 0.05
            rewire_until_step: null
@@ -427,6 +428,7 @@ E-I Network Configuration
        reactivation:
          enabled: true
          type: "param_tanh"
+         memory_efficient: false
          init_m: 1.5
          init_b: 0.5
 
@@ -2157,7 +2159,7 @@ Supported methods:
         type: indexed
         indexed:
           index_dtype: int32
-          recompute_backward: true
+          projection_backend: recompute
           persistent_indices: false
 
    The input is flattened in CHW order only at execution time. The configured

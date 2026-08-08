@@ -57,22 +57,34 @@ def _tanh_builder(**_: Any) -> nn.Module:
 
 
 def _param_tanh_builder(
-    *, output_dim: int | None, init_m: float, init_b: float, **_: Any
+    *,
+    output_dim: int | None,
+    init_m: float,
+    init_b: float,
+    memory_efficient: bool = False,
+    **_: Any,
 ) -> nn.Module:
     return ParametricTanh(
         _require_output_dim(output_dim, "ParametricTanh"),
         init_m,
         init_b,
+        memory_efficient=memory_efficient,
     )
 
 
 def _param_tanh_only_m_builder(
-    *, output_dim: int | None, init_m: float, fixed_b: float, **_: Any
+    *,
+    output_dim: int | None,
+    init_m: float,
+    fixed_b: float,
+    memory_efficient: bool = False,
+    **_: Any,
 ) -> nn.Module:
     return ParametricTanhOnlyM(
         _require_output_dim(output_dim, "ParametricTanhOnlyM"),
         init_m,
         fixed_b,
+        memory_efficient=memory_efficient,
     )
 
 
@@ -82,6 +94,7 @@ def _param_linear_sigmoid_builder(
     init_m: float,
     init_b: float,
     fixed_b: float,
+    memory_efficient: bool = False,
     **kwargs: Any,
 ) -> nn.Module:
     return ParametricLinearSigmoid(
@@ -99,6 +112,7 @@ def _linear_sigmoid_builder(
     init_m: float,
     init_b: float,
     fixed_b: float,
+    memory_efficient: bool = False,
     **kwargs: Any,
 ) -> nn.Module:
     return ParametricLinearSigmoid(
@@ -116,6 +130,7 @@ def _param_linear_tanh_builder(
     init_m: float,
     init_b: float,
     fixed_b: float,
+    memory_efficient: bool = False,
     **kwargs: Any,
 ) -> nn.Module:
     return ParametricLinearTanh(
@@ -133,6 +148,7 @@ def _linear_tanh_builder(
     init_m: float,
     init_b: float,
     fixed_b: float,
+    memory_efficient: bool = False,
     **kwargs: Any,
 ) -> nn.Module:
     return ParametricLinearTanh(

@@ -10,6 +10,9 @@ import math
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.networks.activations.memory_efficient import (
+    positive_tanh_centered,
+)
 from dendritic_modeling.networks.utils.weight_transforms import safe_exp
 
 
@@ -47,8 +50,18 @@ class ParametricTanh(ParametricActivation):
     Both parameters are trainable.
     """
 
-    def __init__(self, output_dim, init_m=1.5, init_b=1.0):
+    supports_memory_efficient_shunt = True
+
+    def __init__(
+        self,
+        output_dim,
+        init_m=1.5,
+        init_b=1.0,
+        *,
+        memory_efficient=False,
+    ):
         super().__init__()
+        self.memory_efficient = bool(memory_efficient)
         self.log_m = nn.Parameter(torch.empty((output_dim,)), requires_grad=True)
         # self.log_b = nn.Parameter(torch.empty((output_dim,)), requires_grad=True)
         self.b = nn.Parameter(torch.empty((output_dim,)), requires_grad=True)
@@ -59,7 +72,12 @@ class ParametricTanh(ParametricActivation):
     def forward(self, V):
         m = self.log_m.exp()  # slope
         b = self.b  # midpoint
-        return (torch.tanh(m * (V - b)) + 1) / 2
+        return positive_tanh_centered(
+            m,
+            V,
+            b,
+            memory_efficient=self.memory_efficient,
+        )
 
     def initialize(self, slope_val, mid_val):
         self.log_m.data.fill_(math.log(slope_val))
@@ -72,8 +90,18 @@ class ParametricTanhOnlyM(ParametricActivation):
     trainable. The fixed value of b is provided via the fixed_b argument.
     """
 
-    def __init__(self, output_dim, init_m=1.5, fixed_b=0.5):
+    supports_memory_efficient_shunt = True
+
+    def __init__(
+        self,
+        output_dim,
+        init_m=1.5,
+        fixed_b=0.5,
+        *,
+        memory_efficient=False,
+    ):
         super().__init__()
+        self.memory_efficient = bool(memory_efficient)
         self.log_m = nn.Parameter(torch.empty((output_dim,)), requires_grad=True)
         self.fixed_b = fixed_b  # fixed midpoint value
         with torch.no_grad():
@@ -82,7 +110,12 @@ class ParametricTanhOnlyM(ParametricActivation):
     def forward(self, V):
         m = self.log_m.exp()  # slope
         b = self.fixed_b  # fixed midpoint
-        return (torch.tanh(m * (V - b)) + 1) / 2
+        return positive_tanh_centered(
+            m,
+            V,
+            b,
+            memory_efficient=self.memory_efficient,
+        )
 
     def initialize(self, slope_val, mid_val):
         safe_slope = max(float(slope_val), 1e-8)

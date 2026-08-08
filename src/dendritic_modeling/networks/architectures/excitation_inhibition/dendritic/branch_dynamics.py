@@ -6,6 +6,10 @@ from typing import Any
 
 import torch
 
+from dendritic_modeling.networks.activations.memory_efficient import (
+    fused_shunt_reactivation,
+)
+
 ADDITIVE_MODES = frozenset({"raw", "tangent_matched", "conductance_normalized"})
 
 
@@ -279,8 +283,19 @@ def forward_branch_dynamics(
         if store_diagnostics:
             active_pathways.add("I_rec")
 
+    fused_shunt = None
+    if (
+        owner.use_shunting
+        and not store_diagnostics
+        and not getattr(owner, "_store_analysis_currents", False)
+    ):
+        fused_shunt = fused_shunt_reactivation(owner.reactivation)
+
     denominator = None
-    if owner.use_shunting:
+    voltage = None
+    if fused_shunt is not None:
+        denominator = shunt_denominator
+    elif owner.use_shunting:
         denominator = shunt_denominator
         voltage = shunt_numerator / (denominator + owner.epsilon)
     else:
@@ -320,7 +335,10 @@ def forward_branch_dynamics(
     ]:
         owner.compute_grad_scales(g_total=denominator if owner.use_shunting else None)
 
-    result = owner.reactivation(voltage)
+    if fused_shunt is not None:
+        result = fused_shunt(shunt_numerator, denominator, owner.epsilon)
+    else:
+        result = owner.reactivation(voltage)
     if getattr(owner, "_store_analysis_currents", False):
         owner._last_analysis_currents = {
             # Canonical stage-explicit analysis names.

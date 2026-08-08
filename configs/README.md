@@ -82,9 +82,10 @@ indexed_index_dtype: auto
 indexed_output_chunk_size: 65536
 indexed_workspace_mb: 128
 indexed_cache_transformed_weights: true
-indexed_recompute_backward: true
+indexed_projection_backend: recompute
 indexed_persistent_indices: false
 indexed_init_mode: rank0_broadcast
+reactivation_memory_efficient: true
 ```
 
 - `indexed_index_dtype: auto` uses 32-bit indices whenever the input dimension
@@ -93,9 +94,15 @@ indexed_init_mode: rank0_broadcast
   projection; it can only reduce `indexed_output_chunk_size`.
 - `indexed_cache_transformed_weights` reuses deterministic fixed weights within
   one recurrent unroll. It is disabled by default.
-- `indexed_recompute_backward` avoids retaining contact-sized gathered inputs
-  at every recurrent timestep. Backward re-gathers one bounded chunk from the
-  saved recurrent state; it is disabled by default.
+- `indexed_projection_backend` is `eager`, `recompute`, `triton`, `cuda`, or
+  `auto`. `recompute` avoids retaining contact-sized gathered inputs at every
+  recurrent timestep. The legacy `indexed_recompute_backward: true` spelling
+  still maps to it. Existing batch-one recurrent configs intentionally keep
+  this portable path; the native kernels were not faster at those measured
+  shapes.
+- `reactivation_memory_efficient` opts `param_tanh` gates into the
+  memory-saving backward and fuses the shunt divide when diagnostics do not
+  need its intermediate voltage. It is disabled by default.
 - `indexed_persistent_indices: false` regenerates topology from
   `indexed_seed` instead of saving it in checkpoints. An explicit seed is
   required, and adaptive `indexed_rewire` topology must remain persistent.

@@ -52,6 +52,15 @@ def _structured_population_sparsity_kwargs(
         "indexed_rewire_frequency": int(indexed.get("rewire_frequency", 100)),
         "indexed_rewire_quantile": float(indexed.get("rewire_quantile", 0.05)),
         "indexed_rewire_until_step": indexed.get("rewire_until_step"),
+        "indexed_index_dtype": str(indexed.get("index_dtype", "int64")),
+        "indexed_workspace_mb": indexed.get("workspace_mb"),
+        "indexed_cache_transformed_weights": bool(
+            indexed.get("cache_transformed_weights", False)
+        ),
+        "indexed_recompute_backward": bool(indexed.get("recompute_backward", False)),
+        "indexed_projection_backend": str(indexed.get("projection_backend", "eager")),
+        "indexed_persistent_indices": bool(indexed.get("persistent_indices", True)),
+        "indexed_init_mode": str(indexed.get("init_mode", "per_rank")),
     }
 
 
@@ -319,6 +328,9 @@ def _structured_population_reactivation_kwargs(
         ),
         "reactivation_sigma_aware_k": float(reactivation.get("sigma_aware_k", 0.25)),
         "reactivation_strategy": str(reactivation.get("gradient_scaling", "none")),
+        "reactivation_memory_efficient": bool(
+            reactivation.get("memory_efficient", False)
+        ),
     }
 
 

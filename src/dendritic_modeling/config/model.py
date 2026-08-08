@@ -142,6 +142,13 @@ class SparsityConfig(BaseConfig):
             "selection": "standard",
             "seed": None,
             "output_chunk_size": 2048,
+            "index_dtype": "int64",
+            "workspace_mb": None,
+            "cache_transformed_weights": False,
+            "recompute_backward": False,
+            "projection_backend": "eager",
+            "persistent_indices": True,
+            "init_mode": "per_rank",
             "rewire_frequency": 100,
             "rewire_quantile": 0.05,
             "rewire_until_step": None,
@@ -194,6 +201,7 @@ class ReactivationConfig(BaseConfig):
     # voltage spread estimate (MAD * 1.4826) to the initial gate slope.
     sigma_aware_k: float = 0.25
     gradient_scaling: str = "none"
+    memory_efficient: bool = False
 
 
 @dataclass

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from math import log
 
 import torch
@@ -9,12 +10,15 @@ import torch.nn as nn
 
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_common import (
     _connection_generator,
-    _indexed_sparse_projection,
+    _dispatch_indexed_sparse_projection,
     _resolve_index_dtype,
     _sample_indices_from_mask,
     _scale_for_sparse_target,
     _validate_forbidden_indices,
     _workspace_limited_chunk_size,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.kernels import (
+    normalize_indexed_projection_options,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.structured_mask import (
     validate_connection_mask,
@@ -27,6 +31,8 @@ from dendritic_modeling.networks.utils.weight_transforms import (
     apply_weight_transform,
     inverse_softplus,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class IndexedDynamicTopKLinear(nn.Module):
@@ -66,6 +72,7 @@ class IndexedDynamicTopKLinear(nn.Module):
         workspace_mb: float | None = None,
         cache_transformed_weights: bool = False,
         recompute_backward: bool = False,
+        projection_backend: str = "eager",
         persistent_indices: bool = True,
         init_mode: str = "per_rank",
         **_: object,
@@ -153,7 +160,14 @@ class IndexedDynamicTopKLinear(nn.Module):
             in_features=self.in_features,
         )
         self.cache_transformed_weights = bool(cache_transformed_weights)
-        self.recompute_backward = bool(recompute_backward)
+        normalized_backend = normalize_indexed_projection_options(
+            projection_backend,
+            recompute_backward=bool(recompute_backward),
+        )
+        self.projection_backend = normalized_backend
+        self.recompute_backward = normalized_backend == "recompute"
+        self._last_resolved_projection_backend: str | None = None
+        self._last_projection_device: torch.device | None = None
         self.persistent_indices = bool(persistent_indices)
         self.init_mode = init_mode
         self.input_scale_vec = None
@@ -517,13 +531,31 @@ class IndexedDynamicTopKLinear(nn.Module):
         indices = self.connection_indices.to(flat_x.device)
 
         output_chunk_size = self._forward_output_chunk_size(flat_x)
-        out = _indexed_sparse_projection(
+        requested_backend = self.projection_backend
+        backend_is_resolved = (
+            self._last_resolved_projection_backend is not None
+            and self._last_projection_device == flat_x.device
+        )
+        if backend_is_resolved:
+            requested_backend = self._last_resolved_projection_backend
+        out, resolved_backend = _dispatch_indexed_sparse_projection(
             flat_x=flat_x,
             weight=active_weight,
             connection_indices=indices,
             output_chunk_size=output_chunk_size,
-            recompute_backward=self.recompute_backward,
+            projection_backend=requested_backend,
+            backend_is_resolved=backend_is_resolved,
         )
+        if resolved_backend != self._last_resolved_projection_backend:
+            logger.info(
+                "IndexedDynamicTopKLinear projection backend resolved: "
+                "requested=%s, resolved=%s, device=%s",
+                self.projection_backend,
+                resolved_backend,
+                flat_x.device,
+            )
+            self._last_resolved_projection_backend = resolved_backend
+        self._last_projection_device = flat_x.device
 
         out = out.reshape(*original_shape[:-1], self.out_features)
         if self.cache_mask:

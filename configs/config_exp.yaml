@@ -177,6 +177,7 @@ model:
             use_shunting: true
             reactivate: true
             reactivation_type: "param_tanh"
+            reactivation_memory_efficient: false # bool: opt-in saved-tensor reduction
             # Empirical-paper training convention from the 2026-06 diagnostics:
             #   shunting -> analytical reactivation initialization
             #   additive -> occupancy_quantile reactivation initialization
@@ -199,6 +200,7 @@ model:
             indexed_rewire_quantile: 0.05
             indexed_rewire_until_step: null
             indexed_output_chunk_size: 2048
+            indexed_projection_backend: "eager" # eager | recompute | triton | cuda | auto
             efficient_blocklinear: true
           populations:
             - name: "i"

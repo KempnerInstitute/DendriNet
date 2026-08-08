@@ -39,6 +39,13 @@ following behavior-preserving changes were selected for this branch:
   calculation; and
 * FSDP can initialize contact-heavy models from CPU and wrap indexed synapse
   units before moving their states to the GPU.
+* indexed projections expose one validated ``eager``/``recompute``/``triton``/
+  ``cuda``/``auto`` backend selector across fixed, dynamic, degree-grouped,
+  recurrent, and transformer construction paths;
+* the portable recompute backward accumulates reduced-precision input
+  gradients in fp32 and retains compact int32 indices; and
+* positive-tanh reactivation has an opt-in memory-saving autograd path, with an
+  opt-in fused shunt divide that preserves diagnostic voltage capture.
 
 The FSDP behavior is opt-in and preserves the historical initialization path
 by default:
@@ -67,29 +74,49 @@ use compact connectivity counts instead of constructing dense connectivity
 records.  Keeping the current implementations avoids duplicating dispatch and
 configuration paths.
 
-Deferred experimental work
---------------------------
+See :doc:`performance_kernels` for backend semantics, supported dtypes,
+measured hardware scope, config examples, and hardware-gated validation.
+
+Excluded profiling work
+-----------------------
 
 The ``finalized/`` directory on ``ryanconfig`` is a curated snapshot of
-hardware-specific experiments rather than a self-contained package.  Its
-custom CUDA and Triton gathers, fused activation autograd functions, and
-architecture-specific kernel picker were therefore not imported in this safe
-batch.  They require equivalence, gradient, memory, and performance checks on
-each supported GPU architecture before becoming maintained runtime paths.
+hardware-specific experiments rather than a maintained package. Its profiling
+harnesses, NVTX changes, benchmark runners, generated logs, cluster jobs, setup
+scripts, and duplicate ``finalized/`` copies were not imported. They encode
+cluster-specific assumptions and belong in ProfilePilot. The production kernel
+and activation solutions were instead placed under the existing
+``synapse/kernels`` and ``activations`` packages and wired through the shared
+config translators.
 
-The profiling material was reviewed but also remains deferred.  On the review
-baseline, short-capture control is retained by the recurrent trainer while the
-standard trainer has moved to a different NVTX-only annotation path.  The
-associated jobs and setup instructions also encode cluster-specific CUDA and
-module assumptions.  A later profiling integration should first unify the
-trainer behavior, keep all annotations opt-in, expose one documented CLI, and
-add CPU no-op plus GPU trace smoke tests.
+Review decisions not merged
+---------------------------
+
+The review also rejected or replaced several production-adjacent diffs:
+
+* Ryan's three independent gather booleans and environment-controlled
+  activation switches were replaced by typed, explicit config fields. This
+  prevents contradictory selections and silent fallback.
+* Masked rejection sampling was not copied because it changes the exact
+  topology produced by an existing seed. The current per-row masked sampler
+  preserves seeded experiment reproducibility; a future faster sampler needs
+  an explicit topology-version contract.
+* The ``weight_transforms_optimized-rw.py`` scratch copy was not imported. The
+  finalized profiling notes refuted the suspected transform materialization as
+  a major memory source, and the maintained recurrent cache already removes the
+  repeated deterministic transform from an unroll.
+* Native CUDA/Triton selection is not enabled in existing recurrent configs.
+  The recorded batch-one RNN result favored portable recompute, while the
+  architecture-aware native picker was fitted to large feedforward shapes.
+* Unrelated feature merges carried through Ryan's branch were not treated as
+  profiling results. Equivalent Bayesian-timing wiring already exists on this
+  branch; unrelated experimental feature additions remain outside this merge.
 
 Validation expectations
 -----------------------
 
 Changes on this branch are checked with formatting and lint hooks, YAML and
 typed-config loading, focused model and sweep tests, FSDP CPU-side unit tests,
-and the broader test suite.  GPU-only FSDP initialization and native-kernel
-performance still require a supported multi-GPU allocation; CPU validation
-does not substitute for that final runtime check.
+and the broader test suite. The CUDA picker table is checked on CPU, while
+native CUDA/Triton numerical execution and GPU-only FSDP initialization remain
+hardware-gated. CPU validation does not substitute for those runtime checks.

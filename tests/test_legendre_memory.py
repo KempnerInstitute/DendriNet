@@ -254,6 +254,13 @@ def test_sequence_output_modes_and_state_api(output_mode: str) -> None:
         ({"trainable_theta": True}, "theta horizon is fixed"),
         ({"input_contacts": 2}, "input_contacts"),
         ({"readout_contacts": 7}, "readout_contacts"),
+        (
+            {
+                "indexed_recompute_backward": True,
+                "indexed_projection_backend": "triton",
+            },
+            "cannot be combined",
+        ),
     ],
 )
 def test_config_validation_fails_closed(

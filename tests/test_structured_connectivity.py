@@ -355,6 +355,7 @@ def test_structured_population_reactivation_kwargs_preserve_calibration_fields()
         "reactivation_calibration_revert_on_invalid": False,
         "reactivation_sigma_aware_k": 0.35,
         "reactivation_strategy": "conductance_dynamic",
+        "reactivation_memory_efficient": False,
     }
 
 

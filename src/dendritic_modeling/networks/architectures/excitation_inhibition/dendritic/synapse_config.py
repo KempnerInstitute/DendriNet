@@ -55,6 +55,20 @@ class IndexedSynapseConfig:
     recompute_backward: bool = False
     persistent_indices: bool = True
     init_mode: str = "per_rank"
+    projection_backend: str = "eager"
+
+    def __post_init__(self) -> None:
+        from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.kernels import (
+            normalize_indexed_projection_backend,
+        )
+
+        normalized = normalize_indexed_projection_backend(self.projection_backend)
+        if self.recompute_backward and normalized not in {"eager", "recompute"}:
+            raise ValueError(
+                "indexed_recompute_backward cannot be combined with "
+                f"indexed_projection_backend={normalized!r}"
+            )
+        object.__setattr__(self, "projection_backend", normalized)
 
 
 @dataclass(frozen=True)
@@ -76,6 +90,7 @@ class ReactivationConfig:
     calibration_revert_on_invalid: bool = True
     sigma_aware_k: float = 0.25
     strategy: str = "none"
+    memory_efficient: bool = False
 
 
 @dataclass(frozen=True)
@@ -180,6 +195,7 @@ def _indexed_config_from_kwargs(source: Mapping[str, Any]) -> IndexedSynapseConf
             "indexed_cache_transformed_weights", False
         ),
         recompute_backward=source.get("indexed_recompute_backward", False),
+        projection_backend=source.get("indexed_projection_backend", "eager"),
         persistent_indices=source.get("indexed_persistent_indices", True),
         init_mode=source.get("indexed_init_mode", "per_rank"),
     )
@@ -209,6 +225,7 @@ def _reactivation_config_from_kwargs(source: Mapping[str, Any]) -> ReactivationC
         ),
         sigma_aware_k=source.get("reactivation_sigma_aware_k", 0.25),
         strategy=source.get("reactivation_strategy", "none"),
+        memory_efficient=source.get("reactivation_memory_efficient", False),
     )
 
 
@@ -322,6 +339,7 @@ def _indexed_kwargs(config: IndexedSynapseConfig) -> dict[str, Any]:
         "indexed_workspace_mb": config.workspace_mb,
         "indexed_cache_transformed_weights": config.cache_transformed_weights,
         "indexed_recompute_backward": config.recompute_backward,
+        "indexed_projection_backend": config.projection_backend,
         "indexed_persistent_indices": config.persistent_indices,
         "indexed_init_mode": config.init_mode,
     }
@@ -349,6 +367,7 @@ def _reactivation_kwargs(config: ReactivationConfig) -> dict[str, Any]:
         ),
         "reactivation_sigma_aware_k": config.sigma_aware_k,
         "reactivation_strategy": config.strategy,
+        "reactivation_memory_efficient": config.memory_efficient,
     }
 
 

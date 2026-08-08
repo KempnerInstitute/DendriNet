@@ -217,7 +217,7 @@ class _IndexedSparseProjectionFunction(torch.autograd.Function):
 
         for start in range(0, out_features, ctx.output_chunk_size):
             end = min(start + ctx.output_chunk_size, out_features)
-            idx_chunk = connection_indices[start:end].to(torch.long)
+            idx_chunk = connection_indices[start:end]
             selected = flat_x[:, idx_chunk.reshape(-1)].reshape(
                 flat_x.shape[0],
                 end - start,
@@ -230,12 +230,21 @@ class _IndexedSparseProjectionFunction(torch.autograd.Function):
     def backward(ctx, grad_output: torch.Tensor):
         flat_x, weight, connection_indices = ctx.saved_tensors
         out_features, synapses_per_output = weight.shape
-        grad_x = torch.zeros_like(flat_x) if ctx.needs_input_grad[0] else None
+        accumulation_dtype = (
+            torch.float32
+            if flat_x.dtype in {torch.bfloat16, torch.float16}
+            else flat_x.dtype
+        )
+        grad_x = (
+            torch.zeros_like(flat_x, dtype=accumulation_dtype)
+            if ctx.needs_input_grad[0]
+            else None
+        )
         grad_weight = torch.empty_like(weight) if ctx.needs_input_grad[1] else None
 
         for start in range(0, out_features, ctx.output_chunk_size):
             end = min(start + ctx.output_chunk_size, out_features)
-            idx_chunk = connection_indices[start:end].to(torch.long)
+            idx_chunk = connection_indices[start:end]
             grad_chunk = grad_output[:, start:end]
 
             if grad_weight is not None:
@@ -249,16 +258,17 @@ class _IndexedSparseProjectionFunction(torch.autograd.Function):
                 )
 
             if grad_x is not None:
-                contributions = grad_chunk.unsqueeze(-1) * weight[start:end].unsqueeze(
-                    0
-                )
-                flat_indices = idx_chunk.reshape(1, -1).expand(flat_x.shape[0], -1)
-                grad_x.scatter_add_(
+                contributions = grad_chunk.to(accumulation_dtype).unsqueeze(
+                    -1
+                ) * weight[start:end].to(accumulation_dtype).unsqueeze(0)
+                grad_x.index_add_(
                     1,
-                    flat_indices,
+                    idx_chunk.reshape(-1),
                     contributions.reshape(flat_x.shape[0], -1),
                 )
 
+        if grad_x is not None and grad_x.dtype != flat_x.dtype:
+            grad_x = grad_x.to(flat_x.dtype)
         return grad_x, grad_weight, None, None
 
 
@@ -291,6 +301,63 @@ def _indexed_sparse_projection(
         )
         out[:, start:end] = (selected * weight[start:end].unsqueeze(0)).sum(dim=-1)
     return out
+
+
+def _dispatch_indexed_sparse_projection(
+    *,
+    flat_x: torch.Tensor,
+    weight: torch.Tensor,
+    connection_indices: torch.Tensor,
+    output_chunk_size: int,
+    projection_backend: str,
+    backend_is_resolved: bool = False,
+) -> tuple[torch.Tensor, str]:
+    """Apply an indexed projection through one validated execution backend."""
+    from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.kernels import (
+        normalize_indexed_projection_backend,
+        resolve_indexed_projection_backend,
+    )
+
+    if backend_is_resolved:
+        resolved = normalize_indexed_projection_backend(projection_backend)
+        if resolved == "auto":
+            raise ValueError("a resolved indexed projection backend cannot be 'auto'")
+    else:
+        resolved = resolve_indexed_projection_backend(
+            projection_backend,
+            device=flat_x.device,
+        )
+    if resolved == "cuda":
+        from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.kernels.cuda_indexed_gather import (
+            cuda_sparse_gather,
+        )
+
+        output = cuda_sparse_gather(
+            flat_x,
+            connection_indices,
+            weight,
+            chunk_size=output_chunk_size,
+        )
+    elif resolved == "triton":
+        from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.kernels.triton_indexed_gather import (
+            triton_sparse_gather,
+        )
+
+        output = triton_sparse_gather(
+            flat_x,
+            connection_indices,
+            weight,
+            chunk_size=output_chunk_size,
+        )
+    else:
+        output = _indexed_sparse_projection(
+            flat_x=flat_x,
+            weight=weight,
+            connection_indices=connection_indices,
+            output_chunk_size=output_chunk_size,
+            recompute_backward=resolved == "recompute",
+        )
+    return output, resolved
 
 
 def _connection_generator(seed: int | None) -> torch.Generator:
@@ -357,6 +424,7 @@ def _allowed_mask_with_forbidden(
 __all__ = [
     "_allowed_mask_with_forbidden",
     "_connection_generator",
+    "_dispatch_indexed_sparse_projection",
     "_indexed_sparse_projection",
     "_resolve_index_dtype",
     "_sample_indices_from_mask",

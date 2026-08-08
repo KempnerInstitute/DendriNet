@@ -71,6 +71,13 @@ class DendriticFFNReplacement(TokenReplacementCell):
         indexed_candidate_size: int | None = None,
         indexed_selection: str = "standard",
         indexed_output_chunk_size: int = 2048,
+        indexed_index_dtype: str = "int64",
+        indexed_workspace_mb: float | None = None,
+        indexed_cache_transformed_weights: bool = False,
+        indexed_recompute_backward: bool = False,
+        indexed_projection_backend: str = "eager",
+        indexed_persistent_indices: bool = True,
+        indexed_init_mode: str = "per_rank",
         indexed_rewire_frequency: int = 100,
         indexed_rewire_quantile: float = 0.05,
         indexed_rewire_until_step: int | None = None,
@@ -90,6 +97,7 @@ class DendriticFFNReplacement(TokenReplacementCell):
         reactivation_calibration_max_m: float = 50.0,
         reactivation_calibration_revert_on_invalid: bool = True,
         reactivation_sigma_aware_k: float = 0.25,
+        reactivation_memory_efficient: bool = False,
         weight_transform: str = "softplus",
         topk_init_method: str = "xavier_normal",
         efficient_blocklinear: bool = False,
@@ -132,6 +140,13 @@ class DendriticFFNReplacement(TokenReplacementCell):
                 "indexed_candidate_size": indexed_candidate_size,
                 "indexed_selection": indexed_selection,
                 "indexed_output_chunk_size": indexed_output_chunk_size,
+                "indexed_index_dtype": indexed_index_dtype,
+                "indexed_workspace_mb": indexed_workspace_mb,
+                "indexed_cache_transformed_weights": indexed_cache_transformed_weights,
+                "indexed_recompute_backward": indexed_recompute_backward,
+                "indexed_projection_backend": indexed_projection_backend,
+                "indexed_persistent_indices": indexed_persistent_indices,
+                "indexed_init_mode": indexed_init_mode,
                 "indexed_rewire_frequency": indexed_rewire_frequency,
                 "indexed_rewire_quantile": indexed_rewire_quantile,
                 "indexed_rewire_until_step": indexed_rewire_until_step,
@@ -162,6 +177,7 @@ class DendriticFFNReplacement(TokenReplacementCell):
                     reactivation_calibration_revert_on_invalid
                 ),
                 "reactivation_sigma_aware_k": reactivation_sigma_aware_k,
+                "reactivation_memory_efficient": reactivation_memory_efficient,
                 "weight_transform": weight_transform,
                 "efficient_blocklinear": bool(efficient_blocklinear),
             }
@@ -349,6 +365,24 @@ class GatedDendriticFFNReplacement(nn.Module):
                 output_chunk_size=int(
                     dendritic_kwargs.get("indexed_output_chunk_size", 2048)
                 ),
+                index_dtype=str(dendritic_kwargs.get("indexed_index_dtype", "int64")),
+                workspace_mb=dendritic_kwargs.get("indexed_workspace_mb"),
+                cache_transformed_weights=bool(
+                    dendritic_kwargs.get(
+                        "indexed_cache_transformed_weights",
+                        False,
+                    )
+                ),
+                recompute_backward=bool(
+                    dendritic_kwargs.get("indexed_recompute_backward", False)
+                ),
+                projection_backend=str(
+                    dendritic_kwargs.get("indexed_projection_backend", "eager")
+                ),
+                persistent_indices=bool(
+                    dendritic_kwargs.get("indexed_persistent_indices", True)
+                ),
+                init_mode=str(dendritic_kwargs.get("indexed_init_mode", "per_rank")),
             )
 
         self.hidden_size = hidden_size

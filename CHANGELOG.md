@@ -100,3 +100,17 @@
 - Expanded frozen sweep provenance to hash all model, synapse, and local-rule
   implementation files used by prospective experiments, and added matched
   peak CUDA-memory fields to post-training resource summaries.
+
+## 2026-08
+
+- Added one indexed-projection backend selector across dendritic, recurrent,
+  degree-grouped, and transformer construction paths. Portable eager and
+  recompute modes remain available without accelerator dependencies; optional
+  Triton and architecture-aware CUDA kernels are loaded only when selected.
+- Improved the portable indexed backward with compact index reuse and fp32
+  accumulation for reduced-precision input gradients.
+- Added opt-in memory-efficient positive-tanh autograd and fused shunt
+  reactivation, with eager fallback whenever diagnostics require voltage.
+- Kept profiling harnesses, NVTX tooling, cluster setup, benchmark runners, and
+  generated artifacts outside the model repository; only maintained runtime
+  implementations and their correctness tests were integrated.

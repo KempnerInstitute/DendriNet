@@ -11,6 +11,9 @@ import torch.nn as nn
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_sparse import (
     IndexedSparseLinear,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.kernels import (
+    normalize_indexed_projection_options,
+)
 from dendritic_modeling.networks.utils.weight_transforms import (
     WeightTransformType,
     inverse_weight_transform,
@@ -34,6 +37,7 @@ class _IndexedDegreeGroup(nn.Module):
         workspace_mb: float | None,
         cache_transformed_weights: bool,
         recompute_backward: bool,
+        projection_backend: str,
         persistent_indices: bool,
     ) -> None:
         super().__init__()
@@ -50,6 +54,7 @@ class _IndexedDegreeGroup(nn.Module):
             workspace_mb=workspace_mb,
             cache_transformed_weights=cache_transformed_weights,
             recompute_backward=recompute_backward,
+            projection_backend=projection_backend,
             persistent_indices=persistent_indices,
         )
         if row_sum_init is not None:
@@ -228,6 +233,7 @@ class DegreeGroupedIndexedLinear(nn.Module):
         workspace_mb: float | None = None,
         cache_transformed_weights: bool = False,
         recompute_backward: bool = False,
+        projection_backend: str = "eager",
         persistent_indices: bool = True,
     ) -> None:
         super().__init__()
@@ -242,6 +248,10 @@ class DegreeGroupedIndexedLinear(nn.Module):
         self.input_dim = int(input_dim)
         self.output_dim = int(output_dim)
         self.weight_transform = weight_transform
+        self.projection_backend = normalize_indexed_projection_options(
+            projection_backend,
+            recompute_backward=bool(recompute_backward),
+        )
         degree_tensor = _validate_degree_vector(
             degrees,
             input_dim=self.input_dim,
@@ -320,6 +330,7 @@ class DegreeGroupedIndexedLinear(nn.Module):
                     workspace_mb=workspace_mb,
                     cache_transformed_weights=cache_transformed_weights,
                     recompute_backward=recompute_backward,
+                    projection_backend=self.projection_backend,
                     persistent_indices=persistent_indices,
                 )
             )

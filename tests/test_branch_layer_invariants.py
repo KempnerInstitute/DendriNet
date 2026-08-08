@@ -122,6 +122,64 @@ class TestReactivation:
         assert (out >= 0).all()
         assert (out <= 1).all()
 
+    def test_memory_efficient_shunt_matches_eager_layer_gradients(self):
+        torch.manual_seed(17)
+        eager = _make_layer(
+            use_shunting=True,
+            reactivate=True,
+            reactivation_type="param_tanh",
+            reactivation_memory_efficient=False,
+        )
+        efficient = _make_layer(
+            use_shunting=True,
+            reactivate=True,
+            reactivation_type="param_tanh",
+            reactivation_memory_efficient=True,
+        )
+        efficient.load_state_dict(eager.state_dict())
+        eager_input = torch.rand(4, 20, requires_grad=True)
+        efficient_input = eager_input.detach().clone().requires_grad_(True)
+
+        eager_output = eager(eager_input)
+        efficient_output = efficient(efficient_input)
+        eager_output.square().sum().backward()
+        efficient_output.square().sum().backward()
+
+        torch.testing.assert_close(efficient_output, eager_output)
+        torch.testing.assert_close(
+            efficient_input.grad,
+            eager_input.grad,
+            rtol=3e-5,
+            atol=5e-7,
+        )
+        for efficient_parameter, eager_parameter in zip(
+            efficient.parameters(),
+            eager.parameters(),
+            strict=True,
+        ):
+            if eager_parameter.grad is not None:
+                torch.testing.assert_close(
+                    efficient_parameter.grad,
+                    eager_parameter.grad,
+                    rtol=3e-5,
+                    atol=5e-7,
+                )
+
+    def test_memory_efficient_shunt_keeps_analysis_voltage_available(self):
+        layer = _make_layer(
+            use_shunting=True,
+            reactivate=True,
+            reactivation_type="param_tanh",
+            reactivation_memory_efficient=True,
+        )
+        layer._store_analysis_currents = True
+
+        layer(torch.rand(2, 20))
+
+        assert isinstance(
+            layer._last_analysis_currents["pre_gate_voltage"], torch.Tensor
+        )
+
     def test_additive_default_reactivation_init_is_legacy(self):
         layer = _make_layer(
             use_shunting=False,

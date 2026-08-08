@@ -877,6 +877,11 @@ def test_flat_point_voltage_transition_has_no_serial_cross_channel_jacobian() ->
 
 
 def test_config_validation_rejects_inexact_or_unreachable_controls() -> None:
+    with pytest.raises(ValueError, match="cannot be combined"):
+        _small_config(
+            indexed_recompute_backward=True,
+            indexed_projection_backend="cuda",
+        )
     with pytest.raises(ValueError, match="positive values"):
         _small_config(tau_values=[9.0, 0.0])
     with pytest.raises(ValueError, match="every output owner"):

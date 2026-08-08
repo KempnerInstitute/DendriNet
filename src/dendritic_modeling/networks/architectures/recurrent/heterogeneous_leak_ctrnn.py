@@ -16,6 +16,9 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.deg
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_sparse import (
     IndexedSparseLinear,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.kernels import (
+    normalize_indexed_projection_backend,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
     apply_recurrent_weight_cache,
 )
@@ -140,6 +143,7 @@ class HeterogeneousLeakCTRNNConfig:
     indexed_cache_transformed_weights: bool = False
     indexed_recompute_backward: bool = False
     indexed_persistent_indices: bool = True
+    indexed_projection_backend: str = "eager"
 
     def __post_init__(self) -> None:
         self.owner_tau_patterns = [
@@ -230,6 +234,17 @@ class HeterogeneousLeakCTRNNConfig:
             raise ValueError("output_mode must be 'last', 'mean', or 'all'")
         if self.indexed_workspace_mb is not None and self.indexed_workspace_mb <= 0:
             raise ValueError("indexed_workspace_mb must be positive when provided")
+        self.indexed_projection_backend = normalize_indexed_projection_backend(
+            self.indexed_projection_backend
+        )
+        if self.indexed_recompute_backward and self.indexed_projection_backend not in {
+            "eager",
+            "recompute",
+        }:
+            raise ValueError(
+                "indexed_recompute_backward cannot be combined with "
+                f"indexed_projection_backend={self.indexed_projection_backend!r}"
+            )
 
         n_outputs = self.n_outputs
         if sum(pattern.owner_count for pattern in self.owner_tau_patterns) != n_outputs:
@@ -470,6 +485,7 @@ class HeterogeneousLeakCTRNN(BaseNetwork):
             "workspace_mb": config.indexed_workspace_mb,
             "cache_transformed_weights": (config.indexed_cache_transformed_weights),
             "recompute_backward": config.indexed_recompute_backward,
+            "projection_backend": config.indexed_projection_backend,
             "persistent_indices": config.indexed_persistent_indices,
         }
         with torch.random.fork_rng(devices=[]):
@@ -647,6 +663,7 @@ class HeterogeneousLeakCTRNN(BaseNetwork):
                 workspace_mb=common_sparse["workspace_mb"],
                 cache_transformed_weights=common_sparse["cache_transformed_weights"],
                 recompute_backward=common_sparse["recompute_backward"],
+                projection_backend=common_sparse["projection_backend"],
                 persistent_indices=common_sparse["persistent_indices"],
             )
         per_contact = self.config.readout_scale / degree

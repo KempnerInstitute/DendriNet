@@ -398,6 +398,7 @@ class DendriticBranchLayer(nn.Module):
             "indexed_cache_transformed_weights"
         ]
         self.indexed_recompute_backward = synapse_options["indexed_recompute_backward"]
+        self.indexed_projection_backend = synapse_options["indexed_projection_backend"]
         self.indexed_persistent_indices = synapse_options["indexed_persistent_indices"]
         self.indexed_init_mode = synapse_options["indexed_init_mode"]
         self.input_excitatory = excitatory_input_dim is not None
@@ -672,6 +673,10 @@ class DendriticBranchLayer(nn.Module):
 
         if synapse_options["reactivate"]:
             # initialize() may later overwrite these values based on policy.
+            activation_kwargs.setdefault(
+                "memory_efficient",
+                synapse_options["reactivation_memory_efficient"],
+            )
             with self.initialization_seed_scope("constructor.reactivation"):
                 self.reactivation = ActivationFactory.create(
                     act_type=synapse_options["reactivation_type"],

@@ -7,6 +7,9 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 
 from dendritic_modeling.config.base import BaseConfig
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.kernels import (
+    normalize_indexed_projection_backend,
+)
 
 
 @dataclass
@@ -181,6 +184,8 @@ class PopulationConfig(BaseConfig):
     indexed_recompute_backward: bool = False
     indexed_persistent_indices: bool = True
     indexed_init_mode: str = "per_rank"
+    indexed_projection_backend: str = "eager"
+    reactivation_memory_efficient: bool = False
 
     def __post_init__(self):
         if self.n_neurons <= 0:
@@ -195,6 +200,17 @@ class PopulationConfig(BaseConfig):
             raise ValueError(
                 "indexed_workspace_mb must be > 0 when provided, got "
                 f"{self.indexed_workspace_mb}"
+            )
+        self.indexed_projection_backend = normalize_indexed_projection_backend(
+            self.indexed_projection_backend
+        )
+        if self.indexed_recompute_backward and self.indexed_projection_backend not in {
+            "eager",
+            "recompute",
+        }:
+            raise ValueError(
+                "indexed_recompute_backward cannot be combined with "
+                f"indexed_projection_backend={self.indexed_projection_backend!r}"
             )
         self.indexed_init_mode = str(self.indexed_init_mode).lower()
         if self.indexed_init_mode not in {"per_rank", "rank0_broadcast"}:

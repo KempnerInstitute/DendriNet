@@ -108,6 +108,13 @@ def _population_indexed_config(
         "candidate_size": "indexed_candidate_size",
         "selection": "indexed_selection",
         "output_chunk_size": "indexed_output_chunk_size",
+        "index_dtype": "indexed_index_dtype",
+        "workspace_mb": "indexed_workspace_mb",
+        "cache_transformed_weights": "indexed_cache_transformed_weights",
+        "recompute_backward": "indexed_recompute_backward",
+        "projection_backend": "indexed_projection_backend",
+        "persistent_indices": "indexed_persistent_indices",
+        "init_mode": "indexed_init_mode",
         "rewire_frequency": "indexed_rewire_frequency",
         "rewire_quantile": "indexed_rewire_quantile",
         "rewire_until_step": "indexed_rewire_until_step",
@@ -214,6 +221,15 @@ def _common_population_replacement_kwargs(
         "indexed_candidate_size": indexed.get("candidate_size"),
         "indexed_selection": indexed.get("selection", "standard"),
         "indexed_output_chunk_size": int(indexed.get("output_chunk_size", 2048)),
+        "indexed_index_dtype": str(indexed.get("index_dtype", "int64")),
+        "indexed_workspace_mb": indexed.get("workspace_mb"),
+        "indexed_cache_transformed_weights": bool(
+            indexed.get("cache_transformed_weights", False)
+        ),
+        "indexed_recompute_backward": bool(indexed.get("recompute_backward", False)),
+        "indexed_projection_backend": str(indexed.get("projection_backend", "eager")),
+        "indexed_persistent_indices": bool(indexed.get("persistent_indices", True)),
+        "indexed_init_mode": str(indexed.get("init_mode", "per_rank")),
         "indexed_rewire_frequency": int(indexed.get("rewire_frequency", 100)),
         "indexed_rewire_quantile": float(indexed.get("rewire_quantile", 0.05)),
         "indexed_rewire_until_step": indexed.get("rewire_until_step"),
@@ -281,6 +297,12 @@ def _population_reactivation_kwargs(
             payload.get(
                 "reactivation_sigma_aware_k",
                 reactivation.get("sigma_aware_k", 0.25),
+            )
+        ),
+        "reactivation_memory_efficient": bool(
+            payload.get(
+                "reactivation_memory_efficient",
+                reactivation.get("memory_efficient", False),
             )
         ),
     }

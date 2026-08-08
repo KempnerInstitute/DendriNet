@@ -44,6 +44,7 @@ def _indexed_runtime_kwargs(owner: Any) -> dict[str, Any]:
         "workspace_mb": owner.indexed_workspace_mb,
         "cache_transformed_weights": owner.indexed_cache_transformed_weights,
         "recompute_backward": owner.indexed_recompute_backward,
+        "projection_backend": owner.indexed_projection_backend,
         "persistent_indices": owner.indexed_persistent_indices,
         "init_mode": owner.indexed_init_mode,
     }

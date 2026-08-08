@@ -17,6 +17,9 @@ import torch
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.degree_grouped_indexed import (
     DegreeGroupedIndexedLinear,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.kernels import (
+    normalize_indexed_projection_backend,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
     apply_recurrent_weight_cache,
 )
@@ -139,6 +142,7 @@ class FixedLegendreMemoryConfig:
     indexed_cache_transformed_weights: bool = False
     indexed_recompute_backward: bool = False
     indexed_persistent_indices: bool = True
+    indexed_projection_backend: str = "eager"
 
     def __post_init__(self) -> None:
         for name in (
@@ -171,6 +175,17 @@ class FixedLegendreMemoryConfig:
             raise ValueError("the LDN theta horizon is fixed and cannot be trainable")
         if self.indexed_workspace_mb is not None:
             _positive_finite(self.indexed_workspace_mb, name="indexed_workspace_mb")
+        self.indexed_projection_backend = normalize_indexed_projection_backend(
+            self.indexed_projection_backend
+        )
+        if self.indexed_recompute_backward and self.indexed_projection_backend not in {
+            "eager",
+            "recompute",
+        }:
+            raise ValueError(
+                "indexed_recompute_backward cannot be combined with "
+                f"indexed_projection_backend={self.indexed_projection_backend!r}"
+            )
 
         self._validate_contacts(
             name="input_contacts",
@@ -290,6 +305,7 @@ class FixedLegendreMemory(BaseNetwork):
             "workspace_mb": config.indexed_workspace_mb,
             "cache_transformed_weights": config.indexed_cache_transformed_weights,
             "recompute_backward": config.indexed_recompute_backward,
+            "projection_backend": config.indexed_projection_backend,
             "persistent_indices": config.indexed_persistent_indices,
         }
         with torch.random.fork_rng(devices=[]):

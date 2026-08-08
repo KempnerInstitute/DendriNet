@@ -869,6 +869,19 @@ Important replacement parameters:
    Optional cutoff step after which indexed rewiring stops and the sampled
    sparse morphology is frozen.
 
+``sparsity.indexed.projection_backend``
+   Execution backend for fixed-index projection: ``eager`` (compatibility
+   default), ``recompute`` (portable memory-saving backward), ``triton``,
+   ``cuda``, or ``auto``. Explicit native choices fail when unavailable;
+   ``auto`` selects CUDA, then Triton, then portable recompute. See
+   :doc:`performance_kernels` before enabling native kernels in a canonical
+   experiment.
+
+``reactivation.memory_efficient``
+   Opt-in custom autograd for ``param_tanh`` and ``param_tanh_only_m``. In
+   shunting layers it also fuses division with reactivation unless diagnostics
+   need the intermediate voltage. The default is ``false``.
+
 Minimal ``indexed_rewire`` block:
 
 .. code-block:: yaml
@@ -879,6 +892,7 @@ Minimal ``indexed_rewire`` block:
          type: indexed_rewire
          indexed:
            seed: 42
+           projection_backend: eager
            rewire_frequency: 100
            rewire_quantile: 0.05
            rewire_until_step: null
@@ -1498,7 +1512,7 @@ to every branch according to the tree's nested spatial regions:
          type: indexed
          indexed:
            index_dtype: int32
-           recompute_backward: true
+           projection_backend: recompute
            persistent_indices: false
 
 ``split_axes`` is listed from soma to distal leaves and must have the same
