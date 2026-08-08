@@ -1,0 +1,77 @@
+# Learning-quality pilot for the complete dendritic AlexNet. This extends the
+# DDP/runtime canary to a balanced 50-image-per-class ImageNet subset and tests
+# the two integration rules under their independently selected initialization
+# policies before any full-dataset confirmation run is authorized.
+
+extends: dendritic_alexnet_imagenet_canary.yaml
+
+slurm_config:
+  run_name: dendritic_alexnet_imagenet_learning_pilot
+  account: kempner_dev
+  partition: kempner_requeue
+  time: "02:00:00"
+  gpus_per_node: 4
+  max_concurrent_jobs: 1
+
+experiment_settings:
+  seeds_per_condition: 1
+  base_seed: 71100
+
+sweep_variants:
+  - name: full_dendritic_shunting
+    overrides:
+      model.core.morphology.use_shunting: true
+      model.core.morphology.dbl_init_method: analytical_expectation
+  - name: full_dendritic_additive
+    overrides:
+      model.core.morphology.use_shunting: false
+      model.core.morphology.dbl_init_method: occupancy_quantile
+
+sweep_contract:
+  expected_config_count: 2
+
+base_config:
+  experiment:
+    seed: 71100
+    train_valid_split: 0.98
+    checkpointing:
+      enabled: true
+      save_every_n_epochs: 5
+      checkpoint_dir: null
+
+  data:
+    dataset_params:
+      imagenet:
+        train_samples_per_class: 50
+        val_samples_per_class: 10
+
+  model:
+    core:
+      initialization_seed: 71100
+      vision:
+        seed: 71100
+      connectivity:
+        structured:
+          seed: 71100
+      sparsity:
+        indexed:
+          seed: 71100
+
+  training:
+    main:
+      common:
+        epochs: 20
+        early_stopping: false
+        load_best_state_dict: true
+
+  analysis:
+    performance:
+      final_splits: [valid, test]
+
+  wandb:
+    group: iclr2027_dendritic_alexnet_learning_pilot
+    tags: [iclr2027, alexnet, full_dendritic, learning_pilot]
+
+  outputs:
+    run_name: dendritic_alexnet_imagenet_learning_pilot
+    results_dir: /n/holylfs06/LABS/kempner_project_b/Lab/dendritic/HS/dendritic_scaling/iclr2027/vision/full_model_learning_pilot
