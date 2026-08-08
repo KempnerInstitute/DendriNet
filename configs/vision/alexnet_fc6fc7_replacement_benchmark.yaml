@@ -1,0 +1,22 @@
+# AlexNet fc6+fc7 replacement benchmark. The frozen convolutional prefix emits
+# the native 256x6x6 map, while the retained suffix is only the pretrained fc8
+# classifier. This is the stable boundary used by the prior AlexNet screens.
+# Spatial routing still acts on the fc6 input map; every arm replaces the same
+# fc6+ReLU+fc7+ReLU span and emits 4,096 features to fc8.
+
+extends: alexnet_fc6_replacement_benchmark.yaml
+
+slurm_config:
+  run_name: alexnet_fc6fc7_replacement_benchmark
+
+base_config:
+  model:
+    vision_replacement:
+      target_modules:
+        - classifier.1
+        - classifier.2
+        - classifier.3
+        - classifier.4
+        - classifier.5
+  outputs:
+    run_name: alexnet_fc6fc7_replacement_benchmark

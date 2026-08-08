@@ -43,6 +43,9 @@ reference configs and reusable examples.
 | Raw ImageNet spatial DendriNet, local credit assignment | `vision/imagenet_raw_spatial_dendrinet_alexnet_matched_localca.yaml` |
 | End-to-end dendritic AlexNet canary | `vision/dendritic_alexnet_imagenet_canary.yaml` |
 | Full-model shunting/additive learning pilot | `vision/dendritic_alexnet_imagenet_learning_pilot.yaml` |
+| AlexNet fc6+fc7 replacement benchmark | `vision/alexnet_fc6fc7_replacement_benchmark.yaml` |
+| AlexNet fc6+fc7 learned-TopK control | `vision/alexnet_fc6fc7_learned_topk.yaml` |
+| AlexNet fc6+fc7 learning pilot | `vision/alexnet_fc6fc7_learning_pilot.yaml` |
 | Local credit assignment | `examples/population_network_local_learning_mnist.yaml` |
 | Frozen-checkpoint representation analysis | `examples/representation_accessibility_analysis.yaml` |
 | Transformer FFN replacement | `examples/transformer_replacement_synthetic_distillation.yaml` |
