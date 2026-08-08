@@ -39,7 +39,10 @@ base_config:
     allow_tf32: true
     float32_matmul_precision: high
     enable_hooks: false
-    record_dataset_fingerprints: true
+    # ImageNet path inventories are multi-gigabyte JSON files and add no value
+    # to a bounded architecture/learning gate. Dataset identity is recorded by
+    # the declared root, torchvision preset, and frozen config hash instead.
+    record_dataset_fingerprints: false
     checkpointing: {enabled: false}
 
   data:
