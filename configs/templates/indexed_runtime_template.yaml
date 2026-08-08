@@ -1,0 +1,42 @@
+# Indexed-synapse execution and memory options for structured cores.
+#
+# Copy `model.core.sparsity` and `model.core.reactivation` into an EINet,
+# DendriNet, transformer-replacement, or configured vision-replacement model.
+# Population-network and unified-E/I population blocks use the equivalent flat
+# names shown at the end of this file.
+
+model:
+  core:
+    sparsity:
+      type: "indexed"                  # "indexed" | "indexed_dynamic" | "indexed_rewire"
+      indexed:
+        seed: 42                        # int | null: Fixed topology seed
+        candidate_size: null            # int | null: Candidate pool for indexed_dynamic
+        selection: "standard"           # str: Indexed candidate selection rule
+        output_chunk_size: 2048         # int: Maximum outputs processed per chunk
+        index_dtype: "int64"            # "auto" | "int32" | "int64"
+        workspace_mb: null              # float | null: Temporary gather-memory cap
+        cache_transformed_weights: false # bool: Reuse fixed transformed weights within an unroll
+        projection_backend: "eager"     # "eager" | "recompute" | "triton" | "cuda" | "auto"
+        persistent_indices: true        # bool: Store topology in checkpoints
+        init_mode: "per_rank"           # "per_rank" | "rank0_broadcast"
+        rewire_frequency: 100           # int: Optimizer steps between rewires
+        rewire_quantile: 0.05           # float: Weak-contact turnover fraction
+        rewire_until_step: null         # int | null: Optional last rewire step
+    reactivation:
+      enabled: true
+      type: "param_tanh"
+      memory_efficient: false           # bool: Reduce tensors retained for backward
+
+# Population-network/unified-EI equivalents inside `population_defaults`,
+# `excitatory`, or `inhibitory` blocks:
+#
+#   indexed_seed: 42
+#   indexed_output_chunk_size: 2048
+#   indexed_index_dtype: "int64"
+#   indexed_workspace_mb: null
+#   indexed_cache_transformed_weights: false
+#   indexed_projection_backend: "eager"
+#   indexed_persistent_indices: true
+#   indexed_init_mode: "per_rank"
+#   reactivation_memory_efficient: false

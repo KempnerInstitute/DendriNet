@@ -200,7 +200,12 @@ model:
             indexed_rewire_quantile: 0.05
             indexed_rewire_until_step: null
             indexed_output_chunk_size: 2048
-            indexed_projection_backend: "eager" # eager | recompute | triton | cuda | auto
+            indexed_index_dtype: "int64"         # str: "auto" | "int32" | "int64"
+            indexed_workspace_mb: null           # float | null: Cap temporary gather workspace
+            indexed_cache_transformed_weights: false # bool: Reuse fixed transformed weights within an unroll
+            indexed_projection_backend: "eager" # str: "eager" | "recompute" | "triton" | "cuda" | "auto"
+            indexed_persistent_indices: true     # bool: Store topology in checkpoints
+            indexed_init_mode: "per_rank"       # str: "per_rank" | "rank0_broadcast"
             efficient_blocklinear: true
           populations:
             - name: "i"

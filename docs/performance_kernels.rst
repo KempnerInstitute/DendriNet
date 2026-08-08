@@ -98,6 +98,16 @@ The selector does not apply when ``vision_replacement.core_source`` is
 instead of constructing indexed dendritic synapses. It also has no effect on a
 core using a non-indexed sparsity type.
 
+Complete configuration examples
+-------------------------------
+
+``configs/examples/indexed_backends/`` contains large feedforward, recurrent,
+and AlexNet-fc6 replacement recipes. Each recipe expands through the standard
+named-variant mechanism into ``eager``, ``recompute``, ``triton``, ``cuda``,
+and ``auto`` training configs. The copy/paste reference for both projection and
+reactivation settings is
+``configs/templates/indexed_runtime_template.yaml``.
+
 Dtypes and numerical behavior
 -----------------------------
 

@@ -875,7 +875,10 @@ Important replacement parameters:
    ``cuda``, or ``auto``. Explicit native choices fail when unavailable;
    ``auto`` selects CUDA, then Triton, then portable recompute. The selector is
    shared by feedforward, recurrent, transformer, and configured vision
-   replacement cores; see :doc:`performance_kernels` for scope and dtype rules.
+   replacement cores. See :doc:`performance_kernels` for scope and dtype rules,
+   ``configs/templates/indexed_runtime_template.yaml`` for the full option
+   block, and ``configs/examples/indexed_backends/`` for complete large-model
+   recipes covering every selector value.
 
 ``reactivation.memory_efficient``
    Opt-in custom autograd for ``param_tanh`` and ``param_tanh_only_m``. In

@@ -15,7 +15,9 @@ reference configs and reusable examples.
   population-network dot paths.
 - `templates/analysis_full_template.yaml`: copy/paste reference for the full
   preferred `analysis:` block, including SNR/RF options and inline comments.
-- `examples/`: small, documented examples for common model families and features.
+- `templates/indexed_runtime_template.yaml`: copy/paste reference for indexed
+  projection backends, topology storage, workspace, and reactivation memory.
+- `examples/`: documented examples for common model families and features.
 - `vision/`: AlexNet / vision-backbone replacement examples.
 - `<project>/`: project-owned, versioned experiment contracts. Generated
   expansions belong under that project's ignored `generated/` directory.
@@ -39,6 +41,7 @@ reference configs and reusable examples.
 | Soma-to-dendrite feedback | `examples/population_network_soma_feedback.yaml` |
 | Dense-to-sparse developmental pruning | `examples/population_network_dense_to_sparse_cifar10.yaml` |
 | Indexed adaptive rewiring | `examples/population_network_indexed_rewire_mnist.yaml` |
+| Large indexed backend examples | `examples/indexed_backends/README.md` |
 | Raw ImageNet spatial DendriNet, backpropagation | `vision/imagenet_raw_spatial_dendrinet_alexnet_matched_bp.yaml` |
 | Raw ImageNet spatial DendriNet, local credit assignment | `vision/imagenet_raw_spatial_dendrinet_alexnet_matched_localca.yaml` |
 | Local credit assignment | `examples/population_network_local_learning_mnist.yaml` |
