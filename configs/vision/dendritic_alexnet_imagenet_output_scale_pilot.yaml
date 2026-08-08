@@ -1,0 +1,78 @@
+# Fixed-logit-scale learning gate for the complete dendritic AlexNet.
+#
+# The first full-model pilot used ``output_scale_mode: global``. That mode is
+# learnable even when ``learned_output_scale`` is false, and its scale shrank
+# from 1.0 to 0.227 while the balanced 1000-way objective remained at chance.
+# Branch-state analysis found finite, non-saturated activity throughout the
+# network. This bounded sweep therefore isolates the output temperature before
+# changing the dendritic architecture or launching a full-data experiment.
+
+extends: dendritic_alexnet_imagenet_learning_pilot.yaml
+
+slurm_config:
+  run_name: dendritic_alexnet_imagenet_output_scale_pilot
+  account: kempner_dev
+  partition: kempner_rtx
+  time: "01:00:00"
+  gpus_per_node: 4
+  max_concurrent_jobs: 1
+
+experiment_settings:
+  seeds_per_condition: 1
+  base_seed: 71200
+
+sweep_variants:
+  - name: shunting_fixed_scale_1
+    overrides:
+      model.learned_output_scale: false
+      model.output_scale_mode: fixed
+      model.fixed_output_scale: 1.0
+  - name: shunting_fixed_scale_10
+    overrides:
+      model.learned_output_scale: false
+      model.output_scale_mode: fixed
+      model.fixed_output_scale: 10.0
+  - name: shunting_fixed_scale_20
+    overrides:
+      model.learned_output_scale: false
+      model.output_scale_mode: fixed
+      model.fixed_output_scale: 20.0
+
+sweep_contract:
+  expected_config_count: 3
+
+base_config:
+  experiment:
+    seed: 71200
+    checkpointing:
+      enabled: false
+
+  model:
+    core:
+      initialization_seed: 71200
+      vision:
+        seed: 71200
+      connectivity:
+        structured:
+          seed: 71200
+      sparsity:
+        indexed:
+          seed: 71200
+
+  training:
+    main:
+      common:
+        epochs: 5
+        load_best_state_dict: false
+
+  analysis:
+    performance:
+      final_splits: [valid]
+
+  wandb:
+    group: iclr2027_dendritic_alexnet_output_scale_pilot
+    tags: [iclr2027, alexnet, full_dendritic, output_scale_pilot]
+
+  outputs:
+    run_name: dendritic_alexnet_imagenet_output_scale_pilot
+    results_dir: /n/holylfs06/LABS/kempner_project_b/Lab/dendritic/HS/dendritic_scaling/iclr2027/vision/full_model_output_scale_pilot
