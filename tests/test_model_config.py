@@ -37,6 +37,7 @@ def test_model_config_defaults():
     assert isinstance(cfg.vision_replacement, PretrainedReplacementConfig)
     assert isinstance(cfg.pretrained_replacement, PretrainedReplacementConfig)
     assert isinstance(cfg.transformer_replacement, TransformerReplacementConfig)
+    assert cfg.core.vision == {}
 
 
 def test_architecture_config_defaults():
@@ -190,6 +191,7 @@ def test_core_config_asdict_keys():
         "heterogeneous_leak_ctrnn",
         "legendre_memory",
         "population_network",
+        "vision",
     }
     assert expected_keys == set(d.keys())
 

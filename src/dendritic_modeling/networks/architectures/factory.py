@@ -126,6 +126,7 @@ _BUILTIN_ARCHITECTURE_TYPES: frozenset[str] = frozenset(
         "cnndownsample",
         "cnnupsample",
         "direct_active_matched_point",
+        "dendritic_alexnet",
         "effectivematchedparammlp",
         "identity",
         "mlp",
@@ -483,6 +484,26 @@ def _build_identity(
     return Identity(**_ensure_flat_parameters(type, parameters))
 
 
+def _build_dendritic_alexnet_architecture(
+    type: str,
+    parameters: Union[dict[str, Any], DictConfig],
+    input_dim: Optional[int],
+    suffix_input_dim: Optional[int],
+) -> nn.Module:
+    """Build an end-to-end AlexNet-shaped dendritic vision network."""
+
+    del type, suffix_input_dim
+    from dendritic_modeling.networks.architectures.vision import DendriticAlexNet
+
+    raw_params = _to_plain_mapping(parameters)
+    input_channels = int(
+        raw_params.get("vision", {}).get(
+            "input_channels", 3 if input_dim is None else input_dim
+        )
+    )
+    return DendriticAlexNet(raw_params, input_channels=input_channels)
+
+
 def _build_builtin_architecture_registry() -> dict[str, ArchitectureBuilder]:
     builders: dict[str, ArchitectureBuilder] = {}
     builders.update(dict.fromkeys(_UNIFIED_EI_TYPES, _build_unified_ei_architecture))
@@ -520,6 +541,7 @@ def _build_builtin_architecture_registry() -> dict[str, ArchitectureBuilder]:
             "direct_active_matched_point": (
                 _build_direct_active_matched_point_architecture
             ),
+            "dendritic_alexnet": _build_dendritic_alexnet_architecture,
             "sparse_active_matched_point": (
                 _build_sparse_active_matched_point_architecture
             ),

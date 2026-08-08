@@ -1,0 +1,111 @@
+"""Contract tests for the end-to-end dendritic AlexNet."""
+
+import torch
+
+from dendritic_modeling.networks.architectures.factory import (
+    get_architecture,
+    get_available_architectures,
+)
+
+
+def _tiny_config() -> dict:
+    return {
+        "vision": {
+            "input_transform": "signed_split",
+            "channels": [2, 3, 4, 4, 4],
+            "kernels": [3, 3, 3, 3, 3],
+            "strides": [2, 1, 1, 1, 1],
+            "paddings": [1, 1, 1, 1, 1],
+            "pool_after": [0, 1, 4],
+            "adaptive_pool_shape": [1, 1],
+            "classifier_widths": [5, 5],
+            "inhibitory_ratio": 0.5,
+            "num_classes": 3,
+            "dropout": 0.0,
+            "seed": 11,
+        },
+        "architecture": {
+            "excitatory_layer_sizes": [2],
+            "inhibitory_layer_sizes": [1],
+            "excitatory_branch_factors": [1],
+            "inhibitory_branch_factors": [1],
+            "inhibitory_network_type": "dendritic",
+            "mlp_inhibitory_network_params": {
+                "hidden_dims": [],
+                "activation": "relu",
+            },
+        },
+        "connectivity": {
+            "ee_synapses_per_branch_per_layer": [2],
+            "ei_synapses_per_branch_per_layer": [1],
+            "ie_synapses_per_branch_per_layer": [1],
+            "ii_synapses_per_branch_per_layer": [0],
+        },
+        "transfer": {
+            "input_mode": 0,
+            "independent_pathways": False,
+            "excitatory_dim": None,
+            "inhibitory_dim": None,
+            "output_activation": "relu",
+        },
+        "morphology": {
+            "somatic_synapses": False,
+            "use_shunting": True,
+            "weight_transform": "softplus",
+            "dbl_init_method": "analytical_expectation",
+        },
+        "sparsity": {
+            "type": "standard",
+            "init_method": "xavier_normal",
+            "noise_level": 0.0,
+            "weight_norm_order": None,
+            "gamma": 1.0,
+            "temperature": 0.0,
+            "gradient_scaling": "none",
+            "indexed": {"seed": 11},
+        },
+        "reactivation": {
+            "enabled": True,
+            "type": "param_tanh",
+            "init_policy": "analytical",
+            "init_m": 1.5,
+            "init_b": 0.5,
+            "gradient_scaling": "none",
+        },
+        "blocklinear": {"gradient_scaling": "none", "efficient": True},
+        "implementation": {
+            "adaptive_initialization": False,
+            "print_hooks": False,
+        },
+    }
+
+
+def test_factory_exposes_dendritic_alexnet():
+    assert "dendritic_alexnet" in get_available_architectures()
+
+
+def test_dendritic_alexnet_preserves_channel_and_class_contracts():
+    model = get_architecture("dendritic_alexnet", _tiny_config(), input_dim=3)
+
+    output = model(torch.randn(2, 3, 64, 64))
+
+    assert output.shape == (2, 3)
+    assert torch.isfinite(output).all()
+    assert model.architecture_contract() == {
+        "input_layout": "BCHW",
+        "input_transform": "signed_split",
+        "input_channels": 3,
+        "adapted_input_channels": 6,
+        "spatial_channel_mapping": "one_excitatory_soma_per_output_channel",
+        "channel_widths": [2, 3, 4, 4, 4],
+        "class_mapping": "one_excitatory_soma_per_class",
+        "num_classes": 3,
+        "propagated_population": "excitatory",
+        "component_seeds": [11, 12, 13, 14, 15, 16, 17, 18],
+    }
+
+
+def test_dendritic_alexnet_assigns_distinct_component_seeds():
+    model = get_architecture("dendritic_alexnet", _tiny_config(), input_dim=3)
+
+    assert model.component_seeds == (11, 12, 13, 14, 15, 16, 17, 18)

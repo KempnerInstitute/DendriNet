@@ -323,6 +323,9 @@ class CoreConfig(BaseConfig):
     # Canonical population/layer/connection schema for feedforward or recurrent
     # named-population dendritic networks.
     population_network: dict[str, Any] = field(default_factory=dict)
+    # Config-driven end-to-end vision architectures assembled from dendritic
+    # convolutional and feedforward blocks.
+    vision: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass

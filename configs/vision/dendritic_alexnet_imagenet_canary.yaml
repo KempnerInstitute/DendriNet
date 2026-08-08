@@ -1,0 +1,194 @@
+# End-to-end dendritic AlexNet canary. This is deliberately a bounded
+# full-stack test, not a publication accuracy run.
+
+slurm_config:
+  run_name: dendritic_alexnet_imagenet_canary
+  account: kempner_dev
+  partition: kempner_eng
+  time: "02:00:00"
+  nodes: 1
+  ntasks_per_node: 1
+  gpus_per_node: 4
+  launcher: torchrun
+  cpus_per_task: 32
+  mem: 160GB
+  max_concurrent_jobs: 1
+  exclude_nodes: []
+  modules_to_load: []
+  conda_env_path: /n/holylabs/kempner_dev/Users/hsafaai/venvs/dendritic_empirical_cu128_20260722
+  training_script: src/dendritic_modeling/scripts/training/train_experiments.py
+
+experiment_settings:
+  seeds_per_condition: 1
+  base_seed: 71000
+
+sweep_variants:
+  - name: full_dendritic_shunting
+    overrides: {}
+filter_config: {mode: default}
+sweep_contract: {expected_config_count: 1}
+
+base_config:
+  experiment:
+    seed: 71000
+    train_valid_split: 0.98
+    fast_mode: true
+    deterministic: false
+    strict_deterministic: false
+    cudnn_benchmark: true
+    allow_tf32: true
+    float32_matmul_precision: high
+    enable_hooks: false
+    record_dataset_fingerprints: true
+    checkpointing: {enabled: false}
+
+  data:
+    dataset_name: imagenet
+    base_dir: /n/holylfs06/LABS/kempner_shared/Everyone/testbed/vision/imagenet_1k
+    processing:
+      flatten: false
+      normalize: true
+    dataset_params:
+      imagenet:
+        transform_preset: pretrained
+        loader_backend: imagefolder
+        allow_flatten_materialize: false
+        train_samples_per_class: 5
+        val_samples_per_class: 2
+
+  model:
+    task: classification
+    learned_output_scale: false
+    fixed_output_scale: 1.0
+    output_scale_mode: global
+    encoder:
+      type: identity
+      params:
+        input_dim: 3
+        input_shape: [3, 224, 224]
+    core:
+      type: dendritic_alexnet
+      initialization_seed: 71000
+      vision:
+        input_channels: 3
+        input_transform: signed_split
+        channels: [64, 192, 384, 256, 256]
+        kernels: [11, 5, 3, 3, 3]
+        strides: [4, 1, 1, 1, 1]
+        paddings: [2, 2, 1, 1, 1]
+        pool_after: [0, 1, 4]
+        pool_kernel: 3
+        pool_stride: 2
+        adaptive_pool_shape: [6, 6]
+        classifier_widths: [4096, 4096]
+        inhibitory_ratio: 0.2
+        num_classes: 1000
+        dropout: 0.5
+        seed: 71000
+      architecture:
+        excitatory_layer_sizes: [64]
+        inhibitory_layer_sizes: [16]
+        excitatory_branch_factors: [2, 2]
+        inhibitory_branch_factors: [2, 2]
+        inhibitory_network_type: dendritic
+        mlp_inhibitory_network_params: {hidden_dims: [], activation: relu}
+      connectivity:
+        ee_synapses_per_branch_per_layer: [40]
+        ei_synapses_per_branch_per_layer: [10]
+        ie_synapses_per_branch_per_layer: [10]
+        ii_synapses_per_branch_per_layer: [0]
+        structured: {enabled: false, seed: 71000}
+      transfer:
+        input_mode: 0
+        independent_pathways: false
+        excitatory_dim: null
+        inhibitory_dim: null
+        output_activation: relu
+      morphology:
+        somatic_synapses: false
+        use_shunting: true
+        weight_transform: softplus
+        dbl_init_method: analytical_expectation
+      sparsity:
+        type: indexed
+        init_method: xavier_normal
+        noise_level: 0.0
+        weight_norm_order: null
+        gamma: 1.0
+        gradient_scaling: none
+        indexed:
+          seed: 71000
+          index_dtype: int32
+          output_chunk_size: 2048
+          workspace_mb: 128
+          cache_transformed_weights: false
+          projection_backend: recompute
+          persistent_indices: false
+          init_mode: per_rank
+      reactivation:
+        enabled: true
+        type: param_tanh
+        init_policy: analytical
+        init_m: 1.5
+        init_b: 0.5
+        gradient_scaling: none
+      blocklinear: {gradient_scaling: none, efficient: true}
+      implementation: {adaptive_initialization: false, print_hooks: false}
+    decoder:
+      type: identity
+      params:
+        input_dim: 1000
+        hidden_dims: []
+        output_dim: 1000
+
+  training:
+    encoder: {strategy: standard, common: {epochs: 0}}
+    main:
+      strategy: standard
+      common:
+        epochs: 2
+        batch_size: 16
+        num_workers: 8
+        pin_memory: true
+        persistent_workers: true
+        prefetch_factor: 4
+        shuffle: true
+        loss_function: cat_nll
+        early_stopping: false
+        load_best_state_dict: false
+        plot_losses: true
+        suppress_prints: false
+        print_every: 1
+        grad_clip_value: 5.0
+        use_amp: true
+        weight_decay_rate: 0.0
+        weight_boosting: false
+        param_groups:
+          lr: 0.001
+          split_params: true
+          topk_lr: 0.001
+          blocklinear_lr: 0.0001
+          reactivation_lr: 0.0001
+          decoder_lr: 0.001
+          encoder_lr: 0.0
+      optimizer: {name: adamw, weight_decay: 0.01}
+      strategies: {standard: {}}
+
+  analysis:
+    performance:
+      enabled: true
+      training: false
+      params: {accuracy: true, auc: false, categorical_loglikelihood: true}
+      final_splits: [valid]
+
+  wandb:
+    use_wandb: false
+    project: dendritic-scaling
+    group: iclr2027_dendritic_alexnet_canary
+    tags: [iclr2027, alexnet, full_dendritic, canary]
+
+  outputs:
+    run_name: dendritic_alexnet_imagenet_canary
+    results_dir: /n/holylfs06/LABS/kempner_project_b/Lab/dendritic/HS/dendritic_scaling/iclr2027/vision/full_model_canary
+
+  distributed: {mode: ddp}
