@@ -443,6 +443,11 @@ def _build_core_config(core_data: Any) -> CoreConfig:
 
     return CoreConfig(
         type=core_type,
+        initialization_seed=(
+            None
+            if core_dict.get("initialization_seed") is None
+            else int(core_dict["initialization_seed"])
+        ),
         architecture=ArchitectureConfig(
             **_to_plain_dict(core_dict.get("architecture", {}))
         ),
@@ -480,6 +485,7 @@ def _build_core_config(core_data: Any) -> CoreConfig:
         ),
         legendre_memory=_to_plain_dict(core_dict.get("legendre_memory", {})),
         population_network=_to_plain_dict(core_dict.get("population_network", {})),
+        vision=_to_plain_dict(core_dict.get("vision", {})),
     )
 
 

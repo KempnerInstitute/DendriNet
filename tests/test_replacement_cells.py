@@ -3,6 +3,7 @@ import torch
 from dendritic_modeling.networks.architectures.replacement import (
     LayerwiseTokenReplacementStack,
     NonNegativeInputAdapter,
+    SpatialNonNegativeInputAdapter,
     TokenReplacementCell,
 )
 from dendritic_modeling.networks.architectures.transformer import (
@@ -20,6 +21,17 @@ def test_signed_split_adapter_maps_signed_features_to_nonnegative_channels():
     assert y.shape == (1, 6)
     assert torch.all(y >= 0)
     assert torch.allclose(y, torch.tensor([[0.0, 0.0, 3.0, 2.0, 0.0, 0.0]]))
+
+
+def test_spatial_signed_split_preserves_bchw_channel_identity():
+    adapter = SpatialNonNegativeInputAdapter(3, "signed_split")
+    x = torch.randn(2, 3, 5, 7)
+
+    y = adapter(x)
+
+    assert y.shape == (2, 6, 5, 7)
+    assert torch.all(y >= 0)
+    torch.testing.assert_close(y[:, :3] - y[:, 3:], x)
 
 
 def test_transformer_ffn_uses_shared_cell_without_state_dict_key_migration():

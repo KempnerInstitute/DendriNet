@@ -44,6 +44,7 @@ reference configs and reusable examples.
 | Large indexed backend examples | `examples/indexed_backends/README.md` |
 | Raw ImageNet spatial DendriNet, backpropagation | `vision/imagenet_raw_spatial_dendrinet_alexnet_matched_bp.yaml` |
 | Raw ImageNet spatial DendriNet, local credit assignment | `vision/imagenet_raw_spatial_dendrinet_alexnet_matched_localca.yaml` |
+| End-to-end dendritic AlexNet canary | `vision/dendritic_alexnet_imagenet_canary.yaml` |
 | Local credit assignment | `examples/population_network_local_learning_mnist.yaml` |
 | Frozen-checkpoint representation analysis | `examples/representation_accessibility_analysis.yaml` |
 | Transformer FFN replacement | `examples/transformer_replacement_synthetic_distillation.yaml` |

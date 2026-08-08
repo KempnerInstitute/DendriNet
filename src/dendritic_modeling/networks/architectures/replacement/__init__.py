@@ -12,6 +12,7 @@ inside decoder blocks.
 
 from dendritic_modeling.networks.architectures.replacement.adapters import (
     NonNegativeInputAdapter,
+    SpatialNonNegativeInputAdapter,
     transformed_feature_dim,
     validate_input_transform,
 )
@@ -24,6 +25,7 @@ from dendritic_modeling.networks.architectures.replacement.cells import (
 __all__ = [
     "LayerwiseTokenReplacementStack",
     "NonNegativeInputAdapter",
+    "SpatialNonNegativeInputAdapter",
     "TokenReplacementCell",
     "make_linear_output_projection",
     "transformed_feature_dim",

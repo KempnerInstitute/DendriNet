@@ -61,3 +61,50 @@ class NonNegativeInputAdapter(nn.Module):
             f"input_dim={self.input_dim}, output_dim={self.output_dim}, "
             f"transform={self.transform!r}"
         )
+
+
+class SpatialNonNegativeInputAdapter(nn.Module):
+    """Apply a non-negative transform to BCHW feature maps.
+
+    Signed splitting concatenates positive and negative magnitudes along the
+    channel dimension, preserving the signed tensor exactly while presenting
+    only non-negative inputs to a dendritic convolution.
+    """
+
+    def __init__(
+        self,
+        input_channels: int,
+        transform: str = "signed_split",
+        *,
+        validate_shape: bool = True,
+    ):
+        super().__init__()
+        self.input_channels = int(input_channels)
+        self.transform = validate_input_transform(transform)
+        self.output_channels = transformed_feature_dim(
+            self.input_channels, self.transform
+        )
+        self.validate_shape = bool(validate_shape)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if x.ndim != 4:
+            raise ValueError(
+                "SpatialNonNegativeInputAdapter expects BCHW input, "
+                f"got shape {tuple(x.shape)}"
+            )
+        if self.validate_shape and x.shape[1] != self.input_channels:
+            raise ValueError(
+                f"Expected {self.input_channels} input channels, got {x.shape[1]}"
+            )
+        if self.transform == "identity":
+            return x
+        if self.transform == "relu":
+            return torch.relu(x)
+        return torch.cat([torch.relu(x), torch.relu(-x)], dim=1)
+
+    def extra_repr(self) -> str:
+        return (
+            f"input_channels={self.input_channels}, "
+            f"output_channels={self.output_channels}, "
+            f"transform={self.transform!r}"
+        )
