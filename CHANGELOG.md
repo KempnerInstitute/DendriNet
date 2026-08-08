@@ -111,6 +111,3 @@
   accumulation for reduced-precision input gradients.
 - Added opt-in memory-efficient positive-tanh autograd and fused shunt
   reactivation, with eager fallback whenever diagnostics require voltage.
-- Kept profiling harnesses, NVTX tooling, cluster setup, benchmark runners, and
-  generated artifacts outside the model repository; only maintained runtime
-  implementations and their correctness tests were integrated.

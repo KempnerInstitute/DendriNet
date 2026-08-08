@@ -77,7 +77,8 @@ def test_large_rnn_scale_configs_preserve_contact_contract(
         assert population["indexed_index_dtype"] == "auto"
         assert population["indexed_workspace_mb"] == 128
         assert population["indexed_cache_transformed_weights"] is True
-        assert population["indexed_recompute_backward"] is True
+        assert population["indexed_projection_backend"] == "recompute"
+        assert population.get("indexed_recompute_backward", False) is False
         assert population["indexed_persistent_indices"] is False
         assert population["indexed_init_mode"] == "rank0_broadcast"
         assert population["allow_self_recurrence"] is False

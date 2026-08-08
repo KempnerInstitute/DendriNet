@@ -237,6 +237,46 @@ class TestFactoryAliases:
 # Gradient flow
 # ---------------------------------------------------------------------------
 class TestGradientFlow:
+    def test_indexed_backend_config_reaches_shared_patch_einet(self, einet_config):
+        from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_sparse import (
+            IndexedSparseLinear,
+        )
+
+        einet_config["sparsity"] = {
+            **einet_config["sparsity"],
+            "type": "indexed",
+            "indexed": {
+                "seed": 17,
+                "index_dtype": "int32",
+                "projection_backend": "auto",
+            },
+        }
+        einet_config["reactivation"] = {
+            **einet_config["reactivation"],
+            "memory_efficient": True,
+        }
+        core = get_architecture(
+            "hierarchical_dendritic_conv",
+            einet_config,
+            input_dim=4,
+        )
+        value = torch.rand(2, 4, 5, 5, requires_grad=True)
+
+        core(value).square().mean().backward()
+
+        indexed_layers = [
+            module
+            for module in core.modules()
+            if isinstance(module, IndexedSparseLinear)
+        ]
+        assert indexed_layers
+        assert all(layer.projection_backend == "auto" for layer in indexed_layers)
+        assert all(
+            layer._last_resolved_projection_backend == "recompute"
+            for layer in indexed_layers
+        )
+        assert value.grad is not None
+
     def test_gradients_flow_through(self, einet_config):
         """Gradients should flow from output back to input via the core."""
         core = get_architecture(

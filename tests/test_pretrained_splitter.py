@@ -1000,6 +1000,16 @@ model:
       ei_synapses_per_branch_per_layer: [2]
       ie_synapses_per_branch_per_layer: [1]
       ii_synapses_per_branch_per_layer: [0]
+    sparsity:
+      type: indexed
+      indexed:
+        seed: 17
+        index_dtype: int32
+        projection_backend: auto
+    reactivation:
+      enabled: true
+      type: param_tanh
+      memory_efficient: true
 
 training:
   main:
@@ -1028,9 +1038,33 @@ training:
         assert model.decoder_network.output_dim == 10
 
         x = torch.randn(2, 3, 8, 8)
-        with torch.no_grad():
-            out = model(x)
+        out = model(x)
         assert out.shape == (2, 10)
+        out.square().mean().backward()
+
+        from dendritic_modeling.networks.activations.parametric import ParametricTanh
+        from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_sparse import (
+            IndexedSparseLinear,
+        )
+
+        indexed_layers = [
+            module
+            for module in model.core_network.modules()
+            if isinstance(module, IndexedSparseLinear)
+        ]
+        assert indexed_layers
+        assert all(layer.projection_backend == "auto" for layer in indexed_layers)
+        assert all(
+            layer._last_resolved_projection_backend == "recompute"
+            for layer in indexed_layers
+        )
+        reactivations = [
+            module
+            for module in model.core_network.modules()
+            if isinstance(module, ParametricTanh)
+        ]
+        assert reactivations
+        assert all(activation.memory_efficient for activation in reactivations)
 
     def test_initialize_model_can_retrain_exact_pretrained_span(self, tmp_path):
         """The retained-span control keeps the declared backbone modules."""

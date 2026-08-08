@@ -60,7 +60,7 @@ model:
             indexed_seed: 42
             indexed_index_dtype: "int32"
             indexed_output_chunk_size: 2048
-            indexed_recompute_backward: true
+            indexed_projection_backend: recompute
             indexed_persistent_indices: false
             structured_connectivity:
               enabled: true

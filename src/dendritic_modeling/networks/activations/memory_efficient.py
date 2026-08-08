@@ -17,12 +17,21 @@ def _feature_reduction_dims(value: torch.Tensor) -> tuple[int, ...]:
     return tuple(range(max(value.ndim - 1, 0)))
 
 
+def _center_tensor(
+    center: torch.Tensor | float, reference: torch.Tensor
+) -> torch.Tensor:
+    """Match eager scalar promotion while preserving tensor parameter precision."""
+    if torch.is_tensor(center):
+        return center.to(device=reference.device)
+    return torch.as_tensor(center, dtype=reference.dtype, device=reference.device)
+
+
 class _MemoryEfficientPositiveTanh(torch.autograd.Function):
     """Compute ``sigmoid(2 * scale * (x - center))``, saving only its output."""
 
     @staticmethod
     def forward(ctx, x, scale, center):
-        center_tensor = torch.as_tensor(center, dtype=x.dtype, device=x.device)
+        center_tensor = _center_tensor(center, x)
         output = torch.sigmoid((scale + scale) * (x - center_tensor))
         ctx.save_for_backward(output, scale)
         return output
@@ -61,11 +70,7 @@ class _MemoryEfficientShuntPositiveTanh(torch.autograd.Function):
     @staticmethod
     def forward(ctx, numerator, denominator, epsilon, scale, center):
         shifted_denominator = denominator + epsilon
-        center_tensor = torch.as_tensor(
-            center,
-            dtype=numerator.dtype,
-            device=numerator.device,
-        )
+        center_tensor = _center_tensor(center, numerator)
         output = torch.sigmoid(
             (scale + scale) * (numerator / shifted_denominator - center_tensor)
         )

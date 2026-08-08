@@ -1,105 +1,144 @@
 Indexed Projection and Reactivation Backends
 ============================================
 
-Indexed synapses have one maintained execution selector. The default remains
-the original eager PyTorch implementation, so installing or importing the
-package never requires Triton, a CUDA compiler, or a GPU.
+Indexed synapses expose one execution selector. The default is the standard
+PyTorch implementation, so importing and using the package does not require
+Triton, a CUDA compiler, or a GPU.
 
 .. code-block:: yaml
 
-   sparsity:
-     type: indexed
-     indexed:
-       projection_backend: auto   # eager | recompute | triton | cuda | auto
-       index_dtype: int32
-       output_chunk_size: 65536
-       workspace_mb: 128
+   model:
+     core:
+       sparsity:
+         type: indexed
+         indexed:
+           projection_backend: recompute  # eager | recompute | triton | cuda | auto
+           index_dtype: int32
+           output_chunk_size: 65536
+           workspace_mb: 128
 
-Population-network configs use the equivalent flat names
-``indexed_projection_backend``, ``indexed_index_dtype``, and
-``indexed_output_chunk_size``.
+Population-network entries use the equivalent flat fields:
+``indexed_projection_backend``, ``indexed_index_dtype``,
+``indexed_output_chunk_size``, and ``indexed_workspace_mb``.
 
 Backend behavior
 ----------------
 
 ``eager``
-   The standard chunked PyTorch path. This is the compatibility default.
+   Executes the chunked PyTorch gather, multiply, and reduction. This is the
+   compatibility default.
 
 ``recompute``
-   A portable custom-autograd path that saves the input, weights, and compact
-   index buffer, then re-gathers one bounded chunk during backward. Reduced
-   precision input gradients accumulate in fp32 before being cast back.
+   Uses portable custom autograd. Forward saves the input, weights, and compact
+   index buffer instead of retaining gathered inputs. Backward gathers one
+   bounded output chunk at a time. Float16 and bfloat16 input gradients
+   accumulate in float32 before conversion to the input dtype.
 
 ``triton``
-   An optional fused forward/backward implementation. It requires Triton and a
-   CUDA device. Selecting it explicitly raises a clear error when unavailable;
-   it never silently changes the requested algorithm.
+   Uses optional Triton forward and backward kernels. It requires Triton and a
+   CUDA device. An explicit request raises an error when the backend is not
+   available.
 
 ``cuda``
-   An optional JIT-compiled CUDA extension with staged, unstaged, and hybrid
-   forward variants plus a split backward. The extension builds only on first
-   use and is cached per GPU compute capability. It supports float16,
-   bfloat16, and float32 inputs with fp32 kernel accumulation.
+   Uses an optional JIT-compiled CUDA extension. The extension is compiled on
+   first use and cached by GPU compute capability. Its forward selector uses
+   staged, unstaged, or hybrid execution for supported GPU architectures.
 
 ``auto``
-   Chooses CUDA, then Triton, when usable on a CUDA device; otherwise it chooses
-   ``recompute``. Resolution is cached by each layer for its current device.
-   ``auto`` means capability selection, not a promise that a native kernel wins
-   at every shape.
+   Selects CUDA, then Triton, on a CUDA device and otherwise selects
+   ``recompute``. Each indexed layer caches the resolved choice for its current
+   device. Use an explicit backend when an experiment requires one fixed
+   implementation.
 
-The legacy flat option ``indexed_recompute_backward: true`` remains accepted
-and maps to ``recompute``. It cannot be combined with an explicit CUDA or
-Triton backend.
+The legacy ``recompute_backward: true`` and
+``indexed_recompute_backward: true`` fields remain accepted and map to
+``recompute``. They cannot be combined with an explicit CUDA or Triton choice.
 
-Measured scope and safety boundary
-----------------------------------
+Supported models
+----------------
 
-The CUDA picker records Ryan's final measured crossover bands for A100
-(``sm80``), H100 (``sm90``), and Blackwell (``sm120``). H200 shares the
-``sm90`` route but was not independently measured in the finalized matrix.
-Unknown architectures keep the conservative staged implementation. Unit tests
-replay the full recorded decision grid without requiring a GPU. GPU-marked
-tests compare native forward and backward results with portable recompute.
+The selector belongs to the shared indexed-synapse implementation, not to one
+network architecture. It is available in:
 
-The native kernels were measured for large feedforward indexed projections.
-Ryan's batch-one recurrent measurements found the portable recompute path
-faster than CUDA and Triton. Recurrent production configs should therefore
-continue to select ``recompute`` unless a representative GPU benchmark shows a
-different winner. This branch does not enable a native backend in an existing
-experiment config.
+* feedforward DendriNet and E/I networks;
+* fixed, dynamically selected, and rewiring indexed synapses;
+* degree-grouped indexed projections;
+* recurrent E/I, heterogeneous-leak, and Legendre-memory networks;
+* transformer FFN replacements; and
+* configured AlexNet and other vision-backbone replacements whose dendritic
+  core uses ``sparsity.type: indexed`` or ``indexed_rewire``.
 
-This checkout had no CUDA device or compiler during integration. CPU tests,
-picker-table tests, import checks, and portable numerical equivalence were run;
-the CUDA/Triton runtime checks remain hardware-gated and must pass on each
-supported cluster image before enabling a native path in a canonical config.
+Native CUDA and Triton execution is therefore not feedforward-only. Recurrent
+models call the same projection at every timestep and produce the same model
+equation and gradients. For small recurrent batches, ``recompute`` is the
+recommended default because it avoids native-kernel setup and launch overhead
+at every timestep. Feedforward and spatial-convolution replacements often
+flatten many samples or image locations into one projection and are better
+candidates for ``auto`` or an explicit native backend.
+
+For AlexNet replacement YAML files, place the selector under the configured
+core:
+
+.. code-block:: yaml
+
+   model:
+     vision_replacement:
+       enabled: true
+       backbone: alexnet
+     core:
+       type: einet  # also hierarchical_dendritic_tensor_map or hierarchical_dendritic_conv
+       sparsity:
+         type: indexed
+         indexed:
+           projection_backend: auto
+           index_dtype: int32
+
+The selector does not apply when ``vision_replacement.core_source`` is
+``pretrained_span`` because that mode retains the original backbone modules
+instead of constructing indexed dendritic synapses. It also has no effect on a
+core using a non-indexed sparsity type.
+
+Dtypes and numerical behavior
+-----------------------------
+
+The native backends accept float16, bfloat16, and float32 inputs and weights.
+Kernel accumulation is float32. Input and weight dtypes may differ; consistently
+with the portable indexed projection, the output uses the input dtype and each
+gradient is returned in its parameter's original dtype. Stored connection
+indices may be int32 or int64 and are retained as compact int32 values inside
+native autograd.
+
+Explicit CUDA or Triton selection fails clearly for unsupported devices,
+dependencies, shapes, or dtypes rather than silently changing algorithms.
+``auto`` is the only selector that permits backend fallback.
+
+Seeded topology compatibility
+-----------------------------
+
+Masked topology generation uses a seeded per-row permutation. This sampling
+order is part of the reproducibility contract for checkpoints configured with
+``persistent_indices: false``, because those checkpoints regenerate their
+fixed graph from the seed. Alternative sampling algorithms must use an explicit
+topology version if they consume the random stream differently.
 
 Memory-efficient positive tanh
 ------------------------------
 
 ``param_tanh`` and ``param_tanh_only_m`` can opt into custom autograd that
-retains fewer full-size tensors. In shunting layers the divide and positive
-tanh are fused as well:
+retains fewer full-size tensors. In shunting layers, division and positive tanh
+are fused when no diagnostic path requires the intermediate voltage:
 
 .. code-block:: yaml
 
-   reactivation:
-     enabled: true
-     type: param_tanh
-     memory_efficient: true
+   model:
+     core:
+       reactivation:
+         enabled: true
+         type: param_tanh
+         memory_efficient: true
 
-Population-network configs use ``reactivation_memory_efficient: true``. The
-default is ``false``. The fused shunt is bypassed automatically when diagnostic
-or analysis-current capture needs the pre-gate voltage. CPU float32/float64
-tests cover forward values and all input and parameter gradients, including
-saturated activations.
-
-Integration boundary
---------------------
-
-Only production kernels, backend selection, configuration wiring, tests, and
-maintained documentation were integrated from ``origin/ryanconfig``. Profiling
-harnesses, NVTX instrumentation, benchmark runners, cluster setup scripts,
-generated logs, and the snapshot ``finalized/`` tree were intentionally not
-copied. Those tools belong in the separate ProfilePilot codebase; the model
-repository keeps only the resulting runtime implementations and reproducible
-correctness contracts.
+Population-network entries use ``reactivation_memory_efficient: true``. The
+default is ``false``. Forward values, parameter gradients, input gradients,
+mixed reduced-precision inputs, and saturated activations follow the eager
+equation. Diagnostic and analysis-current capture automatically uses the eager
+path so the pre-gate voltage remains available.

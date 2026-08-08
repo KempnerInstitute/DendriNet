@@ -97,9 +97,9 @@ reactivation_memory_efficient: true
 - `indexed_projection_backend` is `eager`, `recompute`, `triton`, `cuda`, or
   `auto`. `recompute` avoids retaining contact-sized gathered inputs at every
   recurrent timestep. The legacy `indexed_recompute_backward: true` spelling
-  still maps to it. Existing batch-one recurrent configs intentionally keep
-  this portable path; the native kernels were not faster at those measured
-  shapes.
+  still maps to it. Use `recompute` for small-batch recurrent workloads unless
+  the repeated native launches are beneficial for the intended sequence and
+  batch shape.
 - `reactivation_memory_efficient` opts `param_tanh` gates into the
   memory-saving backward and fuses the shunt divide when diagnostics do not
   need its intermediate voltage. It is disabled by default.

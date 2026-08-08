@@ -102,7 +102,7 @@ model:
         output_chunk_size: 8192
         workspace_mb: 256
         cache_transformed_weights: false
-        recompute_backward: true
+        projection_backend: recompute
         # Regenerate the deterministic map rather than storing ~181 MiB of
         # indices in every checkpoint.
         persistent_indices: false

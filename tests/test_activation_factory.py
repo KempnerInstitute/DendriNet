@@ -240,6 +240,34 @@ def test_memory_efficient_positive_tanh_matches_eager(
         )
 
 
+def test_memory_efficient_positive_tanh_preserves_fp32_parameters_with_bfloat16_input():
+    results = []
+    for memory_efficient in (False, True):
+        torch.manual_seed(17)
+        activation = ParametricTanh(
+            output_dim=7,
+            init_m=1.5,
+            init_b=0.37,
+            memory_efficient=memory_efficient,
+        )
+        value = torch.randn(5, 7, dtype=torch.bfloat16, requires_grad=True)
+        output = activation(value)
+        output.square().sum().backward()
+        results.append(
+            (
+                output.detach(),
+                value.grad.detach(),
+                activation.log_m.grad.detach(),
+                activation.b.grad.detach(),
+            )
+        )
+
+    eager, efficient = results
+    assert eager[0].dtype == efficient[0].dtype == torch.float32
+    for efficient_value, eager_value in zip(efficient, eager, strict=True):
+        torch.testing.assert_close(efficient_value, eager_value, rtol=3e-5, atol=3e-6)
+
+
 @pytest.mark.parametrize("spread", [0.5, 2.0, 12.0])
 @pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
 def test_memory_efficient_fused_shunt_matches_eager_at_saturation(spread, dtype):

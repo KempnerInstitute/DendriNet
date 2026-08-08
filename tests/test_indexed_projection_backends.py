@@ -26,6 +26,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.ker
     normalize_indexed_projection_backend,
     normalize_indexed_projection_options,
     resolve_indexed_projection_backend,
+    triton_indexed_gather,
 )
 
 
@@ -301,7 +302,9 @@ def test_cuda_backward_picker_preserves_validated_tiles(out_features, expected_p
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA")
 @pytest.mark.parametrize("backend", ["triton", "cuda"])
-def test_native_backend_matches_recompute_on_cuda(backend):
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float16, torch.bfloat16])
+@pytest.mark.parametrize("batch_size", [1, 9])
+def test_native_backend_matches_recompute_on_cuda(backend, dtype, batch_size):
     if not indexed_projection_backend_available(backend, device="cuda"):
         pytest.skip(f"{backend} backend is unavailable")
     indices = torch.tensor(
@@ -309,32 +312,122 @@ def test_native_backend_matches_recompute_on_cuda(backend):
         device="cuda",
         dtype=torch.int32,
     )
-    reference = IndexedSparseLinear(
-        8,
-        4,
-        3,
-        connection_indices=indices.cpu(),
-        projection_backend="recompute",
-    ).cuda()
-    accelerated = IndexedSparseLinear(
-        8,
-        4,
-        3,
-        connection_indices=indices.cpu(),
-        projection_backend=backend,
-    ).cuda()
+    reference = (
+        IndexedSparseLinear(
+            8,
+            4,
+            3,
+            connection_indices=indices.cpu(),
+            projection_backend="recompute",
+        )
+        .cuda()
+        .to(dtype)
+    )
+    accelerated = (
+        IndexedSparseLinear(
+            8,
+            4,
+            3,
+            connection_indices=indices.cpu(),
+            projection_backend=backend,
+        )
+        .cuda()
+        .to(dtype)
+    )
     accelerated.load_state_dict(reference.state_dict())
-    reference_input = torch.randn(3, 8, device="cuda", requires_grad=True)
+    reference_input = torch.randn(
+        batch_size,
+        8,
+        device="cuda",
+        dtype=dtype,
+        requires_grad=True,
+    )
     accelerated_input = reference_input.detach().clone().requires_grad_(True)
-    grad_output = torch.randn(3, 4, device="cuda")
+    grad_output = torch.randn(batch_size, 4, device="cuda", dtype=dtype)
 
-    reference(reference_input).backward(grad_output)
-    accelerated(accelerated_input).backward(grad_output)
+    reference_output = reference(reference_input)
+    accelerated_output = accelerated(accelerated_input)
+    reference_output.backward(grad_output)
+    accelerated_output.backward(grad_output)
 
-    torch.testing.assert_close(accelerated_input.grad, reference_input.grad)
+    tolerance = (
+        2e-5 if dtype == torch.float32 else (2e-3 if dtype == torch.float16 else 3e-2)
+    )
+    torch.testing.assert_close(
+        accelerated_output,
+        reference_output,
+        rtol=tolerance,
+        atol=tolerance,
+    )
+    torch.testing.assert_close(
+        accelerated_input.grad,
+        reference_input.grad,
+        rtol=tolerance,
+        atol=tolerance,
+    )
     torch.testing.assert_close(
         accelerated.pre_w.grad,
         reference.pre_w.grad,
-        rtol=2e-5,
-        atol=2e-5,
+        rtol=tolerance,
+        atol=tolerance,
+    )
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="requires CUDA")
+@pytest.mark.parametrize("backend", ["triton", "cuda"])
+def test_native_backend_matches_mixed_dtype_eager_contract(backend):
+    if not indexed_projection_backend_available(backend, device="cuda"):
+        pytest.skip(f"{backend} backend is unavailable")
+    native = (
+        cuda_indexed_gather.cuda_sparse_gather
+        if backend == "cuda"
+        else triton_indexed_gather.triton_sparse_gather
+    )
+    indices = torch.tensor(
+        [[0, 2, 4], [1, 3, 5], [0, 3, 6], [1, 4, 7]],
+        device="cuda",
+        dtype=torch.int32,
+    )
+    reference_input = torch.randn(
+        3,
+        8,
+        device="cuda",
+        dtype=torch.bfloat16,
+        requires_grad=True,
+    )
+    native_input = reference_input.detach().clone().requires_grad_(True)
+    reference_weight = torch.randn(
+        4,
+        3,
+        device="cuda",
+        dtype=torch.float32,
+        requires_grad=True,
+    )
+    native_weight = reference_weight.detach().clone().requires_grad_(True)
+    grad_output = torch.randn(3, 4, device="cuda", dtype=torch.float32)
+
+    reference_output = _indexed_sparse_projection(
+        flat_x=reference_input,
+        weight=reference_weight,
+        connection_indices=indices,
+        output_chunk_size=2,
+        recompute_backward=True,
+    )
+    native_output = native(native_input, indices, native_weight)
+    reference_output.backward(grad_output)
+    native_output.backward(grad_output)
+
+    assert reference_output.dtype == native_output.dtype == torch.bfloat16
+    torch.testing.assert_close(native_output, reference_output, rtol=3e-2, atol=3e-2)
+    torch.testing.assert_close(
+        native_input.grad,
+        reference_input.grad,
+        rtol=3e-2,
+        atol=3e-2,
+    )
+    torch.testing.assert_close(
+        native_weight.grad,
+        reference_weight.grad,
+        rtol=3e-2,
+        atol=3e-2,
     )

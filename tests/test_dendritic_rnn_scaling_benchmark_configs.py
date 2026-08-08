@@ -104,7 +104,8 @@ def test_end_to_end_canary_trains_recurrent_core():
     assert canary_spec["account"] == "kempner_dev"
     for population in (layer["excitatory"], layer["inhibitory"]):
         assert population["indexed_cache_transformed_weights"] is True
-        assert population["indexed_recompute_backward"] is True
+        assert population["indexed_projection_backend"] == "recompute"
+        assert population.get("indexed_recompute_backward", False) is False
 
 
 def test_stable_end_to_end_variant_changes_only_learning_rate_allocation():

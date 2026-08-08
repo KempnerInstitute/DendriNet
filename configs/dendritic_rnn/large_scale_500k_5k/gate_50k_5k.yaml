@@ -139,7 +139,7 @@ model:
           indexed_index_dtype: auto
           indexed_workspace_mb: 128
           indexed_cache_transformed_weights: true
-          indexed_recompute_backward: true
+          indexed_projection_backend: recompute
           indexed_persistent_indices: false
           indexed_init_mode: rank0_broadcast
           blocklinear_strategy: none
@@ -191,7 +191,7 @@ model:
           indexed_index_dtype: auto
           indexed_workspace_mb: 128
           indexed_cache_transformed_weights: true
-          indexed_recompute_backward: true
+          indexed_projection_backend: recompute
           indexed_persistent_indices: false
           indexed_init_mode: rank0_broadcast
           blocklinear_strategy: none

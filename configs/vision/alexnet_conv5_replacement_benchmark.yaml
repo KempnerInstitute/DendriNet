@@ -129,7 +129,7 @@ base_config:
           output_chunk_size: 2048
           workspace_mb: 128
           cache_transformed_weights: false
-          recompute_backward: true
+          projection_backend: recompute
           persistent_indices: true
           init_mode: per_rank
       reactivation:

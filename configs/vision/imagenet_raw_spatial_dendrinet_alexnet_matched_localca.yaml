@@ -96,7 +96,7 @@ model:
         output_chunk_size: 8192
         workspace_mb: 256
         cache_transformed_weights: false
-        recompute_backward: true
+        projection_backend: recompute
         persistent_indices: false
         init_mode: "per_rank"
 

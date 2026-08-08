@@ -222,13 +222,11 @@ def triton_sparse_gather(
         raise ValueError("x, connection_indices, and weight must share one device")
     if not x.is_floating_point() or not weight.is_floating_point():
         raise TypeError("x and weight must use floating-point dtypes")
-    if x.dtype != weight.dtype:
-        raise TypeError("x and weight must use the same dtype")
     supported_dtypes = {torch.bfloat16, torch.float16, torch.float32}
-    if x.dtype not in supported_dtypes:
+    if x.dtype not in supported_dtypes or weight.dtype not in supported_dtypes:
         raise TypeError(
-            "triton_sparse_gather supports float16, bfloat16, and float32; "
-            f"got {x.dtype}"
+            "triton_sparse_gather supports float16, bfloat16, and float32 inputs "
+            f"and weights; got {x.dtype} and {weight.dtype}"
         )
     if not triton_gather_available():
         raise RuntimeError(

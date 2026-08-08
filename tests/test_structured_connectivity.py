@@ -924,6 +924,35 @@ def test_unmasked_index_sampler_is_chunked_reproducible_and_unique(monkeypatch):
     assert bool((sorted_first[:, 1:] != sorted_first[:, :-1]).all())
 
 
+def test_masked_index_sampler_preserves_seeded_topology_contract():
+    mask = torch.tensor(
+        [
+            [1, 1, 0, 1, 0, 1, 0, 1],
+            [0, 1, 1, 0, 1, 0, 1, 1],
+            [1, 0, 1, 1, 0, 1, 1, 0],
+            [0, 1, 0, 1, 1, 1, 0, 1],
+        ],
+        dtype=torch.bool,
+    )
+    sampled = _sample_indices_from_mask(
+        out_features=4,
+        in_features=8,
+        K=3,
+        connection_mask=mask,
+        forbidden_input_index_per_output=torch.tensor([1, 4, -1, 7]),
+        generator=torch.Generator().manual_seed(2026),
+        index_dtype="int32",
+    )
+
+    assert torch.equal(
+        sampled,
+        torch.tensor(
+            [[3, 0, 5], [1, 2, 7], [3, 2, 0], [5, 1, 4]],
+            dtype=torch.int32,
+        ),
+    )
+
+
 def test_unmasked_index_sampler_excludes_forbidden_without_dense_mask(monkeypatch):
     """Per-row self-exclusion must stay O(out_features * K)."""
     original_ones = torch.ones

@@ -77,6 +77,16 @@ model:
     morphology:
       use_shunting: true
       somatic_synapses: true
+    sparsity:
+      type: indexed
+      indexed:
+        seed: 23
+        index_dtype: int32
+        projection_backend: auto
+    reactivation:
+      enabled: true
+      type: param_tanh
+      memory_efficient: true
     recurrent_ei:
       dt: 1.0
       tau_base: 7.0
@@ -113,6 +123,30 @@ model:
         traces = getattr(state.i_state, trace_name)
         assert len(traces) == 1
         assert traces[0].shape == (2, 3)
+
+    from dendritic_modeling.networks.activations.parametric import ParametricTanh
+    from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_sparse import (
+        IndexedSparseLinear,
+    )
+
+    value = torch.rand(2, 3, 5, requires_grad=True)
+    network(value).square().mean().backward()
+    indexed_layers = [
+        module
+        for module in network.modules()
+        if isinstance(module, IndexedSparseLinear)
+    ]
+    assert indexed_layers
+    assert all(layer.projection_backend == "auto" for layer in indexed_layers)
+    assert all(
+        layer._last_resolved_projection_backend == "recompute"
+        for layer in indexed_layers
+    )
+    reactivations = [
+        module for module in network.modules() if isinstance(module, ParametricTanh)
+    ]
+    assert reactivations
+    assert all(activation.memory_efficient for activation in reactivations)
 
 
 def test_stateful_dendrinet_feedforward_shape():
