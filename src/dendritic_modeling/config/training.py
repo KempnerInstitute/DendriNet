@@ -224,6 +224,7 @@ class VisionDistillationStrategyConfig(BaseConfig):
     teacher_backbone: str = "alexnet"
     teacher_weights: str = "IMAGENET1K_V1"
     boundary_weights: dict[str, float] = field(default_factory=dict)
+    boundary_input_mode: str = "composed"
     feature_weight: float = 1.0
     logit_kl_weight: float = 1.0
     supervised_weight: float = 1.0

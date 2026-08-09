@@ -652,6 +652,15 @@ This strategy requires the complete ``dendritic_alexnet`` tensor contract;
 single-span replacement distillation continues to use
 ``training.vision_replacement``.
 
+By default, ``boundary_input_mode: composed`` measures every intermediate
+loss on the ordinary end-to-end student pass. Set
+``boundary_input_mode: teacher_forced`` for a block-capacity diagnosis: each
+dendritic block receives the frozen teacher activation at its own input
+boundary and matches the corresponding teacher output, while logit KL and
+label loss still use the composed student. This keeps all learned operations
+inside the declared dendritic blocks and separates single-block approximation
+from representation drift accumulated across the stack.
+
 The complete model can also place a positivity-preserving gain after every
 spatial block and after fc6/fc7. Configure
 ``model.core.vision.output_adapter.mode`` as ``identity`` (default),
@@ -687,6 +696,8 @@ Additional vision replacement configs:
 - ``configs/vision/dendritic_alexnet_imagenet_output_adapter_pilot.yaml`` —
   full-model boundary-distillation gate for positive global versus per-channel
   inter-block calibration
+- ``configs/vision/dendritic_alexnet_imagenet_teacher_forced_distillation_pilot.yaml`` —
+  block-capacity gate using teacher inputs at matched AlexNet boundaries
 - ``scripts/test_pretrained_training.sh`` — generates a temporary 1-epoch AlexNet smoke config
 
 Transformer MLP / FFN Replacement
