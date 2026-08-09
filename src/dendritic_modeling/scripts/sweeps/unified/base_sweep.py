@@ -6,12 +6,50 @@ for different sweep types (EI, branch, noise, general).
 """
 
 import os
+import shlex
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
 from omegaconf import DictConfig, OmegaConf
+
+from dendritic_modeling.scripts.sweeps.control_plane import discover_source_identity
+
+
+def _execution_source_guard(repo_root: Path) -> str:
+    """Return a shell preflight that binds a job to its generation checkout."""
+    identity = discover_source_identity(repo_root)
+    git_identity = identity.get("git", {})
+    if not git_identity.get("available"):
+        return (
+            "# Source guard unavailable: generation directory is not a Git checkout.\n"
+        )
+
+    expected_head = str(git_identity["commit"])
+    expected_diff = git_identity.get("tracked_diff_sha256")
+    if not expected_diff:
+        raise RuntimeError("could not fingerprint the tracked generation worktree")
+
+    quoted_root = shlex.quote(str(repo_root))
+    return (
+        "# Refuse execution after the source checkout changes.\n"
+        f"REPOSITORY_ROOT={quoted_root}\n"
+        f'EXPECTED_REPOSITORY_HEAD="{expected_head}"\n'
+        f'EXPECTED_TRACKED_DIFF_SHA256="{expected_diff}"\n'
+        'ACTUAL_REPOSITORY_HEAD="$(git -C "$REPOSITORY_ROOT" rev-parse HEAD)"\n'
+        'ACTUAL_TRACKED_DIFF_SHA256="$(git -C "$REPOSITORY_ROOT" '
+        "diff --binary HEAD | sha256sum | awk '{print $1}')\"\n"
+        'if [ "$ACTUAL_REPOSITORY_HEAD" != "$EXPECTED_REPOSITORY_HEAD" ]; then\n'
+        '  echo "Source commit changed after sweep generation: expected '
+        '$EXPECTED_REPOSITORY_HEAD, observed $ACTUAL_REPOSITORY_HEAD" >&2\n'
+        "  exit 66\n"
+        "fi\n"
+        'if [ "$ACTUAL_TRACKED_DIFF_SHA256" != "$EXPECTED_TRACKED_DIFF_SHA256" ]; then\n'
+        '  echo "Tracked source changes differ from the frozen generation worktree" >&2\n'
+        "  exit 67\n"
+        "fi\n"
+    )
 
 
 class BaseSweepGenerator(ABC):
@@ -357,6 +395,10 @@ class SweepJobManager:
             f.write(f"#SBATCH --output={output_dir}/jobs/%j.out\n")
             f.write(f"#SBATCH --error={output_dir}/jobs/%j.err\n\n")
 
+            f.write("set -euo pipefail\n\n")
+            f.write(_execution_source_guard(repo_root))
+            f.write("\n")
+
             # Load modules
             modules = self.slurm_config.get("modules_to_load", [])
             for module in modules:
@@ -484,6 +526,8 @@ class SweepJobManager:
 
             # IMPORTANT: SBATCH directives must appear before any shell commands.
             f.write("set -euo pipefail\n\n")
+            f.write(_execution_source_guard(repo_root))
+            f.write("\n")
 
             f.write(
                 "# ================================================================\n"

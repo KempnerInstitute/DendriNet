@@ -398,6 +398,34 @@ class TestSweepJobManager:
                 # Check conda environment setup
                 assert "/path/to/conda/env" in content
 
+    def test_generated_jobs_are_bound_to_generation_source(
+        self, slurm_config, monkeypatch
+    ):
+        monkeypatch.setattr(
+            "dendritic_modeling.scripts.sweeps.unified.base_sweep.discover_source_identity",
+            lambda _root: {
+                "git": {
+                    "available": True,
+                    "commit": "a" * 40,
+                    "tracked_worktree_dirty": False,
+                    "tracked_diff_sha256": "b" * 64,
+                }
+            },
+        )
+        manager = SweepJobManager(slurm_config)
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            script_path = os.path.join(tmp_dir, "guarded.sh")
+            manager._create_single_job_script(script_path, ["config.yaml"], tmp_dir)
+            content = Path(script_path).read_text(encoding="utf-8")
+
+        assert f'EXPECTED_REPOSITORY_HEAD="{"a" * 40}"' in content
+        assert f'EXPECTED_TRACKED_DIFF_SHA256="{"b" * 64}"' in content
+        assert 'git -C "$REPOSITORY_ROOT" rev-parse HEAD' in content
+        assert 'git -C "$REPOSITORY_ROOT" diff --binary HEAD' in content
+        assert "exit 66" in content
+        assert "exit 67" in content
+
     def test_create_single_job_script_no_conda(self):
         """Test job script creation without conda environment."""
         slurm_config = OmegaConf.create(

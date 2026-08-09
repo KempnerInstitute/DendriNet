@@ -158,6 +158,22 @@ def _git_value(repo_root: Path, *args: str) -> str | None:
     return completed.stdout.strip()
 
 
+def _git_bytes(repo_root: Path, *args: str) -> bytes | None:
+    try:
+        completed = subprocess.run(
+            ["git", *args],
+            cwd=repo_root,
+            check=False,
+            capture_output=True,
+            timeout=3,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if completed.returncode != 0:
+        return None
+    return completed.stdout
+
+
 def _manifest_path(path: Path, *, repo_root: Path, output_dir: Path) -> str:
     resolved = path.resolve()
     for base, prefix in ((output_dir.resolve(), ""), (repo_root.resolve(), "repo:")):
@@ -179,6 +195,7 @@ def discover_source_identity(
     commit = _git_value(root, "rev-parse", "HEAD")
     branch = _git_value(root, "symbolic-ref", "--short", "-q", "HEAD")
     tracked_status = _git_value(root, "status", "--porcelain", "--untracked-files=no")
+    tracked_diff = _git_bytes(root, "diff", "--binary", "HEAD")
 
     files = []
     for source_file in source_files:
@@ -197,6 +214,9 @@ def discover_source_identity(
         git_identity["branch"] = branch or None
         git_identity["tracked_worktree_dirty"] = (
             None if tracked_status is None else bool(tracked_status)
+        )
+        git_identity["tracked_diff_sha256"] = (
+            None if tracked_diff is None else hashlib.sha256(tracked_diff).hexdigest()
         )
 
     return {
