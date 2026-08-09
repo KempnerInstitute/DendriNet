@@ -90,6 +90,9 @@ def test_prepare_submission_hash_binds_inventory_and_selects_pilot(
     assert ledger["all_job_count"] == 2
     assert ledger["pending_job_count"] == 1
     assert (tmp_path / "outputs/jobs/jobs_all.jsonl").is_file()
+    assert jobs[0]["repository"] == str((tmp_path / "repository").resolve())
+    assert jobs[0]["repository_head"] == ledger["repository_head"]
+    assert jobs[0]["require_clean_worktree"] is True
 
 
 def test_prepare_submission_accepts_reusable_jobs_file(tmp_path: Path) -> None:
@@ -160,3 +163,32 @@ def test_run_declared_job_dispatches_selected_record(
     assert run_declared_job(jobs_path=jobs_path, job_index=0) == {"ok": True}
     assert captured["filename"] == "locked"
     assert captured["strict"] is True
+
+
+def test_run_declared_job_rejects_source_commit_drift(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repository = tmp_path / "repository"
+    actual_head = _git_repository(repository)
+    jobs_path = tmp_path / "jobs.jsonl"
+    jobs_path.write_text(
+        json.dumps(
+            {
+                "config": "config.yaml",
+                "checkpoint": "checkpoint.pt",
+                "analysis_config": "analysis.yaml",
+                "output_dir": "output",
+                "repository": str(repository),
+                "repository_head": "0" * len(actual_head),
+                "require_clean_worktree": True,
+            }
+        )
+        + "\n"
+    )
+    monkeypatch.setattr(
+        "dendritic_modeling.scripts.analysis.run_checkpoint_analysis_job."
+        "run_checkpoint_analysis",
+        lambda **_kwargs: pytest.fail("analysis ran after source drift"),
+    )
+    with pytest.raises(RuntimeError, match="source drifted"):
+        run_declared_job(jobs_path=jobs_path, job_index=0)

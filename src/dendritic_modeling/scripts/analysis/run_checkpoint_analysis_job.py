@@ -5,12 +5,52 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 from pathlib import Path
 from typing import Any
 
 from dendritic_modeling.scripts.analysis.run_checkpoint_analysis import (
     run_checkpoint_analysis,
 )
+
+
+def _validate_declared_source(job: dict[str, Any]) -> None:
+    """Fail before analysis if a hash-bound source checkout has drifted."""
+
+    expected = job.get("repository_head")
+    repository_value = job.get("repository")
+    if expected is None and repository_value is None:
+        return
+    if expected is None or repository_value is None:
+        raise ValueError(
+            "checkpoint-analysis jobs must declare repository and repository_head together"
+        )
+    repository = Path(str(repository_value)).resolve()
+    if not (repository / ".git").exists():
+        raise FileNotFoundError(
+            f"declared analysis repository is not a Git checkout: {repository}"
+        )
+    actual = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=repository,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    if actual != str(expected):
+        raise RuntimeError(
+            f"checkpoint-analysis source drifted from {expected} to {actual}"
+        )
+    if bool(job.get("require_clean_worktree", True)):
+        dirty = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=no"],
+            cwd=repository,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        if dirty:
+            raise RuntimeError("checkpoint-analysis source worktree is dirty")
 
 
 def run_declared_job(*, jobs_path: Path, job_index: int) -> dict[str, Any]:
@@ -23,6 +63,7 @@ def run_declared_job(*, jobs_path: Path, job_index: int) -> dict[str, Any]:
     if job_index < 0 or job_index >= len(jobs):
         raise IndexError(f"job index {job_index} is outside 0..{len(jobs) - 1}")
     job = jobs[job_index]
+    _validate_declared_source(job)
     return run_checkpoint_analysis(
         config_path=job["config"],
         checkpoint_path=job["checkpoint"],

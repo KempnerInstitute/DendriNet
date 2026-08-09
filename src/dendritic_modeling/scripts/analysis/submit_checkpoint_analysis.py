@@ -229,6 +229,10 @@ def prepare_submission(
         raise RuntimeError("checkpoint analysis requires a clean tracked worktree")
 
     all_jobs = _build_jobs(manifest, manifest_path=manifest_path)
+    for job in all_jobs:
+        job["repository"] = str(repository)
+        job["repository_head"] = head
+        job["require_clean_worktree"] = require_clean
     if pilot:
         pilot_ids = manifest.get("pilot_job_ids")
         if not isinstance(pilot_ids, list) or not pilot_ids:
