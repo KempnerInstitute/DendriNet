@@ -232,6 +232,7 @@ class VisionDistillationStrategyConfig(BaseConfig):
     supervised_weight: float = 1.0
     temperature: float = 2.0
     relative_mse_epsilon: float = 1e-6
+    class_output_target: str = "raw"
 
 
 @dataclass

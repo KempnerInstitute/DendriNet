@@ -586,6 +586,31 @@ class TestConfigLoading(unittest.TestCase):
             StructuredConnectivityConfig,
         )
 
+    def test_load_config_accepts_nonnegative_class_output_target(self):
+        load_config.cache_clear()
+        configured = {
+            **self.sample_config,
+            "training": {
+                "main": {
+                    **self.sample_config["training"]["main"],
+                    "strategies": {
+                        "vision_distillation": {
+                            "class_output_target": ("softmax_equivalent_nonnegative")
+                        }
+                    },
+                }
+            },
+        }
+        with open(self.config_file, "w") as f:
+            yaml.safe_dump(configured, f)
+
+        config = load_config(self.config_file)
+
+        self.assertEqual(
+            config.training.main.strategies.vision_distillation.class_output_target,
+            "softmax_equivalent_nonnegative",
+        )
+
     def test_load_config_returns_independent_objects(self):
         """Cached config parsing must not leak runtime mutations."""
         load_config.cache_clear()
