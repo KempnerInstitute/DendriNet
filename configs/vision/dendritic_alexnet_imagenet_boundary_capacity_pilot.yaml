@@ -1,0 +1,79 @@
+# Teacher-forced capacity audit for individual dendritic AlexNet boundaries.
+#
+# Each condition exposes one dendritic block to the exact activation entering
+# the corresponding frozen AlexNet block. The only objective is normalized
+# block-output MSE, isolating representational capacity from composition,
+# classifier supervision, and logit distillation.
+
+extends: dendritic_alexnet_imagenet_teacher_forced_distillation_pilot.yaml
+
+slurm_config:
+  run_name: dendritic_alexnet_imagenet_boundary_capacity_pilot
+  account: kempner_dev
+  partition: kempner_rtx
+  time: "01:00:00"
+  gpus_per_node: 4
+  max_concurrent_jobs: 1
+
+experiment_settings:
+  seeds_per_condition: 1
+  base_seed: 71600
+
+sweep_variants:
+  - name: conv1
+    overrides:
+      training.main.strategies.vision_distillation.boundary_weights: {conv1: 1.0}
+  - name: conv2
+    overrides:
+      training.main.strategies.vision_distillation.boundary_weights: {conv2: 1.0}
+  - name: conv3
+    overrides:
+      training.main.strategies.vision_distillation.boundary_weights: {conv3: 1.0}
+  - name: conv4
+    overrides:
+      training.main.strategies.vision_distillation.boundary_weights: {conv4: 1.0}
+  - name: conv5
+    overrides:
+      training.main.strategies.vision_distillation.boundary_weights: {conv5: 1.0}
+  - name: fc6
+    overrides:
+      training.main.strategies.vision_distillation.boundary_weights: {fc6: 1.0}
+  - name: fc7
+    overrides:
+      training.main.strategies.vision_distillation.boundary_weights: {fc7: 1.0}
+
+sweep_contract:
+  expected_config_count: 7
+
+base_config:
+  experiment:
+    seed: 71600
+
+  model:
+    core:
+      initialization_seed: 71600
+      vision:
+        seed: 71600
+      connectivity:
+        structured:
+          seed: 71600
+      sparsity:
+        indexed:
+          seed: 71600
+
+  training:
+    main:
+      strategies:
+        vision_distillation:
+          boundary_input_mode: teacher_forced
+          feature_weight: 10.0
+          logit_kl_weight: 0.0
+          supervised_weight: 0.0
+
+  wandb:
+    group: iclr2027_dendritic_alexnet_boundary_capacity_pilot
+    tags: [iclr2027, alexnet, full_dendritic, boundary_capacity]
+
+  outputs:
+    run_name: dendritic_alexnet_imagenet_boundary_capacity_pilot
+    results_dir: /n/holylfs06/LABS/kempner_project_b/Lab/dendritic/HS/dendritic_scaling/iclr2027/vision/boundary_capacity_pilot
