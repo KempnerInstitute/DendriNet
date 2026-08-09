@@ -160,3 +160,31 @@ def test_teacher_forced_boundary_distillation_uses_local_block_inputs(monkeypatc
 def test_alexnet_boundary_distillation_rejects_unknown_input_mode():
     with pytest.raises(ValueError, match="boundary_input_mode"):
         AlexNetBoundaryDistillationLoss({"boundary_input_mode": "mixed"})
+
+
+def test_teacher_forced_single_boundary_keeps_all_student_parameters_in_graph(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        "dendritic_modeling.training.strategies.vision_distillation.get_model",
+        lambda _backbone, weights: _TinyTeacher(),
+    )
+    loss_fn = AlexNetBoundaryDistillationLoss(
+        {
+            "boundary_weights": {"conv1": 1.0},
+            "boundary_input_mode": "teacher_forced",
+            "feature_weight": 1.0,
+            "logit_kl_weight": 0.0,
+            "supervised_weight": 0.0,
+        }
+    )
+    student = _TinyStudent()
+    loss = loss_fn(student, torch.randn(4, 3, 4, 4), torch.tensor([0, 1, 2, 1]))
+
+    loss.backward()
+
+    student_parameters = list(student.parameters())
+    assert all(parameter.grad is not None for parameter in student_parameters)
+    assert (
+        torch.count_nonzero(student.core_network.feedforward_blocks[1].weight.grad) == 0
+    )

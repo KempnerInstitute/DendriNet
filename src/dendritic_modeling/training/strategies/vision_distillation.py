@@ -312,6 +312,12 @@ class AlexNetBoundaryDistillationLoss(LossFunction):
             total = total + self.logit_kl_weight * kl
         if self.supervised_weight > 0:
             total = total + self.supervised_weight * F.cross_entropy(student_logits, y)
+        if self.logit_kl_weight == 0 and self.supervised_weight == 0:
+            # Teacher-forced single-boundary audits deliberately leave most
+            # student blocks outside the feature objective. Keep every block
+            # in the zero-valued autograd graph so ordinary DDP can complete
+            # its reductions without changing the objective.
+            total = total + student_logits.sum() * 0.0
         return total
 
 
