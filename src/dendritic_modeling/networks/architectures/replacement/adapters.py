@@ -8,6 +8,9 @@ import torch
 import torch.nn as nn
 
 _VALID_INPUT_TRANSFORMS = frozenset({"identity", "relu", "signed_split"})
+_VALID_POPULATION_REDUCTIONS = frozenset(
+    {"one_to_one", "fixed_mean", "learned_positive"}
+)
 
 
 def validate_input_transform(transform: str) -> str:
@@ -166,4 +169,83 @@ class PositiveFeatureScale(nn.Module):
         return (
             f"num_features={self.num_features}, feature_axis={self.feature_axis}, "
             f"per_feature={self.per_feature}, learnable={self.learnable}"
+        )
+
+
+class PopulationToFeatureReduction(nn.Module):
+    """Reduce a fixed soma group to each downstream feature.
+
+    The input feature axis is organized as contiguous groups with
+    ``somas_per_feature`` somas per output feature. ``fixed_mean`` gives every
+    soma equal weight. ``learned_positive`` learns a separate simplex over the
+    soma group of every feature, retaining population identity without mixing
+    across output channels or units.
+    """
+
+    def __init__(
+        self,
+        num_features: int,
+        *,
+        somas_per_feature: int = 1,
+        feature_axis: int = -1,
+        mode: str = "one_to_one",
+    ):
+        super().__init__()
+        self.num_features = int(num_features)
+        self.somas_per_feature = int(somas_per_feature)
+        self.feature_axis = int(feature_axis)
+        self.mode = str(mode).strip().lower()
+        if self.num_features < 1:
+            raise ValueError("num_features must be positive")
+        if self.somas_per_feature < 1:
+            raise ValueError("somas_per_feature must be positive")
+        if self.mode not in _VALID_POPULATION_REDUCTIONS:
+            raise ValueError("mode must be one_to_one, fixed_mean, or learned_positive")
+        if self.mode == "one_to_one" and self.somas_per_feature != 1:
+            raise ValueError("one_to_one requires somas_per_feature=1")
+        if self.mode == "learned_positive":
+            self.logits = nn.Parameter(
+                torch.zeros(self.num_features, self.somas_per_feature)
+            )
+        else:
+            self.register_parameter("logits", None)
+
+    @property
+    def input_features(self) -> int:
+        return self.num_features * self.somas_per_feature
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        axis = (
+            self.feature_axis if self.feature_axis >= 0 else x.ndim + self.feature_axis
+        )
+        if axis < 0 or axis >= x.ndim:
+            raise ValueError(
+                f"feature_axis={self.feature_axis} is invalid for shape {tuple(x.shape)}"
+            )
+        if x.shape[axis] != self.input_features:
+            raise ValueError(
+                f"Expected {self.input_features} population features on axis {axis}, "
+                f"got {x.shape[axis]}"
+            )
+        if self.mode == "one_to_one":
+            return x
+
+        grouped_shape = [*x.shape[:axis], self.num_features, self.somas_per_feature]
+        grouped_shape.extend(x.shape[axis + 1 :])
+        grouped = x.reshape(grouped_shape)
+        soma_axis = axis + 1
+        if self.mode == "fixed_mean":
+            return grouped.mean(dim=soma_axis)
+
+        weights = torch.softmax(self.logits, dim=-1)
+        weight_shape = [1] * grouped.ndim
+        weight_shape[axis] = self.num_features
+        weight_shape[soma_axis] = self.somas_per_feature
+        return (grouped * weights.view(weight_shape)).sum(dim=soma_axis)
+
+    def extra_repr(self) -> str:
+        return (
+            f"num_features={self.num_features}, "
+            f"somas_per_feature={self.somas_per_feature}, "
+            f"feature_axis={self.feature_axis}, mode={self.mode!r}"
         )

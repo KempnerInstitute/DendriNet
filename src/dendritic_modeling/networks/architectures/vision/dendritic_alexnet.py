@@ -16,6 +16,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.ei_network 
     ConfigurableEINetwork,
 )
 from dendritic_modeling.networks.architectures.replacement import (
+    PopulationToFeatureReduction,
     PositiveFeatureScale,
     SpatialNonNegativeInputAdapter,
 )
@@ -46,6 +47,22 @@ def _scale_list(value: Any, *, name: str, length: int) -> list[float]:
             raise ValueError(f"{name} must contain {length} values, got {len(result)}")
         return result
     return [float(value)] * length
+
+
+def _count_list(value: Any, *, name: str, length: int) -> list[int]:
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        raw = list(value)
+        if len(raw) != length:
+            raise ValueError(f"{name} must contain {length} values, got {len(raw)}")
+    else:
+        raw = [value] * length
+    result: list[int] = []
+    for item in raw:
+        count = int(item)
+        if count < 1 or float(item) != count:
+            raise ValueError(f"{name} values must be positive integers")
+        result.append(count)
+    return result
 
 
 def _output_scale_adapter(
@@ -103,9 +120,11 @@ def _block_config(
 class DendriticAlexNet(BaseNetwork):
     """AlexNet tensor geometry with dendritic convolutional and FC layers.
 
-    Each spatial block emits one excitatory soma per output channel. The final
-    dendritic layer emits one excitatory soma per class, so no dense signed
-    classifier is hidden behind the dendritic network.
+    By default, each spatial block emits one excitatory soma per output
+    channel. Configured soma groups can instead be reduced within channel by a
+    fixed mean or a learned positive simplex. The final dendritic layer always
+    emits one excitatory soma per class, so no dense signed classifier is
+    hidden behind the dendritic network.
     """
 
     def __init__(
@@ -169,6 +188,18 @@ class DendriticAlexNet(BaseNetwork):
             name="vision.output_adapter.classifier_initial_scale",
             length=2,
         )
+        output_organization = dict(vision.get("output_organization", {}))
+        population_reduction_mode = str(output_organization.get("mode", "one_to_one"))
+        spatial_somas_per_channel = _count_list(
+            output_organization.get("spatial_somas_per_channel", 1),
+            name="vision.output_organization.spatial_somas_per_channel",
+            length=5,
+        )
+        classifier_somas_per_unit = _count_list(
+            output_organization.get("classifier_somas_per_unit", 1),
+            name="vision.output_organization.classifier_somas_per_unit",
+            length=2,
+        )
 
         self.input_adapter = SpatialNonNegativeInputAdapter(
             int(input_channels),
@@ -183,19 +214,34 @@ class DendriticAlexNet(BaseNetwork):
         feature_modules: list[nn.Module] = []
         current_channels = self.input_adapter.output_channels
         self.spatial_blocks = nn.ModuleList()
+        self.spatial_population_reducers = nn.ModuleList()
         self.spatial_output_adapters = nn.ModuleList()
-        for index, (out_channels, kernel, stride, padding) in enumerate(
-            zip(channels, kernels, strides, paddings, strict=True)
+        for index, (
+            out_channels,
+            kernel,
+            stride,
+            padding,
+            somas_per_channel,
+        ) in enumerate(
+            zip(
+                channels,
+                kernels,
+                strides,
+                paddings,
+                spatial_somas_per_channel,
+                strict=True,
+            )
         ):
+            population_channels = out_channels * somas_per_channel
             inhibitory_size = (
                 0
                 if inhibitory_ratio == 0
-                else max(1, round(out_channels * inhibitory_ratio))
+                else max(1, round(population_channels * inhibitory_ratio))
             )
             block = HierarchicalDendriticConv(
                 config=_block_config(
                     config,
-                    excitatory_size=out_channels,
+                    excitatory_size=population_channels,
                     inhibitory_size=inhibitory_size,
                     seed=self.component_seeds[index],
                 ),
@@ -205,6 +251,13 @@ class DendriticAlexNet(BaseNetwork):
                 padding=padding,
             )
             self.spatial_blocks.append(block)
+            reducer = PopulationToFeatureReduction(
+                out_channels,
+                somas_per_feature=somas_per_channel,
+                feature_axis=1,
+                mode=population_reduction_mode,
+            )
+            self.spatial_population_reducers.append(reducer)
             adapter = _output_scale_adapter(
                 num_features=out_channels,
                 feature_axis=1,
@@ -213,6 +266,8 @@ class DendriticAlexNet(BaseNetwork):
             )
             self.spatial_output_adapters.append(adapter)
             feature_modules.append(block)
+            if somas_per_channel != 1 or population_reduction_mode != "one_to_one":
+                feature_modules.append(reducer)
             feature_modules.append(adapter)
             if index in pool_after:
                 feature_modules.append(
@@ -226,18 +281,25 @@ class DendriticAlexNet(BaseNetwork):
         fc_sizes = [*classifier_widths, num_classes]
         fc_modules: list[nn.Module] = []
         self.feedforward_blocks = nn.ModuleList()
+        self.feedforward_population_reducers = nn.ModuleList()
         self.feedforward_output_adapters = nn.ModuleList()
         current_dim = flat_dim
         for index, out_dim in enumerate(fc_sizes):
+            somas_per_unit = (
+                classifier_somas_per_unit[index]
+                if index < len(classifier_widths)
+                else 1
+            )
+            population_dim = out_dim * somas_per_unit
             inhibitory_size = (
                 0
                 if inhibitory_ratio == 0
-                else max(1, round(out_dim * inhibitory_ratio))
+                else max(1, round(population_dim * inhibitory_ratio))
             )
             block = ConfigurableEINetwork(
                 config=_block_config(
                     config,
-                    excitatory_size=out_dim,
+                    excitatory_size=population_dim,
                     inhibitory_size=inhibitory_size,
                     seed=self.component_seeds[5 + index],
                 ),
@@ -247,6 +309,22 @@ class DendriticAlexNet(BaseNetwork):
             if index < len(classifier_widths):
                 fc_modules.append(nn.Dropout(p=dropout))
             fc_modules.append(block)
+            reducer = PopulationToFeatureReduction(
+                out_dim,
+                somas_per_feature=somas_per_unit,
+                feature_axis=-1,
+                mode=(
+                    population_reduction_mode
+                    if index < len(classifier_widths)
+                    else "one_to_one"
+                ),
+            )
+            self.feedforward_population_reducers.append(reducer)
+            if somas_per_unit != 1 or (
+                index < len(classifier_widths)
+                and population_reduction_mode != "one_to_one"
+            ):
+                fc_modules.append(reducer)
             if index < len(classifier_widths):
                 adapter = _output_scale_adapter(
                     num_features=out_dim,
@@ -260,6 +338,9 @@ class DendriticAlexNet(BaseNetwork):
             fc_modules.append(adapter)
             current_dim = out_dim
         self.output_adapter_mode = output_adapter_mode
+        self.population_reduction_mode = population_reduction_mode
+        self.spatial_somas_per_channel = tuple(spatial_somas_per_channel)
+        self.classifier_somas_per_unit = tuple(classifier_somas_per_unit)
         self.classifier = nn.Sequential(*fc_modules)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -275,12 +356,19 @@ class DendriticAlexNet(BaseNetwork):
             "input_transform": self.input_adapter.transform,
             "input_channels": self.input_channels,
             "adapted_input_channels": self.input_adapter.output_channels,
-            "spatial_channel_mapping": "one_excitatory_soma_per_output_channel",
+            "spatial_channel_mapping": (
+                "one_excitatory_soma_per_output_channel"
+                if all(value == 1 for value in self.spatial_somas_per_channel)
+                else "fixed_excitatory_soma_group_per_output_channel"
+            ),
             "channel_widths": list(self.channel_widths),
             "class_mapping": "one_excitatory_soma_per_class",
             "num_classes": self.num_classes,
             "propagated_population": "excitatory",
             "inter_block_output_adapter": self.output_adapter_mode,
+            "population_reduction": self.population_reduction_mode,
+            "spatial_somas_per_channel": list(self.spatial_somas_per_channel),
+            "classifier_somas_per_unit": list(self.classifier_somas_per_unit),
             "component_seeds": list(self.component_seeds),
         }
 

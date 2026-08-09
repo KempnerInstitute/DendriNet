@@ -102,6 +102,9 @@ def test_dendritic_alexnet_preserves_channel_and_class_contracts():
         "num_classes": 3,
         "propagated_population": "excitatory",
         "inter_block_output_adapter": "identity",
+        "population_reduction": "one_to_one",
+        "spatial_somas_per_channel": [1, 1, 1, 1, 1],
+        "classifier_somas_per_unit": [1, 1],
         "component_seeds": [11, 12, 13, 14, 15, 16, 17, 18],
     }
 
@@ -135,3 +138,29 @@ def test_dendritic_alexnet_can_learn_positive_per_channel_output_scales():
         torch.full((5,), 3.0),
     )
     assert torch.isfinite(model(torch.randn(2, 3, 64, 64))).all()
+
+
+def test_dendritic_alexnet_supports_multiple_somas_per_output_feature():
+    config = _tiny_config()
+    config["vision"]["output_organization"] = {
+        "mode": "learned_positive",
+        "spatial_somas_per_channel": [2, 2, 2, 2, 2],
+        "classifier_somas_per_unit": [2, 2],
+    }
+
+    model = get_architecture("dendritic_alexnet", config, input_dim=3)
+    output = model(torch.randn(2, 3, 64, 64))
+
+    assert output.shape == (2, 3)
+    assert torch.isfinite(output).all()
+    contract = model.architecture_contract()
+    assert contract["spatial_channel_mapping"] == (
+        "fixed_excitatory_soma_group_per_output_channel"
+    )
+    assert contract["population_reduction"] == "learned_positive"
+    assert contract["spatial_somas_per_channel"] == [2, 2, 2, 2, 2]
+    assert contract["classifier_somas_per_unit"] == [2, 2]
+    assert all(
+        reducer.logits is not None for reducer in model.spatial_population_reducers
+    )
+    assert model.feedforward_population_reducers[-1].logits is None

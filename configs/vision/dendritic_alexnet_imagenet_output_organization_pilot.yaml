@@ -1,0 +1,69 @@
+# Output-organization pilot for the complete dendritic AlexNet.
+#
+# The baseline assigns one excitatory soma to every AlexNet channel or hidden
+# unit. The two population arms assign two contiguous somas to each identity
+# and reduce only within that identity, either by an equal-weight mean or by a
+# learned positive sum-to-one weighting. The class layer remains one soma per
+# ImageNet class in every arm.
+
+extends: dendritic_alexnet_imagenet_output_adapter_pilot.yaml
+
+slurm_config:
+  run_name: dendritic_alexnet_imagenet_output_organization_pilot
+  account: kempner_dev
+  partition: kempner_rtx
+  time: "02:00:00"
+  gpus_per_node: 4
+  max_concurrent_jobs: 1
+
+experiment_settings:
+  seeds_per_condition: 1
+  base_seed: 71800
+
+sweep_variants:
+  - name: one_soma_per_identity
+    overrides:
+      model.core.vision.output_organization.mode: one_to_one
+      model.core.vision.output_organization.spatial_somas_per_channel: 1
+      model.core.vision.output_organization.classifier_somas_per_unit: 1
+  - name: two_somas_fixed_mean
+    overrides:
+      model.core.vision.output_organization.mode: fixed_mean
+      model.core.vision.output_organization.spatial_somas_per_channel: 2
+      model.core.vision.output_organization.classifier_somas_per_unit: 2
+  - name: two_somas_learned_positive
+    overrides:
+      model.core.vision.output_organization.mode: learned_positive
+      model.core.vision.output_organization.spatial_somas_per_channel: 2
+      model.core.vision.output_organization.classifier_somas_per_unit: 2
+
+sweep_contract:
+  expected_config_count: 3
+
+base_config:
+  experiment:
+    seed: 71800
+
+  model:
+    core:
+      initialization_seed: 71800
+      vision:
+        seed: 71800
+        output_organization:
+          mode: one_to_one
+          spatial_somas_per_channel: 1
+          classifier_somas_per_unit: 1
+      connectivity:
+        structured:
+          seed: 71800
+      sparsity:
+        indexed:
+          seed: 71800
+
+  wandb:
+    group: iclr2027_dendritic_alexnet_output_organization_pilot
+    tags: [iclr2027, alexnet, full_dendritic, output_organization]
+
+  outputs:
+    run_name: dendritic_alexnet_imagenet_output_organization_pilot
+    results_dir: /n/holylfs06/LABS/kempner_project_b/Lab/dendritic/HS/dendritic_scaling/iclr2027/vision/full_model_output_organization_pilot

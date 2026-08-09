@@ -215,9 +215,19 @@ class AlexNetBoundaryDistillationLoss(LossFunction):
             "spatial_output_adapters",
             [nn.Identity() for _ in range(5)],
         )
+        spatial_reducers = getattr(
+            core,
+            "spatial_population_reducers",
+            [nn.Identity() for _ in range(5)],
+        )
         feedforward_adapters = getattr(
             core,
             "feedforward_output_adapters",
+            [nn.Identity() for _ in range(3)],
+        )
+        feedforward_reducers = getattr(
+            core,
+            "feedforward_population_reducers",
             [nn.Identity() for _ in range(3)],
         )
         input_adapter = getattr(core, "input_adapter", nn.Identity())
@@ -241,7 +251,9 @@ class AlexNetBoundaryDistillationLoss(LossFunction):
                     teacher_value,
                     teacher_forcing_ratio,
                 )
-            outputs[name] = spatial_adapters[index](core.spatial_blocks[index](value))
+            value = core.spatial_blocks[index](value)
+            value = spatial_reducers[index](value)
+            outputs[name] = spatial_adapters[index](value)
         for index, name in enumerate(_BOUNDARY_NAMES[5:]):
             teacher_value = teacher_inputs[name]
             value = teacher_value
@@ -260,6 +272,7 @@ class AlexNetBoundaryDistillationLoss(LossFunction):
                     teacher_forcing_ratio,
                 )
             value = core.feedforward_blocks[index](value)
+            value = feedforward_reducers[index](value)
             outputs[name] = feedforward_adapters[index](value)
         return outputs
 

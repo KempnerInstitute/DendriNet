@@ -3,6 +3,7 @@ import torch
 from dendritic_modeling.networks.architectures.replacement import (
     LayerwiseTokenReplacementStack,
     NonNegativeInputAdapter,
+    PopulationToFeatureReduction,
     PositiveFeatureScale,
     SpatialNonNegativeInputAdapter,
     TokenReplacementCell,
@@ -51,6 +52,36 @@ def test_positive_feature_scale_preserves_layout_and_nonnegativity():
     torch.testing.assert_close(y, 2.0 * x)
     y.mean().backward()
     assert adapter.log_scale.grad is not None
+
+
+def test_population_reduction_uses_feature_local_simplexes():
+    adapter = PopulationToFeatureReduction(
+        2,
+        somas_per_feature=3,
+        feature_axis=1,
+        mode="learned_positive",
+    )
+    x = torch.tensor([[[[1.0]], [[2.0]], [[3.0]], [[4.0]], [[5.0]], [[6.0]]]])
+
+    y = adapter(x)
+
+    assert y.shape == (1, 2, 1, 1)
+    torch.testing.assert_close(y.flatten(), torch.tensor([2.0, 5.0]))
+    y.sum().backward()
+    assert adapter.logits.grad is not None
+
+
+def test_fixed_population_reduction_does_not_mix_output_features():
+    adapter = PopulationToFeatureReduction(
+        2,
+        somas_per_feature=2,
+        feature_axis=-1,
+        mode="fixed_mean",
+    )
+
+    y = adapter(torch.tensor([[1.0, 3.0, 10.0, 14.0]]))
+
+    torch.testing.assert_close(y, torch.tensor([[2.0, 12.0]]))
 
 
 def test_transformer_ffn_uses_shared_cell_without_state_dict_key_migration():

@@ -4,7 +4,10 @@ import pytest
 import torch
 import torch.nn as nn
 
-from dendritic_modeling.networks.architectures.replacement import PositiveFeatureScale
+from dendritic_modeling.networks.architectures.replacement import (
+    PopulationToFeatureReduction,
+    PositiveFeatureScale,
+)
 from dendritic_modeling.training.strategies.vision_distillation import (
     AlexNetBoundaryDistillationLoss,
 )
@@ -39,6 +42,15 @@ class _RecordingIdentity(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         self.last_input = x.detach().clone()
         return x
+
+
+class _RepeatInterleave(nn.Module):
+    def __init__(self, axis: int):
+        super().__init__()
+        self.axis = axis
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return x.repeat_interleave(2, dim=self.axis)
 
 
 class _TinyStudentCore(nn.Module):
@@ -124,6 +136,61 @@ def test_alexnet_boundary_distillation_is_finite_and_differentiable(monkeypatch)
     assert student.core_network.feedforward_blocks[0].weight.grad is not None
     assert student.core_network.spatial_output_adapters[0].log_scale.grad is not None
     assert all(parameter.grad is None for parameter in loss_fn.teacher.parameters())
+
+
+def test_teacher_forced_boundaries_apply_population_reducers():
+    core = nn.Module()
+    core.input_adapter = nn.Identity()
+    core.spatial_blocks = nn.ModuleList(_RepeatInterleave(1) for _ in range(5))
+    core.spatial_population_reducers = nn.ModuleList(
+        PopulationToFeatureReduction(
+            3,
+            somas_per_feature=2,
+            feature_axis=1,
+            mode="fixed_mean",
+        )
+        for _ in range(5)
+    )
+    core.spatial_output_adapters = nn.ModuleList(nn.Identity() for _ in range(5))
+    core.feedforward_blocks = nn.ModuleList(
+        [_RepeatInterleave(-1), _RepeatInterleave(-1), nn.Identity()]
+    )
+    core.feedforward_population_reducers = nn.ModuleList(
+        [
+            PopulationToFeatureReduction(
+                48,
+                somas_per_feature=2,
+                feature_axis=-1,
+                mode="fixed_mean",
+            ),
+            PopulationToFeatureReduction(
+                48,
+                somas_per_feature=2,
+                feature_axis=-1,
+                mode="fixed_mean",
+            ),
+            nn.Identity(),
+        ]
+    )
+    core.feedforward_output_adapters = nn.ModuleList(nn.Identity() for _ in range(3))
+    teacher_inputs = {
+        **{
+            name: torch.randn(2, 3, 4, 4)
+            for name in ("conv1", "conv2", "conv3", "conv4", "conv5")
+        },
+        "fc6": torch.randn(2, 48),
+        "fc7": torch.randn(2, 48),
+    }
+
+    outputs = AlexNetBoundaryDistillationLoss._conditioned_student_outputs(
+        core,
+        teacher_inputs,
+        teacher_forcing_ratio=1.0,
+    )
+
+    assert set(outputs) == set(teacher_inputs)
+    for name in outputs:
+        torch.testing.assert_close(outputs[name], teacher_inputs[name])
 
 
 def test_alexnet_boundary_distillation_rejects_unknown_boundary():
