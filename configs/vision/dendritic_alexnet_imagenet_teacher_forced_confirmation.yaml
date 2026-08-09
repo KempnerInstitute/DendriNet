@@ -1,0 +1,50 @@
+# Longer teacher-forced learning gate for the complete dendritic AlexNet.
+#
+# The five-epoch pilot and individual-boundary audit both reached their best
+# validation objective at the final epoch. This single-seed confirmation keeps
+# the architecture, data cohort, optimizer, and objective fixed while extending
+# only the training horizon. A full-data or multi-seed study remains gated on a
+# non-chance composed classifier.
+
+extends: dendritic_alexnet_imagenet_teacher_forced_distillation_pilot.yaml
+
+slurm_config:
+  run_name: dendritic_alexnet_imagenet_teacher_forced_confirmation
+  account: kempner_dev
+  partition: kempner_rtx
+  time: "02:00:00"
+  gpus_per_node: 4
+  max_concurrent_jobs: 1
+
+experiment_settings:
+  seeds_per_condition: 1
+  base_seed: 71500
+
+sweep_variants:
+  - name: teacher_forced_per_channel_scale_20ep
+    overrides:
+      model.core.vision.output_adapter.mode: learned_per_channel
+      training.main.strategies.vision_distillation.boundary_input_mode: teacher_forced
+
+sweep_contract:
+  expected_config_count: 1
+
+base_config:
+  training:
+    main:
+      common:
+        epochs: 20
+      strategies:
+        vision_distillation:
+          boundary_input_mode: teacher_forced
+          feature_weight: 10.0
+          logit_kl_weight: 0.0
+          supervised_weight: 1.0
+
+  wandb:
+    group: iclr2027_dendritic_alexnet_teacher_forced_confirmation
+    tags: [iclr2027, alexnet, full_dendritic, teacher_forced_confirmation]
+
+  outputs:
+    run_name: dendritic_alexnet_imagenet_teacher_forced_confirmation
+    results_dir: /n/holylfs06/LABS/kempner_project_b/Lab/dendritic/HS/dendritic_scaling/iclr2027/vision/full_model_teacher_forced_confirmation
