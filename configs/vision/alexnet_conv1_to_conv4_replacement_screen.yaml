@@ -1,6 +1,8 @@
 # One-seed AlexNet spatial-boundary screen. Each condition replaces exactly
 # one convolution plus its following ReLU and retains the common pretrained
-# prefix and suffix. Selected boundaries require a five-seed confirmation.
+# prefix and suffix. This gate uses 50 training and 10 evaluation images per
+# class for 20 epochs. Selected boundaries require a full-data five-seed
+# confirmation.
 
 extends: alexnet_conv5_replacement_benchmark.yaml
 
@@ -145,12 +147,23 @@ sweep_contract: {expected_config_count: 16}
 base_config:
   experiment:
     seed: 71700
+    checkpointing:
+      save_every_n_epochs: 5
+  data:
+    dataset_params:
+      imagenet:
+        train_samples_per_class: 50
+        val_samples_per_class: 10
   model:
     core:
       initialization_seed: 71700
       sparsity:
         indexed:
           seed: 71700
+  training:
+    main:
+      common:
+        epochs: 20
   outputs:
     run_name: alexnet_conv1_to_conv4_replacement_screen
     results_dir: outputs
