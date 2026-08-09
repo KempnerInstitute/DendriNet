@@ -611,6 +611,26 @@ class TestConfigLoading(unittest.TestCase):
             "softmax_equivalent_nonnegative",
         )
 
+    def test_load_config_preserves_initial_checkpoint_contract(self):
+        load_config.cache_clear()
+        configured = {
+            **self.sample_config,
+            "model": {
+                **self.sample_config["model"],
+                "initial_checkpoint": "/tmp/model.pt",
+                "initial_checkpoint_sha256": "a" * 64,
+                "initial_checkpoint_strict": False,
+            },
+        }
+        with open(self.config_file, "w") as f:
+            yaml.safe_dump(configured, f)
+
+        config = load_config(self.config_file)
+
+        self.assertEqual(config.model.initial_checkpoint, "/tmp/model.pt")
+        self.assertEqual(config.model.initial_checkpoint_sha256, "a" * 64)
+        self.assertFalse(config.model.initial_checkpoint_strict)
+
     def test_load_config_returns_independent_objects(self):
         """Cached config parsing must not leak runtime mutations."""
         load_config.cache_clear()

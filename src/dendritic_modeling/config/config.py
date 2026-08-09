@@ -707,6 +707,11 @@ def _build_model_config(model_data: Any) -> ModelConfig:
 
     return ModelConfig(
         task=str(model_dict.get("task", "classification")),
+        initial_checkpoint=model_dict.get("initial_checkpoint"),
+        initial_checkpoint_sha256=model_dict.get("initial_checkpoint_sha256"),
+        initial_checkpoint_strict=bool(
+            model_dict.get("initial_checkpoint_strict", True)
+        ),
         learned_output_scale=bool(model_dict.get("learned_output_scale", True)),
         fixed_output_scale=float(model_dict.get("fixed_output_scale", 1.0)),
         output_scale_mode=model_dict.get("output_scale_mode"),
