@@ -72,6 +72,7 @@ from .synaptic_pruning import (
     integrate_pruning_with_turnover_analysis,
 )
 from .synaptic_turnover import SynapticTurnoverAnalyzer
+from .vision_boundary_diagnostics import VisionBoundaryDiagnosticsAnalyzer
 from .weight import WeightAnalyzer
 
 __all__ = [
@@ -106,6 +107,7 @@ __all__ = [
     "SynapticActivationAnalyzer",
     "SynapticPruningAnalyzer",
     "SynapticTurnoverAnalyzer",
+    "VisionBoundaryDiagnosticsAnalyzer",
     "WeightAnalyzer",  # Now includes all weight analysis functionality
     "analyze_ei_connectivity_motifs_from_state_dict",
     "apply_balanced_countsketch",

@@ -67,6 +67,8 @@ from dendritic_modeling.config.analysis import (
     SynapseTurnoverAnalysisConfig,
     SynapticActivationAnalysisConfig,
     SynapticActivationAnalysisParams,
+    VisionBoundaryDiagnosticsAnalysisConfig,
+    VisionBoundaryDiagnosticsAnalysisParams,
     WeightAnalysisConfig,
     WeightAnalysisParams,
 )
@@ -264,6 +266,8 @@ __all__ = [
     "TransferFunctionConfig",
     "TransformerReplacementConfig",
     "TransformerReplacementTrainingConfig",
+    "VisionBoundaryDiagnosticsAnalysisConfig",
+    "VisionBoundaryDiagnosticsAnalysisParams",
     "VisionDistillationStrategyConfig",
     "VisionReplacementTrainingConfig",
     "VoltageStabilizationStrategyConfig",

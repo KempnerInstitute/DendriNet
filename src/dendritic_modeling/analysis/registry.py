@@ -75,6 +75,21 @@ _BUILTIN_ANALYZERS: tuple[AnalyzerSpec, ...] = (
         ),
     ),
     AnalyzerSpec(
+        name="vision_boundary_diagnostics",
+        config_field="vision_boundary_diagnostics_analysis",
+        class_path=(
+            "dendritic_modeling.analysis.tools.vision_boundary_diagnostics."
+            "VisionBoundaryDiagnosticsAnalyzer"
+        ),
+        attribute_name="vision_boundary_diagnostics_analyzer",
+        save_subdir="vision_boundary_diagnostics",
+        supports_training=False,
+        description=(
+            "Matched scale, sparsity, error, alignment, and geometry diagnostics "
+            "for pretrained vision-layer replacements"
+        ),
+    ),
+    AnalyzerSpec(
         name="source_tuning_support",
         config_field="source_tuning_support_analysis",
         class_path=(

@@ -186,6 +186,10 @@ _MODEL_ONLY_ANALYSES = (
 
 
 _PRE_WEIGHT_TEST_DATASET_ANALYSES = (
+    _TestDatasetAnalysisRunner(
+        "vision_boundary_diagnostics",
+        require_analyzer=True,
+    ),
     _TestDatasetAnalysisRunner("noise_perturbation"),
     _TestDatasetAnalysisRunner("single_layer_contribution"),
     _TestDatasetAnalysisRunner(

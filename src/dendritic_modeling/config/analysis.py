@@ -804,6 +804,44 @@ class RepresentationAccessibilityAnalysisConfig(BaseConfig):
 
 
 @dataclass
+class VisionBoundaryDiagnosticsAnalysisParams(BaseConfig):
+    """Matched diagnostics for a vision replacement and its exact boundary."""
+
+    backbone: str = "alexnet"
+    weights: str = "IMAGENET1K_V1"
+    projection_dim: int = 128
+    projection_seed: int = 0
+    max_samples: Optional[int] = 1000
+    zero_tolerance: float = 1e-8
+
+    def __post_init__(self) -> None:
+        self.backbone = str(self.backbone)
+        self.weights = str(self.weights)
+        self.projection_dim = int(self.projection_dim)
+        self.projection_seed = int(self.projection_seed)
+        if self.projection_dim < 1:
+            raise ValueError("vision boundary projection_dim must be positive")
+        if self.max_samples is not None:
+            self.max_samples = int(self.max_samples)
+            if self.max_samples < 2:
+                raise ValueError("vision boundary max_samples must be at least two")
+        self.zero_tolerance = float(self.zero_tolerance)
+        if self.zero_tolerance < 0:
+            raise ValueError("vision boundary zero_tolerance must be non-negative")
+
+
+@dataclass
+class VisionBoundaryDiagnosticsAnalysisConfig(BaseConfig):
+    """Enable final-only matched vision-boundary diagnostics."""
+
+    enabled: bool = False
+    training: bool = False
+    params: VisionBoundaryDiagnosticsAnalysisParams = field(
+        default_factory=VisionBoundaryDiagnosticsAnalysisParams
+    )
+
+
+@dataclass
 class SourceTuningSupportAnalysisParams(BaseConfig):
     """Split-safe source tuning aligned with exact sparse synaptic support."""
 
@@ -2546,6 +2584,9 @@ class AnalysisConfig(BaseConfig):
     )
     representation_accessibility_analysis: RepresentationAccessibilityAnalysisConfig = (
         field(default_factory=RepresentationAccessibilityAnalysisConfig)
+    )
+    vision_boundary_diagnostics_analysis: VisionBoundaryDiagnosticsAnalysisConfig = (
+        field(default_factory=VisionBoundaryDiagnosticsAnalysisConfig)
     )
     source_tuning_support_analysis: SourceTuningSupportAnalysisConfig = field(
         default_factory=SourceTuningSupportAnalysisConfig

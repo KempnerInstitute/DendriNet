@@ -786,6 +786,21 @@ analysis:
         binarize_method: "median"       # str: "median" | "mean" | "quantile"
         binarize_threshold: 0.5         # float: Binarization threshold
 
+  # ---------- Pretrained vision-boundary diagnostics ----------
+  # Final-only matched comparison between a trained replacement and the exact
+  # pretrained layer span, evaluated on the same encoded examples. This is
+  # intended for checkpoint analysis of CNN/MLP layer replacements.
+  vision_boundary_diagnostics:
+    enabled: false                      # bool: Enable matched boundary diagnostics
+    training: false                     # bool: Must remain false (final-only)
+    params:
+      backbone: "alexnet"               # str: Torchvision backbone name
+      weights: "IMAGENET1K_V1"          # str: Pretrained weight identifier
+      projection_dim: 128               # int: Shared CountSketch width for CKA/geometry
+      projection_seed: 0                # int: Deterministic projection seed
+      max_samples: 1000                 # int | null: Evaluation sample cap
+      zero_tolerance: 0.00000001        # float: Absolute threshold for zero/positive rates
+
   # ---------- Correlation ----------
   correlation:
     enabled: false                      # bool: Enable correlation analysis

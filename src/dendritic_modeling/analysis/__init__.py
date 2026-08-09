@@ -97,6 +97,10 @@ _LAZY_IMPORTS = {
         "dendritic_modeling.analysis.tools",
         "RepresentationAccessibilityAnalyzer",
     ),
+    "VisionBoundaryDiagnosticsAnalyzer": (
+        "dendritic_modeling.analysis.tools",
+        "VisionBoundaryDiagnosticsAnalyzer",
+    ),
     "SameCheckpointCausalInterventionAnalyzer": (
         "dendritic_modeling.analysis.tools",
         "SameCheckpointCausalInterventionAnalyzer",
