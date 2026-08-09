@@ -106,10 +106,22 @@ class AlexNetBoundaryDistillationLoss(LossFunction):
         self.boundary_input_mode = (
             str(cfg.get("boundary_input_mode", "composed")).strip().lower()
         )
-        if self.boundary_input_mode not in {"composed", "teacher_forced"}:
+        if self.boundary_input_mode not in {"composed", "teacher_forced", "mixed"}:
             raise ValueError(
-                "vision distillation boundary_input_mode must be composed or "
-                f"teacher_forced, got {self.boundary_input_mode!r}"
+                "vision distillation boundary_input_mode must be composed, "
+                "teacher_forced, or mixed, "
+                f"got {self.boundary_input_mode!r}"
+            )
+        self.teacher_forcing_ratio = float(cfg.get("teacher_forcing_ratio", 0.5))
+        if not 0 <= self.teacher_forcing_ratio <= 1:
+            raise ValueError("teacher_forcing_ratio must be between zero and one")
+        if self.boundary_input_mode == "mixed" and self.teacher_forcing_ratio in {
+            0.0,
+            1.0,
+        }:
+            raise ValueError(
+                "mixed boundary inputs require teacher_forcing_ratio strictly "
+                "between zero and one"
             )
         self.feature_weight = float(cfg.get("feature_weight", 1.0))
         self.logit_kl_weight = float(cfg.get("logit_kl_weight", 1.0))
@@ -187,9 +199,16 @@ class AlexNetBoundaryDistillationLoss(LossFunction):
         return [*list(spatial), *list(feedforward)[:2]]
 
     @staticmethod
-    def _teacher_forced_student_outputs(
+    def _student_boundary_input_modules(core: nn.Module) -> list[nn.Module]:
+        return [*list(core.spatial_blocks), *list(core.feedforward_blocks)[:2]]
+
+    @staticmethod
+    def _conditioned_student_outputs(
         core: nn.Module,
         teacher_inputs: dict[str, torch.Tensor],
+        *,
+        teacher_forcing_ratio: float,
+        composed_inputs: dict[str, torch.Tensor] | None = None,
     ) -> dict[str, torch.Tensor]:
         spatial_adapters = getattr(
             core,
@@ -204,12 +223,41 @@ class AlexNetBoundaryDistillationLoss(LossFunction):
         input_adapter = getattr(core, "input_adapter", nn.Identity())
         outputs: dict[str, torch.Tensor] = {}
         for index, name in enumerate(_BOUNDARY_NAMES[:5]):
-            value = teacher_inputs[name]
+            teacher_value = teacher_inputs[name]
             if index == 0:
-                value = input_adapter(value)
+                teacher_value = input_adapter(teacher_value)
+            value = teacher_value
+            if composed_inputs is not None:
+                composed_value = composed_inputs[name]
+                if composed_value.shape != teacher_value.shape:
+                    raise ValueError(
+                        f"Boundary {name} input shape mismatch: composed "
+                        f"{list(composed_value.shape)} versus teacher "
+                        f"{list(teacher_value.shape)}"
+                    )
+                value = torch.lerp(
+                    composed_value,
+                    teacher_value,
+                    teacher_forcing_ratio,
+                )
             outputs[name] = spatial_adapters[index](core.spatial_blocks[index](value))
         for index, name in enumerate(_BOUNDARY_NAMES[5:]):
-            value = core.feedforward_blocks[index](teacher_inputs[name])
+            teacher_value = teacher_inputs[name]
+            value = teacher_value
+            if composed_inputs is not None:
+                composed_value = composed_inputs[name]
+                if composed_value.shape != teacher_value.shape:
+                    raise ValueError(
+                        f"Boundary {name} input shape mismatch: composed "
+                        f"{list(composed_value.shape)} versus teacher "
+                        f"{list(teacher_value.shape)}"
+                    )
+                value = torch.lerp(
+                    composed_value,
+                    teacher_value,
+                    teacher_forcing_ratio,
+                )
+            value = core.feedforward_blocks[index](value)
             outputs[name] = feedforward_adapters[index](value)
         return outputs
 
@@ -260,6 +308,7 @@ class AlexNetBoundaryDistillationLoss(LossFunction):
         teacher_outputs: dict[str, torch.Tensor] = {}
         teacher_inputs: dict[str, torch.Tensor] = {}
         student_outputs: dict[str, torch.Tensor] = {}
+        student_inputs: dict[str, torch.Tensor] = {}
         teacher_handles = _register_output_capture(
             self._teacher_boundary_modules(teacher),
             _BOUNDARY_NAMES,
@@ -267,12 +316,18 @@ class AlexNetBoundaryDistillationLoss(LossFunction):
         )
         teacher_input_handles: list[torch.utils.hooks.RemovableHandle] = []
         student_handles: list[torch.utils.hooks.RemovableHandle] = []
-        if self.boundary_input_mode == "teacher_forced":
+        if self.boundary_input_mode in {"teacher_forced", "mixed"}:
             teacher_input_handles = _register_input_capture(
                 self._teacher_boundary_input_modules(teacher),
                 _BOUNDARY_NAMES,
                 teacher_inputs,
             )
+            if self.boundary_input_mode == "mixed":
+                student_handles = _register_input_capture(
+                    self._student_boundary_input_modules(core),
+                    _BOUNDARY_NAMES,
+                    student_inputs,
+                )
         else:
             student_handles = _register_output_capture(
                 self._student_boundary_modules(core),
@@ -283,10 +338,18 @@ class AlexNetBoundaryDistillationLoss(LossFunction):
             with torch.no_grad():
                 teacher_logits = teacher(x)
             student_logits = model(x)
-            if self.boundary_input_mode == "teacher_forced":
-                student_outputs = self._teacher_forced_student_outputs(
+            if self.boundary_input_mode in {"teacher_forced", "mixed"}:
+                student_outputs = self._conditioned_student_outputs(
                     core,
                     teacher_inputs,
+                    teacher_forcing_ratio=(
+                        1.0
+                        if self.boundary_input_mode == "teacher_forced"
+                        else self.teacher_forcing_ratio
+                    ),
+                    composed_inputs=(
+                        student_inputs if self.boundary_input_mode == "mixed" else None
+                    ),
                 )
         finally:
             for handle in (

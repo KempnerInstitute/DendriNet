@@ -159,7 +159,51 @@ def test_teacher_forced_boundary_distillation_uses_local_block_inputs(monkeypatc
 
 def test_alexnet_boundary_distillation_rejects_unknown_input_mode():
     with pytest.raises(ValueError, match="boundary_input_mode"):
-        AlexNetBoundaryDistillationLoss({"boundary_input_mode": "mixed"})
+        AlexNetBoundaryDistillationLoss({"boundary_input_mode": "unsupported"})
+
+
+def test_mixed_boundary_distillation_blends_teacher_and_composed_inputs(monkeypatch):
+    monkeypatch.setattr(
+        "dendritic_modeling.training.strategies.vision_distillation.get_model",
+        lambda _backbone, weights: _TinyTeacher(),
+    )
+    loss_fn = AlexNetBoundaryDistillationLoss(
+        {
+            "boundary_weights": {"conv2": 1.0},
+            "boundary_input_mode": "mixed",
+            "teacher_forcing_ratio": 0.25,
+            "feature_weight": 1.0,
+            "logit_kl_weight": 0.0,
+            "supervised_weight": 0.0,
+        }
+    )
+    student = _TinyStudent()
+    with torch.no_grad():
+        student.core_network.spatial_output_adapters[0].log_scale.fill_(
+            torch.log(torch.tensor(2.0))
+        )
+    inputs = torch.randn(4, 3, 4, 4)
+    loss = loss_fn(student, inputs, torch.tensor([0, 1, 2, 1]))
+
+    expected_conv2_input = 0.25 * inputs + 0.75 * (2.0 * inputs)
+    assert torch.allclose(
+        student.core_network.spatial_blocks[1].last_input,
+        expected_conv2_input,
+    )
+    assert torch.isfinite(loss)
+    loss.backward()
+    assert student.core_network.spatial_output_adapters[0].log_scale.grad is not None
+
+
+@pytest.mark.parametrize("ratio", [-0.1, 0.0, 1.0, 1.1])
+def test_mixed_boundary_distillation_rejects_invalid_ratio(ratio):
+    with pytest.raises(ValueError, match="teacher_forcing_ratio"):
+        AlexNetBoundaryDistillationLoss(
+            {
+                "boundary_input_mode": "mixed",
+                "teacher_forcing_ratio": ratio,
+            }
+        )
 
 
 def test_teacher_forced_single_boundary_keeps_all_student_parameters_in_graph(

@@ -1,0 +1,72 @@
+# Composition-aware boundary-distillation gate for the complete AlexNet student.
+#
+# The teacher-forced confirmation learned every local objective but remained at
+# chance after composing the blocks. These matched-initialization arms expose
+# each block to a fixed blend of its exact teacher input and the activation
+# produced by the preceding student blocks. The three ratios test whether
+# reducing train/test boundary mismatch restores a usable composed classifier.
+
+extends: dendritic_alexnet_imagenet_teacher_forced_confirmation.yaml
+
+slurm_config:
+  run_name: dendritic_alexnet_imagenet_mixed_input_gate
+  account: kempner_dev
+  partition: kempner_rtx
+  time: "02:00:00"
+  gpus_per_node: 4
+  max_concurrent_jobs: 1
+
+experiment_settings:
+  seeds_per_condition: 1
+  base_seed: 71750
+
+sweep_variants:
+  - name: mixed_teacher_025
+    overrides:
+      training.main.strategies.vision_distillation.boundary_input_mode: mixed
+      training.main.strategies.vision_distillation.teacher_forcing_ratio: 0.25
+  - name: mixed_teacher_050
+    overrides:
+      training.main.strategies.vision_distillation.boundary_input_mode: mixed
+      training.main.strategies.vision_distillation.teacher_forcing_ratio: 0.50
+  - name: mixed_teacher_075
+    overrides:
+      training.main.strategies.vision_distillation.boundary_input_mode: mixed
+      training.main.strategies.vision_distillation.teacher_forcing_ratio: 0.75
+
+sweep_contract:
+  expected_config_count: 3
+
+base_config:
+  experiment:
+    seed: 71750
+
+  model:
+    core:
+      initialization_seed: 71750
+      vision:
+        seed: 71750
+      connectivity:
+        structured:
+          seed: 71750
+      sparsity:
+        indexed:
+          seed: 71750
+
+  training:
+    main:
+      strategies:
+        vision_distillation:
+          boundary_input_mode: mixed
+          teacher_forcing_ratio: 0.5
+          feature_weight: 10.0
+          logit_kl_weight: 0.0
+          supervised_weight: 1.0
+
+  wandb:
+    group: iclr2027_dendritic_alexnet_mixed_input_gate
+    tags: [iclr2027, alexnet, full_dendritic, mixed_boundary_inputs]
+
+  outputs:
+    run_name: dendritic_alexnet_imagenet_mixed_input_gate
+    results_dir: /n/holylfs06/LABS/kempner_project_b/Lab/dendritic/HS/dendritic_scaling/iclr2027/vision/full_model_mixed_input_gate

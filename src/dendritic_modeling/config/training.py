@@ -217,14 +217,16 @@ class VisionDistillationStrategyConfig(BaseConfig):
     """Online feature and logit distillation for AlexNet-shaped students.
 
     Boundary losses are a weighted mean, so enabling more boundaries does not
-    implicitly increase the overall feature-loss scale. An empty mapping keeps
-    intermediate feature supervision disabled.
+    implicitly increase the overall feature-loss scale. ``mixed`` inputs blend
+    teacher and composed-student activations using ``teacher_forcing_ratio``.
+    An empty mapping keeps intermediate feature supervision disabled.
     """
 
     teacher_backbone: str = "alexnet"
     teacher_weights: str = "IMAGENET1K_V1"
     boundary_weights: dict[str, float] = field(default_factory=dict)
     boundary_input_mode: str = "composed"
+    teacher_forcing_ratio: float = 0.5
     feature_weight: float = 1.0
     logit_kl_weight: float = 1.0
     supervised_weight: float = 1.0
