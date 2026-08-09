@@ -121,7 +121,7 @@ def test_analyzer_compares_matched_boundary_and_saves_json(
         model,
         _dataset(),
         save_path=str(tmp_path),
-        filename="final.json",
+        filename="final",
         runtime=EvaluationRuntimeConfig(
             mode="stream",
             batch_size=2,
@@ -170,6 +170,6 @@ def test_analysis_manager_runs_vision_boundary_diagnostics(
         device="cpu",
     )
 
-    manager.run_analysis(filename="final.json", training=False)
+    manager.run_analysis(filename="final", training=False)
 
     assert (tmp_path / "vision_boundary_diagnostics" / "final.json").is_file()

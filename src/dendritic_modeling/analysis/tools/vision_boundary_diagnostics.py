@@ -317,7 +317,10 @@ class VisionBoundaryDiagnosticsAnalyzer:
             },
         }
         if save_path is not None:
-            save_dict(results, save_path, filename)
+            output_filename = (
+                filename if filename.endswith(".json") else f"{filename}.json"
+            )
+            save_dict(results, save_path, output_filename)
         return results
 
 
