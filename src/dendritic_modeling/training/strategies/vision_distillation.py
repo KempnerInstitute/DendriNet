@@ -18,7 +18,9 @@ logger = logging.getLogger(__name__)
 
 _BOUNDARY_NAMES = ("conv1", "conv2", "conv3", "conv4", "conv5", "fc6", "fc7")
 _TEACHER_FEATURE_INDICES = (1, 4, 7, 9, 11)
+_TEACHER_FEATURE_INPUT_INDICES = (0, 3, 6, 8, 10)
 _TEACHER_CLASSIFIER_INDICES = (2, 5)
+_TEACHER_CLASSIFIER_INPUT_INDICES = (1, 4)
 
 
 def _plain_mapping(value: Any) -> dict[str, Any]:
@@ -66,6 +68,23 @@ def _register_output_capture(
     return handles
 
 
+def _register_input_capture(
+    modules: list[nn.Module],
+    names: tuple[str, ...],
+    destination: dict[str, torch.Tensor],
+) -> list[torch.utils.hooks.RemovableHandle]:
+    handles: list[torch.utils.hooks.RemovableHandle] = []
+    for name, module in zip(names, modules, strict=True):
+        handles.append(
+            module.register_forward_pre_hook(
+                lambda _module, inputs, key=name: destination.__setitem__(
+                    key, inputs[0]
+                )
+            )
+        )
+    return handles
+
+
 class AlexNetBoundaryDistillationLoss(LossFunction):
     """Combine matched-boundary feature loss, logit KL, and label loss."""
 
@@ -84,6 +103,14 @@ class AlexNetBoundaryDistillationLoss(LossFunction):
             for name, weight in raw_weights.items()
             if float(weight) > 0
         }
+        self.boundary_input_mode = (
+            str(cfg.get("boundary_input_mode", "composed")).strip().lower()
+        )
+        if self.boundary_input_mode not in {"composed", "teacher_forced"}:
+            raise ValueError(
+                "vision distillation boundary_input_mode must be composed or "
+                f"teacher_forced, got {self.boundary_input_mode!r}"
+            )
         self.feature_weight = float(cfg.get("feature_weight", 1.0))
         self.logit_kl_weight = float(cfg.get("logit_kl_weight", 1.0))
         self.supervised_weight = float(cfg.get("supervised_weight", 1.0))
@@ -139,6 +166,17 @@ class AlexNetBoundaryDistillationLoss(LossFunction):
         ]
 
     @staticmethod
+    def _teacher_boundary_input_modules(teacher: nn.Module) -> list[nn.Module]:
+        features = getattr(teacher, "features", None)
+        classifier = getattr(teacher, "classifier", None)
+        if features is None or classifier is None:
+            raise TypeError("AlexNet teacher must expose features and classifier")
+        return [
+            *(features[index] for index in _TEACHER_FEATURE_INPUT_INDICES),
+            *(classifier[index] for index in _TEACHER_CLASSIFIER_INPUT_INDICES),
+        ]
+
+    @staticmethod
     def _student_boundary_modules(core: nn.Module) -> list[nn.Module]:
         spatial = getattr(core, "spatial_output_adapters", core.spatial_blocks)
         feedforward = getattr(
@@ -147,6 +185,33 @@ class AlexNetBoundaryDistillationLoss(LossFunction):
             core.feedforward_blocks,
         )
         return [*list(spatial), *list(feedforward)[:2]]
+
+    @staticmethod
+    def _teacher_forced_student_outputs(
+        core: nn.Module,
+        teacher_inputs: dict[str, torch.Tensor],
+    ) -> dict[str, torch.Tensor]:
+        spatial_adapters = getattr(
+            core,
+            "spatial_output_adapters",
+            [nn.Identity() for _ in range(5)],
+        )
+        feedforward_adapters = getattr(
+            core,
+            "feedforward_output_adapters",
+            [nn.Identity() for _ in range(3)],
+        )
+        input_adapter = getattr(core, "input_adapter", nn.Identity())
+        outputs: dict[str, torch.Tensor] = {}
+        for index, name in enumerate(_BOUNDARY_NAMES[:5]):
+            value = teacher_inputs[name]
+            if index == 0:
+                value = input_adapter(value)
+            outputs[name] = spatial_adapters[index](core.spatial_blocks[index](value))
+        for index, name in enumerate(_BOUNDARY_NAMES[5:]):
+            value = core.feedforward_blocks[index](teacher_inputs[name])
+            outputs[name] = feedforward_adapters[index](value)
+        return outputs
 
     def _feature_loss(
         self,
@@ -193,23 +258,42 @@ class AlexNetBoundaryDistillationLoss(LossFunction):
         teacher.eval()
 
         teacher_outputs: dict[str, torch.Tensor] = {}
+        teacher_inputs: dict[str, torch.Tensor] = {}
         student_outputs: dict[str, torch.Tensor] = {}
         teacher_handles = _register_output_capture(
             self._teacher_boundary_modules(teacher),
             _BOUNDARY_NAMES,
             teacher_outputs,
         )
-        student_handles = _register_output_capture(
-            self._student_boundary_modules(core),
-            _BOUNDARY_NAMES,
-            student_outputs,
-        )
+        teacher_input_handles: list[torch.utils.hooks.RemovableHandle] = []
+        student_handles: list[torch.utils.hooks.RemovableHandle] = []
+        if self.boundary_input_mode == "teacher_forced":
+            teacher_input_handles = _register_input_capture(
+                self._teacher_boundary_input_modules(teacher),
+                _BOUNDARY_NAMES,
+                teacher_inputs,
+            )
+        else:
+            student_handles = _register_output_capture(
+                self._student_boundary_modules(core),
+                _BOUNDARY_NAMES,
+                student_outputs,
+            )
         try:
             with torch.no_grad():
                 teacher_logits = teacher(x)
             student_logits = model(x)
+            if self.boundary_input_mode == "teacher_forced":
+                student_outputs = self._teacher_forced_student_outputs(
+                    core,
+                    teacher_inputs,
+                )
         finally:
-            for handle in (*teacher_handles, *student_handles):
+            for handle in (
+                *teacher_handles,
+                *teacher_input_handles,
+                *student_handles,
+            ):
                 handle.remove()
 
         total = student_logits.new_zeros(())

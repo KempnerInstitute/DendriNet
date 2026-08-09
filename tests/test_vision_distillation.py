@@ -31,10 +31,20 @@ class _TinyTeacher(nn.Module):
         return self.classifier(torch.flatten(x, 1))
 
 
+class _RecordingIdentity(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.last_input: torch.Tensor | None = None
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        self.last_input = x.detach().clone()
+        return x
+
+
 class _TinyStudentCore(nn.Module):
     def __init__(self):
         super().__init__()
-        self.spatial_blocks = nn.ModuleList(nn.Identity() for _ in range(5))
+        self.spatial_blocks = nn.ModuleList(_RecordingIdentity() for _ in range(5))
         self.spatial_output_adapters = nn.ModuleList(
             PositiveFeatureScale(3, feature_axis=1) for _ in range(5)
         )
@@ -102,9 +112,14 @@ def test_alexnet_boundary_distillation_is_finite_and_differentiable(monkeypatch)
         }
     )
     student = _TinyStudent()
-    loss = loss_fn(student, torch.randn(4, 3, 4, 4), torch.tensor([0, 1, 2, 1]))
+    inputs = torch.randn(4, 3, 4, 4)
+    loss = loss_fn(student, inputs, torch.tensor([0, 1, 2, 1]))
 
     assert torch.isfinite(loss)
+    assert all(
+        torch.equal(block.last_input, inputs)
+        for block in student.core_network.spatial_blocks
+    )
     loss.backward()
     assert student.core_network.feedforward_blocks[0].weight.grad is not None
     assert student.core_network.spatial_output_adapters[0].log_scale.grad is not None
@@ -114,3 +129,34 @@ def test_alexnet_boundary_distillation_is_finite_and_differentiable(monkeypatch)
 def test_alexnet_boundary_distillation_rejects_unknown_boundary():
     with pytest.raises(ValueError, match="Unknown vision-distillation boundaries"):
         AlexNetBoundaryDistillationLoss({"boundary_weights": {"pool3": 1.0}})
+
+
+def test_teacher_forced_boundary_distillation_uses_local_block_inputs(monkeypatch):
+    monkeypatch.setattr(
+        "dendritic_modeling.training.strategies.vision_distillation.get_model",
+        lambda _backbone, weights: _TinyTeacher(),
+    )
+    loss_fn = AlexNetBoundaryDistillationLoss(
+        {
+            "boundary_weights": dict.fromkeys(
+                ("conv1", "conv2", "conv3", "conv4", "conv5", "fc6", "fc7"),
+                1.0,
+            ),
+            "boundary_input_mode": "teacher_forced",
+            "feature_weight": 1.0,
+            "logit_kl_weight": 1.0,
+            "supervised_weight": 1.0,
+        }
+    )
+    student = _TinyStudent()
+    loss = loss_fn(student, torch.randn(4, 3, 4, 4), torch.tensor([0, 1, 2, 1]))
+
+    assert torch.isfinite(loss)
+    loss.backward()
+    assert student.core_network.feedforward_blocks[0].weight.grad is not None
+    assert student.core_network.spatial_output_adapters[0].log_scale.grad is not None
+
+
+def test_alexnet_boundary_distillation_rejects_unknown_input_mode():
+    with pytest.raises(ValueError, match="boundary_input_mode"):
+        AlexNetBoundaryDistillationLoss({"boundary_input_mode": "mixed"})

@@ -1,0 +1,64 @@
+# Teacher-forced block-capacity gate for the complete dendritic AlexNet.
+#
+# Each dendritic block receives the frozen AlexNet activation at its own input
+# boundary and matches the corresponding teacher output. The ordinary composed
+# forward pass still supplies the logit KL and supervised losses. This isolates
+# whether the complete-model failure arises from individual block capacity or
+# from compounding representation drift across blocks.
+
+extends: dendritic_alexnet_imagenet_output_adapter_pilot.yaml
+
+slurm_config:
+  run_name: dendritic_alexnet_imagenet_teacher_forced_distillation_pilot
+  account: kempner_dev
+  partition: kempner_rtx
+  time: "01:30:00"
+  gpus_per_node: 4
+  max_concurrent_jobs: 1
+
+experiment_settings:
+  seeds_per_condition: 1
+  base_seed: 71500
+
+sweep_variants:
+  - name: teacher_forced_per_channel_scale
+    overrides:
+      model.core.vision.output_adapter.mode: learned_per_channel
+      training.main.strategies.vision_distillation.boundary_input_mode: teacher_forced
+
+sweep_contract:
+  expected_config_count: 1
+
+base_config:
+  experiment:
+    seed: 71500
+
+  model:
+    core:
+      initialization_seed: 71500
+      vision:
+        seed: 71500
+        output_adapter:
+          mode: learned_per_channel
+          spatial_initial_scale: 1.0
+          classifier_initial_scale: 1.0
+      connectivity:
+        structured:
+          seed: 71500
+      sparsity:
+        indexed:
+          seed: 71500
+
+  training:
+    main:
+      strategies:
+        vision_distillation:
+          boundary_input_mode: teacher_forced
+
+  wandb:
+    group: iclr2027_dendritic_alexnet_teacher_forced_distillation_pilot
+    tags: [iclr2027, alexnet, full_dendritic, teacher_forced_distillation]
+
+  outputs:
+    run_name: dendritic_alexnet_imagenet_teacher_forced_distillation_pilot
+    results_dir: /n/holylfs06/LABS/kempner_project_b/Lab/dendritic/HS/dendritic_scaling/iclr2027/vision/full_model_teacher_forced_distillation_pilot
