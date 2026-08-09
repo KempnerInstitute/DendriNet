@@ -229,6 +229,7 @@ class AlexNetBoundaryDistillationLoss(LossFunction):
             value = teacher_value
             if composed_inputs is not None:
                 composed_value = composed_inputs[name]
+                teacher_value = teacher_value.to(dtype=composed_value.dtype)
                 if composed_value.shape != teacher_value.shape:
                     raise ValueError(
                         f"Boundary {name} input shape mismatch: composed "
@@ -246,6 +247,7 @@ class AlexNetBoundaryDistillationLoss(LossFunction):
             value = teacher_value
             if composed_inputs is not None:
                 composed_value = composed_inputs[name]
+                teacher_value = teacher_value.to(dtype=composed_value.dtype)
                 if composed_value.shape != teacher_value.shape:
                     raise ValueError(
                         f"Boundary {name} input shape mismatch: composed "

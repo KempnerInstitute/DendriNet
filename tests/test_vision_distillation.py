@@ -206,6 +206,28 @@ def test_mixed_boundary_distillation_rejects_invalid_ratio(ratio):
         )
 
 
+def test_mixed_boundary_inputs_follow_composed_dtype():
+    core = _TinyStudentCore()
+    teacher_inputs = {
+        **{
+            name: torch.randn(2, 3, 4, 4, dtype=torch.float16)
+            for name in ("conv1", "conv2", "conv3", "conv4", "conv5")
+        },
+        "fc6": torch.randn(2, 48, dtype=torch.float16),
+        "fc7": torch.randn(2, 48, dtype=torch.float16),
+    }
+    composed_inputs = {name: value.float() for name, value in teacher_inputs.items()}
+
+    outputs = AlexNetBoundaryDistillationLoss._conditioned_student_outputs(
+        core,
+        teacher_inputs,
+        teacher_forcing_ratio=0.5,
+        composed_inputs=composed_inputs,
+    )
+
+    assert all(value.dtype == torch.float32 for value in outputs.values())
+
+
 def test_teacher_forced_single_boundary_keeps_all_student_parameters_in_graph(
     monkeypatch,
 ):
