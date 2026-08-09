@@ -57,6 +57,7 @@ dendritic-benchmark-transformer-replacement = "dendritic_modeling.scripts.traini
 dendritic-profile-transformer-scaling = "dendritic_modeling.scripts.transformer_replacement.profile_scaling:main"
 dendritic-benchmark-transformer-operator = "dendritic_modeling.scripts.transformer_replacement.benchmark_operator:main"
 dendritic-assemble-transformer-replacements = "dendritic_modeling.scripts.transformer_replacement.assemble_layer_checkpoints:main"
+dendritic-assemble-vision-boundaries = "dendritic_modeling.scripts.vision.assemble_boundary_checkpoints:main"
 dendritic-compact-transformer-checkpoint = "dendritic_modeling.scripts.transformer_replacement.compact_checkpoint:main"
 dendritic-sweep = "dendritic_modeling.scripts.sweeps.sweep_manager:main"
 dendritic-analyze = "dendritic_modeling.scripts.sweeps.result_analyzer:main"

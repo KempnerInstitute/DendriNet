@@ -22,6 +22,7 @@ from dendritic_modeling.datasets import get_unified_datasets
 from dendritic_modeling.models import Classifier, RecurrentClassifier, Regressor
 from dendritic_modeling.networks import Identity
 from dendritic_modeling.networks.architectures.factory import get_architecture
+from dendritic_modeling.networks.checkpoints import load_initial_model_checkpoint
 from dendritic_modeling.utils import resolve_experiment_seeds, save_dict, set_seed
 from dendritic_modeling.utils.dataset_fingerprint import fingerprint_dataset_splits
 from dendritic_modeling.utils.logging_config import LoggerManager
@@ -845,5 +846,30 @@ def setup_environment(
     # Initialize model from its independent weight stream. Topology samplers
     # receive their own explicit seeds above and therefore do not consume it.
     model, encoder_network = initialize_model(model_config)
+
+    initial_checkpoint = getattr(model_config, "initial_checkpoint", None)
+    if initial_checkpoint:
+        initial_checkpoint_record = load_initial_model_checkpoint(
+            model,
+            initial_checkpoint,
+            expected_sha256=getattr(
+                model_config,
+                "initial_checkpoint_sha256",
+                None,
+            ),
+            strict=bool(getattr(model_config, "initial_checkpoint_strict", True)),
+        )
+        logger.info(
+            "Loaded initial model checkpoint %s (sha256=%s, strict=%s)",
+            initial_checkpoint_record["path"],
+            initial_checkpoint_record["sha256"],
+            initial_checkpoint_record["strict"],
+        )
+        if is_main:
+            save_dict(
+                initial_checkpoint_record,
+                run_save_path,
+                "initial_checkpoint_provenance.json",
+            )
 
     return run_save_path, train_ds, valid_ds, test_ds, model, encoder_network

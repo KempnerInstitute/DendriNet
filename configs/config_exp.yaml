@@ -126,6 +126,11 @@ data:
 # ============================================================================
 model:
   task: "classification"                # str: "classification" | "regression"
+  # Optional complete-model warm start. Pair publication runs with the exact
+  # SHA-256 emitted by dendritic-assemble-vision-boundaries.
+  initial_checkpoint: null              # str | null: State-dict checkpoint path
+  initial_checkpoint_sha256: null       # str | null: Required checkpoint digest
+  initial_checkpoint_strict: true       # bool: Reject missing or unexpected keys
 
   # ---------- Encoder ----------
   encoder:

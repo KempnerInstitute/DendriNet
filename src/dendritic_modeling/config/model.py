@@ -450,6 +450,12 @@ class ModelConfig(BaseConfig):
     """Complete model configuration."""
 
     task: str = "classification"
+    # Optional strict warm start for the complete constructed model. A hash can
+    # be required so delayed scheduler jobs cannot silently consume a changed
+    # checkpoint.
+    initial_checkpoint: Optional[str] = None
+    initial_checkpoint_sha256: Optional[str] = None
+    initial_checkpoint_strict: bool = True
     # Identity decoders historically received a learned positive scale for each
     # output. Keep that behavior by default, while allowing experiments whose
     # somatic outputs must be the literal class logits to disable it.
