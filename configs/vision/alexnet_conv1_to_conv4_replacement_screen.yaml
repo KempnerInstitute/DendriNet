@@ -1,0 +1,156 @@
+# One-seed AlexNet spatial-boundary screen. Each condition replaces exactly
+# one convolution plus its following ReLU and retains the common pretrained
+# prefix and suffix. Selected boundaries require a five-seed confirmation.
+
+extends: alexnet_conv5_replacement_benchmark.yaml
+
+slurm_config:
+  run_name: alexnet_conv1_to_conv4_replacement_screen
+  time: "08:00:00"
+  max_concurrent_jobs: 2
+
+experiment_settings:
+  seeds_per_condition: 1
+  base_seed: 71700
+  seed_paths:
+    - model.core.sparsity.indexed.seed
+
+sweep_variants:
+  - name: conv1_shunting
+    overrides:
+      model.vision_replacement.target_modules: [features.0, features.1]
+      model.core.spatial: {kernel_size: 11, stride: 4, padding: 2, input_transform: signed_split}
+      model.core.architecture.excitatory_layer_sizes: [64]
+      model.core.architecture.inhibitory_layer_sizes: [16]
+  - name: conv1_additive
+    overrides:
+      model.vision_replacement.target_modules: [features.0, features.1]
+      model.core.spatial: {kernel_size: 11, stride: 4, padding: 2, input_transform: signed_split}
+      model.core.architecture.excitatory_layer_sizes: [64]
+      model.core.architecture.inhibitory_layer_sizes: [16]
+      model.core.morphology.use_shunting: false
+      model.core.reactivation.init_policy: occupancy_quantile
+  - name: conv1_sparse_point
+    overrides:
+      model.vision_replacement.target_modules: [features.0, features.1]
+      model.core.type: sparse_active_matched_point_conv
+      model.core.spatial: {kernel_size: 11, stride: 4, padding: 2, input_transform: identity}
+      model.core.architecture.excitatory_layer_sizes: [64]
+      model.core.architecture.inhibitory_layer_sizes: [16]
+  - name: conv1_exact_pretrained
+    overrides:
+      model.vision_replacement.target_modules: [features.0, features.1]
+      model.vision_replacement.core_source: pretrained_span
+      model.core.spatial: {kernel_size: 11, stride: 4, padding: 2, input_transform: identity}
+      model.core.architecture.excitatory_layer_sizes: [64]
+      model.core.architecture.inhibitory_layer_sizes: [16]
+      training.main.common.param_groups.lr: 0.0001
+      training.main.common.param_groups.decoder_lr: 0.0001
+
+  - name: conv2_shunting
+    overrides:
+      model.vision_replacement.target_modules: [features.3, features.4]
+      model.core.spatial: {kernel_size: 5, stride: 1, padding: 2, input_transform: identity}
+      model.core.architecture.excitatory_layer_sizes: [192]
+      model.core.architecture.inhibitory_layer_sizes: [48]
+  - name: conv2_additive
+    overrides:
+      model.vision_replacement.target_modules: [features.3, features.4]
+      model.core.spatial: {kernel_size: 5, stride: 1, padding: 2, input_transform: identity}
+      model.core.architecture.excitatory_layer_sizes: [192]
+      model.core.architecture.inhibitory_layer_sizes: [48]
+      model.core.morphology.use_shunting: false
+      model.core.reactivation.init_policy: occupancy_quantile
+  - name: conv2_sparse_point
+    overrides:
+      model.vision_replacement.target_modules: [features.3, features.4]
+      model.core.type: sparse_active_matched_point_conv
+      model.core.spatial: {kernel_size: 5, stride: 1, padding: 2, input_transform: identity}
+      model.core.architecture.excitatory_layer_sizes: [192]
+      model.core.architecture.inhibitory_layer_sizes: [48]
+  - name: conv2_exact_pretrained
+    overrides:
+      model.vision_replacement.target_modules: [features.3, features.4]
+      model.vision_replacement.core_source: pretrained_span
+      model.core.spatial: {kernel_size: 5, stride: 1, padding: 2, input_transform: identity}
+      model.core.architecture.excitatory_layer_sizes: [192]
+      model.core.architecture.inhibitory_layer_sizes: [48]
+      training.main.common.param_groups.lr: 0.0001
+      training.main.common.param_groups.decoder_lr: 0.0001
+
+  - name: conv3_shunting
+    overrides:
+      model.vision_replacement.target_modules: [features.6, features.7]
+      model.core.spatial: {kernel_size: 3, stride: 1, padding: 1, input_transform: identity}
+      model.core.architecture.excitatory_layer_sizes: [384]
+      model.core.architecture.inhibitory_layer_sizes: [96]
+  - name: conv3_additive
+    overrides:
+      model.vision_replacement.target_modules: [features.6, features.7]
+      model.core.spatial: {kernel_size: 3, stride: 1, padding: 1, input_transform: identity}
+      model.core.architecture.excitatory_layer_sizes: [384]
+      model.core.architecture.inhibitory_layer_sizes: [96]
+      model.core.morphology.use_shunting: false
+      model.core.reactivation.init_policy: occupancy_quantile
+  - name: conv3_sparse_point
+    overrides:
+      model.vision_replacement.target_modules: [features.6, features.7]
+      model.core.type: sparse_active_matched_point_conv
+      model.core.spatial: {kernel_size: 3, stride: 1, padding: 1, input_transform: identity}
+      model.core.architecture.excitatory_layer_sizes: [384]
+      model.core.architecture.inhibitory_layer_sizes: [96]
+  - name: conv3_exact_pretrained
+    overrides:
+      model.vision_replacement.target_modules: [features.6, features.7]
+      model.vision_replacement.core_source: pretrained_span
+      model.core.spatial: {kernel_size: 3, stride: 1, padding: 1, input_transform: identity}
+      model.core.architecture.excitatory_layer_sizes: [384]
+      model.core.architecture.inhibitory_layer_sizes: [96]
+      training.main.common.param_groups.lr: 0.0001
+      training.main.common.param_groups.decoder_lr: 0.0001
+
+  - name: conv4_shunting
+    overrides:
+      model.vision_replacement.target_modules: [features.8, features.9]
+      model.core.spatial: {kernel_size: 3, stride: 1, padding: 1, input_transform: identity}
+      model.core.architecture.excitatory_layer_sizes: [256]
+      model.core.architecture.inhibitory_layer_sizes: [64]
+  - name: conv4_additive
+    overrides:
+      model.vision_replacement.target_modules: [features.8, features.9]
+      model.core.spatial: {kernel_size: 3, stride: 1, padding: 1, input_transform: identity}
+      model.core.architecture.excitatory_layer_sizes: [256]
+      model.core.architecture.inhibitory_layer_sizes: [64]
+      model.core.morphology.use_shunting: false
+      model.core.reactivation.init_policy: occupancy_quantile
+  - name: conv4_sparse_point
+    overrides:
+      model.vision_replacement.target_modules: [features.8, features.9]
+      model.core.type: sparse_active_matched_point_conv
+      model.core.spatial: {kernel_size: 3, stride: 1, padding: 1, input_transform: identity}
+      model.core.architecture.excitatory_layer_sizes: [256]
+      model.core.architecture.inhibitory_layer_sizes: [64]
+  - name: conv4_exact_pretrained
+    overrides:
+      model.vision_replacement.target_modules: [features.8, features.9]
+      model.vision_replacement.core_source: pretrained_span
+      model.core.spatial: {kernel_size: 3, stride: 1, padding: 1, input_transform: identity}
+      model.core.architecture.excitatory_layer_sizes: [256]
+      model.core.architecture.inhibitory_layer_sizes: [64]
+      training.main.common.param_groups.lr: 0.0001
+      training.main.common.param_groups.decoder_lr: 0.0001
+
+sweep_contract: {expected_config_count: 16}
+
+base_config:
+  experiment:
+    seed: 71700
+  model:
+    core:
+      initialization_seed: 71700
+      sparsity:
+        indexed:
+          seed: 71700
+  outputs:
+    run_name: alexnet_conv1_to_conv4_replacement_screen
+    results_dir: outputs

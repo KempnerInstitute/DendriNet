@@ -31,6 +31,9 @@ from omegaconf import DictConfig
 from dendritic_modeling.networks.architectures.excitation_inhibition.ei_network import (
     ConfigurableEINetwork,
 )
+from dendritic_modeling.networks.architectures.replacement import (
+    SpatialNonNegativeInputAdapter,
+)
 from dendritic_modeling.networks.base import BaseNetwork
 
 logger = logging.getLogger(__name__)
@@ -79,6 +82,7 @@ class HierarchicalDendriticConv(BaseNetwork):
         kernel_size: int | tuple[int, int] = 3,
         stride: int | tuple[int, int] = 1,
         padding: int | tuple[int, int] = 0,
+        input_transform: str = "identity",
         synapse_mode: str | None = None,
         use_shunting: bool | None = None,
         weight_transform: str | None = None,
@@ -89,8 +93,13 @@ class HierarchicalDendriticConv(BaseNetwork):
         self.stride = _pair(stride)
         self.padding = _pair(padding)
         self.in_channels = in_channels
+        self.input_adapter = SpatialNonNegativeInputAdapter(
+            in_channels,
+            transform=input_transform,
+        )
+        self.adapted_in_channels = self.input_adapter.output_channels
 
-        patch_dim = in_channels * self.kernel_size[0] * self.kernel_size[1]
+        patch_dim = self.adapted_in_channels * self.kernel_size[0] * self.kernel_size[1]
 
         self.einet = ConfigurableEINetwork(
             config=config,
@@ -132,6 +141,7 @@ class HierarchicalDendriticConv(BaseNetwork):
             )
 
         B, _C, H, W = x.shape
+        x = self.input_adapter(x)
 
         # 1. Unfold into local patches: (B, patch_dim, L) where L = H_out * W_out
         patches = F.unfold(
@@ -179,6 +189,8 @@ class HierarchicalDendriticConv(BaseNetwork):
             "patch_layout": "channel_y_x_flat",
             "output_layout": "BCHW",
             "spatial_weight_sharing": True,
+            "input_transform": self.input_adapter.transform,
+            "adapted_input_channels": self.adapted_in_channels,
             "output_channels": self.out_channels,
             "excitatory_somas_per_location": self.out_channels,
             "channel_mapping": "one_excitatory_soma_per_output_channel",

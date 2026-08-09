@@ -114,12 +114,29 @@ class TestHierarchicalDendriticConv:
             "patch_layout": "channel_y_x_flat",
             "output_layout": "BCHW",
             "spatial_weight_sharing": True,
+            "input_transform": "identity",
+            "adapted_input_channels": 16,
             "output_channels": 32,
             "excitatory_somas_per_location": 32,
             "channel_mapping": "one_excitatory_soma_per_output_channel",
             "propagated_population": "excitatory",
             "inhibitory_population_scope": "local_per_output_position",
         }
+
+    def test_signed_split_preserves_signed_spatial_input(self, einet_config):
+        einet_config["spatial"]["input_transform"] = "signed_split"
+        core = get_architecture(
+            "hierarchical_dendritic_conv",
+            einet_config,
+            input_dim=3,
+        )
+        inputs = torch.randn(2, 3, 8, 8)
+
+        adapted = core.input_adapter(inputs)
+
+        assert adapted.shape == (2, 6, 8, 8)
+        torch.testing.assert_close(adapted[:, :3] - adapted[:, 3:], inputs)
+        assert core.einet.input_dim == 6 * 3 * 3
 
     def test_identical_patches_emit_identical_channel_vectors(self, einet_config):
         einet_config["spatial"]["padding"] = 0

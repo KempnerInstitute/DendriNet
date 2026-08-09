@@ -272,6 +272,9 @@ class SpatialConfig(BaseConfig):
     kernel_size: int = 3
     stride: int = 1
     padding: int = 0
+    # Non-negative input contract for positive-conductance spatial cores.
+    # ``signed_split`` emits concatenated positive and negative channels.
+    input_transform: str = "identity"
 
 
 @dataclass

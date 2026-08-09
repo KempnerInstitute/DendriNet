@@ -73,6 +73,7 @@ def _build_spatial_dendritic_conv_architecture(
     kernel_size = spatial_cfg.get("kernel_size", 3)
     stride = spatial_cfg.get("stride", 1)
     padding = spatial_cfg.get("padding", 0)
+    input_transform = spatial_cfg.get("input_transform", "identity")
 
     if input_dim is None:
         raise ValueError(
@@ -87,6 +88,7 @@ def _build_spatial_dendritic_conv_architecture(
         kernel_size=kernel_size,
         stride=stride,
         padding=padding,
+        input_transform=input_transform,
     )
 
 
