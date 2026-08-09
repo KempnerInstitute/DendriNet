@@ -275,6 +275,12 @@ class SpatialConfig(BaseConfig):
     # Non-negative input contract for positive-conductance spatial cores.
     # ``signed_split`` emits concatenated positive and negative channels.
     input_transform: str = "identity"
+    # Optional channel-preserving adapter at the dendritic-convolution output.
+    # Threshold-ReLU modes can match a downstream sparse activation contract
+    # without introducing cross-channel mixing.
+    output_adapter_mode: str = "identity"
+    output_initial_scale: float = 1.0
+    output_initial_threshold: float = 0.25
 
 
 @dataclass

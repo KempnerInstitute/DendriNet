@@ -11,6 +11,21 @@ _VALID_INPUT_TRANSFORMS = frozenset({"identity", "relu", "signed_split"})
 _VALID_POPULATION_REDUCTIONS = frozenset(
     {"one_to_one", "fixed_mean", "learned_positive"}
 )
+_IDENTITY_OUTPUT_ADAPTERS = frozenset({"identity", "none", "off"})
+_GLOBAL_SCALE_OUTPUT_ADAPTERS = frozenset({"learned_global", "global"})
+_FEATURE_SCALE_OUTPUT_ADAPTERS = frozenset(
+    {"learned_per_channel", "per_channel", "per_feature"}
+)
+_GLOBAL_THRESHOLD_OUTPUT_ADAPTERS = frozenset(
+    {"learned_global_threshold_relu", "global_threshold_relu"}
+)
+_FEATURE_THRESHOLD_OUTPUT_ADAPTERS = frozenset(
+    {
+        "learned_per_channel_threshold_relu",
+        "per_channel_threshold_relu",
+        "per_feature_threshold_relu",
+    }
+)
 
 
 def validate_input_transform(transform: str) -> str:
@@ -170,6 +185,129 @@ class PositiveFeatureScale(nn.Module):
             f"num_features={self.num_features}, feature_axis={self.feature_axis}, "
             f"per_feature={self.per_feature}, learnable={self.learnable}"
         )
+
+
+class PositiveThresholdReLU(nn.Module):
+    """Apply a positive gain and threshold without mixing feature identities.
+
+    The transform ``ReLU(scale * x - threshold)`` supplies an explicit sparse
+    output contract for a nonnegative replacement. Both quantities are kept
+    positive through a log parameterization and can be global or featurewise.
+    """
+
+    def __init__(
+        self,
+        num_features: int,
+        *,
+        feature_axis: int,
+        initial_scale: float = 1.0,
+        initial_threshold: float = 0.25,
+        per_feature: bool = True,
+        learnable: bool = True,
+    ):
+        super().__init__()
+        self.num_features = int(num_features)
+        self.feature_axis = int(feature_axis)
+        self.per_feature = bool(per_feature)
+        self.learnable = bool(learnable)
+        initial_scale = float(initial_scale)
+        initial_threshold = float(initial_threshold)
+        if self.num_features < 1:
+            raise ValueError("num_features must be positive")
+        if not math.isfinite(initial_scale) or initial_scale <= 0:
+            raise ValueError("initial_scale must be finite and positive")
+        if not math.isfinite(initial_threshold) or initial_threshold <= 0:
+            raise ValueError("initial_threshold must be finite and positive")
+        size = self.num_features if self.per_feature else 1
+        scale = torch.full((size,), math.log(initial_scale), dtype=torch.float32)
+        threshold = torch.full(
+            (size,), math.log(initial_threshold), dtype=torch.float32
+        )
+        if self.learnable:
+            self.log_scale = nn.Parameter(scale)
+            self.log_threshold = nn.Parameter(threshold)
+        else:
+            self.register_buffer("log_scale", scale)
+            self.register_buffer("log_threshold", threshold)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        axis = (
+            self.feature_axis if self.feature_axis >= 0 else x.ndim + self.feature_axis
+        )
+        if axis < 0 or axis >= x.ndim:
+            raise ValueError(
+                f"feature_axis={self.feature_axis} is invalid for shape {tuple(x.shape)}"
+            )
+        if self.per_feature and x.shape[axis] != self.num_features:
+            raise ValueError(
+                f"Expected {self.num_features} features on axis {axis}, "
+                f"got {x.shape[axis]}"
+            )
+        shape = [1] * x.ndim
+        shape[axis] = self.log_scale.numel()
+        scale = self.log_scale.exp().view(shape)
+        threshold = self.log_threshold.exp().view(shape)
+        return torch.relu(x * scale - threshold)
+
+    def extra_repr(self) -> str:
+        return (
+            f"num_features={self.num_features}, feature_axis={self.feature_axis}, "
+            f"per_feature={self.per_feature}, learnable={self.learnable}"
+        )
+
+
+def make_nonmixing_output_adapter(
+    *,
+    num_features: int,
+    feature_axis: int,
+    mode: str,
+    initial_scale: float = 1.0,
+    initial_threshold: float = 0.25,
+) -> nn.Module:
+    """Construct a channel-preserving positive output adapter by name."""
+
+    normalized = str(mode).strip().lower()
+    if normalized in _IDENTITY_OUTPUT_ADAPTERS:
+        return nn.Identity()
+    if normalized in _GLOBAL_SCALE_OUTPUT_ADAPTERS:
+        return PositiveFeatureScale(
+            num_features,
+            feature_axis=feature_axis,
+            initial_scale=initial_scale,
+            per_feature=False,
+            learnable=True,
+        )
+    if normalized in _FEATURE_SCALE_OUTPUT_ADAPTERS:
+        return PositiveFeatureScale(
+            num_features,
+            feature_axis=feature_axis,
+            initial_scale=initial_scale,
+            per_feature=True,
+            learnable=True,
+        )
+    if normalized in _GLOBAL_THRESHOLD_OUTPUT_ADAPTERS:
+        return PositiveThresholdReLU(
+            num_features,
+            feature_axis=feature_axis,
+            initial_scale=initial_scale,
+            initial_threshold=initial_threshold,
+            per_feature=False,
+            learnable=True,
+        )
+    if normalized in _FEATURE_THRESHOLD_OUTPUT_ADAPTERS:
+        return PositiveThresholdReLU(
+            num_features,
+            feature_axis=feature_axis,
+            initial_scale=initial_scale,
+            initial_threshold=initial_threshold,
+            per_feature=True,
+            learnable=True,
+        )
+    raise ValueError(
+        "output adapter mode must be identity, learned_global, "
+        "learned_per_channel, learned_global_threshold_relu, or "
+        f"learned_per_channel_threshold_relu; got {mode!r}"
+    )
 
 
 class PopulationToFeatureReduction(nn.Module):

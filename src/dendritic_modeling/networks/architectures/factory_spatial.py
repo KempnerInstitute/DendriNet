@@ -74,6 +74,9 @@ def _build_spatial_dendritic_conv_architecture(
     stride = spatial_cfg.get("stride", 1)
     padding = spatial_cfg.get("padding", 0)
     input_transform = spatial_cfg.get("input_transform", "identity")
+    output_adapter_mode = spatial_cfg.get("output_adapter_mode", "identity")
+    output_initial_scale = spatial_cfg.get("output_initial_scale", 1.0)
+    output_initial_threshold = spatial_cfg.get("output_initial_threshold", 0.25)
 
     if input_dim is None:
         raise ValueError(
@@ -89,6 +92,9 @@ def _build_spatial_dendritic_conv_architecture(
         stride=stride,
         padding=padding,
         input_transform=input_transform,
+        output_adapter_mode=output_adapter_mode,
+        output_initial_scale=output_initial_scale,
+        output_initial_threshold=output_initial_threshold,
     )
 
 

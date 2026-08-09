@@ -33,6 +33,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.ei_network 
 )
 from dendritic_modeling.networks.architectures.replacement import (
     SpatialNonNegativeInputAdapter,
+    make_nonmixing_output_adapter,
 )
 from dendritic_modeling.networks.base import BaseNetwork
 
@@ -83,6 +84,9 @@ class HierarchicalDendriticConv(BaseNetwork):
         stride: int | tuple[int, int] = 1,
         padding: int | tuple[int, int] = 0,
         input_transform: str = "identity",
+        output_adapter_mode: str = "identity",
+        output_initial_scale: float = 1.0,
+        output_initial_threshold: float = 0.25,
         synapse_mode: str | None = None,
         use_shunting: bool | None = None,
         weight_transform: str | None = None,
@@ -111,6 +115,14 @@ class HierarchicalDendriticConv(BaseNetwork):
 
         self.out_channels = self.einet.output_dim
         self.output_dim = self.out_channels  # for introspection
+        self.output_adapter_mode = str(output_adapter_mode).strip().lower()
+        self.output_adapter = make_nonmixing_output_adapter(
+            num_features=self.out_channels,
+            feature_axis=1,
+            mode=self.output_adapter_mode,
+            initial_scale=output_initial_scale,
+            initial_threshold=output_initial_threshold,
+        )
 
         logger.info(
             "HierarchicalDendriticConv: in_channels=%d, kernel=%s, stride=%s, "
@@ -162,6 +174,7 @@ class HierarchicalDendriticConv(BaseNetwork):
         H_out = (H + 2 * self.padding[0] - self.kernel_size[0]) // self.stride[0] + 1
         W_out = (W + 2 * self.padding[1] - self.kernel_size[1]) // self.stride[1] + 1
         out = out.reshape(B, H_out, W_out, self.out_channels).permute(0, 3, 1, 2)
+        out = self.output_adapter(out)
 
         return out.contiguous()
 
@@ -196,6 +209,7 @@ class HierarchicalDendriticConv(BaseNetwork):
             "channel_mapping": "one_excitatory_soma_per_output_channel",
             "propagated_population": "excitatory",
             "inhibitory_population_scope": "local_per_output_position",
+            "output_adapter": self.output_adapter_mode,
         }
 
     # ------------------------------------------------------------------
@@ -227,5 +241,8 @@ class HierarchicalDendriticConv(BaseNetwork):
         return self.einet.layers
 
     def get_effective_params(self) -> int:
-        """Effective (post-sparsity) parameter count from the inner EINet."""
-        return self.einet.get_effective_params()
+        """Count active core parameters and explicit output-adapter scalars."""
+        adapter_params = sum(
+            parameter.numel() for parameter in self.output_adapter.parameters()
+        )
+        return self.einet.get_effective_params() + adapter_params

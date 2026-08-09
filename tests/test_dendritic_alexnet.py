@@ -140,6 +140,31 @@ def test_dendritic_alexnet_can_learn_positive_per_channel_output_scales():
     assert torch.isfinite(model(torch.randn(2, 3, 64, 64))).all()
 
 
+def test_dendritic_alexnet_can_apply_featurewise_threshold_relu_adapters():
+    config = _tiny_config()
+    config["vision"]["output_adapter"] = {
+        "mode": "learned_per_channel_threshold_relu",
+        "spatial_initial_scale": 1.0,
+        "spatial_initial_threshold": 0.25,
+        "classifier_initial_scale": 1.0,
+        "classifier_initial_threshold": 0.25,
+    }
+    model = get_architecture("dendritic_alexnet", config, input_dim=3)
+
+    assert model.architecture_contract()["inter_block_output_adapter"] == (
+        "learned_per_channel_threshold_relu"
+    )
+    assert all(
+        adapter.log_threshold.numel() == width
+        for adapter, width in zip(
+            model.spatial_output_adapters,
+            model.channel_widths,
+            strict=True,
+        )
+    )
+    assert torch.isfinite(model(torch.randn(2, 3, 64, 64))).all()
+
+
 def test_dendritic_alexnet_supports_multiple_somas_per_output_feature():
     config = _tiny_config()
     config["vision"]["output_organization"] = {

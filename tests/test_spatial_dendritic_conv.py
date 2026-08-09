@@ -121,7 +121,42 @@ class TestHierarchicalDendriticConv:
             "channel_mapping": "one_excitatory_soma_per_output_channel",
             "propagated_population": "excitatory",
             "inhibitory_population_scope": "local_per_output_position",
+            "output_adapter": "identity",
         }
+
+    def test_threshold_relu_output_adapter_is_config_selectable(self, einet_config):
+        einet_config["spatial"][
+            "output_adapter_mode"
+        ] = "learned_per_channel_threshold_relu"
+        einet_config["spatial"]["output_initial_threshold"] = 10.0
+        core = get_architecture(
+            "hierarchical_dendritic_conv",
+            einet_config,
+            input_dim=16,
+        )
+
+        output = core(torch.rand(2, 16, 8, 8))
+
+        assert torch.count_nonzero(output) == 0
+        assert core.spatial_output_contract()["output_adapter"] == (
+            "learned_per_channel_threshold_relu"
+        )
+        assert core.output_adapter.log_scale.numel() == core.out_channels
+        identity_config = {
+            **einet_config,
+            "spatial": {
+                **einet_config["spatial"],
+                "output_adapter_mode": "identity",
+            },
+        }
+        identity_core = get_architecture(
+            "hierarchical_dendritic_conv",
+            identity_config,
+            input_dim=16,
+        )
+        assert core.get_effective_params() == (
+            identity_core.get_effective_params() + 2 * core.out_channels
+        )
 
     def test_signed_split_preserves_signed_spatial_input(self, einet_config):
         einet_config["spatial"]["input_transform"] = "signed_split"

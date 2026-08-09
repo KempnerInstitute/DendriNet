@@ -14,7 +14,9 @@ from dendritic_modeling.networks.architectures.replacement.adapters import (
     NonNegativeInputAdapter,
     PopulationToFeatureReduction,
     PositiveFeatureScale,
+    PositiveThresholdReLU,
     SpatialNonNegativeInputAdapter,
+    make_nonmixing_output_adapter,
     transformed_feature_dim,
     validate_input_transform,
 )
@@ -29,9 +31,11 @@ __all__ = [
     "NonNegativeInputAdapter",
     "PopulationToFeatureReduction",
     "PositiveFeatureScale",
+    "PositiveThresholdReLU",
     "SpatialNonNegativeInputAdapter",
     "TokenReplacementCell",
     "make_linear_output_projection",
+    "make_nonmixing_output_adapter",
     "transformed_feature_dim",
     "validate_input_transform",
 ]

@@ -5,6 +5,7 @@ from dendritic_modeling.networks.architectures.replacement import (
     NonNegativeInputAdapter,
     PopulationToFeatureReduction,
     PositiveFeatureScale,
+    PositiveThresholdReLU,
     SpatialNonNegativeInputAdapter,
     TokenReplacementCell,
 )
@@ -52,6 +53,24 @@ def test_positive_feature_scale_preserves_layout_and_nonnegativity():
     torch.testing.assert_close(y, 2.0 * x)
     y.mean().backward()
     assert adapter.log_scale.grad is not None
+
+
+def test_positive_threshold_relu_creates_sparse_channel_aligned_outputs():
+    adapter = PositiveThresholdReLU(
+        2,
+        feature_axis=1,
+        initial_scale=2.0,
+        initial_threshold=0.5,
+        per_feature=True,
+    )
+    x = torch.tensor([[[[0.1]], [[0.5]]]], requires_grad=True)
+
+    y = adapter(x)
+
+    torch.testing.assert_close(y, torch.tensor([[[[0.0]], [[0.5]]]]))
+    y.sum().backward()
+    assert adapter.log_scale.grad is not None
+    assert adapter.log_threshold.grad is not None
 
 
 def test_population_reduction_uses_feature_local_simplexes():

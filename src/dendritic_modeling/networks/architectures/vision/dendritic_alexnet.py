@@ -17,8 +17,8 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.ei_network 
 )
 from dendritic_modeling.networks.architectures.replacement import (
     PopulationToFeatureReduction,
-    PositiveFeatureScale,
     SpatialNonNegativeInputAdapter,
+    make_nonmixing_output_adapter,
 )
 from dendritic_modeling.networks.base import BaseNetwork
 
@@ -63,38 +63,6 @@ def _count_list(value: Any, *, name: str, length: int) -> list[int]:
             raise ValueError(f"{name} values must be positive integers")
         result.append(count)
     return result
-
-
-def _output_scale_adapter(
-    *,
-    num_features: int,
-    feature_axis: int,
-    mode: str,
-    initial_scale: float,
-) -> nn.Module:
-    normalized = str(mode).strip().lower()
-    if normalized in {"identity", "none", "off"}:
-        return nn.Identity()
-    if normalized in {"learned_global", "global"}:
-        return PositiveFeatureScale(
-            num_features,
-            feature_axis=feature_axis,
-            initial_scale=initial_scale,
-            per_feature=False,
-            learnable=True,
-        )
-    if normalized in {"learned_per_channel", "per_channel", "per_feature"}:
-        return PositiveFeatureScale(
-            num_features,
-            feature_axis=feature_axis,
-            initial_scale=initial_scale,
-            per_feature=True,
-            learnable=True,
-        )
-    raise ValueError(
-        "vision.output_adapter.mode must be identity, learned_global, or "
-        f"learned_per_channel, got {mode!r}"
-    )
 
 
 def _block_config(
@@ -188,6 +156,16 @@ class DendriticAlexNet(BaseNetwork):
             name="vision.output_adapter.classifier_initial_scale",
             length=2,
         )
+        spatial_initial_thresholds = _scale_list(
+            output_adapter.get("spatial_initial_threshold", 0.25),
+            name="vision.output_adapter.spatial_initial_threshold",
+            length=5,
+        )
+        classifier_initial_thresholds = _scale_list(
+            output_adapter.get("classifier_initial_threshold", 0.25),
+            name="vision.output_adapter.classifier_initial_threshold",
+            length=2,
+        )
         output_organization = dict(vision.get("output_organization", {}))
         population_reduction_mode = str(output_organization.get("mode", "one_to_one"))
         spatial_somas_per_channel = _count_list(
@@ -258,11 +236,12 @@ class DendriticAlexNet(BaseNetwork):
                 mode=population_reduction_mode,
             )
             self.spatial_population_reducers.append(reducer)
-            adapter = _output_scale_adapter(
+            adapter = make_nonmixing_output_adapter(
                 num_features=out_channels,
                 feature_axis=1,
                 mode=output_adapter_mode,
                 initial_scale=spatial_initial_scales[index],
+                initial_threshold=spatial_initial_thresholds[index],
             )
             self.spatial_output_adapters.append(adapter)
             feature_modules.append(block)
@@ -326,11 +305,12 @@ class DendriticAlexNet(BaseNetwork):
             ):
                 fc_modules.append(reducer)
             if index < len(classifier_widths):
-                adapter = _output_scale_adapter(
+                adapter = make_nonmixing_output_adapter(
                     num_features=out_dim,
                     feature_axis=-1,
                     mode=output_adapter_mode,
                     initial_scale=classifier_initial_scales[index],
+                    initial_threshold=classifier_initial_thresholds[index],
                 )
             else:
                 adapter = nn.Identity()
@@ -381,7 +361,19 @@ class DendriticAlexNet(BaseNetwork):
             block.apply_rewiring()
 
     def get_effective_params(self) -> int:
-        return sum(
+        block_parameters = sum(
             int(block.get_effective_params())
             for block in (*self.spatial_blocks, *self.feedforward_blocks)
         )
+        interface_parameters = sum(
+            parameter.numel()
+            for modules in (
+                self.spatial_population_reducers,
+                self.spatial_output_adapters,
+                self.feedforward_population_reducers,
+                self.feedforward_output_adapters,
+            )
+            for module in modules
+            for parameter in module.parameters()
+        )
+        return block_parameters + interface_parameters

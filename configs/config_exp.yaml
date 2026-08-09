@@ -163,6 +163,18 @@ model:
     # normalization, sparse rewiring, and local learning.
     type: "population_network"
 
+    # Shared local-patch contract for hierarchical_dendritic_conv. The
+    # threshold-ReLU modes preserve channel identity while supplying an
+    # explicit sparse output boundary for a downstream CNN block.
+    spatial:
+      kernel_size: 3                    # int: Local patch width and height
+      stride: 1                         # int: Patch stride
+      padding: 0                        # int: Zero padding before patch extraction
+      input_transform: "identity"       # str: "identity" | "relu" | "signed_split"
+      output_adapter_mode: "identity"   # str: identity | learned_global | learned_per_channel | learned_global_threshold_relu | learned_per_channel_threshold_relu
+      output_initial_scale: 1.0         # float: Positive gain initialization
+      output_initial_threshold: 0.25    # float: Positive threshold initialization
+
     # ---- Population network / named populations (core.type: population_network) ----
     population_network:
       use_transfer: false               # bool: Use TransferLayer before first population layer
