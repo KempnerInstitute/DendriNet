@@ -180,6 +180,7 @@ def test_teacher_forced_boundaries_apply_population_reducers():
         },
         "fc6": torch.randn(2, 48),
         "fc7": torch.randn(2, 48),
+        "fc8": torch.randn(2, 3),
     }
 
     outputs = AlexNetBoundaryDistillationLoss._conditioned_student_outputs(
@@ -206,7 +207,16 @@ def test_teacher_forced_boundary_distillation_uses_local_block_inputs(monkeypatc
     loss_fn = AlexNetBoundaryDistillationLoss(
         {
             "boundary_weights": dict.fromkeys(
-                ("conv1", "conv2", "conv3", "conv4", "conv5", "fc6", "fc7"),
+                (
+                    "conv1",
+                    "conv2",
+                    "conv3",
+                    "conv4",
+                    "conv5",
+                    "fc6",
+                    "fc7",
+                    "fc8",
+                ),
                 1.0,
             ),
             "boundary_input_mode": "teacher_forced",
@@ -282,6 +292,7 @@ def test_mixed_boundary_inputs_follow_composed_dtype():
         },
         "fc6": torch.randn(2, 48, dtype=torch.float16),
         "fc7": torch.randn(2, 48, dtype=torch.float16),
+        "fc8": torch.randn(2, 48, dtype=torch.float16),
     }
     composed_inputs = {name: value.float() for name, value in teacher_inputs.items()}
 

@@ -1,0 +1,51 @@
+# Teacher-forced capacity audit for the strict dendritic ImageNet output.
+#
+# The final AlexNet affine classifier is replaced by 1,000 excitatory somas,
+# one per class. This isolated fit supplies the final learned boundary needed
+# to assemble conv1--fc8 from independently validated checkpoints.
+
+extends: dendritic_alexnet_imagenet_boundary_capacity_pilot.yaml
+
+slurm_config:
+  run_name: dendritic_alexnet_imagenet_class_output_capacity_pilot
+  account: kempner_dev
+  partition: kempner_rtx
+  time: "01:00:00"
+  gpus_per_node: 4
+  max_concurrent_jobs: 1
+
+experiment_settings:
+  seeds_per_condition: 1
+  base_seed: 71650
+
+sweep_variants:
+  - name: fc8
+    overrides:
+      training.main.strategies.vision_distillation.boundary_weights: {fc8: 1.0}
+
+sweep_contract:
+  expected_config_count: 1
+
+base_config:
+  experiment:
+    seed: 71650
+
+  model:
+    core:
+      initialization_seed: 71650
+      vision:
+        seed: 71650
+      connectivity:
+        structured:
+          seed: 71650
+      sparsity:
+        indexed:
+          seed: 71650
+
+  wandb:
+    group: iclr2027_dendritic_alexnet_class_output_capacity_pilot
+    tags: [iclr2027, alexnet, full_dendritic, boundary_capacity, class_output]
+
+  outputs:
+    run_name: dendritic_alexnet_imagenet_class_output_capacity_pilot
+    results_dir: /n/holylfs06/LABS/kempner_project_b/Lab/dendritic/HS/dendritic_scaling/iclr2027/vision/class_output_capacity_pilot

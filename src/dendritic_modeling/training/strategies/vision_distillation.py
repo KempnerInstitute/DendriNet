@@ -16,11 +16,20 @@ from dendritic_modeling.training.strategies.standard import Trainer
 
 logger = logging.getLogger(__name__)
 
-_BOUNDARY_NAMES = ("conv1", "conv2", "conv3", "conv4", "conv5", "fc6", "fc7")
+_BOUNDARY_NAMES = (
+    "conv1",
+    "conv2",
+    "conv3",
+    "conv4",
+    "conv5",
+    "fc6",
+    "fc7",
+    "fc8",
+)
 _TEACHER_FEATURE_INDICES = (1, 4, 7, 9, 11)
 _TEACHER_FEATURE_INPUT_INDICES = (0, 3, 6, 8, 10)
-_TEACHER_CLASSIFIER_INDICES = (2, 5)
-_TEACHER_CLASSIFIER_INPUT_INDICES = (1, 4)
+_TEACHER_CLASSIFIER_INDICES = (2, 5, 6)
+_TEACHER_CLASSIFIER_INPUT_INDICES = (1, 4, 6)
 
 
 def _plain_mapping(value: Any) -> dict[str, Any]:
@@ -196,11 +205,11 @@ class AlexNetBoundaryDistillationLoss(LossFunction):
             "feedforward_output_adapters",
             core.feedforward_blocks,
         )
-        return [*list(spatial), *list(feedforward)[:2]]
+        return [*list(spatial), *list(feedforward)[:3]]
 
     @staticmethod
     def _student_boundary_input_modules(core: nn.Module) -> list[nn.Module]:
-        return [*list(core.spatial_blocks), *list(core.feedforward_blocks)[:2]]
+        return [*list(core.spatial_blocks), *list(core.feedforward_blocks)[:3]]
 
     @staticmethod
     def _conditioned_student_outputs(

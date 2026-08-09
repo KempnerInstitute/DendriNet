@@ -19,12 +19,21 @@ from dendritic_modeling.networks.checkpoints import (
 )
 
 SCHEMA_VERSION = "dendritic_vision_checkpoint_assembly_v1"
-COMPONENTS = ("conv1", "conv2", "conv3", "conv4", "conv5", "fc6", "fc7")
+COMPONENTS = (
+    "conv1",
+    "conv2",
+    "conv3",
+    "conv4",
+    "conv5",
+    "fc6",
+    "fc7",
+    "fc8",
+)
 
 _SPATIAL_FORWARD_INDICES = (0, 3, 6, 8, 10)
 _SPATIAL_ADAPTER_INDICES = (1, 4, 7, 9, 11)
-_CLASSIFIER_FORWARD_INDICES = (1, 4)
-_CLASSIFIER_ADAPTER_INDICES = (2, 5)
+_CLASSIFIER_FORWARD_INDICES = (1, 4, 7)
+_CLASSIFIER_ADAPTER_INDICES = (2, 5, 8)
 
 
 def _component_prefixes() -> dict[str, tuple[str, ...]]:

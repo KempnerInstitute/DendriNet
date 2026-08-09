@@ -29,8 +29,6 @@ def _state(fill: float = 0.0) -> dict[str, torch.Tensor]:
         state[prefixes[2] + "weight"] = block_value.clone()
         state[prefixes[1] + "log_scale"] = adapter_value.clone()
         state[prefixes[3] + "log_scale"] = adapter_value.clone()
-    state["core_network.feedforward_blocks.2.weight"] = torch.tensor([fill + 90])
-    state["core_network.classifier.6.weight"] = torch.tensor([fill + 90])
     state["output_scale"] = torch.tensor([fill + 100])
     return state
 
