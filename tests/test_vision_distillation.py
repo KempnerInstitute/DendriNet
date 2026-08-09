@@ -199,6 +199,27 @@ def test_alexnet_boundary_distillation_rejects_unknown_boundary():
         AlexNetBoundaryDistillationLoss({"boundary_weights": {"pool3": 1.0}})
 
 
+def test_class_output_target_preserves_softmax_and_accepts_nonnegative_somas():
+    teacher = torch.tensor([[-2.0, 1.0, 0.0]])
+    shifted = teacher - teacher.amin(dim=-1, keepdim=True)
+    loss_fn = AlexNetBoundaryDistillationLoss(
+        {
+            "boundary_weights": {"fc8": 1.0},
+            "class_output_target": "softmax_equivalent_nonnegative",
+        }
+    )
+
+    loss = loss_fn._feature_loss({"fc8": shifted}, {"fc8": teacher})
+
+    torch.testing.assert_close(torch.softmax(shifted, -1), torch.softmax(teacher, -1))
+    torch.testing.assert_close(loss, torch.zeros_like(loss))
+
+
+def test_class_output_target_rejects_unknown_transform():
+    with pytest.raises(ValueError, match="class_output_target"):
+        AlexNetBoundaryDistillationLoss({"class_output_target": "signed_projection"})
+
+
 def test_teacher_forced_boundary_distillation_uses_local_block_inputs(monkeypatch):
     monkeypatch.setattr(
         "dendritic_modeling.training.strategies.vision_distillation.get_model",

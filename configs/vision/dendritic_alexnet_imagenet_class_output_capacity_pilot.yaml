@@ -42,6 +42,12 @@ base_config:
         indexed:
           seed: 71650
 
+  training:
+    main:
+      strategies:
+        vision_distillation:
+          class_output_target: softmax_equivalent_nonnegative
+
   wandb:
     group: iclr2027_dendritic_alexnet_class_output_capacity_pilot
     tags: [iclr2027, alexnet, full_dendritic, boundary_capacity, class_output]

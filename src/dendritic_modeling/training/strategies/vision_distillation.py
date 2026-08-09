@@ -137,6 +137,16 @@ class AlexNetBoundaryDistillationLoss(LossFunction):
         self.supervised_weight = float(cfg.get("supervised_weight", 1.0))
         self.temperature = float(cfg.get("temperature", 2.0))
         self.relative_mse_epsilon = float(cfg.get("relative_mse_epsilon", 1e-6))
+        self.class_output_target = (
+            str(cfg.get("class_output_target", "raw")).strip().lower()
+        )
+        if self.class_output_target not in {
+            "raw",
+            "softmax_equivalent_nonnegative",
+        }:
+            raise ValueError(
+                "class_output_target must be raw or " "softmax_equivalent_nonnegative"
+            )
         if self.temperature <= 0:
             raise ValueError("vision distillation temperature must be positive")
         if self.relative_mse_epsilon <= 0:
@@ -295,6 +305,14 @@ class AlexNetBoundaryDistillationLoss(LossFunction):
         for name, weight in self.boundary_weights.items():
             student_value = student[name]
             teacher_value = teacher[name]
+            if (
+                name == "fc8"
+                and self.class_output_target == "softmax_equivalent_nonnegative"
+            ):
+                teacher_value = teacher_value - teacher_value.amin(
+                    dim=-1,
+                    keepdim=True,
+                )
             if student_value.shape != teacher_value.shape:
                 raise ValueError(
                     f"Boundary {name} shape mismatch: student "

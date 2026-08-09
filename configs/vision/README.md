@@ -24,6 +24,10 @@ list, and `classifier_somas_per_unit` is a scalar or two-element list for fc6
 and fc7. The learned reduction is a separate positive sum-to-one weighting
 within each declared channel or hidden-unit identity; it cannot mix identities.
 The final classifier always remains one excitatory soma per class.
+For its teacher-forced capacity fit, `class_output_target` uses
+`softmax_equivalent_nonnegative`: the minimum teacher logit is subtracted from
+all classes within each example. This makes the target nonnegative without
+changing its softmax probabilities and does not add a learned decoder.
 
 ## Hash-bound boundary assembly
 
