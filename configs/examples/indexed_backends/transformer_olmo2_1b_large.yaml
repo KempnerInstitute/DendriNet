@@ -1,0 +1,159 @@
+# Large OLMo-2 FFN replacement with one functionally equivalent variant per
+# indexed projection backend. Generate the variants with dendritic-sweep; see
+# README.md in this directory. This is a scale/runtime example, not a
+# pre-validated accuracy recipe.
+
+slurm_config:
+  run_name: "indexed_transformer_olmo2_1b_large"
+  account: ""
+  partition: ""
+  time: "08:00:00"
+  nodes: 1
+  ntasks_per_node: 1
+  gpus_per_node: 1
+  launcher: torchrun
+  cpus_per_task: 16
+  mem: 128GB
+  training_script: src/dendritic_modeling/scripts/training/train_transformer_replacement.py
+
+experiment_settings:
+  seeds_per_condition: 1
+  base_seed: 42
+  seed_paths:
+    - model.core.population_network.layers.0.population_defaults.indexed_seed
+
+sweep_variants:
+  - name: eager
+    overrides:
+      model.core.population_network.layers.0.population_defaults.indexed_projection_backend: eager
+  - name: recompute
+    overrides:
+      model.core.population_network.layers.0.population_defaults.indexed_projection_backend: recompute
+  - name: triton
+    overrides:
+      model.core.population_network.layers.0.population_defaults.indexed_projection_backend: triton
+  - name: cuda
+    overrides:
+      model.core.population_network.layers.0.population_defaults.indexed_projection_backend: cuda
+  - name: auto
+    overrides:
+      model.core.population_network.layers.0.population_defaults.indexed_projection_backend: auto
+
+sweep_config: {}
+filter_config: {mode: default}
+sweep_contract: {expected_config_count: 5}
+
+base_config:
+  experiment:
+    seed: 42
+    deterministic: true
+    allow_tf32: false
+    float32_matmul_precision: highest
+    enable_hooks: false
+
+  model:
+    task: language_modeling
+    transformer_replacement:
+      enabled: true
+      model_name: allenai/OLMo-2-0425-1B
+      layers: [0]
+      target_module: mlp
+      layers_attr: model.layers
+      input_transform: identity
+      preserve_device_dtype: true
+      model_kwargs:
+        trust_remote_code: true
+        torch_dtype: auto
+      replacement_kwargs:
+        kind: gated_dendritic_ffn
+        gate_activation: silu
+        teacher_topk_init: false
+        output_topk: 512
+        output_init_std: 0.02
+        pre_norm: false
+    core:
+      type: dendritic_ffn
+      population_network:
+        input_transform: identity
+        layers:
+          - name: transformer_mlp
+            readout_population: ffn
+            population_defaults:
+              ff_excitatory_synapses: 64
+              ff_inhibitory_synapses: 0
+              rec_excitatory_synapses: 0
+              rec_inhibitory_synapses: 0
+              somatic_synapses: false
+              use_shunting: false
+              use_additive_normalization: false
+              reactivate: true
+              reactivation_type: param_tanh
+              reactivation_init_policy: occupancy_quantile
+              reactivation_memory_efficient: true
+              weight_transform: softplus
+              topk_type: indexed
+              topk_init_method: xavier_normal
+              topk_noise_level: 0.0
+              indexed_seed: 42
+              indexed_output_chunk_size: 65536
+              indexed_index_dtype: int32
+              indexed_workspace_mb: 128
+              indexed_cache_transformed_weights: false
+              indexed_projection_backend: recompute
+              indexed_persistent_indices: false
+              indexed_init_mode: per_rank
+              efficient_blocklinear: true
+            populations:
+              - name: ffn
+                polarity: excitatory
+                n_neurons: 8192
+                branch_factors: [2, 2]
+            connections:
+              - source: input
+                target: ffn
+
+  training:
+    main:
+      optimizer:
+        name: adamw
+        lr: 0.0001
+        weight_decay: 0.01
+    transformer_replacement:
+      enabled: true
+      mode: layerwise_distillation
+      teacher_source: hf_text
+      train_target: replacement_only
+      layers: [0]
+      device: auto
+      dtype: bfloat16
+      use_amp: false
+      sequence_length: 128
+      train_samples: 8192
+      valid_samples: 32
+      batch_size: 2
+      max_steps: 200
+      eval_every: 25
+      log_every: 10
+      loss: relative_mse
+      cosine_weight: 0.1
+      reactivation_calibration_enabled: false
+      checkpoint_every: 50
+      replacement_checkpoint_encoding: bitmask
+      save_dir: outputs/indexed_backends/transformer_olmo2_1b
+      save_replacements: true
+      text:
+        dataset_name: allenai/dolmino-mix-1124
+        dataset_config: default
+        split: train
+        text_field: text
+        streaming: true
+        shuffle_seed: 42
+        shuffle_buffer_size: 10000
+        validation_documents: 64
+        tokenizer_name: allenai/OLMo-2-0425-1B
+        max_documents: 2000
+
+  wandb: {use_wandb: false}
+  outputs:
+    run_name: indexed_transformer_olmo2_1b_large
+    results_dir: outputs/indexed_backends/transformer_olmo2_1b

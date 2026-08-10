@@ -48,6 +48,7 @@ class IndexedSynapseConfig:
     cache_recurrent_weight: bool = False
     use_triton_gather: bool = False
     use_cuda_gather: bool = False
+    use_auto_gather: bool = False
     candidate_size: int | None = None
     selection: str = "standard"
     rewire_frequency: int = 100
@@ -179,6 +180,7 @@ def _indexed_config_from_kwargs(source: Mapping[str, Any]) -> IndexedSynapseConf
         ),
         use_triton_gather=source.get("indexed_use_triton_gather", False),
         use_cuda_gather=source.get("indexed_use_cuda_gather", False),
+        use_auto_gather=source.get("indexed_use_auto_gather", False),
         candidate_size=source.get("indexed_candidate_size", None),
         selection=source.get("indexed_selection", "standard"),
         rewire_frequency=source.get("indexed_rewire_frequency", 100),
@@ -327,6 +329,7 @@ def _indexed_kwargs(config: IndexedSynapseConfig) -> dict[str, Any]:
         "indexed_cache_recurrent_weight": config.cache_recurrent_weight,
         "indexed_use_triton_gather": config.use_triton_gather,
         "indexed_use_cuda_gather": config.use_cuda_gather,
+        "indexed_use_auto_gather": config.use_auto_gather,
         "indexed_candidate_size": config.candidate_size,
         "indexed_selection": config.selection,
         "indexed_rewire_frequency": config.rewire_frequency,

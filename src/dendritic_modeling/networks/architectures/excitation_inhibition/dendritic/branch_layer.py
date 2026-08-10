@@ -381,6 +381,7 @@ class DendriticBranchLayer(nn.Module):
         ]
         self.indexed_use_triton_gather = synapse_options["indexed_use_triton_gather"]
         self.indexed_use_cuda_gather = synapse_options["indexed_use_cuda_gather"]
+        self.indexed_use_auto_gather = synapse_options["indexed_use_auto_gather"]
         self.indexed_candidate_size = synapse_options["indexed_candidate_size"]
         self.indexed_selection = synapse_options["indexed_selection"]
         self.indexed_rewire_frequency = int(synapse_options["indexed_rewire_frequency"])

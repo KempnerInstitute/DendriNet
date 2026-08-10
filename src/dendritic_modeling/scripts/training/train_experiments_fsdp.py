@@ -1103,6 +1103,21 @@ def main(config_path):
         )
         logger.info(f"Save path for plots: {run_save_path}")
 
+    # Auto-gather warmup: one no_grad micro-forward so every synapse module
+    # resolves its per-shape kernel verdict BEFORE step 1. Probes are gated to
+    # no_grad contexts (activation checkpointing is inert there); without this
+    # pass, grad-mode training would run fused until the first validation.
+    try:
+        warm = next(iter(train_loader))
+        warm_x = (warm[0] if isinstance(warm, (list, tuple)) else warm)
+        with torch.no_grad():
+            model(warm_x.to(f"cuda:{local_rank}"))
+        if rank == 0:
+            logger.info("auto-gather warmup forward complete")
+    except Exception as e:  # noqa: BLE001 -- warmup is best-effort by design
+        if rank == 0:
+            logger.warning(f"auto-gather warmup skipped: {e}")
+
     # Train the model
     results = trainer.train(model, train_loader, valid_loader)
     results.update(

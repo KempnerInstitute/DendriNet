@@ -41,6 +41,7 @@ class PopulationConfig(BaseConfig):
     indexed_cache_recurrent_weight: bool = False
     indexed_use_triton_gather: bool = False
     indexed_use_cuda_gather: bool = False
+    indexed_use_auto_gather: bool = False
     indexed_rewire_frequency: int = 100
     indexed_rewire_quantile: float = 0.05
     indexed_rewire_until_step: Optional[int] = None

@@ -79,6 +79,7 @@ class IndexedSparseLinear(nn.Module):
         use_fused_gather: bool = False,
         use_triton_gather: bool = False,
         use_cuda_gather: bool = False,
+        use_auto_gather: bool = False,
         cache_recurrent_weight: bool = False,
         cache_transformed_weights: bool = False,
         index_dtype: str | torch.dtype = "auto",
@@ -134,6 +135,8 @@ class IndexedSparseLinear(nn.Module):
         self.use_fused_gather = bool(use_fused_gather)
         self.use_triton_gather = bool(use_triton_gather)
         self.use_cuda_gather = bool(use_cuda_gather)
+        self.use_auto_gather = bool(use_auto_gather)
+        self._auto_gather_choice: str | None = None  # per-module probe verdict
         self.input_scale_vec = None
         self.param_scale_vec = None
         self._use_forward_dynamic_grad_scaling = False
@@ -313,6 +316,54 @@ class IndexedSparseLinear(nn.Module):
     # which this class never assigned, so it would have raised AttributeError had
     # it ever been reached. The single live implementation is below; it honours
     # both config spellings. Do not reintroduce a second copy.
+
+    # Measured on H200 at the 1M model's module geometry (bench_rnn_b4_crossover,
+    # 2026-08-10): the cuda path is 6.8-25x faster than fused on >=1M-output
+    # modules (adaptive-tile regime) but RAISES on some shapes (e.g. K=240), and
+    # fused wins the small-module regime where the whole-step 5k verdict was
+    # settled. Auto mode therefore probes capability per module ONCE (forward +
+    # both grads, catching launch-time raises at probe time instead of epoch
+    # time) and applies the measured size rule below.
+    _AUTO_GATHER_MIN_OUT = 1_000_000
+    # Shape-keyed, PROCESS-wide verdicts. Keying by instance broke under
+    # activation checkpointing: a probe firing inside a backward-pass
+    # recompute adds ops the original forward didn't run, and checkpoint
+    # aborts on the divergence. Shape-keyed, every module touched in a
+    # recompute inherits the verdict its shape earned during the original
+    # pass (which always runs first), so probes can never fire in recompute.
+    _AUTO_GATHER_VERDICTS: dict[tuple[int, int], str] = {}
+
+    def _probe_auto_gather(self, flat_x, indices, weight) -> str:
+        if (
+            self.out_features < self._AUTO_GATHER_MIN_OUT
+            or not cuda_gather_available()
+        ):
+            return "fused"
+        key = (self.out_features, int(indices.shape[1]))
+        cached = self._AUTO_GATHER_VERDICTS.get(key)
+        if cached is not None:
+            return cached
+        try:
+            with torch.enable_grad():
+                px = flat_x[:1].detach().float().requires_grad_(True)
+                pw = weight.detach().requires_grad_(True)
+                out = cuda_sparse_gather(px, indices, pw)
+                torch.autograd.grad(out.sum(), (px, pw))
+            choice = "cuda"
+        except RuntimeError as exc:
+            _logger.info(
+                "auto-gather probe: cuda unsupported for out=%d K=%d (%s) "
+                "-> fused",
+                self.out_features, indices.shape[1], exc,
+            )
+            choice = "fused"
+        else:
+            _logger.info(
+                "auto-gather probe: cuda selected for out=%d K=%d",
+                self.out_features, indices.shape[1],
+            )
+        self._AUTO_GATHER_VERDICTS[key] = choice
+        return choice
 
     def _forward_output_chunk_size(self, flat_x: torch.Tensor) -> int:
         return _workspace_limited_chunk_size(
@@ -515,8 +566,32 @@ class IndexedSparseLinear(nn.Module):
         # unavailable we fall through to the next-best, so a flag can never break a run.
         # cuda_gather_available() lazily compiles the CUDA extension on first use only --
         # never reached when use_cuda_gather is off, so the default path compiles nothing.
+        if (
+            self.use_auto_gather
+            and flat_x.is_cuda
+            and self._auto_gather_choice is None
+        ):
+            if key_cached := self._AUTO_GATHER_VERDICTS.get(
+                (self.out_features, int(indices.shape[1]))
+            ):
+                self._auto_gather_choice = key_cached
+            elif not torch.is_grad_enabled():
+                # Probe ONLY under no_grad: activation checkpointing is inert
+                # there, so the probe's throwaway graph can't pollute a
+                # checkpoint region's saved-tensor sequence (it aborts the
+                # step with a metadata mismatch if it does). The trainer's
+                # warmup forward triggers all probes before step 1; absent a
+                # warmup, grad-mode forwards use fused until the first
+                # no_grad pass (validation) resolves the verdict.
+                self._auto_gather_choice = self._probe_auto_gather(
+                    flat_x, indices, weight
+                )
         use_cuda = (
-            self.use_cuda_gather
+            (
+                self._auto_gather_choice == "cuda"
+                if self.use_auto_gather and flat_x.is_cuda
+                else self.use_cuda_gather
+            )
             and flat_x.is_cuda
             and cuda_gather_available()
         )
@@ -525,8 +600,12 @@ class IndexedSparseLinear(nn.Module):
             and flat_x.is_cuda
             and triton_gather_available()
         )
+        use_fused = (
+            self.use_fused_gather
+            or (self.use_auto_gather and self._auto_gather_choice == "fused")
+        )
         resolved = ("cuda" if use_cuda else "triton" if use_triton
-                    else "fused" if self.use_fused_gather else "loop")
+                    else "fused" if use_fused else "loop")
         if resolved not in _GATHER_PATHS_LOGGED:
             # Once per process per path. The fall-through above is deliberately
             # silent so a flag can never break a run -- but silence also means a
@@ -546,7 +625,7 @@ class IndexedSparseLinear(nn.Module):
             out = cuda_sparse_gather(flat_x, indices, weight)
         elif use_triton:
             out = triton_sparse_gather(flat_x, indices, weight)
-        elif self.use_fused_gather:
+        elif use_fused:
             # custom-autograd gather+mul+sum: ~7.6x faster backward, ~28x less memory
             out = fused_sparse_gather(
                 flat_x, indices, weight, chunk_size=self.output_chunk_size

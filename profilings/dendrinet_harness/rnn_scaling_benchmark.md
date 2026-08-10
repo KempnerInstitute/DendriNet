@@ -434,6 +434,23 @@ bf16 COMPUTE (needs 5k equivalence discipline; backward-dominated step suggests
 crossover at batch 4 (fused-wins was a batch-1 verdict; low EV, 15-min bench).
 Campaign math at config-tier close: 400 epochs x 294 s ~ 33 h on 4x H200.
 
+## Auto-gather: mechanically PASS, whole-step NEUTRAL at 1M -- 2026-08-10
+Per-module kernel dispatch (use_auto_gather: no_grad-gated capability probe +
+shape rule, shape-keyed process-wide verdicts, trainer warmup forward) SHIPPED
+and verified: 100k A/B loss-identical at equal speed; at 1M/b4 all eight 20M-out
+modules selected cuda and the epoch was 295.72 s vs 294.36 s fused -- ZERO
+whole-step change, peak +6.4 GB (140.7/143.8, near-ceiling). VERDICT: flag stays
+DEFAULT OFF; do not enable for the campaign.
+THE LESSON (important): per-op crossover wins (7-25x on those modules, measured
+same-GPU same-dtype) did NOT move the step => at 1M/b4 the step is NOT dominated
+by the giant-module gathers. Per-op benches no longer predict whole-step at this
+scale; the "gather is 75-92% of step" profile fact was measured at 5k-100k and
+does NOT transfer to 1M. NEXT SPEED WORK MUST START FROM A REAL 1M-STEP PROFILE
+(torch profiler on the b4 step), not from extrapolated per-op data. Grid-axis
+bug fix (outputs -> axis X, was capped at 65,535 tiles) shipped to triton v3
+regardless -- latent landmine for any >1M-tile launch. Also banked: 100k on ONE
+H200 = 158.9 s/epoch (first single-GPU 100k number).
+
 ## Scale frontier -- 2026-08-07 (4x H200, job 37721464)
 **The current stack's measured ceiling: 1.5M neurons** -- PASS at 572.38 s/epoch,
 peak 143,127 of 143,771 MB (644 MB headroom). Compute scaling is cleanly LINEAR

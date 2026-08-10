@@ -958,7 +958,47 @@ class FSDPTrainer(Trainer):
         total_correct = 0
         total_examples = 0
 
+        # Env-gated step profiler (DENDRINET_PROFILE_STEPS=N): captures N
+        # mid-epoch steps (skips the first two as warmup) with torch.profiler
+        # and writes a chrome trace + self-time table per rank, once per run.
+        # Default off; zero cost when unset.
+        _prof_steps = int(os.environ.get("DENDRINET_PROFILE_STEPS", "0") or 0)
+        _prof = None
+
         for _batch_idx, batch in enumerate(train_loader):
+            if _prof_steps > 0 and not getattr(self, "_profile_done", False):
+                if _prof is None and _batch_idx == 2:
+                    _prof = torch.profiler.profile(
+                        activities=[
+                            torch.profiler.ProfilerActivity.CPU,
+                            torch.profiler.ProfilerActivity.CUDA,
+                        ],
+                        profile_memory=True,
+                        record_shapes=True,
+                    )
+                    _prof.__enter__()
+                elif _prof is not None and _batch_idx == 2 + _prof_steps:
+                    _prof.__exit__(None, None, None)
+                    self._profile_done = True
+                    out_dir = os.environ.get(
+                        "DENDRINET_PROFILE_DIR",
+                        "profilings/dendrinet_harness/step_profile",
+                    )
+                    os.makedirs(out_dir, exist_ok=True)
+                    _r = (
+                        torch.distributed.get_rank()
+                        if torch.distributed.is_initialized()
+                        else 0
+                    )
+                    _prof.export_chrome_trace(f"{out_dir}/trace_rank{_r}.json")
+                    with open(f"{out_dir}/table_rank{_r}.txt", "w") as _fh:
+                        _fh.write(
+                            _prof.key_averages().table(
+                                sort_by="self_cuda_time_total", row_limit=80
+                            )
+                        )
+                    _prof = None
+
             # Clear GPU cache before each forward pass
             with nvtx_range("training/batch/clear_cuda_cache"):
                 torch.cuda.empty_cache()

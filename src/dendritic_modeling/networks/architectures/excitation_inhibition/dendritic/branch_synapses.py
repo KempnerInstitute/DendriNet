@@ -214,6 +214,7 @@ def create_branch_sparse_layer(
             cache_recurrent_weight=owner.indexed_cache_recurrent_weight,
             use_triton_gather=owner.indexed_use_triton_gather,
             use_cuda_gather=owner.indexed_use_cuda_gather,
+            use_auto_gather=owner.indexed_use_auto_gather,
             **extra_kwargs,
         )
 
