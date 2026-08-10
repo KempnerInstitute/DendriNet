@@ -1,0 +1,5 @@
+node=holygpu8a05203.rc.fas.harvard.edu start=Fri Aug  7 21:36:13 EDT 2026
+### 1p5m exit=0 epoch_Time: 572.38s Train Loss: 120.2766 peak_mb=143127
+### 2m exit=1 epoch_  peak_mb=529
+### 3m exit=1 epoch_  peak_mb=529
+done=Fri Aug  7 22:21:31 EDT 2026 -- reference: 1M = PASS, 81 GB peak, 378 s

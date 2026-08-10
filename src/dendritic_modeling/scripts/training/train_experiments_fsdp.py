@@ -296,6 +296,12 @@ def _build_fsdp_runtime_configs(config):
         "weight_decay": getattr(train_common, "weight_decay_rate", 0.0),
         "split_params": getattr(param_groups, "split_params", False),
     }
+    # optimizer.state_dtype (typed OptimizerConfig) -> bf16 Adam moments in the
+    # trainer; absent -> stock fp32 Adam state.
+    typed_opt = getattr(config.training.main, "optimizer", None)
+    state_dtype = getattr(typed_opt, "state_dtype", None)
+    if state_dtype:
+        optimizer_config["state_dtype"] = state_dtype
     # Keep the component-specific learning rates from the typed YAML config.
     # These values are especially important for very wide decoders, where a
     # single global Adam learning rate can produce a width-dependent jump.

@@ -53,7 +53,6 @@ data:
         stimulus_duration: 20
         response_duration: 8
         noise_std: 0.1
-        positive_input_encoding: true
         tuning_dim: 8
         pair_sampling: balanced_second_stimulus_v1
         n_samples: 64
@@ -64,7 +63,6 @@ data:
         stimulus_duration: 20
         response_duration: 8
         noise_std: 0.1
-        positive_input_encoding: true
         tuning_dim: 8
         pair_sampling: balanced_second_stimulus_v1
         n_samples: 32
@@ -75,7 +73,6 @@ data:
         stimulus_duration: 20
         response_duration: 8
         noise_std: 0.1
-        positive_input_encoding: true
         tuning_dim: 8
         pair_sampling: balanced_second_stimulus_v1
         n_samples: 4
@@ -255,6 +252,9 @@ training:
       name: adam
       lr: 0.0003
       weight_decay: 0.0
+      # M2: Adam moments stored bf16 (update math fp32); equivalence-checked
+      # at 5k 2026-08-07 (loss delta 0.0011, ledger loss reproduced exactly)
+      state_dtype: bf16
       betas:
       - 0.9
       - 0.999

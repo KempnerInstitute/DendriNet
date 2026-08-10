@@ -281,6 +281,9 @@ class OptimizerConfig(BaseConfig):
     momentum: float = 0.9  # For SGD
     betas: tuple = (0.9, 0.999)  # For Adam/AdamW
     eps: float = 1e-8  # For Adam/AdamW
+    # "bf16" stores Adam's moment tensors in bfloat16 (update math stays fp32),
+    # halving optimizer-state memory. None/absent = fp32 state, stock behavior.
+    state_dtype: str | None = None
 
 
 @dataclass

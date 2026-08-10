@@ -218,10 +218,28 @@ def get_fsdp_config(
         auto_wrap_policy = ModuleWrapPolicy(
             {IndexedSparseLinear, IndexedDynamicTopKLinear}
         )
+    elif auto_wrap_policy_name == "indexed_synapses_two_tier":
+        # Wrap only LARGE synapse modules individually; small ones stay in the
+        # parent unit. Same init-memory bound (cpu_init streams per wrapped
+        # unit, and the big modules are what made init blow up), but far fewer
+        # FSDP units -> far fewer all-gathers per timestep. Recovery lever for
+        # the measured 1.29x per-synapse-wrap epoch slowdown.
+        threshold = int(
+            (fsdp_config_dict or {}).get("two_tier_min_numel", 25_000_000)
+        )
+
+        def _two_tier_policy(module, recurse, nonwrapped_numel, _t=threshold):
+            if recurse:
+                return True  # keep traversing into children
+            if isinstance(module, (IndexedSparseLinear, IndexedDynamicTopKLinear)):
+                return sum(p.numel() for p in module.parameters()) >= _t
+            return False
+
+        auto_wrap_policy = _two_tier_policy
     else:
         raise ValueError(
-            "FSDP auto_wrap_policy must be 'none' or 'indexed_synapses', "
-            f"got {auto_wrap_policy_name!r}"
+            "FSDP auto_wrap_policy must be 'none', 'indexed_synapses', or "
+            f"'indexed_synapses_two_tier', got {auto_wrap_policy_name!r}"
         )
 
     # Convert backward_prefetch string to enum

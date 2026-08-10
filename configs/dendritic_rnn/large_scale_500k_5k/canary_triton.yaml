@@ -1,0 +1,299 @@
+# Fast FSDP construction/training canary for base.yaml.
+#
+# It preserves the same unified E/I implementation, [5,5] E morphology,
+# point-I morphology, distal-to-soma timescales, and exact 80/20 contact ratio.
+# It intentionally scales to 500 neurons and 50 contacts per neuron so that
+# model construction provides feedback quickly.
+experiment:
+  seed: 520000
+  dataset_seed: 520001
+  split_seed: 520002
+  model_seed: 520003
+  topology_seed: 520004
+  loader_seed: 520005
+  evaluation_seed: 520006
+  probe_seed: 520007
+  train_valid_split: 1.0
+  fast_mode: false
+  deterministic: true
+  strict_deterministic: true
+  cudnn_benchmark: false
+  allow_tf32: false
+  float32_matmul_precision: highest
+  enable_amp: true
+  enable_profiling: false
+  enable_hooks: false
+  sealed_test: true
+  allow_test_data: false
+  max_test_samples: 4
+  record_dataset_fingerprints: true
+  checkpointing:
+    enabled: false
+
+data:
+  dataset_name: romo_delay_comparison_positive
+  base_dir: ''
+  processing:
+    flatten: false
+    normalize: false
+  dataset_params:
+    romo_delay_comparison_positive:
+      train:
+        frequency_values: &frequency_values
+        - 2.0
+        - 2.8
+        - 3.6
+        - 4.4
+        - 5.2
+        - 6.0
+        stimulus_duration: 20
+        response_duration: 8
+        noise_std: 0.1
+        tuning_dim: 8
+        pair_sampling: balanced_second_stimulus_v1
+        n_samples: 64
+        min_delay: 10
+        max_delay: 10
+      valid:
+        frequency_values: *frequency_values
+        stimulus_duration: 20
+        response_duration: 8
+        noise_std: 0.1
+        tuning_dim: 8
+        pair_sampling: balanced_second_stimulus_v1
+        n_samples: 32
+        min_delay: 10
+        max_delay: 10
+      test:
+        frequency_values: *frequency_values
+        stimulus_duration: 20
+        response_duration: 8
+        noise_std: 0.1
+        tuning_dim: 8
+        pair_sampling: balanced_second_stimulus_v1
+        n_samples: 4
+        min_delay: 10
+        max_delay: 10
+
+model:
+  task: classification
+  learned_output_scale: false
+  fixed_output_scale: 1.0
+  output_scale_mode: fixed
+  encoder:
+    type: identity
+    params:
+      input_dim: 11
+      input_shape: null
+  core:
+    type: ei_unified
+    unified_ei:
+      output_mode: last
+      store_routing: false
+      input_projection_dims:
+      - 64
+      layers:
+      - recurrent: true
+        dt: 1.0
+        excitatory:
+          n_neurons: 400
+          branch_factors:
+          - 5
+          - 5
+          ff_excitatory_synapses_by_level:
+          - 0
+          - 0
+          - 5
+          ff_inhibitory_synapses_by_level:
+          - 0
+          - 0
+          - 0
+          rec_excitatory_synapses_by_level:
+          - 1
+          - 1
+          - 5
+          rec_inhibitory_synapses_by_level:
+          - 0
+          - 1
+          - 5
+          level_taus:
+          - 125.0
+          - 25.0
+          - 5.0
+          topk_type: indexed
+          topk_init_method: xavier_normal
+          topk_noise_level: 0.0
+          topk_strategy: none
+          indexed_seed: 520004
+          indexed_selection: standard
+          indexed_output_chunk_size: 2048
+          # Gather kernels (precedence cuda -> triton -> fused -> loop; each guarded).
+          # FUSED ONLY, matching base.yaml. Although the fast wpo CUDA path does engage
+          # at canary width (in_features ~500), cuda/triton are both far slower in the
+          # batch-1 recurrent regime and take precedence over fused when enabled, so
+          # the canary must exercise the same path the real run uses.
+          # Dtype-safe: fp32 compute, bf16 in/out under FSDP.
+          indexed_use_fused_gather: true
+          # Hoist the weight transform out of the timestep loop. pre_w is constant
+          # within a forward, so exp(pre_w) is loop-invariant; without this autograd
+          # saves T copies, which measured 51.9 MB/timestep at 5k/5k (~= nnz*2B) and
+          # is the largest single memory term at scale. It does NOT shard under FSDP.
+          # Forward is bit-identical; grads differ only by accumulation order.
+          indexed_cache_recurrent_weight: true
+          indexed_use_triton_gather: true
+          indexed_use_cuda_gather: false
+          blocklinear_strategy: none
+          efficient_blocklinear: true
+          allow_self_recurrence: false
+          structured_connectivity: {}
+          initialization_seed: 520003
+          initialization_namespace: large_scale_canary.excitatory
+          somatic_synapses: true
+          use_shunting: true
+          use_additive_normalization: false
+          weight_transform: exp
+          reactivate: true
+          reactivation_type: param_tanh
+          reactivation_init_policy: fixed
+          reactivation_init_m: 1.5
+          reactivation_init_b: 0.5
+          adaptive_initialization: false
+          dbl_init_method: mechanism_neutral
+          learnable_tau: false
+          use_noise: false
+          dynamics_mode: rate
+          dendritic_spikes_enabled: false
+          soma_feedback_enabled: false
+          synapse_types: {}
+        inhibitory:
+          n_neurons: 100
+          branch_factors: []
+          ff_excitatory_synapses_by_level:
+          - 5
+          ff_inhibitory_synapses_by_level:
+          - 0
+          rec_excitatory_synapses_by_level:
+          - 35
+          rec_inhibitory_synapses_by_level:
+          - 10
+          level_taus:
+          - 5.0
+          topk_type: indexed
+          topk_init_method: xavier_normal
+          topk_noise_level: 0.0
+          topk_strategy: none
+          indexed_seed: 520008
+          indexed_selection: standard
+          indexed_output_chunk_size: 2048
+          # Gather kernels (see excitatory block). Point-I; fused only, as above.
+          indexed_use_fused_gather: true
+          # Hoist the weight transform out of the timestep loop. pre_w is constant
+          # within a forward, so exp(pre_w) is loop-invariant; without this autograd
+          # saves T copies, which measured 51.9 MB/timestep at 5k/5k (~= nnz*2B) and
+          # is the largest single memory term at scale. It does NOT shard under FSDP.
+          # Forward is bit-identical; grads differ only by accumulation order.
+          indexed_cache_recurrent_weight: true
+          indexed_use_triton_gather: true
+          indexed_use_cuda_gather: false
+          blocklinear_strategy: none
+          efficient_blocklinear: true
+          allow_self_recurrence: false
+          structured_connectivity: {}
+          initialization_seed: 520003
+          initialization_namespace: large_scale_canary.inhibitory
+          somatic_synapses: true
+          use_shunting: true
+          use_additive_normalization: false
+          weight_transform: exp
+          reactivate: true
+          reactivation_type: param_tanh
+          reactivation_init_policy: fixed
+          reactivation_init_m: 1.5
+          reactivation_init_b: 0.5
+          adaptive_initialization: false
+          dbl_init_method: mechanism_neutral
+          learnable_tau: false
+          use_noise: false
+          dynamics_mode: rate
+          dendritic_spikes_enabled: false
+          soma_feedback_enabled: false
+          synapse_types: {}
+  decoder:
+    type: MLP
+    params:
+      hidden_dims:
+      - 32
+      activation: relu
+      output_dim: 2
+
+training:
+  encoder:
+    strategy: standard
+    common:
+      epochs: 0
+  main:
+    strategy: recurrent
+    pruning:
+      enabled: false
+    optimizer:
+      name: adam
+      lr: 0.0003
+      weight_decay: 0.0
+      betas:
+      - 0.9
+      - 0.999
+      eps: 1.0e-08
+    common:
+      epochs: 1
+      batch_size: 4
+      shuffle: true
+      grad_clip_value: 1.0
+      loss_function: ce
+      early_stopping: false
+      patience: 1
+      load_best_state_dict: false
+      plot_losses: false
+      suppress_prints: false
+      print_every: 1
+      num_workers: 0
+      pin_memory: true
+      persistent_workers: false
+      in_order: true
+      # FSDP supplies BF16 mixed precision. Avoid nesting the trainer's
+      # separate FP16 autocast/scaler path.
+      use_amp: false
+      lr_schedule: none
+      lr_warmup_epochs: 0
+      weight_decay_rate: 0.0
+      weight_boosting: false
+      recalibrate_reactivation_every: 0
+      reactivation_update_mode: backprop
+      param_groups:
+        lr: 0.0003
+        split_params: false
+
+analysis: {}
+wandb:
+  use_wandb: false
+outputs:
+  run_name: canary_500n_50_contacts_per_neuron
+  results_dir: results/dendritic_rnn/large_scale_500k_5k/canary
+  exact_run_dir: true
+distributed:
+  mode: fsdp
+  fsdp:
+    sharding_strategy: FULL_SHARD
+    mixed_precision: true
+    mixed_precision_dtype: bf16
+    param_dtype: bf16
+    reduce_dtype: fp32
+    buffer_dtype: bf16
+    cpu_offload: false
+    min_num_params: 1000000
+    reduce_communication_overhead: true
+    limit_all_gathers: true
+    forward_prefetch: false
+    sync_module_states: true
+    use_orig_params: true
+    backward_prefetch: BACKWARD_POST
+    gradient_checkpointing: true

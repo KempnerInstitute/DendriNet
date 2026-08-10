@@ -484,6 +484,13 @@ def calibrate_reactivation_from_data(
     # choice).
     samples: dict[str, list[torch.Tensor]] = {}
 
+    # The fused shunt+reactivation path computes the activation inside one
+    # autograd Function and never calls layer.reactivation as a module, which
+    # starves the pre-hooks below. Force the unfused path for the calibration
+    # forwards only (same math; V is materialized so the hooks can see it).
+    for layer in targets.values():
+        layer._force_unfused_shunt = True
+
     # Attach pre-hooks on each reactivation module. The hook's input is V.
     handles = []
     for name, layer in targets.items():
@@ -522,6 +529,8 @@ def calibrate_reactivation_from_data(
                     model(x)
     finally:
         remove_hook_handles(handles)
+        for layer in targets.values():
+            layer._force_unfused_shunt = False
         if was_training:
             model.train()
 

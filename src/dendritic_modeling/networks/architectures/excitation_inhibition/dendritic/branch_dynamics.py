@@ -295,11 +295,15 @@ def forward_branch_dynamics(
     # Deliberately skipped when anything downstream needs `voltage` itself --
     # diagnostics and analysis-current capture both store it, and both are off by
     # default. If they are on, correctness wins and we take the plain path.
+    # _force_unfused_shunt: data-driven reactivation calibration observes V via
+    # forward hooks on the reactivation MODULE, which the fused function never
+    # calls -- it sets this flag around its no-grad forwards so the hooks see V.
     fused_shunt = None
     if (
         owner.use_shunting
         and not store_diagnostics
         and not getattr(owner, "_store_analysis_currents", False)
+        and not getattr(owner, "_force_unfused_shunt", False)
     ):
         fused_shunt = fused_shunt_reactivation(owner.reactivation)
 

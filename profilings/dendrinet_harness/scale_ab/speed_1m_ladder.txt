@@ -1,0 +1,9 @@
+node=holygpu8a06304.rc.fas.harvard.edu start=Fri Aug  7 18:35:40 EDT 2026
+### b2 exit=0 epoch_Time: 332.66s Train Loss: 19.4900 peak_mb=112087
+### b4 exit=0 epoch_Time: 294.36s Train Loss: 32.3989 peak_mb=134313
+### b4_pf exit=0 epoch_Time: 297.27s Train Loss: 32.3989 peak_mb=134313
+### b4_pf_2t exit=0 epoch_Time: 296.48s Train Loss: 32.3989 peak_mb=134907
+done=Fri Aug  7 19:24:34 EDT 2026 -- baseline: b1 = 378.28s (job 37698703)
+node=holygpu8a03603.rc.fas.harvard.edu start=Fri Aug  7 19:40:45 EDT 2026
+### b2_sgo exit=0 epoch_Time: 338.37s Train Loss: 19.4900 peak_mb=109887
+done=Fri Aug  7 20:00:13 EDT 2026 -- baseline: b1 = 378.28s (job 37698703)

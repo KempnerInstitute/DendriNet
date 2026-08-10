@@ -386,9 +386,22 @@ class FSDPTrainer(Trainer):
             raise ValueError("FSDP training requires at least one trainable parameter")
         optimizer_config = self.optimizer_config or {}
 
+        # optimizer.state_dtype: bf16 stores Adam's two moment tensors in bf16
+        # (update math stays fp32) -- halves optimizer-state memory, the 1M-gate
+        # lever. Absent flag -> stock torch Adam, zero behavior change.
+        state_dtype = _optimizer_config_value(optimizer_config, "state_dtype", None)
+        if state_dtype not in (None, "fp32", "float32"):
+            from dendritic_modeling.training.bf16_state_adam import BF16StateAdam
+
+            if state_dtype not in ("bf16", "bfloat16"):
+                raise ValueError(f"unsupported optimizer state_dtype: {state_dtype!r}")
+            adam_cls = BF16StateAdam
+        else:
+            adam_cls = torch.optim.Adam
+
         # If not using split params, use all parameters with single LR
         if not optimizer_config.get("split_params", False):
-            return torch.optim.Adam(
+            return adam_cls(
                 all_params,
                 lr=_optimizer_config_value(optimizer_config, "lr", 0.001),
                 weight_decay=_optimizer_config_value(
@@ -482,7 +495,7 @@ class FSDPTrainer(Trainer):
             default_lr=0.001,
         )
 
-        optimizer = torch.optim.Adam(
+        optimizer = adam_cls(
             param_groups,
             weight_decay=_optimizer_config_value(optimizer_config, "weight_decay", 0.0),
         )

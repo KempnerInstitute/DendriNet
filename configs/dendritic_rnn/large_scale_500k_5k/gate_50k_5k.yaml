@@ -51,7 +51,6 @@ data:
         stimulus_duration: 20
         response_duration: 8
         noise_std: 0.1
-        positive_input_encoding: true
         tuning_dim: 8
         pair_sampling: balanced_second_stimulus_v1
         n_samples: 2
@@ -62,7 +61,6 @@ data:
         stimulus_duration: 20
         response_duration: 8
         noise_std: 0.1
-        positive_input_encoding: true
         tuning_dim: 8
         pair_sampling: balanced_second_stimulus_v1
         n_samples: 2
@@ -73,7 +71,6 @@ data:
         stimulus_duration: 20
         response_duration: 8
         noise_std: 0.1
-        positive_input_encoding: true
         tuning_dim: 8
         pair_sampling: balanced_second_stimulus_v1
         n_samples: 2

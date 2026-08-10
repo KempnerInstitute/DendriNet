@@ -348,6 +348,129 @@ The three declared forward-picker edges, closed by measurement on three architec
   the pre-trim run (its only flag, (48k,K25) at 0.95x, is a since-trimmed cell).
   **CUDA level CLOSED on every measured architecture.**
 
+## Three-level figure run -- 2026-08-07 (Blackwell RTX PRO 6000, 12L/16k FF stress, current code)
+Four arms, identical config/seeds/iters, ONLY the gather path differs (`--path` on the
+flag-neutral `_off.yaml`); equivalence receipt first (fwd bit-identical, gw bit-identical,
+gx fp-reassoc <= 6.1e-5 fp32 / 1.1e-13 fp64). Whole training step, batch 128:
+  loop 2358 ms / 64,056 MB -> fused 3.41x / 12.3x less mem -> triton 5.33x / 11.8x
+  -> cuda 12.19x / 14.2x less mem (194 ms / 4,522 MB).
+Batch 512: loop OOMs on the 96 GB card; all three optimized paths run (cuda 815 ms /
+13,361 MB). Figures + JSONs: `ff_stress/figures_3level/` (driver:
+`finalized/harness/figure_three_levels.sh`).
+
+## Triton v3: transposed-coalesced gather -- 2026-08-07 (SHIPPED)
+User-directed optimization pass on the Triton level. Ported the CUDA campaign's
+transferable lessons, then found something better: gathering from xT [IN, M]
+makes every gather address contiguous over the batch -> perfectly coalesced ->
+the kernel runs at the DRAM traffic roofline (1.55 ms at 16k->144k b512 = the
+11.8 GB it moves / ~8 TB/s). Split backward: transposed atomic-free grad_w +
+coalesced-atomic grad_x into gxT. int32 indices end-to-end (the old kernels
+upcast the int32 buffer to int64 EVERY call).
+
+Result (Blackwell, 12L/16k stress, whole training step): old triton 442 ms ->
+**v3 97.9 ms at b128 -- 24.1x over loop and 2.0x FASTER THAN THE CUDA PATH**
+(b512: 507 vs 815 ms, 1.6x). Peak memory identical to cuda. Verified vs fp64
+references at production tiles incl. non-tile-aligned shapes and batch-1
+(fwd <=3.1e-7, gw <=2.2e-5, gx <=4.6e-6 -- fp32 reassociation only).
+Old kernels replaced in triton_gather.py (git history preserves them); same
+API/flag. Bench + verification: bench_triton_baseline.py, bench_triton_v2.py.
+
+WHY the portable kernel beats the tuned CUDA path here: sm120's shared-memory
+occupancy cap (1 blk/SM at IN=16k) is what the whole CUDA staged family was
+fighting; the transposed layout sidesteps it entirely and Blackwell's bandwidth
+makes brute coalesced traffic cheap. **This is the banked "kernel-family
+redesign" measured through the Triton door** -- a CUDA port of the same layout
+would likely reclaim the lead; that item stays banked but now has a measured
+signal.
+
+Declared edges (same discipline as the CUDA closure): swept at K=40, batches
+128/512, Blackwell ONLY -- A100/H100 unmeasured for v3 (their bigger shared
+budgets mean cuda-staged may still win there; the path PRECEDENCE cuda->triton
+is unchanged until that is measured). Batch-1/RNN: v3 is correct but unswept;
+fused remains the RNN path. Dense-K and other-batch bands: unswept.
+
+## 1M GATE: PASSED -- 2026-08-07 (4x H200-141GB, job 37698703)
+**First full 1M x 5k training epoch in project history: 378.28 s** (batch 1,
+T=58, Romo, FSDP FULL_SHARD, fused gather, bf16 optimizer state, gradient
+checkpointing, expandable_segments). Train loss computed, all ~5B params
+stepped, validation ran; ~60 GB/GPU headroom. The job's FAILED exit was
+DISK, not model: the 54 GB full-state checkpoint hit the 95 GB home quota at
+39 GB written (debris cleaned; checkpoint saving now disabled in gate/speed
+configs). H100-80GB remains a true ~1-2 GiB capacity miss at 4 ranks (h5);
+the H200 route sidesteps it outright. CAMPAIGN RULE going forward:
+checkpoints -> scratch/lab storage, sharded (per-rank) save format, never a
+monolithic gather-to-rank-0 into home.
+
+**bf16 optimizer state (M2): shipped + equivalence-PASSED at 5k** (one config
+line: optimizer.state_dtype: bf16). fp32-mode matches torch Adam to 3.7e-8
+(200 steps); at 5k the A/B: loss 1.4123 vs 1.4134 (|d|=0.0011, criterion
+0.01), fp32 arm reproduced the ledger loss EXACTLY, peak lower, 44.8->38.8 s.
+Note the h5 post-mortem: the first-backward OOM predates optimizer-state
+creation, so M2 alone could never have opened the 80GB gate -- recorded as a
+reasoning correction; M2's real value is steady-state margin + campaign
+memory.
+
+## Speed ladder, round 1 -- 2026-08-07 (4x H200, jobs 37704512)
+Baseline b1 = 378.28 s. Arms (one added variable each):
+  b2 332.66 s (1.14x, peak 112 GB) | b4 294.36 s (**1.29x**, peak 134/144 GB)
+  b4+forward_prefetch 297.27 s (NEUTRAL) | b4+two-tier wrap 296.48 s (NEUTRAL,
+  loss bit-identical to b4 -- wrapping variants preserve math exactly).
+Readings: batch is sub-linear (per-step 3.1x at 4x batch) -- the "forward
+flat in batch" result was the 5k/batch-1 launch-bound regime and does NOT
+transfer to 1M where kernels are 200x larger; CUDA-graph lever EV downgraded
+accordingly (its 1.92x capture receipt is 5k-only). prefetch/two-tier:
+measured neutrals at 1M/H200, defaults stay off. b4 nearly saturates H200
+memory: batch 8 needs new memory work. Campaign math: 400 epochs at b4 ~ 33 h.
+Round 2 (job 37712569): b2+SHARD_GRAD_OP = 338.37 s vs b2 332.66 s -- NEUTRAL
+(loss bit-identical to b2; peak 109.9 vs 112.1 GB). Eliminating ALL per-timestep
+re-gathers bought nothing: the 1M/H200 step is genuinely compute/bandwidth-bound.
+**CONFIG-TIER SPEED CLOSED at 1M: best = b4, 294.36 s (1.29x).** Measured
+neutrals recorded: forward_prefetch, two-tier wrap, SHARD_GRAD_OP (all at
+1M/H200; two-tier's 1.29x target was a 100k/A100-40 result). CUDA-graph lever
+formally NOT TRANSFERRING to 1M (both its premises -- launch-bound forward,
+collective overhead -- measured absent at this scale). Remaining speed tiers:
+bf16 COMPUTE (needs 5k equivalence discipline; backward-dominated step suggests
+<=1.5x e2e), GPU count (8xH100 / 2xH200 nodes), and optional: re-ask the gather
+crossover at batch 4 (fused-wins was a batch-1 verdict; low EV, 15-min bench).
+Campaign math at config-tier close: 400 epochs x 294 s ~ 33 h on 4x H200.
+
+## Scale frontier -- 2026-08-07 (4x H200, job 37721464)
+**The current stack's measured ceiling: 1.5M neurons** -- PASS at 572.38 s/epoch,
+peak 143,127 of 143,771 MB (644 MB headroom). Compute scaling is cleanly LINEAR
+(1.5x neurons -> 1.51x epoch time vs the 1M 378 s), further confirming the step
+is compute-bound. 2M and 3M died in CPU-side CONSTRUCTION: with cpu_init all 4
+ranks build on one node's host RAM and hit the 250 GB job limit before any GPU
+work (Slurm OUT_OF_MEMORY, MaxRSS 250 GB) -- a previously unpriced wall.
+M3 (idx sharding) requirements therefore now include SHARDED CONSTRUCTION (each
+rank samples only its shard): one design solves the GPU idx-replication wall AND
+the host-RAM wall. Gate ladder now: 5k -> 100k -> 1M -> 1.5M PASS | 2M+ blocked
+on M3. Speed-tier context (4-GPU constraint, user-set): remaining per-GPU levers
+are the batch-4 gather crossover (triton-v3 bf16+int32 vs fused bf16+int64;
+bench built) and incremental cell fusion (unbanked).
+
+## LEARNING-level overlay -- 2026-08-07 (Blackwell RTX PRO 6000)
+Five REAL training runs (8 epochs, CIFAR-10, widened example config 4000E/1000I,
+rewiring frozen, deterministic mode): loop, loop re-run, fused, triton, cuda --
+identical except gather flags. Result: run-to-run noise floor 0.00e+00 (loop
+re-run BIT-IDENTICAL); every optimized arm within 6.7e-08 of loop across all 8
+train+valid points (pure fp reassociation) while the model genuinely learns
+(2.27 -> 1.94 train, below chance 2.303 and descending). Costs for the SAME
+learning: loop 242 s / 20,233 MB -> fused 172 s / 5,269 MB -> triton 170 s /
+5,261 MB -> cuda 111 s (2.2x) / 5,117 MB (4.0x less). Figures + overlay.json:
+`ff_stress/learn_overlay/overlay/`; tools: `gen_gather_arm_twins.py`,
+`learn_overlay.sh`, `make_learn_figures.py` (finalized/harness).
+
+**Bug found+fixed en route (HEAD, affects ANY data-driven reactivation config):**
+the fused shunt+reactivation path (ff6b9904, default-on) never calls
+`layer.reactivation` as a module, starving the calibration's forward hooks ->
+zero samples -> misleading "no eligible DendriticBranchLayers" (made fatal by
+c4cdaecd; silently skipped before). Fix: `_force_unfused_shunt` escape hatch in
+branch_dynamics, set/cleared by the calibration around its no-grad forwards
+only. Training keeps the fused path. Also fixed: 3 dataset-wiring half-wires
+from commit 3012322b (sequence __init__ export, builders registry merge,
+builders/common.py recovered from 8d42688f) and branch_config.py recovered from
+05893dfa -- construct-level smoke now passes.
+
 ## 1M gate -- 2026-08-06 (4x H100-80GB, job 37522508)
 Init + FSDP wrap + full FORWARD of the first 1M x 5k batch all succeed (the cpu_init
 fix holds at scale). OOM in the first `loss.backward()` inside the fused gather:
@@ -356,6 +479,16 @@ FRAGMENTATION miss, not capacity (74.4 GiB truly allocated of 79.2). peak_per_gp
 80,967 MB. Retry queued with PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 (allocator policy only, no numeric effect); next lever if it misses: low-precision
 optimizer state (~7.8 GB/rank).
+
+**h5 (2026-08-07, job 37687335, 4x H100-80GB, expandable_segments ON): STILL OOM --
+but the diagnosis is now clean.** Fragmentation waste collapsed 2.55 GiB -> 0.39 GiB
+(the allocator fix worked); the run still asks 1.74 GiB with ~0.95 GiB free, all 4
+ranks identical, 76.3 GiB truly allocated. VERDICT: 1M/5k on 4x80GB is a TRUE
+CAPACITY miss of ~1-2 GiB/GPU at the first-backward peak, not an allocator artifact.
+Next levers, in order: M2 low-precision optimizer state (~7.8 GB/rank, 4-8x the
+shortfall; equivalence-check at 5k first -- the open ledger row), M4 activation
+checkpointing, or 8 ranks. (h2-h4 failed on plumbing, all fixed + smoke-covered:
+imports, branch_config, dataset-split validation.)
 
 **Handed off**: raw-input learning / morphology co-design → research track (screen with
 `probe_signal_death.py`); multi-GPU + 1M steady state → scaling track (init fixed; boundary

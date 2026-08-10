@@ -326,7 +326,12 @@ class FSDPConfig(BaseConfig):
     # ``indexed_synapses`` nests FSDP around each indexed sparse synapse
     # module. This bounds parameter all-gathers for contact-heavy models while
     # leaving the historical whole-model policy unchanged by default.
+    # ``indexed_synapses_two_tier`` wraps only synapse modules with at least
+    # ``two_tier_min_numel`` parameters individually (small ones stay in the
+    # parent unit): same init-memory bound, far fewer all-gathers per step --
+    # the recovery lever for the measured 1.29x per-synapse-wrap slowdown.
     auto_wrap_policy: str = "none"
+    two_tier_min_numel: int = 25_000_000
     reduce_communication_overhead: bool = True
     limit_all_gathers: bool = True
     forward_prefetch: bool = True
