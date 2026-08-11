@@ -23,30 +23,50 @@ experiment_settings:
     - model.core.unified_ei.layers.0.inhibitory.indexed_seed
 
 sweep_variants:
-  - name: eager
+  - name: control_eager
     overrides:
-      model.core.unified_ei.layers.0.excitatory.indexed_projection_backend: eager
-      model.core.unified_ei.layers.0.inhibitory.indexed_projection_backend: eager
-  - name: recompute
+      model.core.unified_ei.layers.0.excitatory.indexed_comparison_backend: control_eager
+      model.core.unified_ei.layers.0.inhibitory.indexed_comparison_backend: control_eager
+  - name: iss_recompute
     overrides:
-      model.core.unified_ei.layers.0.excitatory.indexed_projection_backend: recompute
-      model.core.unified_ei.layers.0.inhibitory.indexed_projection_backend: recompute
-  - name: triton
+      model.core.unified_ei.layers.0.excitatory.indexed_comparison_backend: iss_recompute
+      model.core.unified_ei.layers.0.inhibitory.indexed_comparison_backend: iss_recompute
+  - name: iss_triton
     overrides:
-      model.core.unified_ei.layers.0.excitatory.indexed_projection_backend: triton
-      model.core.unified_ei.layers.0.inhibitory.indexed_projection_backend: triton
-  - name: cuda
+      model.core.unified_ei.layers.0.excitatory.indexed_comparison_backend: iss_triton
+      model.core.unified_ei.layers.0.inhibitory.indexed_comparison_backend: iss_triton
+  - name: iss_cuda
     overrides:
-      model.core.unified_ei.layers.0.excitatory.indexed_projection_backend: cuda
-      model.core.unified_ei.layers.0.inhibitory.indexed_projection_backend: cuda
-  - name: auto
+      model.core.unified_ei.layers.0.excitatory.indexed_comparison_backend: iss_cuda
+      model.core.unified_ei.layers.0.inhibitory.indexed_comparison_backend: iss_cuda
+  - name: iss_auto
     overrides:
-      model.core.unified_ei.layers.0.excitatory.indexed_projection_backend: auto
-      model.core.unified_ei.layers.0.inhibitory.indexed_projection_backend: auto
+      model.core.unified_ei.layers.0.excitatory.indexed_comparison_backend: iss_auto
+      model.core.unified_ei.layers.0.inhibitory.indexed_comparison_backend: iss_auto
+  - name: ryan_fused
+    overrides:
+      model.core.unified_ei.layers.0.excitatory.indexed_comparison_backend: ryan_fused
+      model.core.unified_ei.layers.0.inhibitory.indexed_comparison_backend: ryan_fused
+  - name: ryan_triton
+    overrides:
+      model.core.unified_ei.layers.0.excitatory.indexed_comparison_backend: ryan_triton
+      model.core.unified_ei.layers.0.inhibitory.indexed_comparison_backend: ryan_triton
+  - name: ryan_cuda
+    overrides:
+      model.core.unified_ei.layers.0.excitatory.indexed_comparison_backend: ryan_cuda
+      model.core.unified_ei.layers.0.inhibitory.indexed_comparison_backend: ryan_cuda
+  - name: ryan_hybrid
+    overrides:
+      model.core.unified_ei.layers.0.excitatory.indexed_comparison_backend: ryan_hybrid
+      model.core.unified_ei.layers.0.inhibitory.indexed_comparison_backend: ryan_hybrid
+  - name: ryan_auto
+    overrides:
+      model.core.unified_ei.layers.0.excitatory.indexed_comparison_backend: ryan_auto
+      model.core.unified_ei.layers.0.inhibitory.indexed_comparison_backend: ryan_auto
 
 sweep_config: {}
 filter_config: {mode: default}
-sweep_contract: {expected_config_count: 5}
+sweep_contract: {expected_config_count: 10}
 
 base_config:
   experiment:
@@ -119,7 +139,6 @@ base_config:
               reactivation_init_policy: analytical
               reactivation_init_m: 1.5
               reactivation_init_b: 0.5
-              reactivation_memory_efficient: true
               dbl_init_method: analytical_expectation
               dynamics_mode: rate
             inhibitory:
@@ -149,7 +168,6 @@ base_config:
               reactivation_init_policy: analytical
               reactivation_init_m: 1.5
               reactivation_init_b: 0.5
-              reactivation_memory_efficient: true
               dbl_init_method: analytical_expectation
               dynamics_mode: rate
     decoder:

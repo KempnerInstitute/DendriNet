@@ -451,6 +451,51 @@ bug fix (outputs -> axis X, was capped at 65,535 tiles) shipped to triton v3
 regardless -- latent landmine for any >1M-tile launch. Also banked: 100k on ONE
 H200 = 158.9 s/epoch (first single-GPU 100k number).
 
+## Step profile + per-module race: the 1M bottleneck NAMED -- 2026-08-11
+Torch-profiler film of the real b4 step (2 steps, rank0): GPUs 103% busy (zero
+idle), NCCL 5.6% (FSDP comm free -- matches SGO-neutral), and 58.5% of device
+time is the fused gather/scatter machinery. The auto-gather probe was then
+upgraded from a size rule to a TIMED RACE per module (warmup+3 iters each path,
+keep winner; shape-keyed verdicts). Race log = the model's true layer census:
+  HOT (per-timestep recurrent, 58% of step): out=200k-4M with K=300-3968.
+    cuda CANNOT run any of them: "forward tile > 48KB" -- its smem tile design
+    caps at K~240. Triton v3 bwd collapses at high K (atomics). fused wins BY
+    FORFEIT on every hot module.
+  COLD (20M-out K=16/64 input synapses): cuda wins races (49 vs 64 ms, 188 vs
+    208) but they are rare calls -- moving them is measured neutral (3 arms).
+Epoch with race: 302.9 s vs 294.4 (loss identical; ~8 s one-time race cost +
+peak +5 GB). VERDICT: auto stays default OFF; 294 s IS the current kernel-stack
+ceiling at 1M/b4. ADDENDUM 2026-08-11: bench_highk measured the starting line
+(cuda forfeits all 5 hot shapes; v3 fwd wins 3 but its bwd loses 4-6.5x); a
+HYBRID path (v3 fwd + fused bwd, hybrid_gather.py) was built and entered in
+the race -- it ran fairly and LOST every hot shape by 2-10% at the REAL
+in-model geometry (which differs from bench guesses: in-model fused at
+4M/K=240 = 138 ms vs 242 at benched IN=1M). fused now holds every hot shape
+BY MERIT, not forfeit. In-model per-call times to beat (the race log IS the
+spec): 27.5 (200k/1000), 109.4 (200k/3968), 34 (800k/300), 130 (800k/1168),
+138 ms (4M/240). Three-way race infra (fused/cuda/hybrid) permanent; failures
+logged, never silent. THE PRECISE SPEC for any future speed work: a gather fwd+bwd
+kernel for K=300-4000 at out=200k-4M, batch 4, bf16-in/fp32-acc -- beating
+aten's scatter_gather at those shapes bounds the prize at ~2.4x. The auto-race
+infrastructure is DONE and self-updating: any new kernel that wins its race is
+adopted per-module automatically. K SCALES WITH MODEL SIZE (5k: K<=240; 1M:
+K<=3968) -- kernels tuned at small scale age out; the race future-proofs this.
+
+## Campaign plumbing: CERTIFIED -- 2026-08-11 (job 38361143)
+Sharded (per-rank DCP) checkpointing + exact resume, built and receipt-verified:
+5k twin trained 10 epochs straight vs 5 + process-kill + resume + 5 -- final
+loss BIT-IDENTICAL (delta 0.00e+00), with tripwires proving the resume was real
+(resume log line, first epoch = 5/10, DCP shard dirs + LATEST + keep-last-2
+pruning). Both live save sites in the trainer are format-aware (the train loop
+bypassed _save_checkpoint -- the first "PASS" was vacuous determinism, caught by
+the tripwires). Sharded mode NEVER gathers a monolithic file. Stack: fsdp_utils
+save/load pair, trainer resume (start_epoch), script wiring (all-ranks
+checkpoint_dir), campaign_1m.yaml (400-epoch budget, save-every-5 to
+netscratch/kempner_undergrads/Everyone/rwhalen, resume on), self-resubmitting
+relay jobs/campaign_1m.sbatch (no-progress guard + CAMPAIGN_STOP file).
+REMAINING before science: swap the 64-seq gate dataset for the lab's real one
+(epoch cost = 4.6 s/sequence at b4).
+
 ## Scale frontier -- 2026-08-07 (4x H200, job 37721464)
 **The current stack's measured ceiling: 1.5M neurons** -- PASS at 572.38 s/epoch,
 peak 143,127 of 143,771 MB (644 MB headroom). Compute scaling is cleanly LINEAR

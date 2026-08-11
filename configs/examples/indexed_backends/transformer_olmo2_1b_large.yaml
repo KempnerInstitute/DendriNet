@@ -23,25 +23,40 @@ experiment_settings:
     - model.core.population_network.layers.0.population_defaults.indexed_seed
 
 sweep_variants:
-  - name: eager
+  - name: control_eager
     overrides:
-      model.core.population_network.layers.0.population_defaults.indexed_projection_backend: eager
-  - name: recompute
+      model.core.population_network.layers.0.population_defaults.indexed_comparison_backend: control_eager
+  - name: iss_recompute
     overrides:
-      model.core.population_network.layers.0.population_defaults.indexed_projection_backend: recompute
-  - name: triton
+      model.core.population_network.layers.0.population_defaults.indexed_comparison_backend: iss_recompute
+  - name: iss_triton
     overrides:
-      model.core.population_network.layers.0.population_defaults.indexed_projection_backend: triton
-  - name: cuda
+      model.core.population_network.layers.0.population_defaults.indexed_comparison_backend: iss_triton
+  - name: iss_cuda
     overrides:
-      model.core.population_network.layers.0.population_defaults.indexed_projection_backend: cuda
-  - name: auto
+      model.core.population_network.layers.0.population_defaults.indexed_comparison_backend: iss_cuda
+  - name: iss_auto
     overrides:
-      model.core.population_network.layers.0.population_defaults.indexed_projection_backend: auto
+      model.core.population_network.layers.0.population_defaults.indexed_comparison_backend: iss_auto
+  - name: ryan_fused
+    overrides:
+      model.core.population_network.layers.0.population_defaults.indexed_comparison_backend: ryan_fused
+  - name: ryan_triton
+    overrides:
+      model.core.population_network.layers.0.population_defaults.indexed_comparison_backend: ryan_triton
+  - name: ryan_cuda
+    overrides:
+      model.core.population_network.layers.0.population_defaults.indexed_comparison_backend: ryan_cuda
+  - name: ryan_hybrid
+    overrides:
+      model.core.population_network.layers.0.population_defaults.indexed_comparison_backend: ryan_hybrid
+  - name: ryan_auto
+    overrides:
+      model.core.population_network.layers.0.population_defaults.indexed_comparison_backend: ryan_auto
 
 sweep_config: {}
 filter_config: {mode: default}
-sweep_contract: {expected_config_count: 5}
+sweep_contract: {expected_config_count: 10}
 
 base_config:
   experiment:
@@ -89,7 +104,6 @@ base_config:
               reactivate: true
               reactivation_type: param_tanh
               reactivation_init_policy: occupancy_quantile
-              reactivation_memory_efficient: true
               weight_transform: softplus
               topk_type: indexed
               topk_init_method: xavier_normal

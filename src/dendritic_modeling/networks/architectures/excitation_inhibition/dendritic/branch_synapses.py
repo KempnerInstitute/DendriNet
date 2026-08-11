@@ -44,6 +44,7 @@ def _indexed_runtime_kwargs(owner: Any) -> dict[str, Any]:
         "workspace_mb": owner.indexed_workspace_mb,
         "cache_transformed_weights": owner.indexed_cache_transformed_weights,
         "recompute_backward": owner.indexed_recompute_backward,
+        "comparison_backend": owner.indexed_comparison_backend,
         "persistent_indices": owner.indexed_persistent_indices,
         "init_mode": owner.indexed_init_mode,
     }
@@ -215,6 +216,7 @@ def create_branch_sparse_layer(
             use_triton_gather=owner.indexed_use_triton_gather,
             use_cuda_gather=owner.indexed_use_cuda_gather,
             use_auto_gather=owner.indexed_use_auto_gather,
+            **_indexed_runtime_kwargs(owner),
             **extra_kwargs,
         )
 

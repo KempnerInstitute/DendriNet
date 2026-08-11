@@ -339,11 +339,26 @@ def _create_fsdp_trainer(
         if checkpointing_enabled
         else None
     )
+    checkpoint_format = str(checkpointing.get("format", "full"))
+    checkpoint_resume = bool(checkpointing.get("resume", False))
+    # Sharded checkpoints are written by EVERY rank -- all ranks need the dir
+    # (the rank0-only convention below is correct only for the full format).
+    sharded_ckpt_dir = (
+        str(checkpointing.get("checkpoint_dir"))
+        if checkpoint_format == "sharded" and checkpointing.get("checkpoint_dir")
+        else None
+    )
     return FSDPTrainer(
         rank=rank,
         world_size=world_size,
         fsdp_config=fsdp_config,
-        checkpoint_dir=run_save_path if rank == 0 else None,
+        checkpoint_dir=(
+            sharded_ckpt_dir
+            if sharded_ckpt_dir
+            else (run_save_path if rank == 0 else None)
+        ),
+        checkpoint_format=checkpoint_format,
+        resume=checkpoint_resume,
         save_every_n_epochs=save_every_n_epochs,
         optimizer_config=optimizer_config,
         analysis_manager=analysis_manager,

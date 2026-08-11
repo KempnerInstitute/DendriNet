@@ -7,7 +7,9 @@ from typing import Any
 
 from dendritic_modeling.config.conversion import normalize_sparsity_type
 from dendritic_modeling.config.model_aliases import (
+    PROJECTION_BACKEND_FLAG_KEYS,
     get_core_morphology_alias_overrides,
+    resolve_projection_backend,
     warn_alias_conflicts,
 )
 from dendritic_modeling.networks.architectures.transformer.utils import (
@@ -149,6 +151,31 @@ def _input_transform_from_population_network(
     )
 
 
+def _population_projection_flags(
+    payload: dict[str, Any],
+    indexed: dict[str, Any],
+) -> dict[str, Any]:
+    """Resolve the projection-backend alias and explicit gather flags."""
+    backend = payload.get(
+        "indexed_projection_backend", indexed.get("projection_backend")
+    )
+    explicit = {}
+    for flag in PROJECTION_BACKEND_FLAG_KEYS:
+        if f"indexed_{flag}" in payload:
+            explicit[flag] = payload[f"indexed_{flag}"]
+        elif flag in indexed:
+            explicit[flag] = indexed[flag]
+    resolved = resolve_projection_backend(
+        backend, explicit, context="population indexed_"
+    )
+    if resolved is None:
+        resolved = {
+            flag: bool(explicit.get(flag, False))
+            for flag in PROJECTION_BACKEND_FLAG_KEYS
+        }
+    return {f"indexed_{flag}": value for flag, value in resolved.items()}
+
+
 def _common_population_replacement_kwargs(
     payload: dict[str, Any],
     *,
@@ -214,9 +241,13 @@ def _common_population_replacement_kwargs(
         "indexed_candidate_size": indexed.get("candidate_size"),
         "indexed_selection": indexed.get("selection", "standard"),
         "indexed_output_chunk_size": int(indexed.get("output_chunk_size", 2048)),
+        "indexed_comparison_backend": payload.get(
+            "indexed_comparison_backend", indexed.get("comparison_backend")
+        ),
         "indexed_rewire_frequency": int(indexed.get("rewire_frequency", 100)),
         "indexed_rewire_quantile": float(indexed.get("rewire_quantile", 0.05)),
         "indexed_rewire_until_step": indexed.get("rewire_until_step"),
+        **_population_projection_flags(payload, indexed),
     }
 
 

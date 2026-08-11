@@ -7,6 +7,7 @@ that cannot fit on a single GPU using PyTorch's Fully Sharded Data Parallel (Ful
 """
 
 import logging
+import os
 from types import MethodType
 from typing import Any, Optional
 
@@ -595,3 +596,86 @@ def get_recommended_gpu_count(memory_per_gpu_gb: float, total_memory_gb: float) 
         return 16
     else:
         return ((min_gpus + 15) // 16) * 16  # Round up to nearest 16
+
+
+def save_sharded_fsdp_checkpoint(
+    model,
+    optimizer,
+    epoch: int,
+    ckpt_dir: str,
+    keep_last: int = 2,
+) -> None:
+    """Sharded (per-rank) checkpoint: each rank writes only its own shard.
+
+    Replaces the FULL_STATE_DICT gather for large models -- at 1M the full
+    checkpoint is 54 GB through rank 0 (job 37698703 died writing it into a
+    95 GB home quota); sharded, each rank writes ~1/world_size directly.
+    Layout: <ckpt_dir>/epoch_NNNNNN/ (DCP shards + per-rank RNG extras),
+    with an atomically-updated LATEST pointer and keep-last pruning.
+    """
+    import shutil
+
+    import torch.distributed.checkpoint as dcp
+    from torch.distributed.checkpoint.state_dict import get_state_dict
+
+    step_dir = os.path.join(ckpt_dir, f"epoch_{epoch:06d}")
+    model_sd, optim_sd = get_state_dict(model, optimizer)
+    dcp.save({"model": model_sd, "optim": optim_sd}, checkpoint_id=step_dir)
+    rank = torch.distributed.get_rank()
+    extras = {
+        "epoch": epoch,
+        "torch_rng": torch.get_rng_state(),
+        "cuda_rng": (
+            torch.cuda.get_rng_state() if torch.cuda.is_available() else None
+        ),
+    }
+    torch.save(extras, os.path.join(step_dir, f"extras_rank{rank}.pt"))
+    torch.distributed.barrier()
+    if rank == 0:
+        tmp = os.path.join(ckpt_dir, ".LATEST.tmp")
+        with open(tmp, "w") as fh:
+            fh.write(os.path.basename(step_dir))
+        os.replace(tmp, os.path.join(ckpt_dir, "LATEST"))
+        runs = sorted(
+            d for d in os.listdir(ckpt_dir) if d.startswith("epoch_")
+        )
+        for old in runs[:-keep_last]:
+            shutil.rmtree(os.path.join(ckpt_dir, old), ignore_errors=True)
+    torch.distributed.barrier()
+
+
+def load_latest_sharded_checkpoint(model, optimizer, ckpt_dir: str):
+    """Restore the newest sharded checkpoint; return its epoch, or None.
+
+    Restores model + optimizer shards (DCP) and each rank's RNG streams, so
+    a resumed run continues the exact trajectory of an uninterrupted one.
+    """
+    import torch.distributed.checkpoint as dcp
+    from torch.distributed.checkpoint.state_dict import (
+        get_state_dict,
+        set_state_dict,
+    )
+
+    latest = os.path.join(ckpt_dir, "LATEST")
+    if not os.path.exists(latest):
+        return None
+    with open(latest) as fh:
+        step_dir = os.path.join(ckpt_dir, fh.read().strip())
+    model_sd, optim_sd = get_state_dict(model, optimizer)
+    dcp.load({"model": model_sd, "optim": optim_sd}, checkpoint_id=step_dir)
+    set_state_dict(
+        model,
+        optimizer,
+        model_state_dict=model_sd,
+        optim_state_dict=optim_sd,
+    )
+    rank = torch.distributed.get_rank()
+    extras = torch.load(
+        os.path.join(step_dir, f"extras_rank{rank}.pt"),
+        map_location="cpu",
+        weights_only=False,
+    )
+    torch.set_rng_state(extras["torch_rng"])
+    if extras.get("cuda_rng") is not None and torch.cuda.is_available():
+        torch.cuda.set_rng_state(extras["cuda_rng"])
+    return int(extras["epoch"])

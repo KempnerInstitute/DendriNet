@@ -28,7 +28,9 @@ from dendritic_modeling.training.distributed_samplers import (
 )
 from dendritic_modeling.training.fsdp_utils import (
     get_fsdp_config,
+    load_latest_sharded_checkpoint,
     save_fsdp_checkpoint,
+    save_sharded_fsdp_checkpoint,
     wrap_model_with_fsdp,
 )
 from dendritic_modeling.training.strategies.standard import Trainer
@@ -228,6 +230,8 @@ class FSDPTrainer(Trainer):
         fsdp_config: Optional[dict] = None,
         checkpoint_dir: Optional[str] = None,
         save_every_n_epochs: Optional[int] = None,
+        checkpoint_format: str = "full",
+        resume: bool = False,
         optimizer_config: Optional[dict] = None,
         analysis_manager: Optional[object] = None,
         wandb_run: Optional[object] = None,
@@ -254,6 +258,8 @@ class FSDPTrainer(Trainer):
         self.local_rank = int(os.environ.get("LOCAL_RANK", 0))
         self.fsdp_config = fsdp_config or get_fsdp_config()
         self.save_every_n_epochs = save_every_n_epochs
+        self.checkpoint_format = str(checkpoint_format)
+        self.resume = bool(resume)
 
         # Set up checkpoint directory structure (consistent with standard trainer)
         if checkpoint_dir is not None:
@@ -766,8 +772,23 @@ class FSDPTrainer(Trainer):
         if self.rank == 0:
             logger.info(f"Starting training for {self.epochs} epochs")
 
+        # Sharded-checkpoint resume: restore the newest checkpoint (model +
+        # optimizer + per-rank RNG) and continue the exact trajectory.
+        start_epoch = 0
+        if self.resume and self.checkpoint_format == "sharded":
+            resumed = load_latest_sharded_checkpoint(
+                model, self.optimizer, self.checkpoint_dir
+            )
+            if resumed is not None:
+                start_epoch = resumed + 1
+                if self.rank == 0:
+                    logger.info(
+                        f"Resumed sharded checkpoint at epoch {resumed}; "
+                        f"continuing from epoch {start_epoch}"
+                    )
+
         training_loop_started = time.perf_counter()
-        for epoch in range(self.epochs):
+        for epoch in range(start_epoch, self.epochs):
             self.last_completed_epoch = epoch
             if self.rank == 0:
                 logger.info(f"Starting epoch {epoch}")
@@ -856,28 +877,45 @@ class FSDPTrainer(Trainer):
                 and (epoch + 1) % self.save_every_n_epochs == 0
                 and (epoch + 1) < self.epochs
             ):
-                save_fsdp_checkpoint(
-                    model,
-                    self.optimizer,
-                    epoch,
-                    os.path.join(self.checkpoint_dir, f"checkpoint_epoch_{epoch}.pt"),
-                    rank=self.rank,
-                )
+                if self.checkpoint_format == "sharded":
+                    save_sharded_fsdp_checkpoint(
+                        model, self.optimizer, epoch, self.checkpoint_dir
+                    )
+                else:
+                    save_fsdp_checkpoint(
+                        model,
+                        self.optimizer,
+                        epoch,
+                        os.path.join(
+                            self.checkpoint_dir, f"checkpoint_epoch_{epoch}.pt"
+                        ),
+                        rank=self.rank,
+                    )
         training_loop_seconds = time.perf_counter() - training_loop_started
 
         # Final save
         self.final_checkpoint_path = None
         if self.checkpointing:
-            self.final_checkpoint_path = os.path.join(
-                self.checkpoint_dir, "final_model.pt"
-            )
-            save_fsdp_checkpoint(
-                model,
-                self.optimizer,
-                self.last_completed_epoch,
-                self.final_checkpoint_path,
-                rank=self.rank,
-            )
+            if self.checkpoint_format == "sharded":
+                # final state stays sharded too -- no monolithic gather, ever;
+                # downstream full-model analysis is skipped for this format
+                save_sharded_fsdp_checkpoint(
+                    model,
+                    self.optimizer,
+                    self.last_completed_epoch,
+                    self.checkpoint_dir,
+                )
+            else:
+                self.final_checkpoint_path = os.path.join(
+                    self.checkpoint_dir, "final_model.pt"
+                )
+                save_fsdp_checkpoint(
+                    model,
+                    self.optimizer,
+                    self.last_completed_epoch,
+                    self.final_checkpoint_path,
+                    rank=self.rank,
+                )
 
         # Generate plots (only on rank 0)
         if self.rank == 0:
@@ -1220,6 +1258,15 @@ class FSDPTrainer(Trainer):
             "final_checkpoint.pt" if is_final else f"checkpoint_epoch_{epoch}.pt"
         )
         checkpoint_path = os.path.join(self.checkpoint_dir, checkpoint_name)
+
+        if self.checkpoint_format == "sharded":
+            save_sharded_fsdp_checkpoint(
+                model=model,
+                optimizer=self.optimizer,
+                epoch=epoch,
+                ckpt_dir=self.checkpoint_dir,
+            )
+            return
 
         save_fsdp_checkpoint(
             model=model,

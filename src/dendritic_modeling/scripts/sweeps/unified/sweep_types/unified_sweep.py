@@ -233,17 +233,84 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
         """Validate unified sweep configuration."""
         # Check for sweep_config or filter_config (at least one must generate parameters)
         sweep_config = config.get("sweep_config", {})
+        sweep_variants = config.get("sweep_variants", [])
         filter_config = config.get("filter_config", {})
 
-        # If sweep_config is empty, check if filter_config can generate parameters
-        if not sweep_config:
+        self._normalize_sweep_variants(sweep_variants)
+
+        # If the ordinary grid and named variants are empty, check whether the
+        # filter can generate parameters.
+        if not sweep_config and not sweep_variants:
             filter_mode = filter_config.get("mode", "default")
             if filter_mode not in ["branch_sweep"]:
                 raise ValueError(
-                    "Either sweep_config must have parameters or filter_config.mode must be 'branch_sweep'"
+                    "At least one of sweep_config, sweep_variants, or "
+                    "filter_config.mode='branch_sweep' is required"
                 )
 
         return True
+
+    @staticmethod
+    def _normalize_sweep_variants(variants) -> list[dict]:
+        """Validate correlated named override bundles."""
+        if variants is None:
+            return []
+        if hasattr(variants, "_content"):
+            variants = OmegaConf.to_container(variants, resolve=True)
+        if not isinstance(variants, list):
+            raise TypeError("sweep_variants must be a list of named variants")
+
+        normalized: list[dict] = []
+        names: set[str] = set()
+        for index, declaration in enumerate(variants):
+            if not isinstance(declaration, dict):
+                raise TypeError(
+                    f"sweep_variants[{index}] must be a mapping with name and overrides"
+                )
+            name = str(declaration.get("name", "")).strip()
+            if not name:
+                raise ValueError(f"sweep_variants[{index}].name cannot be empty")
+            if name in names:
+                raise ValueError(f"Duplicate sweep variant name: {name!r}")
+            names.add(name)
+            overrides = declaration.get("overrides", {})
+            if not isinstance(overrides, dict):
+                raise TypeError(
+                    f"sweep_variants[{index}].overrides must be a dot-path mapping"
+                )
+            for path in overrides:
+                if not str(path).strip() or str(path).startswith("_"):
+                    raise ValueError(
+                        f"Invalid override path {path!r} in sweep variant {name!r}"
+                    )
+            normalized.append({"name": name, "overrides": dict(overrides)})
+        return normalized
+
+    @classmethod
+    def _set_condition_seed(
+        cls, config: DictConfig, *, seed: int, seed_paths
+    ) -> None:
+        """Set a condition seed plus optional fixed-topology seed aliases."""
+        if "experiment" in config or "training" in config:
+            if "experiment" not in config:
+                config["experiment"] = {}
+            config.experiment.seed = int(seed)
+        else:
+            if "train" not in config:
+                config["train"] = {}
+            config.train.seed = int(seed)
+        if seed_paths is None:
+            return
+        if hasattr(seed_paths, "_content"):
+            seed_paths = OmegaConf.to_container(seed_paths, resolve=True)
+        if not isinstance(seed_paths, list) or any(
+            not isinstance(path, str) or not path.strip() for path in seed_paths
+        ):
+            raise TypeError(
+                "experiment_settings.seed_paths must be a list of non-empty dot paths"
+            )
+        for path in seed_paths:
+            cls._set_by_dot_path(config, path, int(seed))
 
     def _apply_ei_filter(
         self, ee_values: list, ie_values: list, filter_config: dict
@@ -524,6 +591,9 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
     def generate_configs(self, base_config: DictConfig) -> list[DictConfig]:
         """Generate unified sweep configurations."""
         sweep_params = base_config.get("sweep_config", {})
+        sweep_variants = self._normalize_sweep_variants(
+            base_config.get("sweep_variants", [])
+        )
         experiment_settings = base_config.get("experiment_settings", {})
         filter_config = base_config.get("filter_config", {})
 
@@ -553,6 +623,8 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
 
         # Expand sweep parameters (handle ranges like [start, end, step])
         param_values = {}
+        if sweep_variants:
+            param_values["_sweep_variant"] = sweep_variants
         self._warn_if_param_group_lr_axis_is_effectively_noop(
             sweep_params=sweep_params,
             base_train_config=base_train_config,
@@ -653,6 +725,7 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
         # Handle seeds and other experiment settings
         seeds_per_condition = experiment_settings.get("seeds_per_condition", 1)
         base_seed = experiment_settings.get("base_seed", 42)
+        seed_paths = experiment_settings.get("seed_paths", [])
 
         # Generate configs
         configs = []
@@ -662,7 +735,15 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
 
             # Apply parameter values (only if there are parameters to set)
             if param_keys:
+                if "_sweep_variant" in param_keys:
+                    variant = combo[param_keys.index("_sweep_variant")]
+                    for path, value in variant["overrides"].items():
+                        self._set_by_dot_path(new_config, path, value)
+                    new_config["_sweep_variant"] = variant["name"]
+
                 for key, val in zip(param_keys, combo):
+                    if key == "_sweep_variant":
+                        continue
                     if key == "_branch_config":
                         # Special handling for branch configurations
                         # val is a dict with dendrite_tree_depth and dendrite_branches_per_layer
@@ -765,37 +846,21 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
             if seeds_per_condition > 1:
                 for seed_offset in range(seeds_per_condition):
                     seed_config = OmegaConf.create(deepcopy(new_config))
-                    # Set seed in the correct location based on config structure
-                    if "experiment" in seed_config:
-                        seed_config.experiment.seed = base_seed + seed_offset
-                    elif "training" in seed_config:
-                        # For new structure, seed is in experiment section, but fall back to training if needed
-                        if "experiment" not in seed_config:
-                            seed_config["experiment"] = {}
-                        seed_config.experiment.seed = base_seed + seed_offset
-                    else:
-                        # Old structure fallback
-                        if "train" not in seed_config:
-                            seed_config["train"] = {}
-                        seed_config.train.seed = base_seed + seed_offset
+                    self._set_condition_seed(
+                        seed_config,
+                        seed=base_seed + seed_offset,
+                        seed_paths=seed_paths,
+                    )
 
                     # Add metadata for sweep result tracking
                     seed_config["_sweep_config_id"] = f"config_{len(configs)}"
                     configs.append(seed_config)
             else:
-                # Set seed in the correct location based on config structure
-                if "experiment" in new_config:
-                    new_config.experiment.seed = base_seed
-                elif "training" in new_config:
-                    # For new structure, seed is in experiment section
-                    if "experiment" not in new_config:
-                        new_config["experiment"] = {}
-                    new_config.experiment.seed = base_seed
-                else:
-                    # Old structure fallback
-                    if "train" not in new_config:
-                        new_config["train"] = {}
-                    new_config.train.seed = base_seed
+                self._set_condition_seed(
+                    new_config,
+                    seed=base_seed,
+                    seed_paths=seed_paths,
+                )
 
                 # Add metadata for sweep result tracking
                 new_config["_sweep_config_id"] = f"config_{len(configs)}"

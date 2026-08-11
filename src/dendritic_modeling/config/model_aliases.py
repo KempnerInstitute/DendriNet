@@ -105,6 +105,60 @@ def get_structured_recurrent_alias_overrides(core_type: str) -> dict[str, object
     return get_unified_ei_alias_overrides(alias)
 
 
+# ``projection_backend`` is the public single-enum alias for the indexed
+# gather/recompute flag set. Runtime dispatch still reads the boolean flags
+# (precedence cuda -> triton -> fused -> loop); the alias only sets them.
+_PROJECTION_BACKEND_FLAGS: dict[str, dict[str, bool]] = {
+    "eager": {},
+    "recompute": {"recompute_backward": True},
+    "triton": {"use_triton_gather": True},
+    "cuda": {"use_cuda_gather": True},
+    "auto": {"use_auto_gather": True},
+}
+
+PROJECTION_BACKEND_FLAG_KEYS: tuple[str, ...] = (
+    "use_fused_gather",
+    "use_triton_gather",
+    "use_cuda_gather",
+    "use_auto_gather",
+    "recompute_backward",
+)
+
+
+def resolve_projection_backend(
+    backend: object,
+    explicit_flags: Mapping[str, object] | None = None,
+    *,
+    context: str = "",
+) -> dict[str, bool] | None:
+    """Resolve a ``projection_backend`` alias into indexed gather flags.
+
+    Returns ``None`` when ``backend`` is ``None`` (no alias present), otherwise
+    a complete unprefixed flag mapping for ``PROJECTION_BACKEND_FLAG_KEYS``.
+    Raises ``ValueError`` for unknown backend names and for explicit flag
+    values that contradict the alias, so a mistyped backend can never silently
+    fall back to the default loop path.
+    """
+    if backend is None:
+        return None
+    normalized = str(backend).strip().lower()
+    if normalized not in _PROJECTION_BACKEND_FLAGS:
+        valid = ", ".join(sorted(_PROJECTION_BACKEND_FLAGS))
+        raise ValueError(
+            f"{context}projection_backend must be one of ({valid}), "
+            f"got {backend!r}"
+        )
+    resolved = dict.fromkeys(PROJECTION_BACKEND_FLAG_KEYS, False)
+    resolved.update(_PROJECTION_BACKEND_FLAGS[normalized])
+    for key, value in (explicit_flags or {}).items():
+        if key in resolved and bool(value) != resolved[key]:
+            raise ValueError(
+                f"{context}projection_backend={normalized!r} conflicts with "
+                f"explicit {key}={value!r}; remove one of the two settings"
+            )
+    return resolved
+
+
 def warn_alias_conflicts(
     core_type: str,
     explicit_values: Mapping[str, object],
@@ -253,11 +307,13 @@ def canonicalize_rnn_core_flags(config: Any) -> dict[str, Any]:
 
 
 __all__ = [
+    "PROJECTION_BACKEND_FLAG_KEYS",
     "RECURRENT_ADDITIVE_REACTIVATION_INIT_M",
     "canonicalize_model_core_flags",
     "canonicalize_rnn_core_flags",
     "get_core_morphology_alias_overrides",
     "get_structured_recurrent_alias_overrides",
     "get_unified_ei_alias_overrides",
+    "resolve_projection_backend",
     "warn_alias_conflicts",
 ]

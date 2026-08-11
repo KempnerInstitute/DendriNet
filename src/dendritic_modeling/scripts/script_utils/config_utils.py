@@ -16,8 +16,10 @@ from dendritic_modeling.config.conversion import (
 )
 from dendritic_modeling.config.legacy import normalize_transfer_config
 from dendritic_modeling.config.model_aliases import (
+    PROJECTION_BACKEND_FLAG_KEYS,
     canonicalize_model_core_flags as _canonicalize_model_core_flags,
     canonicalize_rnn_core_flags as _canonicalize_rnn_core_flags,
+    resolve_projection_backend,
 )
 from dendritic_modeling.config.training import (
     ParamGroupsConfig,
@@ -191,7 +193,19 @@ def prepare_ei_network_params(
             for deepst_key, deepst_value in value.items():
                 params[deepst_key] = deepst_value
         elif key == "indexed":
-            for indexed_key, indexed_value in value.items():
+            indexed_section = dict(value)
+            resolved_backend = resolve_projection_backend(
+                indexed_section.pop("projection_backend", None),
+                {
+                    flag: indexed_section[flag]
+                    for flag in PROJECTION_BACKEND_FLAG_KEYS
+                    if flag in indexed_section
+                },
+                context="model.core.sparsity.indexed.",
+            )
+            if resolved_backend is not None:
+                indexed_section.update(resolved_backend)
+            for indexed_key, indexed_value in indexed_section.items():
                 params[f"indexed_{indexed_key}"] = indexed_value
         elif key in {"dense_to_sparse", "annealed_topk"}:
             if key == "annealed_topk":

@@ -4,8 +4,10 @@
 
 slurm_config:
   run_name: "indexed_alexnet_fc6_large"
-  account: ""
-  partition: ""
+  account: kempner_undergrads          # whichever you normally submit Kempner jobs under
+  partition: kempner_h100_priority     # you're in the priority group
+  conda_env_path: /n/home12/rwhalen/.conda/envs/dendritic_env
+  modules_to_load: [cuda/12.9.1-fasrc01, gcc/12.2.0-fasrc01]
   time: "08:00:00"
   nodes: 1
   ntasks_per_node: 1
@@ -21,25 +23,40 @@ experiment_settings:
   seed_paths: [model.core.sparsity.indexed.seed]
 
 sweep_variants:
-  - name: eager
+  - name: control_eager
     overrides:
-      model.core.sparsity.indexed.projection_backend: eager
-  - name: recompute
+      model.core.sparsity.indexed.comparison_backend: control_eager
+  - name: iss_recompute
     overrides:
-      model.core.sparsity.indexed.projection_backend: recompute
-  - name: triton
+      model.core.sparsity.indexed.comparison_backend: iss_recompute
+  - name: iss_triton
     overrides:
-      model.core.sparsity.indexed.projection_backend: triton
-  - name: cuda
+      model.core.sparsity.indexed.comparison_backend: iss_triton
+  - name: iss_cuda
     overrides:
-      model.core.sparsity.indexed.projection_backend: cuda
-  - name: auto
+      model.core.sparsity.indexed.comparison_backend: iss_cuda
+  - name: iss_auto
     overrides:
-      model.core.sparsity.indexed.projection_backend: auto
+      model.core.sparsity.indexed.comparison_backend: iss_auto
+  - name: ryan_fused
+    overrides:
+      model.core.sparsity.indexed.comparison_backend: ryan_fused
+  - name: ryan_triton
+    overrides:
+      model.core.sparsity.indexed.comparison_backend: ryan_triton
+  - name: ryan_cuda
+    overrides:
+      model.core.sparsity.indexed.comparison_backend: ryan_cuda
+  - name: ryan_hybrid
+    overrides:
+      model.core.sparsity.indexed.comparison_backend: ryan_hybrid
+  - name: ryan_auto
+    overrides:
+      model.core.sparsity.indexed.comparison_backend: ryan_auto
 
 sweep_config: {}
 filter_config: {mode: default}
-sweep_contract: {expected_config_count: 5}
+sweep_contract: {expected_config_count: 10}
 
 base_config:
   experiment:
@@ -57,7 +74,7 @@ base_config:
 
   data:
     dataset_name: imagenet
-    base_dir: ""                       # Set to an ImageNet-1k root.
+    base_dir: /n/holylfs06/LABS/kempner_shared/Everyone/testbed/vision/imagenet_1k
     processing:
       flatten: false
       normalize: true
@@ -121,7 +138,6 @@ base_config:
         init_policy: analytical
         init_m: 1.5
         init_b: 0.5
-        memory_efficient: true
       blocklinear:
         gradient_scaling: none
         efficient: true

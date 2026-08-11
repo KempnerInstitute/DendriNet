@@ -16,5 +16,11 @@ done=Mon Aug 10 12:55:13 EDT 2026 -- baseline: b1 = 378.28s (job 37698703)
 node=holygpu8a06203.rc.fas.harvard.edu start=Mon Aug 10 13:01:38 EDT 2026
 done=Mon Aug 10 13:14:12 EDT 2026 -- baseline: b1 = 378.28s (job 37698703)
 node=holygpu8a06301.rc.fas.harvard.edu start=Mon Aug 10 17:19:23 EDT 2026
-### b4_auto exit=0 epoch_Time: 302.88s Train Loss: 32.3989 peak_mb=139247
 done=Mon Aug 10 17:33:33 EDT 2026 -- baseline: b1 = 378.28s (job 37698703)
+node=holygpu8a06603.rc.fas.harvard.edu start=Tue Aug 11 12:23:09 EDT 2026
+done=Tue Aug 11 12:23:10 EDT 2026 -- baseline: b1 = 378.28s (job 37698703)
+node=holygpu8a09303.rc.fas.harvard.edu start=Tue Aug 11 12:56:15 EDT 2026
+done=Tue Aug 11 13:08:58 EDT 2026 -- baseline: b1 = 378.28s (job 37698703)
+node=holygpu8a09303.rc.fas.harvard.edu start=Tue Aug 11 13:56:31 EDT 2026
+### b4_auto exit=0 epoch_Time: 301.58s Train Loss: 32.3989 peak_mb=139187
+done=Tue Aug 11 14:08:28 EDT 2026 -- baseline: b1 = 378.28s (job 37698703)

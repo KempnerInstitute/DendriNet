@@ -31,6 +31,14 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.top
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.fused_gather import (
     fused_sparse_gather,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.comparison_backends import (
+    dispatch_iss373_backend,
+    normalize_indexed_comparison_backend,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.hybrid_gather import (
+    hybrid_gather_available,
+    hybrid_sparse_gather,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.triton_gather import (
     triton_gather_available,
     triton_sparse_gather,
@@ -82,6 +90,7 @@ class IndexedSparseLinear(nn.Module):
         use_triton_gather: bool = False,
         use_cuda_gather: bool = False,
         use_auto_gather: bool = False,
+        comparison_backend: str | None = None,
         cache_recurrent_weight: bool = False,
         cache_transformed_weights: bool = False,
         index_dtype: str | torch.dtype = "auto",
@@ -138,6 +147,29 @@ class IndexedSparseLinear(nn.Module):
         self.use_triton_gather = bool(use_triton_gather)
         self.use_cuda_gather = bool(use_cuda_gather)
         self.use_auto_gather = bool(use_auto_gather)
+        self.comparison_backend = normalize_indexed_comparison_backend(
+            comparison_backend
+        )
+        self._last_resolved_projection_backend: str | None = None
+        if self.comparison_backend is not None:
+            # The comparison selector is explicit and therefore takes priority
+            # over Ryanconfig's legacy booleans.  With no selector, those
+            # booleans retain exactly their existing behavior.
+            self.use_fused_gather = False
+            self.use_triton_gather = False
+            self.use_cuda_gather = False
+            self.use_auto_gather = False
+            if self.comparison_backend == "ryan_fused":
+                self.use_fused_gather = True
+            elif self.comparison_backend == "ryan_triton":
+                self.use_triton_gather = True
+            elif self.comparison_backend == "ryan_cuda":
+                self.use_cuda_gather = True
+            elif self.comparison_backend == "ryan_auto":
+                # Fused is the portable pre-probe fallback; on CUDA the
+                # existing measured race retains control of the final choice.
+                self.use_fused_gather = True
+                self.use_auto_gather = True
         self._auto_gather_choice: str | None = None  # per-module probe verdict
         self.input_scale_vec = None
         self.param_scale_vec = None
@@ -372,24 +404,27 @@ class IndexedSparseLinear(nn.Module):
                 px, idx, pw, chunk_size=self.output_chunk_size
             )
 
-        t_fused = _time(_fused)
+        times = {"fused": _time(_fused)}
         try:
-            t_cuda = _time(cuda_sparse_gather)
+            times["cuda"] = _time(cuda_sparse_gather)
         except RuntimeError as exc:
-            _logger.info(
-                "auto-gather race: cuda unsupported for out=%d K=%d (%s) "
-                "-> fused",
-                self.out_features, indices.shape[1], exc,
-            )
-            choice = "fused"
-        else:
-            choice = "cuda" if t_cuda < t_fused else "fused"
-            _logger.info(
-                "auto-gather race: out=%d K=%d fused=%.1fms cuda=%.1fms "
-                "-> %s",
-                self.out_features, indices.shape[1],
-                t_fused * 1e3 / 3, t_cuda * 1e3 / 3, choice,
-            )
+            _logger.info("auto-gather race: cuda out (%s)", str(exc)[:80])
+        if hybrid_gather_available():
+            try:
+                times["hybrid"] = _time(
+                    lambda px, idx, pw: hybrid_sparse_gather(
+                        px, idx, pw, chunk_size=self.output_chunk_size
+                    )
+                )
+            except RuntimeError as exc:
+                _logger.info("auto-gather race: hybrid out (%s)", str(exc)[:80])
+        choice = min(times, key=times.get)
+        _logger.info(
+            "auto-gather race: out=%d K=%d %s -> %s",
+            self.out_features, indices.shape[1],
+            " ".join(f"{k}={v * 1e3 / 3:.1f}ms" for k, v in times.items()),
+            choice,
+        )
         self._AUTO_GATHER_VERDICTS[key] = choice
         return choice
 
@@ -402,6 +437,16 @@ class IndexedSparseLinear(nn.Module):
             synapses_per_output=self.K,
             element_size=flat_x.element_size(),
         )
+
+    def _record_comparison_backend(self, resolved: str) -> None:
+        """Record the concrete implementation used by an A/B condition."""
+        if resolved != self._last_resolved_projection_backend:
+            _logger.info(
+                "indexed comparison backend resolved: requested=%s resolved=%s",
+                self.comparison_backend,
+                resolved,
+            )
+            self._last_resolved_projection_backend = resolved
 
     def _can_use_frozen_chunked_transform(self, flat_x: torch.Tensor) -> bool:
         """Return whether forward can transform each projection chunk in place."""
@@ -589,6 +634,58 @@ class IndexedSparseLinear(nn.Module):
         indices = self.connection_indices.to(flat_x.device)
         output_chunk_size = self._forward_output_chunk_size(flat_x)
 
+        # Keep upstream implementations physically separate from Ryanconfig's
+        # kernels.  This is deliberately an early dispatch: neither path may
+        # silently fall through to the other during a benchmark.
+        if self.comparison_backend in {
+            "iss_recompute",
+            "iss_triton",
+            "iss_cuda",
+            "iss_auto",
+        }:
+            out, resolved = dispatch_iss373_backend(
+                self.comparison_backend,
+                flat_x,
+                indices,
+                weight,
+                output_chunk_size=output_chunk_size,
+            )
+            self._record_comparison_backend(resolved)
+            out = out.reshape(*original_shape[:-1], self.out_features)
+            if self.cache_mask:
+                self._last_forward_weight_mask = self.weight_mask().detach()
+            return out.squeeze(0) if squeezed else out
+
+        if self.comparison_backend == "ryan_hybrid":
+            if not flat_x.is_cuda or not hybrid_gather_available():
+                raise RuntimeError(
+                    "indexed_comparison_backend='ryan_hybrid' is unavailable; "
+                    "a CUDA device and the Ryan hybrid gather extension are required"
+                )
+            out = hybrid_sparse_gather(
+                flat_x, indices, weight, chunk_size=output_chunk_size
+            )
+            self._record_comparison_backend("ryan_hybrid")
+            out = out.reshape(*original_shape[:-1], self.out_features)
+            if self.cache_mask:
+                self._last_forward_weight_mask = self.weight_mask().detach()
+            return out.squeeze(0) if squeezed else out
+
+        if self.comparison_backend == "ryan_cuda" and (
+            not flat_x.is_cuda or not cuda_gather_available()
+        ):
+            raise RuntimeError(
+                "indexed_comparison_backend='ryan_cuda' is unavailable; "
+                "a CUDA device and the Ryan CUDA gather extension are required"
+            )
+        if self.comparison_backend == "ryan_triton" and (
+            not flat_x.is_cuda or not triton_gather_available()
+        ):
+            raise RuntimeError(
+                "indexed_comparison_backend='ryan_triton' is unavailable; "
+                "a CUDA device and the Ryan Triton gather implementation are required"
+            )
+
         # Fastest-first precedence: cuda -> triton -> fused -> original loop. Each perf
         # path is guarded (CUDA tensor + toolchain/lib available); if a selected path is
         # unavailable we fall through to the next-best, so a flag can never break a run.
@@ -649,7 +746,11 @@ class IndexedSparseLinear(nn.Module):
                 cuda_gather_available() if flat_x.is_cuda else "n/a",
                 triton_gather_available() if flat_x.is_cuda else "n/a",
             )
-        if use_cuda:
+        if self.use_auto_gather and self._auto_gather_choice == "hybrid":
+            out = hybrid_sparse_gather(
+                flat_x, indices, weight, chunk_size=self.output_chunk_size
+            )
+        elif use_cuda:
             out = cuda_sparse_gather(flat_x, indices, weight)
         elif use_triton:
             out = triton_sparse_gather(flat_x, indices, weight)
@@ -667,6 +768,17 @@ class IndexedSparseLinear(nn.Module):
                     flat_x.shape[0], end - start, self.K
                 )
                 out[:, start:end] = (selected * weight[start:end].unsqueeze(0)).sum(dim=-1)
+
+        if self.comparison_backend is not None:
+            comparison_resolved = {
+                "loop": "control_eager",
+                "fused": "ryan_fused",
+                "triton": "ryan_triton",
+                "cuda": "ryan_cuda",
+            }.get(resolved, resolved)
+            if self.comparison_backend == "ryan_auto":
+                comparison_resolved = f"ryan_auto:{resolved}"
+            self._record_comparison_backend(comparison_resolved)
 
         out = out.reshape(*original_shape[:-1], self.out_features)
         if self.cache_mask:

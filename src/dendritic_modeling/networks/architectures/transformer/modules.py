@@ -74,6 +74,12 @@ class DendriticFFNReplacement(TokenReplacementCell):
         indexed_rewire_frequency: int = 100,
         indexed_rewire_quantile: float = 0.05,
         indexed_rewire_until_step: int | None = None,
+        indexed_use_fused_gather: bool = False,
+        indexed_use_triton_gather: bool = False,
+        indexed_use_cuda_gather: bool = False,
+        indexed_use_auto_gather: bool = False,
+        indexed_recompute_backward: bool = False,
+        indexed_comparison_backend: str | None = None,
         use_shunting: bool = True,
         use_additive_normalization: bool = False,
         reactivate: bool = True,
@@ -135,6 +141,12 @@ class DendriticFFNReplacement(TokenReplacementCell):
                 "indexed_rewire_frequency": indexed_rewire_frequency,
                 "indexed_rewire_quantile": indexed_rewire_quantile,
                 "indexed_rewire_until_step": indexed_rewire_until_step,
+                "indexed_use_fused_gather": indexed_use_fused_gather,
+                "indexed_use_triton_gather": indexed_use_triton_gather,
+                "indexed_use_cuda_gather": indexed_use_cuda_gather,
+                "indexed_use_auto_gather": indexed_use_auto_gather,
+                "indexed_recompute_backward": indexed_recompute_backward,
+                "indexed_comparison_backend": indexed_comparison_backend,
                 "use_shunting": use_shunting,
                 "use_additive_normalization": use_additive_normalization,
                 "reactivate": reactivate,
@@ -348,6 +360,21 @@ class GatedDendriticFFNReplacement(nn.Module):
                 seed=output_seed,
                 output_chunk_size=int(
                     dendritic_kwargs.get("indexed_output_chunk_size", 2048)
+                ),
+                use_fused_gather=bool(
+                    dendritic_kwargs.get("indexed_use_fused_gather", False)
+                ),
+                use_triton_gather=bool(
+                    dendritic_kwargs.get("indexed_use_triton_gather", False)
+                ),
+                use_cuda_gather=bool(
+                    dendritic_kwargs.get("indexed_use_cuda_gather", False)
+                ),
+                use_auto_gather=bool(
+                    dendritic_kwargs.get("indexed_use_auto_gather", False)
+                ),
+                comparison_backend=dendritic_kwargs.get(
+                    "indexed_comparison_backend"
                 ),
             )
 

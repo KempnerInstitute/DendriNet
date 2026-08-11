@@ -7,6 +7,10 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 
 from dendritic_modeling.config.base import BaseConfig
+from dendritic_modeling.config.model_aliases import (
+    PROJECTION_BACKEND_FLAG_KEYS,
+    resolve_projection_backend,
+)
 
 
 @dataclass
@@ -184,10 +188,32 @@ class PopulationConfig(BaseConfig):
     indexed_recompute_backward: bool = False
     indexed_persistent_indices: bool = True
     indexed_init_mode: str = "per_rank"
+    # Single-enum alias for the gather flags above; resolved (and cleared)
+    # in __post_init__ so downstream consumers only ever see the flags.
+    indexed_projection_backend: Optional[str] = None
+    # Benchmark-only selector.  Unlike indexed_projection_backend, this is
+    # retained through construction so IndexedSparseLinear can choose an
+    # explicitly named iss373_hs or Ryanconfig implementation.
+    indexed_comparison_backend: Optional[str] = None
 
     def __post_init__(self):
         if self.n_neurons <= 0:
             raise ValueError(f"n_neurons must be > 0, got {self.n_neurons}")
+        # Dataclass defaults are indistinguishable from explicit False here, so
+        # only raised flags count as explicit assertions for conflict checks.
+        resolved_backend = resolve_projection_backend(
+            self.indexed_projection_backend,
+            {
+                flag: True
+                for flag in PROJECTION_BACKEND_FLAG_KEYS
+                if getattr(self, f"indexed_{flag}")
+            },
+            context="PopulationConfig.indexed_",
+        )
+        if resolved_backend is not None:
+            for flag, flag_value in resolved_backend.items():
+                setattr(self, f"indexed_{flag}", flag_value)
+            self.indexed_projection_backend = None
         self.indexed_index_dtype = str(self.indexed_index_dtype).lower()
         if self.indexed_index_dtype not in {"auto", "int32", "int64", "long"}:
             raise ValueError(
