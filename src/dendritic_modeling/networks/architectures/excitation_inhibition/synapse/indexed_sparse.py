@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 from math import log
 
+import time
+
 import torch
 import torch.nn as nn
 
@@ -324,7 +326,8 @@ class IndexedSparseLinear(nn.Module):
     # settled. Auto mode therefore probes capability per module ONCE (forward +
     # both grads, catching launch-time raises at probe time instead of epoch
     # time) and applies the measured size rule below.
-    _AUTO_GATHER_MIN_OUT = 1_000_000
+    # Modules smaller than this many contacts aren't worth a startup race.
+    _AUTO_GATHER_MIN_CONTACTS = 1_000_000
     # Shape-keyed, PROCESS-wide verdicts. Keying by instance broke under
     # activation checkpointing: a probe firing inside a backward-pass
     # recompute adds ops the original forward didn't run, and checkpoint
@@ -335,7 +338,8 @@ class IndexedSparseLinear(nn.Module):
 
     def _probe_auto_gather(self, flat_x, indices, weight) -> str:
         if (
-            self.out_features < self._AUTO_GATHER_MIN_OUT
+            self.out_features * int(indices.shape[1])
+            < self._AUTO_GATHER_MIN_CONTACTS
             or not cuda_gather_available()
         ):
             return "fused"
@@ -343,24 +347,48 @@ class IndexedSparseLinear(nn.Module):
         cached = self._AUTO_GATHER_VERDICTS.get(key)
         if cached is not None:
             return cached
-        try:
+
+        # RACE the two paths on the real tensors: warmup + 3 timed fwd+bwd
+        # each, keep the faster. The step profile (2026-08-10) showed the
+        # fused gather/scatter on MEDIUM per-timestep modules is 58% of the
+        # 1M step -- a size rule picked the wrong modules; a race cannot.
+        def _time(fn) -> float:
             with torch.enable_grad():
-                px = flat_x[:1].detach().float().requires_grad_(True)
+                px = flat_x.detach().clone().requires_grad_(True)
                 pw = weight.detach().requires_grad_(True)
-                out = cuda_sparse_gather(px, indices, pw)
-                torch.autograd.grad(out.sum(), (px, pw))
-            choice = "cuda"
+                for _ in range(1):
+                    out = fn(px, indices, pw)
+                    torch.autograd.grad(out.sum(), (px, pw))
+                torch.cuda.synchronize(flat_x.device)
+                t0 = time.perf_counter()
+                for _ in range(3):
+                    out = fn(px, indices, pw)
+                    torch.autograd.grad(out.sum(), (px, pw))
+                torch.cuda.synchronize(flat_x.device)
+            return time.perf_counter() - t0
+
+        def _fused(px, idx, pw):
+            return fused_sparse_gather(
+                px, idx, pw, chunk_size=self.output_chunk_size
+            )
+
+        t_fused = _time(_fused)
+        try:
+            t_cuda = _time(cuda_sparse_gather)
         except RuntimeError as exc:
             _logger.info(
-                "auto-gather probe: cuda unsupported for out=%d K=%d (%s) "
+                "auto-gather race: cuda unsupported for out=%d K=%d (%s) "
                 "-> fused",
                 self.out_features, indices.shape[1], exc,
             )
             choice = "fused"
         else:
+            choice = "cuda" if t_cuda < t_fused else "fused"
             _logger.info(
-                "auto-gather probe: cuda selected for out=%d K=%d",
+                "auto-gather race: out=%d K=%d fused=%.1fms cuda=%.1fms "
+                "-> %s",
                 self.out_features, indices.shape[1],
+                t_fused * 1e3 / 3, t_cuda * 1e3 / 3, choice,
             )
         self._AUTO_GATHER_VERDICTS[key] = choice
         return choice

@@ -949,6 +949,32 @@ class FSDPTrainer(Trainer):
 
         return results
 
+    def _export_step_profile(self, prof) -> None:
+        """Close an open torch.profiler and write trace + self-time table."""
+        prof.__exit__(None, None, None)
+        self._profile_done = True
+        rank = (
+            torch.distributed.get_rank()
+            if torch.distributed.is_initialized()
+            else 0
+        )
+        if rank != 0:
+            # one rank's view suffices; 4 ranks crunching multi-GB event
+            # lists at once host-OOMed a 250 GB node (job 38110907)
+            return
+        out_dir = os.environ.get(
+            "DENDRINET_PROFILE_DIR",
+            "profilings/dendrinet_harness/step_profile",
+        )
+        os.makedirs(out_dir, exist_ok=True)
+        prof.export_chrome_trace(f"{out_dir}/trace_rank{rank}.json")
+        with open(f"{out_dir}/table_rank{rank}.txt", "w") as fh:
+            fh.write(
+                prof.key_averages().table(
+                    sort_by="self_cuda_time_total", row_limit=80
+                )
+            )
+
     def _epoch_train_fsdp(
         self, model: BaseModel, train_loader: DataLoader
     ) -> tuple[float, float]:
@@ -973,30 +999,12 @@ class FSDPTrainer(Trainer):
                             torch.profiler.ProfilerActivity.CPU,
                             torch.profiler.ProfilerActivity.CUDA,
                         ],
-                        profile_memory=True,
-                        record_shapes=True,
+                        profile_memory=False,
+                        record_shapes=False,
                     )
                     _prof.__enter__()
                 elif _prof is not None and _batch_idx == 2 + _prof_steps:
-                    _prof.__exit__(None, None, None)
-                    self._profile_done = True
-                    out_dir = os.environ.get(
-                        "DENDRINET_PROFILE_DIR",
-                        "profilings/dendrinet_harness/step_profile",
-                    )
-                    os.makedirs(out_dir, exist_ok=True)
-                    _r = (
-                        torch.distributed.get_rank()
-                        if torch.distributed.is_initialized()
-                        else 0
-                    )
-                    _prof.export_chrome_trace(f"{out_dir}/trace_rank{_r}.json")
-                    with open(f"{out_dir}/table_rank{_r}.txt", "w") as _fh:
-                        _fh.write(
-                            _prof.key_averages().table(
-                                sort_by="self_cuda_time_total", row_limit=80
-                            )
-                        )
+                    self._export_step_profile(_prof)
                     _prof = None
 
             # Clear GPU cache before each forward pass
@@ -1085,6 +1093,11 @@ class FSDPTrainer(Trainer):
                 total_loss += loss.item() * bs
                 total_correct += (outputs.argmax(dim=1) == y_batch).sum().item()
             total_examples += bs
+
+        if _prof is not None:
+            # epoch ended before the in-loop export step was reached
+            self._export_step_profile(_prof)
+            _prof = None
 
         # All-reduce exact counts across ranks.
         stats = torch.tensor(
