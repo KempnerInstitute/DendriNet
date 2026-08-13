@@ -616,10 +616,18 @@ def save_sharded_fsdp_checkpoint(
     import shutil
 
     import torch.distributed.checkpoint as dcp
-    from torch.distributed.checkpoint.state_dict import get_state_dict
+    from torch.distributed.checkpoint.state_dict import (
+        StateDictOptions,
+        get_state_dict,
+    )
 
     step_dir = os.path.join(ckpt_dir, f"epoch_{epoch:06d}")
-    model_sd, optim_sd = get_state_dict(model, optimizer)
+    # cpu_offload: build the state dict in HOST memory. Without it the units
+    # unshard and accumulate on-GPU and the save OOMs at 1M (leg 38382530:
+    # 7.15 GiB short with 136 GiB live after a long-sequence epoch).
+    torch.cuda.empty_cache()
+    opts = StateDictOptions(cpu_offload=True)
+    model_sd, optim_sd = get_state_dict(model, optimizer, options=opts)
     dcp.save({"model": model_sd, "optim": optim_sd}, checkpoint_id=step_dir)
     rank = torch.distributed.get_rank()
     extras = {
@@ -652,6 +660,7 @@ def load_latest_sharded_checkpoint(model, optimizer, ckpt_dir: str):
     """
     import torch.distributed.checkpoint as dcp
     from torch.distributed.checkpoint.state_dict import (
+        StateDictOptions,
         get_state_dict,
         set_state_dict,
     )
@@ -661,13 +670,16 @@ def load_latest_sharded_checkpoint(model, optimizer, ckpt_dir: str):
         return None
     with open(latest) as fh:
         step_dir = os.path.join(ckpt_dir, fh.read().strip())
-    model_sd, optim_sd = get_state_dict(model, optimizer)
+    torch.cuda.empty_cache()
+    opts = StateDictOptions(cpu_offload=True)
+    model_sd, optim_sd = get_state_dict(model, optimizer, options=opts)
     dcp.load({"model": model_sd, "optim": optim_sd}, checkpoint_id=step_dir)
     set_state_dict(
         model,
         optimizer,
         model_state_dict=model_sd,
         optim_state_dict=optim_sd,
+        options=opts,
     )
     rank = torch.distributed.get_rank()
     extras = torch.load(

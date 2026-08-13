@@ -5,7 +5,7 @@
 slurm_config:
   run_name: "indexed_alexnet_fc6_large"
   account: kempner_undergrads          # whichever you normally submit Kempner jobs under
-  partition: kempner_h100_priority     # you're in the priority group
+  partition: kempner_h200     # you're in the priority group
   conda_env_path: /n/home12/rwhalen/.conda/envs/dendritic_env
   modules_to_load: [cuda/12.9.1-fasrc01, gcc/12.2.0-fasrc01]
   time: "08:00:00"

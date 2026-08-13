@@ -69,6 +69,16 @@ ALLOWED_SCHEDULER_PROFILES: tuple[SchedulerProfile, ...] = (
         account="kempner_bsabatini_lab",
         partition="kempner_h100_priority",
     ),
+    SchedulerProfile(
+        profile_id="kempner_undergrads_h100_priority",
+        account="kempner_undergrads",
+        partition="kempner_h100_priority",
+    ),
+    SchedulerProfile(
+        profile_id="kempner_undergrads_h200",
+        account="kempner_undergrads",
+        partition="kempner_h200",
+    ),
 )
 
 _PROFILE_BY_PAIR = {

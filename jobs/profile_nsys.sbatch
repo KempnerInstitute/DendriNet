@@ -71,10 +71,13 @@ else
   echo "[job] STEP mode: capturing ~$((DENDRINET_PROFILE_ACTIVE + 3)) steps"
 fi
 
+# Profiling is env-gated now (the old --profile CLI flags were removed):
+export DENDRINET_PROFILE=1
+export DENDRINET_PROFILE_BACKEND=nsys
 nsys profile --trace=cuda,nvtx,osrt,cudnn,cublas \
   --output="profilings/NSights/${RUN_NAME}" --force-overwrite=true \
   python src/dendritic_modeling/scripts/training/train_experiments.py \
-      "${CONFIG}" --profile --profile_backend nsys
+      "${CONFIG}"
 
 echo "[job] DONE attempt-end=$(date)"
 ls -l "profilings/NSights/${RUN_NAME}.nsys-rep"

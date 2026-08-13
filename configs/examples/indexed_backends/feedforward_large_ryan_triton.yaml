@@ -1,0 +1,156 @@
+# Baseline-only copy of feedforward_large.yaml: runs the shipped optimized
+# implementation (ryan_triton) with all shipped gather optimizations (explicit Triton v3 condition; fails rather than falling back), for the
+# before/after GPU-utilization comparison. See README.md in this directory.
+
+slurm_config:
+  run_name: "ff_large_triton"
+  account: ""
+  partition: ""
+  time: "04:00:00"
+  nodes: 1
+  ntasks_per_node: 1
+  gpus_per_node: 1
+  launcher: torchrun
+  cpus_per_task: 16
+  mem: 128GB
+  training_script: src/dendritic_modeling/scripts/training/train_experiments.py
+
+experiment_settings:
+  seeds_per_condition: 1
+  base_seed: 42
+  seed_paths: [model.core.sparsity.indexed.seed]
+
+sweep_variants:
+  - name: ryan_triton
+    overrides:
+      model.core.sparsity.indexed.comparison_backend: ryan_triton
+
+sweep_config: {}
+filter_config: {mode: default}
+sweep_contract: {expected_config_count: 1}
+
+base_config:
+  experiment:
+    seed: 42
+    train_valid_split: 0.8
+    deterministic: true
+    cudnn_benchmark: false
+    allow_tf32: false
+    float32_matmul_precision: highest
+    enable_hooks: false
+    checkpointing:
+      enabled: true
+      save_every_n_epochs: 10
+      checkpoint_dir: outputs/indexed_backends/feedforward_triton/checkpoints
+
+  data:
+    dataset_name: cifar10
+    base_dir: ""
+    processing:
+      flatten: true
+      normalize: true
+
+  model:
+    task: classification
+    encoder:
+      type: identity
+      params:
+        input_dim: 3072
+    core:
+      type: einet
+      architecture:
+        excitatory_layer_sizes: [8192, 8192, 8192]
+        inhibitory_layer_sizes: [1024, 1024, 1024]
+        excitatory_branch_factors: [3, 3]
+        inhibitory_branch_factors: [1]
+        inhibitory_network_type: dendritic
+      connectivity:
+        ee_synapses_per_branch_per_layer: [40, 40, 40]
+        ei_synapses_per_branch_per_layer: [10, 10, 10]
+        ie_synapses_per_branch_per_layer: [10, 10, 10]
+        ii_synapses_per_branch_per_layer: [0, 0, 0]
+      transfer:
+        input_mode: 0
+        independent_pathways: false
+        output_activation: relu
+      morphology:
+        somatic_synapses: false
+        use_shunting: true
+        weight_transform: softplus
+        dbl_init_method: analytical_expectation
+      sparsity:
+        type: indexed
+        init_method: xavier_normal
+        gradient_scaling: none
+        indexed:
+          seed: 42
+          output_chunk_size: 8192
+          index_dtype: int32
+          workspace_mb: 128
+          cache_transformed_weights: false
+          projection_backend: recompute
+          persistent_indices: true
+          init_mode: per_rank
+      reactivation:
+        enabled: true
+        type: param_tanh
+        init_policy: analytical
+        init_m: 1.5
+        init_b: 0.5
+      blocklinear:
+        gradient_scaling: none
+        efficient: true
+      implementation:
+        adaptive_initialization: false
+        print_hooks: false
+    decoder:
+      type: MLP
+      params:
+        hidden_dims: []
+        output_dim: 10
+
+  training:
+    encoder:
+      strategy: standard
+      common: {epochs: 0}
+    main:
+      strategy: standard
+      common:
+        epochs: 50
+        batch_size: 128
+        num_workers: 8
+        pin_memory: true
+        persistent_workers: true
+        prefetch_factor: 4
+        shuffle: true
+        loss_function: ce
+        early_stopping: true
+        patience: 20
+        load_best_state_dict: true
+        grad_clip_value: 5.0
+        use_amp: true
+        weight_decay_rate: 0.01
+        weight_boosting: true
+        param_groups:
+          lr: 0.001
+          split_params: true
+          topk_lr: 0.001
+          blocklinear_lr: 0.0001
+          reactivation_lr: 0.0001
+          decoder_lr: 0.001
+      optimizer: {name: adam}
+      strategies: {standard: {}}
+
+  analysis:
+    performance:
+      enabled: true
+      training: false
+      params:
+        accuracy: true
+        categorical_loglikelihood: true
+
+  wandb: {use_wandb: false}
+  outputs:
+    run_name: ff_large_triton
+    results_dir: outputs/indexed_backends/feedforward_triton
+  distributed: {mode: none}

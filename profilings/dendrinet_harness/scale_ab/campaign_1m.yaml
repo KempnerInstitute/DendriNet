@@ -2,9 +2,10 @@
 # sharded checkpoints every 5 epochs to netscratch, exact resume.
 # DATASET (2026-08-11, user decision): SCIENCE Romo -- 256 train seqs,
 # VARIABLE delay 10-30 (memory, not clockwork), valid 64 / test 32.
-# BATCH 2, not 4: b4 peaked 134/144 GB at T=58; science delays reach
-# T=78 and activations grow with T -- b4 would OOM on all-long batches.
-# b2 (112 GB at T=58) fits worst-case. ~26 min/epoch; ceiling ~7 days.
+# BATCH 1 (measured-safe): b2 OOM'd in production at T<=78 (leg 38382530,
+# 138.6/139.8 GiB mid-epoch-1 when shuffling paired long sequences); b1's
+# measured peak is 81 GB at T=58 -> ~95 GB worst-case, ~45 GB headroom.
+# ~32 min/epoch; 400-epoch ceiling ~9 days, early stopping likely 4-5.
 experiment:
   seed: 510000
   dataset_seed: 510001
@@ -231,7 +232,7 @@ training:
       eps: 1.0e-08
     common:
       epochs: 400
-      batch_size: 2
+      batch_size: 1
       shuffle: true
       grad_clip_value: 1.0
       loss_function: ce

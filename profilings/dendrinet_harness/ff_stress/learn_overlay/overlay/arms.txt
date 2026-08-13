@@ -1,5 +1,0 @@
-loop rc=0 wall_s=242 peak_mb=20233 path=loop (flags: cuda=False triton=False fused=False; available: cuda=True triton=True)
-loop_ctrl rc=0 wall_s=245 peak_mb=20233 path=loop (flags: cuda=False triton=False fused=False; available: cuda=True triton=True)
-fused rc=0 wall_s=172 peak_mb=5269 path=fused (flags: cuda=False triton=False fused=True; available: cuda=True triton=True)
-triton rc=0 wall_s=170 peak_mb=5261 path=triton (flags: cuda=False triton=True fused=False; available: cuda=True triton=True)
-cuda rc=0 wall_s=111 peak_mb=5117 path=cuda (flags: cuda=True triton=False fused=False; available: cuda=True triton=True)
