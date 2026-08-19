@@ -178,6 +178,7 @@ class DatasetParamsConfig(BaseConfig):
             "context_seed": 0,
             "context_gain": False,
             "context_poisson": False,
+            "context_distractor_scale": 0.0,
         }
     )
 

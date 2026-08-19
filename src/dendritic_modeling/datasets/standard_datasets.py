@@ -1095,6 +1095,7 @@ def _wrap_contextual_gain_dataset(
     context_seed: int,
     context_gain: bool,
     context_poisson: bool,
+    context_distractor_scale: float,
 ) -> ContextualGainDataset:
     """Wrap one tensor-like dataset with contextual multi-image gain overlay."""
     return ContextualGainDataset(
@@ -1110,6 +1111,7 @@ def _wrap_contextual_gain_dataset(
         context_seed=context_seed,
         context_gain=context_gain,
         context_poisson=context_poisson,
+        context_distractor_scale=context_distractor_scale,
     )
 
 
@@ -1126,6 +1128,7 @@ def load_contextual_gain_datasets(
     context_seed: int = 0,
     context_gain: bool = False,
     context_poisson: bool = False,
+    context_distractor_scale: float = 0.0,
     train_valid_split: float = 0.8,
     flatten: bool = False,
     task_data_path: Optional[str] = None,
@@ -1163,6 +1166,7 @@ def load_contextual_gain_datasets(
         "context_seed": context_seed,
         "context_gain": context_gain,
         "context_poisson": context_poisson,
+        "context_distractor_scale": context_distractor_scale,
     }
     return (
         _wrap_contextual_gain_dataset(train_ds, **kwargs),
@@ -1201,6 +1205,7 @@ def _load_contextual_gain_from_options(
         context_seed=int(p.get("context_seed", 0)),
         context_gain=bool(p.get("context_gain", False)),
         context_poisson=bool(p.get("context_poisson", False)),
+        context_distractor_scale=float(p.get("context_distractor_scale", 0.0)),
         train_valid_split=options.train_valid_split,
         flatten=options.flatten,
         task_data_path=options.task_data_path,

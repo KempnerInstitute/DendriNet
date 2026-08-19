@@ -21,8 +21,9 @@ class ContextualGainDataset(PoissonGeneratorDataset):
     ``n_context_ids`` (``2**k`` for ``bit_id``, ``2`` for ``xor``), then
     embedded with a fixed projection ``W`` of shape
     ``(n_context_ids, context_dim)``. Every bit pattern, including all zeros,
-    selects exactly one row of ``W``. The embedding is optionally gain-scaled
-    and Poisson-sampled, then concatenated after the image stream.
+    selects exactly one row of ``W``. Optional distractor noise
+    (``context_distractor_scale`` in ``[0, 1)``) is mixed in before optional
+    gain-scaling and Poisson sampling, then concatenated after the image stream.
     Labels are ``(max_gain_digit + ctx) mod n_classes`` where ``ctx`` comes from
     ``context_rule`` (``bit_id`` or ``xor``).
 
@@ -45,6 +46,7 @@ class ContextualGainDataset(PoissonGeneratorDataset):
         context_seed: int = 0,
         context_gain: bool = False,
         context_poisson: bool = False,
+        context_distractor_scale: float = 0.0,
     ):
         n_regions = int(n_regions)
         if n_regions < 1:
@@ -68,6 +70,12 @@ class ContextualGainDataset(PoissonGeneratorDataset):
             raise ValueError(
                 "context_rule must be 'bit_id' or 'xor', "
                 f"got {context_rule!r}"
+            )
+        context_distractor_scale = float(context_distractor_scale)
+        if not (0.0 <= context_distractor_scale < 1.0):
+            raise ValueError(
+                "context_distractor_scale must be in [0, 1), "
+                f"got {context_distractor_scale}"
             )
 
         if n_context_bits > 0:
@@ -104,6 +112,7 @@ class ContextualGainDataset(PoissonGeneratorDataset):
         self.context_seed = int(context_seed)
         self.context_gain = bool(context_gain)
         self.context_poisson = bool(context_poisson)
+        self.context_distractor_scale = context_distractor_scale
         self.n_classes = int(base_labels.max().item()) + 1
 
         if n_context_bits > 0:
@@ -225,6 +234,9 @@ class ContextualGainDataset(PoissonGeneratorDataset):
             context_id = self._context_id(bits)
             ctx_scalar = context_id.argmax(dim=-1)
             ctx = context_id @ W
+            if self.context_distractor_scale > 0:
+                scale = self.context_distractor_scale
+                ctx = (1.0 - scale) * ctx + scale * torch.rand_like(ctx)
             if g_ctx is not None:
                 ctx = ctx * g_ctx.unsqueeze(-1)
             if self.context_poisson:

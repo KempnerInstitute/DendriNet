@@ -19,6 +19,7 @@ def _make_dataset(
     context_seed: int = 0,
     context_gain: bool = False,
     context_poisson: bool = False,
+    context_distractor_scale: float = 0.0,
 ):
     base_inputs = torch.arange(
         n_samples * n_features, dtype=torch.float32
@@ -39,6 +40,7 @@ def _make_dataset(
         context_seed=context_seed,
         context_gain=context_gain,
         context_poisson=context_poisson,
+        context_distractor_scale=context_distractor_scale,
     )
 
 
@@ -470,3 +472,33 @@ def test_context_poisson_only_affects_context_slice(monkeypatch):
     assert torch.all(ctx >= 0)
     assert torch.all(ctx == ctx.round())
     assert image.dtype == torch.float32
+
+
+def test_context_distractor_scale_rejects_outside_unit_interval():
+    with pytest.raises(ValueError, match="context_distractor_scale"):
+        _make_dataset(context_distractor_scale=-0.1)
+    with pytest.raises(ValueError, match="context_distractor_scale"):
+        _make_dataset(context_distractor_scale=1.0)
+
+
+def test_context_distractor_mixes_before_gain(monkeypatch):
+    scale = 0.25
+    ds = _make_dataset(
+        n_regions=2,
+        n_context_bits=2,
+        context_dim=8,
+        context_gain=False,
+        region_poisson=False,
+        context_poisson=False,
+        context_distractor_scale=scale,
+    )
+    monkeypatch.setattr(
+        torch,
+        "randint",
+        lambda *args, **kwargs: torch.tensor([[1.0, 0.0]], dtype=torch.float32),
+    )
+    monkeypatch.setattr(torch, "rand_like", lambda x: torch.ones_like(x))
+
+    x, _ = ds[0]
+    expected = (1.0 - scale) * ds.context_projection[2] + scale * torch.ones(8)
+    assert torch.allclose(x[-8:], expected)
