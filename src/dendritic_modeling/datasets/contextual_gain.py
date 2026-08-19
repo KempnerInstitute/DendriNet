@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 
 from .poisson import PoissonGeneratorDataset
 
@@ -16,8 +17,12 @@ class ContextualGainDataset(PoissonGeneratorDataset):
     independent gain on ``[min_gain_factor, max_gain_factor]`` (or ``_max_gf`` in place
     of ``max_gain_factor`` when set). Regions are concatenated along ``dim=-1``.
 
-    Optional context bits are embedded with a fixed projection ``W``, optionally
-    gain-scaled and Poisson-sampled, then concatenated after the image stream.
+    Optional context bits are mapped to a one-hot ``context_id`` of length
+    ``n_context_ids`` (``2**k`` for ``bit_id``, ``2`` for ``xor``), then
+    embedded with a fixed projection ``W`` of shape
+    ``(n_context_ids, context_dim)``. Every bit pattern, including all zeros,
+    selects exactly one row of ``W``. The embedding is optionally gain-scaled
+    and Poisson-sampled, then concatenated after the image stream.
     Labels are ``(max_gain_digit + ctx) mod n_classes`` where ``ctx`` comes from
     ``context_rule`` (``bit_id`` or ``xor``).
 
@@ -102,10 +107,16 @@ class ContextualGainDataset(PoissonGeneratorDataset):
         self.n_classes = int(base_labels.max().item()) + 1
 
         if n_context_bits > 0:
+            if self.context_rule == "xor":
+                self.n_context_ids = 2
+            else:
+                self.n_context_ids = 2 ** n_context_bits
             g = torch.Generator().manual_seed(self.context_seed)
-            W = torch.rand(n_context_bits, self.context_dim, generator=g)
-            self.context_projection = W / float(n_context_bits)
+            self.context_projection = torch.rand(
+                self.n_context_ids, self.context_dim, generator=g
+            )
         else:
+            self.n_context_ids = 0
             self.context_projection = None
 
     @staticmethod
@@ -154,6 +165,11 @@ class ContextualGainDataset(PoissonGeneratorDataset):
         k = bits.shape[-1]
         powers = (2 ** torch.arange(k - 1, -1, -1, device=bits.device)).to(bits.dtype)
         return (bits * powers).sum(dim=-1)
+
+    def _context_id(self, bits: torch.Tensor) -> torch.Tensor:
+        """One-hot encode bit patterns to ``(B, n_context_ids)``."""
+        ctx_scalar = self._context_scalar(bits).long()
+        return F.one_hot(ctx_scalar, self.n_context_ids).to(dtype=bits.dtype)
 
     def __getitem__(self, idx):
         batched = self._is_batched_index(idx)
@@ -206,13 +222,14 @@ class ContextualGainDataset(PoissonGeneratorDataset):
                 0, 2, (B, self.n_context_bits), device=device, dtype=layer_inputs.dtype
             )
             W = self.context_projection.to(device=device, dtype=layer_inputs.dtype)
-            ctx = bits @ W
+            context_id = self._context_id(bits)
+            ctx_scalar = context_id.argmax(dim=-1)
+            ctx = context_id @ W
             if g_ctx is not None:
                 ctx = ctx * g_ctx.unsqueeze(-1)
             if self.context_poisson:
                 ctx = torch.poisson(ctx)
             images = torch.cat([images, ctx], dim=-1)
-            ctx_scalar = self._context_scalar(bits).long()
             labels = (labels + ctx_scalar) % self.n_classes
 
         if not batched:

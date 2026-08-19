@@ -208,12 +208,104 @@ def test_context_appends_dims_and_seeded_projection_matches():
         context_poisson=False,
     )
     assert torch.equal(ds_a.context_projection, ds_b.context_projection)
-    assert ds_a.context_projection.shape == (2, 50)
+    assert ds_a.n_context_ids == 4
+    assert ds_a.context_projection.shape == (4, 50)
     assert torch.all(ds_a.context_projection >= 0)
-    assert torch.all(ds_a.context_projection.sum(dim=0) <= 1.0 + 1e-6)
+    assert torch.all(ds_a.context_projection < 1.0)
 
     x, _ = ds_a[0]
     assert x.shape == (2 * 4 + 50,)
+
+
+def test_xor_projection_shape_is_two_rows():
+    ds = _make_dataset(
+        n_regions=2,
+        n_context_bits=3,
+        context_dim=8,
+        context_rule="xor",
+        region_poisson=False,
+        context_poisson=False,
+    )
+    assert ds.n_context_ids == 2
+    assert ds.context_projection.shape == (2, 8)
+    assert torch.all(ds.context_projection >= 0)
+    assert torch.all(ds.context_projection < 1.0)
+
+
+def test_context_id_is_never_all_zero():
+    for rule, n_ids in (("bit_id", 4), ("xor", 2)):
+        ds = _make_dataset(
+            n_context_bits=2,
+            context_dim=8,
+            context_rule=rule,
+            region_poisson=False,
+        )
+        for b0 in (0.0, 1.0):
+            for b1 in (0.0, 1.0):
+                bits = torch.tensor([[b0, b1]], dtype=torch.float32)
+                cid = ds._context_id(bits)
+                assert cid.shape == (1, n_ids)
+                assert torch.all((cid == 0) | (cid == 1))
+                assert int(cid.sum().item()) == 1
+
+
+def test_all_zero_bits_select_w0(monkeypatch):
+    kwargs = dict(
+        n_regions=2,
+        n_context_bits=2,
+        context_dim=8,
+        context_gain=False,
+        region_poisson=False,
+        context_poisson=False,
+    )
+    monkeypatch.setattr(
+        torch,
+        "randint",
+        lambda *args, **kwargs: torch.zeros(1, 2, dtype=torch.float32),
+    )
+
+    ds_bit = _make_dataset(context_rule="bit_id", **kwargs)
+    cid = ds_bit._context_id(torch.zeros(1, 2))
+    assert torch.equal(cid, torch.tensor([[1.0, 0.0, 0.0, 0.0]]))
+    x, _ = ds_bit[0]
+    assert torch.allclose(x[-8:], ds_bit.context_projection[0])
+
+    ds_xor = _make_dataset(context_rule="xor", **kwargs)
+    cid = ds_xor._context_id(torch.zeros(1, 2))
+    assert torch.equal(cid, torch.tensor([[1.0, 0.0]]))
+    x, _ = ds_xor[0]
+    assert torch.allclose(x[-8:], ds_xor.context_projection[0])
+
+
+def test_context_stream_selects_one_w_row(monkeypatch):
+    kwargs = dict(
+        n_regions=2,
+        n_context_bits=2,
+        context_dim=8,
+        context_gain=False,
+        region_poisson=False,
+        context_poisson=False,
+    )
+
+    ds_bit = _make_dataset(context_rule="bit_id", **kwargs)
+    # bits [1, 0] -> bit_id 2
+    monkeypatch.setattr(
+        torch,
+        "randint",
+        lambda *args, **kwargs: torch.tensor([[1.0, 0.0]], dtype=torch.float32),
+    )
+    x, _ = ds_bit[0]
+    assert torch.allclose(x[-8:], ds_bit.context_projection[2])
+
+    ds_xor = _make_dataset(context_rule="xor", **kwargs)
+    # bits [1, 1] -> xor 0 (same row as all-zero)
+    monkeypatch.setattr(
+        torch,
+        "randint",
+        lambda *args, **kwargs: torch.tensor([[1.0, 1.0]], dtype=torch.float32),
+    )
+    x, _ = ds_xor[0]
+    assert torch.allclose(x[-8:], ds_xor.context_projection[0])
 
 
 def test_context_gain_extends_gain_sample_shape(monkeypatch):
