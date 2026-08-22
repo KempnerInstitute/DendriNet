@@ -1,0 +1,113 @@
+# ============================================================================
+# Recurrent DendriNet on Sequential MNIST (sMNIST)
+# ============================================================================
+# Trains a recurrent dendritic E-I network on sequential MNIST: each 28x28
+# image is presented as a sequence of 784 one-pixel steps.  The network must
+# classify the digit after seeing the full sequence.
+#
+# Run:
+#   PYTHONPATH=src:$PYTHONPATH python \
+#     src/dendritic_modeling/scripts/training/train_experiments.py \
+#     configs/examples/recurrent_sequential_mnist.yaml
+# ============================================================================
+
+experiment:
+  seed: 42
+  train_valid_split: 0.8
+  enable_hooks: true                    # needed for recurrent analysis hooks
+  checkpointing:
+    enabled: false
+
+data:
+  dataset_name: "sequential_mnist"      # 28x28 flattened to length-784 sequence, 1-dim per step
+  processing:
+    flatten: false                      # keep sequence structure (T x D)
+    normalize: false                    # sequential datasets handle their own normalisation
+
+model:
+  task: "classification"
+  encoder:
+    type: "identity"
+  core:
+    type: "unified_ei"                  # recurrent dendritic E-I network
+    unified_ei:
+      n_excitatory: 64                  # excitatory neurons per layer
+      n_inhibitory: 16                  # inhibitory neurons per layer
+      output_mode: "last"               # "last" = classify from final time step only
+      dt: 1.0                           # simulation time step
+      g_leak: 1.0                       # leak conductance
+      learn_taus: true                  # learnable time constants (log-space nn.Parameter)
+      dropout: 0.0
+      grad_clip: 1.0                    # per-layer gradient clipping inside RNN
+      layers:                           # hierarchical dendritic layers (proximal -> distal)
+        - tau: 10.0                     # fast layer: short time constant
+          ff_synapses: 8                # feedforward input synapses
+          rec_synapses: 6               # recurrent synapses
+          ie_synapses: 4                # inhibitory -> excitatory synapses
+          compartment: "topk"           # "topk" | "dendritic_branch" | "dendrinet" | "linear"
+          use_shunting: true            # shunting (divisive) inhibition
+          reactivate: true              # parametric reactivation after shunting
+          reactivation_type: "param_tanh"
+          weight_transform: "softplus"
+        - tau: 50.0                     # slow layer: long time constant
+          ff_synapses: 4
+          rec_synapses: 8
+          ie_synapses: 4
+          compartment: "topk"
+          use_shunting: true
+          reactivate: true
+          reactivation_type: "param_tanh"
+          weight_transform: "softplus"
+      i_tau: 10.0                       # inhibitory neuron time constant
+      i_compartment: "topk"             # inhibitory compartment type
+      soma_mode: "shunting"             # soma integration: "shunting" | "additive" | "sum"
+      input_projection_layers: [16]     # project 1-dim input to 16-dim before core
+  decoder:
+    type: "MLP"
+    params:
+      hidden_dims: [32]
+      activation: "relu"
+      output_dim: 10                    # 10 digits
+
+training:
+  encoder:
+    strategy: "standard"
+    common:
+      epochs: 0
+  main:
+    strategy: "recurrent"               # recurrent trainer (handles sequences, TBPTT)
+    common:
+      epochs: 100
+      batch_size: 64                    # smaller batch for long sequences (784 steps)
+      shuffle: true
+      grad_clip_value: 1.0              # tighter clip for RNN stability
+      loss_function: "ce"
+      early_stopping: true
+      patience: 30
+      load_best_state_dict: true
+      use_amp: false                    # AMP can be unstable with recurrent nets
+      param_groups:
+        lr: 0.001
+        split_params: true
+        decoder_lr: 0.01                # decoder can learn faster
+    optimizer:
+      name: "adam"
+    strategies:
+      standard: {}
+
+analysis:
+  performance:
+    enabled: true
+    training: false
+    params:
+      accuracy: true
+
+wandb:
+  use_wandb: false
+
+outputs:
+  run_name: "recurrent_smnist"
+  results_dir: "outputs"
+
+distributed:
+  mode: none

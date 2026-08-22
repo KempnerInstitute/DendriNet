@@ -1,0 +1,151 @@
+# ============================================================================
+# Recurrent DendriNet on Context-Dependent Decision Task (Mante-style)
+# ============================================================================
+# A 3-layer hierarchical recurrent E-I network on a context-dependent
+# integration task inspired by Mante et al. (2013).  Two noisy stimulus
+# streams are presented simultaneously; a context cue tells the network
+# which stream is decision-relevant.  Tests multi-timescale integration,
+# gating, and context-dependent routing.
+#
+# Architecture highlights:
+#   - 3 dendritic layers with increasing time constants (10, 50, 200 ms)
+#   - Shunting inhibition at every level
+#   - Learnable time constants (log-space nn.Parameter)
+#   - Checkpointing every 50 epochs for long runs
+#
+# Run:
+#   PYTHONPATH=src:$PYTHONPATH python \
+#     src/dendritic_modeling/scripts/training/train_experiments.py \
+#     configs/examples/recurrent_context_decision.yaml
+# ============================================================================
+
+experiment:
+  seed: 42
+  train_valid_split: 0.8
+  enable_hooks: true                    # needed for recurrent analysis hooks
+  checkpointing:
+    enabled: true                       # save checkpoints for long training
+    save_every_n_epochs: 50
+    checkpoint_dir: "outputs/checkpoints/"
+
+data:
+  dataset_name: "context_dependent_decision"   # Mante-style context integration task
+  processing:
+    flatten: false                      # keep sequence structure (T x D)
+    normalize: false
+  dataset_params:
+    context_dependent_decision:
+      n_samples: 20000                  # total samples (train + val + test)
+      signal_dim: 16                    # dimensionality of each stimulus stream
+      context_duration: 10              # context cue presentation (time steps)
+      integration_duration: 30          # stimulus integration window (time steps)
+      coherence_levels: [0.1, 0.2, 0.4, 0.8]   # noise coherence levels
+      noise_std: 0.1                    # additive noise on stimulus streams
+      variable_delay: false             # fixed delay between context and integration
+
+model:
+  task: "classification"
+  encoder:
+    type: "identity"
+  core:
+    type: "unified_ei"                  # recurrent dendritic E-I network
+    unified_ei:
+      n_excitatory: 128                 # excitatory neurons per layer
+      n_inhibitory: 32                  # inhibitory neurons per layer
+      output_mode: "last"               # classify from final time step
+      dt: 1.0                           # simulation time step
+      g_leak: 1.0                       # leak conductance
+      learn_taus: true                  # learnable time constants (log-space)
+      dropout: 0.1                      # recurrent dropout for regularisation
+      grad_clip: 1.0                    # per-layer gradient clipping inside RNN
+
+      layers:
+        # --- Layer 1: fast integration (proximal) ---
+        - tau: 10.0                     # short time constant
+          ff_synapses: 12               # feedforward input synapses per neuron
+          rec_synapses: 8               # recurrent excitatory synapses
+          ie_synapses: 6                # inhibitory -> excitatory synapses
+          compartment: "topk"           # sparse dendritic compartment type
+          use_shunting: true            # shunting (divisive) inhibition
+          reactivate: true              # parametric reactivation after shunting
+          reactivation_type: "param_tanh"
+          weight_transform: "softplus"  # ensure positive synaptic weights
+
+        # --- Layer 2: medium integration ---
+        - tau: 50.0                     # medium time constant
+          ff_synapses: 8
+          rec_synapses: 10
+          ie_synapses: 6
+          compartment: "topk"
+          use_shunting: true
+          reactivate: true
+          reactivation_type: "param_tanh"
+          weight_transform: "softplus"
+
+        # --- Layer 3: slow integration (distal) ---
+        - tau: 200.0                    # long time constant — memory / integration
+          ff_synapses: 0                # no direct feedforward (only recurrent)
+          rec_synapses: 12
+          ie_synapses: 6
+          compartment: "topk"
+          use_shunting: true
+          reactivate: true
+          reactivation_type: "param_tanh"
+          weight_transform: "softplus"
+
+      i_tau: 10.0                       # inhibitory neuron time constant
+      i_compartment: "topk"             # inhibitory compartment type
+      soma_mode: "shunting"             # soma integration: "shunting" | "additive" | "sum"
+      input_projection_layers: [64]     # project input dim to 64 before core
+
+  decoder:
+    type: "MLP"
+    params:
+      hidden_dims: [64, 32]             # two hidden layers for complex readout
+      activation: "relu"
+      output_dim: 2                     # binary decision (match context stream)
+
+training:
+  encoder:
+    strategy: "standard"
+    common:
+      epochs: 0                         # no encoder training
+  main:
+    strategy: "recurrent"               # recurrent trainer (handles sequences, variable lengths)
+    common:
+      epochs: 500                       # long training for context gating
+      batch_size: 128
+      shuffle: true
+      grad_clip_value: 1.0              # tight clipping for RNN stability
+      loss_function: "ce"               # cross-entropy
+      early_stopping: true
+      patience: 80                      # generous patience for slow convergence
+      load_best_state_dict: true
+      use_amp: false                    # AMP can be unstable with recurrent nets
+      weight_decay_rate: 0.0001         # light weight decay for regularisation
+      param_groups:
+        lr: 0.0005                      # conservative base LR
+        split_params: true
+        decoder_lr: 0.005               # decoder learns 10x faster
+    optimizer:
+      name: "adam"
+    strategies:
+      standard: {}
+
+analysis:
+  performance:
+    enabled: true
+    training: false
+    params:
+      accuracy: true
+      categorical_loglikelihood: true
+
+wandb:
+  use_wandb: false
+
+outputs:
+  run_name: "recurrent_context_decision"
+  results_dir: "outputs"
+
+distributed:
+  mode: none

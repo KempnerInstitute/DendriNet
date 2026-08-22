@@ -1,0 +1,148 @@
+# ============================================================================
+# Pretrained AlexNet Conv Layer Replacement (Hierarchical Dendritic Conv)
+# ============================================================================
+# Replaces conv layers features.6-8 (the last conv block) inside a pretrained
+# AlexNet with a HierarchicalDendriticConv core. The dendritic conv applies
+# F.unfold to extract local 3x3 patches, runs a shared DendriNet on all
+# patches, and reshapes back to spatial output.
+#
+# NOTE: This is a multi-layer replacement (Conv2d+ReLU+Conv2d -> one dendritic
+# operator). The dendritic conv acts as a learned surrogate with user-chosen
+# local geometry, NOT a faithful 1:1 conv replacement.
+#
+# Pipeline:
+#   prefix (encoder) = features.0..5                     -> (B, 192, 13, 13)
+#   core (dendritic) = shared DendriNet on 3x3 patches   -> (B, 256, 13, 13)
+#   suffix (decoder) = features.9..12 + avgpool + fc     -> 1000 classes
+#
+# Run:
+#   PYTHONPATH=src:$PYTHONPATH python \
+#     src/dendritic_modeling/scripts/training/train_experiments.py \
+#     configs/examples/pretrained_alexnet_conv.yaml
+# ============================================================================
+
+experiment:
+  seed: 42
+  train_valid_split: 0.8
+  enable_hooks: false
+  checkpointing:
+    enabled: true
+    save_every_n_epochs: 25
+    checkpoint_dir: "outputs/checkpoints/"
+
+data:
+  dataset_name: "imagenet"
+  base_dir: "/n/holylfs06/LABS/kempner_shared/Everyone/testbed/vision/imagenet_1k"
+  processing:
+    flatten: false
+    normalize: true
+
+model:
+  task: "classification"
+
+  pretrained_replacement:
+    enabled: true
+    backbone: "alexnet"
+    weights: "IMAGENET1K_V1"
+    input_shape: [3, 224, 224]
+    replace:
+      start: "features.6"              # Conv2d(192, 384, 3, padding=1)
+      end: "features.8"                # Conv2d(384, 256, 3, padding=1)
+    trainability:
+      encoder:
+        mode: "frozen"
+      decoder:
+        mode: "trainable"
+
+  core:
+    type: "hierarchical_dendritic_conv"
+
+    # Spatial params for the unfold operation
+    spatial:
+      kernel_size: 3
+      stride: 1
+      padding: 1                        # same spatial size: (13, 13) -> (13, 13)
+
+    architecture:
+      excitatory_layer_sizes: [256]     # C_out = 256 (match original features.8 output)
+      inhibitory_layer_sizes: [64]
+      excitatory_branch_factors: [3, 3]
+      inhibitory_branch_factors: [3, 3]
+      inhibitory_network_type: "dendritic"
+    connectivity:
+      ee_synapses_per_branch_per_layer: [16]   # K out of 192x3x3 = 1728 patch dim
+      ei_synapses_per_branch_per_layer: [8]
+      ie_synapses_per_branch_per_layer: [8]
+      ii_synapses_per_branch_per_layer: [0]
+    morphology:
+      use_shunting: true
+      weight_transform: "softplus"
+      dbl_init_method: "analytical_expectation"
+    sparsity:
+      type: "standard"
+      init_method: "xavier_normal"
+      deepst:
+        excitatory_target_density: 0.1
+        inhibitory_target_density: 0.1
+    reactivation:
+      enabled: true
+      type: "param_tanh"
+      init_m: 1.5
+      init_b: 0.5
+    blocklinear:
+      gradient_scaling: "none"
+      efficient: false
+
+training:
+  encoder:
+    strategy: "standard"
+    common:
+      epochs: 0
+  main:
+    strategy: "standard"
+    common:
+      epochs: 500
+      batch_size: 128
+      shuffle: true
+      grad_clip_value: 5.0
+      loss_function: "cat_nll"
+      early_stopping: true
+      patience: 100
+      load_best_state_dict: true
+      print_every: 10
+      param_groups:
+        lr: 0.001
+        split_params: true
+        topk_lr: 0.001
+        blocklinear_lr: 0.0001
+        reactivation_lr: 0.0001
+        decoder_lr: 0.01
+        encoder_lr: 0.0
+    optimizer:
+      name: "adam"
+    strategies:
+      standard: {}
+
+analysis:
+  runtime:
+    final:
+      mode: "stream"                    # large ImageNet split; stream instead of materializing to device memory
+      batch_size: 128
+      num_workers: 4
+  performance:
+    enabled: true
+    params:
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+    final_splits: ["train", "valid", "test"]
+
+wandb:
+  use_wandb: false
+
+outputs:
+  run_name: "alexnet_conv_dendritic"
+  results_dir: "outputs"
+
+distributed:
+  mode: none

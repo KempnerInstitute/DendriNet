@@ -1,0 +1,305 @@
+# ============================================================================
+# AlexNet K=1: N_E=4096 + forced projection layer (3x3x3 morphology)
+# ============================================================================
+#
+# Confound-control experiment for the neuron count sweep (3x3x3 morphology arm).
+#
+# The existing 3x3x3 sweep (ne256/512/1024/2048, alexnet_k1_ne2048_3x3x3_ddp.yaml)
+# uses type=tensor_map which adds a randomly-initialised Linear(N_E → 4096)
+# projection before fc8. The baseline (N_E=4096) uses no projection, confounding
+# neuron count with the presence of an extra randomly-initialized layer.
+#
+# This config matches the 3x3x3 sweep configs exactly (same type, same 4:1 E/I
+# ratio, same branch factors, same synapses-per-branch) but sets N_E=4096. A
+# forced projection Linear(4096 → 4096) is added so the architecture is:
+#
+#   encoder (frozen) → EINet(4096 → 4096) → proj(4096 → 4096) → fc8 → 1000
+#
+# compared to ne2048 (3x3x3):
+#
+#   encoder (frozen) → EINet(4096 → 2048) → proj(2048 → 4096) → fc8 → 1000
+#
+# The only difference is neuron count; everything else is held constant.
+#
+# NOTE: Requires force_projection support in HierarchicalDendriticTensorMap.
+# Add `force_projection: bool = False` parameter and update the projection
+# condition in tensor_map.py:
+#
+#   if suffix_input_dim is not None and (force_projection or suffix_input_dim != einet_output_dim):
+#
+# Then in factory.py extract force_projection from parameters and pass through.
+#
+# AlexNet pipeline:
+#   prefix (encoder)  = features.* + avgpool + fc6 + ReLU    → 4096-dim, frozen
+#   core (EINet)      = replaces fc7 + ReLU                  → 4096-dim, trainable
+#   suffix (decoder)  = fc8                                  → 1000 classes, trainable
+#
+# Neuron count: N_E=4096, N_I=1024 (4:1 ratio, matching sweep variants)
+# Morphology:   3x3x3 (branch_factors=[3,3,3], matching alexnet_k1_ne2048_3x3x3_ddp.yaml)
+#
+# Run:
+#   PYTHONPATH=src:$PYTHONPATH python \
+#     src/dendritic_modeling/scripts/training/train_experiments.py \
+#     configs/vision/alexnet_k1_ne4096_proj_3x3x3_ddp.yaml
+# ============================================================================
+
+experiment:
+  seed: 42
+  train_valid_split: 0.8
+  fast_mode: true                                  # enables TF32, cudnn_benchmark, high matmul precision
+  enable_profiling: false
+  profiling_output_dir: "results/profiling/"
+  enable_hooks: false
+  checkpointing:
+    enabled: true
+    save_every_n_epochs: 25
+    checkpoint_dir: "results/checkpoints/"
+
+data:
+  dataset_name: "imagenet"
+  base_dir: "/n/holylfs06/LABS/kempner_shared/Everyone/testbed/vision/imagenet_1k"
+  processing:
+    flatten: false
+    normalize: true
+  dataset_params: {}
+
+model:
+  task: "classification"
+
+  # --- Pretrained replacement config ---
+  pretrained_replacement:
+    enabled: true
+    backbone: "alexnet"                            # torchvision model name
+    weights: "IMAGENET1K_V1"                       # pretrained weights (null = random)
+    input_shape: [3, 224, 224]                     # expected input tensor shape
+
+    replace:
+      start: "classifier.4"                        # fc7 Linear(4096 → 4096)
+      end: "classifier.5"                          # fc7 ReLU
+
+    omit_layers: ["classifier.0", "classifier.3"]
+
+    trainability:
+      encoder:
+        mode: "frozen"                             # freeze conv backbone + fc6
+      decoder:
+        mode: "trainable"                          # train fc8 (the final classifier)
+
+  # --- Core network: EINet replacing fc7 ---
+  # Input: 4096-dim (from prefix output)
+  # Output: 4096-dim via forced projection (controls for projection confound)
+  # Neuron count: N_E=4096, N_I=1024 (4:1, matches sweep variants)
+  # Morphology: 3x3x3 (matches alexnet_k1_ne2048_3x3x3_ddp.yaml)
+  core:
+    type: "tensor_map"
+
+    architecture:
+      excitatory_layer_sizes: [4096]               # confound-control: N_E=4096
+      inhibitory_layer_sizes: [1024]               # 4:1 E/I ratio (matches sweep)
+      excitatory_branch_factors: [3, 3, 3]         # morphology: 3x3x3 (matches sweep)
+      inhibitory_branch_factors: [3, 3, 3]         # morphology: 3x3x3 (matches sweep)
+      inhibitory_network_type: "dendritic"
+      mlp_inhibitory_network_params:
+        hidden_dims: []
+        activation: "relu"
+
+    connectivity:
+      ee_synapses_per_branch_per_layer: [40]
+      ei_synapses_per_branch_per_layer: [10]
+      ie_synapses_per_branch_per_layer: [10]
+      ii_synapses_per_branch_per_layer: [0]
+
+    transfer:
+      input_mode: 0
+      independent_pathways: false
+      excitatory_dim: null
+      inhibitory_dim: null
+      output_activation: null
+      force_projection: true                       # force Linear(4096→4096) even though dims match
+
+    morphology:
+      somatic_synapses: false
+      use_shunting: true
+      weight_transform: "softplus"
+      dbl_init_method: "analytical_expectation"
+
+    sparsity:
+      init_method: "xavier_normal"
+      noise_level: 0.0
+      type: "standard"
+      weight_norm_order: null
+      gamma: 1.0
+      temperature: 0.0
+      gradient_scaling: "none"
+      deepst:
+        excitatory_target_density: 0.1
+        inhibitory_target_density: 0.1
+        use_noise: true
+        sigma: 0.05
+        rewiring_mode: "global"
+        rewire_frequency: 1
+        synapses_per_branch: null
+        freeze_excitatory_connectivity: false
+        freeze_inhibitory_connectivity: false
+        init_method: "xavier_normal"
+        weight_threshold: 1.0e-6
+
+    reactivation:
+      enabled: true
+      type: "param_tanh"
+      init_m: 1.5
+      init_b: 0.5
+      gradient_scaling: "none"
+
+    blocklinear:
+      gradient_scaling: "none"
+      efficient: false
+
+    implementation:
+      adaptive_initialization: false
+      print_hooks: false
+
+training:
+  encoder:
+    strategy: "standard"
+    common:
+      lr: 0.0
+      loss_function: "log_mse"
+      epochs: 0                                    # no encoder pretraining
+      early_stopping: false
+      patience: 100
+      batch_size: 256
+      shuffle: false
+      grad_clip_value: 5.0
+      load_best_state_dict: false
+      plot_losses: false
+      suppress_prints: false
+      print_every: 1
+      use_amp: false
+      enable_nan_checking: false
+      enable_adaptive_clipping: false
+
+  main:
+    strategy: "standard"
+    common:
+      epochs: 50
+      batch_size: 256                               # per-GPU batch size (effective = 256 x 4 = 1024)
+      shuffle: true
+      grad_clip_value: 5.0
+      loss_function: "cat_nll"
+      early_stopping: true
+      patience: 50
+      load_best_state_dict: true
+      plot_losses: true
+      suppress_prints: false
+      print_every: 1                                # log every epoch for visibility
+      use_amp: true                                 # ~2x speedup on H100
+      enable_nan_checking: false
+      enable_adaptive_clipping: false
+      weight_decay_rate: 0.0
+      weight_boosting: false
+      param_groups:
+        lr: 0.001                                  # core EINet default LR
+        split_params: true
+        topk_lr: 0.001
+        blocklinear_lr: 0.0001
+        reactivation_lr: 0.0001
+        decoder_lr: 0.0001                         # suffix (fc8) LR — low to preserve pretrained weights
+        encoder_lr: 0.0                            # prefix frozen, no updates
+
+    regularization:
+      l1_weight: 0.0
+      l2_weight: 0.0
+      selective:
+        layers: []
+        branches: []
+        weight_types: ["all"]
+      split_params: false
+      param_group_weights:
+        topk: { l1_weight: 0.0, l2_weight: 0.0 }
+        blocklinear: { l1_weight: 0.0, l2_weight: 0.0 }
+        reactivation: { l1_weight: 0.0, l2_weight: 0.0 }
+        decoder: { l1_weight: 0.0, l2_weight: 0.0 }
+      enforce_ei_weight_ratio: false
+      target_ei_weight_ratio: 0.5
+      ei_ratio_loss_weight: 0.5
+      ei_ratio_scope: "per_branch"
+      ei_ratio_metric: "mean"
+
+    pruning:
+      enabled: false
+      threshold: 2
+      selective:
+        layers: []
+        branches: []
+        weight_types: ["excitatory", "inhibitory"]
+      re_evaluate_after: false
+      dynamic_pruning: false
+      pruning_frequency: 10
+      report_non_pruned: true
+      save_pruning_stats: false
+      detailed_branch_report: true
+      redo_analysis_after_pruning: false
+
+    strategies:
+      standard: {}
+
+analysis:
+  runtime:
+    training:
+      mode: "stream"
+      batch_size: 256
+      num_workers: 4
+      max_batches: 20
+    final:
+      mode: "stream"
+      batch_size: 256
+      num_workers: 4
+  performance:
+    enabled: true
+    training: false
+    params:
+      accuracy: true
+      auc: false
+      categorical_loglikelihood: true
+      mse: false
+      cosine_similarity: false
+    training_splits: ["valid"]
+    final_splits: ["valid", "test"]
+  information: { enabled: false, training: false, params: {} }
+  correlation: { enabled: false, training: false, params: {} }
+  ablation: { enabled: false, training: false, params: {} }
+  synapse_turnover: { enabled: false, training: false, params: {} }
+  noise_perturbation: { enabled: false, training: false, params: {} }
+  weight: { enabled: false, training: false, params: {} }
+  single_layer_contribution: { enabled: false, training: false, params: {} }
+  synaptic_activation: { enabled: false, training: false, params: {} }
+  branch_activation: { enabled: false, training: false, params: {} }
+  compartment_statistics: { enabled: false, training: false, params: {} }
+  compartment_snr: { enabled: false, training: false, params: {} }
+
+wandb:
+  use_wandb: false
+  entity: ""
+  project: "dendritic-sweeps"
+  group: "alexnet_fc_replacement"
+  tags: ["alexnet", "k1", "einet", "imagenet", "confound-control"]
+
+outputs:
+  run_name: "alexnet_k1_ne4096_proj_3x3x3_ddp"
+  results_dir: "outputs"
+
+distributed:
+  mode: ddp
+  fsdp:
+    sharding_strategy: "FULL_SHARD"
+    mixed_precision: true
+    cpu_offload: false
+    min_num_params: 1000000
+    reduce_communication_overhead: true
+    limit_all_gathers: true
+    forward_prefetch: true
+    sync_module_states: true
+    use_orig_params: true
+    backward_prefetch: "BACKWARD_PRE"
+    gradient_checkpointing: false

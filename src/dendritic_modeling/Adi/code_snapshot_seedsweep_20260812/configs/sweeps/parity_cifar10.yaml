@@ -1,0 +1,307 @@
+# Parity evaluation: CIFAR-10 shunting vs additive
+# Purpose: verify code changes (alias removal, ablation schema, E_Vinf init,
+#          ConfigurableEINetwork overrides) don't break training or analysis.
+# Conditions: {shunting, additive, dendritic_mlp} x 3 seeds = 9 jobs
+# Shorter run (100 epochs) with ablation + performance + noise + SNR analyses.
+output_dir: /n/holylfs06/LABS/kempner_project_b/Lab/dendritic/HS/parity_eval
+slurm_config:
+  account: kempner_dev
+  partition: kempner_h100_priority3
+  time: '04:00:00'
+  nodes: 1
+  ntasks_per_node: 1
+  gpus_per_node: 1
+  cpus_per_task: 8
+  mem: 64GB
+  max_concurrent_jobs: 9
+  modules_to_load: []
+  conda_env_path: ''
+  training_script: src/dendritic_modeling/scripts/training/train_experiments.py
+  run_name: parity_cifar10
+experiment_settings:
+  seeds_per_condition: 3
+  base_seed: 42
+sweep_config:
+  model.core.type:
+  - dendritic_shunting
+  - dendritic_additive
+  - dendritic_mlp
+base_config:
+  experiment:
+    seed: 42
+    train_valid_split: 0.8
+    enable_profiling: false
+    enable_hooks: true
+
+  data:
+    dataset_name: cifar10
+    base_dir: ''
+    processing:
+      flatten: true
+      normalize: false
+
+  model:
+    task: classification
+    encoder:
+      type: identity
+      params:
+        input_dim: null
+    core:
+      type: dendritic_shunting
+      architecture:
+        excitatory_layer_sizes:
+        - 256
+        inhibitory_layer_sizes: []
+        excitatory_branch_factors:
+        - 3
+        - 3
+        - 3
+        inhibitory_branch_factors:
+        - 1
+      connectivity:
+        ee_synapses_per_branch_per_layer:
+        - 40
+        ei_synapses_per_branch_per_layer:
+        - 0
+        ie_synapses_per_branch_per_layer:
+        - 5
+        ii_synapses_per_branch_per_layer:
+        - 0
+      transfer:
+        input_mode: 1
+        independent_pathways: false
+        output_activation: null
+      morphology:
+        somatic_synapses: false
+        weight_transform: softplus
+        dbl_init_method: analytical_expectation
+      sparsity:
+        init_method: xavier_normal
+        noise_level: 0.0
+        type: standard
+        weight_norm_order: null
+        gamma: 1.0
+        temperature: 0.0
+        gradient_scaling: none
+      reactivation:
+        enabled: true
+        type: param_tanh
+        init_m: 2.0
+        init_b: 0.5
+        gradient_scaling: none
+      blocklinear:
+        gradient_scaling: none
+        efficient: false
+      implementation:
+        adaptive_initialization: false
+        print_hooks: false
+    decoder:
+      type: MLP
+      params:
+        hidden_dims: []
+        activation: relu
+        output_dim: 10
+
+  training:
+    main:
+      strategy: standard
+      common:
+        epochs: 100
+        batch_size: 64
+        shuffle: true
+        grad_clip_value: 5.0
+        loss_function: cat_nll
+        early_stopping: false
+        patience: 100
+        load_best_state_dict: true
+        plot_losses: false
+        suppress_prints: false
+        print_every: 10
+        use_amp: false
+        enable_nan_checking: false
+        enable_adaptive_clipping: false
+        weight_decay_rate: 0.0
+        weight_boosting: false
+        checkpointing: true
+        checkpoint_interval: 25
+        param_groups:
+          lr: 0.001
+          split_params: false
+          topk_lr: 0.001
+          blocklinear_lr: 0.0001
+          reactivation_lr: 0.0001
+          decoder_lr: 0.01
+
+      regularization:
+        l1_weight: 0.0
+        l2_weight: 0.0
+        selective:
+          layers: []
+          branches: []
+          weight_types:
+          - all
+        split_params: false
+        param_group_weights:
+          topk:
+            l1_weight: 0.0
+            l2_weight: 0.0
+          blocklinear:
+            l1_weight: 0.0
+            l2_weight: 0.0
+          reactivation:
+            l1_weight: 0.0
+            l2_weight: 0.0
+          decoder:
+            l1_weight: 0.0
+            l2_weight: 0.0
+        enforce_ei_weight_ratio: false
+        target_ei_weight_ratio: 0.5
+        ei_ratio_loss_weight: 0.5
+        ei_ratio_scope: per_branch
+        ei_ratio_metric: mean
+
+      pruning:
+        enabled: false
+        threshold: 2
+        selective:
+          layers: []
+          branches: []
+          weight_types:
+          - excitatory
+          - inhibitory
+        re_evaluate_after: false
+        dynamic_pruning: false
+        pruning_frequency: 10
+        report_non_pruned: true
+        save_pruning_stats: false
+        detailed_branch_report: true
+        redo_analysis_after_pruning: false
+
+      strategies:
+        standard: {}
+
+  analysis:
+    performance:
+      enabled: true
+      training: true
+      params:
+        accuracy: true
+        auc: true
+        categorical_loglikelihood: true
+        mse: false
+        cosine_similarity: false
+    information:
+      enabled: false
+    correlation:
+      enabled: false
+    ablation:
+      enabled: true
+      training: false
+      params:
+        selection:
+          levels:
+          - layer
+          targets:
+          - all_synapses
+          - excitation
+          - inhibition
+          - upstream
+          metrics:
+          - accuracy
+          - auc
+          - categorical_loglikelihood
+        methods:
+          ablation_methods:
+          - lesion
+          - shuffle
+          - mean_clamp
+          shuffle_seed: 0
+          clamp_statistic: mean
+    synapse_turnover:
+      enabled: true
+      training: true
+      params:
+        snapshot_interval: 1
+        synaptic_analysis: true
+        save_synaptic_report: true
+    noise_perturbation:
+      enabled: true
+      training: false
+      params:
+        uniform_noise: true
+        uniform_magnitudes: [0.1, 0.3, 0.5, 0.7, 1.0]
+        gaussian_noise: true
+        gaussian_sdevs: [0.1, 0.3, 0.5, 0.7, 1.0]
+        n_samples: 10
+        accuracy: true
+        auc: true
+        categorical_loglikelihood: true
+        mse: false
+        cosine_similarity: false
+    weight:
+      enabled: true
+      training: false
+      params:
+        synapse_weights: true
+        branch_weights: true
+        computation_level: single_branch
+        branch_aggregation: mean
+        per_layer_analysis: true
+        per_einet_analysis: true
+        per_neuron_analysis: false
+        analyze_excitatory: true
+        analyze_inhibitory: true
+        analyze_branch_output: false
+        compute_mean: true
+        compute_variance: true
+        compute_percentiles: false
+        compute_min_max: true
+        compute_dendritic_strength: true
+        weight_threshold: 1.0e-6
+    compartment_statistics:
+      enabled: true
+      training: false
+      params:
+        synapse_weights: true
+        branch_weights: true
+        inputs: true
+        activations: true
+        global_analysis: true
+        layer_analysis: true
+        branch_analysis: true
+        compute_mean: true
+        compute_variance: true
+        compute_percentiles: true
+        compute_min_max: true
+        compute_entropy: true
+        per_class_analysis: false
+        n_samples: 1000
+    compartment_snr:
+      enabled: true
+      training: false
+      params:
+        input_analysis: true
+        layer_analysis: true
+        branch_analysis: true
+        global_aggregation: false
+        layer_aggregation: true
+        branch_aggregation: true
+    multiplicative_gain:
+      enabled: true
+      training: false
+      params:
+        gain_min: 0.1
+        gain_max: 1000.0
+        n_steps: 21
+        logspace: true
+        accuracy: true
+        auc: true
+        categorical_loglikelihood: true
+        mse: false
+        cosine_similarity: false
+
+  wandb:
+    use_wandb: false
+  outputs:
+    run_name: parity_cifar10
+    results_dir: outputs

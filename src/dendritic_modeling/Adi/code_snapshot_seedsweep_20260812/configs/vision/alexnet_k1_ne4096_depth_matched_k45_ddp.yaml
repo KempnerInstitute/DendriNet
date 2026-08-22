@@ -1,0 +1,238 @@
+# ============================================================================
+# AlexNet K=1: N_E=4096, DEPTH-MATCHED sparse baseline, K=45, no projection
+# ============================================================================
+#
+# Depth control for the sparse point-neuron baselines. SparsePointNeuronNetwork
+# is a single TopKLinear + ReLU, while the EINet is a sequence of nonlinear
+# branch stages - so k240/k315 vs EINet conflates sparse connectivity with depth.
+# This core has the same stage count and stage widths as the 2x2 tree.
+#
+# Core: DepthMatchedSparseNetwork
+#   4096 -> 16384 -> 8192 -> 4096, TopKLinear + ReLU per stage, K=45 each
+#   (stage widths derived from excitatory_branch_factors, as DendriNet does)
+#
+# Why K=45 - matched to k315 (the full EE + EI + IE synaptic budget), not k240:
+#   2x2 EINet total synapses                        = 1,290,240
+#   depth-matched units: 16384 + 8192 + 4096        =    28,672
+#   K = 1,290,240 / 28,672                          =        45   (exact)
+#
+#   Confirmed against ExcitationInhibitionNetwork.get_effective_params():
+#     synapse-only total  = 1,290,240  (315.0000 per excitatory neuron)
+#     get_effective_params= 1,392,640  (adds 102,400 BlockLinear + reactivation,
+#                                       which have no point-neuron analogue)
+#
+# NOT a reimplementation of the tree: DendriNet.forward feeds the same input x to
+# every branch layer with BlockLinear child->parent aggregation. Here each stage
+# consumes only the previous stage's output. This is a depth-and-width control.
+# ============================================================================
+
+experiment:
+  seed: 42
+  train_valid_split: 0.8
+  fast_mode: true
+  enable_profiling: false
+  profiling_output_dir: "results/profiling/"
+  enable_hooks: false
+  checkpointing:
+    enabled: true
+    save_every_n_epochs: 25
+    checkpoint_dir: "results/checkpoints/"
+
+data:
+  dataset_name: "imagenet"
+  base_dir: "/n/holylfs06/LABS/kempner_shared/Everyone/testbed/vision/imagenet_1k"
+  processing:
+    flatten: false
+    normalize: true
+  dataset_params: {}
+
+model:
+  task: "classification"
+
+  pretrained_replacement:
+    enabled: true
+    backbone: "alexnet"
+    weights: "IMAGENET1K_V1"
+    input_shape: [3, 224, 224]
+
+    replace:
+      start: "classifier.4"                        # fc7 Linear(4096 → 4096)
+      end: "classifier.5"                          # fc7 ReLU
+
+    omit_layers: ["classifier.0", "classifier.3"]
+
+    trainability:
+      encoder:
+        mode: "frozen"
+      decoder:
+        mode: "trainable"
+
+  core:
+    type: "depth_matched_sparse"
+
+    architecture:
+      excitatory_layer_sizes: [4096]               # N_E=4096, matches EINet sweep
+      excitatory_branch_factors: [2, 2]            # 2x2 -> stages 16384, 8192, 4096
+
+    connectivity:
+      # K active inputs per output neuron.
+      # 240 = 6 branch stages × 40 ee per branch (2x2 EINet EE connectivity).
+      ee_synapses_per_branch_per_layer: [45]
+
+    # Reactivation matched EXACTLY to the 2x2 EINet (core.reactivation in
+    # alexnet_k1_ne4096_noproj_ddp.yaml). ParametricTanh outputs
+    # (tanh(m*(V-b))+1)/2, bounded in (0,1) - which is what makes stacked
+    # positive-weight (softplus) stages trainable at all, and matches the range
+    # of the EINet's own branch/soma outputs. Built via the same ActivationFactory,
+    # so its params land in the reactivation_lr group (1e-4) alongside the EINet's.
+    reactivation:
+      enabled: true
+      type: "param_tanh"
+      init_m: 1.5
+      init_b: 0.5
+      gradient_scaling: "none"
+
+training:
+  encoder:
+    strategy: "standard"
+    common:
+      lr: 0.0
+      loss_function: "log_mse"
+      epochs: 0
+      early_stopping: false
+      patience: 100
+      batch_size: 256
+      shuffle: false
+      grad_clip_value: 5.0
+      load_best_state_dict: false
+      plot_losses: false
+      suppress_prints: false
+      print_every: 1
+      use_amp: false
+      enable_nan_checking: false
+      enable_adaptive_clipping: false
+
+  main:
+    strategy: "standard"
+    common:
+      epochs: 50
+      batch_size: 256
+      shuffle: true
+      grad_clip_value: 5.0
+      loss_function: "cat_nll"
+      early_stopping: true
+      patience: 50
+      load_best_state_dict: true
+      plot_losses: true
+      suppress_prints: false
+      print_every: 1
+      use_amp: true
+      enable_nan_checking: false
+      enable_adaptive_clipping: false
+      weight_decay_rate: 0.0
+      weight_boosting: false
+      param_groups:
+        lr: 0.001
+        split_params: true
+        topk_lr: 0.001
+        blocklinear_lr: 0.0001
+        reactivation_lr: 0.0001
+        decoder_lr: 0.0001
+        encoder_lr: 0.0
+
+    regularization:
+      l1_weight: 0.0
+      l2_weight: 0.0
+      selective:
+        layers: []
+        branches: []
+        weight_types: ["all"]
+      split_params: false
+      param_group_weights:
+        topk: { l1_weight: 0.0, l2_weight: 0.0 }
+        blocklinear: { l1_weight: 0.0, l2_weight: 0.0 }
+        reactivation: { l1_weight: 0.0, l2_weight: 0.0 }
+        decoder: { l1_weight: 0.0, l2_weight: 0.0 }
+      enforce_ei_weight_ratio: false
+      target_ei_weight_ratio: 0.5
+      ei_ratio_loss_weight: 0.5
+      ei_ratio_scope: "per_branch"
+      ei_ratio_metric: "mean"
+
+    pruning:
+      enabled: false
+      threshold: 2
+      selective:
+        layers: []
+        branches: []
+        weight_types: ["excitatory", "inhibitory"]
+      re_evaluate_after: false
+      dynamic_pruning: false
+      pruning_frequency: 10
+      report_non_pruned: true
+      save_pruning_stats: false
+      detailed_branch_report: true
+      redo_analysis_after_pruning: false
+
+    strategies:
+      standard: {}
+
+analysis:
+  runtime:
+    training:
+      mode: "stream"
+      batch_size: 256
+      num_workers: 4
+      max_batches: 20
+    final:
+      mode: "stream"
+      batch_size: 256
+      num_workers: 4
+  performance:
+    enabled: true
+    training: false
+    params:
+      accuracy: true
+      auc: false
+      categorical_loglikelihood: true
+      mse: false
+      cosine_similarity: false
+    training_splits: ["valid"]
+    final_splits: ["valid", "test"]
+  information: { enabled: false, training: false, params: {} }
+  correlation: { enabled: false, training: false, params: {} }
+  ablation: { enabled: false, training: false, params: {} }
+  synapse_turnover: { enabled: false, training: false, params: {} }
+  noise_perturbation: { enabled: false, training: false, params: {} }
+  weight: { enabled: false, training: false, params: {} }
+  single_layer_contribution: { enabled: false, training: false, params: {} }
+  synaptic_activation: { enabled: false, training: false, params: {} }
+  branch_activation: { enabled: false, training: false, params: {} }
+  compartment_statistics: { enabled: false, training: false, params: {} }
+  compartment_snr: { enabled: false, training: false, params: {} }
+
+wandb:
+  use_wandb: false
+  entity: ""
+  project: "dendritic-sweeps"
+  group: "alexnet_fc_replacement"
+  tags: ["alexnet", "k1", "sparse_point_neuron", "imagenet", "noproj", "k45", "depth_matched"]
+
+outputs:
+  run_name: "alexnet_k1_ne4096_depth_matched_k45_ddp"
+  results_dir: "outputs"
+
+distributed:
+  mode: ddp
+  fsdp:
+    sharding_strategy: "FULL_SHARD"
+    mixed_precision: true
+    cpu_offload: false
+    min_num_params: 1000000
+    reduce_communication_overhead: true
+    limit_all_gathers: true
+    forward_prefetch: true
+    sync_module_states: true
+    use_orig_params: true
+    backward_prefetch: "BACKWARD_PRE"
+    gradient_checkpointing: false

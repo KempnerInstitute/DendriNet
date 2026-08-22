@@ -1,0 +1,271 @@
+# ============================================================================
+# AlexNet K=1: N_E=256, 2x2, NO projection layer (noproj sweep)
+# ============================================================================
+#
+# Neuron count sweep — no-projection variant.
+#
+# Previous sweep (ne256): type=tensor_map
+#   encoder (frozen) → EINet(256) → Linear(256→4096) → fc8(4096→1000)
+#
+# This config: type=einet, zero-pad output
+#   encoder (frozen) → EINet(256) → ZeroPad(256→4096) → fc8(4096→1000)
+#
+# N_E=256, N_I=64 (4:1 ratio)
+# Morphology: 2x2 (branch_factors=[2,2])
+# Synapses: ee=40, ei=10, ie=10, ii=0 (identical to previous sweep)
+# ============================================================================
+
+experiment:
+  seed: 42
+  train_valid_split: 0.8
+  fast_mode: true
+  enable_profiling: false
+  profiling_output_dir: "results/profiling/"
+  enable_hooks: false
+  checkpointing:
+    enabled: true
+    save_every_n_epochs: 25
+    checkpoint_dir: "results/checkpoints/"
+
+data:
+  dataset_name: "imagenet"
+  base_dir: "/n/holylfs06/LABS/kempner_shared/Everyone/testbed/vision/imagenet_1k"
+  processing:
+    flatten: false
+    normalize: true
+  dataset_params: {}
+
+model:
+  task: "classification"
+
+  pretrained_replacement:
+    enabled: true
+    backbone: "alexnet"
+    weights: "IMAGENET1K_V1"
+    input_shape: [3, 224, 224]
+
+    replace:
+      start: "classifier.1"                        # fc6 Linear(9216 → 4096)
+      end: "classifier.5"
+
+    omit_layers: ["classifier.0", "classifier.3"]
+
+    trainability:
+      encoder:
+        mode: "frozen"
+      decoder:
+        mode: "trainable"
+
+  core:
+    type: "einet"
+
+    architecture:
+      excitatory_layer_sizes: [1024]                # N_E=1024
+      inhibitory_layer_sizes: [256]                 # 4:1 ratio
+      excitatory_branch_factors: [2, 2]
+      inhibitory_branch_factors: [2, 2]
+      inhibitory_network_type: "dendritic"
+      mlp_inhibitory_network_params:
+        hidden_dims: []
+        activation: "relu"
+
+    connectivity:
+      ee_synapses_per_branch_per_layer: [40]
+      ei_synapses_per_branch_per_layer: [10]
+      ie_synapses_per_branch_per_layer: [10]
+      ii_synapses_per_branch_per_layer: [0]
+
+    transfer:
+      input_mode: 0
+      independent_pathways: false
+      excitatory_dim: null
+      inhibitory_dim: null
+      output_activation: null
+      zero_pad_output: true                        # pad 256 → 4096 before fc8
+
+    morphology:
+      somatic_synapses: false
+      use_shunting: true
+      weight_transform: "softplus"
+      dbl_init_method: "analytical_expectation"
+
+    sparsity:
+      init_method: "xavier_normal"
+      noise_level: 0.0
+      type: "standard"
+      weight_norm_order: null
+      gamma: 1.0
+      temperature: 0.0
+      gradient_scaling: "none"
+      deepst:
+        excitatory_target_density: 0.1
+        inhibitory_target_density: 0.1
+        use_noise: true
+        sigma: 0.05
+        rewiring_mode: "global"
+        rewire_frequency: 1
+        synapses_per_branch: null
+        freeze_excitatory_connectivity: false
+        freeze_inhibitory_connectivity: false
+        init_method: "xavier_normal"
+        weight_threshold: 1.0e-6
+
+    reactivation:
+      enabled: true
+      type: "param_tanh"
+      init_m: 1.5
+      init_b: 0.5
+      gradient_scaling: "none"
+
+    blocklinear:
+      gradient_scaling: "none"
+      efficient: false
+
+    implementation:
+      adaptive_initialization: false
+      print_hooks: false
+
+training:
+  encoder:
+    strategy: "standard"
+    common:
+      lr: 0.0
+      loss_function: "log_mse"
+      epochs: 0
+      early_stopping: false
+      patience: 100
+      batch_size: 256
+      shuffle: false
+      grad_clip_value: 5.0
+      load_best_state_dict: false
+      plot_losses: false
+      suppress_prints: false
+      print_every: 1
+      use_amp: false
+      enable_nan_checking: false
+      enable_adaptive_clipping: false
+
+  main:
+    strategy: "standard"
+    common:
+      epochs: 50
+      batch_size: 256
+      shuffle: true
+      grad_clip_value: 5.0
+      loss_function: "cat_nll"
+      early_stopping: true
+      patience: 50
+      load_best_state_dict: true
+      plot_losses: true
+      suppress_prints: false
+      print_every: 1
+      use_amp: true
+      enable_nan_checking: false
+      enable_adaptive_clipping: false
+      weight_decay_rate: 0.0
+      weight_boosting: false
+      param_groups:
+        lr: 0.001
+        split_params: true
+        topk_lr: 0.001
+        blocklinear_lr: 0.0001
+        reactivation_lr: 0.0001
+        decoder_lr: 0.0001
+        encoder_lr: 0.0
+
+    regularization:
+      l1_weight: 0.0
+      l2_weight: 0.0
+      selective:
+        layers: []
+        branches: []
+        weight_types: ["all"]
+      split_params: false
+      param_group_weights:
+        topk: { l1_weight: 0.0, l2_weight: 0.0 }
+        blocklinear: { l1_weight: 0.0, l2_weight: 0.0 }
+        reactivation: { l1_weight: 0.0, l2_weight: 0.0 }
+        decoder: { l1_weight: 0.0, l2_weight: 0.0 }
+      enforce_ei_weight_ratio: false
+      target_ei_weight_ratio: 0.5
+      ei_ratio_loss_weight: 0.5
+      ei_ratio_scope: "per_branch"
+      ei_ratio_metric: "mean"
+
+    pruning:
+      enabled: false
+      threshold: 2
+      selective:
+        layers: []
+        branches: []
+        weight_types: ["excitatory", "inhibitory"]
+      re_evaluate_after: false
+      dynamic_pruning: false
+      pruning_frequency: 10
+      report_non_pruned: true
+      save_pruning_stats: false
+      detailed_branch_report: true
+      redo_analysis_after_pruning: false
+
+    strategies:
+      standard: {}
+
+analysis:
+  runtime:
+    training:
+      mode: "stream"
+      batch_size: 256
+      num_workers: 4
+      max_batches: 20
+    final:
+      mode: "stream"
+      batch_size: 256
+      num_workers: 4
+  performance:
+    enabled: true
+    training: false
+    params:
+      accuracy: true
+      auc: false
+      categorical_loglikelihood: true
+      mse: false
+      cosine_similarity: false
+    training_splits: ["valid"]
+    final_splits: ["valid", "test"]
+  information: { enabled: false, training: false, params: {} }
+  correlation: { enabled: false, training: false, params: {} }
+  ablation: { enabled: false, training: false, params: {} }
+  synapse_turnover: { enabled: false, training: false, params: {} }
+  noise_perturbation: { enabled: false, training: false, params: {} }
+  weight: { enabled: false, training: false, params: {} }
+  single_layer_contribution: { enabled: false, training: false, params: {} }
+  synaptic_activation: { enabled: false, training: false, params: {} }
+  branch_activation: { enabled: false, training: false, params: {} }
+  compartment_statistics: { enabled: false, training: false, params: {} }
+  compartment_snr: { enabled: false, training: false, params: {} }
+
+wandb:
+  use_wandb: false
+  entity: ""
+  project: "dendritic-sweeps"
+  group: "alexnet_fc_replacement"
+  tags: ["alexnet", "k1", "einet", "imagenet", "noproj"]
+
+outputs:
+  run_name: "alexnet_fc6fc7_ne1024_2x2_ddp"
+  results_dir: "outputs"
+
+distributed:
+  mode: ddp
+  fsdp:
+    sharding_strategy: "FULL_SHARD"
+    mixed_precision: true
+    cpu_offload: false
+    min_num_params: 1000000
+    reduce_communication_overhead: true
+    limit_all_gathers: true
+    forward_prefetch: true
+    sync_module_states: true
+    use_orig_params: true
+    backward_prefetch: "BACKWARD_PRE"
+    gradient_checkpointing: false

@@ -1,0 +1,299 @@
+diff --git a/src/dendritic_modeling/config/model.py b/src/dendritic_modeling/config/model.py
+index b4fa33f1..cbddb5dc 100644
+--- a/src/dendritic_modeling/config/model.py
++++ b/src/dendritic_modeling/config/model.py
+@@ -15,6 +15,8 @@ class TransferFunctionConfig(BaseConfig):
+     inhibitory_dim: Optional[int] = None
+     output_activation: Optional[str] = None
+     inhibitory_mode: str = "first"  # "none", "first", "all"
++    force_projection: bool = False  # confound-control: force output projection even when dims already match
++    zero_pad_output: bool = False   # pad EINet output with zeros to match suffix input dim (no learned projection)
+ 
+ 
+ @dataclass
+@@ -278,6 +280,7 @@ class PretrainedReplacementConfig(BaseConfig):
+     replace: ReplacementRegionConfig = field(default_factory=ReplacementRegionConfig)
+     omit_layers: list[str] = field(default_factory=list)
+     trainability: TrainabilityConfig = field(default_factory=TrainabilityConfig)
++    reinit_decoder: bool = False  # if True, reset decoder weights to random (simulates replacing all layers)
+ 
+ 
+ @dataclass
+diff --git a/src/dendritic_modeling/networks/architectures/excitation_inhibition/dendritic/spatial_dendritic/tensor_map.py b/src/dendritic_modeling/networks/architectures/excitation_inhibition/dendritic/spatial_dendritic/tensor_map.py
+index 99c3b79a..cc65f493 100644
+--- a/src/dendritic_modeling/networks/architectures/excitation_inhibition/dendritic/spatial_dendritic/tensor_map.py
++++ b/src/dendritic_modeling/networks/architectures/excitation_inhibition/dendritic/spatial_dendritic/tensor_map.py
+@@ -60,6 +60,7 @@ class HierarchicalDendriticTensorMap(BaseNetwork):
+         synapse_mode: str | None = None,
+         use_shunting: bool | None = None,
+         weight_transform: str | None = None,
++        force_projection: bool = False,  # confound-control: add projection even when dims already match
+     ):
+         super().__init__()
+ 
+@@ -75,8 +76,11 @@ class HierarchicalDendriticTensorMap(BaseNetwork):
+ 
+         einet_output_dim = self.einet.output_dim
+ 
+-        # Add projection if EINet output doesn't match suffix expectation
+-        if suffix_input_dim is not None and suffix_input_dim != einet_output_dim:
++        # Add projection if EINet output doesn't match suffix expectation,
++        # or if force_projection=True (confound-control: adds projection even
++        # when dims already match, so ne4096+proj is structurally identical to
++        # ne2048+proj and the only variable is neuron count).
++        if suffix_input_dim is not None and (force_projection or suffix_input_dim != einet_output_dim):
+             self.projection = nn.Linear(einet_output_dim, suffix_input_dim)
+             self.output_dim = suffix_input_dim
+             logger.info(
+diff --git a/src/dendritic_modeling/networks/architectures/factory.py b/src/dendritic_modeling/networks/architectures/factory.py
+index 87d8b422..e09942c0 100644
+--- a/src/dendritic_modeling/networks/architectures/factory.py
++++ b/src/dendritic_modeling/networks/architectures/factory.py
+@@ -58,6 +58,31 @@ _SPATIAL_DENDRITIC_TYPES: set[str] = {
+     "tensor_map",
+ }
+ 
++# Point-neuron baseline: Linear(input_dim → N_E) → ReLU.
++# Directly comparable to noproj EINet sweep — same dims, same zero-padding,
++# same training protocol. Only difference: no dendritic structure or E/I circuit.
++_POINT_NEURON_TYPES: set[str] = {"point_neuron"}
++
++# Sparse point-neuron baseline: TopKLinear(input_dim → N_E, K) → ReLU.
++# K is read from connectivity.ee_synapses_per_branch_per_layer[0].
++# At K=240 this matches the EE feedforward connectivity of the 2x2 EINet
++# (6 branch stages × 40 ee synapses per stage per output neuron).
++_SPARSE_POINT_NEURON_TYPES: set[str] = {"sparse_point_neuron"}
++
++# Signed sparse point-neuron baseline: PointNeuronNetwork with only the K
++# largest-|w| weights per neuron active. Signed weights + bias, identical to the
++# dense point neuron in every other respect, so the comparison isolates sparsity.
++# K is read from connectivity.ee_synapses_per_branch_per_layer[0].
++# At K=315 this matches the 2x2 EINet's full EE+EI+IE synaptic budget.
++_SIGNED_SPARSE_POINT_TYPES: set[str] = {"signed_sparse_point_neuron"}
++
++# Depth-matched sparse baseline: stacked TopKLinear + ReLU stages whose widths
++# are derived from the morphology (2x2 at N_E=4096 -> 4096→16384→8192→4096).
++# Depth control for the sparse point neuron: same stage count and stage widths
++# as the EINet tree, same total active weight budget, no dendritic aggregation.
++# K is read from connectivity.ee_synapses_per_branch_per_layer[0].
++_DEPTH_MATCHED_SPARSE_TYPES: set[str] = {"depth_matched_sparse"}
++
+ # Spatial dendritic conv: F.unfold → shared DendriNet on local patches → fold.
+ # Preserves spatial structure (B, C_out, H_out, W_out).
+ # Canonical name: hierarchical_dendritic_conv
+@@ -563,6 +588,97 @@ def get_architecture(
+             f"EINetworkConfig format instead."
+         )
+ 
++    # ------------------------------------------------------------------
++    # Point-neuron baseline (Linear → ReLU, no dendritic structure)
++    # ------------------------------------------------------------------
++    if type in _POINT_NEURON_TYPES:
++        from dendritic_modeling.networks.architectures.point_neuron import (
++            PointNeuronNetwork,
++        )
++
++        if input_dim is None:
++            raise ValueError(
++                f"input_dim required when creating point-neuron core (type='{type}')"
++            )
++
++        raw_params = _to_plain_mapping(parameters)
++        arch = _to_plain_mapping(raw_params.get("architecture", {}))
++        n_e = list(arch.get("excitatory_layer_sizes", [input_dim]))[0]
++        return PointNeuronNetwork(input_dim=input_dim, n_e=n_e)
++
++    # ------------------------------------------------------------------
++    # Sparse point-neuron baseline (TopKLinear → ReLU, K active inputs)
++    # ------------------------------------------------------------------
++    if type in _SPARSE_POINT_NEURON_TYPES:
++        from dendritic_modeling.networks.architectures.sparse_point_neuron import (
++            SparsePointNeuronNetwork,
++        )
++
++        if input_dim is None:
++            raise ValueError(
++                f"input_dim required when creating sparse-point-neuron core (type='{type}')"
++            )
++
++        raw_params = _to_plain_mapping(parameters)
++        arch = _to_plain_mapping(raw_params.get("architecture", {}))
++        conn = _to_plain_mapping(raw_params.get("connectivity", {}))
++        n_e = list(arch.get("excitatory_layer_sizes", [input_dim]))[0]
++        k_spec = conn.get("ee_synapses_per_branch_per_layer", [240])
++        k = int(k_spec[0]) if isinstance(k_spec, list) else int(k_spec)
++        return SparsePointNeuronNetwork(input_dim=input_dim, n_e=n_e, k=k)
++
++    # ------------------------------------------------------------------
++    # Signed sparse point-neuron baseline (dense point neuron, K weights/neuron)
++    # ------------------------------------------------------------------
++    if type in _SIGNED_SPARSE_POINT_TYPES:
++        from dendritic_modeling.networks.architectures.signed_sparse_point_neuron import (
++            SignedSparsePointNeuronNetwork,
++        )
++
++        if input_dim is None:
++            raise ValueError(
++                f"input_dim required when creating signed-sparse-point core (type='{type}')"
++            )
++
++        raw_params = _to_plain_mapping(parameters)
++        arch = _to_plain_mapping(raw_params.get("architecture", {}))
++        conn = _to_plain_mapping(raw_params.get("connectivity", {}))
++        n_e = list(arch.get("excitatory_layer_sizes", [input_dim]))[0]
++        k_spec = conn.get("ee_synapses_per_branch_per_layer", [315])
++        k = int(k_spec[0]) if isinstance(k_spec, list) else int(k_spec)
++        return SignedSparsePointNeuronNetwork(input_dim=input_dim, n_e=n_e, k=k)
++
++    # ------------------------------------------------------------------
++    # Depth-matched sparse baseline (stacked TopKLinear → ReLU stages)
++    # ------------------------------------------------------------------
++    if type in _DEPTH_MATCHED_SPARSE_TYPES:
++        from dendritic_modeling.networks.architectures.depth_matched_sparse import (
++            DepthMatchedSparseNetwork,
++        )
++
++        if input_dim is None:
++            raise ValueError(
++                f"input_dim required when creating depth-matched sparse core (type='{type}')"
++            )
++
++        raw_params = _to_plain_mapping(parameters)
++        arch = _to_plain_mapping(raw_params.get("architecture", {}))
++        conn = _to_plain_mapping(raw_params.get("connectivity", {}))
++        react = _to_plain_mapping(raw_params.get("reactivation", {}))
++        n_e = list(arch.get("excitatory_layer_sizes", [input_dim]))[0]
++        branch_factors = list(arch.get("excitatory_branch_factors", [2, 2]))
++        k_spec = conn.get("ee_synapses_per_branch_per_layer", [45])
++        k = int(k_spec[0]) if isinstance(k_spec, list) else int(k_spec)
++        return DepthMatchedSparseNetwork(
++            input_dim=input_dim,
++            n_e=n_e,
++            branch_factors=branch_factors,
++            k=k,
++            reactivation_type=react.get("type", "param_tanh"),
++            reactivation_init_m=react.get("init_m", 1.5),
++            reactivation_init_b=react.get("init_b", 0.5),
++        )
++
+     # ------------------------------------------------------------------
+     # Spatial dendritic cores (flatten → EINet → project)
+     # ------------------------------------------------------------------
+@@ -576,10 +692,16 @@ def get_architecture(
+                 f"input_dim required when creating spatial dendritic core (type='{type}')"
+             )
+ 
++        # confound-control: read force_projection from config transfer section
++        force_projection = _to_plain_mapping(
++            _to_plain_mapping(parameters).get("transfer", {})
++        ).get("force_projection", False)
++
+         return HierarchicalDendriticTensorMap(
+             config=parameters,
+             input_dim=input_dim,
+             suffix_input_dim=suffix_input_dim,
++            force_projection=force_projection,
+         )
+ 
+     # ------------------------------------------------------------------
+diff --git a/src/dendritic_modeling/scripts/script_utils/setup_utils.py b/src/dendritic_modeling/scripts/script_utils/setup_utils.py
+index 56da6c61..7f20868b 100644
+--- a/src/dendritic_modeling/scripts/script_utils/setup_utils.py
++++ b/src/dendritic_modeling/scripts/script_utils/setup_utils.py
+@@ -11,6 +11,7 @@ from dataclasses import asdict
+ from datetime import datetime
+ 
+ import torch
++import torch.nn.functional as F
+ import wandb
+ from omegaconf import OmegaConf
+ 
+@@ -214,6 +215,36 @@ def _is_recurrent_core_config(core_cfg) -> bool:
+     return _get_recurrent_enabled(core_cfg)
+ 
+ 
++class _ZeroPadCore(torch.nn.Module):
++    """Wraps an EINet and zero-pads its output to ``pad_to`` dimensions.
++
++    Used when the EINet excitatory layer size is smaller than the downstream
++    decoder's expected input dim (e.g. EINet(2048) → fc8(4096→1000)).
++    All submodules remain accessible via standard nn.Module iteration so
++    parameter grouping (TopKLinear, BlockLinear, etc.) works unchanged.
++    """
++
++    def __init__(self, core: torch.nn.Module, pad_to: int) -> None:
++        super().__init__()
++        self.core = core
++        self.output_dim = pad_to
++        self._pad_to = pad_to
++
++    def forward(self, x: torch.Tensor) -> torch.Tensor:
++        out = self.core(x)
++        if out.shape[-1] < self._pad_to:
++            out = F.pad(out, (0, self._pad_to - out.shape[-1]))
++        return out
++
++    def decay_weights(self, weight_decay: float, weight_boosting: bool = False) -> None:
++        if hasattr(self.core, "decay_weights"):
++            self.core.decay_weights(weight_decay, weight_boosting)
++
++    def apply_rewiring(self) -> None:
++        if hasattr(self.core, "apply_rewiring"):
++            self.core.apply_rewiring()
++
++
+ def _build_from_pretrained_replacement(model_config: ModelConfig):
+     """Build encoder/core/decoder from a ``pretrained_replacement`` config.
+ 
+@@ -256,6 +287,13 @@ def _build_from_pretrained_replacement(model_config: ModelConfig):
+         suffix_freeze=suffix_freeze,
+     )
+ 
++    if getattr(pr, "reinit_decoder", False):
++        for m in decoder_network.modules():
++            if isinstance(m, nn.Linear):
++                nn.init.kaiming_normal_(m.weight)
++                if m.bias is not None:
++                    nn.init.zeros_(m.bias)
++
+     # Build the core network.
+     core_params = _config_to_plain_dict(model_config.core)
+ 
+@@ -324,16 +362,30 @@ def _build_from_pretrained_replacement(model_config: ModelConfig):
+             suffix_input_dim=plan.suffix_input_dim,
+         )
+ 
+-        if (
++        if not plan.suffix_modules:
++            # "Straight to lights": no decoder layers, EINet output IS the logits.
++            # Rebuild the pass-through decoder with the correct output_dim.
++            from dendritic_modeling.networks.architectures.classical.pretrained import (
++                BackboneSegment,
++            )
++            decoder_network = BackboneSegment(
++                [], [], input_size=(1, core_network.output_dim)
++            )
++        elif (
+             hasattr(core_network, "output_dim")
+             and core_network.output_dim != plan.suffix_input_dim
+         ):
+-            raise ValueError(
+-                f"Core output_dim={core_network.output_dim} does not match "
+-                f"suffix expected input_dim={plan.suffix_input_dim}. "
+-                f"The suffix decoder's first Linear layer expects "
+-                f"{plan.suffix_input_dim} features."
+-            )
++            transfer = core_params.get("transfer", {}) or {}
++            zero_pad = transfer.get("zero_pad_output", False)
++            if zero_pad:
++                core_network = _ZeroPadCore(core_network, plan.suffix_input_dim)
++            else:
++                raise ValueError(
++                    f"Core output_dim={core_network.output_dim} does not match "
++                    f"suffix expected input_dim={plan.suffix_input_dim}. "
++                    f"The suffix decoder's first Linear layer expects "
++                    f"{plan.suffix_input_dim} features."
++                )
+ 
+     return encoder, core_network, decoder_network, encoder
+ 

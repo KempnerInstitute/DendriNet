@@ -1,0 +1,226 @@
+# ============================================================================
+# AlexNet K=1: N_E=4096, sparse point-neuron, K=315, NO projection layer
+# ============================================================================
+#
+# FULL synaptic-match baseline for the 2x2 EINet (alexnet_k1_ne4096_noproj_ddp).
+# Everything is held constant - same training protocol, same hyperparameters,
+# same fc8 decoder, same replace range - except the core architecture.
+#
+# Core: SparsePointNeuronNetwork
+#   TopKLinear(4096 -> 4096, K=315) -> ReLU
+#   K=315 active inputs per output neuron
+#
+# Why K=315 matches ALL 2x2 EINet synapses (EE + EI + IE), not just EE:
+#   EE: 16384 tips x 40 + 8192 layer1 x 40          =   983,040
+#   EI: 16384 tips x 10 + 8192 layer1 x 10          =   245,760
+#   IE: (1024 inh: 4096 tips + 2048 layer1) x 10    =    61,440   (ii = 0)
+#                                             total = 1,290,240
+#   per excitatory neuron: 1,290,240 / 4096         =       315
+#   (somatic_synapses: false, so the soma layer contributes no synapses)
+#
+# Comparison table (fc7-only replacement, N_E=4096):
+#   dense point neuron:      4096 active connections per neuron
+#   sparse point K=240:       240  - matches 2x2 EE only
+#   sparse point K=315:       315  - matches 2x2 EE + EI + IE  <- this config
+#
+# This is the more conservative baseline: it gives the point neuron every
+# synapse the EINet has, including the inhibitory circuitry it lacks entirely.
+# Any remaining accuracy gap isolates dendritic structure alone.
+# ============================================================================
+
+experiment:
+  seed: 42
+  train_valid_split: 0.8
+  fast_mode: true
+  enable_profiling: false
+  profiling_output_dir: "results/profiling/"
+  enable_hooks: false
+  checkpointing:
+    enabled: true
+    save_every_n_epochs: 25
+    checkpoint_dir: "results/checkpoints/"
+
+data:
+  dataset_name: "imagenet"
+  base_dir: "/n/holylfs06/LABS/kempner_shared/Everyone/testbed/vision/imagenet_1k"
+  processing:
+    flatten: false
+    normalize: true
+  dataset_params: {}
+
+model:
+  task: "classification"
+
+  pretrained_replacement:
+    enabled: true
+    backbone: "alexnet"
+    weights: "IMAGENET1K_V1"
+    input_shape: [3, 224, 224]
+
+    replace:
+      start: "classifier.4"                        # fc7 Linear(4096 → 4096)
+      end: "classifier.5"                          # fc7 ReLU
+
+    omit_layers: ["classifier.0", "classifier.3"]
+
+    trainability:
+      encoder:
+        mode: "frozen"
+      decoder:
+        mode: "trainable"
+
+  core:
+    type: "sparse_point_neuron"
+
+    architecture:
+      excitatory_layer_sizes: [4096]               # N_E=4096, matches EINet sweep
+
+    connectivity:
+      # K active inputs per output neuron.
+      # 240 = 6 branch stages × 40 ee per branch (2x2 EINet EE connectivity).
+      ee_synapses_per_branch_per_layer: [315]
+
+training:
+  encoder:
+    strategy: "standard"
+    common:
+      lr: 0.0
+      loss_function: "log_mse"
+      epochs: 0
+      early_stopping: false
+      patience: 100
+      batch_size: 256
+      shuffle: false
+      grad_clip_value: 5.0
+      load_best_state_dict: false
+      plot_losses: false
+      suppress_prints: false
+      print_every: 1
+      use_amp: false
+      enable_nan_checking: false
+      enable_adaptive_clipping: false
+
+  main:
+    strategy: "standard"
+    common:
+      epochs: 50
+      batch_size: 256
+      shuffle: true
+      grad_clip_value: 5.0
+      loss_function: "cat_nll"
+      early_stopping: true
+      patience: 50
+      load_best_state_dict: true
+      plot_losses: true
+      suppress_prints: false
+      print_every: 1
+      use_amp: true
+      enable_nan_checking: false
+      enable_adaptive_clipping: false
+      weight_decay_rate: 0.0
+      weight_boosting: false
+      param_groups:
+        lr: 0.001
+        split_params: true
+        topk_lr: 0.001
+        blocklinear_lr: 0.0001
+        reactivation_lr: 0.0001
+        decoder_lr: 0.0001
+        encoder_lr: 0.0
+
+    regularization:
+      l1_weight: 0.0
+      l2_weight: 0.0
+      selective:
+        layers: []
+        branches: []
+        weight_types: ["all"]
+      split_params: false
+      param_group_weights:
+        topk: { l1_weight: 0.0, l2_weight: 0.0 }
+        blocklinear: { l1_weight: 0.0, l2_weight: 0.0 }
+        reactivation: { l1_weight: 0.0, l2_weight: 0.0 }
+        decoder: { l1_weight: 0.0, l2_weight: 0.0 }
+      enforce_ei_weight_ratio: false
+      target_ei_weight_ratio: 0.5
+      ei_ratio_loss_weight: 0.5
+      ei_ratio_scope: "per_branch"
+      ei_ratio_metric: "mean"
+
+    pruning:
+      enabled: false
+      threshold: 2
+      selective:
+        layers: []
+        branches: []
+        weight_types: ["excitatory", "inhibitory"]
+      re_evaluate_after: false
+      dynamic_pruning: false
+      pruning_frequency: 10
+      report_non_pruned: true
+      save_pruning_stats: false
+      detailed_branch_report: true
+      redo_analysis_after_pruning: false
+
+    strategies:
+      standard: {}
+
+analysis:
+  runtime:
+    training:
+      mode: "stream"
+      batch_size: 256
+      num_workers: 4
+      max_batches: 20
+    final:
+      mode: "stream"
+      batch_size: 256
+      num_workers: 4
+  performance:
+    enabled: true
+    training: false
+    params:
+      accuracy: true
+      auc: false
+      categorical_loglikelihood: true
+      mse: false
+      cosine_similarity: false
+    training_splits: ["valid"]
+    final_splits: ["valid", "test"]
+  information: { enabled: false, training: false, params: {} }
+  correlation: { enabled: false, training: false, params: {} }
+  ablation: { enabled: false, training: false, params: {} }
+  synapse_turnover: { enabled: false, training: false, params: {} }
+  noise_perturbation: { enabled: false, training: false, params: {} }
+  weight: { enabled: false, training: false, params: {} }
+  single_layer_contribution: { enabled: false, training: false, params: {} }
+  synaptic_activation: { enabled: false, training: false, params: {} }
+  branch_activation: { enabled: false, training: false, params: {} }
+  compartment_statistics: { enabled: false, training: false, params: {} }
+  compartment_snr: { enabled: false, training: false, params: {} }
+
+wandb:
+  use_wandb: false
+  entity: ""
+  project: "dendritic-sweeps"
+  group: "alexnet_fc_replacement"
+  tags: ["alexnet", "k1", "sparse_point_neuron", "imagenet", "noproj", "k315", "full_synapse_matched"]
+
+outputs:
+  run_name: "alexnet_k1_ne4096_sparse_point_k315_ddp"
+  results_dir: "outputs"
+
+distributed:
+  mode: ddp
+  fsdp:
+    sharding_strategy: "FULL_SHARD"
+    mixed_precision: true
+    cpu_offload: false
+    min_num_params: 1000000
+    reduce_communication_overhead: true
+    limit_all_gathers: true
+    forward_prefetch: true
+    sync_module_states: true
+    use_orig_params: true
+    backward_prefetch: "BACKWARD_PRE"
+    gradient_checkpointing: false
