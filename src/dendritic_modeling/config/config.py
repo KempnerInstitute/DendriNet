@@ -179,6 +179,7 @@ class DatasetParamsConfig(BaseConfig):
             "context_gain": False,
             "context_poisson": False,
             "context_distractor_scale": 0.0,
+            "region_in_label": True,
         }
     )
 

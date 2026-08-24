@@ -20,6 +20,7 @@ def _make_dataset(
     context_gain: bool = False,
     context_poisson: bool = False,
     context_distractor_scale: float = 0.0,
+    region_in_label: bool = False,
 ):
     base_inputs = torch.arange(
         n_samples * n_features, dtype=torch.float32
@@ -41,6 +42,7 @@ def _make_dataset(
         context_gain=context_gain,
         context_poisson=context_poisson,
         context_distractor_scale=context_distractor_scale,
+        region_in_label=region_in_label,
     )
 
 
@@ -103,8 +105,18 @@ def test_gain_sampling_uses_full_interval_and_batched_shape(monkeypatch):
     assert captured["shape"] == (1, 4)
 
 
+def test_region_in_label_defaults_true():
+    ds = ContextualGainDataset(
+        torch.arange(8, dtype=torch.float32).reshape(2, 4),
+        torch.arange(2, dtype=torch.long),
+        n_regions=2,
+        region_poisson=False,
+    )
+    assert ds.region_in_label is True
+
+
 def test_label_is_class_of_max_gain_layer(monkeypatch):
-    ds = _make_dataset(n_regions=3, region_poisson=False)
+    ds = _make_dataset(n_regions=3, region_poisson=False, region_in_label=False)
 
     def fixed_layers(primary, *, n_layers):
         # primary | primary+1 | primary+2 (mod N), all distinct for N=8
@@ -355,6 +367,7 @@ def test_bit_id_label_remap(monkeypatch):
         context_gain=False,
         region_poisson=False,
         context_poisson=False,
+        region_in_label=False,
     )
 
     def fixed_layers(primary, *, n_layers):
@@ -397,6 +410,7 @@ def test_xor_label_remap(monkeypatch):
         region_poisson=False,
         context_poisson=False,
         n_samples=10,
+        region_in_label=False,
     )
     # labels 0..9 so mod wraps meaningfully
     ds.base_labels = torch.arange(10, dtype=torch.long)
@@ -436,6 +450,85 @@ def test_xor_label_remap(monkeypatch):
     )
     _, y1 = ds[3]
     assert int(y1.item()) == 4
+
+
+def test_region_only_label_adds_r_star(monkeypatch):
+    ds = _make_dataset(
+        n_regions=3,
+        n_samples=10,
+        region_poisson=False,
+        region_in_label=True,
+    )
+
+    def fixed_layers(primary, *, n_layers):
+        n_pool = len(ds)
+        cols = [primary]
+        for k in range(1, n_layers):
+            cols.append((primary + k) % n_pool)
+        return torch.stack(cols, dim=1)
+
+    def fixed_gains(min_g, max_g, *, gain_sampling, shape, dtype, device):
+        gains = torch.zeros(shape, dtype=dtype, device=device)
+        # Region 2 wins so r* is nonzero.
+        gains[..., 2] = 1.0
+        return gains
+
+    monkeypatch.setattr(ds, "_sample_layer_indices", fixed_layers)
+    monkeypatch.setattr(
+        ContextualGainDataset,
+        "_sample_gain_singlestage",
+        staticmethod(fixed_gains),
+    )
+
+    x, y = ds[0]
+    # digit of index 2, r*=2 → (2 + 2) % 10
+    assert int(y.item()) == 4
+    assert x.shape == (3 * 4,)
+
+    _, yb = ds[0:3]
+    # i=0: d=2,r*=2 → 4; i=1: d=3,r*=2 → 5; i=2: d=4,r*=2 → 6
+    assert torch.equal(yb, torch.tensor([4, 5, 6]))
+
+
+def test_region_and_bits_use_path_indexed_nest(monkeypatch):
+    ds = _make_dataset(
+        n_regions=3,
+        n_samples=10,
+        n_context_bits=1,
+        context_dim=8,
+        context_rule="bit_id",
+        context_gain=False,
+        region_poisson=False,
+        context_poisson=False,
+        region_in_label=True,
+    )
+
+    def fixed_layers(primary, *, n_layers):
+        # Region 2 always holds index 3 so d=3 when r*=2.
+        B = int(primary.shape[0])
+        return torch.tensor([[0, 1, 3]], device=primary.device).expand(B, n_layers)
+
+    def fixed_gains(min_g, max_g, *, gain_sampling, shape, dtype, device):
+        gains = torch.zeros(shape, dtype=dtype, device=device)
+        gains[..., 2] = 1.0
+        return gains
+
+    monkeypatch.setattr(ds, "_sample_layer_indices", fixed_layers)
+    monkeypatch.setattr(
+        ContextualGainDataset,
+        "_sample_gain_singlestage",
+        staticmethod(fixed_gains),
+    )
+    # bits [1] → bit_id 1
+    monkeypatch.setattr(
+        torch,
+        "randint",
+        lambda *args, **kwargs: torch.ones(1, 1, dtype=torch.float32),
+    )
+
+    _, y = ds[0]
+    # d=3, r*=2, c=1 → (-((3 + 2) % 10) + 1) % 10 = 6
+    assert int(y.item()) == 6
 
 
 def test_context_poisson_only_affects_context_slice(monkeypatch):

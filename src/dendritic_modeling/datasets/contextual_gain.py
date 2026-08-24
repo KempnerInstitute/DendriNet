@@ -24,10 +24,16 @@ class ContextualGainDataset(PoissonGeneratorDataset):
     selects exactly one row of ``W``. Optional distractor noise
     (``context_distractor_scale`` in ``[0, 1)``) is mixed in before optional
     gain-scaling and Poisson sampling, then concatenated after the image stream.
-    Labels are ``(max_gain_digit + ctx) mod n_classes`` where ``ctx`` comes from
-    ``context_rule`` (``bit_id`` or ``xor``).
+    Labels use the max-gain region's class ``d`` and optional 0-based region
+    index ``r*`` / bit-context scalar ``c`` (from ``context_rule``):
 
-    Image and context Poisson are controlled separately via ``region_poisson`` and
+    * neither: ``y = d``
+    * bits only (``region_in_label=False``): ``y = (d + c) mod n_classes``
+    * ``r*`` only: ``y = (d + r*) mod n_classes``
+    * both (default): ``y = (-((d + r*) mod n_classes) + c) mod n_classes``
+
+    ``r*`` is label-only (not concatenated onto the input). Image and context
+    Poisson are controlled separately via ``region_poisson`` and
     ``context_poisson`` (no duration/tau rescaling).
     """
 
@@ -47,6 +53,7 @@ class ContextualGainDataset(PoissonGeneratorDataset):
         context_gain: bool = False,
         context_poisson: bool = False,
         context_distractor_scale: float = 0.0,
+        region_in_label: bool = True,
     ):
         n_regions = int(n_regions)
         if n_regions < 1:
@@ -113,6 +120,7 @@ class ContextualGainDataset(PoissonGeneratorDataset):
         self.context_gain = bool(context_gain)
         self.context_poisson = bool(context_poisson)
         self.context_distractor_scale = context_distractor_scale
+        self.region_in_label = bool(region_in_label)
         self.n_classes = int(base_labels.max().item()) + 1
 
         if n_context_bits > 0:
@@ -180,6 +188,27 @@ class ContextualGainDataset(PoissonGeneratorDataset):
         ctx_scalar = self._context_scalar(bits).long()
         return F.one_hot(ctx_scalar, self.n_context_ids).to(dtype=bits.dtype)
 
+    def _compose_label(
+        self,
+        digit: torch.Tensor,
+        region_id: torch.Tensor,
+        ctx_scalar: torch.Tensor | None,
+    ) -> torch.Tensor:
+        """Compose ``d``, optional ``r*``, and optional bit-context scalar ``c``.
+
+        Nonnegative residues via ``%`` (same as ``torch.remainder`` for ``n > 0``).
+        """
+        n = self.n_classes
+        y = digit
+        if self.region_in_label:
+            y = (y + region_id) % n
+        if ctx_scalar is not None:
+            if self.region_in_label:
+                y = (-y + ctx_scalar) % n
+            else:
+                y = (y + ctx_scalar) % n
+        return y
+
     def __getitem__(self, idx):
         batched = self._is_batched_index(idx)
         n_pool = int(self.base_inputs.shape[0])
@@ -224,7 +253,8 @@ class ContextualGainDataset(PoissonGeneratorDataset):
             images = torch.poisson(images)
 
         winner = g_img.argmax(dim=-1)
-        labels = layer_labels[torch.arange(B, device=device), winner]
+        digit = layer_labels[torch.arange(B, device=device), winner]
+        ctx_scalar = None
 
         if use_context:
             bits = torch.randint(
@@ -242,7 +272,8 @@ class ContextualGainDataset(PoissonGeneratorDataset):
             if self.context_poisson:
                 ctx = torch.poisson(ctx)
             images = torch.cat([images, ctx], dim=-1)
-            labels = (labels + ctx_scalar) % self.n_classes
+
+        labels = self._compose_label(digit, winner, ctx_scalar)
 
         if not batched:
             return images[0], labels[0]
