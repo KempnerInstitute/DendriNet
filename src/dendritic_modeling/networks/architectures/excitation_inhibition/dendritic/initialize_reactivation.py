@@ -642,6 +642,7 @@ def calibrate_reactivation_from_data(
                     "additive_relu_s_e": scale_fit.get("s_e"),
                     "additive_relu_s_i": scale_fit.get("s_i"),
                     "additive_relu_s_u": scale_fit.get("s_u"),
+                    "additive_relu_g": scale_fit.get("g"),
                     "additive_relu_enforce_median_balance": enforce_median_balance,
                 }
             chunks = samples.get(name, [])

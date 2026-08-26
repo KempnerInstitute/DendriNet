@@ -1555,9 +1555,7 @@ class TestAdditiveReLUOccupancyScale:
         assert result["s_u"] is None
         assert mad_std(float(result["s_e"]) * E) == pytest.approx(1.0, rel=1e-4)
 
-    def test_identity_per_bank_scale_equalizes_madstd_budgets(self):
-        from math import sqrt
-
+    def test_identity_two_stage_equalizes_banks_and_unit_madstd_v(self):
         from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize_additive_relu_scale import (
             mad_std,
             solve_additive_relu_scales,
@@ -1566,23 +1564,24 @@ class TestAdditiveReLUOccupancyScale:
         torch.manual_seed(2)
         E = torch.abs(torch.randn(20000)) * 2.0 + 1.0
         I = torch.abs(torch.randn(20000)) * 8.0 + 6.0
-        m_e = float(torch.median(E).item())
-        m_i = float(torch.median(I).item())
-        assert m_e != pytest.approx(m_i, rel=1e-2)
+        mad_e = mad_std(E)
+        mad_i = mad_std(I)
+        assert mad_e != pytest.approx(mad_i, rel=1e-2)
 
         result = solve_additive_relu_scales(
             E, I, None, enforce_median_balance=False
         )
         assert result["reverted"] is False
-        assert result["s_e"] != pytest.approx(result["s_i"], rel=1e-2)
+        assert result["case"] == "e_i"
+        assert result["g"] is not None
         s_e = float(result["s_e"])
         s_i = float(result["s_i"])
-        target = 1.0 / sqrt(2.0)
-        assert mad_std(s_e * E) == pytest.approx(target, rel=1e-4)
-        assert mad_std(s_i * I) == pytest.approx(target, rel=1e-4)
-        assert torch.median(s_e * E).item() != pytest.approx(
-            torch.median(s_i * I).item(), rel=1e-2
-        )
+        g = float(result["g"])
+        # Stage-1 equalization: relative scales cancel global g.
+        assert s_e / s_i == pytest.approx(mad_i / mad_e, rel=1e-4)
+        assert mad_std(s_e * E) == pytest.approx(mad_std(s_i * I), rel=1e-4)
+        assert mad_std(s_e * E - s_i * I) == pytest.approx(1.0, rel=1e-4)
+        assert mad_std(s_e * E) == pytest.approx(g, rel=1e-4)
 
     def test_integration_softplus_relu_occupancy_scales_voltage(self):
         model, layer, batches = _build_calibration_fixture(
@@ -1628,6 +1627,55 @@ class TestAdditiveReLUOccupancyScale:
         v = torch.cat(samples)
         assert mad_std(v) == pytest.approx(1.0, abs=0.08)
         assert float(torch.median(v).item()) == pytest.approx(0.0, abs=0.08)
+
+    def test_integration_identity_relu_two_stage_occupancy(self):
+        from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize_additive_relu_scale import (
+            mad_std,
+        )
+
+        model, layer, batches = _build_calibration_fixture(
+            use_shunting=False,
+            seed=31,
+            reactivation_type="relu",
+            reactivation_init_policy="occupancy_quantile",
+            dbl_init_method="kaiming",
+            weight_transform="identity",
+        )
+        assert isinstance(layer.reactivation, torch.nn.ReLU)
+
+        diag = calibrate_reactivation_from_data(model, batches, mode=None)
+        stats = next(iter(diag.values()))
+        assert stats["mode"] == "occupancy_quantile"
+        assert stats["calibration_reverted"] is False
+        assert stats["additive_relu_case"] == "e_i"
+        assert stats["additive_relu_enforce_median_balance"] is False
+        assert stats["additive_relu_g"] is not None
+
+        with torch.no_grad():
+            layer._store_analysis_currents = True
+            e_chunks, i_chunks, v_chunks = [], [], []
+            try:
+                handle = layer.reactivation.register_forward_pre_hook(
+                    lambda _mod, inputs: v_chunks.append(
+                        inputs[0].detach().reshape(-1).double()
+                    )
+                )
+                try:
+                    for x, inh in batches:
+                        _ = model(x, inh)
+                        currents = layer._last_analysis_currents
+                        e_chunks.append(currents["excitation"].detach().reshape(-1))
+                        i_chunks.append(currents["inhibition"].detach().reshape(-1))
+                finally:
+                    handle.remove()
+            finally:
+                layer._store_analysis_currents = False
+
+        E = torch.cat(e_chunks).double()
+        I = torch.cat(i_chunks).double()
+        V = torch.cat(v_chunks)
+        assert mad_std(E) == pytest.approx(mad_std(I), abs=0.12)
+        assert mad_std(V) == pytest.approx(1.0, abs=0.12)
 
     def test_param_relu_occupancy_regression_still_sets_b(self):
         """ParametricReLU occupancy path must remain quantile-b (not weight scaling)."""
