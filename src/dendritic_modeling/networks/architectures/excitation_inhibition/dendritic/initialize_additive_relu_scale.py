@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from math import isfinite, log, sqrt
+from math import isfinite, log
 from typing import Any
 
 import torch
@@ -40,6 +40,102 @@ def _positive_finite(value: float, floor: float = _SCALE_FLOOR) -> bool:
     return isfinite(value) and value > floor
 
 
+def _solve_two_stage_mad_scales(
+    E: torch.Tensor | None,
+    I: torch.Tensor | None,
+    U: torch.Tensor | None,
+    *,
+    case: str,
+    has_e: bool,
+    has_i: bool,
+    has_u: bool,
+) -> dict[str, Any]:
+    """Two-stage MAD scales for identity additive ReLU occupancy.
+
+    Stage 1 sets each bank madstd to 1. Stage 2 (multi-bank only) applies a
+    global ``g`` so analytic ``madstd(V)≈1`` with ``V = E - I [+ U]``.
+    """
+    none_scales = {"s_e": None, "s_i": None, "s_u": None, "g": None}
+    bank_tensors = {
+        "s_e": E if has_e else None,
+        "s_i": I if has_i else None,
+        "s_u": U if has_u else None,
+    }
+    stage1: dict[str, float | None] = {
+        "s_e": None,
+        "s_i": None,
+        "s_u": None,
+    }
+    for key, tensor in bank_tensors.items():
+        if tensor is None:
+            continue
+        bank_mad = mad_std(tensor)
+        if not _positive_finite(bank_mad):
+            return {
+                **none_scales,
+                "case": case,
+                "reverted": True,
+                "revert_reason": "tiny_madstd",
+            }
+        stage1[key] = 1.0 / bank_mad
+
+    n_sources = int(has_e) + int(has_i) + int(has_u)
+    if n_sources <= 1:
+        return {
+            **stage1,
+            "g": 1.0,
+            "case": case,
+            "reverted": False,
+            "revert_reason": "none",
+        }
+
+    s_e = stage1["s_e"]
+    s_i = stage1["s_i"]
+    s_u = stage1["s_u"]
+    if case == "e_i":
+        assert s_e is not None and s_i is not None and E is not None and I is not None
+        unit = s_e * E - s_i * I
+    elif case == "e_u":
+        assert s_e is not None and s_u is not None and E is not None and U is not None
+        unit = s_e * E + s_u * U
+    elif case == "e_i_u":
+        assert (
+            s_e is not None
+            and s_i is not None
+            and s_u is not None
+            and E is not None
+            and I is not None
+            and U is not None
+        )
+        unit = s_e * E - s_i * I + s_u * U
+    else:
+        return {
+            **none_scales,
+            "case": case,
+            "reverted": True,
+            "revert_reason": "no_current_banks",
+        }
+
+    unit_mad = mad_std(unit)
+    if not _positive_finite(unit_mad):
+        return {
+            **none_scales,
+            "case": case,
+            "reverted": True,
+            "revert_reason": "tiny_madstd",
+        }
+    g = 1.0 / unit_mad
+    return {
+        "s_e": None if s_e is None else s_e * g,
+        "s_i": None if s_i is None else s_i * g,
+        "s_u": None if s_u is None else s_u * g,
+        "g": g,
+        "case": case,
+        "reverted": False,
+        "revert_reason": "none",
+    }
+
+
 def solve_additive_relu_scales(
     E: torch.Tensor | None,
     I: torch.Tensor | None,
@@ -49,8 +145,14 @@ def solve_additive_relu_scales(
 ) -> dict[str, Any]:
     """Solve positive scales for additive ReLU current calibration.
 
+    When ``enforce_median_balance`` is False (identity), uses two-stage MAD
+    equalization: per-bank madstd→1, then a global ``g`` so analytic
+    ``madstd(V)≈1``. When True (softplus/exp), balances bank medians then
+    scales so ``madstd(V)≈1``.
+
     Returns a dict with ``s_e``, ``s_i``, ``s_u`` (``None`` if unused),
-    ``case``, ``reverted``, and ``revert_reason``.
+    ``case``, ``reverted``, and ``revert_reason``. The identity path also
+    includes ``g`` (``1.0`` for single-bank).
     """
     has_e = E is not None and E.numel() > 0 and torch.isfinite(E).any()
     has_i = I is not None and I.numel() > 0 and torch.isfinite(I).any()
@@ -77,38 +179,15 @@ def solve_additive_relu_scales(
         }
 
     if not enforce_median_balance:
-        # Per-bank MAD-std budgets: madstd(s_x X) = 1/sqrt(n_sources) so that
-        # under independence Var(V) ≈ sum madstd^2 = 1.
-        n_sources = int(has_e) + int(has_i) + int(has_u)
-        target_mad = 1.0 / sqrt(n_sources)
-        bank_tensors = {
-            "s_e": E if has_e else None,
-            "s_i": I if has_i else None,
-            "s_u": U if has_u else None,
-        }
-        scales: dict[str, float | None] = {
-            "s_e": None,
-            "s_i": None,
-            "s_u": None,
-        }
-        for key, tensor in bank_tensors.items():
-            if tensor is None:
-                continue
-            bank_mad = mad_std(tensor)
-            if not _positive_finite(bank_mad):
-                return {
-                    **none_scales,
-                    "case": case,
-                    "reverted": True,
-                    "revert_reason": "tiny_madstd",
-                }
-            scales[key] = target_mad / bank_mad
-        return {
-            **scales,
-            "case": case,
-            "reverted": False,
-            "revert_reason": "none",
-        }
+        return _solve_two_stage_mad_scales(
+            E,
+            I,
+            U,
+            case=case,
+            has_e=has_e,
+            has_i=has_i,
+            has_u=has_u,
+        )
 
     if case == "e_i_u":
         m_e, m_i, m_u = _median(E), _median(I), _median(U)
