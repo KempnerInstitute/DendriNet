@@ -172,14 +172,14 @@ class DatasetParamsConfig(BaseConfig):
             "max_gain_factor": 1.0,
             "gain_sampling": "log_uniform",
             "region_poisson": True,
-            "n_context_bits": 0,
+            "n_context_latents": 0,
             "context_dim": 50,
-            "context_rule": "bit_id",
             "context_seed": 0,
             "context_gain": False,
             "context_poisson": False,
             "context_distractor_scale": 0.0,
             "region_in_label": True,
+            "compositional_ood": False,
         }
     )
 
