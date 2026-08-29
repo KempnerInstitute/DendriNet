@@ -17,18 +17,17 @@ class ContextualGainDataset(PoissonGeneratorDataset):
     independent gain on ``[min_gain_factor, max_gain_factor]`` (or ``_max_gf`` in place
     of ``max_gain_factor`` when set). Regions are concatenated along ``dim=-1``.
 
-    Optional context bits are mapped to a one-hot ``context_id`` of length
-    ``n_context_ids`` (``2**k`` for ``bit_id``, ``2`` for ``xor``), then
-    embedded with a fixed projection ``W`` of shape
-    ``(n_context_ids, context_dim)``. Every bit pattern, including all zeros,
-    selects exactly one row of ``W``. Optional distractor noise
+    Optional context latents (``n_context_latents > 0``) sample a uniform integer
+    id in ``0 .. n_context_latents-1``, one-hot encode it, and embed with a fixed
+    projection ``W`` of shape ``(n_context_latents, context_dim)``. Every id,
+    including zero, selects exactly one row of ``W``. Optional distractor noise
     (``context_distractor_scale`` in ``[0, 1)``) is mixed in before optional
     gain-scaling and Poisson sampling, then concatenated after the image stream.
     Labels use the max-gain region's class ``d`` and optional 0-based region
-    index ``r*`` / bit-context scalar ``c`` (from ``context_rule``):
+    index ``r*`` / context-latent scalar ``c``:
 
     * neither: ``y = d``
-    * bits only (``region_in_label=False``): ``y = (d + c) mod n_classes``
+    * latents only (``region_in_label=False``): ``y = (d + c) mod n_classes``
     * ``r*`` only: ``y = (d + r*) mod n_classes``
     * both (default): ``y = (-((d + r*) mod n_classes) + c) mod n_classes``
 
@@ -46,9 +45,8 @@ class ContextualGainDataset(PoissonGeneratorDataset):
         max_gain_factor: float = 1.0,
         gain_sampling: str = "log_uniform",
         region_poisson: bool = True,
-        n_context_bits: int = 0,
+        n_context_latents: int = 0,
         context_dim: int = 50,
-        context_rule: str = "bit_id",
         context_seed: int = 0,
         context_gain: bool = False,
         context_poisson: bool = False,
@@ -67,16 +65,10 @@ class ContextualGainDataset(PoissonGeneratorDataset):
                 f"size ({n_pool})"
             )
 
-        n_context_bits = int(n_context_bits)
-        if n_context_bits < 0:
+        n_context_latents = int(n_context_latents)
+        if n_context_latents < 0:
             raise ValueError(
-                f"n_context_bits must be >= 0, got {n_context_bits}"
-            )
-        context_rule = str(context_rule).strip().lower()
-        if context_rule not in {"bit_id", "xor"}:
-            raise ValueError(
-                "context_rule must be 'bit_id' or 'xor', "
-                f"got {context_rule!r}"
+                f"n_context_latents must be >= 0, got {n_context_latents}"
             )
         context_distractor_scale = float(context_distractor_scale)
         if not (0.0 <= context_distractor_scale < 1.0):
@@ -85,16 +77,16 @@ class ContextualGainDataset(PoissonGeneratorDataset):
                 f"got {context_distractor_scale}"
             )
 
-        if n_context_bits > 0:
+        if n_context_latents > 0:
             context_dim = int(context_dim)
             if context_dim < 1:
                 raise ValueError(
-                    f"context_dim must be >= 1 when n_context_bits > 0, "
+                    f"context_dim must be >= 1 when n_context_latents > 0, "
                     f"got {context_dim}"
                 )
             if base_inputs.ndim != 2:
                 raise ValueError(
-                    "ContextualGainDataset with n_context_bits > 0 requires "
+                    "ContextualGainDataset with n_context_latents > 0 requires "
                     f"flattened base_inputs (ndim == 2), got ndim={base_inputs.ndim}"
                 )
 
@@ -113,9 +105,8 @@ class ContextualGainDataset(PoissonGeneratorDataset):
         )
         self.n_regions = n_regions
         self.region_poisson = bool(region_poisson)
-        self.n_context_bits = n_context_bits
+        self.n_context_latents = n_context_latents
         self.context_dim = int(context_dim)
-        self.context_rule = context_rule
         self.context_seed = int(context_seed)
         self.context_gain = bool(context_gain)
         self.context_poisson = bool(context_poisson)
@@ -123,17 +114,12 @@ class ContextualGainDataset(PoissonGeneratorDataset):
         self.region_in_label = bool(region_in_label)
         self.n_classes = int(base_labels.max().item()) + 1
 
-        if n_context_bits > 0:
-            if self.context_rule == "xor":
-                self.n_context_ids = 2
-            else:
-                self.n_context_ids = 2 ** n_context_bits
+        if n_context_latents > 0:
             g = torch.Generator().manual_seed(self.context_seed)
             self.context_projection = torch.rand(
-                self.n_context_ids, self.context_dim, generator=g
+                self.n_context_latents, self.context_dim, generator=g
             )
         else:
-            self.n_context_ids = 0
             self.context_projection = None
 
     @staticmethod
@@ -174,19 +160,9 @@ class ContextualGainDataset(PoissonGeneratorDataset):
             return float(max_gain.detach().cpu().item())
         return float(max_gain)
 
-    def _context_scalar(self, bits: torch.Tensor) -> torch.Tensor:
-        """Map bit patterns ``(B, k)`` to discrete context scalars ``(B,)``."""
-        if self.context_rule == "xor":
-            return bits.sum(dim=-1) % 2
-        # bit_id: MSB-first integer encode
-        k = bits.shape[-1]
-        powers = (2 ** torch.arange(k - 1, -1, -1, device=bits.device)).to(bits.dtype)
-        return (bits * powers).sum(dim=-1)
-
-    def _context_id(self, bits: torch.Tensor) -> torch.Tensor:
-        """One-hot encode bit patterns to ``(B, n_context_ids)``."""
-        ctx_scalar = self._context_scalar(bits).long()
-        return F.one_hot(ctx_scalar, self.n_context_ids).to(dtype=bits.dtype)
+    def _context_id(self, ids: torch.Tensor) -> torch.Tensor:
+        """One-hot encode latent ids to ``(B, n_context_latents)``."""
+        return F.one_hot(ids.long().reshape(-1), self.n_context_latents)
 
     def _compose_label(
         self,
@@ -194,7 +170,7 @@ class ContextualGainDataset(PoissonGeneratorDataset):
         region_id: torch.Tensor,
         ctx_scalar: torch.Tensor | None,
     ) -> torch.Tensor:
-        """Compose ``d``, optional ``r*``, and optional bit-context scalar ``c``.
+        """Compose ``d``, optional ``r*``, and optional context-latent scalar ``c``.
 
         Nonnegative residues via ``%`` (same as ``torch.remainder`` for ``n > 0``).
         """
@@ -214,7 +190,7 @@ class ContextualGainDataset(PoissonGeneratorDataset):
         n_pool = int(self.base_inputs.shape[0])
         device = self.base_inputs.device
         n_regions = self.n_regions
-        use_context = self.n_context_bits > 0
+        use_context = self.n_context_latents > 0
         use_context_gain = use_context and self.context_gain
 
         primary = self._primary_indices(idx, n_pool, device)
@@ -257,12 +233,11 @@ class ContextualGainDataset(PoissonGeneratorDataset):
         ctx_scalar = None
 
         if use_context:
-            bits = torch.randint(
-                0, 2, (B, self.n_context_bits), device=device, dtype=layer_inputs.dtype
+            ctx_scalar = torch.randint(
+                0, self.n_context_latents, (B,), device=device
             )
             W = self.context_projection.to(device=device, dtype=layer_inputs.dtype)
-            context_id = self._context_id(bits)
-            ctx_scalar = context_id.argmax(dim=-1)
+            context_id = self._context_id(ctx_scalar).to(dtype=layer_inputs.dtype)
             ctx = context_id @ W
             if self.context_distractor_scale > 0:
                 scale = self.context_distractor_scale

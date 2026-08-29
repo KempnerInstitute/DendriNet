@@ -13,9 +13,8 @@ def _make_dataset(
     max_gain_factor: float = 1.0,
     gain_sampling: str = "linear_uniform",
     region_poisson: bool = False,
-    n_context_bits: int = 0,
+    n_context_latents: int = 0,
     context_dim: int = 50,
-    context_rule: str = "bit_id",
     context_seed: int = 0,
     context_gain: bool = False,
     context_poisson: bool = False,
@@ -35,9 +34,8 @@ def _make_dataset(
         max_gain_factor=max_gain_factor,
         gain_sampling=gain_sampling,
         region_poisson=region_poisson,
-        n_context_bits=n_context_bits,
+        n_context_latents=n_context_latents,
         context_dim=context_dim,
-        context_rule=context_rule,
         context_seed=context_seed,
         context_gain=context_gain,
         context_poisson=context_poisson,
@@ -205,7 +203,7 @@ def test_region_poisson_flag():
 def test_context_appends_dims_and_seeded_projection_matches():
     ds_a = _make_dataset(
         n_regions=2,
-        n_context_bits=2,
+        n_context_latents=4,
         context_dim=50,
         context_seed=7,
         context_gain=False,
@@ -214,7 +212,7 @@ def test_context_appends_dims_and_seeded_projection_matches():
     )
     ds_b = _make_dataset(
         n_regions=2,
-        n_context_bits=2,
+        n_context_latents=4,
         context_dim=50,
         context_seed=7,
         context_gain=False,
@@ -222,7 +220,7 @@ def test_context_appends_dims_and_seeded_projection_matches():
         context_poisson=False,
     )
     assert torch.equal(ds_a.context_projection, ds_b.context_projection)
-    assert ds_a.n_context_ids == 4
+    assert ds_a.n_context_latents == 4
     assert ds_a.context_projection.shape == (4, 50)
     assert torch.all(ds_a.context_projection >= 0)
     assert torch.all(ds_a.context_projection < 1.0)
@@ -231,42 +229,24 @@ def test_context_appends_dims_and_seeded_projection_matches():
     assert x.shape == (2 * 4 + 50,)
 
 
-def test_xor_projection_shape_is_two_rows():
+def test_context_id_is_never_all_zero():
+    ds = _make_dataset(
+        n_context_latents=4,
+        context_dim=8,
+        region_poisson=False,
+    )
+    for latent_id in range(4):
+        ids = torch.tensor([latent_id], dtype=torch.long)
+        cid = ds._context_id(ids)
+        assert cid.shape == (1, 4)
+        assert torch.all((cid == 0) | (cid == 1))
+        assert int(cid.sum().item()) == 1
+
+
+def test_latent_id_zero_selects_w0(monkeypatch):
     ds = _make_dataset(
         n_regions=2,
-        n_context_bits=3,
-        context_dim=8,
-        context_rule="xor",
-        region_poisson=False,
-        context_poisson=False,
-    )
-    assert ds.n_context_ids == 2
-    assert ds.context_projection.shape == (2, 8)
-    assert torch.all(ds.context_projection >= 0)
-    assert torch.all(ds.context_projection < 1.0)
-
-
-def test_context_id_is_never_all_zero():
-    for rule, n_ids in (("bit_id", 4), ("xor", 2)):
-        ds = _make_dataset(
-            n_context_bits=2,
-            context_dim=8,
-            context_rule=rule,
-            region_poisson=False,
-        )
-        for b0 in (0.0, 1.0):
-            for b1 in (0.0, 1.0):
-                bits = torch.tensor([[b0, b1]], dtype=torch.float32)
-                cid = ds._context_id(bits)
-                assert cid.shape == (1, n_ids)
-                assert torch.all((cid == 0) | (cid == 1))
-                assert int(cid.sum().item()) == 1
-
-
-def test_all_zero_bits_select_w0(monkeypatch):
-    kwargs = dict(
-        n_regions=2,
-        n_context_bits=2,
+        n_context_latents=4,
         context_dim=8,
         context_gain=False,
         region_poisson=False,
@@ -275,51 +255,30 @@ def test_all_zero_bits_select_w0(monkeypatch):
     monkeypatch.setattr(
         torch,
         "randint",
-        lambda *args, **kwargs: torch.zeros(1, 2, dtype=torch.float32),
+        lambda *args, **kwargs: torch.zeros(1, dtype=torch.long),
     )
-
-    ds_bit = _make_dataset(context_rule="bit_id", **kwargs)
-    cid = ds_bit._context_id(torch.zeros(1, 2))
-    assert torch.equal(cid, torch.tensor([[1.0, 0.0, 0.0, 0.0]]))
-    x, _ = ds_bit[0]
-    assert torch.allclose(x[-8:], ds_bit.context_projection[0])
-
-    ds_xor = _make_dataset(context_rule="xor", **kwargs)
-    cid = ds_xor._context_id(torch.zeros(1, 2))
-    assert torch.equal(cid, torch.tensor([[1.0, 0.0]]))
-    x, _ = ds_xor[0]
-    assert torch.allclose(x[-8:], ds_xor.context_projection[0])
+    cid = ds._context_id(torch.zeros(1, dtype=torch.long))
+    assert torch.equal(cid, torch.tensor([[1, 0, 0, 0]]))
+    x, _ = ds[0]
+    assert torch.allclose(x[-8:], ds.context_projection[0])
 
 
 def test_context_stream_selects_one_w_row(monkeypatch):
-    kwargs = dict(
+    ds = _make_dataset(
         n_regions=2,
-        n_context_bits=2,
+        n_context_latents=4,
         context_dim=8,
         context_gain=False,
         region_poisson=False,
         context_poisson=False,
     )
-
-    ds_bit = _make_dataset(context_rule="bit_id", **kwargs)
-    # bits [1, 0] -> bit_id 2
     monkeypatch.setattr(
         torch,
         "randint",
-        lambda *args, **kwargs: torch.tensor([[1.0, 0.0]], dtype=torch.float32),
+        lambda *args, **kwargs: torch.tensor([2], dtype=torch.long),
     )
-    x, _ = ds_bit[0]
-    assert torch.allclose(x[-8:], ds_bit.context_projection[2])
-
-    ds_xor = _make_dataset(context_rule="xor", **kwargs)
-    # bits [1, 1] -> xor 0 (same row as all-zero)
-    monkeypatch.setattr(
-        torch,
-        "randint",
-        lambda *args, **kwargs: torch.tensor([[1.0, 1.0]], dtype=torch.float32),
-    )
-    x, _ = ds_xor[0]
-    assert torch.allclose(x[-8:], ds_xor.context_projection[0])
+    x, _ = ds[0]
+    assert torch.allclose(x[-8:], ds.context_projection[2])
 
 
 def test_context_gain_extends_gain_sample_shape(monkeypatch):
@@ -337,7 +296,7 @@ def test_context_gain_extends_gain_sample_shape(monkeypatch):
 
     ds_on = _make_dataset(
         n_regions=3,
-        n_context_bits=2,
+        n_context_latents=4,
         context_dim=8,
         context_gain=True,
         region_poisson=False,
@@ -348,7 +307,7 @@ def test_context_gain_extends_gain_sample_shape(monkeypatch):
 
     ds_off = _make_dataset(
         n_regions=3,
-        n_context_bits=2,
+        n_context_latents=4,
         context_dim=8,
         context_gain=False,
         region_poisson=False,
@@ -358,12 +317,11 @@ def test_context_gain_extends_gain_sample_shape(monkeypatch):
     assert captured["shape"] == (8, 3)
 
 
-def test_bit_id_label_remap(monkeypatch):
+def test_latent_id_label_remap(monkeypatch):
     ds = _make_dataset(
         n_regions=2,
-        n_context_bits=2,
+        n_context_latents=4,
         context_dim=8,
-        context_rule="bit_id",
         context_gain=False,
         region_poisson=False,
         context_poisson=False,
@@ -388,68 +346,15 @@ def test_bit_id_label_remap(monkeypatch):
         "_sample_gain_singlestage",
         staticmethod(fixed_gains),
     )
-    # bits [1, 0] -> bit_id 2
     monkeypatch.setattr(
         torch,
         "randint",
-        lambda *args, **kwargs: torch.tensor([[1.0, 0.0]], dtype=torch.float32),
+        lambda *args, **kwargs: torch.tensor([2], dtype=torch.long),
     )
 
     _, y = ds[0]
     # digit 0 + ctx 2
     assert int(y.item()) == 2
-
-
-def test_xor_label_remap(monkeypatch):
-    ds = _make_dataset(
-        n_regions=2,
-        n_context_bits=2,
-        context_dim=8,
-        context_rule="xor",
-        context_gain=False,
-        region_poisson=False,
-        context_poisson=False,
-        n_samples=10,
-        region_in_label=False,
-    )
-    # labels 0..9 so mod wraps meaningfully
-    ds.base_labels = torch.arange(10, dtype=torch.long)
-    ds.n_classes = 10
-
-    def fixed_layers(primary, *, n_layers):
-        cols = [primary]
-        for k in range(1, n_layers):
-            cols.append((primary + k) % len(ds))
-        return torch.stack(cols, dim=1)
-
-    def fixed_gains(min_g, max_g, *, gain_sampling, shape, dtype, device):
-        gains = torch.zeros(shape, dtype=dtype, device=device)
-        gains[..., 0] = 1.0
-        return gains
-
-    monkeypatch.setattr(ds, "_sample_layer_indices", fixed_layers)
-    monkeypatch.setattr(
-        ContextualGainDataset,
-        "_sample_gain_singlestage",
-        staticmethod(fixed_gains),
-    )
-    # bits [1, 1] -> xor 0; digit 3 -> label 3
-    monkeypatch.setattr(
-        torch,
-        "randint",
-        lambda *args, **kwargs: torch.tensor([[1.0, 1.0]], dtype=torch.float32),
-    )
-    _, y0 = ds[3]
-    assert int(y0.item()) == 3
-
-    # bits [1, 0] -> xor 1; digit 3 -> label 4
-    monkeypatch.setattr(
-        torch,
-        "randint",
-        lambda *args, **kwargs: torch.tensor([[1.0, 0.0]], dtype=torch.float32),
-    )
-    _, y1 = ds[3]
-    assert int(y1.item()) == 4
 
 
 def test_region_only_label_adds_r_star(monkeypatch):
@@ -490,13 +395,12 @@ def test_region_only_label_adds_r_star(monkeypatch):
     assert torch.equal(yb, torch.tensor([4, 5, 6]))
 
 
-def test_region_and_bits_use_path_indexed_nest(monkeypatch):
+def test_region_and_latents_use_path_indexed_nest(monkeypatch):
     ds = _make_dataset(
         n_regions=3,
         n_samples=10,
-        n_context_bits=1,
+        n_context_latents=2,
         context_dim=8,
-        context_rule="bit_id",
         context_gain=False,
         region_poisson=False,
         context_poisson=False,
@@ -519,11 +423,10 @@ def test_region_and_bits_use_path_indexed_nest(monkeypatch):
         "_sample_gain_singlestage",
         staticmethod(fixed_gains),
     )
-    # bits [1] → bit_id 1
     monkeypatch.setattr(
         torch,
         "randint",
-        lambda *args, **kwargs: torch.ones(1, 1, dtype=torch.float32),
+        lambda *args, **kwargs: torch.tensor([1], dtype=torch.long),
     )
 
     _, y = ds[0]
@@ -535,7 +438,7 @@ def test_context_poisson_only_affects_context_slice(monkeypatch):
     ds = _make_dataset(
         n_regions=2,
         n_features=4,
-        n_context_bits=2,
+        n_context_latents=4,
         context_dim=8,
         context_gain=False,
         region_poisson=False,
@@ -550,11 +453,10 @@ def test_context_poisson_only_affects_context_slice(monkeypatch):
         "_sample_gain_singlestage",
         staticmethod(fixed_gains),
     )
-    # Deterministic bits so ctx_vec is fixed before Poisson
     monkeypatch.setattr(
         torch,
         "randint",
-        lambda *args, **kwargs: torch.ones(args[2], dtype=torch.float32),
+        lambda *args, **kwargs: torch.zeros(1, dtype=torch.long),
     )
 
     torch.manual_seed(0)
@@ -578,7 +480,7 @@ def test_context_distractor_mixes_before_gain(monkeypatch):
     scale = 0.25
     ds = _make_dataset(
         n_regions=2,
-        n_context_bits=2,
+        n_context_latents=4,
         context_dim=8,
         context_gain=False,
         region_poisson=False,
@@ -588,7 +490,7 @@ def test_context_distractor_mixes_before_gain(monkeypatch):
     monkeypatch.setattr(
         torch,
         "randint",
-        lambda *args, **kwargs: torch.tensor([[1.0, 0.0]], dtype=torch.float32),
+        lambda *args, **kwargs: torch.tensor([2], dtype=torch.long),
     )
     monkeypatch.setattr(torch, "rand_like", lambda x: torch.ones_like(x))
 
