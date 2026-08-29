@@ -20,6 +20,7 @@ def _make_dataset(
     context_poisson: bool = False,
     context_distractor_scale: float = 0.0,
     region_in_label: bool = False,
+    compositional_ood: bool = False,
 ):
     base_inputs = torch.arange(
         n_samples * n_features, dtype=torch.float32
@@ -41,6 +42,7 @@ def _make_dataset(
         context_poisson=context_poisson,
         context_distractor_scale=context_distractor_scale,
         region_in_label=region_in_label,
+        compositional_ood=compositional_ood,
     )
 
 
@@ -497,3 +499,182 @@ def test_context_distractor_mixes_before_gain(monkeypatch):
     x, _ = ds[0]
     expected = (1.0 - scale) * ds.context_projection[2] + scale * torch.ones(8)
     assert torch.allclose(x[-8:], expected)
+
+
+def test_n_context_latents_one_disables_context_stream():
+    ds_off = _make_dataset(n_regions=2, n_context_latents=0, region_poisson=False)
+    ds_one = _make_dataset(
+        n_regions=2,
+        n_context_latents=1,
+        context_dim=8,
+        region_poisson=False,
+    )
+    x0, _ = ds_off[0]
+    x1, _ = ds_one[0]
+    assert ds_one.context_projection is None
+    assert not ds_one._ood_enabled
+    assert x1.shape == x0.shape == (8,)
+
+
+def test_compositional_ood_defaults_disabled():
+    ds = _make_dataset(n_regions=2, n_context_latents=4, region_poisson=False)
+    assert ds.compositional_ood is False
+    assert ds._ood_enabled is False
+    assert ds._ood_sampling is False
+    assert ds._is_ood is None
+
+
+def test_compositional_ood_split_covering_invariants():
+    ds = _make_dataset(
+        n_regions=2,
+        n_context_latents=4,
+        region_poisson=False,
+        compositional_ood=True,
+    )
+    assert ds._ood_enabled is True
+    assert ds._ood_sampling is False
+    assert ds._is_ood.shape == (2, 4)
+    assert ds._ood_ctx_idx.shape == (2, 1)
+    assert ds._id_ctx_idx.shape == (2, 3)
+    assert torch.equal(ds._ood_ctx_idx.squeeze(1), torch.tensor([0, 1]))
+    assert ds._is_ood.any(dim=1).all()
+    assert (~ds._is_ood).any(dim=1).all()
+    assert not ds._is_ood.all(dim=0).any()
+    n_regions, n_context = ds._is_ood.shape
+    for r in range(n_regions):
+        for c in range(n_context):
+            if not bool(ds._is_ood[r, c].item()):
+                continue
+            others = [i for i in range(n_regions) if i != r]
+            assert any(not bool(ds._is_ood[r_id, c].item()) for r_id in others)
+
+
+def test_sample_context_ids_respects_id_and_ood_tables():
+    ds = _make_dataset(
+        n_regions=2,
+        n_context_latents=4,
+        n_samples=16,
+        region_poisson=False,
+        compositional_ood=True,
+    )
+    winners = torch.tensor([0, 1] * 256, dtype=torch.long)
+    ctx_id = ds._sample_context_ids(winners)
+    assert torch.all(~ds._is_ood[winners, ctx_id])
+
+    ds._set_OOD_sampling(True)
+    ctx_ood = ds._sample_context_ids(winners)
+    assert torch.all(ds._is_ood[winners, ctx_ood])
+
+    ds._set_OOD_sampling(False)
+    ctx_id_again = ds._sample_context_ids(winners)
+    assert torch.all(~ds._is_ood[winners, ctx_id_again])
+    assert ds._ood_sampling is False
+
+
+def test_set_ood_sampling_is_noop_when_disabled():
+    ds_flag = _make_dataset(
+        n_regions=2,
+        n_context_latents=4,
+        region_poisson=False,
+        compositional_ood=False,
+    )
+    ds_flag._set_OOD_sampling(True)
+    assert ds_flag._ood_sampling is False
+
+    ds_regions = _make_dataset(
+        n_regions=1,
+        n_context_latents=4,
+        region_poisson=False,
+        compositional_ood=True,
+    )
+    ds_regions._set_OOD_sampling(True)
+    assert ds_regions._ood_enabled is False
+    assert ds_regions._ood_sampling is False
+
+    ds_latents = _make_dataset(
+        n_regions=2,
+        n_context_latents=1,
+        region_poisson=False,
+        compositional_ood=True,
+    )
+    ds_latents._set_OOD_sampling(True)
+    assert ds_latents._ood_enabled is False
+    assert ds_latents._ood_sampling is False
+
+
+def test_config_default_includes_compositional_ood_false():
+    from dendritic_modeling.config.config import DatasetParamsConfig
+
+    params = DatasetParamsConfig().contextual_gain
+    assert params["compositional_ood"] is False
+
+
+def test_wrap_and_options_forward_compositional_ood(monkeypatch):
+    from dendritic_modeling.datasets.standard_datasets import (
+        _load_contextual_gain_from_options,
+        _wrap_contextual_gain_dataset,
+    )
+    from dendritic_modeling.datasets.unified_options import _UnifiedDatasetOptions
+
+    class _Pair:
+        def __getitem__(self, idx):
+            return (
+                torch.arange(32, dtype=torch.float32).reshape(8, 4),
+                torch.arange(8, dtype=torch.long),
+            )
+
+    wrapped = _wrap_contextual_gain_dataset(
+        _Pair(),
+        n_regions=2,
+        min_gain_factor=0.01,
+        max_gain_factor=1.0,
+        gain_sampling="linear_uniform",
+        region_poisson=False,
+        n_context_latents=4,
+        context_dim=8,
+        context_seed=0,
+        context_gain=False,
+        context_poisson=False,
+        context_distractor_scale=0.0,
+        region_in_label=True,
+        compositional_ood=True,
+    )
+    assert wrapped.compositional_ood is True
+    assert wrapped._ood_enabled is True
+
+    captured = {}
+
+    def spy(**kwargs):
+        captured.update(kwargs)
+        return (None, None, None)
+
+    monkeypatch.setattr(
+        "dendritic_modeling.datasets.standard_datasets.load_contextual_gain_datasets",
+        spy,
+    )
+    options = _UnifiedDatasetOptions(
+        dataset_name="contextual_gain",
+        task_data_path=None,
+        parameters={"compositional_ood": True, "n_context_latents": 4},
+        train_valid_split=0.8,
+        flatten=True,
+        normalize=False,
+        base_dataset="mnist",
+        poisson_sampling=True,
+        stimulus_duration=1.0,
+        multiplicative_gain=True,
+        multiscale_gain=False,
+        n_groups_per_scale=None,
+        fixed_gain_factor=None,
+        min_gain_factor=None,
+        max_gain_factor=None,
+        max_gain_tau_ratio=None,
+        uniform_gain=True,
+        gain_sampling="log_uniform",
+        split_seed=0,
+        label_noise_rate=0.0,
+        label_noise_seed=0,
+    )
+    _load_contextual_gain_from_options(options)
+    assert captured["compositional_ood"] is True
+    assert captured["n_context_latents"] == 4

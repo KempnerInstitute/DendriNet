@@ -17,9 +17,10 @@ class ContextualGainDataset(PoissonGeneratorDataset):
     independent gain on ``[min_gain_factor, max_gain_factor]`` (or ``_max_gf`` in place
     of ``max_gain_factor`` when set). Regions are concatenated along ``dim=-1``.
 
-    Optional context latents (``n_context_latents > 0``) sample a uniform integer
+    Optional context latents (``n_context_latents >= 2``) sample a uniform integer
     id in ``0 .. n_context_latents-1``, one-hot encode it, and embed with a fixed
-    projection ``W`` of shape ``(n_context_latents, context_dim)``. Every id,
+    projection ``W`` of shape ``(n_context_latents, context_dim)``. Values ``0`` and
+    ``1`` disable the context stream (``context_projection`` is ``None``). Every id,
     including zero, selects exactly one row of ``W``. Optional distractor noise
     (``context_distractor_scale`` in ``[0, 1)``) is mixed in before optional
     gain-scaling and Poisson sampling, then concatenated after the image stream.
@@ -34,6 +35,11 @@ class ContextualGainDataset(PoissonGeneratorDataset):
     ``r*`` is label-only (not concatenated onto the input). Image and context
     Poisson are controlled separately via ``region_poisson`` and
     ``context_poisson`` (no duration/tau rescaling).
+
+    Optional ``compositional_ood`` holds out one ``(r*, c)`` pair per region so
+    training samples ID combinations and ``_set_OOD_sampling`` can switch to the
+    held-out pairs. The split is built only when ``compositional_ood`` is True,
+    ``n_context_latents >= 2``, and ``n_regions >= 2``.
     """
 
     def __init__(
@@ -52,6 +58,7 @@ class ContextualGainDataset(PoissonGeneratorDataset):
         context_poisson: bool = False,
         context_distractor_scale: float = 0.0,
         region_in_label: bool = True,
+        compositional_ood: bool = False,
     ):
         n_regions = int(n_regions)
         if n_regions < 1:
@@ -77,16 +84,17 @@ class ContextualGainDataset(PoissonGeneratorDataset):
                 f"got {context_distractor_scale}"
             )
 
-        if n_context_latents > 0:
+        use_context = n_context_latents >= 2
+        if use_context:
             context_dim = int(context_dim)
             if context_dim < 1:
                 raise ValueError(
-                    f"context_dim must be >= 1 when n_context_latents > 0, "
+                    f"context_dim must be >= 1 when n_context_latents >= 2, "
                     f"got {context_dim}"
                 )
             if base_inputs.ndim != 2:
                 raise ValueError(
-                    "ContextualGainDataset with n_context_latents > 0 requires "
+                    "ContextualGainDataset with n_context_latents >= 2 requires "
                     f"flattened base_inputs (ndim == 2), got ndim={base_inputs.ndim}"
                 )
 
@@ -112,15 +120,77 @@ class ContextualGainDataset(PoissonGeneratorDataset):
         self.context_poisson = bool(context_poisson)
         self.context_distractor_scale = context_distractor_scale
         self.region_in_label = bool(region_in_label)
+        self.compositional_ood = bool(compositional_ood)
         self.n_classes = int(base_labels.max().item()) + 1
 
-        if n_context_latents > 0:
+        if use_context:
             g = torch.Generator().manual_seed(self.context_seed)
             self.context_projection = torch.rand(
                 self.n_context_latents, self.context_dim, generator=g
             )
         else:
             self.context_projection = None
+
+        self._ood_enabled = (
+            self.compositional_ood and use_context and n_regions >= 2
+        )
+        self._ood_sampling = False
+        self._is_ood = None
+        self._ood_ctx_idx = None
+        self._id_ctx_idx = None
+        if self._ood_enabled:
+            self._build_context_split()
+
+    def _build_context_split(self) -> None:
+        """Hold out one context id per region; remaining ids are ID for that region."""
+        n_regions = self.n_regions
+        n_context = self.n_context_latents
+        ood_idx = (torch.arange(n_regions) % n_context).unsqueeze(1)
+        is_ood = torch.zeros(n_regions, n_context, dtype=torch.bool)
+        is_ood.scatter_(1, ood_idx, True)
+        id_idx = (~is_ood).nonzero(as_tuple=False)[:, 1].reshape(
+            n_regions, n_context - 1
+        )
+
+        if not bool(is_ood.any(dim=1).all().item()):
+            raise ValueError(
+                "compositional OOD split requires at least one OOD context "
+                f"per region (n_regions={n_regions}, "
+                f"n_context_latents={n_context})"
+            )
+        if not bool((~is_ood).any(dim=1).all().item()):
+            raise ValueError(
+                "compositional OOD split requires at least one ID context "
+                f"per region (n_regions={n_regions}, "
+                f"n_context_latents={n_context})"
+            )
+        if bool(is_ood.all(dim=0).any().item()):
+            raise ValueError(
+                "compositional OOD split requires every OOD context to be ID "
+                f"for at least one other region (n_regions={n_regions}, "
+                f"n_context_latents={n_context})"
+            )
+
+        self._is_ood = is_ood
+        self._ood_ctx_idx = ood_idx
+        self._id_ctx_idx = id_idx
+
+    def _set_OOD_sampling(self, ood: bool = True) -> None:
+        if self._ood_enabled:
+            self._ood_sampling = bool(ood)
+
+    def _sample_context_ids(self, winner: torch.Tensor) -> torch.Tensor:
+        """Sample context ids for each sample's winning region, shape ``(B,)``."""
+        B = int(winner.shape[0])
+        device = winner.device
+        if not self._ood_enabled:
+            return torch.randint(
+                0, self.n_context_latents, (B,), device=device
+            )
+        table = self._ood_ctx_idx if self._ood_sampling else self._id_ctx_idx
+        table = table.to(device=device)
+        choice = torch.randint(0, table.shape[1], (B,), device=device)
+        return table[winner, choice]
 
     @staticmethod
     def _primary_indices(idx, n_pool: int, device: torch.device) -> torch.Tensor:
@@ -190,7 +260,7 @@ class ContextualGainDataset(PoissonGeneratorDataset):
         n_pool = int(self.base_inputs.shape[0])
         device = self.base_inputs.device
         n_regions = self.n_regions
-        use_context = self.n_context_latents > 0
+        use_context = self.n_context_latents >= 2
         use_context_gain = use_context and self.context_gain
 
         primary = self._primary_indices(idx, n_pool, device)
@@ -233,9 +303,7 @@ class ContextualGainDataset(PoissonGeneratorDataset):
         ctx_scalar = None
 
         if use_context:
-            ctx_scalar = torch.randint(
-                0, self.n_context_latents, (B,), device=device
-            )
+            ctx_scalar = self._sample_context_ids(winner)
             W = self.context_projection.to(device=device, dtype=layer_inputs.dtype)
             context_id = self._context_id(ctx_scalar).to(dtype=layer_inputs.dtype)
             ctx = context_id @ W
