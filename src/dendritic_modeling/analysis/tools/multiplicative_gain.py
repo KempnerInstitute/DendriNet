@@ -24,7 +24,10 @@ from dendritic_modeling.analysis.utils.runtime import (
 )
 from dendritic_modeling.config import MultiplicativeGainAnalysisParams
 from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
-from dendritic_modeling.datasets.standard_datasets import PoissonGeneratorDataset
+from dendritic_modeling.datasets.standard_datasets import (
+    ContextualGainDataset,
+    PoissonGeneratorDataset,
+)
 from dendritic_modeling.models import BaseModel, Classifier, Regressor
 from dendritic_modeling.training.utils.evaluation import (
     evaluate_accuracy,
@@ -68,6 +71,7 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
         )
         self.mse = getattr(params, "mse", False)
         self.cosine_similarity = getattr(params, "cosine_similarity", False)
+        self.multiscale_gain = False
 
     def _apply_gain_to_inputs(
         self,
@@ -77,7 +81,7 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
         base_inputs: Optional[torch.Tensor] = None,
         base_labels: Optional[torch.Tensor] = None,
         device: str | torch.device | None = None,
-    ) -> torch.Tensor:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         def _preprocess_inputs(inputs: torch.Tensor) -> torch.Tensor:
             mode = self.input_preprocess
             if mode in {"none", "identity"}:
@@ -110,9 +114,9 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
             else:
                 dataset._set_max_gain_factor(gain_factor)
 
-            inputs = materialize_dataset(dataset, runtime, device=device)[0]
+            items = materialize_dataset(dataset, runtime, device=device)
             dataset._clear_gain()
-            return inputs
+            return items[0], items[1]
 
         else:
             inputs = (
@@ -144,9 +148,9 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
             else:
                 pg_ds._set_max_gain_factor(gain_factor)
 
-            inputs = materialize_dataset(pg_ds, runtime, device=device)[0]
+            items = materialize_dataset(pg_ds, runtime, device=device)
             pg_ds._clear_gain()
-            return inputs
+            return items[0], items[1]
 
     def analyze(
         self,
@@ -168,6 +172,8 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
         self.multiscale_gain = False
         if isinstance(test_dataset, PoissonGeneratorDataset):
             self.multiscale_gain = test_dataset.multiscale_gain
+        if isinstance(test_dataset, ContextualGainDataset):
+            self.multiscale_gain = True
 
         id_dict, ood_lower_dict, ood_upper_dict = self._evaluate_gain_metrics(
             model,
@@ -305,7 +311,7 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
                 )
 
             def _scaled_dataset_for_gain(gain_factor: float):
-                scaled_test_inputs = self._apply_gain_to_inputs(
+                scaled_test_inputs, scaled_test_labels = self._apply_gain_to_inputs(
                     test_dataset,
                     gain_factor,
                     runtime,
@@ -314,7 +320,8 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
                     device=analysis_device,
                 )
                 scaled_test_inputs = scaled_test_inputs.to(analysis_device)
-                return TensorDataset(scaled_test_inputs, test_labels)
+                scaled_test_labels = scaled_test_labels.to(analysis_device)
+                return TensorDataset(scaled_test_inputs, scaled_test_labels)
 
             def _evaluate_metric(
                 metric_func: Callable,
