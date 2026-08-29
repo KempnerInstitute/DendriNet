@@ -101,7 +101,7 @@ class ContextualGainDataset(PoissonGeneratorDataset):
         super().__init__(
             base_inputs,
             base_labels,
-            multiplicative_gain=False,
+            multiplicative_gain=True,
             multiscale_gain=False,
             group_components=None,
             fixed_gain_factor=None,
