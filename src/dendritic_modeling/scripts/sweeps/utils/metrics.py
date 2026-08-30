@@ -12,6 +12,12 @@ METRIC_MAPPING: dict[str, str] = {
     "train_categorical_loglikelihood": "Training Log-Likelihood",
     "valid_categorical_loglikelihood": "Validation Log-Likelihood",
     "test_categorical_loglikelihood": "Test Log-Likelihood",
+    "comp_ood_accuracy": "Compositional OOD Accuracy",
+    "comp_ood_auc": "Compositional OOD AUC",
+    "comp_ood_categorical_loglikelihood": "Compositional OOD Log-Likelihood",
+    "comp_ood_mse": "Compositional OOD MSE",
+    "comp_ood_cosine_similarity": "Compositional OOD Cosine Similarity",
+    "comp_ood_pred_label_mi_bits": "Compositional OOD Pred-Label MI",
     # Basic mutual information
     "mi_E_C": "I(E;C)",
     "mi_I_C": "I(I;C)",

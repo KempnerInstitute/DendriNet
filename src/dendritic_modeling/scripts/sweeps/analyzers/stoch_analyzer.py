@@ -7,6 +7,7 @@ import pandas as pd
 
 from ..plotters import (
     AblationPlotter,
+    CompositionalOODPlotter,
     InformationPlotter,
     MultiplicativeGainPlotter,
     NoisePlotter,
@@ -32,6 +33,7 @@ class StochasticDatasetSweepAnalyzer(BaseSweepAnalyzer):
         self.snr_plotter = SNRPlotter()
         self.noise_plotter = NoisePlotter()
         self.multiplicative_gain_plotter = MultiplicativeGainPlotter()
+        self.compositional_ood_plotter = CompositionalOODPlotter()
 
     def can_handle(self, results_dir: Path) -> bool:
         """
@@ -138,6 +140,9 @@ class StochasticDatasetSweepAnalyzer(BaseSweepAnalyzer):
         plot_paths.extend(
             self.multiplicative_gain_plotter.generate_all(data, output_dir)
         )
+
+        logger.info("Generating compositional OOD plots...")
+        plot_paths.extend(self.compositional_ood_plotter.generate_all(data, output_dir))
 
         # # Generate noise plots (if data available)
         # logger.info("Generating noise plots...")
