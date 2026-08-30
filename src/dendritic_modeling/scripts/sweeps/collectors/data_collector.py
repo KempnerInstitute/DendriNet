@@ -23,6 +23,7 @@ class DataCollector:
     #       ├── performance/final.json
     #       ├── information_analysis/final (no .json)
     #       ├── weight_analysis/final
+    #       ├── compositional_ood_analysis/final.json
     #       └── ...
 
     def __init__(self, results_dir: Path):
@@ -128,6 +129,7 @@ class DataCollector:
         params.update(self._load_ablation(config_dir))
         params.update(self._load_snr(config_dir))
         params.update(self._load_gain(config_dir))
+        params.update(self._load_compositional_ood(config_dir))
         params.update(self._load_noise(config_dir))
         params.update(self._load_nparams(config_dir))
 
@@ -482,6 +484,31 @@ class DataCollector:
             if metric in ood_upper_scores:
                 result[f"mult_gain_{metric}_ood_upper"] = ood_upper_scores[metric]
 
+        return result
+
+    def _load_compositional_ood(self, config_dir: Path) -> dict:
+        """Load compositional OOD analysis metrics.
+
+        Expects a flat ``{metric: float}`` payload from
+        ``CompositionalOODAnalyzer`` and prefixes columns with ``comp_ood_``.
+        """
+        ood_files = list(config_dir.rglob("compositional_ood_analysis/final.json"))
+        if not ood_files:
+            ood_files = list(config_dir.rglob("compositional_ood_analysis/final"))
+        if ood_files:
+            ood_file = ood_files[0]
+        else:
+            ood_file = config_dir / "compositional_ood_analysis" / "final"
+
+        data = self._load_json_file(ood_file)
+        if not data:
+            return {}
+
+        result = {}
+        for key, value in data.items():
+            if isinstance(value, (int, float)):
+                safe_key = key.replace(".", "_").replace(" ", "_")
+                result[f"comp_ood_{safe_key}"] = value
         return result
 
     def _load_noise(self, config_dir: Path) -> dict:

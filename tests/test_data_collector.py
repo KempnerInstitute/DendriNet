@@ -148,6 +148,35 @@ class TestDataCollector(unittest.TestCase):
         self.assertEqual(data["mult_gain_accuracy_ood_lower"], 0.2)
         self.assertEqual(data["mult_gain_accuracy_ood_upper"], 0.6)
 
+    def test_load_compositional_ood_flat_schema_exports_numeric_metrics(self):
+        """Flat compositional-OOD payloads should export prefixed numeric columns."""
+        collector = DataCollector(self.results_dir)
+        config_dir = self.results_dir / "results" / "config_0"
+
+        ood_dir = config_dir / "compositional_ood_analysis"
+        ood_dir.mkdir()
+        with open(ood_dir / "final.json", "w") as f:
+            json.dump(
+                {
+                    "accuracy": 0.81,
+                    "auc": 0.6,
+                    "nested": {"ignored": 1.0},
+                },
+                f,
+            )
+
+        data = collector._load_compositional_ood(config_dir)
+        self.assertEqual(data["comp_ood_accuracy"], 0.81)
+        self.assertEqual(data["comp_ood_auc"], 0.6)
+        self.assertNotIn("comp_ood_nested", data)
+
+    def test_load_compositional_ood_missing_file_returns_empty(self):
+        """Missing compositional-OOD results should not add columns."""
+        collector = DataCollector(self.results_dir)
+        config_dir = self.results_dir / "results" / "config_0"
+
+        self.assertEqual(collector._load_compositional_ood(config_dir), {})
+
 
 if __name__ == "__main__":
     unittest.main()
