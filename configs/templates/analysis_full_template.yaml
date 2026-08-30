@@ -240,6 +240,12 @@ analysis:
       mse: false                      # bool: Compute MSE after gain/noise.
       cosine_similarity: false        # bool: Compute cosine similarity after gain/noise.
 
+  compositional_ood:
+    enabled: false                    # bool: Score metrics on one frozen compositional-OOD draw.
+    training: false                   # bool: Also run during training snapshots.
+    params:
+      metrics: []                     # list[str]: "accuracy" | "auc" | "categorical_loglikelihood" | "mse" | "cosine_similarity" | "pred_label_mi_bits".
+
   synaptic_activation:
     enabled: false                    # bool: Analyze synaptic activation tensors.
     training: false                   # bool: Also run during training snapshots.

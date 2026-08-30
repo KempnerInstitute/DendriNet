@@ -864,6 +864,29 @@ class MultiplicativeGainAnalysisConfig(BaseConfig):
 
 
 @dataclass
+class CompositionalOODAnalysisParams(BaseConfig):
+    """Metrics to score on one frozen compositional-OOD draw.
+
+    Names match AblationAnalyzer: ``accuracy``, ``auc``,
+    ``categorical_loglikelihood``, ``mse``, ``cosine_similarity``,
+    ``pred_label_mi_bits``.
+    """
+
+    metrics: list[str] = field(default_factory=list)
+
+
+@dataclass
+class CompositionalOODAnalysisConfig(BaseConfig):
+    """Enable/disable compositional OOD performance analysis."""
+
+    enabled: bool = False
+    training: bool = False
+    params: CompositionalOODAnalysisParams = field(
+        default_factory=CompositionalOODAnalysisParams
+    )
+
+
+@dataclass
 class SynapticActivationAnalysisParams(BaseConfig):
     """Parameters for synaptic activation analysis.
 
@@ -1403,6 +1426,9 @@ class AnalysisConfig(BaseConfig):
     )
     multiplicative_gain_analysis: MultiplicativeGainAnalysisConfig = field(
         default_factory=MultiplicativeGainAnalysisConfig
+    )
+    compositional_ood_analysis: CompositionalOODAnalysisConfig = field(
+        default_factory=CompositionalOODAnalysisConfig
     )
     synaptic_activation_analysis: SynapticActivationAnalysisConfig = field(
         default_factory=SynapticActivationAnalysisConfig

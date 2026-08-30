@@ -20,6 +20,10 @@ _LAZY_IMPORTS = {
         "dendritic_modeling.analysis.core",
         "BranchActivationAnalyzer",
     ),
+    "CompositionalOODAnalyzer": (
+        "dendritic_modeling.analysis.tools.compositional_ood",
+        "CompositionalOODAnalyzer",
+    ),
     "CorrelationAnalyzer": (
         "dendritic_modeling.analysis.tools",
         "CorrelationAnalyzer",

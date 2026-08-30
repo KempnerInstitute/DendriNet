@@ -206,6 +206,10 @@ _POST_REACTIVATION_TEST_DATASET_ANALYSES = (
         pass_training=True,
     ),
     _TestDatasetAnalysisRunner(
+        "compositional_ood",
+        pass_training=True,
+    ),
+    _TestDatasetAnalysisRunner(
         "receptive_field",
         pass_training=True,
     ),

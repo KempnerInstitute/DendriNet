@@ -117,6 +117,13 @@ _BUILTIN_ANALYZERS: tuple[AnalyzerSpec, ...] = (
         save_subdir="multiplicative_gain_analysis",
     ),
     AnalyzerSpec(
+        name="compositional_ood",
+        config_field="compositional_ood_analysis",
+        class_path="dendritic_modeling.analysis.tools.compositional_ood.CompositionalOODAnalyzer",
+        attribute_name="compositional_ood_analyzer",
+        save_subdir="compositional_ood_analysis",
+    ),
+    AnalyzerSpec(
         name="receptive_field",
         config_field="receptive_field_analysis",
         class_path="dendritic_modeling.analysis.tools.receptive_fields.ReceptiveFieldAnalyzer",

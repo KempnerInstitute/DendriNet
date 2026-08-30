@@ -1,5 +1,6 @@
 """Reusable analysis tools for weights, routing, dynamics, and E/I motifs."""
 
+from .compositional_ood import CompositionalOODAnalyzer
 from .correlation_analysis import CorrelationAnalyzer
 from .dendritic_timetraces import DendriticTimetracesAnalyzer
 from .ei_connectivity_motifs import (
@@ -28,6 +29,7 @@ __all__ = [
     "LOCAL_RECURRENT_ROUTE_KEYS",
     "ROUTE_SPECS",
     "TARGETING_CLASS_ORDER",
+    "CompositionalOODAnalyzer",
     "CorrelationAnalyzer",
     "DendriticTimetracesAnalyzer",
     "InhibitorySpecializationAnalyzer",
