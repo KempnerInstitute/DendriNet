@@ -180,6 +180,7 @@ class DatasetParamsConfig(BaseConfig):
             "context_distractor_scale": 0.0,
             "region_in_label": True,
             "compositional_ood": False,
+            "compositional_ood_mode": "region",
         }
     )
 

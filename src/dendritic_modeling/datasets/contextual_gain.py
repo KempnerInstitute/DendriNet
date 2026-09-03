@@ -8,6 +8,8 @@ import torch.nn.functional as F
 
 from .poisson import PoissonGeneratorDataset
 
+_COMPOSITIONAL_OOD_MODES = frozenset({"region", "region_digit"})
+
 
 class ContextualGainDataset(PoissonGeneratorDataset):
     """Concatenate ``n_regions`` examples with independent gains; label by max gain.
@@ -36,10 +38,17 @@ class ContextualGainDataset(PoissonGeneratorDataset):
     Poisson are controlled separately via ``region_poisson`` and
     ``context_poisson`` (no duration/tau rescaling).
 
-    Optional ``compositional_ood`` holds out one ``(r*, c)`` pair per region so
-    training samples ID combinations and ``_set_OOD_sampling`` can switch to the
-    held-out pairs. The split is built only when ``compositional_ood`` is True,
-    ``n_context_latents >= 2``, and ``n_regions >= 2``.
+    Optional ``compositional_ood`` holds out contexts so training samples ID
+    combinations and ``_set_OOD_sampling`` can switch to the held-out pairs.
+    ``compositional_ood_mode`` selects the split:
+
+    * ``"region"`` (default): one ``(r*, c)`` pair per region
+    * ``"region_digit"``: one ``(r*, c)`` pair per ``(r*, d)``, with
+      ``ood[r, d] = (r + d) mod n_context_latents``
+
+    The split is built only when ``compositional_ood`` is True,
+    ``n_context_latents >= 2``, and ``n_regions >= 2``. Mode
+    ``"region_digit"`` additionally requires ``n_classes >= 2``.
     """
 
     def __init__(
@@ -59,6 +68,7 @@ class ContextualGainDataset(PoissonGeneratorDataset):
         context_distractor_scale: float = 0.0,
         region_in_label: bool = True,
         compositional_ood: bool = False,
+        compositional_ood_mode: str = "region",
     ):
         n_regions = int(n_regions)
         if n_regions < 1:
@@ -121,6 +131,14 @@ class ContextualGainDataset(PoissonGeneratorDataset):
         self.context_distractor_scale = context_distractor_scale
         self.region_in_label = bool(region_in_label)
         self.compositional_ood = bool(compositional_ood)
+        compositional_ood_mode = str(compositional_ood_mode)
+        if compositional_ood_mode not in _COMPOSITIONAL_OOD_MODES:
+            allowed = ", ".join(sorted(_COMPOSITIONAL_OOD_MODES))
+            raise ValueError(
+                "compositional_ood_mode must be one of "
+                f"{{{allowed}}}, got {compositional_ood_mode!r}"
+            )
+        self.compositional_ood_mode = compositional_ood_mode
         self.n_classes = int(base_labels.max().item()) + 1
 
         if use_context:
@@ -134,6 +152,8 @@ class ContextualGainDataset(PoissonGeneratorDataset):
         self._ood_enabled = (
             self.compositional_ood and use_context and n_regions >= 2
         )
+        if self.compositional_ood_mode == "region_digit":
+            self._ood_enabled = self._ood_enabled and self.n_classes >= 2
         self._ood_sampling = False
         self._is_ood = None
         self._ood_ctx_idx = None
@@ -142,34 +162,71 @@ class ContextualGainDataset(PoissonGeneratorDataset):
             self._build_context_split()
 
     def _build_context_split(self) -> None:
-        """Hold out one context id per region; remaining ids are ID for that region."""
+        """Hold out one context id per key; remaining ids are ID for that key."""
         n_regions = self.n_regions
         n_context = self.n_context_latents
-        ood_idx = (torch.arange(n_regions) % n_context).unsqueeze(1)
-        is_ood = torch.zeros(n_regions, n_context, dtype=torch.bool)
-        is_ood.scatter_(1, ood_idx, True)
-        id_idx = (~is_ood).nonzero(as_tuple=False)[:, 1].reshape(
-            n_regions, n_context - 1
-        )
+        if self.compositional_ood_mode == "region_digit":
+            n_classes = self.n_classes
+            r = torch.arange(n_regions).unsqueeze(1)
+            d = torch.arange(n_classes).unsqueeze(0)
+            ood_idx = ((r + d) % n_context).reshape(n_regions, n_classes, 1)
+            is_ood = torch.zeros(
+                n_regions, n_classes, n_context, dtype=torch.bool
+            )
+            is_ood.scatter_(-1, ood_idx, True)
+            id_idx = (~is_ood).nonzero(as_tuple=False)[:, -1].reshape(
+                n_regions, n_classes, n_context - 1
+            )
+            dims = (
+                f"n_regions={n_regions}, n_classes={n_classes}, "
+                f"n_context_latents={n_context}"
+            )
+            if not bool(is_ood.any(dim=-1).all().item()):
+                raise ValueError(
+                    "compositional OOD split requires at least one OOD "
+                    f"context per (region, digit) ({dims})"
+                )
+            if not bool((~is_ood).any(dim=-1).all().item()):
+                raise ValueError(
+                    "compositional OOD split requires at least one ID "
+                    f"context per (region, digit) ({dims})"
+                )
+            if not bool((~is_ood).any(dim=1).all().item()):
+                raise ValueError(
+                    "compositional OOD split requires every region to see "
+                    f"every context as ID for some digit ({dims})"
+                )
+            if not bool((~is_ood).any(dim=0).all().item()):
+                raise ValueError(
+                    "compositional OOD split requires every digit to see "
+                    f"every context as ID for some region ({dims})"
+                )
+        else:
+            ood_idx = (torch.arange(n_regions) % n_context).unsqueeze(1)
+            is_ood = torch.zeros(n_regions, n_context, dtype=torch.bool)
+            is_ood.scatter_(1, ood_idx, True)
+            id_idx = (~is_ood).nonzero(as_tuple=False)[:, 1].reshape(
+                n_regions, n_context - 1
+            )
 
-        if not bool(is_ood.any(dim=1).all().item()):
-            raise ValueError(
-                "compositional OOD split requires at least one OOD context "
-                f"per region (n_regions={n_regions}, "
-                f"n_context_latents={n_context})"
-            )
-        if not bool((~is_ood).any(dim=1).all().item()):
-            raise ValueError(
-                "compositional OOD split requires at least one ID context "
-                f"per region (n_regions={n_regions}, "
-                f"n_context_latents={n_context})"
-            )
-        if bool(is_ood.all(dim=0).any().item()):
-            raise ValueError(
-                "compositional OOD split requires every OOD context to be ID "
-                f"for at least one other region (n_regions={n_regions}, "
-                f"n_context_latents={n_context})"
-            )
+            if not bool(is_ood.any(dim=1).all().item()):
+                raise ValueError(
+                    "compositional OOD split requires at least one OOD context "
+                    f"per region (n_regions={n_regions}, "
+                    f"n_context_latents={n_context})"
+                )
+            if not bool((~is_ood).any(dim=1).all().item()):
+                raise ValueError(
+                    "compositional OOD split requires at least one ID context "
+                    f"per region (n_regions={n_regions}, "
+                    f"n_context_latents={n_context})"
+                )
+            if bool(is_ood.all(dim=0).any().item()):
+                raise ValueError(
+                    "compositional OOD split requires every OOD context to be ID "
+                    f"for at least one other region (n_regions={n_regions}, "
+                    f"n_context_latents={n_context})"
+                )
 
         self._is_ood = is_ood
         self._ood_ctx_idx = ood_idx
@@ -179,7 +236,11 @@ class ContextualGainDataset(PoissonGeneratorDataset):
         if self._ood_enabled:
             self._ood_sampling = bool(ood)
 
-    def _sample_context_ids(self, winner: torch.Tensor) -> torch.Tensor:
+    def _sample_context_ids(
+        self,
+        winner: torch.Tensor,
+        digit: torch.Tensor | None = None,
+    ) -> torch.Tensor:
         """Sample context ids for each sample's winning region, shape ``(B,)``."""
         B = int(winner.shape[0])
         device = winner.device
@@ -189,7 +250,9 @@ class ContextualGainDataset(PoissonGeneratorDataset):
             )
         table = self._ood_ctx_idx if self._ood_sampling else self._id_ctx_idx
         table = table.to(device=device)
-        choice = torch.randint(0, table.shape[1], (B,), device=device)
+        choice = torch.randint(0, table.shape[-1], (B,), device=device)
+        if self.compositional_ood_mode == "region_digit":
+            return table[winner, digit, choice]
         return table[winner, choice]
 
     @staticmethod
@@ -303,7 +366,7 @@ class ContextualGainDataset(PoissonGeneratorDataset):
         ctx_scalar = None
 
         if use_context:
-            ctx_scalar = self._sample_context_ids(winner)
+            ctx_scalar = self._sample_context_ids(winner, digit)
             W = self.context_projection.to(device=device, dtype=layer_inputs.dtype)
             context_id = self._context_id(ctx_scalar).to(dtype=layer_inputs.dtype)
             ctx = context_id @ W

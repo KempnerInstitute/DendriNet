@@ -1097,6 +1097,7 @@ def _wrap_contextual_gain_dataset(
     context_distractor_scale: float,
     region_in_label: bool,
     compositional_ood: bool,
+    compositional_ood_mode: str,
 ) -> ContextualGainDataset:
     """Wrap one tensor-like dataset with contextual multi-image gain overlay."""
     return ContextualGainDataset(
@@ -1114,6 +1115,7 @@ def _wrap_contextual_gain_dataset(
         context_distractor_scale=context_distractor_scale,
         region_in_label=region_in_label,
         compositional_ood=compositional_ood,
+        compositional_ood_mode=compositional_ood_mode,
     )
 
 
@@ -1132,6 +1134,7 @@ def load_contextual_gain_datasets(
     context_distractor_scale: float = 0.0,
     region_in_label: bool = True,
     compositional_ood: bool = False,
+    compositional_ood_mode: str = "region",
     train_valid_split: float = 0.8,
     flatten: bool = False,
     task_data_path: Optional[str] = None,
@@ -1171,6 +1174,7 @@ def load_contextual_gain_datasets(
         "context_distractor_scale": context_distractor_scale,
         "region_in_label": region_in_label,
         "compositional_ood": compositional_ood,
+        "compositional_ood_mode": compositional_ood_mode,
     }
     return (
         _wrap_contextual_gain_dataset(train_ds, **kwargs),
@@ -1211,6 +1215,7 @@ def _load_contextual_gain_from_options(
         context_distractor_scale=float(p.get("context_distractor_scale", 0.0)),
         region_in_label=bool(p.get("region_in_label", True)),
         compositional_ood=bool(p.get("compositional_ood", False)),
+        compositional_ood_mode=str(p.get("compositional_ood_mode", "region")),
         train_valid_split=options.train_valid_split,
         flatten=options.flatten,
         task_data_path=options.task_data_path,
