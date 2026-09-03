@@ -8,6 +8,9 @@ This directory contains the CLI and support code for parameter sweeps.
   analyze a finished sweep directory.
 - `result_analyzer.py`: analyze an existing sweep results directory.
 - `rerun_missing_configs.py`: requeue missing or failed sweep configs.
+  Prefer `--folder /path/to/{run_name}_{timestamp}`. With `--timestamp`,
+  the script uses the same `run_name` / output-dir lookup as
+  `sweep_manager.py`.
 
 ## Internal Structure
 

@@ -309,6 +309,24 @@ def initialize_model(model_config: ModelConfig):
     return model, encoder_network
 
 
+def attach_run_directory_file_handlers(run_save_path: str) -> None:
+    """Send package logs to ``dendritic_modeling.log`` and ``train.log``.
+
+    ``LoggerManager`` owns ``dendritic_modeling.log``. ``train.log`` is an extra
+    file handler on the same package logger so script-level messages (including
+    the training completion line) reach the run directory.
+    """
+    logger_manager.set_log_directory(run_save_path)
+
+    log_file = os.path.join(run_save_path, "train.log")
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setFormatter(
+        logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    )
+    logger_manager.get_logger().addHandler(file_handler)
+    logger.info(f"Logging to {log_file}")
+
+
 def setup_environment(
     model_config: ModelConfig,
     training_config: TrainingConfig,
@@ -389,15 +407,7 @@ def setup_environment(
             os.makedirs(run_save_path, exist_ok=True)
             logger.info(f"Created run directory: {run_save_path}")
 
-        logger_manager.set_log_directory(run_save_path)
-
-        log_file = os.path.join(run_save_path, "train.log")
-        file_handler = logging.FileHandler(log_file)
-        file_handler.setFormatter(
-            logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-        )
-        logger.addHandler(file_handler)
-        logger.info(f"Logging to {log_file}")
+        attach_run_directory_file_handlers(run_save_path)
     else:
         # Placeholder — caller will broadcast the real path from rank 0.
         run_save_path = output_dir
