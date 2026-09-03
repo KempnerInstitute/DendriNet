@@ -27,7 +27,6 @@ os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"  # Disable oneDNN optimizations warnin
 
 # Core imports
 import argparse
-import logging
 from dataclasses import asdict, dataclass
 from typing import Any
 
@@ -61,14 +60,14 @@ from dendritic_modeling.scripts.training.train_encoder_network import (
 from dendritic_modeling.training import CustomWeightDecayOptimizer, get_trainer
 from dendritic_modeling.training.dataloader_utils import dataloader_kwargs_from_config
 from dendritic_modeling.training.optimizers import create_optimizer
-from dendritic_modeling.utils import save_dict
+from dendritic_modeling.utils import get_logger, save_dict
 from dendritic_modeling.utils.training_stability_validator import (
     apply_automatic_safeguards,
     suggest_optimal_config_for_model_size,
     validate_training_stability,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 prepare_trainer_config = _config_utils.prepare_trainer_config
 normalize_param_groups_config = getattr(

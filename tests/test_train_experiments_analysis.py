@@ -372,7 +372,7 @@ def test_record_model_size_summary_logs_only_changed_suggestions(
         lambda nparams: {"lr": 0.01, "batch_size": 128},
     )
 
-    with caplog.at_level("INFO", logger=train_experiments.__name__):
+    with caplog.at_level("INFO", logger="dendritic_modeling"):
         train_experiments._record_model_size_summary(model, config, str(tmp_path))
 
     messages = [record.getMessage() for record in caplog.records]
@@ -714,7 +714,7 @@ def test_log_model_summary_before_training_handles_recurrent_model(
         lambda *args, **kwargs: pytest.fail("recurrent model should skip torchinfo"),
     )
 
-    with caplog.at_level("INFO", logger=train_experiments.__name__):
+    with caplog.at_level("INFO", logger="dendritic_modeling"):
         train_experiments._log_model_summary_before_training(model, object(), config)
 
     assert wandb_logs == [{"total_params": 10, "trainable_params": 6}]
@@ -1680,7 +1680,7 @@ def test_dump_init_gate_stats_diagnostic_logs_failure(monkeypatch, caplog):
 
     monkeypatch.setattr(train_experiments, "dump_init_gate_stats", failing_dump)
 
-    with caplog.at_level("WARNING", logger=train_experiments.__name__):
+    with caplog.at_level("WARNING", logger="dendritic_modeling"):
         train_experiments._dump_init_gate_stats_diagnostic(object(), "/tmp/run")
 
     assert "init_gate_stats diagnostic failed: diagnostic failed" in caplog.text

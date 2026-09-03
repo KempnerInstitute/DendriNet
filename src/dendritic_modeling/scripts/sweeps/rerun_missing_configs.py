@@ -2,15 +2,14 @@
 """
 rerun_missing_configs.py
 ------------------------
-Script to check which configurations from a unified sweep don't have results
-and generate a new SLURM job script to run only the missing configurations.
-
-This script has been adapted for the new unified sweep system structure.
+Check which configurations from a sweep don't have a successful completion
+log line and generate a SLURM array job to rerun only those configs.
 
 Usage:
-    python src/dendritic_modeling/scripts/sweeps/rerun_missing_configs.py --folder /path/to/unified_TIMESTAMP --output-file rerun_missing.sh
-    python src/dendritic_modeling/scripts/sweeps/rerun_missing_configs.py --timestamp TIMESTAMP --output-file rerun_missing.sh
-    python src/dendritic_modeling/scripts/sweeps/rerun_missing_configs.py --timestamp TIMESTAMP --config configs/sweep_config.yaml
+    python src/dendritic_modeling/scripts/sweeps/rerun_missing_configs.py \\
+        --folder /path/to/sweep_run_TIMESTAMP --output-file rerun_missing.sh
+    python src/dendritic_modeling/scripts/sweeps/rerun_missing_configs.py \\
+        --timestamp TIMESTAMP --config configs/sweep_config.yaml
 """
 
 import argparse
@@ -18,8 +17,16 @@ import glob
 import os
 import sys
 from datetime import datetime
+from pathlib import Path
 
 import yaml
+
+SUCCESS_MESSAGE = "Training experiment completed successfully"
+COMPLETION_LOG_FILES = ("dendritic_modeling.log", "train.log")
+DEFAULT_TRAINING_SCRIPT = (
+    "src/dendritic_modeling/scripts/training/train_experiments.py"
+)
+REPO_ROOT = Path(__file__).resolve().parents[4]
 
 
 def parse_args():
@@ -27,160 +34,160 @@ def parse_args():
         description="Check for missing results in a unified sweep and create a batch job for them"
     )
 
-    # Either provide a full path or a timestamp
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument("--folder", help="Full path to the unified_TIMESTAMP folder")
-    group.add_argument("--timestamp", help="Timestamp of the unified_TIMESTAMP folder")
+    group.add_argument("--folder", help="Full path to the sweep output folder")
+    group.add_argument(
+        "--timestamp",
+        help="Timestamp suffix of the {run_name}_{timestamp} sweep folder",
+    )
 
-    # Add config file parameter
     parser.add_argument(
         "--config",
         default="configs/sweep_config.yaml",
-        help="Path to the sweep configuration file to get output_dir",
+        help="Path to the sweep configuration file used to resolve output_dir and run_name",
     )
-
-    # Where to find the base folder if only timestamp provided and no config file is specified
     parser.add_argument(
         "--base-dir",
         default="",
-        help="Base directory where unified_TIMESTAMP folders are located (overridden if config file has output_dir)",
+        help="Base directory containing sweep folders (overrides values from --config)",
     )
-
-    # Output options
     parser.add_argument(
         "--output-file",
         default="rerun_missing.sh",
         help="Path to save the generated SLURM script",
     )
-
-    # Job settings
     parser.add_argument(
         "--max-concurrent",
         type=int,
-        default=40,
-        help="Maximum number of concurrent jobs",
+        default=None,
+        help="Maximum number of concurrent array tasks (defaults to slurm_config.max_concurrent_jobs)",
     )
-
-    # Add verbose mode
     parser.add_argument(
         "--verbose",
         action="store_true",
         help="Print detailed information about configs and results",
     )
-
-    # Add option to check log content
     parser.add_argument(
         "--check-log-content",
         action="store_true",
-        help="Check log content to verify task completion rather than just file existence",
+        help="Unused; kept for backward compatibility",
     )
-
-    # Add option to rerun all configurations with any failed attempts
     parser.add_argument(
         "--rerun-partial-failures",
         action="store_true",
-        help="Rerun configs that have any failed attempts, even if they also have successful runs",
+        help="Unused; kept for backward compatibility",
     )
-
-    # Add option to specify exactly which config IDs to rerun
     parser.add_argument(
         "--force-config-ids",
         type=str,
         help="Comma-separated list of config IDs to forcibly rerun (e.g., '8,15,23')",
     )
-
-    # Add option to identify any task directory that needs to be rerun
     parser.add_argument(
         "--identify-failed-directories",
         action="store_true",
-        help="Identify specific job directories with failed tasks",
+        help="Unused; kept for backward compatibility",
     )
 
     return parser.parse_args()
 
 
-def get_config_ids(configs_dir, verbose=False):
-    """Get all config IDs from the configs directory."""
+def _nested_get(mapping, *keys):
+    current = mapping
+    for key in keys:
+        if not isinstance(current, dict) or key not in current:
+            return None
+        current = current[key]
+    return current
+
+
+def _load_yaml(path):
+    with open(path) as f:
+        loaded = yaml.safe_load(f)
+    return loaded if isinstance(loaded, dict) else {}
+
+
+def _extract_config_id(filename):
+    if filename.startswith("sweep_metadata"):
+        return None
+    stem = filename.replace(".yaml", "")
+    for part in reversed(stem.split("_")):
+        try:
+            return int(part)
+        except ValueError:
+            continue
+    return None
+
+
+def get_config_file_map(configs_dir, verbose=False):
+    """Map config IDs to YAML paths under the sweep configs directory."""
     config_files = glob.glob(os.path.join(configs_dir, "*.yaml"))
-    config_ids = []
+    config_map = {}
 
     if verbose:
         print(f"Looking for config files in {configs_dir}")
         print(f"Found {len(config_files)} yaml files")
 
     for config_file in config_files:
-        # Extract the config ID from the filename (e.g., sweep_config_42.yaml -> 42)
         filename = os.path.basename(config_file)
+        config_id = _extract_config_id(filename)
+        if config_id is None:
+            continue
+        config_map[config_id] = config_file
+        if verbose:
+            print(f"Found config file: {filename} with ID {config_id}")
 
-        # Handle different naming patterns
-        # Look for patterns like: sweep_config_42.yaml, config_42.yaml, unified_config_42.yaml
-        if filename.startswith("sweep_metadata"):
-            continue  # Skip metadata files
+    return dict(sorted(config_map.items()))
 
-        parts = filename.replace(".yaml", "").split("_")
-        for part in reversed(parts):  # Check from the end for the ID
-            try:
-                config_id = int(part)
-                config_ids.append(config_id)
-                if verbose:
-                    print(f"Found config file: {filename} with ID {config_id}")
-                break
-            except ValueError:
-                continue
 
-    return sorted(config_ids)
+def get_config_ids(configs_dir, verbose=False):
+    """Get all config IDs from the configs directory."""
+    return sorted(get_config_file_map(configs_dir, verbose).keys())
 
 
 def check_result_for_config(
     results_dir, config_id, verbose=False, check_log_content=False
 ):
-    """Check if results exist for a specific config ID.
+    """Return True when the training completion log line is present.
 
-    This function looks for "Training experiment completed successfully" in output.log files
-    within the config-specific directory structure used by the unified sweep system.
-
-    Returns:
-        (is_completed, _, _): Tuple containing completion status and placeholders
-        for backward compatibility.
+    A saved model without this line is treated as incomplete. ``check_log_content``
+    is unused and kept for call-site compatibility.
     """
+    del check_log_content
     if verbose:
         print(f"\n===== Checking completion for config ID {config_id} =====")
         print(f"Looking in results directory: {results_dir}")
 
-    # Check for config-specific directory in unified sweep structure
     config_dir = os.path.join(results_dir, f"config_{config_id}")
-
-    if os.path.isdir(config_dir):
+    if not os.path.isdir(config_dir):
         if verbose:
-            print(f"Found config directory: {config_dir}")
+            print(f"Config {config_id} incomplete: no config directory found\n")
+        return False, True, []
 
-        # Check output log for completion message
-        # output_log = os.path.join(config_dir, "output.log")
-        output_log = os.path.join(config_dir, "dendritic_modeling.log")
-        if os.path.exists(output_log):
+    if verbose:
+        print(f"Found config directory: {config_dir}")
+
+    for log_name in COMPLETION_LOG_FILES:
+        output_log = os.path.join(config_dir, log_name)
+        if not os.path.exists(output_log):
             if verbose:
-                print(f"Found output log: {output_log}")
+                print(f"No output log found at {output_log}")
+            continue
+        if verbose:
+            print(f"Found output log: {output_log}")
+        try:
+            with open(output_log) as f:
+                content = f.read()
+        except OSError as exc:
+            if verbose:
+                print(f"Error reading output log: {exc}")
+            continue
+        if SUCCESS_MESSAGE in content:
+            if verbose:
+                print(f"FOUND: {SUCCESS_MESSAGE!r} in {output_log}")
+            return True, False, []
+        if verbose:
+            print(f"NOT FOUND: Success message not in {output_log}")
 
-            # Check if log contains success message
-            try:
-                with open(output_log) as f:
-                    content = f.read()
-                    # if "Training experiment completed successfully" in content:
-                    if "Saved model to" in content:
-                        if verbose:
-                            print(
-                                f"FOUND: 'Training experiment completed successfully' in {output_log}"
-                            )
-                        return True, False, []
-                    elif verbose:
-                        print(f"NOT FOUND: Success message not in {output_log}")
-            except Exception as e:
-                if verbose:
-                    print(f"Error reading output log: {e}")
-        elif verbose:
-            print(f"No output log found at {output_log}")
-
-    # If we reach here, no successful completion was found
     if verbose:
         print(
             f"Config {config_id} incomplete: no successful completion message found\n"
@@ -196,21 +203,20 @@ def find_missing_configs(
     rerun_partial_failures=False,
     force_config_ids=None,
 ):
-    """Find all configs that don't have successful completion messages in output logs."""
-    # Get all config IDs
+    """Find all configs that don't have the successful completion log line."""
+    del rerun_partial_failures
     config_ids = get_config_ids(configs_dir, verbose)
 
     if verbose:
         print(f"\nFound {len(config_ids)} total config files in {configs_dir}")
 
-    # If force_config_ids is specified, only consider those IDs
+    forced_ids = []
     if force_config_ids:
         forced_ids = [int(id_str.strip()) for id_str in force_config_ids.split(",")]
         config_ids = [cid for cid in config_ids if cid in forced_ids]
         if verbose:
             print(f"Limiting check to forced config IDs: {forced_ids}")
 
-    # Check each config for completion (has successful completion message)
     completed_ids = set()
     missing_ids = []
 
@@ -220,11 +226,9 @@ def find_missing_configs(
         )
 
     for config_id in config_ids:
-        # Check if this config has a successful completion message
         is_completed, _, _ = check_result_for_config(
             results_dir, config_id, verbose, check_log_content
         )
-
         if is_completed:
             completed_ids.add(config_id)
             if verbose:
@@ -238,7 +242,6 @@ def find_missing_configs(
                     f"Config {config_id} is INCOMPLETE (no successful completion message) and will be rerun"
                 )
 
-    # Also add forced config IDs that weren't already included
     if force_config_ids:
         for config_id in forced_ids:
             if config_id not in missing_ids and config_id in config_ids:
@@ -259,57 +262,78 @@ def find_missing_configs(
     return config_ids, completed_ids, sorted(missing_ids), []
 
 
-def get_base_dir_from_config(config_file, verbose=False):
-    """Extract the output_dir from the sweep configuration file."""
+def get_sweep_layout_from_config(config_file, verbose=False):
+    """Return (base_dir, run_name) using the same lookup as SweepManager."""
     if verbose:
-        print(f"Reading base directory from config file: {config_file}")
+        print(f"Reading sweep layout from config file: {config_file}")
 
     try:
-        with open(config_file) as f:
-            config = yaml.safe_load(f)
+        config = _load_yaml(config_file)
+    except OSError as exc:
+        print(f"Error reading config file {config_file}: {exc}")
+        return None, "unified_sweep"
 
-            # Check for output_dir at top level (new unified structure)
-            if "output_dir" in config:
-                base_dir = config["output_dir"]
-                if base_dir:  # Check if it's not empty
-                    if verbose:
-                        print(f"Found base directory in config: {base_dir}")
-                    return base_dir
-
-            # Fallback to old structure
-            if "slurm_config" in config and "output_dir" in config["slurm_config"]:
-                base_dir = config["slurm_config"]["output_dir"]
-                if base_dir:  # Check if it's not empty
-                    if verbose:
-                        print(f"Found base directory in slurm_config: {base_dir}")
-                    return base_dir
-                else:
-                    if verbose:
-                        print("Base directory in config file is empty")
-            else:
-                if verbose:
-                    if "slurm_config" not in config:
-                        print("Config file does not have 'slurm_config' section")
-                    elif "output_dir" not in config["slurm_config"]:
-                        print(
-                            "Config file has 'slurm_config' but no 'output_dir' field"
-                        )
-    except Exception as e:
-        print(f"Error reading config file {config_file}: {e}")
+    base_dir = (
+        config.get("output_dir")
+        or _nested_get(config, "outputs", "dir")
+        or _nested_get(config, "base_config", "outputs", "results_dir")
+        or "output"
+    )
+    run_name = (
+        _nested_get(config, "outputs", "run_name")
+        or _nested_get(config, "base_config", "outputs", "run_name")
+        or "unified_sweep"
+    )
 
     if verbose:
-        print("No base directory found in config file or it's empty")
+        print(f"Found base directory in config: {base_dir}")
+        print(f"Found run name in config: {run_name}")
 
-    return None
+    return base_dir, run_name
+
+
+def get_base_dir_from_config(config_file, verbose=False):
+    """Extract the output directory from the sweep configuration file."""
+    base_dir, _ = get_sweep_layout_from_config(config_file, verbose=verbose)
+    return base_dir
+
+
+def resolve_sweep_directory(
+    folder=None,
+    timestamp=None,
+    config_file=None,
+    base_dir="",
+    verbose=False,
+):
+    """Resolve the sweep output directory from --folder or --timestamp."""
+    if folder:
+        return folder
+
+    run_name = "unified_sweep"
+    if config_file and os.path.exists(config_file):
+        config_base_dir, run_name = get_sweep_layout_from_config(
+            config_file, verbose=verbose
+        )
+        if not base_dir:
+            base_dir = config_base_dir or "output"
+    elif not base_dir:
+        base_dir = "output"
+
+    candidates = [
+        os.path.join(base_dir, f"{run_name}_{timestamp}"),
+        os.path.join(base_dir, f"unified_{timestamp}"),
+        os.path.join(base_dir, f"sweep_{timestamp}"),
+        os.path.join(base_dir, timestamp),
+    ]
+    for candidate in candidates:
+        if os.path.isdir(candidate):
+            return candidate
+    return candidates[0]
 
 
 def get_original_slurm_config(sweep_dir):
     """Get the original SLURM configuration used for this sweep."""
-    # Try to find the sweep_params.yaml file (old structure)
-    # sweep_params_path = os.path.join(sweep_dir, "configs", "sweep_params.yaml")
     sweep_params_path = os.path.join(sweep_dir, "original_config.yaml")
-
-    # Also try sweep_metadata.yaml (new structure)
     metadata_path = os.path.join(sweep_dir, "configs", "sweep_metadata.yaml")
 
     config_file = None
@@ -318,306 +342,240 @@ def get_original_slurm_config(sweep_dir):
     elif os.path.exists(metadata_path):
         config_file = metadata_path
     else:
-        print(f"Error: Could not find sweep configuration in {sweep_dir}/configs")
+        print(f"Error: Could not find sweep configuration in {sweep_dir}")
         return None
 
-    # Load the sweep config file
-    with open(config_file) as f:
-        try:
-            config = yaml.safe_load(f)
-            if "slurm_config" in config:
-                return config["slurm_config"]
-        except yaml.YAMLError as e:
-            print(f"Error parsing YAML file: {e}")
+    try:
+        config = _load_yaml(config_file)
+    except yaml.YAMLError as exc:
+        print(f"Error parsing YAML file: {exc}")
+        return None
 
-    return None
+    slurm_config = config.get("slurm_config")
+    return slurm_config if isinstance(slurm_config, dict) else None
+
+
+def _format_slurm_time(time_value):
+    if isinstance(time_value, (int, float)) or (
+        isinstance(time_value, str) and time_value.isdigit()
+    ):
+        seconds = int(float(time_value))
+        hours = seconds // 3600
+        minutes = (seconds % 3600) // 60
+        seconds = seconds % 60
+        return f"{hours}:{minutes:02d}:{seconds:02d}"
+    if isinstance(time_value, str):
+        if ":" not in time_value:
+            return f"{time_value}:00:00"
+        return time_value
+    return "3:00:00"
 
 
 def generate_rerun_script(
     missing_ids,
     sweep_dir,
     output_file,
-    max_concurrent,
+    max_concurrent=None,
     failed_task_dirs=None,
     identify_failed_directories=False,
 ):
     """Generate a SLURM script to rerun missing configurations."""
-    # Get the original SLURM settings
+    del failed_task_dirs, identify_failed_directories
+
     slurm_config = get_original_slurm_config(sweep_dir)
     if not slurm_config:
         print("Error: Could not retrieve original SLURM configuration")
         return False
 
-    # Get script name details
+    account = slurm_config.get("account")
+    partition = slurm_config.get("partition")
+    if not account:
+        print("Error: SLURM account not set in original_config.yaml slurm_config")
+        return False
+    if not partition:
+        print("Error: SLURM partition not set in original_config.yaml slurm_config")
+        return False
+
+    if max_concurrent is None:
+        max_concurrent = slurm_config.get("max_concurrent_jobs", 10)
+
+    config_map = get_config_file_map(os.path.join(sweep_dir, "configs"))
+    missing_config_paths = {}
+    for config_id in missing_ids:
+        config_path = config_map.get(config_id)
+        if not config_path:
+            print(f"Error: Could not find config YAML for config ID {config_id}")
+            return False
+        missing_config_paths[config_id] = os.path.relpath(
+            os.path.abspath(config_path), start=REPO_ROOT
+        )
+
     sweep_timestamp = os.path.basename(sweep_dir)
     current_timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    formatted_time = _format_slurm_time(slurm_config.get("time", "02:00:00"))
+    mem_value = slurm_config.get("mem", "32G")
+    training_script = slurm_config.get("training_script") or DEFAULT_TRAINING_SCRIPT
+    conda_env_path = slurm_config.get("conda_env_path") or ""
 
-    # Start generating the script
     lines = [
         "#!/bin/bash",
         f"#SBATCH --job-name=rerun_{sweep_timestamp}",
-        f"#SBATCH --account={slurm_config['account']}",
+        f"#SBATCH --account={account}",
+        f"#SBATCH --partition={partition}",
     ]
-
-    # Output paths - use config-based directories
-    if len(missing_ids) > 1:
-        lines.extend(
-            [
-                f"#SBATCH --output={sweep_dir}/results/config_%a/output.log",
-                f"#SBATCH --error={sweep_dir}/results/config_%a/error.log",
-            ]
-        )
-    else:
-        # For single config, hardcode the config ID
-        config_id = missing_ids[0] if missing_ids else 0
-        lines.extend(
-            [
-                f"#SBATCH --output={sweep_dir}/results/config_{config_id}/output.log",
-                f"#SBATCH --error={sweep_dir}/results/config_{config_id}/error.log",
-            ]
-        )
-
-    # Format time to HH:MM:SS if it's not already
-    time_value = slurm_config.get("time", "1:00:00")
-    if isinstance(time_value, (int, float)) or (
-        isinstance(time_value, str) and time_value.isdigit()
-    ):
-        # Convert seconds to HH:MM:SS
-        seconds = int(float(time_value))
-        hours = seconds // 3600
-        minutes = (seconds % 3600) // 60
-        seconds = seconds % 60
-        formatted_time = f"{hours}:{minutes:02d}:{seconds:02d}"
-    elif isinstance(time_value, str):
-        if ":" not in time_value:
-            # Assume it's hours if no colons
-            formatted_time = f"{time_value}:00:00"
-        else:
-            formatted_time = time_value
-    else:
-        # Default to 3 hours if unknown format
-        formatted_time = "3:00:00"
-
-    # Resources
+    if slurm_config.get("qos"):
+        lines.append(f"#SBATCH --qos={slurm_config['qos']}")
+    lines.append(f"#SBATCH --chdir={REPO_ROOT}")
+    constraint = slurm_config.get("constraint")
+    if constraint:
+        lines.append(f"#SBATCH --constraint={constraint}")
     lines.extend(
         [
+            f"#SBATCH --time={formatted_time}",
             f"#SBATCH --nodes={slurm_config.get('nodes', 1)}",
             f"#SBATCH --ntasks-per-node={slurm_config.get('ntasks_per_node', 1)}",
             f"#SBATCH --gres=gpu:{slurm_config.get('gpus_per_node', 1)}",
-            f"#SBATCH --cpus-per-task={slurm_config.get('cpus_per_task', 10)}",
-            f"#SBATCH --time={formatted_time}",
+            f"#SBATCH --cpus-per-task={slurm_config.get('cpus_per_task', 4)}",
+            f"#SBATCH --mem={mem_value}",
         ]
     )
 
-    # Properly handle memory specification - use only one method
-    # Check if the memory specification has a unit suffix
-    mem_value = slurm_config.get("mem", "64GB")
-    if isinstance(mem_value, str):
-        # If it has a unit suffix (GB, MB, etc.), use it as is for total memory
-        if any(unit in mem_value.upper() for unit in ["GB", "MB", "G", "M", "K", "KB"]):
-            lines.append(f"#SBATCH --mem={mem_value}")
-        else:
-            # If no unit, assume it's in MB and add the unit
-            lines.append(f"#SBATCH --mem={mem_value}MB")
-    else:
-        # If it's a number, assume it's in MB
-        lines.append(f"#SBATCH --mem={mem_value}MB")
+    exclude_nodes = slurm_config.get("exclude_nodes") or []
+    if exclude_nodes:
+        lines.append(f"#SBATCH --exclude={','.join(exclude_nodes)}")
 
-    lines.append(f"#SBATCH --partition={slurm_config['partition']}")
-    if slurm_config.get("qos"):
-        lines.append(f"#SBATCH --qos={slurm_config['qos']}")
-
-    # Handle array job configuration
+    array_indices = ",".join(map(str, missing_ids))
     if len(missing_ids) > 1:
-        # Format array indices as comma-separated list: 1,2,3,4,5
-        array_indices = ",".join(map(str, missing_ids))
         lines.append(f"#SBATCH --array={array_indices}%{max_concurrent}")
     else:
-        # Single task, no need for array
         single_id = missing_ids[0] if missing_ids else 0
         lines.append(f"#SBATCH --array={single_id}")
 
-    # Add metadata
     lines.extend(
         [
+            f"#SBATCH --output={sweep_dir}/jobs/%A_%a/output_%A_%a.out",
+            f"#SBATCH --error={sweep_dir}/jobs/%A_%a/error_%A_%a.err",
             "",
-            "# ================================================================ ",
-            "# This file has been generated by rerun_missing_configs.py script ",
-            "#                            ***                                   ",
-            f"# Rerunning missing configs from: {sweep_timestamp}              ",
-            f"# Generated on: {current_timestamp}                              ",
-            "# ================================================================ ",
-        ]
-    )
-
-    # Add module loading and conda environment
-    lines.extend(
-        [
+            "set -euo pipefail",
+            "",
+            "# ================================================================",
+            "# This file has been generated by rerun_missing_configs.py script",
+            "#                            ***",
+            f"# Rerunning missing configs from: {sweep_timestamp}",
+            f"# Generated on: {current_timestamp}",
+            "# ================================================================",
+            "",
             "module purge",
         ]
     )
 
-    for module in slurm_config.get("modules_to_load", []):
+    for module in slurm_config.get("modules_to_load") or []:
         lines.append(f"module load {module}")
 
+    if conda_env_path:
+        lines.extend(
+            [
+                "",
+                f"# Using conda environment at: {conda_env_path}",
+                f'PYTHON="{conda_env_path}/bin/python"',
+                "",
+                "# Set library path for conda environment",
+                f'export LD_LIBRARY_PATH="{conda_env_path}/lib:${{LD_LIBRARY_PATH:-}}"',
+                "",
+                "# Verify environment works",
+                '$PYTHON -c "import torch; print(f\'PyTorch version: {torch.__version__}\')"',
+            ]
+        )
+    else:
+        lines.extend(
+            [
+                "",
+                "# Using system python",
+                'PYTHON="python"',
+            ]
+        )
+
     lines.extend(
         [
             "",
-            f"conda activate {slurm_config.get('conda_env_path', '/path/to/conda/env')}",
+            'export PYTHONPATH="$(pwd)/src:${PYTHONPATH:-}"',
             "",
+            f'OUTPUT_DIR="{sweep_dir}"',
+            'OUTPUT_FOLDER_PATH="${OUTPUT_DIR}/results/config_${SLURM_ARRAY_TASK_ID}"',
+            "",
+            'case "${SLURM_ARRAY_TASK_ID}" in',
         ]
     )
-
-    # Set up directories
+    for config_id, rel_config_path in missing_config_paths.items():
+        lines.append(f'  {config_id}) CONFIG="{rel_config_path}" ;;')
     lines.extend(
         [
-            "# Path to the config file directory",
-            f"CONFIG_DIR={sweep_dir}/configs",
+            '  *) echo "Error: No config mapped for task ID ${SLURM_ARRAY_TASK_ID}"; exit 1 ;;',
+            "esac",
             "",
-            "# Path to main output directory",
-            f"MAIN_OUTPUT_DIR={sweep_dir}",
+            "mkdir -p ${OUTPUT_FOLDER_PATH}",
             "",
-            "# Subdirectories",
-            "RESULTS_DIR=${MAIN_OUTPUT_DIR}/results",
-            "PLOTS_DIR=${MAIN_OUTPUT_DIR}/plots",
-            "",
-            "# Config file naming pattern (adapted for unified sweep)",
-            f"CONFIG_FILE_PATTERN={slurm_config.get('config_filename_pattern', 'sweep_config')}",
-            f"SC_RUN_NAME=rerun_{slurm_config.get('run_name', 'unified_sweep')}",
-            "",
-            "#Training script: ",
-            f"TRAINING_SCRIPT={slurm_config.get('training_script', 'src/dendritic_modeling/scripts/training/train_experiments.py')}",
-            "",
-            "#Python path: ",
-            f"PYTHON={slurm_config.get('conda_env_path', '/path/to/conda/env')}/bin/python",
-            "",
-        ]
-    )
-
-    # Configure task execution - using the config-based directory structure
-    lines.extend(
-        [
-            "# Find the config file for this array task ID",
-            'CONFIG_FILE=$(find ${CONFIG_DIR} -name "*_${SLURM_ARRAY_TASK_ID}.yaml" | head -1)',
-            'if [ -z "$CONFIG_FILE" ]; then',
-            '    echo "Error: Could not find config file for task ID ${SLURM_ARRAY_TASK_ID}"',
-            "    exit 1",
-            "fi",
-            "",
-            "CONFIG_IDX=${SLURM_ARRAY_TASK_ID}",
-            "",
-            "# Path to the config-specific results folder",
-            "CONFIG_FOLDER_PATH=${RESULTS_DIR}/config_${CONFIG_IDX}",
-            "PLOT_FOLDER_PATH=${PLOTS_DIR}/config_${CONFIG_IDX}",
-            "",
-            "# Create output directory",
-            "mkdir -p ${CONFIG_FOLDER_PATH}",
-            "mkdir -p ${PLOT_FOLDER_PATH}",
-            "",
-            'echo "Starting running a training job at $(date)"',
+            'echo "Starting training job at $(date)"',
+            'echo "Array task $SLURM_ARRAY_TASK_ID processing: $CONFIG"',
             "start_time=$(date +%s)",
             "",
-            "# Unset conflicting SLURM memory environment variables to avoid conflicts",
-            "unset SLURM_MEM_PER_CPU",
-            "unset SLURM_MEM_PER_GPU",
-            "unset SLURM_MEM_PER_NODE",
-            "",
-        ]
-    )
-
-    # Execute command
-    lines.extend(
-        [
+            "# Run experiment with srun",
             "srun \\",
             "  --cpus-per-task=${SLURM_CPUS_PER_TASK} \\",
             "  --kill-on-bad-exit \\",
-            "  --export=ALL,SLURM_MEM_PER_CPU=,SLURM_MEM_PER_GPU=,SLURM_MEM_PER_NODE= \\",
         ]
     )
 
-    # Training command
-    training_script = slurm_config.get("training_script", "")
-    # if training_script.startswith("/"):
-    #     lines.append("  ${PYTHON} -u ${TRAINING_SCRIPT} ${CONFIG_FILE}")
-    # else:
-    #     lines.append("  ${PYTHON} -u $(pwd)/${TRAINING_SCRIPT} ${CONFIG_FILE}")
     if training_script.startswith("/"):
         lines.append(
-            '  ${PYTHON} -u ${TRAINING_SCRIPT} "${CONFIG_FILE}" --output_dir "${CONFIG_FOLDER_PATH}"'
+            f'  $PYTHON -u {training_script} "$CONFIG" --output_dir "$OUTPUT_FOLDER_PATH"'
         )
     else:
         lines.append(
-            '  ${PYTHON} -u $(pwd)/${TRAINING_SCRIPT} "${CONFIG_FILE}" --output_dir "${CONFIG_FOLDER_PATH}"'
+            f'  $PYTHON -u $(pwd)/{training_script} "$CONFIG" --output_dir "$OUTPUT_FOLDER_PATH"'
         )
 
-    # Finish
     lines.extend(
         [
+            "",
             "end_time=$(date +%s)",
-            'echo "Done with running a training job at $(date)"',
+            'echo "Done with training job at $(date)"',
             'echo "Total duration: $((end_time - start_time)) seconds."',
-            'echo "Copying logs to results directory"',
-            "cp ${CONFIG_FILE} ${CONFIG_FOLDER_PATH}/config_used.yaml",
         ]
     )
 
-    # Write the script
     with open(output_file, "w") as f:
         for line in lines:
             f.write(line + "\n")
 
-    # Make the script executable
     os.chmod(output_file, 0o755)
-
     return True
 
 
 def main():
     args = parse_args()
 
-    # Process force-config-ids if provided
     force_config_ids = None
     if args.force_config_ids:
         force_config_ids = args.force_config_ids
         print(f"Will forcibly rerun the following config IDs: {force_config_ids}")
 
-    # Get base directory from config if provided
     base_dir = args.base_dir
-    if os.path.exists(args.config):
-        config_base_dir = get_base_dir_from_config(args.config, args.verbose)
-        if config_base_dir:
-            base_dir = config_base_dir
-
-    if not base_dir:
-        # Default if not provided in args or config
-        base_dir = "./results"
-
-    # Determine the sweep directory
-    if args.folder:
-        sweep_dir = args.folder
-    else:
-        # Look for unified sweep directories (adapted from ei_ to unified_)
-        sweep_dir = os.path.join(base_dir, f"unified_{args.timestamp}")
-
-        # Fallback: also check for timestamped directories without prefix
-        if not os.path.isdir(sweep_dir):
-            potential_dirs = [
-                os.path.join(base_dir, f"sweep_{args.timestamp}"),
-                os.path.join(base_dir, args.timestamp),
-            ]
-            for potential_dir in potential_dirs:
-                if os.path.isdir(potential_dir):
-                    sweep_dir = potential_dir
-                    break
+    config_path = args.config if os.path.exists(args.config) else None
+    sweep_dir = resolve_sweep_directory(
+        folder=args.folder,
+        timestamp=args.timestamp,
+        config_file=config_path,
+        base_dir=base_dir,
+        verbose=args.verbose,
+    )
 
     print(f"Checking sweep directory: {sweep_dir}")
 
-    # Ensure the directory exists
     if not os.path.isdir(sweep_dir):
         print(f"ERROR: Sweep directory not found: {sweep_dir}")
         sys.exit(1)
 
-    # Check configuration files and results
     configs_dir = os.path.join(sweep_dir, "configs")
     results_dir = os.path.join(sweep_dir, "results")
 
@@ -625,7 +583,6 @@ def main():
         print("ERROR: Could not find configs or results directories")
         sys.exit(1)
 
-    # Find missing configurations
     config_ids, completed_ids, missing_ids, _ = find_missing_configs(
         configs_dir,
         results_dir,
@@ -646,9 +603,11 @@ def main():
         print("\nAll configurations have completed successfully. Nothing to do.")
         sys.exit(0)
 
-    # Generate rerun script
     success = generate_rerun_script(
-        missing_ids, sweep_dir, args.output_file, args.max_concurrent
+        missing_ids,
+        sweep_dir,
+        args.output_file,
+        max_concurrent=args.max_concurrent,
     )
 
     if success:
