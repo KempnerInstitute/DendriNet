@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from collections.abc import Callable
 from typing import Optional
 
+import matplotlib.pyplot as plt
 import torch
 from torch.utils.data import TensorDataset
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
+from dendritic_modeling.analysis.tools.epoch_aggregation import load_epoch_aggregation
 from dendritic_modeling.analysis.utils.runtime import (
     analysis_device_context,
     evaluation_kwargs_from_runtime,
@@ -30,6 +33,17 @@ from dendritic_modeling.training.utils.evaluation import (
     evaluate_pred_label_mi,
 )
 from dendritic_modeling.utils import save_dict
+
+logger = logging.getLogger(__name__)
+
+METRIC_MAPPING = {
+    "accuracy": "Compositional OOD Accuracy",
+    "auc": "Compositional OOD AUC",
+    "categorical_loglikelihood": "Compositional OOD Log-Likelihood",
+    "mse": "Compositional OOD MSE",
+    "cosine_similarity": "Compositional OOD Cosine Similarity",
+    "pred_label_mi_bits": "Compositional OOD Pred-Label MI",
+}
 
 _CATEGORICAL_LL_ALIASES = frozenset(
     {
@@ -96,6 +110,10 @@ class CompositionalOODAnalyzer(AbstractAnalyzer):
             if enabled and compatible
         ]
 
+    def load_epochs_data(self, save_path: str):
+        """Load aggregated metric lists from ``save_path/epochs``."""
+        return load_epoch_aggregation(save_path, preserved_leaf_keys=())
+
     def analyze(
         self,
         model: BaseModel,
@@ -140,10 +158,51 @@ class CompositionalOODAnalyzer(AbstractAnalyzer):
 
         if save_path is not None:
             if training:
-                save_path = os.path.join(save_path, "epochs")
-            save_dict(results, save_path, f"{filename}.json")
+                save_dict(
+                    results,
+                    os.path.join(save_path, "epochs"),
+                    f"{filename}.json",
+                )
+            else:
+                epochs_data, epoch_numbers = self.load_epochs_data(save_path)
+                if epochs_data and epoch_numbers:
+                    for metric in results:
+                        plot_performance_vs_epoch(
+                            epochs_data,
+                            epoch_numbers,
+                            metric,
+                            save_path,
+                        )
+                save_dict(results, save_path, f"{filename}.json")
             return
         return results
 
 
-__all__ = ["CompositionalOODAnalyzer"]
+def plot_performance_vs_epoch(
+    epochs_data: dict,
+    epoch_numbers: list,
+    metric: str,
+    save_path: str,
+) -> None:
+    """Plot one compositional-OOD metric across training epochs."""
+    metric_values = epochs_data.get(metric)
+    if metric_values is None or len(metric_values) != len(epoch_numbers):
+        return
+
+    ylabel = METRIC_MAPPING.get(metric, metric)
+    plt.figure(figsize=(10, 6))
+    plt.plot(epoch_numbers, metric_values, marker="o", linewidth=2, markersize=4)
+    plt.xlabel("Epoch", fontsize=12)
+    plt.ylabel(ylabel, fontsize=12)
+    plt.title(f"{ylabel} vs Epoch", fontsize=14)
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+
+    os.makedirs(save_path, exist_ok=True)
+    plot_path = os.path.join(save_path, f"{metric}_vs_epoch.png")
+    plt.savefig(plot_path, dpi=300, bbox_inches="tight")
+    logger.info("Plot saved to %s", plot_path)
+    plt.close()
+
+
+__all__ = ["CompositionalOODAnalyzer", "plot_performance_vs_epoch"]

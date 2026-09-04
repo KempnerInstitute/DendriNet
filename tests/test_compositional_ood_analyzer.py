@@ -192,3 +192,121 @@ def test_incompatible_metric_omitted_from_payload(monkeypatch):
     )
     assert result == {"accuracy": 0.9}
     assert called["mse"] is False
+
+
+def _write_epoch_json(epochs_dir, epoch: int, payload: dict) -> None:
+    epochs_dir.mkdir(parents=True, exist_ok=True)
+    (epochs_dir / f"epoch{epoch}.json").write_text(json.dumps(payload))
+
+
+def test_load_epochs_data_sorts_and_aggregates(tmp_path):
+    analyzer = cood.CompositionalOODAnalyzer(
+        CompositionalOODAnalysisParams(metrics=["accuracy"])
+    )
+    epochs_dir = tmp_path / "epochs"
+    _write_epoch_json(epochs_dir, 3, {"accuracy": 0.7, "auc": 0.6})
+    _write_epoch_json(epochs_dir, 1, {"accuracy": 0.4, "auc": 0.5})
+
+    epochs_data, epoch_numbers = analyzer.load_epochs_data(str(tmp_path))
+    assert epoch_numbers == [1, 3]
+    assert epochs_data["accuracy"] == [0.4, 0.7]
+    assert epochs_data["auc"] == [0.5, 0.6]
+
+
+def test_load_epochs_data_missing_dir_returns_none(tmp_path):
+    analyzer = cood.CompositionalOODAnalyzer(
+        CompositionalOODAnalysisParams(metrics=["accuracy"])
+    )
+    epochs_data, epoch_numbers = analyzer.load_epochs_data(str(tmp_path))
+    assert epochs_data is None
+    assert epoch_numbers is None
+
+
+def test_plot_performance_vs_epoch_writes_png(tmp_path):
+    cood.plot_performance_vs_epoch(
+        {"accuracy": [0.2, 0.5, 0.8]},
+        [1, 2, 3],
+        "accuracy",
+        str(tmp_path),
+    )
+    assert (tmp_path / "accuracy_vs_epoch.png").is_file()
+
+
+def test_plot_performance_vs_epoch_skips_mismatch(tmp_path):
+    cood.plot_performance_vs_epoch(
+        {"accuracy": [0.2, 0.5]},
+        [1, 2, 3],
+        "accuracy",
+        str(tmp_path),
+    )
+    assert not (tmp_path / "accuracy_vs_epoch.png").exists()
+    cood.plot_performance_vs_epoch(
+        {"auc": [0.2, 0.5]},
+        [1, 2],
+        "accuracy",
+        str(tmp_path),
+    )
+    assert not (tmp_path / "accuracy_vs_epoch.png").exists()
+
+
+def test_analyze_final_writes_epoch_plots(tmp_path, monkeypatch):
+    dataset = _make_ood_dataset()
+    _write_epoch_json(tmp_path / "epochs", 1, {"accuracy": 0.4, "auc": 0.5})
+    _write_epoch_json(tmp_path / "epochs", 2, {"accuracy": 0.6, "auc": 0.7})
+    monkeypatch.setattr(
+        cood,
+        "materialize_dataset",
+        lambda *args, **kwargs: (torch.ones(4, 8), torch.zeros(4, dtype=torch.long)),
+    )
+    monkeypatch.setattr(
+        cood,
+        "evaluate_accuracy",
+        lambda *args, **kwargs: (None, None, 0.8),
+    )
+    monkeypatch.setattr(
+        cood,
+        "evaluate_auc",
+        lambda *args, **kwargs: (None, None, 0.9),
+    )
+
+    analyzer = cood.CompositionalOODAnalyzer(
+        CompositionalOODAnalysisParams(metrics=["accuracy", "auc"])
+    )
+    analyzer.analyze(
+        model=_make_classifier(),
+        test_dataset=dataset,
+        save_path=str(tmp_path),
+        training=False,
+    )
+    assert (tmp_path / "final.json").is_file()
+    assert (tmp_path / "accuracy_vs_epoch.png").is_file()
+    assert (tmp_path / "auc_vs_epoch.png").is_file()
+
+
+def test_analyze_training_does_not_write_plots(tmp_path, monkeypatch):
+    dataset = _make_ood_dataset()
+    monkeypatch.setattr(
+        cood,
+        "materialize_dataset",
+        lambda *args, **kwargs: (torch.ones(4, 8), torch.zeros(4, dtype=torch.long)),
+    )
+    monkeypatch.setattr(
+        cood,
+        "evaluate_accuracy",
+        lambda *args, **kwargs: (None, None, 0.5),
+    )
+
+    analyzer = cood.CompositionalOODAnalyzer(
+        CompositionalOODAnalysisParams(metrics=["accuracy"])
+    )
+    analyzer.analyze(
+        model=_make_classifier(),
+        test_dataset=dataset,
+        save_path=str(tmp_path),
+        filename="epoch1",
+        training=True,
+    )
+    assert (tmp_path / "epochs" / "epoch1.json").is_file()
+    assert not (tmp_path / "accuracy_vs_epoch.png").exists()
+    payload = json.loads((tmp_path / "epochs" / "epoch1.json").read_text())
+    assert payload == {"accuracy": 0.5}
