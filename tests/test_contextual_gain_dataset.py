@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 import torch
+from torch.utils.data import DataLoader, default_collate
 
 from dendritic_modeling.datasets.contextual_gain import ContextualGainDataset
 
@@ -67,16 +68,161 @@ def test_scalar_and_slice_getitem_shapes():
     assert ys.shape == (3,)
 
 
-def test_companion_indices_exclude_primary_and_are_unique():
-    ds = _make_dataset(n_samples=10, n_regions=4)
-    primary = torch.tensor([0, 3, 7], dtype=torch.long)
+def _legacy_sample_layer_indices(
+    primary: torch.Tensor, n_pool: int, n_layers: int
+) -> torch.Tensor:
+    """Reference argsort-of-scores sampler used by the previous implementation."""
+    if n_layers == 1:
+        return primary.unsqueeze(1)
+    scores = torch.rand(
+        primary.shape[0], n_pool, device=primary.device, dtype=torch.float32
+    )
+    scores.scatter_(1, primary.unsqueeze(1), float("inf"))
+    companions = scores.argsort(dim=1)[:, : n_layers - 1]
+    return torch.cat([primary.unsqueeze(1), companions], dim=1)
+
+
+def _assert_companion_contract(
+    layer_idx: torch.Tensor, primary: torch.Tensor, n_layers: int
+) -> None:
+    assert layer_idx.shape == (int(primary.shape[0]), n_layers)
+    assert torch.equal(layer_idx[:, 0], primary)
+    for row in layer_idx:
+        values = row.tolist()
+        assert values[0] not in values[1:]
+        assert len(set(values)) == n_layers
+
+
+def _companion_tuple_keys(layer_idx: torch.Tensor, n_pool: int) -> torch.Tensor:
+    companions = layer_idx[:, 1:]
+    keys = companions[:, 0].clone()
+    for col in range(1, companions.shape[1]):
+        keys = keys * n_pool + companions[:, col]
+    return keys
+
+
+def _count_keys(keys: torch.Tensor) -> dict[int, int]:
+    unique, counts = torch.unique(keys, return_counts=True)
+    return {
+        int(key): int(count)
+        for key, count in zip(unique.tolist(), counts.tolist())
+    }
+
+
+def _chi_square_uniform(counts: dict[int, int], n_allowed: int, n_draws: int) -> float:
+    expected = n_draws / n_allowed
+    observed = list(counts.values()) + [0] * (n_allowed - len(counts))
+    return sum((obs - expected) ** 2 / expected for obs in observed)
+
+
+def _total_variation(
+    left: dict[int, int], right: dict[int, int], n_draws: int
+) -> float:
+    keys = set(left) | set(right)
+    return 0.5 * sum(abs(left.get(k, 0) - right.get(k, 0)) for k in keys) / n_draws
+
+
+@pytest.mark.parametrize(
+    "n_samples, n_regions",
+    [(10, 1), (10, 2), (10, 4), (8, 8)],
+)
+def test_companion_indices_exclude_primary_and_are_unique(n_samples, n_regions):
+    ds = _make_dataset(n_samples=n_samples, n_regions=n_regions)
+    primary = torch.tensor([0, min(3, n_samples - 1), n_samples - 1], dtype=torch.long)
     for _ in range(20):
-        layer_idx = ds._sample_layer_indices(primary, n_layers=4)
-        assert layer_idx.shape == (3, 4)
-        assert torch.equal(layer_idx[:, 0], primary)
-        for row in layer_idx:
-            assert row[0].item() not in row[1:].tolist()
-            assert len(set(row.tolist())) == 4
+        layer_idx = ds._sample_layer_indices(primary, n_layers=n_regions)
+        _assert_companion_contract(layer_idx, primary, n_regions)
+        legacy = _legacy_sample_layer_indices(primary, n_samples, n_regions)
+        _assert_companion_contract(legacy, primary, n_regions)
+
+
+def test_companion_k1_remap_covers_complement():
+    n_pool = 6
+    ds = _make_dataset(n_samples=n_pool, n_regions=2)
+    primary = torch.tensor([2], dtype=torch.long)
+    seen: set[int] = set()
+    for _ in range(200):
+        layer_idx = ds._sample_layer_indices(primary, n_layers=2)
+        _assert_companion_contract(layer_idx, primary, 2)
+        seen.add(int(layer_idx[0, 1].item()))
+    assert seen == {0, 1, 3, 4, 5}
+
+
+@pytest.mark.parametrize("n_regions, n_allowed, chi2_max", [(2, 5, 40.0), (3, 20, 80.0)])
+def test_companion_distribution_matches_legacy_argsort(n_regions, n_allowed, chi2_max):
+    n_pool = 6
+    n_draws = 8000
+    ds = _make_dataset(n_samples=n_pool, n_regions=n_regions)
+    primary = torch.full((n_draws,), 2, dtype=torch.long)
+
+    torch.manual_seed(0)
+    new_idx = ds._sample_layer_indices(primary, n_layers=n_regions)
+    torch.manual_seed(1)
+    legacy_idx = _legacy_sample_layer_indices(primary, n_pool, n_regions)
+
+    _assert_companion_contract(new_idx[:8], primary[:8], n_regions)
+    _assert_companion_contract(legacy_idx[:8], primary[:8], n_regions)
+
+    new_counts = _count_keys(_companion_tuple_keys(new_idx, n_pool))
+    legacy_counts = _count_keys(_companion_tuple_keys(legacy_idx, n_pool))
+    assert len(new_counts) == n_allowed
+    assert len(legacy_counts) == n_allowed
+    assert _chi_square_uniform(new_counts, n_allowed, n_draws) < chi2_max
+    assert _chi_square_uniform(legacy_counts, n_allowed, n_draws) < chi2_max
+    assert _total_variation(new_counts, legacy_counts, n_draws) < 0.08
+
+
+def test_sample_layer_indices_does_not_allocate_pool_width(monkeypatch):
+    shapes: list[tuple[int, ...]] = []
+    real_rand = torch.rand
+    real_randint = torch.randint
+
+    def _spy_rand(*args, **kwargs):
+        tensor = real_rand(*args, **kwargs)
+        shapes.append(tuple(tensor.shape))
+        return tensor
+
+    def _spy_randint(*args, **kwargs):
+        tensor = real_randint(*args, **kwargs)
+        shapes.append(tuple(tensor.shape))
+        return tensor
+
+    monkeypatch.setattr(torch, "rand", _spy_rand)
+    monkeypatch.setattr(torch, "randint", _spy_randint)
+
+    n_pool = 32
+    ds = _make_dataset(n_samples=n_pool, n_regions=3)
+    primary = torch.arange(8, dtype=torch.long)
+    ds._sample_layer_indices(primary, n_layers=3)
+    assert shapes
+    for shape in shapes:
+        assert n_pool not in shape[1:]
+
+    shapes.clear()
+    _ = ds[:]
+    assert shapes
+    for shape in shapes:
+        assert n_pool not in shape[1:]
+
+
+def test_getitems_matches_batched_getitem():
+    ds = _make_dataset(n_regions=2, region_poisson=False)
+    idxs = [1, 2, 3]
+    torch.manual_seed(0)
+    batched_x, batched_y = ds[idxs]
+    torch.manual_seed(0)
+    collated_x, collated_y = default_collate(ds.__getitems__(idxs))
+    assert torch.equal(collated_x, batched_x)
+    assert torch.equal(collated_y, batched_y)
+
+
+def test_dataloader_getitems_smoke():
+    ds = _make_dataset(n_regions=2, region_poisson=False)
+    loader = DataLoader(ds, batch_size=4, num_workers=0)
+    images, labels = next(iter(loader))
+    assert images.shape[0] == 4
+    assert labels.shape[0] == 4
+    assert images.shape[1] == 8
 
 
 def test_gain_sampling_uses_full_interval_and_batched_shape(monkeypatch):
@@ -261,9 +407,11 @@ def test_latent_id_zero_selects_w0(monkeypatch):
         context_poisson=False,
     )
     monkeypatch.setattr(
-        torch,
-        "randint",
-        lambda *args, **kwargs: torch.zeros(1, dtype=torch.long),
+        ds,
+        "_sample_context_ids",
+        lambda winner, digit=None: torch.zeros(
+            winner.shape[0], dtype=torch.long, device=winner.device
+        ),
     )
     cid = ds._context_id(torch.zeros(1, dtype=torch.long))
     assert torch.equal(cid, torch.tensor([[1, 0, 0, 0]]))
@@ -281,9 +429,11 @@ def test_context_stream_selects_one_w_row(monkeypatch):
         context_poisson=False,
     )
     monkeypatch.setattr(
-        torch,
-        "randint",
-        lambda *args, **kwargs: torch.tensor([2], dtype=torch.long),
+        ds,
+        "_sample_context_ids",
+        lambda winner, digit=None: torch.full(
+            (winner.shape[0],), 2, dtype=torch.long, device=winner.device
+        ),
     )
     x, _ = ds[0]
     assert torch.allclose(x[-8:], ds.context_projection[2])
@@ -355,9 +505,11 @@ def test_latent_id_label_remap(monkeypatch):
         staticmethod(fixed_gains),
     )
     monkeypatch.setattr(
-        torch,
-        "randint",
-        lambda *args, **kwargs: torch.tensor([2], dtype=torch.long),
+        ds,
+        "_sample_context_ids",
+        lambda winner, digit=None: torch.full(
+            (winner.shape[0],), 2, dtype=torch.long, device=winner.device
+        ),
     )
 
     _, y = ds[0]
@@ -432,9 +584,11 @@ def test_region_and_latents_use_path_indexed_nest(monkeypatch):
         staticmethod(fixed_gains),
     )
     monkeypatch.setattr(
-        torch,
-        "randint",
-        lambda *args, **kwargs: torch.tensor([1], dtype=torch.long),
+        ds,
+        "_sample_context_ids",
+        lambda winner, digit=None: torch.full(
+            (winner.shape[0],), 1, dtype=torch.long, device=winner.device
+        ),
     )
 
     _, y = ds[0]
@@ -462,9 +616,11 @@ def test_context_poisson_only_affects_context_slice(monkeypatch):
         staticmethod(fixed_gains),
     )
     monkeypatch.setattr(
-        torch,
-        "randint",
-        lambda *args, **kwargs: torch.zeros(1, dtype=torch.long),
+        ds,
+        "_sample_context_ids",
+        lambda winner, digit=None: torch.zeros(
+            winner.shape[0], dtype=torch.long, device=winner.device
+        ),
     )
 
     torch.manual_seed(0)
@@ -496,9 +652,11 @@ def test_context_distractor_mixes_before_gain(monkeypatch):
         context_distractor_scale=scale,
     )
     monkeypatch.setattr(
-        torch,
-        "randint",
-        lambda *args, **kwargs: torch.tensor([2], dtype=torch.long),
+        ds,
+        "_sample_context_ids",
+        lambda winner, digit=None: torch.full(
+            (winner.shape[0],), 2, dtype=torch.long, device=winner.device
+        ),
     )
     monkeypatch.setattr(torch, "rand_like", lambda x: torch.ones_like(x))
 

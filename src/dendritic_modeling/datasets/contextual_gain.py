@@ -266,21 +266,62 @@ class ContextualGainDataset(PoissonGeneratorDataset):
             return torch.as_tensor(idx, device=device, dtype=torch.long).reshape(-1)
         return torch.tensor([int(idx)], device=device, dtype=torch.long)
 
+    @staticmethod
+    def _sample_reduced_without_replacement(
+        batch_size: int,
+        k: int,
+        n_reduced: int,
+        device: torch.device,
+    ) -> torch.Tensor:
+        """Uniform ordered ``k``-tuple from ``0 .. n_reduced-1``, shape ``(B, k)``.
+
+        ``k == 1`` is a single ``randint``. ``k == n_reduced`` is a random
+        permutation of the reduced pool (needed when companions are everyone
+        except the primary). Otherwise draw with rejection and repair leftover
+        colliding rows with a reduced ``randperm``.
+        """
+        if k == 1:
+            return torch.randint(0, n_reduced, (batch_size, 1), device=device)
+        if k == n_reduced:
+            scores = torch.rand(batch_size, n_reduced, device=device)
+            return scores.argsort(dim=1)
+
+        raw = torch.randint(0, n_reduced, (batch_size, k), device=device)
+        for _ in range(8):
+            ordered = raw.sort(dim=1).values
+            has_dup = (ordered[:, 1:] == ordered[:, :-1]).any(dim=1)
+            if not bool(has_dup.any()):
+                return raw
+            n_bad = int(has_dup.sum().item())
+            raw[has_dup] = torch.randint(
+                0, n_reduced, (n_bad, k), device=device
+            )
+        ordered = raw.sort(dim=1).values
+        remaining = (ordered[:, 1:] == ordered[:, :-1]).any(dim=1)
+        if bool(remaining.any()):
+            for i in remaining.nonzero(as_tuple=False).view(-1).tolist():
+                raw[i] = torch.randperm(n_reduced, device=device)[:k]
+        return raw
+
     def _sample_layer_indices(
         self, primary: torch.Tensor, *, n_layers: int
     ) -> torch.Tensor:
-        """Return ``(B, n_layers)`` indices: column 0 = primary, rest without replacement."""
+        """Return ``(B, n_layers)`` indices: column 0 = primary, rest without replacement.
+
+        Companions are a uniform ordered ``k``-tuple from the complement of each
+        primary, obtained by sampling ``k`` distinct values from ``0 .. N-2``
+        and remapping around the excluded primary.
+        """
         B = int(primary.shape[0])
         n_pool = int(self.base_inputs.shape[0])
         n_others = n_layers - 1
         if n_others == 0:
             return primary.unsqueeze(1)
 
-        # Rank all pool indices by random scores; force primary to sort last so it
-        # is never selected as a companion.
-        scores = torch.rand(B, n_pool, device=primary.device, dtype=torch.float32)
-        scores.scatter_(1, primary.unsqueeze(1), float("inf"))
-        companions = scores.argsort(dim=1)[:, :n_others]
+        raw = self._sample_reduced_without_replacement(
+            B, n_others, n_pool - 1, primary.device
+        )
+        companions = raw + (raw >= primary.unsqueeze(1)).to(dtype=raw.dtype)
         return torch.cat([primary.unsqueeze(1), companions], dim=1)
 
     def _resolve_max_gain(self) -> float:
@@ -384,6 +425,11 @@ class ContextualGainDataset(PoissonGeneratorDataset):
         if not batched:
             return images[0], labels[0]
         return images, labels
+
+    def __getitems__(self, indices):
+        """Fetch a batch as a list of ``(image, label)`` pairs for DataLoader."""
+        images, labels = self.__getitem__(indices)
+        return list(zip(images.unbind(0), labels.unbind(0)))
 
 
 __all__ = ["ContextualGainDataset"]
