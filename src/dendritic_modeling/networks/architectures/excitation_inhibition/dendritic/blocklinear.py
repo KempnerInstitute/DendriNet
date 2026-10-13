@@ -11,6 +11,10 @@ from math import floor, log
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.networks.utils.signal_rounding import (
+    round_signal,
+    signal_rounding_dtype,
+)
 from dendritic_modeling.networks.utils.weight_transforms import (
     WeightTransformType,
     apply_weight_transform,
@@ -69,7 +73,11 @@ class BlockLinear(nn.Module):
     """
 
     def __init__(
-        self, in_features, out_features, weight_transform: WeightTransformType = "exp"
+        self,
+        in_features,
+        out_features,
+        weight_transform: WeightTransformType = "exp",
+        signal_rounding: str = "none",
     ):
         super().__init__()
 
@@ -85,11 +93,73 @@ class BlockLinear(nn.Module):
         self.out_features = out_features
         self.block_size = block_size
         self.weight_transform = weight_transform
+        # Optional reduced-precision rounding of the coupling conductances.
+        self.signal_rounding = str(signal_rounding).lower()
+        self._round_dtype = signal_rounding_dtype(self.signal_rounding)
         self.input_scale_vec = None  # may be used for gradient scaling
         self.param_scale_vec = None  # may be used for gradient scaling
         self._use_forward_dynamic_grad_scaling = False
         self._last_forward_input_tensor = None
         self._last_forward_param_tensor = None
+        # Inference-frozen folds of the transformed block weights and their
+        # per-branch conductance sums. Non-persistent: checkpoints keep only
+        # the raw ``log_weight`` parameterization.
+        self.register_buffer("_inference_folded_weight", None, persistent=False)
+        self.register_buffer("_inference_folded_conductance", None, persistent=False)
+        # ``log_weight.requires_grad`` before ``freeze_for_inference``; restored
+        # by ``train(True)``.
+        self._requires_grad_before_inference_fold = None
+
+    def freeze_for_inference(self) -> None:
+        """Fold transformed block weights and conductance sums for inference.
+
+        ``weight()`` and ``sum_conductances()`` are input-independent but are
+        recomputed on every forward during training. Folding computes both once
+        so the frozen forward performs no weight transform and the shunting
+        denominator reuses a constant conductance tensor. Dropped automatically
+        by ``train(True)`` or by loading new weights; never serialized.
+        ``train(True)`` also restores ``log_weight.requires_grad`` to its value
+        before the first freeze.
+        """
+        if getattr(self, "_requires_grad_before_inference_fold", None) is None:
+            self._requires_grad_before_inference_fold = bool(
+                self.log_weight.requires_grad
+            )
+        self.log_weight.requires_grad_(False)
+        with torch.no_grad():
+            folded = self._transformed_weight().detach()
+            self._inference_folded_weight = folded.contiguous()
+            self._inference_folded_conductance = folded.sum(dim=1).contiguous()
+        self.eval()
+
+    def unfreeze_inference_fold(self) -> None:
+        """Drop the folded inference tensors (weights may change again)."""
+        self._inference_folded_weight = None
+        self._inference_folded_conductance = None
+
+    def train(self, mode: bool = True):
+        if mode:
+            self.unfreeze_inference_fold()
+            restored = getattr(self, "_requires_grad_before_inference_fold", None)
+            if restored is not None:
+                self.log_weight.requires_grad_(restored)
+                self._requires_grad_before_inference_fold = None
+        return super().train(mode)
+
+    def __getstate__(self):
+        # The last forward's input and transformed weights hold autograd graph
+        # nodes (needed only to register that forward's gradient-scaling
+        # hooks); they are not module state and would make deepcopy/pickling
+        # fail after a training forward.
+        state = super().__getstate__()
+        for name in ("_last_forward_input_tensor", "_last_forward_param_tensor"):
+            if name in state:
+                state[name] = None
+        return state
+
+    def _load_from_state_dict(self, *args, **kwargs):
+        self.unfreeze_inference_fold()
+        return super()._load_from_state_dict(*args, **kwargs)
 
     def initialize(self, g_branch: float = 1.0):
         """
@@ -111,9 +181,25 @@ class BlockLinear(nn.Module):
         # Initialize the raw parameters
         nn.init.constant_(self.log_weight, raw_value)
 
+    def _transformed_weight(self):
+        return round_signal(
+            apply_weight_transform(self.log_weight, self.weight_transform),
+            self._round_dtype,
+        )
+
     def weight(self):
         """Return transformed per-block weights with shape (out_features, block_size)."""
-        return apply_weight_transform(self.log_weight, self.weight_transform)
+        if not self.training and self._inference_folded_weight is not None:
+            return self._inference_folded_weight
+        return self._transformed_weight()
+
+    def _block_indices(self):
+        """Row/col index tensors that scatter per-block weights into the dense (out, in) matrix."""
+        row_ix = torch.arange(self.out_features, device=self.log_weight.device)[:, None]
+        col_ix = torch.arange(self.in_features, device=self.log_weight.device).view(
+            self.out_features, self.block_size
+        )
+        return row_ix, col_ix
 
     def block(self):
         block = torch.zeros(
@@ -121,10 +207,7 @@ class BlockLinear(nn.Module):
             device=self.log_weight.device,
             dtype=self.log_weight.dtype,
         )
-        row_ix = torch.arange(self.out_features, device=self.log_weight.device)[:, None]
-        col_ix = torch.arange(self.in_features, device=self.log_weight.device).view(
-            self.out_features, self.block_size
-        )
+        row_ix, col_ix = self._block_indices()
         weights = self.weight()
         block[row_ix, col_ix] = weights
         return block
@@ -138,10 +221,7 @@ class BlockLinear(nn.Module):
             )
             * -10
         )
-        row_ix = torch.arange(self.out_features, device=self.log_weight.device)[:, None]
-        col_ix = torch.arange(self.in_features, device=self.log_weight.device).view(
-            self.out_features, self.block_size
-        )
+        row_ix, col_ix = self._block_indices()
         log_block[row_ix, col_ix] = self.log_weight
         return log_block
 
@@ -151,10 +231,7 @@ class BlockLinear(nn.Module):
             device=self.log_weight.device,
             dtype=self.log_weight.dtype,
         )
-        row_ix = torch.arange(self.out_features, device=self.log_weight.device)[:, None]
-        col_ix = torch.arange(self.in_features, device=self.log_weight.device).view(
-            self.out_features, self.block_size
-        )
+        row_ix, col_ix = self._block_indices()
         if self.log_weight.grad is not None:
             grad_block[row_ix, col_ix] = self.log_weight.grad
         return grad_block
@@ -211,19 +288,13 @@ class BlockLinear(nn.Module):
                 f"Input feature dimension mismatch: got {x.shape[1]}, expected {self.in_features}"
             )
 
-        self._last_forward_input_tensor = x
-
         block = torch.zeros(
             (self.out_features, self.in_features),
             device=self.log_weight.device,
             dtype=self.log_weight.dtype,
         )
-        row_ix = torch.arange(self.out_features, device=self.log_weight.device)[:, None]
-        col_ix = torch.arange(self.in_features, device=self.log_weight.device).view(
-            self.out_features, self.block_size
-        )
-        weights = self.weight() * 1.0
-        object.__setattr__(self, "_last_forward_param_tensor", weights)
+        row_ix, col_ix = self._block_indices()
+        weights = self._remember_forward_tensors(x, self.weight())
         block[row_ix, col_ix] = weights
         output = torch.matmul(x, block.t())
 
@@ -235,6 +306,23 @@ class BlockLinear(nn.Module):
 
         return output
 
+    def _remember_forward_tensors(
+        self, x: torch.Tensor, weights: torch.Tensor
+    ) -> torch.Tensor:
+        """Keep this forward's input and weights for per-forward gradient hooks.
+
+        Only in forward-hook scaling mode: otherwise the references would pin
+        the child activation and the weight graph until the next forward. The
+        weights are copied (``* 1.0``, exact) so a hook never lands on the
+        parameter itself.
+        """
+        if not self._use_forward_dynamic_grad_scaling:
+            return weights
+        weights = weights * 1.0
+        self._last_forward_input_tensor = x
+        object.__setattr__(self, "_last_forward_param_tensor", weights)
+        return weights
+
     def register_forward_gradient_scales(
         self,
         *,
@@ -242,7 +330,12 @@ class BlockLinear(nn.Module):
         input_scale: torch.Tensor | None = None,
     ) -> None:
         """Scale input/parameter gradients for the most recent forward call only."""
-        self._use_forward_dynamic_grad_scaling = True
+        if self._last_forward_param_tensor is None:
+            raise RuntimeError(
+                "per-forward gradient scales need the forward's tensors; enable "
+                "set_forward_dynamic_grad_scaling(True) on the owning branch layer "
+                "before the forward"
+            )
         if param_scale is not None:
             target = self._last_forward_param_tensor
             if target is not None and target.requires_grad:
@@ -259,6 +352,8 @@ class BlockLinear(nn.Module):
                 target.register_hook(lambda grad, scale=scale: grad * scale)
 
     def sum_conductances(self):
+        if not self.training and self._inference_folded_conductance is not None:
+            return self._inference_folded_conductance
         return self.weight().sum(dim=1)
 
 
@@ -309,11 +404,8 @@ class EfficientBlockLinear(BlockLinear):
             raise ValueError(details)
 
         x_reshaped = x.view(B, self.out_features, self.block_size)
-        weights = (
-            apply_weight_transform(self.log_weight, self.weight_transform) * 1.0
-        )  # (out_features, block_size)
-        self._last_forward_input_tensor = x
-        object.__setattr__(self, "_last_forward_param_tensor", weights)
+        # (out_features, block_size)
+        weights = self._remember_forward_tensors(x, self._transformed_weight())
         output = (x_reshaped * weights).sum(dim=-1)  # (B, out_features)
 
         # Reshape output to match input shape structure if needed

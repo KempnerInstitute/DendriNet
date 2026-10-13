@@ -1,68 +1,39 @@
 # Tests
 
-The test suite uses `pytest` from the repository root. The custom
-`tests/test_runner.py` wrapper is optional.
-
-## Common Commands
-
-Run the full suite:
+The pytest suite of DendriNet. How to run it (commands, markers, coverage,
+parallel runs) is described in the contributing guide,
+[docs/contributing.rst](../docs/contributing.rst). Run it from the repository
+root with `PYTHONPATH` pointing at the checkout under test, for example:
 
 ```bash
-python -m pytest
+PYTHONPATH=$PWD/src python -m pytest -m "not slow" -n auto
 ```
 
-Run a single file:
+## Layout
+
+- `test_<name>.py`: the tests, one file per subsystem. Add new tests the same
+  way.
+- `conftest.py`: marks every test parametrized with a CUDA `device` as
+  `requires_gpu` and skips those tests on hosts without CUDA, skips
+  `requires_git_checkout` tests outside a Git checkout; keeps scheduler
+  policies and data out of the tests (temporary data root, no site policy).
+- `fixtures/`: reference data for tests, including the default-path goldens.
+- `golden_cases.py`: the small models of the default-path goldens.
+
+## Default-path goldens
+
+`test_default_path_goldens.py` compares 28 small default-path models with
+`fixtures/default_path_goldens.json` (initial state digests, outputs and input
+gradients). A failure is a change of default behaviour: explain it before
+regenerating the fixture with
 
 ```bash
-python -m pytest tests/test_ei_network_regression.py -q
+PYTHONPATH=$PWD/src python tests/golden_cases.py --write --reason "<why>"
 ```
 
-Run selected high-value suites:
+which records the reason, commit and numerical stack in the fixture history.
 
-```bash
-python -m pytest \
-    tests/test_unified_ei.py \
-    tests/test_recurrent_trainer_amp.py \
-    tests/test_local_learning_additive_fairness.py -q
-```
+## Warnings
 
-Run by marker:
-
-```bash
-python -m pytest -m "not slow"
-python -m pytest -m unit
-python -m pytest -m integration
-```
-
-Coverage:
-
-```bash
-python -m pytest --cov=src/dendritic_modeling --cov-report=term-missing
-python -m pytest --cov=src/dendritic_modeling --cov-report=html
-```
-
-## Markers
-
-The current marker definitions are in `pytest.ini`:
-
-- `slow`
-- `integration`
-- `unit`
-- `requires_gpu`
-- `requires_data`
-
-## Custom Runner
-
-`tests/test_runner.py` can still be used for ad hoc runs:
-
-```bash
-python tests/test_runner.py --check-deps
-python tests/test_runner.py --use-pytest
-python tests/test_runner.py --modules analysis config
-```
-
-## Notes
-
-- This README does not mirror every test file. Use `ls tests/` or
-  `pytest --collect-only` for the current inventory.
-- Add new tests as `test_<name>.py` and run them with `pytest`.
+Warnings are shown, not hidden (`pytest.ini`). A test that expects a warning
+asserts it with `pytest.warns`.

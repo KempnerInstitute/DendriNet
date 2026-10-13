@@ -32,7 +32,6 @@ def test_apply_gain_preprocess_modes_and_random_gain(monkeypatch):
 
     expectations = {
         "none": base_inputs * 2.0,
-        "identity": base_inputs * 2.0,
         "relu": base_inputs.clamp_min(0.0) * 2.0,
         "softplus": torch.nn.functional.softplus(base_inputs) * 2.0,
         "shift_min": (base_inputs - base_inputs.amin(dim=0, keepdim=True)) * 2.0,
@@ -110,29 +109,31 @@ def test_apply_gain_noise_validation_and_poisson_dataset_branch(monkeypatch):
         poisson_sampling=False,
         stimulus_duration=1.0,
     )
-    materialized = (torch.full((2, 2), 7.0), torch.tensor([0, 1]))
-    monkeypatch.setattr(mg, "materialize_dataset", lambda *args, **kwargs: materialized)
-
-    fixed_calls = []
-    monkeypatch.setattr(
-        poisson_dataset,
-        "_set_gain_factor",
-        lambda gain_factor: fixed_calls.append(("fixed", gain_factor)),
-    )
     scaled = analyzer._apply_gain_to_inputs(poisson_dataset, gain_factor=3.0)
-    assert fixed_calls == [("fixed", 3.0)]
-    assert torch.equal(scaled, materialized[0])
-
-    max_calls = []
+    assert torch.equal(scaled, torch.full((2, 2), 3.0))
     analyzer.uniform_gain = False
-    monkeypatch.setattr(
-        poisson_dataset,
-        "_set_max_gain_factor",
-        lambda gain_factor: max_calls.append(("max", gain_factor)),
-    )
     scaled = analyzer._apply_gain_to_inputs(poisson_dataset, gain_factor=5.0)
-    assert max_calls == [("max", 5.0)]
-    assert torch.equal(scaled, materialized[0])
+    assert bool(((scaled >= 1.0) & (scaled <= 5.0)).all())
+    assert poisson_dataset._gain_override is None
+
+
+@pytest.mark.parametrize("mode", ["auto", "materialize", "stream"])
+@pytest.mark.parametrize("num_workers", [0, 2])
+def test_poisson_gain_sweep_applies_the_gain_in_every_runtime_mode(mode, num_workers):
+    from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
+
+    dataset = PoissonGeneratorDataset(
+        torch.ones(8, 3),
+        torch.zeros(8, dtype=torch.long),
+        multiplicative_gain=False,
+        poisson_sampling=False,
+    )
+    analyzer = mg.MultiplicativeGainAnalyzer(MultiplicativeGainAnalysisParams())
+    runtime = EvaluationRuntimeConfig(mode=mode, num_workers=num_workers)
+    for _ in range(2):
+        inputs = analyzer._apply_gain_to_inputs(dataset, 3.0, runtime=runtime)
+        assert torch.equal(inputs, torch.full((8, 3), 3.0))
+    assert torch.equal(dataset[0][0], torch.ones(3))
 
 
 def test_analyze_collects_metrics_and_respects_model_type(tmp_path, monkeypatch):
@@ -250,12 +251,12 @@ def test_analyze_collects_metrics_and_respects_model_type(tmp_path, monkeypatch)
             cosine_similarity=True,
         )
     )
-    empty_result = generic_analyzer.analyze(
-        model=generic_model,
-        test_dataset=dataset,
-        save_path=None,
-    )
-    assert empty_result == {"gain_factors": [1.0, 3.0]}
+    with pytest.raises(ValueError, match="do not apply to it"):
+        generic_analyzer.analyze(
+            model=generic_model,
+            test_dataset=dataset,
+            save_path=None,
+        )
 
 
 def test_epoch_loading_and_plot_helpers(tmp_path, monkeypatch):
@@ -329,3 +330,60 @@ def test_epoch_loading_and_plot_helpers(tmp_path, monkeypatch):
         save_path=str(tmp_path),
     )
     assert (tmp_path / "accuracy_vs_gain_training.gif").exists()
+
+
+def test_an_enabled_sweep_needs_a_score():
+    from dendritic_modeling.config.analysis import MultiplicativeGainAnalysisConfig
+
+    with pytest.raises(ValueError, match="selects no score"):
+        MultiplicativeGainAnalysisConfig(enabled=True)
+    MultiplicativeGainAnalysisConfig(enabled=True, params={"accuracy": True})
+
+
+@pytest.mark.parametrize(
+    "option", [{"input_preprocess": "relu"}, {"noise_model": "poisson"}]
+)
+def test_poisson_datasets_reject_options_they_would_ignore(option):
+    dataset = PoissonGeneratorDataset(
+        torch.ones(4, 2),
+        torch.tensor([0, 1, 0, 1]),
+        multiplicative_gain=False,
+        poisson_sampling=False,
+    )
+    analyzer = mg.MultiplicativeGainAnalyzer(
+        MultiplicativeGainAnalysisParams(accuracy=True, n_steps=2, **option)
+    )
+    with pytest.raises(ValueError, match="would be ignored"):
+        analyzer.analyze(model=_make_classifier(), test_dataset=dataset)
+
+
+def test_noise_seed_gives_every_gain_level_the_same_draws():
+    dataset = TensorDataset(torch.rand(16, 2) + 0.5, torch.randint(0, 2, (16,)))
+    params = MultiplicativeGainAnalysisParams(
+        accuracy=True,
+        gain_min=1.0,
+        gain_max=3.0,
+        n_steps=3,
+        uniform_gain=False,
+        noise_model="poisson",
+        noise_seed=7,
+    )
+    analyzer = mg.MultiplicativeGainAnalyzer(params)
+    with analyzer._random_draws():
+        first = torch.rand(5)
+    state = torch.get_rng_state()
+    with analyzer._random_draws():
+        second = torch.rand(5)
+    assert torch.equal(first, second)
+    assert torch.equal(torch.get_rng_state(), state)
+
+    results = []
+    for global_seed in (1, 2):
+        torch.manual_seed(global_seed)
+        results.append(
+            mg.MultiplicativeGainAnalyzer(params).analyze(
+                model=_make_classifier(), test_dataset=dataset
+            )
+        )
+    assert results[0]["raw_scores"] == results[1]["raw_scores"]
+    assert results[0]["noise_seed"] == 7

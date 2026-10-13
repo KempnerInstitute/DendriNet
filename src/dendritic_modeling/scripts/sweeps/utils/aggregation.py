@@ -1,73 +1,125 @@
 """Data aggregation utilities for sweep analysis."""
 
+import logging
+from collections.abc import Iterable
 from typing import Optional
 
 import numpy as np
 import pandas as pd
+
+logger = logging.getLogger(__name__)
+
+
+def _make_group_value_hashable(value):
+    """Return a stable, hashable representation for a group key value.
+
+    Configuration extraction intentionally preserves layer-size fields as
+    lists. Pandas cannot group by those values directly, so normalize only the
+    grouping view while leaving the caller's input frame unchanged.
+    """
+    if isinstance(value, np.ndarray):
+        value = value.tolist()
+    if isinstance(value, list | tuple):
+        return tuple(_make_group_value_hashable(item) for item in value)
+    if isinstance(value, dict):
+        return tuple(
+            sorted(
+                (key, _make_group_value_hashable(item)) for key, item in value.items()
+            )
+        )
+    if isinstance(value, set):
+        return tuple(sorted(_make_group_value_hashable(item) for item in value))
+    return value
+
+
+_BOOKKEEPING_COLUMNS = frozenset(
+    {"task_id", "config_id", "config_file", "job_dir", "experiment"}
+)
 
 
 def aggregate_over_seeds(
     data: pd.DataFrame,
     group_by_cols: list[str],
     metric_cols: Optional[list[str]] = None,
+    *,
+    condition_cols: Optional[Iterable[str]] = None,
+    replicate_cols: Iterable[str] = ("seed",),
 ) -> pd.DataFrame:
-    """
-    Aggregate metrics over multiple seeds (compute mean and std).
+    """Average metrics over replicate seeds within each experimental condition.
 
     Args:
-        data: DataFrame with results from multiple seeds
-        group_by_cols: Columns to group by (e.g., ['ee_value', 'ie_value', 'use_shunting'])
-        metric_cols: Columns to aggregate (if None, auto-detect)
+        data: One row per run.
+        group_by_cols: Columns the analysis reports results by.
+        metric_cols: Columns to average; by default every column that is not a
+            grouping, condition, replicate or bookkeeping column.
+        condition_cols: Configuration columns of the runs. Those that vary
+            across the sweep are added to the grouping, so different conditions
+            (learning rates, variants, synapse types, ...) are never averaged
+            together as if they were seeds; constant ones are kept as values.
+        replicate_cols: Columns that index replicates of one condition.
 
     Returns:
-        Aggregated DataFrame with _mean and _std columns
+        One row per condition with ``<metric>_mean``, ``<metric>_std``
+        (sample standard deviation, NaN for a single replicate) and
+        ``n_replicates``.
     """
     if data.empty:
         return data
 
-    # Auto-detect metric columns if not provided
-    if metric_cols is None:
-        exclude_cols = {
-            *group_by_cols,
-            "seed",
-            "task_id",
-            "config_file",
-            "job_dir",
-            "experiment",
-        }
-        metric_cols = [col for col in data.columns if col not in exclude_cols]
-
-    # Filter to only existing columns
+    replicates = set(replicate_cols)
     group_by_cols = [col for col in group_by_cols if col in data.columns]
+    conditions = [
+        col
+        for col in (condition_cols or ())
+        if col in data.columns and col not in replicates and col not in group_by_cols
+    ]
+
+    grouping_data = data.copy()
+    for column in [*group_by_cols, *conditions]:
+        grouping_data[column] = grouping_data[column].map(_make_group_value_hashable)
+    varying = [
+        col for col in conditions if grouping_data[col].nunique(dropna=False) > 1
+    ]
+    if varying:
+        logger.info(
+            "Grouping also by configuration columns that vary across the sweep: %s",
+            ", ".join(varying),
+        )
+    group_cols = [*group_by_cols, *varying]
+    constant = [col for col in conditions if col not in varying]
+
+    if metric_cols is None:
+        excluded = {*group_cols, *conditions, *replicates, *_BOOKKEEPING_COLUMNS}
+        metric_cols = [col for col in data.columns if col not in excluded]
     metric_cols = [col for col in metric_cols if col in data.columns]
 
-    if not group_by_cols:
+    if not group_cols:
         return data
 
-    # Group and aggregate
     results = []
-    for group_vals, group_data in data.groupby(group_by_cols, dropna=False):
-        # Create row with group values
-        if isinstance(group_vals, tuple):
-            row = dict(zip(group_by_cols, group_vals))
-        else:
-            row = {group_by_cols[0]: group_vals}
+    for group_vals, group_data in grouping_data.groupby(group_cols, dropna=False):
+        if not isinstance(group_vals, tuple):
+            group_vals = (group_vals,)
+        row = dict(zip(group_cols, group_vals))
+        for column in constant:
+            row[column] = group_data[column].iloc[0]
+        row["n_replicates"] = len(group_data)
 
-        # Aggregate each metric
         for metric in metric_cols:
-            if metric not in group_data.columns:
-                continue
-
             values = group_data[metric].dropna()
-            if len(values) > 0:
-                try:
-                    numeric_values = pd.to_numeric(values, errors="coerce").dropna()
-                    if len(numeric_values) > 0:
-                        row[f"{metric}_mean"] = np.mean(numeric_values)
-                        row[f"{metric}_std"] = np.std(numeric_values)
-                except (ValueError, TypeError):
-                    # Categorical data - keep first value
-                    row[metric] = values.iloc[0]
+            if values.empty:
+                continue
+            numeric_values = pd.to_numeric(values, errors="coerce").dropna()
+            if len(numeric_values) == len(values):
+                row[f"{metric}_mean"] = float(np.mean(numeric_values))
+                row[f"{metric}_std"] = (
+                    float(np.std(numeric_values, ddof=1))
+                    if len(numeric_values) > 1
+                    else float("nan")
+                )
+            elif values.map(_make_group_value_hashable).nunique() == 1:
+                # A categorical value shared by the group's runs.
+                row[metric] = values.iloc[0]
 
         results.append(row)
 

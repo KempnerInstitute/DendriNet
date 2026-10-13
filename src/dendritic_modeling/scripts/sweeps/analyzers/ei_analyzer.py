@@ -75,6 +75,7 @@ class EISweepAnalyzer(BaseSweepAnalyzer):
             "ie_value",
             "ei_ratio",
             "use_shunting",
+            "reactivation_init_policy",
             "network_category",
             "nparams",
         ]

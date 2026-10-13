@@ -1,22 +1,32 @@
 #!/usr/bin/env python3
-"""Generate the dendritic schematic used in the README."""
+"""Generate the dendritic neuron schematic used in the README.
+
+Synapse types differ in shape as well as colour (excitatory: triangles,
+inhibitory: squares), and every structure is labelled, so the figure does not
+rely on colour alone.
+"""
 
 from __future__ import annotations
 
 import argparse
+from itertools import pairwise
 from pathlib import Path
 
 import matplotlib.patheffects as pe
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.patches import Circle
+from matplotlib.lines import Line2D
+from matplotlib.patches import Circle, RegularPolygon
 
 COLORS = {
-    "excitatory": "#D55E00",
-    "inhibitory": "#56B4E9",
+    "excitatory": "#D55E00",  # vermillion
+    "inhibitory": "#0072B2",  # blue
+    "dendrite": "#7A7A7A",
+    "axon": "#2C3E50",
     "soma": "#000000",
     "shadow": "#444444",
 }
+SYNAPSE_RADIUS = 0.11
 
 
 def add_shadow(artist, dx: float = 2.0, dy: float = -2.0, alpha: float = 0.2) -> None:
@@ -31,210 +41,156 @@ def add_shadow(artist, dx: float = 2.0, dy: float = -2.0, alpha: float = 0.2) ->
     )
 
 
-def save_figure(fig: plt.Figure, output_dir: Path, basename: str) -> None:
-    """Save PNG and SVG outputs with stable settings."""
-    output_dir.mkdir(parents=True, exist_ok=True)
-    png_path = output_dir / f"{basename}.png"
-    svg_path = output_dir / f"{basename}.svg"
-    fig.savefig(png_path, dpi=300, bbox_inches="tight", facecolor="white")
-    fig.savefig(svg_path, bbox_inches="tight", facecolor="white")
+def add_synapse(ax, x: float, y: float, excitatory: bool) -> None:
+    """Draw an excitatory synapse as a triangle and an inhibitory one as a square."""
+    if excitatory:
+        patch = RegularPolygon(
+            (x, y),
+            numVertices=3,
+            radius=SYNAPSE_RADIUS * 1.25,
+            facecolor=COLORS["excitatory"],
+            edgecolor="black",
+            lw=0.6,
+            zorder=5,
+        )
+    else:
+        patch = RegularPolygon(
+            (x, y),
+            numVertices=4,
+            radius=SYNAPSE_RADIUS * 1.1,
+            orientation=np.pi / 4,
+            facecolor=COLORS["inhibitory"],
+            edgecolor="black",
+            lw=0.6,
+            zorder=5,
+        )
+    ax.add_patch(patch)
+
+
+def draw_dendrite(ax, angle_deg: float, trunk: float, width: float, rng) -> None:
+    """Draw one dendrite: a trunk, two levels of branches and distal synapses."""
+    angle = np.radians(angle_deg)
+    start = 0.8
+    ax.plot(
+        [start * np.cos(angle), (start + trunk) * np.cos(angle)],
+        [start * np.sin(angle), (start + trunk) * np.sin(angle)],
+        color=COLORS["dendrite"],
+        lw=width,
+        solid_capstyle="round",
+    )
+    for i in range(2):
+        distance = start + trunk * (0.45 + 0.4 * i)
+        bx1, by1 = distance * np.cos(angle), distance * np.sin(angle)
+        for offset in (-22, 22):
+            branch_angle = angle + np.radians(offset)
+            bx2 = bx1 + 1.1 * np.cos(branch_angle)
+            by2 = by1 + 1.1 * np.sin(branch_angle)
+            ax.plot(
+                [bx1, bx2],
+                [by1, by2],
+                color=COLORS["dendrite"],
+                lw=width * 0.55,
+                solid_capstyle="round",
+            )
+            for j in range(2):
+                tbx1 = bx1 + (j + 1) * 0.42 * np.cos(branch_angle)
+                tby1 = by1 + (j + 1) * 0.42 * np.sin(branch_angle)
+                for toffset in (-18, 18):
+                    tip_angle = branch_angle + np.radians(toffset)
+                    tbx2 = tbx1 + 0.6 * np.cos(tip_angle)
+                    tby2 = tby1 + 0.6 * np.sin(tip_angle)
+                    ax.plot(
+                        [tbx1, tbx2],
+                        [tby1, tby2],
+                        color=COLORS["dendrite"],
+                        lw=width * 0.3,
+                        solid_capstyle="round",
+                    )
+                    add_synapse(ax, tbx2, tby2, excitatory=rng.random() > 0.3)
 
 
 def create_dendritic_diagram(
     output_dir: Path,
     basename: str = "dendritic_diagram",
-    include_text: bool = False,
+    include_text: bool = True,
+    write_svg: bool = False,
 ) -> None:
     """Create the dendritic neuron schematic."""
-    fig, ax = plt.subplots(figsize=(10, 10))
+    fig, ax = plt.subplots(figsize=(9, 9))
 
-    soma_x, soma_y = 0.0, 0.0
-    soma = Circle(
-        (soma_x, soma_y),
-        0.8,
-        color=COLORS["soma"],
-        ec="black",
-        lw=2.5,
-        zorder=10,
-    )
+    soma = Circle((0.0, 0.0), 0.8, color=COLORS["soma"], ec="black", lw=2.5, zorder=10)
     ax.add_patch(soma)
     add_shadow(soma)
 
-    if include_text:
-        ax.text(
-            soma_x,
-            soma_y,
-            "Soma",
-            ha="center",
-            va="center",
-            color="white",
-            fontsize=14,
-            weight="bold",
-        )
-
-    # Axon with terminals
-    axon_points = [(0, -0.8), (0, -2.5), (-0.5, -3.5), (-1, -4)]
-    for i in range(len(axon_points) - 1):
+    # Axon with terminals.
+    axon = [(0, -0.8), (0, -2.5), (-0.5, -3.5), (-1, -4)]
+    for (x0, y0), (x1, y1) in pairwise(axon):
+        ax.plot([x0, x1], [y0, y1], color=COLORS["axon"], lw=4, solid_capstyle="round")
+    for tx, ty in [(-1.5, -4.2), (-0.8, -4.3), (-1.2, -3.8)]:
         ax.plot(
-            [axon_points[i][0], axon_points[i + 1][0]],
-            [axon_points[i][1], axon_points[i + 1][1]],
-            color="#2C3E50",
-            lw=4,
-            solid_capstyle="round",
-        )
-
-    terminal_points = [(-1.5, -4.2), (-0.8, -4.3), (-1.2, -3.8)]
-    for tx, ty in terminal_points:
-        ax.plot(
-            [axon_points[-1][0], tx],
-            [axon_points[-1][1], ty],
-            color="#2C3E50",
+            [axon[-1][0], tx],
+            [axon[-1][1], ty],
+            color=COLORS["axon"],
             lw=2.5,
             solid_capstyle="round",
         )
-        terminal = Circle((tx, ty), 0.15, color="#34495E", ec="black", lw=1)
-        ax.add_patch(terminal)
-
-    if include_text:
-        ax.text(
-            -1,
-            -4.8,
-            "Axon",
-            ha="center",
-            fontsize=12,
-            weight="bold",
-            color="#2C3E50",
-        )
+        ax.add_patch(Circle((tx, ty), 0.15, color="#34495E", ec="black", lw=1))
 
     rng = np.random.default_rng(42)
-    dendrite_data = [
-        {"angle": 45, "color": "#9B59B6", "label": "Apical"},
-        {"angle": 135, "color": "#3498DB", "label": "Basal"},
-        {"angle": 225, "color": "#3498DB", "label": "Basal"},
-        {"angle": 315, "color": "#3498DB", "label": "Basal"},
-    ]
-
-    for dend in dendrite_data:
-        angle_rad = np.radians(dend["angle"])
-
-        start_x = soma_x + 0.8 * np.cos(angle_rad)
-        start_y = soma_y + 0.8 * np.sin(angle_rad)
-        end_x = soma_x + 2.5 * np.cos(angle_rad)
-        end_y = soma_y + 2.5 * np.sin(angle_rad)
-
-        ax.plot(
-            [start_x, end_x],
-            [start_y, end_y],
-            color=dend["color"],
-            lw=5,
-            solid_capstyle="round",
-            alpha=0.9,
-        )
-
-        for i in range(2):
-            branch_start = 0.6 + i * 0.7
-            bx1 = soma_x + (branch_start + 0.8) * np.cos(angle_rad)
-            by1 = soma_y + (branch_start + 0.8) * np.sin(angle_rad)
-
-            for offset in (-20, 20):
-                branch_angle = angle_rad + np.radians(offset)
-                bx2 = bx1 + 1.2 * np.cos(branch_angle)
-                by2 = by1 + 1.2 * np.sin(branch_angle)
-
-                ax.plot(
-                    [bx1, bx2],
-                    [by1, by2],
-                    color=dend["color"],
-                    lw=3,
-                    solid_capstyle="round",
-                    alpha=0.8,
-                )
-
-                for j in range(2):
-                    tbx1 = bx1 + (j + 1) * 0.4 * np.cos(branch_angle)
-                    tby1 = by1 + (j + 1) * 0.4 * np.sin(branch_angle)
-
-                    for toffset in (-15, 15):
-                        tbranch_angle = branch_angle + np.radians(toffset)
-                        tbx2 = tbx1 + 0.6 * np.cos(tbranch_angle)
-                        tby2 = tby1 + 0.6 * np.sin(tbranch_angle)
-
-                        ax.plot(
-                            [tbx1, tbx2],
-                            [tby1, tby2],
-                            color=dend["color"],
-                            lw=1.5,
-                            solid_capstyle="round",
-                            alpha=0.7,
-                        )
-
-                        syn_color = (
-                            COLORS["excitatory"]
-                            if rng.random() > 0.3
-                            else COLORS["inhibitory"]
-                        )
-                        synapse = Circle(
-                            (tbx2, tby2), 0.08, color=syn_color, ec="black", lw=0.5
-                        )
-                        ax.add_patch(synapse)
+    draw_dendrite(ax, 75, trunk=2.0, width=6.0, rng=rng)  # apical
+    for angle in (150, 210, 330, 15):  # basal
+        draw_dendrite(ax, angle, trunk=1.2, width=4.5, rng=rng)
 
     if include_text:
-        ax.text(
-            2,
-            2,
-            "Apical\nDendrite",
-            ha="center",
-            fontsize=10,
-            bbox={"boxstyle": "round,pad=0.3", "facecolor": "white", "alpha": 0.8},
-        )
-        ax.text(
-            -2.5,
-            1.5,
-            "Basal\nDendrites",
-            ha="center",
-            fontsize=10,
-            bbox={"boxstyle": "round,pad=0.3", "facecolor": "white", "alpha": 0.8},
-        )
-
-        legend_elements = [
-            plt.Line2D(
+        label = {"ha": "center", "va": "center", "fontsize": 15}
+        box = {"boxstyle": "round,pad=0.3", "facecolor": "white", "alpha": 0.9}
+        ax.text(0, 0, "Soma", color="white", weight="bold", zorder=11, **label)
+        ax.text(0.75, -3.0, "Axon", color=COLORS["axon"], weight="bold", **label)
+        ax.text(2.35, 3.75, "Apical\ndendrite", bbox=box, **label)
+        ax.text(-4.1, 0.0, "Basal\ndendrites", bbox=box, **label)
+        legend = [
+            Line2D(
                 [0],
                 [0],
-                marker="o",
-                color="w",
+                marker="^",
+                linestyle="none",
                 markerfacecolor=COLORS["excitatory"],
-                markersize=8,
-                label="Excitatory synapse",
+                markeredgecolor="black",
+                markersize=13,
+                label="Excitatory synapse (triangle)",
             ),
-            plt.Line2D(
+            Line2D(
                 [0],
                 [0],
-                marker="o",
-                color="w",
+                marker="s",
+                linestyle="none",
                 markerfacecolor=COLORS["inhibitory"],
-                markersize=8,
-                label="Inhibitory synapse",
+                markeredgecolor="black",
+                markersize=11,
+                label="Inhibitory synapse (square)",
             ),
-            plt.Line2D([0], [0], color="#9B59B6", lw=3, label="Apical dendrite"),
-            plt.Line2D([0], [0], color="#3498DB", lw=3, label="Basal dendrite"),
         ]
-        ax.legend(
-            handles=legend_elements, loc="upper right", frameon=True, fancybox=True
-        )
-        ax.set_title("Dendritic Neuron Structure", fontsize=18, weight="bold", pad=20)
+        ax.legend(handles=legend, loc="upper left", frameon=True, fontsize=13)
 
     ax.set_xlim(-5, 5)
-    ax.set_ylim(-5.5, 4.5)
+    ax.set_ylim(-5.2, 5.0)
     ax.set_aspect("equal")
     ax.axis("off")
 
-    save_figure(fig, output_dir, basename)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    fig.savefig(
+        output_dir / f"{basename}.png", dpi=150, bbox_inches="tight", facecolor="white"
+    )
+    if write_svg:
+        fig.savefig(
+            output_dir / f"{basename}.svg", bbox_inches="tight", facecolor="white"
+        )
     plt.close(fig)
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Generate the dendritic README schematic."
+        description="Generate the README neuron schematic."
     )
     parser.add_argument(
         "--output-dir",
@@ -248,10 +204,11 @@ def parse_args() -> argparse.Namespace:
         help="Base output filename without extension.",
     )
     parser.add_argument(
-        "--with-text",
+        "--no-text",
         action="store_true",
-        help="Include labels, legend, and title.",
+        help="Omit the labels and the legend.",
     )
+    parser.add_argument("--svg", action="store_true", help="Also write an SVG file.")
     return parser.parse_args()
 
 
@@ -260,7 +217,8 @@ def main() -> None:
     create_dendritic_diagram(
         output_dir=args.output_dir,
         basename=args.basename,
-        include_text=args.with_text,
+        include_text=not args.no_text,
+        write_svg=args.svg,
     )
 
 

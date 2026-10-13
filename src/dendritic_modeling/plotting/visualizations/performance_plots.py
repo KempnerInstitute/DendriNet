@@ -12,6 +12,7 @@ from typing import Any, Optional
 import matplotlib.pyplot as plt
 import numpy as np
 
+from dendritic_modeling.plotting.styles import indexed_style, split_style
 from dendritic_modeling.utils.epoch_files import epoch_file_paths_by_number
 
 from .base import TimeSeriesPlotter
@@ -36,13 +37,26 @@ class PerformancePlotter(TimeSeriesPlotter):
 
         epochs = range(1, len(train_losses) + 1)
 
+        # Every curve has its own line style besides its colour: raw curves
+        # are thin, faint and dotted or dash-dotted, smoothed ones thick.
+        train_color = split_style("train").color
+        valid_color = split_style("valid").color
+
         # Plot raw data
-        ax.plot(epochs, train_losses, "b-", alpha=0.6, label="Train (raw)")
+        ax.plot(
+            epochs,
+            train_losses,
+            color=train_color,
+            linestyle=":",
+            alpha=0.6,
+            label="Train (raw)",
+        )
         if valid_losses:
             ax.plot(
                 epochs[: len(valid_losses)],
                 valid_losses,
-                "r-",
+                color=valid_color,
+                linestyle="-.",
                 alpha=0.6,
                 label="Valid (raw)",
             )
@@ -51,7 +65,12 @@ class PerformancePlotter(TimeSeriesPlotter):
         if len(train_losses) > 10:
             smooth_train = self._smooth_data(np.array(train_losses), window_size=5)
             ax.plot(
-                epochs[2:-2], smooth_train, "b-", linewidth=2, label="Train (smooth)"
+                epochs[2:-2],
+                smooth_train,
+                color=train_color,
+                linestyle="-",
+                linewidth=2,
+                label="Train (smooth)",
             )
 
             if valid_losses and len(valid_losses) > 10:
@@ -59,7 +78,8 @@ class PerformancePlotter(TimeSeriesPlotter):
                 ax.plot(
                     epochs[2 : len(smooth_valid) + 2],
                     smooth_valid,
-                    "r-",
+                    color=valid_color,
+                    linestyle="--",
                     linewidth=2,
                     label="Valid (smooth)",
                 )
@@ -236,17 +256,20 @@ class PerformancePlotter(TimeSeriesPlotter):
         for metric_type, metric_keys in metric_groups.items():
             fig, ax = self._create_figure(figsize=(12, 8))
 
-            colors = ["blue", "red", "green", "orange", "purple"]
             for idx, key in enumerate(metric_keys):
                 values = metrics_data[key]
-                color = colors[idx % len(colors)]
+                # Splits keep one style everywhere; other series get distinct
+                # markers and line styles, so none relies on colour.
+                split = key.rsplit("_", 1)[-1]
+                try:
+                    style = split_style(split)
+                except ValueError:
+                    style = indexed_style(idx)
 
-                # Plot with markers and lines
                 ax.plot(
                     epochs[: len(values)],
                     values,
-                    "o-",
-                    color=color,
+                    **style.kwargs(),
                     alpha=0.7,
                     label=key.replace("_", " ").title(),
                     linewidth=2,

@@ -42,6 +42,8 @@ class DendriNetConfig:
     synapse_config: DendriticSynapseConfig = field(
         default_factory=DendriticSynapseConfig
     )
+    additive_tangent_n0_by_depth: tuple[float, ...] = ()
+    additive_tangent_t0_by_depth: tuple[float, ...] = ()
 
     @classmethod
     def from_config(
@@ -66,11 +68,26 @@ class DendriNetConfig:
         source = dict(mapping or {})
         source.update(kwargs)
         synapse_source = source.get("synapse_config", source.get("synapse", None))
-        synapse_config = (
-            DendriticSynapseConfig.from_config(synapse_source)
-            if synapse_source is not None
-            else DendriticSynapseConfig.from_config(source)
-        )
+        if synapse_source is not None:
+            synapse_config = DendriticSynapseConfig.from_config(synapse_source)
+            # Flat synapse keys beside a nested synapse config must agree with it.
+            flat = DendriticSynapseConfig.legacy_kwargs_from_mapping(source)
+            flat.pop("branch_factors", None)
+            if flat:
+                typed = synapse_config.to_kwargs()
+                merged = DendriticSynapseConfig.from_kwargs({**typed, **flat})
+                if merged != synapse_config:
+                    differing = sorted(
+                        key
+                        for key, value in merged.to_kwargs().items()
+                        if typed.get(key) != value
+                    )
+                    raise ValueError(
+                        "DendriNetConfig received a nested synapse config and flat "
+                        f"synapse keys that contradict it: {', '.join(differing)}"
+                    )
+        else:
+            synapse_config = DendriticSynapseConfig.from_config(source)
 
         return cls(
             n_soma=_require_config_value(source, "n_soma"),
@@ -95,6 +112,12 @@ class DendriNetConfig:
                 "structured_inhibitory_pathway", "ie"
             ),
             synapse_config=synapse_config,
+            additive_tangent_n0_by_depth=tuple(
+                source.get("additive_tangent_n0_by_depth", ())
+            ),
+            additive_tangent_t0_by_depth=tuple(
+                source.get("additive_tangent_t0_by_depth", ())
+            ),
         )
 
     def to_kwargs(self) -> dict[str, Any]:
@@ -112,6 +135,8 @@ class DendriNetConfig:
             "structured_layer_idx": self.structured_layer_idx,
             "structured_excitatory_pathway": self.structured_excitatory_pathway,
             "structured_inhibitory_pathway": self.structured_inhibitory_pathway,
+            "additive_tangent_n0_by_depth": list(self.additive_tangent_n0_by_depth),
+            "additive_tangent_t0_by_depth": list(self.additive_tangent_t0_by_depth),
         }
 
 

@@ -97,7 +97,9 @@ class DendriticSpikeDynamics:
         event = event * active
 
         if self.mode == "plateau":
-            plateau_decay = torch.as_tensor(
+            # A device-side fill: no host-to-device copy (and sync) per step.
+            plateau_decay = torch.full(
+                (),
                 math.exp(-self.dt / self.plateau_tau),
                 device=branch_voltage.device,
                 dtype=branch_voltage.dtype,

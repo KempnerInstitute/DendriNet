@@ -10,6 +10,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 
+from dendritic_modeling.plotting.styles import depth_style
+
 from .base_plotter import BasePlotter
 
 logger = logging.getLogger(__name__)
@@ -432,16 +434,15 @@ class SNRPlotter(BasePlotter):
                     input_prefix, input_prefix.replace("_", " ").title()
                 )
                 label = f"{category.replace('_', ' ').title()} {prefix_label}"
+                # The marker names the category and the line style the
+                # input stream, so neither relies on colour.
                 color = self.category_colors.get(category, "black")
-                linestyle = self.category_linestyles.get(category, "-")
                 marker = self.category_markers.get(category, "o")
-
+                linestyle = self.category_linestyles.get(category, "-")
                 if input_prefix in {"exc_inputs", "network_exc_inputs"}:
                     linestyle = "-"
-                    marker = "o"
                 elif input_prefix in {"inh_inputs", "network_inh_outputs"}:
                     linestyle = "--"
-                    marker = "s"
 
                 _plot_data(
                     category_data=category_data,
@@ -487,9 +488,8 @@ class SNRPlotter(BasePlotter):
         # Create separate plots for each network category
         categories = ["dendritic_shunting", "dendritic_additive", "dendritic_signed"]
 
-        # Create color mapping for depths using a colormap
-        cmap = plt.get_cmap("tab10")
-        depth_colors = {depth: cmap(depth / 9.0) for depth in depths}
+        # Each depth gets its own colour, marker and line style.
+        depth_colors = {depth: depth_style(depth) for depth in depths}
 
         fig, axes = plt.subplots(1, len(categories), figsize=(7.5 * len(categories), 6))
         fig.suptitle(
@@ -541,9 +541,8 @@ class SNRPlotter(BasePlotter):
                         ax.plot(
                             x_vals,
                             y_vals,
-                            marker="o",
                             label=f"Depth {depth}",
-                            color=depth_colors[depth],
+                            **depth_colors[depth].kwargs(),
                             alpha=0.8,
                             linewidth=2,
                         )

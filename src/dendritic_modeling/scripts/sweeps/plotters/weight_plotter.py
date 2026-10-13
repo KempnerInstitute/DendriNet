@@ -6,6 +6,8 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 
+from dendritic_modeling.plotting.styles import NEUTRAL, indexed_style
+
 from .base_plotter import BasePlotter
 
 logger = logging.getLogger(__name__)
@@ -80,6 +82,9 @@ class WeightPlotter(BasePlotter):
 
             try:
                 fig, ax = plt.subplots(figsize=self.default_figsize)
+                # Colour names the category; marker and line style name each
+                # (layer, category) series, so series read without colour.
+                series = 0
 
                 # Plot each layer/variant
                 for col in matching_cols[:5]:  # Limit to first 5 to avoid overcrowding
@@ -94,15 +99,15 @@ class WeightPlotter(BasePlotter):
                                 data["network_category"] == category
                             ].sort_values("ei_ratio")
                             if not cat_data.empty:
-                                color = self.category_colors.get(category, "black")
-                                linestyle = self.category_linestyles.get(category, "-")
+                                style = indexed_style(series)
+                                series += 1
                                 ax.plot(
                                     cat_data["ei_ratio"],
                                     cat_data[col],
                                     label=f"{label} ({category})",
-                                    color=color,
-                                    linestyle=linestyle,
-                                    marker="o",
+                                    color=self.category_colors.get(category, NEUTRAL),
+                                    linestyle=style.linestyle,
+                                    marker=style.marker,
                                     markersize=4,
                                 )
                     else:
@@ -110,10 +115,11 @@ class WeightPlotter(BasePlotter):
                         ax.plot(
                             grouped.index,
                             grouped.values,
-                            marker="o",
+                            **indexed_style(series).kwargs(),
                             label=label,
                             linewidth=2,
                         )
+                        series += 1
 
                 self.setup_axes_style(
                     ax=ax,
@@ -166,6 +172,9 @@ class WeightPlotter(BasePlotter):
 
         try:
             fig, ax = plt.subplots(figsize=self.default_figsize)
+            # Colour names the category; marker and line style name each
+            # (layer, category) series.
+            series = 0
 
             # Match exc and inh columns by layer suffix
             for exc_col in exc_cols:
@@ -192,15 +201,15 @@ class WeightPlotter(BasePlotter):
                                 ratio_data["network_category"] == category
                             ].sort_values("ei_ratio")
                             if not cat_data.empty:
-                                color = self.category_colors.get(category, "black")
-                                linestyle = self.category_linestyles.get(category, "-")
+                                style = indexed_style(series)
+                                series += 1
                                 ax.plot(
                                     cat_data["ei_ratio"],
                                     cat_data["weight_ratio"],
                                     label=f"{layer_label} ({category})",
-                                    color=color,
-                                    linestyle=linestyle,
-                                    marker="o",
+                                    color=self.category_colors.get(category, NEUTRAL),
+                                    linestyle=style.linestyle,
+                                    marker=style.marker,
                                     markersize=4,
                                 )
 

@@ -58,6 +58,9 @@ class InformationValidationMixin(InformationResultHelpersMixin):
         self.logger.warning(
             "Model does not expose an ExcitationInhibitionNetwork. Skipping information analysis."
         )
+        report_skip = getattr(self, "report_skip", None)
+        if callable(report_skip):
+            report_skip("the model has no ExcitationInhibitionNetwork core")
         return False
 
 

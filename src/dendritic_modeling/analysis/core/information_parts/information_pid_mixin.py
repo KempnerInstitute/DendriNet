@@ -1,4 +1,10 @@
-"""Partial-information-decomposition metrics for information analysis."""
+"""Partial-information-decomposition metrics for information analysis.
+
+Each decomposition splits ``I(S1,S2;T)`` into redundant, unique and synergistic
+parts with the minimum-mutual-information measure
+(:mod:`dendritic_modeling.utils.information.pid`), estimating the three mutual
+informations with the analysis' configured estimator.
+"""
 
 from __future__ import annotations
 
@@ -10,10 +16,7 @@ import numpy as np
 from dendritic_modeling.analysis.core.information_parts.information_fisher_mixin import (
     InformationFisherMetricsMixin,
 )
-from dendritic_modeling.utils.information.pid import (
-    check_pid_available,
-    pid_synergy_redundancy,
-)
+from dendritic_modeling.utils.information.pid import partial_information_decomposition
 
 PidArraySet = tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]
 PidMetricSpec = tuple[np.ndarray, str, np.ndarray, str, np.ndarray, str]
@@ -21,19 +24,6 @@ PidMetricSpec = tuple[np.ndarray, str, np.ndarray, str, np.ndarray, str]
 
 class InformationPidMetricsMixin(InformationFisherMetricsMixin):
     """Computes PID metrics and PID-specific preprocessing."""
-
-    def _check_pid_available(self) -> None:
-        """Set whether the optional PID backend is available."""
-        self.pid_available = False
-        if self.compute_pid:
-            try:
-                check_pid_available()
-                self.pid_available = True
-                self.logger.info("PID computation available")
-            except ImportError:
-                self.logger.warning(
-                    "PID package not available. PID metrics will be skipped."
-                )
 
     def _add_pid_metric(
         self,
@@ -50,51 +40,44 @@ class InformationPidMetricsMixin(InformationFisherMetricsMixin):
         pid_key = f"PID({source1_name},{source2_name}->{target_name})"
         self.logger.info(f"  Computing {pid_key}...")
         start_time = time.time()
-        try:
-            synergy, redundancy = pid_synergy_redundancy(
-                [source1_array, source2_array], target_array
-            )
-
-            unique_1 = (
-                self.estimators[self.method].mutual_information(
-                    source1_array, target_array
-                )
-                - redundancy
-            )
-            unique_2 = (
-                self.estimators[self.method].mutual_information(
-                    source2_array, target_array
-                )
-                - redundancy
-            )
-
-            pid_results[pid_key] = {
-                "synergy": synergy,
-                "redundancy": redundancy,
-                f"unique_{source1_name}": unique_1,
-                f"unique_{source2_name}": unique_2,
-            }
-            self.logger.info(
-                f"  {pid_key}: synergy={synergy:.4f}, redundancy={redundancy:.4f}, unique_{source1_name}={unique_1:.4f}, unique_{source2_name}={unique_2:.4f} (took {time.time() - start_time:.1f}s)"
-            )
-        except Exception as e:
-            self.logger.warning(
-                f"  {pid_key} computation failed: {e} (took {time.time() - start_time:.1f}s)"
-            )
+        terms = partial_information_decomposition(
+            source1_array,
+            source2_array,
+            target_array,
+            self.estimators[self.method].mutual_information,
+        )
+        pid_results[pid_key] = {
+            "redundancy": terms.redundancy,
+            f"unique_{source1_name}": terms.unique_1,
+            f"unique_{source2_name}": terms.unique_2,
+            "synergy": terms.synergy,
+            "joint": terms.joint,
+        }
+        self.logger.info(
+            f"  {pid_key}: redundancy={terms.redundancy:.4f}, "
+            f"unique_{source1_name}={terms.unique_1:.4f}, "
+            f"unique_{source2_name}={terms.unique_2:.4f}, "
+            f"synergy={terms.synergy:.4f} (took {time.time() - start_time:.1f}s)"
+        )
 
     def _pid_arrays(
         self, E: np.ndarray, I_var: np.ndarray, Vout: np.ndarray, C: np.ndarray
     ) -> PidArraySet:
+        """Return the PID variables; optional binarization never touches labels.
+
+        The class labels are already discrete, and a threshold split would merge
+        classes.
+        """
         self.logger.info(f"  Data preprocessing: binarize={self.pid_binarize}")
+        C_pid = C.reshape(-1, 1)
         if not self.pid_binarize:
-            return E, I_var, Vout, C.reshape(-1, 1)
+            return E, I_var, Vout, C_pid
 
         self.logger.info(f"  Binarizing data using method: {self.pid_binarize_method}")
         start_time = time.time()
         E_pid = self._binarize(E)
         I_pid = self._binarize(I_var)
         Vout_pid = self._binarize(Vout)
-        C_pid = self._binarize(C.reshape(-1, 1))
         self.logger.info(
             f"  Data binarization completed (took {time.time() - start_time:.1f}s)"
         )
@@ -121,7 +104,6 @@ class InformationPidMetricsMixin(InformationFisherMetricsMixin):
         self.logger.info("Computing Partial Information Decomposition (PID)...")
         pid_results = {}
 
-        # Prepare data for PID (may need binarization)
         E_pid, I_pid, Vout_pid, C_pid = self._pid_arrays(E, I_var, Vout, C)
 
         for (

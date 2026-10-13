@@ -37,7 +37,7 @@ from dendritic_modeling.scripts.script_utils.setup_utils import (
     initialize_model,
 )
 
-# Inline model config used by tests that previously loaded from drafts/
+# Inline model config shared by these tests
 _SHUNTING_PILOT_MODEL_CFG = OmegaConf.create(
     {
         "task": "classification",
@@ -53,14 +53,13 @@ _SHUNTING_PILOT_MODEL_CFG = OmegaConf.create(
             "connectivity": {
                 "ee_synapses_per_branch_per_layer": [18],
                 "ei_synapses_per_branch_per_layer": [0],
-                "ie_synapses_per_branch_per_layer": [6],
+                # Only the first layer reads the transferred inhibitory stream.
+                "ie_synapses_per_branch_per_layer": [6, 0],
                 "ii_synapses_per_branch_per_layer": [0],
             },
             "transfer": {
-                "input_mode": 1,
                 "independent_pathways": False,
                 "output_activation": None,
-                "allow_direct_inhibitory_stream": True,
             },
             "morphology": {
                 "somatic_synapses": False,
@@ -310,12 +309,14 @@ def test_population_feedforward_example_uses_modern_sparse_defaults() -> None:
     assert first_branch.reactivation.b.mean().item() == pytest.approx(0.478, rel=0.05)
 
 
-def test_initialize_model_rejects_transformer_replacement_with_runner_hint() -> None:
+def test_initialize_model_rejects_transformer_replacement_with_builder_hint() -> None:
     cfg_model = ModelConfig()
     cfg_model.transformer_replacement.enabled = True
     cfg_model.core.type = "dendritic_ffn"
 
-    with pytest.raises(ValueError, match="train_transformer_replacement"):
+    with pytest.raises(
+        ValueError, match="load_transformer_with_dendritic_replacements"
+    ):
         initialize_model(cfg_model)
 
 
@@ -448,7 +449,7 @@ def _typed_soma_feedback_core() -> CoreConfig:
             rec_ei_synapses_per_branch=[0],
             rec_ii_synapses_per_branch=[0],
         ),
-        transfer=TransferFunctionConfig(input_mode=0),
+        transfer=TransferFunctionConfig(),
         morphology=MorphologyConfig(use_shunting=True, somatic_synapses=True),
         reactivation=ReactivationConfig(enabled=False),
         soma_feedback={"enabled": True, "levels": "distal"},
@@ -473,7 +474,7 @@ def _typed_stateful_feature_core(feature_name: str, payload: dict) -> CoreConfig
             rec_ei_synapses_per_branch=[0],
             rec_ii_synapses_per_branch=[0],
         ),
-        transfer=TransferFunctionConfig(input_mode=0),
+        transfer=TransferFunctionConfig(),
         morphology=MorphologyConfig(use_shunting=True, somatic_synapses=True),
         reactivation=ReactivationConfig(enabled=False),
     )
@@ -700,3 +701,46 @@ def test_initialize_model_accepts_pathway_router_encoder() -> None:
 
     logits = model(torch.rand(8, 18))
     assert torch.isfinite(logits).all()
+
+
+@pytest.mark.parametrize(
+    "results_dir, exact, expected",
+    [
+        ("runs/config_3", False, "runs/config_3"),
+        ("runs/config_tests", False, "runs/config_tests/demo_20261010_120000"),
+        ("runs/config_tests", True, "runs/config_tests"),
+        ("runs/out", False, "runs/out/demo_20261010_120000"),
+    ],
+)
+def test_run_directory_is_timestamped_unless_exact(results_dir, exact, expected):
+    from datetime import datetime
+    from types import SimpleNamespace
+
+    from dendritic_modeling.scripts.script_utils.setup_utils import run_directory
+
+    outputs = SimpleNamespace(
+        results_dir=results_dir, run_name="demo", exact_run_dir=exact
+    )
+    assert run_directory(outputs, now=datetime(2026, 10, 10, 12, 0, 0)) == expected
+
+
+def test_runs_starting_in_the_same_second_get_separate_directories(tmp_path):
+    from datetime import datetime
+    from types import SimpleNamespace
+
+    from dendritic_modeling.scripts.script_utils.setup_utils import claim_run_directory
+
+    outputs = SimpleNamespace(
+        results_dir=str(tmp_path), run_name="demo", exact_run_dir=False
+    )
+    now = datetime(2026, 10, 10, 12, 0, 0)
+    first = claim_run_directory(outputs, now=now)
+    second = claim_run_directory(outputs, now=now)
+    assert first == str(tmp_path / "demo_20261010_120000")
+    assert second == first + "_1"
+    exact = SimpleNamespace(
+        results_dir=str(tmp_path / "x"), run_name="demo", exact_run_dir=True
+    )
+    assert (
+        claim_run_directory(exact) == claim_run_directory(exact) == str(tmp_path / "x")
+    )

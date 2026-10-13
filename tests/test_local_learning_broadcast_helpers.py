@@ -6,6 +6,7 @@ import logging
 import math
 from types import SimpleNamespace
 
+import pytest
 import torch
 
 from dendritic_modeling.training.strategies.local_learning_parts.local_learning_broadcast import (
@@ -13,6 +14,7 @@ from dendritic_modeling.training.strategies.local_learning_parts.local_learning_
     compute_local_mismatch_broadcast,
     compute_role_selectivity,
     expand_parent_signal_to_children,
+    expand_soma_error_to_compartments,
     normalize_role_mass,
     reduce_error_to_scalar,
     resolve_recent_role_profile,
@@ -41,10 +43,12 @@ def test_apply_broadcast_bandwidth_modes():
     # sign_only: sign(e) * mean(|e|)
     out = apply_broadcast_bandwidth(SimpleNamespace(), e, "sign_only")
     torch.testing.assert_close(out, torch.sign(e) * e.abs().mean())
-    # unknown bandwidth -> passthrough
+    # full bandwidth passes the error through; unknown names raise
     torch.testing.assert_close(
-        apply_broadcast_bandwidth(SimpleNamespace(), e, "none"), e
+        apply_broadcast_bandwidth(SimpleNamespace(), e, "full"), e
     )
+    with pytest.raises(ValueError, match="Unknown broadcast_bandwidth"):
+        apply_broadcast_bandwidth(SimpleNamespace(), e, "none")
     # sparse_topk keeps only the top fraction by magnitude
     cfg = SimpleNamespace(broadcast_topk_fraction=0.5)
     sp = apply_broadcast_bandwidth(cfg, e, "sparse_topk")
@@ -58,6 +62,21 @@ def test_reduce_error_to_scalar_preserves_mean_and_near_zero_fallback():
     out = reduce_error_to_scalar(delta)
 
     torch.testing.assert_close(out, torch.tensor([[3.0], [1.0], [-1.25]]))
+
+
+def test_reduce_error_to_scalar_falls_back_only_where_the_mean_cancels():
+    delta = torch.randn(64, 7)
+    delta[::3] -= delta[::3].mean(dim=1, keepdim=True)  # zero-mean rows
+
+    out = reduce_error_to_scalar(delta)
+
+    mean = delta.mean(dim=1, keepdim=True)
+    near_zero = mean.abs() <= 1e-6
+    largest = delta.gather(1, delta.abs().argmax(dim=1, keepdim=True))
+    assert near_zero.any() and not near_zero.all()
+    assert torch.equal(out, torch.where(near_zero, largest, mean))
+    assert torch.equal(out[~near_zero], mean[~near_zero])
+    assert reduce_error_to_scalar(torch.zeros(3, 0)).shape == (3, 1)
 
 
 def test_reduce_error_to_scalar_flattens_higher_rank_errors():
@@ -116,6 +135,29 @@ def test_expand_parent_signal_to_children_repeat_and_truncate():
         expand_parent_signal_to_children(sig, 1, 6),
         torch.tensor([[1.0, 2.0, 1.0, 2.0, 1.0, 2.0]]),
     )
+
+
+def test_expand_soma_error_to_compartments_preserves_ancestry_blocks():
+    delta = torch.tensor([[1.0, 2.0], [-1.0, 0.5]])
+
+    expanded = expand_soma_error_to_compartments(delta, out_features=6)
+
+    assert expanded is not None
+    torch.testing.assert_close(
+        expanded,
+        torch.tensor(
+            [
+                [1.0, 1.0, 1.0, 2.0, 2.0, 2.0],
+                [-1.0, -1.0, -1.0, 0.5, 0.5, 0.5],
+            ]
+        ),
+    )
+
+
+def test_expand_soma_error_to_compartments_rejects_ambiguous_width():
+    delta = torch.ones(2, 3)
+
+    assert expand_soma_error_to_compartments(delta, out_features=8) is None
 
 
 def test_soma_seed_from_delta_preserves_vector_and_scalar_paths():
@@ -323,6 +365,22 @@ def test_parent_resistance_total_preserves_stabilized_formula():
     assert len(calls) == 1
     assert calls[0][0] is parent_rec
     assert calls[0][1] is parent_v
+
+
+def test_parent_resistance_total_is_unit_gain_for_additive_dynamics():
+    transport = LocalLearningPathTransportBroadcastMixin()
+    parent_rec = {"name": "parent"}
+    parent_v = torch.zeros(2, 2, dtype=torch.float64)
+    transport._resolve_layer_dynamics_mode = lambda _rec: "additive"
+
+    def fail_if_called(*_args):
+        raise AssertionError("additive transport must not use total conductance")
+
+    transport._compute_layer_total_conductance = fail_if_called
+
+    resistance = transport._parent_resistance_total(parent_rec, parent_v)
+
+    torch.testing.assert_close(resistance, torch.ones_like(parent_v))
 
 
 def test_scalar_edge_mean_factor_preserves_shape_and_formula():

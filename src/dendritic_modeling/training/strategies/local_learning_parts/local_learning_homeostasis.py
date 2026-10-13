@@ -56,11 +56,7 @@ def compute_inhibitory_homeostasis_factor(
         e_inh = float(getattr(local_cfg.three_factor, "e_rev_inh", 0.0))
         return weight * (v_n - target_v) * r_tensor * (e_inh - v_n)
 
-    logger.warning(
-        "Unknown inhibitory_homeostasis.mode='%s'; disabling auxiliary term.",
-        mode,
-    )
-    return None
+    raise ValueError(f"Unknown inhibitory_homeostasis.mode {mode!r}")
 
 
 def compute_voltage_homeostasis_error(
@@ -68,9 +64,11 @@ def compute_voltage_homeostasis_error(
 ) -> torch.Tensor | None:
     """Return a local voltage-centering error signal.
 
-    This term is intentionally local: it depends only on the compartment voltage
-    and a fixed target midpoint, and it is applied through the same local
-    sensitivity factors used by the task-driven updates.
+    This is ``dL/dV`` for ``L = weight * (V - target_voltage)^2 / 2``, the
+    orientation of the task error, so the local sensitivities that turn it into
+    parameter gradients move each voltage toward the target. The term is
+    intentionally local: it depends only on the compartment voltage and a fixed
+    target.
     """
     cfg = getattr(local_cfg, "voltage_homeostasis", None)
     if cfg is None or not getattr(cfg, "enabled", False) or cfg.weight <= 0.0:
@@ -78,7 +76,7 @@ def compute_voltage_homeostasis_error(
 
     target_v = float(getattr(cfg, "target_voltage", 0.5))
     weight = float(cfg.weight)
-    return weight * (target_v - v_n)
+    return weight * (v_n - target_v)
 
 
 def compute_gate_homeostasis_aux_grads(

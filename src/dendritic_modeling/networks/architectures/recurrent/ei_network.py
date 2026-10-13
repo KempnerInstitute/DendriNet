@@ -21,6 +21,7 @@ from dendritic_modeling.networks.architectures.recurrent.ei_config import (
 from dendritic_modeling.networks.architectures.recurrent.ei_layer import EILayer
 from dendritic_modeling.networks.architectures.recurrent.ei_state import EIState
 from dendritic_modeling.networks.base import BaseNetwork
+from dendritic_modeling.networks.utils.forward_caches import detach_forward_caches
 
 
 class EINetwork(BaseNetwork):
@@ -82,7 +83,7 @@ class EINetwork(BaseNetwork):
                 layer_cfg.inhibitory_input_dim = transfer_inh_dim
             else:
                 layer_cfg.inhibitory_input_dim = prev_inh_dim
-            layer = EILayer(layer_cfg)
+            layer = EILayer(layer_cfg, layer_index=layer_idx)
             self.layers.append(layer)
 
             self._is_recurrent = self._is_recurrent or layer_cfg.recurrent
@@ -100,6 +101,13 @@ class EINetwork(BaseNetwork):
             for layer in self.layers:
                 layer.store_routing = True
 
+    # Tensors of the last forward pass kept for analyses; copies and pickles
+    # hold them detached (networks.utils.forward_caches).
+    _FORWARD_CACHES = ("_routing_info",)
+
+    def __getstate__(self):
+        return detach_forward_caches(super().__getstate__(), self._FORWARD_CACHES)
+
     @property
     def is_recurrent(self) -> bool:
         return self._is_recurrent
@@ -113,6 +121,14 @@ class EINetwork(BaseNetwork):
         self._store_routing = value
         for layer in self.layers:
             layer.store_routing = value
+
+    def decay_weights(self, weight_decay: float, weight_boosting: bool = False) -> None:
+        for layer in self.layers:
+            layer.decay_weights(weight_decay, weight_boosting)
+
+    def apply_rewiring(self) -> None:
+        for layer in self.layers:
+            layer.apply_rewiring()
 
     def set_layer_population_silencing(
         self,
@@ -179,11 +195,11 @@ class EINetwork(BaseNetwork):
         """Select inhibitory input for one layer.
 
         Priority:
-        1) ``direct_ff_inhibitory_to_excitatory`` forces transfer inhibitory
-           (used by ``input_mode=1`` with ``inhibitory_mode`` "first"/"all").
-        2) Propagated inhibitory from the previous layer (``ff_inhibitory``).
-        3) If no upstream inhibitory and the layer has an I population,
-           fall back to transfer inhibitory (``input_mode=0`` first-layer case).
+        1) ``direct_ff_inhibitory_to_excitatory`` selects the transferred
+           inhibitory stream (structured EINets set it on the first layer).
+        2) Otherwise the previous layer's inhibitory output (``ff_inhibitory``).
+        3) A layer with inhibitory cells and no upstream inhibitory output
+           falls back to the transferred stream.
         """
         if (
             layer.config.direct_ff_inhibitory_to_excitatory

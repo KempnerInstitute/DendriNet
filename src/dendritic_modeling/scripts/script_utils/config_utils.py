@@ -20,14 +20,13 @@ from dendritic_modeling.config.model_aliases import (
     canonicalize_rnn_core_flags as _canonicalize_rnn_core_flags,
 )
 from dendritic_modeling.config.training import (
+    LOCAL_RULE_STRATEGIES,
     ParamGroupsConfig,
     TrainingStrategiesConfig,
 )
+from dendritic_modeling.utils.reproducibility import resolve_experiment_seeds
 
 logger = logging.getLogger(__name__)
-
-# Cache for converted configs to avoid repeated conversions
-_config_cache = {}
 
 
 def canonicalize_model_core_flags(
@@ -126,19 +125,13 @@ def prepare_ei_network_params(
     Returns:
         Flattened parameter dictionary ready for EINet initialization
     """
-    # Create a cache key (excluding input_dim since it changes the params)
-    cache_key = id(config) if isinstance(config, DictConfig) else None
-
-    # Check cache first
-    if cache_key and cache_key in _config_cache:
-        logger.debug("Using cached config conversion for EINet initialization")
-        cached_params = _config_cache[cache_key].copy()
-        cached_params["input_dim"] = input_dim
-        return cached_params
-
-    logger.info(
-        "Converting DictConfig to dict for EINet initialization (this should happen only once)"
+    # Surface known-subtle operator combinations in the run log. Warnings
+    # only — behavior never changes here, and each message logs once.
+    from dendritic_modeling.config.operator_validation import (
+        log_operator_config_warnings,
     )
+
+    log_operator_config_warnings(config)
 
     # Convert to regular dict if needed - do this ONCE
     if isinstance(config, DictConfig):
@@ -184,6 +177,11 @@ def prepare_ei_network_params(
         **morphology_dict,
         **implementation_dict,
     }
+    # Component-keyed parameter initialization. ``None`` (absent) keeps the
+    # historical global torch stream exactly.
+    initialization_seed = config.get("initialization_seed")
+    if initialization_seed is not None:
+        params["initialization_seed"] = int(initialization_seed)
 
     # Add sparsity parameters with proper naming
     for key, value in sparsity_dict.items():
@@ -192,7 +190,12 @@ def prepare_ei_network_params(
                 params[deepst_key] = deepst_value
         elif key == "indexed":
             for indexed_key, indexed_value in value.items():
-                params[f"indexed_{indexed_key}"] = indexed_value
+                target_key = (
+                    indexed_key
+                    if indexed_key.startswith("release_")
+                    else f"indexed_{indexed_key}"
+                )
+                params[target_key] = indexed_value
         elif key in {"dense_to_sparse", "annealed_topk"}:
             if key == "annealed_topk":
                 logger.warning(
@@ -208,10 +211,10 @@ def prepare_ei_network_params(
         else:
             params[f"topk_{key}"] = value
 
-    # Add reactivation parameters with proper naming
-    params["reactivate"] = (
-        reactivation_dict.pop("enabled", True) if reactivation_dict else True
-    )
+    # Add reactivation parameters with proper naming (on a copy: the caller's
+    # section stays unchanged).
+    reactivation_dict = dict(reactivation_dict or {})
+    params["reactivate"] = reactivation_dict.pop("enabled", True)
     dendritic_activation = reactivation_dict.get("dendritic_activation")
     for key, value in reactivation_dict.items():
         if key == "type":
@@ -235,12 +238,6 @@ def prepare_ei_network_params(
             params["blocklinear_strategy"] = value
         else:
             params[f"blocklinear_{key}"] = value
-
-    # Cache the result (without input_dim)
-    if cache_key:
-        cached_params = params.copy()
-        cached_params.pop("input_dim", None)
-        _config_cache[cache_key] = cached_params
 
     return params
 
@@ -266,6 +263,21 @@ def _strip_strategy_defaults(
         f.name: getattr(default_instance, f.name)
         for f in dataclass_fields(default_instance)
     }
+    return {
+        k: v for k, v in strategy_dict.items() if k not in defaults or v != defaults[k]
+    }
+
+
+def _strip_plugin_strategy_defaults(
+    strategy_name: str, strategy_dict: dict[str, Any]
+) -> dict[str, Any]:
+    """Keep the settings of a plugin strategy that differ from its defaults."""
+    from dendritic_modeling.config.extensions import config_section_builder
+
+    builder = config_section_builder(f"training.strategies.{strategy_name}")
+    if builder is None:
+        return strategy_dict
+    defaults = to_plain_dict(builder({}))
     return {
         k: v for k, v in strategy_dict.items() if k not in defaults or v != defaults[k]
     }
@@ -339,32 +351,11 @@ def prepare_trainer_config(
     trainer_config["regularization"] = to_plain_dict(regularization)
     trainer_config["pruning"] = to_plain_dict(pruning)
 
-    # Extract reporting config from pruning
-    pruning_dict = to_plain_dict(pruning)
-    trainer_config["reporting"] = {
-        "report_non_pruned": pruning_dict.get("report_non_pruned", False),
-        "save_pruning_stats": pruning_dict.get("save_pruning_stats", False),
-        "detailed_branch_report": pruning_dict.get("detailed_branch_report", False),
-        "redo_analysis_after_pruning": pruning_dict.get(
-            "redo_analysis_after_pruning", False
-        ),
-    }
-
     # Add checkpointing if enabled
     checkpointing = (
         experiment_config.get("checkpointing")
         if isinstance(experiment_config, dict)
         else experiment_config.checkpointing
-    )
-    enable_profiling = (
-        experiment_config.get("enable_profiling", False)
-        if isinstance(experiment_config, dict)
-        else experiment_config.enable_profiling
-    )
-    enable_hooks = (
-        experiment_config.get("enable_hooks", False)
-        if isinstance(experiment_config, dict)
-        else experiment_config.enable_hooks
     )
 
     checkpointing_dict = to_plain_dict(checkpointing)
@@ -377,22 +368,10 @@ def prepare_trainer_config(
         trainer_config["checkpointing"] = True
         trainer_config["checkpoint_interval"] = checkpoint_interval
         trainer_config["save_every_n_epochs"] = checkpoint_interval
-        trainer_config["checkpoint_dir"] = checkpointing_dict.get(
-            "checkpoint_dir", save_path
-        )
 
-    # Add experimental features
-    if enable_profiling:
-        trainer_config["enable_profiling"] = True
-        trainer_config["profiling_output_dir"] = f"{save_path}/profiling"
-
-    trainer_config["enable_hooks"] = enable_hooks
-
-    base_seed = get_config_value(experiment_config, "seed", 0)
-    loader_seed = get_config_value(experiment_config, "loader_seed", None)
-    trainer_config["loader_seed"] = int(
-        base_seed if loader_seed is None else loader_seed
-    )
+    trainer_config["loader_seed"] = resolve_experiment_seeds(
+        experiment_config
+    ).loader_seed
 
     # Add strategy-specific configurations
     # First, check for learning_strategy_config (new structure)
@@ -402,7 +381,14 @@ def prepare_trainer_config(
         else getattr(main_train_config, "learning_strategy_config", None)
     )
 
-    if learning_strategy_config is not None:
+    # Only the trainers that read the local-rule block receive it; for other
+    # strategies the loader warns that the block has no effect.
+    strategy_name = str(
+        main_train_config.get("strategy", "standard")
+        if isinstance(main_train_config, dict)
+        else getattr(main_train_config, "strategy", "standard")
+    ).lower()
+    if learning_strategy_config is not None and strategy_name in LOCAL_RULE_STRATEGIES:
         trainer_config["local_rule_config"] = to_plain_dict(learning_strategy_config)
 
     strategies = (
@@ -422,16 +408,32 @@ def prepare_trainer_config(
         # Only pass the config for the active strategy. Typed configs carry
         # default strategy blocks for every trainer; forwarding all of them can
         # accidentally overwrite explicit common settings with default values.
-        if (
+        plugin_settings = strategies_dict.get("extensions") or {}
+        if selected_strategy in plugin_settings:
+            strategy_dict = _get_explicit_strategy_overrides(
+                main_train_config, selected_strategy
+            )
+            if not strategy_dict:
+                strategy_dict = _strip_plugin_strategy_defaults(
+                    selected_strategy, to_plain_dict(plugin_settings[selected_strategy])
+                )
+            strategy_dict = {
+                key: value for key, value in strategy_dict.items() if value is not None
+            }
+            if strategy_dict:
+                trainer_config[f"{selected_strategy}_config"] = strategy_dict
+        elif (
             selected_strategy
             in {
                 "voltage_stabilization",
                 "homeostatic_control",
+                "ei_equilibrium",
                 "freeze_layers",
                 "freeze_branches",
                 "freeze_branch_kl",
                 "multi_stage",
                 "recurrent",
+                "presentation_stream",
             }
             and selected_strategy in strategies_dict
         ):
@@ -442,37 +444,14 @@ def prepare_trainer_config(
                 strategy_dict = _strip_strategy_defaults(
                     selected_strategy, strategies_dict[selected_strategy]
                 )
+            # None means "inherit the common setting" and is never forwarded.
+            strategy_dict = {
+                key: value for key, value in strategy_dict.items() if value is not None
+            }
             if strategy_dict:
                 trainer_config[f"{selected_strategy}_config"] = strategy_dict
 
     return trainer_config
-
-
-def prepare_local_learning_config(local_config: DictConfig) -> dict[str, Any]:
-    """
-    Prepare local learning configuration.
-
-    Args:
-        local_config: Local learning configuration
-
-    Returns:
-        Flattened local learning parameters
-    """
-    local_params = OmegaConf.to_container(local_config, resolve=True)
-
-    # Extract specific local learning parameters
-    local_learning_params = {
-        "rule_variant": local_params.get("rule_variant", "standard"),
-        "rho_mode": local_params.get("rho_mode", "fixed"),
-        "update_inactive_weights": local_params.get("update_inactive_weights", False),
-        "error_mode": local_params.get("error_mode", "mse"),
-        "rho_value": local_params.get("rho_value", 0.1),
-        "weight_lr_multiplier": local_params.get("weight_lr_multiplier", 1.0),
-        "compute_gradient_stats": local_params.get("compute_gradient_stats", False),
-        "use_conductance_scaling": local_params.get("use_conductance_scaling", True),
-    }
-
-    return local_learning_params
 
 
 def extract_strategy_params(

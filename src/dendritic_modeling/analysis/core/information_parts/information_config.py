@@ -4,6 +4,15 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from dendritic_modeling.config.analysis import (
+    INFORMATION_COMPONENT_TOKENS,
+    INFORMATION_NULL_COMPONENT_TOKENS,
+    INFORMATION_SCOPE_TOKENS,
+    INFORMATION_SIGNAL_VARIANT_TOKENS,
+    check_selection_tokens,
+)
+from dendritic_modeling.config.seeds import seed_or_default
+
 
 @dataclass(frozen=True)
 class _InformationComponentSelection:
@@ -17,6 +26,7 @@ class _InformationComponentSelection:
     compute_ablation_aligned_mi: bool
     compute_layer_total_proxies: bool
     compute_upstream_unique_cmi: bool
+    compute_soma_coupling_mi: bool
 
 
 @dataclass(frozen=True)
@@ -81,6 +91,7 @@ class _InformationRuntimeConfig:
     include_vinf: bool
     normalize_mi: bool
     output_units: str
+    analysis_split: str
     verbose: bool
     invalid_output_units: str | None
 
@@ -91,6 +102,9 @@ class _InformationGranularityConfig:
 
     computation_level: str
     branch_aggregation: str
+    branch_sample_count_per_layer: int | None
+    branch_sample_seed: int
+    branch_sample_strategy: str
     per_neuron_analysis: bool
     per_einet_analysis: bool
     per_layer_analysis: bool
@@ -194,29 +208,26 @@ def _parse_information_component_selection(
     if not components_raw:
         return None
 
+    check_selection_tokens(
+        components_raw, INFORMATION_COMPONENT_TOKENS, "information selection.components"
+    )
     components = _normalize_config_tokens(components_raw)
+
+    def wants(name: str) -> bool:
+        return _has_any_config_token(
+            components, set(INFORMATION_COMPONENT_TOKENS[name])
+        )
+
     return _InformationComponentSelection(
-        compute_basic_mi=_has_any_config_token(components, {"basic", "basic_mi"}),
-        compute_pairwise_mi=_has_any_config_token(
-            components, {"pairwise", "pairwise_mi"}
-        ),
-        compute_conditional_mi=_has_any_config_token(
-            components, {"conditional", "conditional_mi"}
-        ),
-        compute_pid="pid" in components,
-        compute_gaussian_fisher=_has_any_config_token(
-            components, {"gaussian_fisher", "gaussianfisher", "fisher"}
-        ),
-        compute_ablation_aligned_mi=_has_any_config_token(
-            components, {"ablation_aligned", "ablation"}
-        ),
-        compute_layer_total_proxies=_has_any_config_token(
-            components,
-            {"layer_proxies", "layer_total_proxies", "layer_total"},
-        ),
-        compute_upstream_unique_cmi=_has_any_config_token(
-            components, {"upstream_unique_cmi", "upstream_unique"}
-        ),
+        compute_basic_mi=wants("basic"),
+        compute_pairwise_mi=wants("pairwise"),
+        compute_conditional_mi=wants("conditional"),
+        compute_pid=wants("pid"),
+        compute_gaussian_fisher=wants("gaussian_fisher"),
+        compute_ablation_aligned_mi=wants("ablation_aligned"),
+        compute_layer_total_proxies=wants("layer_proxies"),
+        compute_upstream_unique_cmi=wants("upstream_unique_cmi"),
+        compute_soma_coupling_mi=wants("soma_coupling"),
     )
 
 
@@ -227,11 +238,20 @@ def _parse_information_scope_selection(
     if not scopes_raw:
         return None
 
+    check_selection_tokens(
+        scopes_raw, INFORMATION_SCOPE_TOKENS, "information selection.scopes"
+    )
     scopes = _normalize_config_tokens(scopes_raw)
     return _InformationScopeSelection(
-        per_neuron_analysis=_has_any_config_token(scopes, {"neuron", "per_neuron"}),
-        per_einet_analysis=_has_any_config_token(scopes, {"einet", "per_einet"}),
-        per_layer_analysis=_has_any_config_token(scopes, {"layer", "per_layer"}),
+        per_neuron_analysis=_has_any_config_token(
+            scopes, set(INFORMATION_SCOPE_TOKENS["neuron"])
+        ),
+        per_einet_analysis=_has_any_config_token(
+            scopes, set(INFORMATION_SCOPE_TOKENS["einet"])
+        ),
+        per_layer_analysis=_has_any_config_token(
+            scopes, set(INFORMATION_SCOPE_TOKENS["layer"])
+        ),
     )
 
 
@@ -288,9 +308,16 @@ def _build_information_signal_variant_selection(
         or []
     )
     if variants_raw:
+        check_selection_tokens(
+            variants_raw,
+            INFORMATION_SIGNAL_VARIANT_TOKENS,
+            "information selection.signal_variants",
+        )
         variants = _normalize_config_tokens(variants_raw)
         want_lda = "lda" in variants
-        want_random = _has_any_config_token(variants, {"random", "shuffle", "shuffled"})
+        want_random = _has_any_config_token(
+            variants, set(INFORMATION_SIGNAL_VARIANT_TOKENS["random"])
+        )
         compute_lda_weights = bool(want_lda or want_random)
         lda_n_shuffles = lda_n_shuffles if want_random else 0
 
@@ -336,6 +363,11 @@ def _build_information_label_shuffle_null_config(
             default=["basic"],
         )
         or ["basic"]
+    )
+    check_selection_tokens(
+        null_components_raw,
+        INFORMATION_NULL_COMPONENT_TOKENS,
+        "information baselines.label_shuffle_null.components",
     )
     mi_null_components = _normalize_config_tokens(null_components_raw) or {"basic"}
 
@@ -449,6 +481,20 @@ def _build_information_runtime_config(
         output_units = "bits"
     output_units = "bits" if output_units in {"bits", "bit"} else "nats"
 
+    analysis_split = _normalize_config_token(
+        _get_grouped_or_legacy_value(
+            grouped_cfg=compute_cfg,
+            grouped_key="analysis_split",
+            params=params,
+            legacy_key="analysis_split",
+            default="test",
+        )
+    )
+    if analysis_split == "valid":
+        analysis_split = "validation"
+    if analysis_split not in {"validation", "test"}:
+        raise ValueError("information analysis_split must be 'validation' or 'test'")
+
     return _InformationRuntimeConfig(
         include_vinf=bool(
             _get_grouped_or_legacy_value(
@@ -469,6 +515,7 @@ def _build_information_runtime_config(
             )
         ),
         output_units=output_units,
+        analysis_split=analysis_split,
         verbose=bool(
             _get_grouped_or_legacy_value(
                 grouped_cfg=compute_cfg,
@@ -505,6 +552,32 @@ def _build_information_granularity_config(
                 params=params,
                 legacy_key="branch_aggregation",
                 default="mean",
+            )
+        ),
+        branch_sample_count_per_layer=_get_grouped_or_legacy_value(
+            grouped_cfg=compute_cfg,
+            grouped_key="branch_sample_count_per_layer",
+            params=params,
+            legacy_key="branch_sample_count_per_layer",
+            default=None,
+        ),
+        branch_sample_seed=int(
+            _get_grouped_or_legacy_value(
+                grouped_cfg=compute_cfg,
+                grouped_key="branch_sample_seed",
+                params=params,
+                legacy_key="branch_sample_seed",
+                default=0,
+            )
+            or 0
+        ),
+        branch_sample_strategy=str(
+            _get_grouped_or_legacy_value(
+                grouped_cfg=compute_cfg,
+                grouped_key="branch_sample_strategy",
+                params=params,
+                legacy_key="branch_sample_strategy",
+                default="uniform",
             )
         ),
         per_neuron_analysis=bool(
@@ -632,14 +705,15 @@ def _build_information_estimator_method_params(
                     default=True,
                 )
             ),
-            "seed": int(
+            "seed": seed_or_default(
                 _get_grouped_or_legacy_value(
                     grouped_cfg=decoder_cfg,
                     grouped_key="seed",
                     params=params,
                     legacy_key="decoder_seed",
-                    default=0,
-                )
+                    default=None,
+                ),
+                0,
             ),
             "continuous_strategy": str(
                 _get_grouped_or_legacy_value(

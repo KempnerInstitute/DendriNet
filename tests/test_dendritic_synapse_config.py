@@ -56,6 +56,8 @@ def test_dendritic_synapse_config_round_trips_legacy_kwargs():
         "topk_init_method": "xavier_normal",
         "topk_gamma": 0.75,
         "indexed_seed": 17,
+        "indexed_support_group_rows": 4,
+        "indexed_support_col_block": 2,
         "indexed_output_chunk_size": 64,
         "indexed_rewire_frequency": 9,
         "indexed_rewire_quantile": 0.2,
@@ -97,6 +99,7 @@ def test_dendritic_synapse_config_round_trips_every_legacy_key():
         "topk_temperature": 0.3,
         "topk_ultrafast": True,
         "topk_strategy": "conductance_dynamic",
+        "topk_variance_score": "relative",
         "dense_to_sparse_initial_density": 0.6,
         "dense_to_sparse_initial_k": 4,
         "dense_to_sparse_start_step": 3,
@@ -106,6 +109,13 @@ def test_dendritic_synapse_config_round_trips_every_legacy_key():
         "dense_to_sparse_freeze_on_end": True,
         "dense_to_sparse_advance_on_forward": False,
         "dense_to_sparse_prune_metric": "magnitude",
+        "release_p_min": 0.6,
+        "release_p_max": 0.9,
+        "release_weight_scale": 0.02,
+        "release_impact_decay": 0.95,
+        "release_impact_metric": "active_drive",
+        "release_max_conductance": 30.0,
+        "release_track_source_activity": True,
         "indexed_seed": 17,
         "indexed_output_chunk_size": 128,
         "indexed_candidate_size": 64,
@@ -113,11 +123,24 @@ def test_dendritic_synapse_config_round_trips_every_legacy_key():
         "indexed_rewire_frequency": 9,
         "indexed_rewire_quantile": 0.2,
         "indexed_rewire_until_step": 40,
+        "indexed_index_dtype": "auto",
+        "indexed_workspace_mb": 96,
+        "indexed_cache_transformed_weights": True,
+        "indexed_recompute_backward": True,
+        "indexed_projection_backend": "recompute",
+        "indexed_persistent_indices": False,
+        "indexed_init_mode": "rank0_broadcast",
+        "indexed_support_group_rows": 4,
+        "indexed_support_col_block": 2,
         "use_shunting": False,
         "use_additive_normalization": True,
+        "leak_conductance": 0.05,
+        "learnable_leak": True,
+        "signal_rounding": "float16",
         "additive_mode": "raw",
         "additive_tangent_n0": None,
         "additive_tangent_t0": None,
+        "additive_options": {"pool": "input", "levels": [1, 2]},
         "epsilon": 1e-6,
         "weight_transform": "softplus",
         "efficient_blocklinear": True,
@@ -128,6 +151,9 @@ def test_dendritic_synapse_config_round_trips_every_legacy_key():
         "reactivation_init_m": 1.2,
         "reactivation_init_b": 0.3,
         "reactivation_init_policy": "fixed",
+        "reactivation_soma_type": "param_relu",
+        "reactivation_soma_init_m": 3.0,
+        "reactivation_soma_init_b": 0.25,
         "reactivation_occupancy_quantile_low": 0.1,
         "reactivation_occupancy_quantile_high": 0.9,
         "reactivation_occupancy_target_low": 0.2,
@@ -136,12 +162,15 @@ def test_dendritic_synapse_config_round_trips_every_legacy_key():
         "reactivation_calibration_max_m": 25.0,
         "reactivation_calibration_revert_on_invalid": False,
         "reactivation_sigma_aware_k": 0.4,
-        "reactivation_strategy": "voltage_dynamic",
+        "reactivation_strategy": "straight_through",
+        "reactivation_memory_efficient": True,
         "dbl_init_method": "default",
         "adaptive_initialization": False,
         "adaptive_initialization_policy": "preserve_shunting_center",
         "adaptive_target_conductance": 4.0,
         "initial_child_conductance": 3.0,
+        "initial_conductance_scale": 2.0,
+        "initial_child_conductance_log_sd": 0.3,
         "branch_factors": [2, 1],
         "initialization_seed": 123,
         "initialization_namespace": "layer0.excitatory",
@@ -156,6 +185,15 @@ def test_dendritic_synapse_config_round_trips_every_legacy_key():
         "freeze_inhibitory_connectivity": True,
         "init_method": "xavier_uniform",
         "weight_threshold": 1e-4,
+        "credit_trace_decay": 0.8,
+        "credit_candidate_pool_size": 12,
+        "credit_turnover_fraction": 0.2,
+        "credit_weak_active_pool_fraction": 0.75,
+        "credit_min_observations": 3,
+        "credit_swap_margin": 0.01,
+        "credit_force_turnover": True,
+        "credit_selection": "shuffled_credit",
+        "credit_warmup_steps": 9,
         "print_hooks": True,
     }
 
@@ -525,7 +563,7 @@ def test_population_config_builds_equivalent_synapse_config():
         topk_gamma=0.8,
         topk_temperature=0.3,
         topk_ultrafast=True,
-        topk_strategy="conductance_dynamic",
+        topk_gradient_scaling="conductance_dynamic",
         indexed_seed=17,
         indexed_candidate_size=32,
         indexed_selection="softmax",
@@ -533,6 +571,12 @@ def test_population_config_builds_equivalent_synapse_config():
         indexed_rewire_frequency=11,
         indexed_rewire_quantile=0.2,
         indexed_rewire_until_step=400,
+        indexed_index_dtype="auto",
+        indexed_workspace_mb=96,
+        indexed_cache_transformed_weights=True,
+        indexed_recompute_backward=True,
+        indexed_persistent_indices=True,
+        indexed_init_mode="rank0_broadcast",
         dense_to_sparse_initial_density=0.7,
         dense_to_sparse_initial_k=4,
         dense_to_sparse_start_step=2,
@@ -558,8 +602,8 @@ def test_population_config_builds_equivalent_synapse_config():
         reactivation_calibration_max_m=25.0,
         reactivation_calibration_revert_on_invalid=False,
         reactivation_sigma_aware_k=0.5,
-        reactivation_strategy="voltage_dynamic",
-        blocklinear_strategy="conductance_dynamic",
+        reactivation_gradient_scaling="straight_through",
+        blocklinear_gradient_scaling="conductance_dynamic",
         epsilon=1e-6,
         dbl_init_method="default",
         efficient_blocklinear=True,
@@ -668,7 +712,7 @@ def test_ei_layer_typed_config_matches_legacy_kwargs_numerically():
 def test_ei_network_typed_config_metadata_matches_layers_numerically():
     geometry_kwargs = {
         "input_dim": 6,
-        "transfer_params": TransferFunctionConfig(input_mode=0).asdict(),
+        "transfer_params": TransferFunctionConfig().asdict(),
         "excitatory_layer_sizes": [4, 3],
         "inhibitory_layer_sizes": [3, 2],
         "excitatory_branch_factors": [1],
@@ -747,6 +791,7 @@ def test_dendrinet_passes_legacy_synapse_kwargs_through_typed_config():
         indexed_rewire_frequency=7,
         indexed_rewire_quantile=0.15,
         reactivate=False,
+        use_shunting=False,
         use_additive_normalization=True,
         weight_transform="softplus",
     )
@@ -760,3 +805,67 @@ def test_dendrinet_passes_legacy_synapse_kwargs_through_typed_config():
         assert layer.indexed_rewire_quantile == 0.15
         assert layer.use_additive_normalization is True
         assert layer.weight_transform == "softplus"
+
+
+def _typed(**overrides):
+    return DendriticSynapseConfig.from_kwargs(
+        {"use_shunting": True, "reactivate": False, **overrides}
+    )
+
+
+def _layer(**kwargs):
+    return DendriticBranchLayer(
+        output_dim=2, excitatory_input_dim=4, excitatory_synapses_per_branch=2, **kwargs
+    )
+
+
+def test_explicit_options_that_contradict_a_typed_synapse_config_raise():
+    with pytest.raises(ValueError, match=r"contradict it: .*use_shunting"):
+        _layer(synapse_config=_typed(), use_shunting=False)
+    with pytest.raises(ValueError, match=r"contradict it: .*topk_type"):
+        _layer(synapse_config=_typed(), topk_type="indexed")
+    # Values that agree with the typed config are accepted.
+    _layer(synapse_config=_typed(), use_shunting=True)
+
+
+def test_geometry_arguments_that_contradict_a_branch_config_raise():
+    from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_config import (
+        DendriticBranchConfig,
+    )
+
+    config = DendriticBranchConfig(
+        output_dim=2, excitatory_input_dim=4, excitatory_synapses_per_branch=2
+    )
+    with pytest.raises(ValueError, match=r"branch_config.*output_dim"):
+        DendriticBranchLayer(branch_config=config, output_dim=3, reactivate=False)
+    DendriticBranchLayer(branch_config=config, output_dim=2, reactivate=False)
+
+
+def test_dendrinet_arguments_that_contradict_its_config_raise():
+    from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet_config import (
+        DendriNetConfig,
+    )
+
+    config = DendriNetConfig(
+        n_soma=3,
+        branch_factors=(2,),
+        excitatory_input_dim=4,
+        excitatory_synapses_per_branch=2,
+        synapse_config=_typed(),
+    )
+    with pytest.raises(ValueError, match=r"config.*n_soma"):
+        DendriNet(config=config, n_soma=5)
+    with pytest.raises(ValueError, match="different synapse_config"):
+        DendriNet(config=config, synapse_config=_typed(use_shunting=False))
+    with pytest.raises(ValueError, match=r"contradict it: .*use_shunting"):
+        DendriNet(config=config, use_shunting=False)
+    with pytest.raises(ValueError, match="flat synapse keys"):
+        DendriNetConfig.from_kwargs(
+            {
+                "n_soma": 3,
+                "branch_factors": [2],
+                "synapse_config": _typed(),
+                "use_shunting": False,
+            }
+        )
+    DendriNet(config=config)

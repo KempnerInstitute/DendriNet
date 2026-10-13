@@ -98,6 +98,7 @@ def test_config_setup_mixin_assigns_core_null_pid_and_metric_options():
     assert harness.compute_conditional_mi is True
     assert harness.compute_pid is True
     assert harness.compute_gaussian_fisher is False
+    assert harness.compute_soma_coupling_mi is False
     assert harness.pid_binarize is True
     assert harness.pid_binarize_method == "quantile"
     assert harness.pid_binarize_threshold == 0.75
@@ -140,6 +141,7 @@ def test_config_setup_mixin_component_selection_preserves_empty_override_semanti
                 "ablation",
                 "layer-total",
                 "upstream unique",
+                "soma coupling",
             ]
         },
     )
@@ -152,22 +154,7 @@ def test_config_setup_mixin_component_selection_preserves_empty_override_semanti
     assert harness.compute_ablation_aligned_mi is True
     assert harness.compute_layer_total_proxies is True
     assert harness.compute_upstream_unique_cmi is True
-
-
-def test_config_setup_mixin_disables_pid_request_with_warning():
-    harness = _ConfigHarness()
-    harness.compute_pid = True
-
-    harness._disable_pid_if_requested()
-
-    assert harness.compute_pid is False
-    assert harness.logger.warnings == [
-        (
-            "PID requested via selection.components, but PID is currently disabled "
-            "and will be skipped.",
-            (),
-        )
-    ]
+    assert harness.compute_soma_coupling_mi is True
 
 
 def test_config_setup_mixin_runtime_options_warn_on_invalid_output_units():
@@ -179,6 +166,7 @@ def test_config_setup_mixin_runtime_options_warn_on_invalid_output_units():
             "include_vinf": True,
             "normalize_mi": True,
             "output_units": " Bad Units ",
+            "analysis_split": "valid",
             "verbose": True,
         },
     )
@@ -186,6 +174,7 @@ def test_config_setup_mixin_runtime_options_warn_on_invalid_output_units():
     assert harness.include_vinf is True
     assert harness.normalize_mi is True
     assert harness.output_units == "bits"
+    assert harness.analysis_split == "validation"
     assert harness.verbose is True
     assert harness.logger.warnings == [
         ("Unknown output_units=%r; falling back to 'bits'.", ("bad_units",))
@@ -197,6 +186,9 @@ def test_config_setup_mixin_granularity_and_scope_assignments():
     params = SimpleNamespace(
         computation_level="single_branch",
         branch_aggregation="mean",
+        branch_sample_count_per_layer=None,
+        branch_sample_seed=0,
+        branch_sample_strategy="uniform",
         per_neuron_analysis=False,
         per_einet_analysis=False,
         per_layer_analysis=False,
@@ -207,6 +199,9 @@ def test_config_setup_mixin_granularity_and_scope_assignments():
         compute_cfg={
             "computation_level": "all_branch",
             "branch_aggregation": "sample",
+            "branch_sample_count_per_layer": 16,
+            "branch_sample_seed": 23,
+            "branch_sample_strategy": "parent-soma-balanced",
             "per_neuron_analysis": True,
             "per_einet_analysis": False,
             "per_layer_analysis": False,
@@ -219,6 +214,9 @@ def test_config_setup_mixin_granularity_and_scope_assignments():
 
     assert harness.computation_level == "all_branch"
     assert harness.branch_aggregation == "sample"
+    assert harness.branch_sample_count_per_layer == 16
+    assert harness.branch_sample_seed == 23
+    assert harness.branch_sample_strategy == "parent_soma_balanced"
     assert harness.per_neuron_analysis is False
     assert harness.per_einet_analysis is True
     assert harness.per_layer_analysis is True

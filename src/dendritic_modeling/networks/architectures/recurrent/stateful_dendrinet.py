@@ -15,6 +15,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.b
 from dendritic_modeling.networks.architectures.recurrent.dendritic_geometry import (
     compute_level_sizes,
     compute_output_owner_index_per_level,
+    sum_level_values_by_output_owner,
 )
 from dendritic_modeling.networks.architectures.recurrent.ei_config import (
     PopulationConfig,
@@ -64,8 +65,17 @@ from dendritic_modeling.networks.architectures.recurrent.synapse_types import (
     build_synapse_type_set,
     validate_additive_synapse_reversals,
 )
+from dendritic_modeling.networks.utils.forward_caches import detach_forward_caches
 from dendritic_modeling.networks.utils.weight_transforms import (
     POSITIVE_WEIGHT_TRANSFORMS,
+)
+
+# Synapse banks of a branch layer (feedforward and recurrent, E and I).
+_SYNAPSE_BANKS = (
+    "branch_excitation",
+    "branch_inhibition",
+    "branch_recurrent",
+    "branch_rec_inhibition",
 )
 
 
@@ -98,6 +108,27 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
         self.dt = dt
         self.synapse_types = build_synapse_type_set(pop_config.synapse_types)
         self.synapse_types_enabled = bool(self.synapse_types.enabled)
+        extended_compartments = (
+            pop_config.learnable_leak
+            or pop_config.leak_conductance != 1
+            or pop_config.reactivation_type == "endpoint_tanh"
+            or pop_config.topk_type == "indexed_release"
+            or pop_config.signal_rounding != "none"
+        )
+        if extended_compartments and (
+            self.synapse_types_enabled
+            or pop_config.dynamics_mode != "rate"
+            or pop_config.dendritic_spikes_enabled
+            or pop_config.soma_feedback_enabled
+            or pop_config.cross_level_mode != "hierarchical"
+            or recurrent_excitatory_input_dim is not None
+            or recurrent_inhibitory_input_dim is not None
+        ):
+            raise ValueError(
+                "configurable leak, endpoint_tanh, indexed_release and signal_rounding "
+                "are qualified only for feedforward hierarchical rate populations"
+            )
+
         if self.synapse_types_enabled and not bool(pop_config.use_shunting):
             if str(pop_config.additive_mode).lower() != "raw":
                 raise ValueError(
@@ -128,9 +159,15 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
         )
         self.n_levels = len(self._level_dims)
         self.cross_level_mode = str(pop_config.cross_level_mode).lower()
+        self.autograd_credit_mode = str(pop_config.autograd_credit_mode).lower()
         if self.is_parallel_readout and self.n_levels < 2:
             raise ValueError(
                 "cross_level_mode='parallel_readout' requires at least two "
+                "levels (a non-soma level and a soma)"
+            )
+        if self.is_all_active_star and self.n_levels < 2:
+            raise ValueError(
+                "cross_level_mode='all_active_star' requires at least two "
                 "levels (a non-soma level and a soma)"
             )
         dendritic_spike_setup = _resolve_stateful_dendritic_spike_setup(
@@ -209,6 +246,17 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
             connection_masks_by_pathway=connection_masks_by_pathway,
         )
         self.branch_layers = branch_layer_build.branch_layers
+        if not any(
+            getattr(layer, bank, None) is not None
+            for layer in self.branch_layers
+            for bank in _SYNAPSE_BANKS
+        ):
+            raise ValueError(
+                f"population with branch_factors={list(pop_config.branch_factors)} "
+                "has no synapses at any level: its soma is its only level, and "
+                "somatic_synapses is false (or every synapse count is 0). Set "
+                "somatic_synapses: true or give it dendritic levels."
+            )
         self.synapse_config = branch_layer_build.synapse_config
         self.synapse_configs = tuple(
             branch_layer.synapse_config for branch_layer in self.branch_layers
@@ -218,10 +266,95 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
         )
         if self.cross_level_mode == "parallel_readout":
             self._configure_parallel_readout()
+        elif self.cross_level_mode == "all_active_star":
+            self._configure_all_active_star()
+        if self.autograd_credit_mode != "exact":
+            # The gradient replacement exists only in the feedforward
+            # hierarchical rate forward; elsewhere it would silently be exact.
+            unsupported = [
+                name
+                for name, active in (
+                    (
+                        f"cross_level_mode={self.cross_level_mode!r}",
+                        self.cross_level_mode != "hierarchical",
+                    ),
+                    ("synapse_types", self.synapse_types_enabled),
+                    (
+                        f"dynamics_mode={self.dynamics_mode!r}",
+                        self.dynamics_mode != "rate",
+                    ),
+                    ("dendritic_spikes", self.dendritic_spikes_enabled),
+                    ("soma_feedback", self.soma_feedback_enabled),
+                    (
+                        "recurrent synapses",
+                        recurrent_excitatory_input_dim is not None
+                        or recurrent_inhibitory_input_dim is not None,
+                    ),
+                )
+                if active
+            ]
+            if unsupported:
+                raise ValueError(
+                    f"autograd_credit_mode={self.autograd_credit_mode!r} applies "
+                    "only to feedforward hierarchical rate populations, not with "
+                    + ", ".join(unsupported)
+                )
+        if self.forward_steps:
+            self.prepare_stepped_gradient_scaling()
+
+    @property
+    def forward_steps(self) -> bool:
+        """Whether :meth:`forward` runs one :meth:`step` (opt-in dynamics need state)."""
+        return not self.is_parallel_readout and bool(
+            self.synapse_types_enabled
+            or self.spiking_soma is not None
+            or self.dendritic_spikes_enabled
+            or self.soma_feedback_enabled
+        )
+
+    def prepare_stepped_gradient_scaling(self) -> None:
+        """Let :meth:`step` scale BlockLinear gradients on each call's tensors.
+
+        A recurrent unroll calls every branch layer once per time step before
+        one backward pass, so :meth:`step` registers conductance-dynamic
+        gradient scales on the tensors of each call. The aggregator of a layer
+        with ``blocklinear_strategy: conductance_dynamic`` must then keep its
+        last forward's tensors. Layers that also scale their synapse gradients
+        are in that mode from construction; for the others only the aggregator
+        is switched, so their synapses keep no tensors. Layers that step this
+        population call it when they are built; a population that only runs
+        :meth:`forward` keeps the backward-hook scaling.
+        """
+        for layer in self.branch_layers:
+            if (
+                layer.blocklinear_strategy == "conductance_dynamic"
+                and getattr(layer, "branches_to_output", None) is not None
+                and not layer._forward_dynamic_grad_scaling
+            ):
+                layer.set_forward_dynamic_grad_scaling(True, synapses=False)
+
+    # Tensors of the last forward pass kept for analyses; copies and pickles
+    # hold them detached (networks.utils.forward_caches).
+    _FORWARD_CACHES = ("_last_routing_info",)
+
+    def __getstate__(self):
+        return detach_forward_caches(super().__getstate__(), self._FORWARD_CACHES)
 
     @property
     def n_soma(self) -> int:
         return self._n_soma
+
+    # Optimizer-step sparse maintenance, forwarded to every branch layer exactly
+    # as ``DendriNet`` does. Without these methods ``PopulationNetwork`` and
+    # ``EINetwork`` silently skipped configured active-weight maintenance,
+    # inactive-candidate boosting and sparse rewiring for their populations.
+    def decay_weights(self, weight_decay, weight_boosting=False):
+        for branch_layer in self.branch_layers:
+            branch_layer.decay_weights(weight_decay, weight_boosting)
+
+    def apply_rewiring(self):
+        for branch_layer in self.branch_layers:
+            branch_layer.apply_rewiring()
 
     @property
     def output_dim(self) -> int:
@@ -231,6 +364,11 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
     def is_parallel_readout(self) -> bool:
         """Whether levels update independently and pool directly to the soma."""
         return self.cross_level_mode == "parallel_readout"
+
+    @property
+    def is_all_active_star(self) -> bool:
+        """Whether serial-shaped branch states form independent soma arms."""
+        return self.cross_level_mode == "all_active_star"
 
     @property
     def level_dims(self) -> list[int]:
@@ -265,10 +403,10 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
             unsupported.append("soma feedback")
         if not self.pop_config.use_shunting:
             unsupported.append("additive/non-shunting dynamics")
-        if self.pop_config.blocklinear_strategy != "none":
+        if self.pop_config.blocklinear_gradient_scaling != "none":
             unsupported.append(
                 "non-default blocklinear gradient scaling "
-                f"({self.pop_config.blocklinear_strategy!r})"
+                f"({self.pop_config.blocklinear_gradient_scaling!r})"
             )
         if unsupported:
             raise ValueError(
@@ -281,30 +419,34 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
                 "weight_transform, got "
                 f"{self.pop_config.weight_transform!r}"
             )
-        has_recurrent_path = any(
-            layer.branch_recurrent is not None
-            or layer.branch_rec_inhibition is not None
-            for layer in self.branch_layers
-        )
-        if not has_recurrent_path:
-            raise ValueError(
-                "cross_level_mode='parallel_readout' requires a recurrent "
-                "population with at least one active recurrent synapse pathway"
-            )
-
         projection_cls = (
             EfficientBlockLinear
             if self.pop_config.efficient_blocklinear
             else BlockLinear
         )
         projections = nn.ModuleList()
-        for level_dim in self._level_dims[:-1]:
+        for level_idx, level_dim in enumerate(self._level_dims[:-1]):
             projection = projection_cls(
                 level_dim,
                 self._n_soma,
                 weight_transform=self.pop_config.weight_transform,
             )
-            projection.initialize(g_branch=1.0)
+            # Each direct projection replaces exactly one serial child
+            # aggregator and therefore has the same number of trainable
+            # scalars.  Copy the initialized raw conductances before deleting
+            # the serial module.  This makes the one-stage control exactly
+            # equal to the hierarchy at initialization and avoids granting the
+            # grouped-point control a different axial operating point.
+            source = self.branch_layers[level_idx + 1].branches_to_output
+            if projection.log_weight.numel() != source.log_weight.numel():
+                raise RuntimeError(
+                    "parallel readout projection and replaced child "
+                    "aggregator must contain the same number of parameters"
+                )
+            with torch.no_grad():
+                projection.log_weight.copy_(
+                    source.log_weight.reshape_as(projection.log_weight)
+                )
             projections.append(projection)
         self.parallel_readout_projections = projections
 
@@ -315,6 +457,50 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
                 del layer.branches_to_output
             layer.input_branches = False
 
+    def _configure_all_active_star(self) -> None:
+        """Validate an all-active, resource-identical independent-arm control.
+
+        Unlike ``parallel_readout``, this mode retains every serial child
+        aggregator.  Aggregator outputs drive the receiver-width branch traces,
+        with the same receiver tau as the hierarchy, but those traces do not
+        enter receiver-local voltages.  They are instead pooled independently
+        at the soma through a parameter-free owner sum.
+        """
+
+        unsupported: list[str] = []
+        if self.dynamics_mode != "rate":
+            unsupported.append("spiking soma dynamics")
+        if self.synapse_types_enabled:
+            unsupported.append("typed synapses")
+        if self.dendritic_spikes_enabled:
+            unsupported.append("dendritic spikes")
+        if self.soma_feedback_enabled:
+            unsupported.append("soma feedback")
+        if not self.pop_config.use_shunting:
+            unsupported.append("additive/non-shunting dynamics")
+        if self.pop_config.blocklinear_gradient_scaling != "none":
+            unsupported.append(
+                "non-default blocklinear gradient scaling "
+                f"({self.pop_config.blocklinear_gradient_scaling!r})"
+            )
+        if unsupported:
+            raise ValueError(
+                "cross_level_mode='all_active_star' does not yet support "
+                + ", ".join(unsupported)
+            )
+        if self.pop_config.weight_transform not in POSITIVE_WEIGHT_TRANSFORMS:
+            raise ValueError(
+                "cross_level_mode='all_active_star' requires a positive "
+                "weight_transform, got "
+                f"{self.pop_config.weight_transform!r}"
+            )
+        for level_idx, layer in enumerate(self.branch_layers[1:], start=1):
+            if not layer.input_branches or not hasattr(layer, "branches_to_output"):
+                raise ValueError(
+                    "cross_level_mode='all_active_star' requires a child "
+                    f"aggregator at level {level_idx}"
+                )
+
     def _parallel_readout_soma_voltage(
         self,
         *,
@@ -322,13 +508,14 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
         local_numerator: torch.Tensor,
         local_denominator: torch.Tensor,
         level_outputs: list[torch.Tensor],
-    ) -> torch.Tensor:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Pool independent level outputs through the soma shunting equation.
 
         Each positive projection contributes its activity-weighted current to
         the numerator and its activity-independent transformed conductance sum
         to the denominator, matching the primary branch shunting law while
-        replacing only the serial cross-level graph.
+        replacing only the serial cross-level graph. Returns the soma voltage
+        and its pooled denominator (without epsilon).
         """
         direct_current = torch.zeros_like(local_numerator)
         direct_conductance = torch.zeros_like(local_numerator[:1])
@@ -345,9 +532,65 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
             direct_conductance = direct_conductance + projection_conductance.unsqueeze(
                 0
             )
-        return (local_numerator + direct_current) / (
-            local_denominator + direct_conductance + layer.epsilon
+        pooled_denominator = local_denominator + direct_conductance
+        voltage = (local_numerator + direct_current) / (
+            pooled_denominator + layer.epsilon
         )
+        return voltage, pooled_denominator
+
+    def _all_active_star_soma_voltage(
+        self,
+        *,
+        layer: nn.Module,
+        local_numerator: torch.Tensor,
+        local_denominator: torch.Tensor,
+        branch_traces: list[torch.Tensor],
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Pool every serial-reachable child trace as an independent soma arm.
+
+        A level lesion removes both parts of that arm's shunting contribution:
+        its dynamic trace current is already masked during state integration,
+        and its static coupling conductance is masked here with the same
+        sample-specific keep mask. Returns the soma voltage and its pooled
+        denominator (without epsilon).
+        """
+
+        if len(branch_traces) != self.n_levels:
+            raise ValueError(
+                f"expected {self.n_levels} branch-trace levels, "
+                f"got {len(branch_traces)}"
+            )
+        direct_current = torch.zeros_like(local_numerator)
+        direct_conductance = torch.zeros_like(local_numerator[:1])
+        for level_idx in range(1, self.n_levels):
+            branch_layer = self.branch_layers[level_idx]
+            aggregation = branch_layer.branches_to_output
+            direct_current = direct_current + sum_level_values_by_output_owner(
+                branch_traces[level_idx],
+                self._n_soma,
+            )
+            conductance = aggregation.sum_conductances().to(
+                device=direct_current.device,
+                dtype=direct_current.dtype,
+            )
+            owner_conductance = sum_level_values_by_output_owner(
+                conductance.unsqueeze(0),
+                self._n_soma,
+            )
+            keep_mask = self._level_keep_mask(
+                level_idx=level_idx,
+                batch_size=local_numerator.shape[0],
+                device=direct_current.device,
+                dtype=direct_current.dtype,
+            )
+            if keep_mask is not None:
+                owner_conductance = owner_conductance * keep_mask
+            direct_conductance = direct_conductance + owner_conductance
+        pooled_denominator = local_denominator + direct_conductance
+        voltage = (local_numerator + direct_current) / (
+            pooled_denominator + layer.epsilon
+        )
+        return voltage, pooled_denominator
 
     def get_decays(self) -> torch.Tensor:
         """Return per-level decay factors, computing from log_tau if learnable."""
@@ -498,21 +741,15 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
     ) -> torch.Tensor:
         """Feedforward pass, using one stateful step when opt-in dynamics need state."""
         if self.is_parallel_readout:
-            raise RuntimeError(
-                "cross_level_mode='parallel_readout' is recurrent-only; call "
-                "step() with recurrent state or use it through a recurrent "
-                "PopulationNetwork"
-            )
-        if (
-            self.synapse_types_enabled
-            or self.spiking_soma is not None
-            or self.dendritic_spikes_enabled
-            or self.soma_feedback_enabled
-        ):
+            return self._forward_parallel_readout(x, inhibitory_input)
+        if self.forward_steps:
             output, _ = self.step(x=x, inhibitory_input=inhibitory_input)
             return output
+        if self.is_all_active_star:
+            return self._forward_all_active_star(x, inhibitory_input)
         branch_output = None
-        for layer in self.branch_layers:
+        soma_gradient: dict[str, torch.Tensor] = {}
+        for level_idx, layer in enumerate(self.branch_layers):
             branch_output = layer(
                 x=x,
                 inhibitory_input=inhibitory_input,
@@ -520,7 +757,195 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
                 recurrent_input=None,
                 rec_inhibitory_input=None,
             )
+            if (
+                self.autograd_credit_mode == "soma_broadcast"
+                and torch.is_grad_enabled()
+                and branch_output.requires_grad
+            ):
+                if level_idx == self.n_levels - 1:
+
+                    def store_soma_gradient(gradient: torch.Tensor) -> torch.Tensor:
+                        soma_gradient["value"] = gradient
+                        return gradient
+
+                    branch_output.register_hook(store_soma_gradient)
+                else:
+                    owner_index = self._output_owner_index_per_level[level_idx]
+
+                    def broadcast_soma_gradient(
+                        gradient: torch.Tensor,
+                        *,
+                        owner: torch.Tensor = owner_index,
+                    ) -> torch.Tensor:
+                        del gradient
+                        if "value" not in soma_gradient:
+                            raise RuntimeError(
+                                "soma-broadcast autograd did not receive the "
+                                "soma derivative before a compartment derivative"
+                            )
+                        soma = soma_gradient["value"]
+                        return soma.index_select(
+                            1,
+                            owner.to(device=soma.device, dtype=torch.long),
+                        )
+
+                    branch_output.register_hook(broadcast_soma_gradient)
         return branch_output
+
+    def _forward_parallel_readout(
+        self,
+        x: torch.Tensor,
+        inhibitory_input: Optional[torch.Tensor],
+    ) -> torch.Tensor:
+        """Evaluate a grouped-point emulation with direct soma readout.
+
+        Every non-somatic level retains its original input mask, synaptic
+        parameters and local shunting computation, but it receives no child
+        output.  Its once-reactivated state is projected directly to the soma
+        by the parameter-matched projection that replaced its serial child
+        aggregator.  This is the feedforward counterpart of the recurrent
+        parallel-readout control and supplies the literal grouped-subunit
+        comparison required by the physical-depth experiment.
+        """
+
+        level_outputs: list[torch.Tensor] = []
+        soma_layer = self.branch_layers[-1]
+        soma_local_numerator: torch.Tensor | None = None
+        soma_local_denominator: torch.Tensor | None = None
+
+        for level_idx, layer in enumerate(self.branch_layers):
+            raw_E, raw_E_rec, raw_I, raw_I_rec = layer.compute_raw_currents(
+                x=x,
+                inhibitory_input=inhibitory_input,
+                recurrent_input=None,
+                rec_inhibitory_input=None,
+            )
+            zeros = torch.zeros(
+                x.shape[0],
+                self._level_dims[level_idx],
+                device=x.device,
+                dtype=x.dtype,
+            )
+            raw_E = raw_E if torch.is_tensor(raw_E) else zeros
+            raw_E_rec = raw_E_rec if torch.is_tensor(raw_E_rec) else zeros
+            raw_I = raw_I if torch.is_tensor(raw_I) else zeros
+            raw_I_rec = raw_I_rec if torch.is_tensor(raw_I_rec) else zeros
+            local_voltage, denominator = layer.voltage_from_currents(
+                trace_E=raw_E,
+                trace_E_rec=raw_E_rec,
+                trace_I=raw_I,
+                trace_I_rec=raw_I_rec,
+                trace_branch=zeros,
+                branch_conductance=zeros,
+            )
+            # Same conductance-dynamic update as the recurrent step; the
+            # soma's follows its pooled denominator below.
+            if level_idx < self.n_levels - 1:
+                self._maybe_update_dynamic_grad_scales(layer, denominator)
+            if level_idx == self.n_levels - 1:
+                if denominator is None:
+                    raise RuntimeError(
+                        "feedforward parallel_readout requires a soma shunting "
+                        "denominator"
+                    )
+                soma_local_numerator = raw_E + raw_E_rec
+                soma_local_denominator = denominator
+            else:
+                level_outputs.append(layer.reactivation(local_voltage))
+
+        if soma_local_numerator is None or soma_local_denominator is None:
+            raise RuntimeError("feedforward parallel_readout soma was not initialized")
+        pooled_voltage, pooled_denominator = self._parallel_readout_soma_voltage(
+            layer=soma_layer,
+            local_numerator=soma_local_numerator,
+            local_denominator=soma_local_denominator,
+            level_outputs=level_outputs,
+        )
+        self._maybe_update_dynamic_grad_scales(soma_layer, pooled_denominator)
+        return soma_layer.reactivation(pooled_voltage)
+
+    def _forward_all_active_star(
+        self,
+        x: torch.Tensor,
+        inhibitory_input: Optional[torch.Tensor],
+    ) -> torch.Tensor:
+        """Evaluate a static resource-identical independent-arm control.
+
+        Each level computes its local synaptic voltage without receiving the
+        preceding level.  The retained serial-shaped child aggregators instead
+        form independent arms that are pooled once at the soma.  Consequently
+        the state dictionary, masks, parameter count and active contacts match
+        the hierarchy exactly; only serial child-to-parent composition changes.
+        With one non-soma level this graph is equivalent to the hierarchy.
+        """
+
+        local_outputs: list[torch.Tensor] = []
+        arm_currents: list[torch.Tensor] = [
+            torch.zeros(
+                x.shape[0],
+                self._level_dims[0],
+                device=x.device,
+                dtype=x.dtype,
+            )
+        ]
+        soma_layer = self.branch_layers[-1]
+        soma_local_numerator: torch.Tensor | None = None
+        soma_local_denominator: torch.Tensor | None = None
+
+        for level_idx, layer in enumerate(self.branch_layers):
+            raw_E, raw_E_rec, raw_I, raw_I_rec = layer.compute_raw_currents(
+                x=x,
+                inhibitory_input=inhibitory_input,
+                recurrent_input=None,
+                rec_inhibitory_input=None,
+            )
+            zeros = torch.zeros(
+                x.shape[0],
+                self._level_dims[level_idx],
+                device=x.device,
+                dtype=x.dtype,
+            )
+            raw_E = raw_E if torch.is_tensor(raw_E) else zeros
+            raw_E_rec = raw_E_rec if torch.is_tensor(raw_E_rec) else zeros
+            raw_I = raw_I if torch.is_tensor(raw_I) else zeros
+            raw_I_rec = raw_I_rec if torch.is_tensor(raw_I_rec) else zeros
+
+            if level_idx > 0:
+                arm_currents.append(layer.branches_to_output(local_outputs[-1]))
+
+            local_voltage, denominator = layer.voltage_from_currents(
+                trace_E=raw_E,
+                trace_E_rec=raw_E_rec,
+                trace_I=raw_I,
+                trace_I_rec=raw_I_rec,
+                trace_branch=zeros,
+                branch_conductance=zeros,
+            )
+            # Same conductance-dynamic update as the recurrent step; the
+            # soma's follows its pooled denominator below.
+            if level_idx < self.n_levels - 1:
+                self._maybe_update_dynamic_grad_scales(layer, denominator)
+            if level_idx == self.n_levels - 1:
+                if denominator is None:
+                    raise RuntimeError(
+                        "feedforward all_active_star requires a soma shunting "
+                        "denominator"
+                    )
+                soma_local_numerator = raw_E + raw_E_rec
+                soma_local_denominator = denominator
+            else:
+                local_outputs.append(layer.reactivation(local_voltage))
+
+        if soma_local_numerator is None or soma_local_denominator is None:
+            raise RuntimeError("feedforward all_active_star soma was not initialized")
+        pooled_voltage, pooled_denominator = self._all_active_star_soma_voltage(
+            layer=soma_layer,
+            local_numerator=soma_local_numerator,
+            local_denominator=soma_local_denominator,
+            branch_traces=arm_currents,
+        )
+        self._maybe_update_dynamic_grad_scales(soma_layer, pooled_denominator)
+        return soma_layer.reactivation(pooled_voltage)
 
     def step(
         self,
@@ -543,6 +968,12 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
             output: Soma-level voltage [batch, n_soma].
             new_state: Updated DendriNetState with integrated traces.
         """
+        if self.autograd_credit_mode != "exact" and torch.is_grad_enabled():
+            raise NotImplementedError(
+                f"autograd_credit_mode={self.autograd_credit_mode!r} replaces "
+                "gradients only in the feedforward forward; a stepped (recurrent) "
+                "population would train with exact gradients"
+            )
         batch_size = x.shape[0]
         device = x.device
         dtype = x.dtype
@@ -730,6 +1161,31 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
                             )
                         soma_local_numerator = trace_E + trace_E_rec
                         soma_local_denominator = denominator
+                elif self.is_all_active_star:
+                    # The child trace is a live star-arm state, not an input to
+                    # the receiver-local computation. This is the single graph
+                    # distinction from the serial hierarchy.
+                    zero_branch = torch.zeros_like(effective_trace_branch)
+                    local_voltage, denominator = layer.voltage_from_currents(
+                        trace_E=trace_E,
+                        trace_E_rec=trace_E_rec,
+                        trace_I=trace_I,
+                        trace_I_rec=trace_I_rec,
+                        trace_branch=zero_branch,
+                        branch_conductance=zero_branch,
+                    )
+                    branch_voltage = (
+                        local_voltage
+                        if level_idx == self.n_levels - 1
+                        else layer.reactivation(local_voltage)
+                    )
+                    if level_idx == self.n_levels - 1:
+                        if denominator is None:
+                            raise RuntimeError(
+                                "all_active_star requires a soma shunting denominator"
+                            )
+                        soma_local_numerator = trace_E + trace_E_rec
+                        soma_local_denominator = denominator
                 else:
                     branch_voltage, denominator = _apply_stateful_legacy_voltage(
                         layer=layer,
@@ -740,7 +1196,11 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
                         trace_branch=effective_trace_branch,
                         branch_conductance=effective_branch_conductance,
                     )
-                self._maybe_update_dynamic_grad_scales(layer, denominator)
+                pooled_soma = (
+                    self.is_parallel_readout or self.is_all_active_star
+                ) and level_idx == self.n_levels - 1
+                if not pooled_soma:  # the pooled soma's scale is set below
+                    self._maybe_update_dynamic_grad_scales(layer, denominator)
             branch_voltage = _apply_stateful_branch_voltage_modulators(
                 branch_voltage=branch_voltage,
                 soma_feedback_gate=soma_feedback_gate,
@@ -754,17 +1214,35 @@ class StatefulDendriNet(StatefulTypedDynamicsMixin, nn.Module):
                         raise RuntimeError(
                             "parallel_readout soma currents were not initialized"
                         )
-                    pooled_voltage = self._parallel_readout_soma_voltage(
-                        layer=layer,
-                        local_numerator=soma_local_numerator,
-                        local_denominator=soma_local_denominator,
-                        level_outputs=parallel_level_outputs,
+                    pooled_voltage, pooled_denominator = (
+                        self._parallel_readout_soma_voltage(
+                            layer=layer,
+                            local_numerator=soma_local_numerator,
+                            local_denominator=soma_local_denominator,
+                            level_outputs=parallel_level_outputs,
+                        )
                     )
+                    self._maybe_update_dynamic_grad_scales(layer, pooled_denominator)
                     # The soma reactivation is applied here, once, and nowhere
                     # earlier on the soma path.
                     branch_voltage = layer.reactivation(pooled_voltage)
                     if keep_mask is not None:
                         branch_voltage = branch_voltage * keep_mask
+            elif self.is_all_active_star and level_idx == self.n_levels - 1:
+                if soma_local_numerator is None or soma_local_denominator is None:
+                    raise RuntimeError(
+                        "all_active_star soma currents were not initialized"
+                    )
+                pooled_voltage, pooled_denominator = self._all_active_star_soma_voltage(
+                    layer=layer,
+                    local_numerator=soma_local_numerator,
+                    local_denominator=soma_local_denominator,
+                    branch_traces=buffers.trace_branch,
+                )
+                self._maybe_update_dynamic_grad_scales(layer, pooled_denominator)
+                branch_voltage = layer.reactivation(pooled_voltage)
+                if keep_mask is not None:
+                    branch_voltage = branch_voltage * keep_mask
             if self.dendritic_spikes_enabled:
                 branch_voltage, plateau, refractory, event = (
                     self._apply_dendritic_spike_dynamics(

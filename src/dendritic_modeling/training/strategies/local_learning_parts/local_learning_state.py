@@ -13,6 +13,8 @@ class _BroadcastState:
     mode: str
     transported_errors: list[torch.Tensor | None]
     feedback_seeds: list[torch.Tensor | None]
+    # Indices of the records in the dendritic tree whose somas feed the output.
+    readout_records: frozenset[int] = frozenset()
 
 
 @dataclass(frozen=True)

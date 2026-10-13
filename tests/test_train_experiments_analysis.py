@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass
 from types import SimpleNamespace
 
@@ -20,7 +21,7 @@ def _enable_package_caplog(monkeypatch) -> None:
 class _FakeAnalysisManager:
     def __init__(self, *, track_training_performance: bool = True):
         self.config = SimpleNamespace(
-            performance_analysis=SimpleNamespace(training=track_training_performance)
+            performance=SimpleNamespace(training=track_training_performance)
         )
         self.run_calls = []
         self.pruning_results = None
@@ -80,6 +81,9 @@ class _MovableModel:
         self.to_calls.append(device)
         return self
 
+    def named_modules(self):
+        return iter(())
+
 
 @dataclass
 class _RunConfig:
@@ -103,51 +107,158 @@ def test_resolve_final_epoch_for_performance_plot_handles_missing_sections():
     )
 
 
-def test_apply_cli_overrides_updates_config_fields():
-    config = SimpleNamespace(
-        training=SimpleNamespace(main=SimpleNamespace(strategy="standard")),
-        outputs=SimpleNamespace(results_dir="old_dir", run_name="old_run"),
-        experiment=SimpleNamespace(seed=1),
-    )
+def test_cli_overrides_map_arguments_to_config_paths():
     args = SimpleNamespace(
         learning_strategy="local_ca",
+        error_broadcast_mode="per_soma_shared",
         output_dir="new_dir",
+        data_dir=None,
         run_name="new_run",
         seed=99,
+        epochs=3,
+        lr=0.0,
+        topk_lr=5e-5,
+        blocklinear_lr=2e-5,
+        reactivation_lr=1e-5,
+        decoder_lr=3e-5,
+        train_samples_per_class=2,
+        val_samples_per_class=1,
     )
 
-    train_experiments._apply_cli_overrides(config, args)
+    assert train_experiments._cli_overrides(args) == {
+        "training.main.strategy": "local_ca",
+        "training.main.learning_strategy_config.error_broadcast_mode": (
+            "per_soma_shared"
+        ),
+        "outputs.results_dir": "new_dir",
+        "outputs.run_name": "new_run",
+        "experiment.seed": 99,
+        "training.main.common.epochs": 3,
+        "training.main.common.param_groups.lr": 0.0,
+        "training.main.common.param_groups.topk_lr": 5e-5,
+        "training.main.common.param_groups.blocklinear_lr": 2e-5,
+        "training.main.common.param_groups.reactivation_lr": 1e-5,
+        "training.main.common.param_groups.decoder_lr": 3e-5,
+        "data.dataset_params.imagenet.train_samples_per_class": 2,
+        "data.dataset_params.imagenet.val_samples_per_class": 1,
+    }
+    assert train_experiments._cli_overrides(None) == {}
 
-    assert config.training.main.strategy == "local_ca"
-    assert config.outputs.results_dir == "new_dir"
-    assert config.outputs.run_name == "new_run"
-    assert config.experiment.seed == 99
+
+@pytest.mark.parametrize(
+    "name, value",
+    [("epochs", 0), ("lr", -1.0), ("train_samples_per_class", 0)],
+)
+def test_cli_overrides_reject_out_of_range_values(name, value):
+    with pytest.raises(ValueError, match=f"--{name}"):
+        train_experiments._cli_overrides(SimpleNamespace(**{name: value}))
 
 
-def test_apply_cli_overrides_ignores_missing_args_object():
+def test_imagenet_sample_overrides_require_imagenet():
+    overrides = {"data.dataset_params.imagenet.train_samples_per_class": 2}
+    mnist = SimpleNamespace(data=SimpleNamespace(dataset_name="mnist"))
+    with pytest.raises(ValueError, match="applies only to"):
+        train_experiments._reject_unread_cli_overrides(mnist, overrides)
+    imagenet = SimpleNamespace(data=SimpleNamespace(dataset_name="imagenet"))
+    train_experiments._reject_unread_cli_overrides(imagenet, overrides)
+
+
+def test_main_validate_only_stops_before_training(monkeypatch):
     config = SimpleNamespace(
-        training=SimpleNamespace(main=SimpleNamespace(strategy="standard")),
-        outputs=SimpleNamespace(results_dir="old_dir", run_name="old_run"),
-        experiment=SimpleNamespace(seed=1),
+        distributed=SimpleNamespace(mode="none", timeout_seconds=None),
+        experiment=object(),
+        data=object(),
+        model=object(),
+        training=object(),
+        analysis=object(),
+        outputs=object(),
+    )
+    prepared = train_experiments._PreparedTrainingConfig(
+        config=config,
+        experiment_config=config.experiment,
+        data_config=config.data,
+        model_config=config.model,
+        training_config=config.training,
+        analysis_config=config.analysis,
+        outputs_config=config.outputs,
+    )
+    model = object()
+    environment = train_experiments._TrainingEnvironment(
+        run_save_path="/tmp/preflight",
+        train_ds=object(),
+        valid_ds=object(),
+        test_ds=object(),
+        model=model,
+        unwrapped_model=model,
+        encoder_network=object(),
     )
 
-    train_experiments._apply_cli_overrides(config, None)
+    monkeypatch.setattr(
+        train_experiments, "setup_distributed", lambda **_kwargs: (0, 0, 1)
+    )
+    monkeypatch.setattr(
+        train_experiments,
+        "_load_and_prepare_training_config",
+        lambda *args, **kwargs: prepared,
+    )
+    monkeypatch.setattr(
+        train_experiments, "_validate_sealed_test_analysis", lambda *args: None
+    )
+    monkeypatch.setattr(
+        train_experiments,
+        "_setup_training_environment",
+        lambda **kwargs: environment,
+    )
+    recorded = []
+    cleaned = []
+    monkeypatch.setattr(
+        train_experiments,
+        "_record_model_size_summary",
+        lambda *args: recorded.append(args),
+    )
+    monkeypatch.setattr(
+        train_experiments,
+        "_cleanup_training_runtime",
+        lambda *args, **kwargs: cleaned.append((args, kwargs)),
+    )
+    encoded = train_experiments._EncodedTrainingState(
+        encoder_network=object(),
+        encoded_train_ds=object(),
+        encoded_valid_ds=object(),
+        encoded_test_ds=object(),
+        analysis_manager=object(),
+    )
+    built = []
+    monkeypatch.setattr(
+        train_experiments,
+        "_prepare_encoded_training_state",
+        lambda **kwargs: encoded,
+    )
+    monkeypatch.setattr(
+        train_experiments,
+        "_build_main_trainer",
+        lambda **kwargs: built.append(kwargs),
+    )
+    monkeypatch.setattr(
+        train_experiments,
+        "_run_main_training_phase",
+        lambda **kwargs: (_ for _ in ()).throw(AssertionError("training started")),
+    )
 
-    assert config.training.main.strategy == "standard"
-    assert config.outputs.results_dir == "old_dir"
-    assert config.outputs.run_name == "old_run"
-    assert config.experiment.seed == 1
+    train_experiments.main("config.yaml", args=SimpleNamespace(validate_only=True))
+
+    assert len(built) == 1
+    assert built[0]["analysis_manager"] is encoded.analysis_manager
+    assert len(recorded) == 1
+    assert len(cleaned) == 1
 
 
-def test_load_and_prepare_training_config_returns_sections_and_disables_worker_wandb(
-    monkeypatch,
-):
+def test_load_and_prepare_training_config_returns_sections(monkeypatch):
     experiment_config = object()
     data_config = object()
     model_config = object()
     training_config = object()
     analysis_config = object()
-    wandb_config = SimpleNamespace(use_wandb=True)
     outputs_config = object()
     config = SimpleNamespace(
         experiment=experiment_config,
@@ -155,31 +266,20 @@ def test_load_and_prepare_training_config_returns_sections_and_disables_worker_w
         model=model_config,
         training=training_config,
         analysis=analysis_config,
-        wandb=wandb_config,
         outputs=outputs_config,
     )
-    args = object()
+    args = SimpleNamespace(run_name="override")
     events = []
 
     monkeypatch.setattr(
         train_experiments,
         "load_config",
-        lambda path: events.append(("load", path)) or config,
+        lambda path, overrides=None: events.append(("load", path, overrides)) or config,
     )
     monkeypatch.setattr(
         train_experiments,
         "validate_training_stability",
         lambda cfg: events.append(("validate", cfg)) or True,
-    )
-    monkeypatch.setattr(
-        train_experiments,
-        "apply_automatic_safeguards",
-        lambda cfg: events.append(("safeguards", cfg)),
-    )
-    monkeypatch.setattr(
-        train_experiments,
-        "_apply_cli_overrides",
-        lambda cfg, received_args: events.append(("overrides", cfg, received_args)),
     )
 
     result = train_experiments._load_and_prepare_training_config(
@@ -196,44 +296,30 @@ def test_load_and_prepare_training_config_returns_sections_and_disables_worker_w
         model_config=model_config,
         training_config=training_config,
         analysis_config=analysis_config,
-        wandb_config=wandb_config,
         outputs_config=outputs_config,
     )
-    assert wandb_config.use_wandb is False
     assert events == [
-        ("load", "/tmp/config.yaml"),
+        ("load", "/tmp/config.yaml", {"outputs.run_name": "override"}),
         ("validate", config),
-        ("safeguards", config),
-        ("overrides", config, args),
     ]
 
 
 def test_load_and_prepare_training_config_raises_on_failed_validation(monkeypatch):
-    config = SimpleNamespace(wandb=SimpleNamespace(use_wandb=True))
+    config = SimpleNamespace()
 
-    monkeypatch.setattr(train_experiments, "load_config", lambda path: config)
+    monkeypatch.setattr(
+        train_experiments, "load_config", lambda path, overrides=None: config
+    )
     monkeypatch.setattr(
         train_experiments,
         "validate_training_stability",
         lambda cfg: False,
     )
-    monkeypatch.setattr(
-        train_experiments,
-        "apply_automatic_safeguards",
-        lambda cfg: pytest.fail("safeguards should not run after failed validation"),
-    )
-    monkeypatch.setattr(
-        train_experiments,
-        "_apply_cli_overrides",
-        lambda cfg, args: pytest.fail(
-            "overrides should not run after failed validation"
-        ),
-    )
 
     with pytest.raises(ValueError, match="Invalid configuration"):
         train_experiments._load_and_prepare_training_config(
             "/tmp/config.yaml",
-            object(),
+            None,
             is_main=True,
             world_size=1,
         )
@@ -245,7 +331,7 @@ def test_resolve_main_training_settings_from_dict_config():
         "optimizer": {"name": "sgd", "lr": 0.02},
         "common": {
             "param_groups": {"lr": 0.03, "split_params": False},
-            "weight_decay_rate": 0.4,
+            "synapse_decay_rate": 0.4,
             "weight_boosting": True,
             "epochs": 12,
         },
@@ -258,7 +344,7 @@ def test_resolve_main_training_settings_from_dict_config():
     assert settings.optimizer_config.name == "sgd"
     assert settings.optimizer_config.lr == 0.02
     assert settings.param_groups == {"lr": 0.03, "split_params": False}
-    assert settings.weight_decay_rate == 0.4
+    assert settings.synapse_decay_rate == 0.4
     assert settings.weight_boosting is True
     assert settings.common_epochs == 12
 
@@ -266,7 +352,7 @@ def test_resolve_main_training_settings_from_dict_config():
 def test_resolve_main_training_settings_from_object_config():
     common_config = SimpleNamespace(
         param_groups={"lr": 0.05},
-        weight_decay_rate=0.2,
+        synapse_decay_rate=0.2,
         epochs=9,
     )
     main_train_config = SimpleNamespace(
@@ -282,7 +368,7 @@ def test_resolve_main_training_settings_from_object_config():
     assert settings.optimizer_config.name == "adamw"
     assert settings.optimizer_config.lr == 0.01
     assert settings.param_groups == {"lr": 0.05}
-    assert settings.weight_decay_rate == 0.2
+    assert settings.synapse_decay_rate == 0.2
     assert settings.weight_boosting is False
     assert settings.common_epochs == 9
 
@@ -296,15 +382,14 @@ def test_install_encoder_network_preserves_identity_instance():
     assert model.encoder_network is encoder
 
 
-def test_install_encoder_network_uses_identity_for_encoder_wrappers():
+def test_install_encoder_network_uses_the_autoencoders_encoder():
     model = SimpleNamespace()
     encoder = SimpleNamespace(output_dim=7)
     encoder_network = SimpleNamespace(encoder=encoder)
 
     train_experiments._install_encoder_network(model, encoder_network)
 
-    assert isinstance(model.encoder_network, train_experiments.Identity)
-    assert model.encoder_network.output_dim == 7
+    assert model.encoder_network is encoder
 
 
 def test_install_encoder_network_uses_direct_encoder_without_encoder_attr():
@@ -316,29 +401,17 @@ def test_install_encoder_network_uses_direct_encoder_without_encoder_attr():
     assert model.encoder_network is encoder_network
 
 
-def test_record_model_size_summary_logs_and_saves_count(monkeypatch, tmp_path):
+def test_record_model_size_summary_saves_count_and_resources(monkeypatch, tmp_path):
     model = _ParamModel(torch.zeros(2, 3), torch.zeros(4))
     config = SimpleNamespace(training=SimpleNamespace())
-    wandb_logs = []
     saved_payloads = []
 
-    monkeypatch.setattr(train_experiments.wandb, "run", object())
-    monkeypatch.setattr(
-        train_experiments.wandb,
-        "log",
-        lambda payload: wandb_logs.append(payload),
-    )
     monkeypatch.setattr(
         train_experiments,
         "save_dict",
         lambda payload, save_path, name: saved_payloads.append(
             (payload, save_path, name)
         ),
-    )
-    monkeypatch.setattr(
-        train_experiments,
-        "suggest_optimal_config_for_model_size",
-        lambda nparams: {},
     )
     resources = {"trainable_parameters": 6, "active_synapses": 4}
     monkeypatch.setattr(
@@ -350,54 +423,10 @@ def test_record_model_size_summary_logs_and_saves_count(monkeypatch, tmp_path):
     nparams = train_experiments._record_model_size_summary(model, config, str(tmp_path))
 
     assert nparams == 10
-    assert wandb_logs == [{"nparams": 10}]
     assert saved_payloads == [
         ({"nparams": 10}, str(tmp_path), "nparams"),
         (resources, str(tmp_path), "model_resources.json"),
     ]
-
-
-def test_record_model_size_summary_logs_only_changed_suggestions(
-    monkeypatch,
-    tmp_path,
-    caplog,
-):
-    _enable_package_caplog(monkeypatch)
-    model = _ParamModel(torch.zeros(5))
-    config = SimpleNamespace(training=SimpleNamespace(lr=0.01))
-    saved_payloads = []
-
-    monkeypatch.setattr(train_experiments.wandb, "run", None)
-    monkeypatch.setattr(
-        train_experiments,
-        "save_dict",
-        lambda payload, save_path, name: saved_payloads.append(
-            (payload, save_path, name)
-        ),
-    )
-    monkeypatch.setattr(
-        train_experiments,
-        "suggest_optimal_config_for_model_size",
-        lambda nparams: {"lr": 0.01, "batch_size": 128},
-    )
-    resources = {"trainable_parameters": 5, "active_synapses": 0}
-    monkeypatch.setattr(
-        train_experiments,
-        "model_resource_summary",
-        lambda received_model: resources,
-    )
-
-    with caplog.at_level("INFO", logger=train_experiments.__name__):
-        train_experiments._record_model_size_summary(model, config, str(tmp_path))
-
-    messages = [record.getMessage() for record in caplog.records]
-    assert saved_payloads == [
-        ({"nparams": 5}, str(tmp_path), "nparams"),
-        (resources, str(tmp_path), "model_resources.json"),
-    ]
-    assert any("MODEL SIZE RECOMMENDATIONS" in message for message in messages)
-    assert any("batch_size = 128" in message for message in messages)
-    assert all("lr = 0.01" not in message for message in messages)
 
 
 def test_save_training_summary_recursively_removes_state_dicts(monkeypatch):
@@ -487,108 +516,28 @@ def test_save_run_config_applies_canonicalizers_in_order(monkeypatch):
     ]
 
 
-def test_load_or_train_encoder_datasets_non_ddp_calls_loader_once(monkeypatch):
+def test_encoder_datasets_pass_through_for_jointly_trained_encoders():
     encoder_network = object()
-    training_config = SimpleNamespace(encoder=object())
-    model_config = SimpleNamespace(encoder=object())
-    data_config = object()
-    train_ds = object()
-    valid_ds = object()
-    test_ds = object()
-    result = (object(), object(), object(), object())
-    loader_calls = []
+    datasets = (object(), object(), object())
 
-    def fake_loader(**kwargs):
-        loader_calls.append(kwargs)
-        return result
-
-    def fail_barrier():
-        raise AssertionError("barrier should not run outside DDP autoencoder path")
-
-    monkeypatch.setattr(train_experiments, "load_train_encoder_network", fake_loader)
-    monkeypatch.setattr(train_experiments.dist, "barrier", fail_barrier)
-
-    encoded = train_experiments._load_or_train_encoder_datasets(
+    result = train_experiments._encoder_datasets(
         encoder_network=encoder_network,
-        training_config=training_config,
-        model_config=model_config,
-        data_config=data_config,
-        train_ds=train_ds,
-        valid_ds=valid_ds,
-        test_ds=test_ds,
-        world_size=1,
-        is_main=True,
+        train_ds=datasets[0],
+        valid_ds=datasets[1],
+        test_ds=datasets[2],
     )
 
-    assert encoded is result
-    assert len(loader_calls) == 1
-    assert loader_calls[0]["encoder_network"] is encoder_network
-    assert loader_calls[0]["encoder_train_config"] is training_config.encoder
-    assert loader_calls[0]["train_ds"] is train_ds
-    assert loader_calls[0]["valid_ds"] is valid_ds
-    assert loader_calls[0]["test_ds"] is test_ds
-    assert loader_calls[0]["encoder_network_config"] is model_config.encoder
-    assert loader_calls[0]["task_config"] is data_config
+    assert result == (encoder_network, *datasets)
 
 
-def test_load_or_train_encoder_datasets_ddp_main_loads_before_barrier(monkeypatch):
-    result = (object(), object(), object(), object())
-    events = []
-
-    def fake_loader(**kwargs):
-        events.append("load")
-        return result
-
-    def fake_barrier():
-        events.append("barrier")
-
-    monkeypatch.setattr(train_experiments, "load_train_encoder_network", fake_loader)
-    monkeypatch.setattr(train_experiments.dist, "barrier", fake_barrier)
-
-    encoded = train_experiments._load_or_train_encoder_datasets(
-        encoder_network=train_experiments.BaseAutoencoder(),
-        training_config=SimpleNamespace(encoder=object()),
-        model_config=SimpleNamespace(encoder=object()),
-        data_config=object(),
-        train_ds=object(),
-        valid_ds=object(),
-        test_ds=object(),
-        world_size=2,
-        is_main=True,
-    )
-
-    assert encoded is result
-    assert events == ["load", "barrier"]
-
-
-def test_load_or_train_encoder_datasets_ddp_worker_loads_after_barrier(monkeypatch):
-    result = (object(), object(), object(), object())
-    events = []
-
-    def fake_loader(**kwargs):
-        events.append("load")
-        return result
-
-    def fake_barrier():
-        events.append("barrier")
-
-    monkeypatch.setattr(train_experiments, "load_train_encoder_network", fake_loader)
-    monkeypatch.setattr(train_experiments.dist, "barrier", fake_barrier)
-
-    encoded = train_experiments._load_or_train_encoder_datasets(
-        encoder_network=train_experiments.BaseAutoencoder(),
-        training_config=SimpleNamespace(encoder=object()),
-        model_config=SimpleNamespace(encoder=object()),
-        data_config=object(),
-        train_ds=object(),
-        valid_ds=object(),
-        test_ds=object(),
-        world_size=2,
-        is_main=False,
-    )
-
-    assert encoded is result
-    assert events == ["barrier", "load"]
+def test_encoder_datasets_reject_untrained_autoencoders():
+    with pytest.raises(ValueError, match="must be trained before the main phase"):
+        train_experiments._encoder_datasets(
+            encoder_network=train_experiments.BaseAutoencoder(),
+            train_ds=object(),
+            valid_ds=object(),
+            test_ds=object(),
+        )
 
 
 def test_create_analysis_manager_uses_encoded_data_and_cuda(monkeypatch):
@@ -669,9 +618,11 @@ def test_prepare_encoded_training_state_runs_steps_in_order(monkeypatch):
 
     monkeypatch.setattr(
         train_experiments,
-        "_load_or_train_encoder_datasets",
-        lambda **kwargs: events.append(("load", kwargs))
-        or (encoded_encoder, encoded_train_ds, encoded_valid_ds, encoded_test_ds),
+        "_encoder_datasets",
+        lambda **kwargs: (
+            events.append(("load", kwargs))
+            or (encoded_encoder, encoded_train_ds, encoded_valid_ds, encoded_test_ds)
+        ),
     )
     monkeypatch.setattr(
         train_experiments,
@@ -717,14 +668,15 @@ def test_prepare_encoded_training_state_runs_steps_in_order(monkeypatch):
             "load",
             {
                 "encoder_network": encoder_network,
-                "training_config": training_config,
-                "model_config": model_config,
-                "data_config": data_config,
                 "train_ds": train_ds,
                 "valid_ds": valid_ds,
                 "test_ds": test_ds,
+                "pretraining": None,
+                "initial_checkpoint": None,
+                "run_save_path": "/tmp/run",
+                "seed": 0,
+                "loader_seed": None,
                 "world_size": 2,
-                "is_main": True,
             },
         ),
         (
@@ -760,14 +712,7 @@ def test_log_model_summary_before_training_handles_recurrent_model(
     config = SimpleNamespace(
         training=SimpleNamespace(main=SimpleNamespace(strategy="standard"))
     )
-    wandb_logs = []
 
-    monkeypatch.setattr(train_experiments.wandb, "run", object())
-    monkeypatch.setattr(
-        train_experiments.wandb,
-        "log",
-        lambda payload: wandb_logs.append(payload),
-    )
     monkeypatch.setattr(
         train_experiments.torchinfo,
         "summary",
@@ -777,7 +722,6 @@ def test_log_model_summary_before_training_handles_recurrent_model(
     with caplog.at_level("INFO", logger=train_experiments.__name__):
         train_experiments._log_model_summary_before_training(model, object(), config)
 
-    assert wandb_logs == [{"total_params": 10, "trainable_params": 6}]
     assert "Recurrent model detected" in caplog.text
     assert "Skipping torchinfo summary for recurrent model" in caplog.text
 
@@ -789,19 +733,14 @@ def test_log_model_summary_before_training_uses_torchinfo(monkeypatch):
         training=SimpleNamespace(main=SimpleNamespace(strategy="standard"))
     )
     summary_calls = []
-    wandb_logs = []
 
-    monkeypatch.setattr(train_experiments.wandb, "run", object())
-    monkeypatch.setattr(
-        train_experiments.wandb,
-        "log",
-        lambda payload: wandb_logs.append(payload),
-    )
     monkeypatch.setattr(
         train_experiments.torchinfo,
         "summary",
-        lambda *args, **kwargs: summary_calls.append((args, kwargs))
-        or SimpleNamespace(total_params=11, trainable_params=7),
+        lambda *args, **kwargs: (
+            summary_calls.append((args, kwargs))
+            or SimpleNamespace(total_params=11, trainable_params=7)
+        ),
     )
 
     train_experiments._log_model_summary_before_training(
@@ -820,7 +759,6 @@ def test_log_model_summary_before_training_uses_torchinfo(monkeypatch):
         "row_settings": ["depth"],
         "depth": 7,
     }
-    assert wandb_logs == [{"total_params": 11, "trainable_params": 7}]
 
 
 def test_setup_training_environment_runs_rank0_setup_outputs(monkeypatch):
@@ -828,7 +766,6 @@ def test_setup_training_environment_runs_rank0_setup_outputs(monkeypatch):
     model_config = object()
     training_config = object()
     data_config = object()
-    wandb_config = object()
     outputs_config = object()
     experiment_config = object()
     train_ds = object()
@@ -883,7 +820,6 @@ def test_setup_training_environment_runs_rank0_setup_outputs(monkeypatch):
         model_config=model_config,
         training_config=training_config,
         data_config=data_config,
-        wandb_config=wandb_config,
         outputs_config=outputs_config,
         experiment_config=experiment_config,
         world_size=2,
@@ -907,7 +843,6 @@ def test_setup_training_environment_runs_rank0_setup_outputs(monkeypatch):
                 "model_config": model_config,
                 "training_config": training_config,
                 "data_config": data_config,
-                "wandb_config": wandb_config,
                 "outputs_config": outputs_config,
                 "experiment_config": experiment_config,
                 "is_main": True,
@@ -932,31 +867,31 @@ def test_setup_training_environment_worker_skips_rank0_outputs(monkeypatch):
     monkeypatch.setattr(
         train_experiments,
         "setup_environment",
-        lambda **kwargs: events.append(("setup", kwargs))
-        or (
-            "/tmp/worker-run",
-            train_ds,
-            valid_ds,
-            test_ds,
-            built_model,
-            encoder_network,
+        lambda **kwargs: (
+            events.append(("setup", kwargs))
+            or (
+                "/tmp/worker-run",
+                train_ds,
+                valid_ds,
+                test_ds,
+                built_model,
+                encoder_network,
+            )
         ),
     )
     monkeypatch.setattr(
         train_experiments,
         "_broadcast_run_save_path",
-        lambda path, *, world_size, is_main: events.append(
-            ("broadcast", path, world_size, is_main)
-        )
-        or "/tmp/shared-run",
+        lambda path, *, world_size, is_main: (
+            events.append(("broadcast", path, world_size, is_main)) or "/tmp/shared-run"
+        ),
     )
     monkeypatch.setattr(
         train_experiments,
         "_wrap_ddp_model",
-        lambda model, *, world_size, local_rank, is_main: events.append(
-            ("wrap", model, world_size, local_rank, is_main)
-        )
-        or model,
+        lambda model, *, world_size, local_rank, is_main: (
+            events.append(("wrap", model, world_size, local_rank, is_main)) or model
+        ),
     )
     monkeypatch.setattr(
         train_experiments,
@@ -979,7 +914,6 @@ def test_setup_training_environment_worker_skips_rank0_outputs(monkeypatch):
         model_config=object(),
         training_config=object(),
         data_config=object(),
-        wandb_config=object(),
         outputs_config=object(),
         experiment_config=object(),
         world_size=2,
@@ -1016,7 +950,7 @@ def test_run_main_training_phase_builds_trainer_and_runs_training(
         optimizer=SimpleNamespace(name="adam", lr=0.01),
         common=SimpleNamespace(
             param_groups={"split_params": True},
-            weight_decay_rate=0.2,
+            synapse_decay_rate=0.2,
             weight_boosting=True,
             epochs=9,
         ),
@@ -1122,6 +1056,8 @@ def test_run_main_training_phase_builds_trainer_and_runs_training(
             "optimizer": base_optimizer,
             "weight_decay": 0.2,
             "weight_boosting": True,
+            # No training.main.common.impact_rewiring block: no controllers.
+            "topology_controllers": [],
         },
     )
     assert calls[4] == (
@@ -1145,7 +1081,7 @@ def test_run_main_training_phase_requires_multistage_config(monkeypatch, tmp_pat
         optimizer=SimpleNamespace(name="adam", lr=0.01),
         common=SimpleNamespace(
             param_groups={},
-            weight_decay_rate=0.0,
+            synapse_decay_rate=0.0,
             epochs=3,
         ),
     )
@@ -1191,9 +1127,7 @@ def test_maybe_plot_multistage_training_performance_plots_when_available(
 ):
     performance_epochs = tmp_path / "performance" / "epochs"
     performance_epochs.mkdir(parents=True)
-    analysis_config = SimpleNamespace(
-        performance_analysis=SimpleNamespace(training=True)
-    )
+    analysis_config = SimpleNamespace(performance=SimpleNamespace(training=True))
     main_train_config = SimpleNamespace(
         strategies=SimpleNamespace(
             multi_stage=SimpleNamespace(
@@ -1237,9 +1171,7 @@ def test_maybe_plot_multistage_training_performance_skips_disabled_paths(
     monkeypatch,
     tmp_path,
 ):
-    analysis_config = SimpleNamespace(
-        performance_analysis=SimpleNamespace(training=False)
-    )
+    analysis_config = SimpleNamespace(performance=SimpleNamespace(training=False))
 
     monkeypatch.setattr(
         train_experiments,
@@ -1296,10 +1228,19 @@ def test_maybe_apply_pruning_step_skips_disabled_config(monkeypatch):
 
 def test_maybe_apply_pruning_step_runs_and_merges_results(monkeypatch):
     original_pruning_config = {"enabled": True, "amount": 0.2}
-    trainer_config = {"pruning": {}, "reporting": {"existing": True}}
+    trainer_config = {"pruning": {}}
     training_results = {"loss": 1.0}
     optimizer = object()
-    analysis_manager = object()
+    events = []
+
+    class FakeAnalysisManager:
+        def record_pruning_start(self):
+            events.append("start")
+
+        def record_pruning_end(self, pruning_results):
+            events.append(("end", pruning_results))
+
+    analysis_manager = FakeAnalysisManager()
     model = object()
     train_ds = object()
     valid_ds = object()
@@ -1308,11 +1249,14 @@ def test_maybe_apply_pruning_step_runs_and_merges_results(monkeypatch):
     prune_calls = []
 
     class FakePruningTrainer:
-        def _initialize_attributes(self, received_model, epochs):
+        def _initialize_attributes(self, received_model, epochs, *, snapshot_best):
+            # The pruning step sets the device only and tracks no best state.
+            assert snapshot_best is False
             initialize_calls.append((received_model, epochs))
 
         def _apply_pruning_and_evaluate(self, **kwargs):
             prune_calls.append(kwargs)
+            events.append("prune")
             return {"post_pruning_loss": 0.8}
 
     def fake_get_trainer(**kwargs):
@@ -1338,7 +1282,7 @@ def test_maybe_apply_pruning_step_runs_and_merges_results(monkeypatch):
     assert result is training_results
     assert training_results == {"loss": 1.0, "post_pruning_loss": 0.8}
     assert trainer_config["pruning"] is original_pruning_config
-    assert trainer_config["reporting"] == {"existing": True}
+    assert "reporting" not in trainer_config
     assert trainer_calls == [
         {
             "strategy": "standard",
@@ -1351,6 +1295,8 @@ def test_maybe_apply_pruning_step_runs_and_merges_results(monkeypatch):
     assert prune_calls == [
         {"model": model, "train_data": train_ds, "valid_data": valid_ds}
     ]
+    # The pruning analysis censuses the model around the pruning step.
+    assert events == ["start", "prune", ("end", {"post_pruning_loss": 0.8})]
 
 
 def test_save_final_model_and_analysis_runs_final_analysis(monkeypatch, tmp_path):
@@ -1365,11 +1311,11 @@ def test_save_final_model_and_analysis_runs_final_analysis(monkeypatch, tmp_path
     save_calls = []
     analysis_calls = []
 
-    monkeypatch.setattr(
-        train_experiments.torch,
-        "save",
-        lambda state, path: save_calls.append((state, path)),
-    )
+    def record_save(state, path, *, identical_to=None):
+        save_calls.append((state, path, identical_to))
+        return "saved"
+
+    monkeypatch.setattr(train_experiments, "save_state_dict", record_save)
     monkeypatch.setattr(
         train_experiments,
         "run_analysis",
@@ -1389,7 +1335,7 @@ def test_save_final_model_and_analysis_runs_final_analysis(monkeypatch, tmp_path
         training_results=training_results,
     )
 
-    assert save_calls == [(model_state, str(tmp_path / "final_model.pt"))]
+    assert save_calls == [(model_state, str(tmp_path / "final_model.pt"), None)]
     assert analysis_calls == [
         {
             "train_ds": train_ds,
@@ -1411,11 +1357,11 @@ def test_save_final_model_and_analysis_skips_multistage_analysis(
     model_state = {"weight": torch.ones(1)}
     save_calls = []
 
-    monkeypatch.setattr(
-        train_experiments.torch,
-        "save",
-        lambda state, path: save_calls.append((state, path)),
-    )
+    def record_save(state, path, *, identical_to=None):
+        save_calls.append((state, path, identical_to))
+        return "saved"
+
+    monkeypatch.setattr(train_experiments, "save_state_dict", record_save)
     monkeypatch.setattr(
         train_experiments,
         "run_analysis",
@@ -1435,7 +1381,7 @@ def test_save_final_model_and_analysis_skips_multistage_analysis(
         training_results={},
     )
 
-    assert save_calls == [(model_state, str(tmp_path / "final_model.pt"))]
+    assert save_calls == [(model_state, str(tmp_path / "final_model.pt"), None)]
 
 
 def test_finalize_main_training_phase_runs_rank0_outputs_and_pruning(monkeypatch):
@@ -1465,6 +1411,7 @@ def test_finalize_main_training_phase_runs_rank0_outputs_and_pruning(monkeypatch
         common_epochs=5,
         original_pruning_config={"enabled": True},
         training_results=training_results,
+        pruning_trainer_config=trainer_config,
     )
 
     monkeypatch.setattr(
@@ -1569,6 +1516,7 @@ def test_finalize_main_training_phase_workers_only_run_pruning(monkeypatch):
         common_epochs=3,
         original_pruning_config={},
         training_results=training_results,
+        pruning_trainer_config={"pruning": {}},
     )
 
     monkeypatch.setattr(
@@ -1764,16 +1712,9 @@ def test_dump_init_gate_stats_diagnostic_logs_failure(monkeypatch, caplog):
     assert "init_gate_stats diagnostic failed: diagnostic failed" in caplog.text
 
 
-def test_cleanup_training_runtime_finishes_wandb_and_distributed(monkeypatch):
-    finish_calls = []
+def test_cleanup_training_runtime_destroys_distributed(monkeypatch):
     destroy_calls = []
 
-    monkeypatch.setattr(train_experiments.wandb, "run", object())
-    monkeypatch.setattr(
-        train_experiments.wandb,
-        "finish",
-        lambda: finish_calls.append("finish"),
-    )
     monkeypatch.setattr(
         train_experiments.dist,
         "is_initialized",
@@ -1785,22 +1726,12 @@ def test_cleanup_training_runtime_finishes_wandb_and_distributed(monkeypatch):
         lambda: destroy_calls.append("destroy"),
     )
 
-    train_experiments._cleanup_training_runtime(
-        SimpleNamespace(use_wandb=True),
-        world_size=2,
-    )
+    train_experiments._cleanup_training_runtime(world_size=2)
 
-    assert finish_calls == ["finish"]
     assert destroy_calls == ["destroy"]
 
 
 def test_cleanup_training_runtime_skips_disabled_paths(monkeypatch):
-    monkeypatch.setattr(train_experiments.wandb, "run", None)
-    monkeypatch.setattr(
-        train_experiments.wandb,
-        "finish",
-        lambda: pytest.fail("wandb.finish should not run"),
-    )
     monkeypatch.setattr(
         train_experiments.dist,
         "is_initialized",
@@ -1812,10 +1743,7 @@ def test_cleanup_training_runtime_skips_disabled_paths(monkeypatch):
         lambda: pytest.fail("single-process run should not destroy process group"),
     )
 
-    train_experiments._cleanup_training_runtime(
-        SimpleNamespace(use_wandb=False),
-        world_size=1,
-    )
+    train_experiments._cleanup_training_runtime(world_size=1)
 
 
 def test_run_analysis_attaches_pruning_results_and_plots_evolution(
@@ -1913,3 +1841,76 @@ def test_run_analysis_does_not_attach_non_pruning_results(tmp_path):
 
     assert manager.run_calls == [{"filename": "final", "training": False}]
     assert manager.set_pruning_calls == []
+
+
+def test_the_pruning_trainer_config_is_taken_before_get_trainer_consumes_keys(
+    monkeypatch, tmp_path
+):
+    """get_trainer pops keys; the pruning trainer must see the original ones."""
+    main_train_config = SimpleNamespace(
+        strategy="standard",
+        optimizer=SimpleNamespace(name="adam", lr=0.01),
+        common=SimpleNamespace(
+            param_groups={}, synapse_decay_rate=0.0, weight_boosting=False, epochs=1
+        ),
+    )
+
+    class FakeTrainer:
+        def train(self, **kwargs):
+            return {}
+
+    def consuming_get_trainer(**kwargs):
+        kwargs["trainer_config_dict"].pop("task")
+        kwargs["trainer_config_dict"].pop("recurrent_config")
+        return FakeTrainer()
+
+    monkeypatch.setattr(
+        train_experiments,
+        "prepare_trainer_config",
+        lambda **kwargs: {"pruning": {"enabled": True}, "recurrent_config": {"k": 4}},
+    )
+    monkeypatch.setattr(
+        train_experiments, "normalize_param_groups_config", lambda groups: groups
+    )
+    monkeypatch.setattr(train_experiments, "create_optimizer", lambda *a: object())
+    monkeypatch.setattr(
+        train_experiments, "CustomWeightDecayOptimizer", lambda **kwargs: object()
+    )
+    monkeypatch.setattr(train_experiments, "get_trainer", consuming_get_trainer)
+
+    result = train_experiments._run_main_training_phase(
+        unwrapped_model=_ParamGroupModel(),
+        model=object(),
+        training_config=SimpleNamespace(main=main_train_config),
+        model_config=SimpleNamespace(task="regression"),
+        experiment_config=SimpleNamespace(seed=1),
+        run_save_path=str(tmp_path),
+        encoded_train_ds=object(),
+        encoded_valid_ds=object(),
+        analysis_manager=object(),
+    )
+    assert "task" not in result.trainer_config_dict
+    assert result.pruning_trainer_config["task"] == "regression"
+    assert result.pruning_trainer_config["recurrent_config"] == {"k": 4}
+
+
+def test_the_final_model_is_compared_with_the_run_best_checkpoint(tmp_path):
+    model_state = {"weight": torch.ones(1)}
+    torch.save(dict(model_state), tmp_path / "standard_best_model.pt")
+
+    train_experiments._save_final_model_and_analysis(
+        unwrapped_model=_StateDictModel(model_state),
+        run_save_path=str(tmp_path),
+        any_analysis_enabled=False,
+        strategy="standard",
+        train_ds=object(),
+        valid_ds=object(),
+        test_ds=object(),
+        analysis_manager=None,
+        training_config=object(),
+        training_results={},
+    )
+
+    assert os.path.samefile(
+        tmp_path / "final_model.pt", tmp_path / "standard_best_model.pt"
+    )

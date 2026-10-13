@@ -6,6 +6,8 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 
+from dendritic_modeling.plotting.styles import indexed_style
+
 from ..plotters import PerformancePlotter
 from .base_analyzer import BaseSweepAnalyzer
 
@@ -125,7 +127,8 @@ class NoiseSweepAnalyzer(BaseSweepAnalyzer):
             try:
                 fig, ax = plt.subplots(figsize=(10, 6))
 
-                for noise_type in noise_types:
+                # Each noise type gets its own marker and line style.
+                for index, noise_type in enumerate(sorted(noise_types)):
                     # Find all noise levels for this type
                     pattern = f"noise_{noise_type}_{metric}_"
                     level_cols = [
@@ -157,7 +160,7 @@ class NoiseSweepAnalyzer(BaseSweepAnalyzer):
                         ax.plot(
                             levels,
                             values,
-                            marker="o",
+                            **indexed_style(index).kwargs(),
                             label=f"{noise_type.title()} Noise",
                             linewidth=2,
                             markersize=6,
@@ -208,7 +211,7 @@ class NoiseSweepAnalyzer(BaseSweepAnalyzer):
 
                 ax = axes[idx]
 
-                for noise_type in noise_types:
+                for index, noise_type in enumerate(noise_types):
                     # Find columns for this noise type and metric
                     pattern = f"noise_{noise_type}_{metric}_"
                     level_cols = [
@@ -239,7 +242,7 @@ class NoiseSweepAnalyzer(BaseSweepAnalyzer):
                         ax.plot(
                             levels,
                             values,
-                            marker="o",
+                            **indexed_style(index).kwargs(),
                             label=noise_type.title(),
                             linewidth=2,
                             markersize=6,

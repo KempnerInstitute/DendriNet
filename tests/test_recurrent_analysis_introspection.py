@@ -3,6 +3,7 @@
 import torch
 from torch.utils.data import TensorDataset
 
+from dendritic_modeling.analysis.core.branch_activation import BranchActivationAnalyzer
 from dendritic_modeling.analysis.tools.dendritic_timetraces import (
     DendriticTimetracesAnalyzer,
 )
@@ -22,6 +23,7 @@ from dendritic_modeling.analysis.utils.recurrent_introspection import (
     recurrent_population_summary,
 )
 from dendritic_modeling.config.analysis import (
+    BranchActivationAnalysisParams,
     DendriticTimetracesAnalysisParams,
     InhibitorySpecializationAnalysisParams,
     SynapticActivationAnalysisParams,
@@ -238,3 +240,56 @@ def test_synaptic_activation_supports_population_network_topk_hooks():
         for synapse_type in layer_data
     }
     assert {"exc", "rec_inh"}.issubset(raw_synapse_types)
+
+
+def test_branch_activation_supports_population_network_currents_and_outputs():
+    core = PopulationNetwork(
+        PopulationNetworkConfig(
+            input_dim=5,
+            layers=[
+                PopulationLayerConfig(
+                    name="feedforward",
+                    recurrent=False,
+                    readout_population="e0",
+                    population_defaults={
+                        "ff_excitatory_synapses": 2,
+                        "ff_inhibitory_synapses": 0,
+                        "rec_excitatory_synapses": 0,
+                        "rec_inhibitory_synapses": 0,
+                        "somatic_synapses": True,
+                        "reactivate": True,
+                        "dbl_init_method": "default",
+                        "weight_transform": "exp",
+                    },
+                    populations=[
+                        {
+                            "name": "e0",
+                            "polarity": "excitatory",
+                            "n_neurons": 4,
+                            "branch_factors": [2],
+                        }
+                    ],
+                    connections=[{"source": "input", "target": "e0"}],
+                )
+            ],
+        )
+    )
+    dataset = TensorDataset(torch.ones(4, 5), torch.zeros(4, dtype=torch.long))
+    analyzer = BranchActivationAnalyzer(
+        BranchActivationAnalysisParams(
+            raw_summary=False,
+            branch_summary=False,
+            downsample=True,
+            samples=4,
+        )
+    )
+
+    results = analyzer.analyze(core, dataset, device="cpu")
+
+    assert results is not None
+    assert "exc" in results["network_summary"]
+    assert "Vout" in results["network_summary"]
+    assert results["layer_summary"]
+    for module in core.modules():
+        if hasattr(module, "_store_analysis_currents"):
+            assert not module._store_analysis_currents

@@ -24,13 +24,17 @@ from dendritic_modeling.analysis.utils.runtime import (
 )
 from dendritic_modeling.config import ReceptiveFieldAnalysisParams
 from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
+from dendritic_modeling.config.seeds import seed_or_default
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import (
     DendriNet,
     DendriticBranchLayer,
     ExcitationInhibitionLayer,
     ExcitationInhibitionNetwork,
+    PopulationNetwork,
+    StatefulDendriNet,
 )
+from dendritic_modeling.networks.checkpoints import atomic_torch_save
 from dendritic_modeling.utils import save_dict
 from dendritic_modeling.utils.hooks import (
     ForwardHookRemovalMixin,
@@ -69,6 +73,31 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         self.compute_activation_tuning = bool(
             getattr(params, "compute_activation_tuning", False)
         )
+        self.activation_sample_signals = tuple(
+            str(value) for value in getattr(params, "activation_sample_signals", [])
+        )
+        self.activation_sample_depths = tuple(
+            int(value) for value in getattr(params, "activation_sample_depths", [])
+        )
+        self.activation_sample_branch_indices = tuple(
+            int(value)
+            for value in getattr(params, "activation_sample_branch_indices", [])
+        )
+        self.activation_sample_branch_indices_by_depth = {
+            int(depth): tuple(int(value) for value in indices)
+            for depth, indices in getattr(
+                params,
+                "activation_sample_branch_indices_by_depth",
+                {},
+            ).items()
+        }
+        self.activation_samples_per_class = int(
+            getattr(params, "activation_samples_per_class", 0)
+        )
+        self.activation_sample_seed = seed_or_default(
+            getattr(params, "activation_sample_seed", None), 0
+        )
+        self.activation_sample_records: list[dict[str, object]] = []
         self.compute_component_rfs = bool(
             getattr(params, "compute_component_rfs", False)
         )
@@ -282,7 +311,7 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         if not self.save_raw_data:
             return
         os.makedirs(save_path, exist_ok=True)
-        torch.save(
+        atomic_torch_save(
             {
                 "version": self._RAW_VERSION,
                 "raw_dict": self.raw_dict,
@@ -392,8 +421,8 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         activation_type: str,
     ) -> torch.utils.hooks.RemovableHandle:
         return module.register_forward_hook(
-            lambda module, inputs, output, key=layer_key: (
-                self._activation_hook(output, key, activation_type)
+            lambda module, inputs, output, key=layer_key: self._activation_hook(
+                output, key, activation_type
             )
         )
 
@@ -411,6 +440,11 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
                     module.branch_inhibition,
                     "inh",
                 )
+            if module.input_branches:
+                yield (
+                    module.branches_to_output,
+                    "upstream",
+                )
             yield module.reactivation, "vout"
 
         def _register_hook(spec):
@@ -425,19 +459,45 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
 
         return register_hook_groups(_hook_specs(), _register_hook)
 
+    @staticmethod
+    def _class_means(values: torch.Tensor, labels: torch.Tensor) -> dict[str, float]:
+        """Mean of each sample's (trailing-dimension) mean, per class label."""
+        values = values.reshape(values.shape[0], -1).mean(dim=-1)
+        return {
+            str(int(label.item())): float(values[labels == label].mean().item())
+            for label in torch.unique(labels)
+            if bool((labels == label).any())
+        }
+
     def _summarize_signal(
         self,
         values: torch.Tensor,
         labels: torch.Tensor,
     ) -> dict[str, object]:
-        values = values.reshape(values.shape[0], -1).mean(dim=-1)
-        classes = torch.unique(labels)
-        class_means = {}
-        for label in classes:
-            mask = labels == label
-            if mask.any():
-                class_means[str(int(label.item()))] = float(values[mask].mean().item())
+        return self._summarize_class_means(self._class_means(values, labels))
 
+    def _summarize_ei_ratio(
+        self,
+        excitation: torch.Tensor,
+        inhibition: torch.Tensor,
+        labels: torch.Tensor,
+    ) -> dict[str, object]:
+        """E/I ratio per class: class-mean excitation over class-mean |inhibition|.
+
+        The ratio of means, not the mean of per-sample ratios, which samples
+        with near-zero inhibition dominate.
+        """
+        exc_means = self._class_means(excitation, labels)
+        inh_means = self._class_means(inhibition.abs(), labels)
+        return self._summarize_class_means(
+            {
+                label: exc_means[label] / (inh_means[label] + self.epsilon)
+                for label in exc_means
+            }
+        )
+
+    @staticmethod
+    def _summarize_class_means(class_means: dict[str, float]) -> dict[str, object]:
         if not class_means:
             return {}
 
@@ -467,24 +527,106 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
             layer_summary = {}
             for branch_idx, branch_data in layer_data.items():
                 branch_summary = {"depth": branch_data["depth"], "signals": {}}
-                for signal in ("exc", "inh", "vout"):
+                for signal in ("exc", "inh", "upstream", "vout"):
                     if signal in branch_data:
                         branch_summary["signals"][signal] = self._summarize_signal(
                             branch_data[signal], labels
                         )
 
-                if "exc" in branch_data and "inh" in branch_data:
-                    ratio = branch_data["exc"] / (
-                        branch_data["inh"].abs() + self.epsilon
+                if "exc" in branch_data and "upstream" in branch_data:
+                    depolarizing_drive = branch_data["exc"] + branch_data["upstream"]
+                    branch_summary["signals"]["depolarizing_drive"] = (
+                        self._summarize_signal(depolarizing_drive, labels)
                     )
-                    branch_summary["signals"]["ei_ratio"] = self._summarize_signal(
-                        ratio, labels
+
+                if "exc" in branch_data and "inh" in branch_data:
+                    branch_summary["signals"]["ei_ratio"] = self._summarize_ei_ratio(
+                        branch_data["exc"], branch_data["inh"], labels
                     )
 
                 layer_summary[str(branch_idx)] = branch_summary
             summary[layer_key] = layer_summary
 
         return summary
+
+    def _sample_activation_tuning(
+        self, labels: torch.Tensor
+    ) -> list[dict[str, object]]:
+        """Return label-balanced scalar activation records for selected depths.
+
+        Dataset indices are selected once per class from labels alone, then
+        reused for every requested module, branch, and signal. This makes the
+        sampling independent of activation magnitude and preserves paired
+        comparisons among signals.
+        """
+
+        if not self.activation_sample_signals:
+            return []
+        labels = labels.detach().cpu().reshape(-1)
+        selected: list[tuple[int, int]] = []
+        for class_label in sorted(int(value) for value in torch.unique(labels)):
+            candidates = torch.nonzero(labels == class_label, as_tuple=False).reshape(
+                -1
+            )
+            count = min(self.activation_samples_per_class, int(candidates.numel()))
+            generator = torch.Generator(device="cpu")
+            generator.manual_seed(self.activation_sample_seed + class_label)
+            order = torch.randperm(int(candidates.numel()), generator=generator)[:count]
+            selected.extend(
+                (class_label, int(index)) for index in candidates[order].tolist()
+            )
+
+        records: list[dict[str, object]] = []
+        selected_depths = set(self.activation_sample_depths)
+        selected_branches = set(self.activation_sample_branch_indices)
+        for module_name, layer_data in sorted(self.activation_raw.items()):
+            for branch_index, branch_data in sorted(layer_data.items()):
+                depth = int(branch_data["depth"])
+                if depth not in selected_depths:
+                    continue
+                depth_branches = set(
+                    self.activation_sample_branch_indices_by_depth.get(depth, ())
+                )
+                if depth_branches and branch_index not in depth_branches:
+                    continue
+                if (
+                    not depth_branches
+                    and selected_branches
+                    and branch_index not in selected_branches
+                ):
+                    continue
+                for signal in self.activation_sample_signals:
+                    if signal == "ei_ratio":
+                        if "exc" not in branch_data or "inh" not in branch_data:
+                            continue
+                        # Each sample's mean excitation over its mean |inhibition|.
+                        exc = branch_data["exc"]
+                        inh = branch_data["inh"].abs()
+                        values = exc.reshape(exc.shape[0], -1).mean(dim=-1) / (
+                            inh.reshape(inh.shape[0], -1).mean(dim=-1) + self.epsilon
+                        )
+                    elif signal == "depolarizing_drive":
+                        if "exc" not in branch_data or "upstream" not in branch_data:
+                            continue
+                        values = branch_data["exc"] + branch_data["upstream"]
+                    else:
+                        values = branch_data.get(signal)
+                        if values is None:
+                            continue
+                    scalar = values.reshape(values.shape[0], -1).mean(dim=-1)
+                    for class_label, dataset_index in selected:
+                        records.append(
+                            {
+                                "module": module_name,
+                                "depth": depth,
+                                "branch_index": int(branch_index),
+                                "signal": signal,
+                                "class_label": class_label,
+                                "dataset_index": dataset_index,
+                                "value": float(scalar[dataset_index].item()),
+                            }
+                        )
+        return records
 
     def _compute_activation_tuning(
         self,
@@ -502,6 +644,7 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
             x: torch.Tensor = items[0].to(analysis_device)
             labels: torch.Tensor = items[1].cpu()
             self._collect_activation_raw(model, x)
+            self.activation_sample_records = self._sample_activation_tuning(labels)
         return self._summarize_activation_tuning(labels)
 
     @staticmethod
@@ -531,6 +674,31 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
                 self.rf_tuning_layer_index,
             )
             return None
+
+    def _get_component_dendrinet(
+        self, model: BaseModel
+    ) -> Optional[DendriNet | StatefulDendriNet]:
+        """Select the dendritic readout population configured for one layer."""
+        layer = self._get_rf_tuning_layer(model)
+        if layer is not None and isinstance(layer.excitatory_cells, DendriNet):
+            return layer.excitatory_cells
+
+        core = getattr(model, "core_network", None)
+        if not isinstance(core, PopulationNetwork):
+            return None
+        try:
+            population_layer = core.layers[self.rf_tuning_layer_index]
+        except IndexError:
+            self.logger.warning(
+                "Component RF layer index %s is out of range",
+                self.rf_tuning_layer_index,
+            )
+            return None
+        population_name = str(population_layer.readout_population)
+        if population_name not in population_layer.populations:
+            return None
+        population = population_layer.populations[population_name]
+        return population if isinstance(population, StatefulDendriNet) else None
 
     def _rf_tuning_forward_hook(
         self,
@@ -1011,12 +1179,21 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         self,
         module: DendriticBranchLayer,
         inputs: tuple[torch.Tensor, ...],
+        input_kwargs: dict[str, object],
         output: torch.Tensor,
         records: dict[int, dict[str, torch.Tensor]],
         branch_layer_idx: int,
     ) -> None:
-        excitatory_input = inputs[0]
-        inhibitory_input = inputs[1] if len(inputs) > 1 else None
+        excitatory_input = input_kwargs.get("x", inputs[0] if len(inputs) > 0 else None)
+        inhibitory_input = input_kwargs.get(
+            "inhibitory_input", inputs[1] if len(inputs) > 1 else None
+        )
+        if not isinstance(excitatory_input, torch.Tensor):
+            return
+        if inhibitory_input is not None and not isinstance(
+            inhibitory_input, torch.Tensor
+        ):
+            return
 
         excitation = torch.zeros_like(output)
         inhibition = torch.zeros_like(output)
@@ -1035,7 +1212,7 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
     def _collect_component_branch_records(
         self,
         model: BaseModel,
-        dendrinet: DendriNet,
+        dendrinet: DendriNet | StatefulDendriNet,
         x: torch.Tensor,
     ) -> list[dict[str, torch.Tensor]]:
         records: dict[int, dict[str, torch.Tensor]] = {}
@@ -1047,15 +1224,17 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         ) -> list[torch.utils.hooks.RemovableHandle]:
             branch_layer_idx, branch_layer = spec
             handle = branch_layer.register_forward_hook(
-                lambda module, inputs, output, branch_layer_idx=branch_layer_idx: (
+                lambda module, inputs, kwargs, output, branch_layer_idx=branch_layer_idx: (
                     self._component_branch_hook(
                         module,
                         inputs,
+                        kwargs,
                         output,
                         records=records,
                         branch_layer_idx=branch_layer_idx,
                     )
-                )
+                ),
+                with_kwargs=True,
             )
             return [handle]
 
@@ -1075,7 +1254,7 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
 
     def _conditioned_soma_from_records(
         self,
-        dendrinet: DendriNet,
+        dendrinet: DendriNet | StatefulDendriNet,
         records: list[dict[str, torch.Tensor]],
         *,
         vary: str,
@@ -1108,34 +1287,17 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
             if branch_layer.input_branches and output is not None:
                 branch_drive = branch_layer.branches_to_output(output)
                 branch_conductance = branch_layer.branches_to_output.sum_conductances()
-                branch_conductance = branch_conductance.to(
-                    device=excitation.device,
-                    dtype=excitation.dtype,
-                )
             else:
                 branch_drive = torch.zeros_like(excitation)
-                branch_conductance = torch.zeros(
-                    (excitation.shape[-1],),
-                    device=excitation.device,
-                    dtype=excitation.dtype,
-                )
-
-            if branch_layer.use_shunting:
-                voltage = (excitation_used + branch_drive) / (
-                    1.0
-                    + excitation_used
-                    + inhibition_used
-                    + branch_conductance
-                    + branch_layer.epsilon
-                )
-            else:
-                voltage = excitation_used + branch_drive - inhibition_used
-                if branch_layer.use_additive_normalization:
-                    voltage = (voltage - voltage.mean(dim=-1, keepdim=True)) / (
-                        voltage.std(dim=-1, keepdim=True, unbiased=False)
-                        + branch_layer.epsilon
-                    )
-            output = branch_layer.reactivation(voltage)
+                branch_conductance = None
+            # The layer's own rule (leak, integration mode, coupling
+            # conductance, rounding and gate) on the conditioned currents.
+            output = branch_layer.output_from_currents(
+                excitation_used,
+                inhibition_used,
+                branch_current=branch_drive,
+                branch_conductance=branch_conductance,
+            )
 
         if output is None:
             raise ValueError("No branch records were collected for component RFs")
@@ -1174,15 +1336,20 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
 
     def _structural_component_maps(
         self,
-        layer: ExcitationInhibitionLayer,
+        dendrinet: DendriNet | StatefulDendriNet,
         n_soma: int,
         shape: tuple[int, int],
+        inhibitory_dendrinet: Optional[DendriNet] = None,
     ) -> tuple[np.ndarray, np.ndarray]:
-        exc_rfs_dict, inh_rfs_dict = self.collect_receptive_fields(layer)
+        exc_rfs_dict = self._rfs_from_dendrinet(dendrinet, cell_type="exc")
         exc_agg_rfs_dict = self._aggregate_rfs_by_soma(exc_rfs_dict)
 
         agg_prod_rfs_dict = None
-        if inh_rfs_dict is not None:
+        if inhibitory_dendrinet is not None:
+            inh_rfs_dict = self._rfs_from_dendrinet(
+                inhibitory_dendrinet,
+                cell_type="inh",
+            )
             inh_agg_rfs_dict = self._aggregate_rfs_by_soma(inh_rfs_dict)
             agg_prod_rfs_dict = self._project_inhibitory_component_rfs_by_soma(
                 exc_rfs_dict=exc_rfs_dict,
@@ -1278,16 +1445,16 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
             return None
 
         layer = self._get_rf_tuning_layer(model)
-        if layer is None or not isinstance(layer.excitatory_cells, DendriNet):
+        dendrinet = self._get_component_dendrinet(model)
+        if dendrinet is None:
             self.logger.warning(
-                "Component RFs require a selectable E/I layer with excitatory "
-                "DendriNet cells"
+                "Component RFs require a selectable dendritic readout population"
             )
             return None
         if any(
             getattr(branch_layer, "input_recurrent", False)
             or getattr(branch_layer, "input_rec_inhibitory", False)
-            for branch_layer in layer.excitatory_cells.branch_layers
+            for branch_layer in dendrinet.branch_layers
         ):
             self.logger.warning(
                 "Skipping component RFs: recurrent dendritic branches are not supported"
@@ -1296,7 +1463,7 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
 
         records = self._collect_component_branch_records(
             model,
-            layer.excitatory_cells,
+            dendrinet,
             x,
         )
         if not records:
@@ -1314,17 +1481,17 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         observed_soma = records[-1]["out"]
         preferred = self._preferred_classes(observed_soma, labels)
         e_conditioned = self._conditioned_soma_from_records(
-            layer.excitatory_cells,
+            dendrinet,
             records,
             vary="exc",
         )
         i_conditioned = self._conditioned_soma_from_records(
-            layer.excitatory_cells,
+            dendrinet,
             records,
             vary="inh",
         )
         mean_conditioned = self._conditioned_soma_from_records(
-            layer.excitatory_cells,
+            dendrinet,
             records,
             vary="mean",
         )
@@ -1351,10 +1518,14 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
             e_component_maps.append(self._smooth_map(e_map, n_iter=1))
             i_component_maps.append(self._smooth_map(i_map, n_iter=1))
 
+        inhibitory_dendrinet = None
+        if layer is not None and isinstance(layer.inhibitory_cells, DendriNet):
+            inhibitory_dendrinet = layer.inhibitory_cells
         e_mean, i_mean = self._structural_component_maps(
-            layer,
+            dendrinet,
             n_soma=n_soma,
             shape=self.exc_rf_shape,
+            inhibitory_dendrinet=inhibitory_dendrinet,
         )
         maps = {
             "e_mean": e_mean,
@@ -1384,7 +1555,7 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
             summary["data_file"] = f"{filename}_component_receptive_fields.npz"
             if self.plot_component_rfs and not training:
                 summary["figure_file"] = (
-                    f"{filename}_component_receptive_fields." f"{self.fig_save_format}"
+                    f"{filename}_component_receptive_fields.{self.fig_save_format}"
                 )
         return summary
 
@@ -1935,6 +2106,24 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
             device=device,
             runtime=runtime,
         )
+        if self.activation_sample_records:
+            results["activation_samples"] = {
+                "selection_depends_on_activations": False,
+                "selection_depends_on_labels": True,
+                "selection_rule": "uniform_without_replacement_within_class",
+                "signals": list(self.activation_sample_signals),
+                "depths": list(self.activation_sample_depths),
+                "branch_indices": list(self.activation_sample_branch_indices),
+                "branch_indices_by_depth": {
+                    str(depth): list(indices)
+                    for depth, indices in sorted(
+                        self.activation_sample_branch_indices_by_depth.items()
+                    )
+                },
+                "requested_samples_per_class": self.activation_samples_per_class,
+                "seed": self.activation_sample_seed,
+                "records": self.activation_sample_records,
+            }
 
     def _maybe_add_component_rfs(
         self,
@@ -2025,6 +2214,12 @@ class ReceptiveFieldAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
                 results["activation_tuning"],
                 out_path,
                 f"{filename}_activation_tuning.json",
+            )
+        if "activation_samples" in results:
+            save_dict(
+                results["activation_samples"],
+                out_path,
+                f"{filename}_activation_samples.json",
             )
         if "rf_tuning" in results:
             rf_tuning = results["rf_tuning"]
@@ -2163,11 +2358,13 @@ def _plot_agg_tuning_final(
     width = 0.18
     offsets = (np.arange(4) - 1.5) * width
     rpb_str = r"$\rho_{PB}$"
+    # Each bar series has its own hatch: none and dots for excitatory, and
+    # opposite diagonals for inhibitory, positive and negative.
     specs = (
         ("exc", "pos", "#2E7FD9", None, f"exc pos {rpb_str}"),
-        ("exc", "neg", "#D93E3E", None, f"exc neg {rpb_str}"),
+        ("exc", "neg", "#D93E3E", "..", f"exc neg {rpb_str}"),
         ("inh", "pos", "#2E7FD9", "///", f"inh pos {rpb_str}"),
-        ("inh", "neg", "#D93E3E", "///", f"inh neg {rpb_str}"),
+        ("inh", "neg", "#D93E3E", "\\\\\\", f"inh neg {rpb_str}"),
     )
 
     fig, ax = plt.subplots(1, 1, figsize=(max(7.0, 1.4 * len(soma_keys)), 5))
@@ -2252,6 +2449,7 @@ def _plot_agg_tuning_vs_training(
                 epoch_numbers[: len(vals)],
                 vals,
                 linestyle="-" if syn_type == "exc" else "--",
+                marker="o" if sign == "pos" else "s",
                 color="#2E7FD9" if sign == "pos" else "#D93E3E",
                 label=f"{syn_type} {sign} {rpb_str}",
             )
@@ -2679,7 +2877,9 @@ def _plot_pref_unpref_scatter_by_compartment(
         span = log_hi - log_lo
         return 10 ** (log_lo - frac * span), 10 ** (log_hi + frac * span)
 
-    def _kde_curve_x(ax_marg: Any, xv: np.ndarray, color: str) -> None:
+    def _kde_curve_x(
+        ax_marg: Any, xv: np.ndarray, color: str, linestyle: str = "-"
+    ) -> None:
         if xv.size < 2:
             return
         try:
@@ -2689,21 +2889,46 @@ def _plot_pref_unpref_scatter_by_compartment(
                 color=color,
                 fill=True,
                 linewidth=2,
+                linestyle=linestyle,
                 alpha=0.35,
                 warn_singular=False,
             )
         except Exception:
-            sns.histplot(x=xv, ax=ax_marg, color=color, stat="density", alpha=0.35)
+            sns.histplot(
+                x=xv,
+                ax=ax_marg,
+                color=color,
+                stat="density",
+                alpha=0.35,
+                element="step",
+                linestyle=linestyle,
+            )
 
-    def _kde_curve_y(ax_marg: Any, yv: np.ndarray, color: str) -> None:
+    def _kde_curve_y(
+        ax_marg: Any, yv: np.ndarray, color: str, linestyle: str = "-"
+    ) -> None:
         if yv.size < 2:
             return
         try:
             sns.kdeplot(
-                y=yv, ax=ax_marg, color=color, fill=True, linewidth=2, alpha=0.35
+                y=yv,
+                ax=ax_marg,
+                color=color,
+                fill=True,
+                linewidth=2,
+                linestyle=linestyle,
+                alpha=0.35,
             )
         except Exception:
-            sns.histplot(y=yv, ax=ax_marg, color=color, stat="density", alpha=0.35)
+            sns.histplot(
+                y=yv,
+                ax=ax_marg,
+                color=color,
+                stat="density",
+                alpha=0.35,
+                element="step",
+                linestyle=linestyle,
+            )
 
     branch_keys = [
         branch_key
@@ -2767,25 +2992,27 @@ def _plot_pref_unpref_scatter_by_compartment(
                 xu[mu],
                 yu[mu],
                 c="black",
+                marker="o",
                 s=12,
                 alpha=0.45,
                 edgecolors="none",
                 label="unpreferred",
             )
-            _kde_curve_x(ax_top, xu[mu], "black")
-            _kde_curve_y(ax_right, yu[mu], "black")
+            _kde_curve_x(ax_top, xu[mu], "black", "--")
+            _kde_curve_y(ax_right, yu[mu], "black", "--")
         if mp.any():
             ax.scatter(
                 xp[mp],
                 yp[mp],
                 c="red",
+                marker="^",
                 s=12,
                 alpha=0.45,
                 edgecolors="none",
                 label="preferred",
             )
-            _kde_curve_x(ax_top, xp[mp], "red")
-            _kde_curve_y(ax_right, yp[mp], "red")
+            _kde_curve_x(ax_top, xp[mp], "red", "-")
+            _kde_curve_y(ax_right, yp[mp], "red", "-")
 
         ax.set_xlabel(xvar.replace("_", " ").title())
         ax.set_ylabel(yvar.replace("_", " ").title())

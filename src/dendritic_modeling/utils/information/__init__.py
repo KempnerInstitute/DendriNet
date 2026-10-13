@@ -20,13 +20,14 @@ from dendritic_modeling.utils.information.nearest_neighbors import (
 
 # PID utilities
 from dendritic_modeling.utils.information.pid import (
-    check_pid_available,
-    pid_synergy_redundancy,
+    PIDTerms,
+    mmi_pid,
+    partial_information_decomposition,
 )
 
 __all__ = [
+    "PIDTerms",
     "build_sr_matrix",
-    "check_pid_available",
     "compute_cmi_ccc",
     "compute_ei_mi",
     "compute_mi_cc",
@@ -34,5 +35,6 @@ __all__ = [
     "compute_pairwise_sr",
     "compute_pairwise_sr_with_mi",
     "compute_synaptic_information",
-    "pid_synergy_redundancy",
+    "mmi_pid",
+    "partial_information_decomposition",
 ]

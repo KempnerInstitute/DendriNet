@@ -50,9 +50,9 @@ def stdp_activity(values: torch.Tensor, threshold: float, mode: str) -> torch.Te
         return (centered > 0).to(dtype=activity.dtype)
     if mode in {"abs", "absolute"}:
         return centered.abs()
-    if mode != "relu":
-        logger.warning("Unknown stdp.activity_mode=%r; using relu.", mode)
-    return functional.relu(centered)
+    if mode == "relu":
+        return functional.relu(centered)
+    raise ValueError(f"Unknown stdp.activity_mode {mode!r}")
 
 
 def stdp_decay(tau: float) -> float:
@@ -115,7 +115,9 @@ def stdp_error_scale(
     mode = str(mode).lower()
     if mode == "scalar_signed":
         return error_signal.detach().mean()
-    return error_signal.detach().abs().mean()
+    if mode == "scalar_abs":
+        return error_signal.detach().abs().mean()
+    raise ValueError(f"Unknown stdp.error_modulation_mode {mode!r}")
 
 
 def stdp_apply_error_modulation(

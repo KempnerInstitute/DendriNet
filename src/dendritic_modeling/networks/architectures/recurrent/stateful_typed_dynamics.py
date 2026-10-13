@@ -55,9 +55,10 @@ class StatefulTypedDynamicsMixin:
     ) -> torch.Tensor:
         if tau is None:
             return legacy_decay.to(device=reference.device, dtype=reference.dtype)
+        # A device-side fill, then the same exp: no host copy (and sync) per step.
         return torch.exp(
-            torch.as_tensor(
-                -self.dt / tau, device=reference.device, dtype=reference.dtype
+            torch.full(
+                (), -self.dt / tau, device=reference.device, dtype=reference.dtype
             )
         )
 
@@ -72,8 +73,8 @@ class StatefulTypedDynamicsMixin:
         if synapse_type.tau_decay is None:
             return legacy_decay
         return torch.exp(
-            torch.as_tensor(
-                -self.dt / synapse_type.tau_decay, device=device, dtype=dtype
+            torch.full(
+                (), -self.dt / synapse_type.tau_decay, device=device, dtype=dtype
             )
         )
 
@@ -130,9 +131,14 @@ class StatefulTypedDynamicsMixin:
         prev_x = self._previous_typed_trace(
             prev_typed_traces, x_key, level_idx, raw, default=1.0
         )
-        # Aggregate STP uses the local raw current as a presynaptic-rate proxy.
+        # Aggregate STP uses the type's rectified local drive as a
+        # presynaptic-rate proxy in [0, 1], zero without input.
         activity_source = raw if synapse_type.stp_differentiable_state else raw.detach()
-        activity = torch.sigmoid(activity_source)
+        drive = activity_source.clamp_min(0.0)
+        if synapse_type.stp_activity == "clamped":
+            activity = drive.clamp_max(1.0)
+        else:
+            activity = drive / (float(synapse_type.stp_activity_scale) + drive)
         dt_over_tau_u = self.dt / float(synapse_type.stp_tau_u)
         dt_over_tau_x = self.dt / float(synapse_type.stp_tau_x)
         next_u = prev_u + dt_over_tau_u * (synapse_type.stp_u0 - prev_u)

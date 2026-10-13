@@ -81,15 +81,20 @@ def _compute_auc(
     labels = labels.long()
     unique_labels = torch.unique(labels)
 
-    # AUC is undefined for a single-class target set.
+    # AUC is undefined for a single-class target set (NaN, not chance level).
     if unique_labels.numel() < 2:
-        return torch.tensor(0.5, device=logits.device, dtype=torch.float32)
+        return torch.tensor(float("nan"), device=logits.device)
 
-    # Allow datasets where only a subset of classes is present in labels.
-    if logits.dim() == 2 and logits.shape[-1] != unique_labels.numel():
+    # Rank by class probabilities: a raw logit column is not monotone in its
+    # class probability across samples.
+    scores = torch.softmax(logits.float(), dim=-1) if logits.dim() == 2 else logits
+
+    # Allow datasets where only a subset of classes is present in labels; the
+    # probabilities stay those of the full head.
+    if scores.dim() == 2 and scores.shape[-1] != unique_labels.numel():
         class_indices = unique_labels.long()
-        if class_indices.numel() <= logits.shape[-1]:
-            logits = logits.index_select(-1, class_indices)
+        if class_indices.numel() <= scores.shape[-1]:
+            scores = scores.index_select(-1, class_indices)
             label_map = {
                 int(old_label.item()): new_idx
                 for new_idx, old_label in enumerate(class_indices)
@@ -98,7 +103,7 @@ def _compute_auc(
             for old_label, new_idx in label_map.items():
                 labels[labels == old_label] = new_idx
 
-    return roc_auc_score(labels, logits, dim=0)
+    return roc_auc_score(labels, scores, dim=0)
 
 
 def auc_score(

@@ -1,10 +1,16 @@
+import difflib
 from collections.abc import Callable
-from typing import Optional, Union
+from contextlib import contextmanager
+from typing import ClassVar, Optional, Union
 
 import torch
 from torch import nn
 from torch.distributions import Categorical, Normal
+from torch.nn import functional as F
 
+from dendritic_modeling.config.choices import normalize_choice
+from dendritic_modeling.config.regularization import EI_RATIO_METRICS, EI_RATIO_SCOPES
+from dendritic_modeling.config.training import STABILIZE_MODES
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import (
     DendriticBranchLayer,
@@ -14,6 +20,7 @@ from dendritic_modeling.networks import (
 from dendritic_modeling.networks.architectures.classical.autoencoder import (
     BaseVariationalAutoencoder,
 )
+from dendritic_modeling.plugins import load_plugins
 from dendritic_modeling.utils.hooks import (
     ForwardHookRemovalMixin,
     iter_modules_of_type,
@@ -112,8 +119,9 @@ def register_loss_function(
 ) -> None:
     """Register a loss-function builder.
 
-    Loss names remain case-sensitive for backward compatibility.
-    Builders are zero-argument callables that return a ``LossFunction``.
+    Names are stored as written; ``get_loss_function`` falls back to a
+    case-insensitive match. Builders are zero-argument callables that return
+    a ``LossFunction``.
     """
     names = [name, *aliases]
     if not names or any(not str(item).strip() for item in names):
@@ -135,6 +143,15 @@ def get_available_loss_functions() -> list[str]:
 
 
 class LossFunction(nn.Module):
+    # Model tasks (``model.task``) the loss is defined for; None for losses
+    # that apply to any task (MSE also fits one-hot classification targets) or
+    # check their targets themselves.
+    supported_tasks: ClassVar[Optional[frozenset[str]]] = None
+    # Sequence losses the recurrent trainer applies to whole sequences instead
+    # of substituting its task loss.
+    temporal_event_loss: ClassVar[bool] = False
+    sequence_prediction_loss: ClassVar[bool] = False
+
     def __init__(self, reduction: str = "mean"):
         super().__init__()
         self.reduction = reduction
@@ -143,6 +160,17 @@ class LossFunction(nn.Module):
     def forward(
         self, model: nn.Module, x: torch.Tensor, y: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
+        raise NotImplementedError
+
+    def from_predictions(
+        self, predictions: torch.Tensor, y: torch.Tensor
+    ) -> torch.Tensor:
+        """Evaluate a pointwise loss from outputs that were already computed.
+
+        Model-dependent losses intentionally inherit this default so callers can
+        fall back to ``forward(model, x, y)`` without changing their semantics.
+        """
+
         raise NotImplementedError
 
 
@@ -155,7 +183,12 @@ class MSELoss(LossFunction):
     def forward(
         self, model: nn.Module, x: torch.Tensor, y: torch.Tensor
     ) -> torch.Tensor:
-        return self.mse(model(x), y)
+        return self.from_predictions(model(x), y)
+
+    def from_predictions(
+        self, predictions: torch.Tensor, y: torch.Tensor
+    ) -> torch.Tensor:
+        return self.mse(predictions, y)
 
 
 class LogMSELoss(MSELoss):
@@ -166,11 +199,18 @@ class LogMSELoss(MSELoss):
     def forward(
         self, model: nn.Module, x: torch.Tensor, y: torch.Tensor
     ) -> torch.Tensor:
-        mse = super().forward(model, x, y)
+        return self.from_predictions(model(x), y)
+
+    def from_predictions(
+        self, predictions: torch.Tensor, y: torch.Tensor
+    ) -> torch.Tensor:
+        mse = super().from_predictions(predictions, y)
         return torch.log(mse + 1e-12)
 
 
 class CrossEntropyLoss(LossFunction):
+    supported_tasks = frozenset({"classification"})
+
     def __init__(self, reduction: str = "mean"):
         super().__init__(reduction)
         self._loss_name = "Cross Entropy"
@@ -179,10 +219,343 @@ class CrossEntropyLoss(LossFunction):
     def forward(
         self, model: nn.Module, x: torch.Tensor, y: torch.Tensor
     ) -> torch.Tensor:
-        return self.ce(model(x), y)
+        return self.from_predictions(model(x), y)
+
+    def from_predictions(
+        self, predictions: torch.Tensor, y: torch.Tensor
+    ) -> torch.Tensor:
+        return self.ce(predictions, y)
+
+
+class TemporalEventCrossEntropyLoss(LossFunction):
+    """Cross-entropy for predicting one event time from a sequence of logits.
+
+    Predictions must have shape ``[batch, time]`` or ``[batch, time, 1]``.
+    Targets may be integer event indices with shape ``[batch]`` or normalized
+    non-negative temporal target distributions with shape ``[batch, time]``.
+    The latter supports smooth timing targets without treating each timestep as
+    an independent binary decision.
+    """
+
+    temporal_event_loss = True
+
+    def __init__(self, reduction: str = "mean"):
+        super().__init__(reduction)
+        self._loss_name = "Temporal Event Cross Entropy"
+
+    def forward(
+        self, model: nn.Module, x: torch.Tensor, y: torch.Tensor
+    ) -> torch.Tensor:
+        return self.from_predictions(model(x), y)
+
+    def from_predictions(
+        self, predictions: torch.Tensor, y: torch.Tensor
+    ) -> torch.Tensor:
+        if predictions.ndim == 3 and predictions.shape[-1] == 1:
+            logits = predictions.squeeze(-1)
+        elif predictions.ndim == 2:
+            logits = predictions
+        else:
+            raise ValueError(
+                "temporal event predictions must have shape [batch, time] or "
+                f"[batch, time, 1], got {list(predictions.shape)}"
+            )
+
+        if y.ndim == 1:
+            if y.shape[0] != logits.shape[0]:
+                raise ValueError("temporal event target batch dimension changed")
+            if y.dtype == torch.bool or y.is_floating_point() or y.is_complex():
+                raise TypeError("hard temporal event targets must use an integer dtype")
+            return F.cross_entropy(logits, y.long(), reduction=self.reduction)
+
+        if y.shape != logits.shape:
+            raise ValueError(
+                "soft temporal event targets must match [batch, time] logits, "
+                f"got target {list(y.shape)} and logits {list(logits.shape)}"
+            )
+        if not y.is_floating_point():
+            raise TypeError("soft temporal event targets must be floating point")
+        if not torch.isfinite(y).all() or bool((y < 0).any()):
+            raise ValueError(
+                "soft temporal event targets must be finite and non-negative"
+            )
+        target_mass = y.sum(dim=1, keepdim=True)
+        if bool((target_mass <= 0).any()):
+            raise ValueError("each soft temporal event target must have positive mass")
+        normalized_target = y / target_mass
+        per_sample = -(normalized_target * F.log_softmax(logits, dim=1)).sum(dim=1)
+        return _reduce_tensor_loss(per_sample, self.reduction)
+
+
+class MaskedDualTaskTemporalLoss(LossFunction):
+    """Balanced binary-logit loss for packed fast and memory supervision.
+
+    Predictions must be ``[batch, time, 2]`` logits. Targets must be floating
+    ``[batch, time, 4]`` tensors containing ``fast_label``, ``fast_mask``,
+    ``memory_label``, and ``memory_mask``. Each of the fast-positive,
+    fast-negative, memory-positive, and memory-negative strata receives equal
+    weight. Single-process training loss calls require all four strata in the
+    batch. Distributed training and validation instead use additive stratum
+    statistics, so individual batches on one DDP rank may omit a stratum as
+    long as every stratum is present in the corresponding global batch.
+
+    The two outputs are independent binary logits. Evaluation must apply a
+    sigmoid and threshold each head separately; an argmax across heads is not a
+    valid prediction rule.
+    """
+
+    sequence_prediction_loss = True
+    exact_sequence_validation_statistics = True
+    exact_distributed_training_statistics = True
+
+    def __init__(self, reduction: str = "mean"):
+        if reduction != "mean":
+            raise ValueError("masked dual-task temporal loss only supports mean")
+        super().__init__(reduction)
+        self._loss_name = "Masked Dual-Task Temporal Loss"
+
+    def forward(
+        self, model: nn.Module, x: torch.Tensor, y: torch.Tensor
+    ) -> torch.Tensor:
+        return self.from_predictions(model(x), y)
+
+    def _validated_strata(
+        self,
+        predictions: torch.Tensor,
+        y: torch.Tensor,
+        *,
+        require_nonempty: bool,
+    ) -> tuple[
+        torch.Tensor,
+        torch.Tensor,
+        tuple[tuple[torch.Tensor, str], ...],
+    ]:
+        if predictions.ndim != 3 or predictions.shape[-1] != 2:
+            raise ValueError(
+                "masked dual-task predictions must have shape [batch, time, 2], "
+                f"got {list(predictions.shape)}"
+            )
+        if y.ndim != 3 or y.shape[-1] != 4:
+            raise ValueError(
+                "masked dual-task targets must have shape [batch, time, 4], "
+                f"got {list(y.shape)}"
+            )
+        if y.shape[:2] != predictions.shape[:2]:
+            raise ValueError(
+                "masked dual-task target batch and time dimensions must match "
+                "predictions"
+            )
+        if not predictions.is_floating_point():
+            raise TypeError("masked dual-task predictions must be floating point")
+        if not y.is_floating_point():
+            raise TypeError("masked dual-task targets must be floating point")
+        fast_label, fast_mask, memory_label, memory_mask = y.unbind(dim=-1)
+        target_checks = torch.stack(
+            (
+                torch.isfinite(predictions).all(),
+                torch.isfinite(y).all(),
+                ((fast_label == 0) | (fast_label == 1)).all(),
+                ((memory_label == 0) | (memory_label == 1)).all(),
+                ((fast_mask == 0) | (fast_mask == 1)).all(),
+                ((memory_mask == 0) | (memory_mask == 1)).all(),
+            )
+        ).detach()
+        (
+            predictions_finite,
+            targets_finite,
+            fast_binary,
+            memory_binary,
+            fast_mask_binary,
+            memory_mask_binary,
+        ) = (bool(value) for value in target_checks.cpu().tolist())
+        if not predictions_finite:
+            raise ValueError("masked dual-task predictions must be finite")
+        if not targets_finite:
+            raise ValueError("masked dual-task targets must be finite")
+        if not fast_binary:
+            raise ValueError("fast_label must be binary")
+        if not memory_binary:
+            raise ValueError("memory_label must be binary")
+        if not fast_mask_binary:
+            raise ValueError("fast_mask must be binary")
+        if not memory_mask_binary:
+            raise ValueError("memory_mask must be binary")
+
+        fast_active = fast_mask.bool()
+        memory_active = memory_mask.bool()
+        strata = (
+            (fast_active & fast_label.bool(), "fast-positive"),
+            (fast_active & ~fast_label.bool(), "fast-negative"),
+            (memory_active & memory_label.bool(), "memory-positive"),
+            (memory_active & ~memory_label.bool(), "memory-negative"),
+        )
+        if require_nonempty:
+            counts = torch.stack(
+                [selection.sum() for selection, _name in strata]
+            ).detach()
+            missing = [
+                name
+                for count, (_selection, name) in zip(
+                    counts.cpu().tolist(),
+                    strata,
+                    strict=True,
+                )
+                if int(count) <= 0
+            ]
+            if missing:
+                raise ValueError(
+                    f"masked dual-task {missing[0]} stratum must be nonempty"
+                )
+        return fast_label, memory_label, strata
+
+    def _pointwise_losses(
+        self,
+        predictions: torch.Tensor,
+        fast_label: torch.Tensor,
+        memory_label: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        return (
+            F.binary_cross_entropy_with_logits(
+                predictions[..., 0], fast_label, reduction="none"
+            ),
+            F.binary_cross_entropy_with_logits(
+                predictions[..., 1], memory_label, reduction="none"
+            ),
+        )
+
+    def from_predictions(
+        self, predictions: torch.Tensor, y: torch.Tensor
+    ) -> torch.Tensor:
+        fast_label, memory_label, strata = self._validated_strata(
+            predictions,
+            y,
+            require_nonempty=True,
+        )
+
+        fast_pointwise, memory_pointwise = self._pointwise_losses(
+            predictions,
+            fast_label,
+            memory_label,
+        )
+        fast_loss = 0.5 * (
+            fast_pointwise[strata[0][0]].mean() + fast_pointwise[strata[1][0]].mean()
+        )
+        memory_loss = 0.5 * (
+            memory_pointwise[strata[2][0]].mean()
+            + memory_pointwise[strata[3][0]].mean()
+        )
+        return 0.5 * fast_loss + 0.5 * memory_loss
+
+    def validation_sums_and_counts(
+        self,
+        predictions: torch.Tensor,
+        y: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Return additive float64 sufficient statistics for exact validation."""
+
+        sums, counts = self.training_sums_and_counts(predictions, y)
+        return sums.to(torch.float64), counts
+
+    def training_sums_and_counts(
+        self,
+        predictions: torch.Tensor,
+        y: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Return differentiable local sums and detached integer counts.
+
+        Sums retain the pointwise-loss dtype and autograd graph. This lets a
+        distributed trainer normalize each rank's differentiable contribution
+        by global counts without attempting to all-reduce an autograd tensor.
+        """
+
+        fast_label, memory_label, strata = self._validated_strata(
+            predictions,
+            y,
+            require_nonempty=False,
+        )
+        fast_pointwise, memory_pointwise = self._pointwise_losses(
+            predictions,
+            fast_label,
+            memory_label,
+        )
+        pointwise = (
+            fast_pointwise,
+            fast_pointwise,
+            memory_pointwise,
+            memory_pointwise,
+        )
+        sums = torch.stack(
+            [
+                values[selection].sum()
+                for values, (selection, _name) in zip(
+                    pointwise,
+                    strata,
+                    strict=True,
+                )
+            ]
+        )
+        counts = torch.stack(
+            [selection.sum(dtype=torch.int64) for selection, _name in strata]
+        )
+        return sums, counts
+
+    def reduce_distributed_training_sums_and_counts(
+        self,
+        local_sums: torch.Tensor,
+        global_counts: torch.Tensor,
+        *,
+        world_size: int,
+    ) -> torch.Tensor:
+        """Build the rank-local scalar whose DDP-averaged gradient is global.
+
+        DDP averages parameter gradients across ranks. Multiplying each local
+        contribution by ``world_size`` therefore makes the post-all-reduce
+        gradient equal to the gradient of the equal-weight global stratum
+        means.
+        """
+
+        if isinstance(world_size, bool) or not isinstance(world_size, int):
+            raise TypeError("masked dual-task DDP world size must be an integer")
+        if world_size <= 0:
+            raise ValueError("masked dual-task DDP world size must be positive")
+        return world_size * self.reduce_validation_sums_and_counts(
+            local_sums,
+            global_counts,
+        )
+
+    def reduce_validation_sums_and_counts(
+        self,
+        sums: torch.Tensor,
+        counts: torch.Tensor,
+    ) -> torch.Tensor:
+        """Reduce globally accumulated four-stratum validation statistics."""
+
+        if tuple(sums.shape) != (4,) or tuple(counts.shape) != (4,):
+            raise ValueError(
+                "masked dual-task validation statistics must have shape [4]"
+            )
+        if not torch.isfinite(sums).all():
+            raise ValueError("masked dual-task validation sums must be finite")
+        missing = (counts <= 0).detach().cpu().tolist()
+        if any(missing):
+            names = (
+                "fast-positive",
+                "fast-negative",
+                "memory-positive",
+                "memory-negative",
+            )
+            first = next(
+                name for name, absent in zip(names, missing, strict=True) if absent
+            )
+            raise ValueError(
+                f"masked dual-task global {first} stratum must be nonempty"
+            )
+        return (sums / counts.to(dtype=sums.dtype)).mean()
 
 
 class BCELoss(LossFunction):
+    supported_tasks = frozenset({"classification"})
+
     def __init__(self, reduction: str = "mean"):
         super().__init__(reduction)
         self._loss_name = "Binary Cross Entropy"
@@ -191,10 +564,17 @@ class BCELoss(LossFunction):
     def forward(
         self, model: nn.Module, x: torch.Tensor, y: torch.Tensor
     ) -> torch.Tensor:
-        return self.bce(model(x), y)
+        return self.from_predictions(model(x), y)
+
+    def from_predictions(
+        self, predictions: torch.Tensor, y: torch.Tensor
+    ) -> torch.Tensor:
+        return self.bce(predictions, y)
 
 
 class CategoricalNLLLoss(LossFunction):
+    supported_tasks = frozenset({"classification"})
+
     def __init__(self, reduction: str = "mean"):
         super().__init__(reduction)
         self._loss_name = "Negative Log Likelihood"
@@ -202,8 +582,14 @@ class CategoricalNLLLoss(LossFunction):
     def forward(
         self, model: nn.Module, x: torch.Tensor, y: torch.Tensor
     ) -> torch.Tensor:
-        logits = model(x)
-        nll = -1 * Categorical(logits=logits).log_prob(y)
+        return self.from_predictions(model(x), y)
+
+    def from_predictions(
+        self, predictions: torch.Tensor, y: torch.Tensor
+    ) -> torch.Tensor:
+        # Argument validation would read the labels back to the host on every
+        # call; out-of-range labels still fail in the gather.
+        nll = -1 * Categorical(logits=predictions, validate_args=False).log_prob(y)
         return _reduce_tensor_loss(nll, self.reduction)
 
 
@@ -270,6 +656,23 @@ class LogAdjustedNegativeCosineSimilarityLoss(NegativeCosineSimilarityLoss):
         return torch.log(neg_cos_sim + 1 + 1e-12)
 
 
+@contextmanager
+def _recording_hooks(*losses):
+    """Let the hooks of ``losses`` record activations only inside this block.
+
+    The warm-up losses read activations through forward hooks. Forwards
+    outside the loss (calibration, analyses) must not add to the lists.
+    """
+    for loss in losses:
+        loss.reset_activation_lists()
+        loss._recording = True
+    try:
+        yield
+    finally:
+        for loss in losses:
+            loss._recording = False
+
+
 class VoltageStabilizationLoss(ForwardHookRemovalMixin, LossFunction):
     """Voltage / gate-occupancy stabilization loss.
 
@@ -313,12 +716,9 @@ class VoltageStabilizationLoss(ForwardHookRemovalMixin, LossFunction):
         self.target_saturation = target_saturation
         self.eps = torch.finfo(torch.float32).eps
 
-        valid_modes = {"vinf", "vout", "both", "gate_occupancy"}
-        if self.stabilize_mode not in valid_modes:
-            raise ValueError(
-                f"Invalid stabilize mode: {stabilize_mode}. "
-                f"Expected one of {sorted(valid_modes)}"
-            )
+        self.stabilize_mode = normalize_choice(
+            stabilize_mode, STABILIZE_MODES, field="stabilize_mode"
+        )
 
         self.save_inputs = False
         self.save_outputs = False
@@ -337,14 +737,27 @@ class VoltageStabilizationLoss(ForwardHookRemovalMixin, LossFunction):
             error_context="voltage stabilization",
             reduce_mean_error_difference_first=True,
         )
+        self._recording = False
+        self.reset_activation_lists()
 
     def attach_forward_hooks(self, model: BaseModel):
-        return register_forward_hook_groups(
+        handles = register_forward_hook_groups(
             model,
             DendriticBranchLayer,
             self._attach_reactivation_hooks,
             predicate=self._should_hook_reactivation,
         )
+        if not handles:
+            gates = (
+                " with a parametric gate"
+                if self.stabilize_mode == "gate_occupancy"
+                else ""
+            )
+            raise ValueError(
+                f"Voltage stabilization ({self.stabilize_mode}) found no dendritic "
+                f"branch layer{gates} to read, so its loss would be zero."
+            )
+        return handles
 
     def _attach_reactivation_hooks(
         self,
@@ -369,6 +782,8 @@ class VoltageStabilizationLoss(ForwardHookRemovalMixin, LossFunction):
         inputs: torch.Tensor,
         outputs: torch.Tensor,
     ):
+        if not self._recording:
+            return
         if self.save_inputs:
             self.voltages.append(inputs[0])
         if self.save_outputs:
@@ -431,14 +846,18 @@ class VoltageStabilizationLoss(ForwardHookRemovalMixin, LossFunction):
                 0.0, dtype=x.dtype, device=x.device, requires_grad=x.requires_grad
             )
 
-    def forward(
-        self, model: BaseModel, x: torch.Tensor, y: Optional[torch.Tensor] = None
-    ) -> torch.Tensor:
-        self.reset_activation_lists()
-        model(x)
+    def stabilization_loss(self, x: torch.Tensor) -> torch.Tensor:
+        """Objective of ``stabilize_mode`` on the activations just recorded."""
         if self.stabilize_mode == "gate_occupancy":
             return self._gate_occupancy_loss(x)
         return self.compute_loss(x)
+
+    def forward(
+        self, model: BaseModel, x: torch.Tensor, y: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        with _recording_hooks(self):
+            model(x)
+        return self.stabilization_loss(x)
 
 
 class ExcitationInhibitionBalanceLoss(ForwardHookRemovalMixin, LossFunction):
@@ -455,13 +874,21 @@ class ExcitationInhibitionBalanceLoss(ForwardHookRemovalMixin, LossFunction):
             error_context="excitation-inhibition balance",
             reduce_mean_error_difference_first=False,
         )
+        self._recording = False
+        self.reset_activation_lists()
 
     def attach_forward_hooks(self, model: BaseModel):
-        return register_forward_hook_groups(
+        handles = register_forward_hook_groups(
             model,
             DendriticBranchLayer,
             self._attach_branch_balance_hooks,
         )
+        if not handles:
+            raise ValueError(
+                "The E/I balance loss found no dendritic branch layer with both "
+                "excitatory and inhibitory synapses, so it would be zero."
+            )
+        return handles
 
     def _attach_branch_balance_hooks(
         self,
@@ -494,6 +921,8 @@ class ExcitationInhibitionBalanceLoss(ForwardHookRemovalMixin, LossFunction):
         outputs: torch.Tensor,
         activation: str,
     ):
+        if not self._recording:
+            return
         if activation == "exc":
             self.excitation.append(outputs)
         elif activation == "inh":
@@ -519,12 +948,19 @@ class ExcitationInhibitionBalanceLoss(ForwardHookRemovalMixin, LossFunction):
     def forward(
         self, model: BaseModel, x: torch.Tensor, y: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
-        self.reset_activation_lists()
-        model(x)
+        with _recording_hooks(self):
+            model(x)
         return self.compute_loss(x)
 
 
 class HomeostaticControlLoss(ForwardHookRemovalMixin, LossFunction):
+    """Mean of a voltage-stabilization and the E/I balance objective.
+
+    The stabilization term is the ``VoltageStabilizationLoss`` objective of
+    ``stabilize_mode``, so ``gate_occupancy`` stabilizes gate outputs toward
+    the centred, ``target_saturation`` regime here as well.
+    """
+
     def __init__(
         self,
         stabilize_mode: str = "vinf",
@@ -555,10 +991,9 @@ class HomeostaticControlLoss(ForwardHookRemovalMixin, LossFunction):
     def forward(
         self, model: BaseModel, x: torch.Tensor, y: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
-        self.voltage_stabilization.reset_activation_lists()
-        self.ei_balance.reset_activation_lists()
-        model(x)
-        loss = self.voltage_stabilization.compute_loss(x)
+        with _recording_hooks(self.voltage_stabilization, self.ei_balance):
+            model(x)
+        loss = self.voltage_stabilization.stabilization_loss(x)
         loss = loss + self.ei_balance.compute_loss(x)
         return loss / 2.0
 
@@ -584,8 +1019,10 @@ class EIWeightRatioLoss(LossFunction):
         self._loss_name = "E/I Weight Ratio"
         self.target_ratio = target_ratio
         self.loss_weight = loss_weight
-        self.scope = scope  # "per_branch", "per_layer", "global"
-        self.metric = metric  # "mean", "median", "rms"
+        self.scope = normalize_choice(scope, EI_RATIO_SCOPES, field="ei_ratio_scope")
+        self.metric = normalize_choice(
+            metric, EI_RATIO_METRICS, field="ei_ratio_metric"
+        )
 
         self.reduction_fn = _loss_reduction_fn(self.reduction)
 
@@ -602,43 +1039,34 @@ class EIWeightRatioLoss(LossFunction):
                 and hasattr(module.branch_excitation, "pruned_weight")
                 and hasattr(module.branch_inhibition, "pruned_weight")
             ):
-                try:
-                    exc_weights = (
-                        module.branch_excitation.pruned_weight()
-                    )  # [n_branches, in_features]
-                    inh_weights = (
-                        module.branch_inhibition.pruned_weight()
-                    )  # [n_branches, in_features]
+                exc_weights = (
+                    module.branch_excitation.pruned_weight()
+                )  # [n_branches, in_features]
+                inh_weights = (
+                    module.branch_inhibition.pruned_weight()
+                )  # [n_branches, in_features]
 
-                    if self.scope == "per_branch":
-                        # Enforce ratio per branch
-                        ratio_loss = self._compute_per_branch_ratio_loss(
-                            exc_weights, inh_weights
-                        )
-                    elif self.scope == "per_layer":
-                        # Enforce ratio per layer (average across branches)
-                        ratio_loss = self._compute_per_layer_ratio_loss(
-                            exc_weights, inh_weights
-                        )
-                    else:  # global
-                        # Enforce global ratio across entire layer
-                        ratio_loss = self._compute_global_ratio_loss(
-                            exc_weights, inh_weights
-                        )
+                if self.scope == "per_branch":
+                    ratio_loss = self._compute_per_branch_ratio_loss(
+                        exc_weights, inh_weights
+                    )
+                elif self.scope == "per_layer":
+                    ratio_loss = self._compute_per_layer_ratio_loss(
+                        exc_weights, inh_weights
+                    )
+                else:  # global: the per-layer ratio, averaged over layers
+                    ratio_loss = self._compute_global_ratio_loss(
+                        exc_weights, inh_weights
+                    )
+                ratio_losses.append(ratio_loss)
 
-                    if ratio_loss is not None:
-                        ratio_losses.append(ratio_loss)
-
-                except Exception:
-                    # Skip layers that don't have proper weight structure
-                    continue
-
-        if ratio_losses:
-            total_ratio_loss = self.reduction_fn(torch.stack(ratio_losses))
-            return self.loss_weight * total_ratio_loss
-        else:
-            # Return zero loss if no valid layers found
-            return torch.tensor(0.0, device=x.device, requires_grad=True)
+        if not ratio_losses:
+            raise ValueError(
+                "E/I weight-ratio regularization is enabled, but no branch layer "
+                "has both feed-forward excitatory and inhibitory synapses"
+            )
+        total_ratio_loss = self.reduction_fn(torch.stack(ratio_losses))
+        return self.loss_weight * total_ratio_loss
 
     def _compute_per_branch_ratio_loss(
         self, exc_weights: torch.Tensor, inh_weights: torch.Tensor
@@ -709,6 +1137,16 @@ def _register_builtin_loss_functions() -> None:
         aliases=("cross_entropy",),
     )
     register_loss_function(
+        "temporal_event_ce",
+        TemporalEventCrossEntropyLoss,
+        aliases=("temporal_event_cross_entropy",),
+    )
+    register_loss_function(
+        "masked_dual_task_temporal",
+        MaskedDualTaskTemporalLoss,
+        aliases=("masked_dual_task",),
+    )
+    register_loss_function(
         "bce",
         BCELoss,
         aliases=("binary_cross_entropy",),
@@ -738,8 +1176,37 @@ def _register_builtin_loss_functions() -> None:
 _register_builtin_loss_functions()
 
 
+def validate_task_loss(task: Optional[str], loss: LossFunction, *, owner: str) -> None:
+    """Raise when ``loss`` is not defined for ``model.task``.
+
+    Cross-entropy on regression targets treats them as soft class
+    probabilities (or, for one output, is identically zero), so the mismatch
+    would train a meaningless objective.
+    """
+    supported = type(loss).supported_tasks
+    if task is None or supported is None or str(task) in supported:
+        return
+    raise ValueError(
+        f"{owner}: training.main.common.loss_function {loss._loss_name!r} is "
+        f"defined for {'/'.join(sorted(supported))} tasks, not model.task="
+        f"{task!r}; choose a {task} loss (for example 'mse' for regression, "
+        "'ce' for classification)"
+    )
+
+
 def get_loss_function(loss_function: str) -> LossFunction:
+    """Build the registered loss ``loss_function`` (exact, else case-insensitive)."""
+    if loss_function not in LOSS_FUNCTION_REGISTRY:
+        load_plugins()
     builder = LOSS_FUNCTION_REGISTRY.get(loss_function)
     if builder is None:
-        raise ValueError(f"Invalid loss function: {loss_function}")
+        folded = {name.lower(): name for name in LOSS_FUNCTION_REGISTRY}
+        name = folded.get(str(loss_function).strip().lower())
+        if name is None:
+            matches = difflib.get_close_matches(
+                str(loss_function).lower(), sorted(folded), n=1
+            )
+            hint = f" (did you mean {folded[matches[0]]!r}?)" if matches else ""
+            raise ValueError(f"Invalid loss function: {loss_function!r}{hint}")
+        builder = LOSS_FUNCTION_REGISTRY[name]
     return builder()

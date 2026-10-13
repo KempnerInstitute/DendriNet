@@ -1,103 +1,78 @@
-# Sweep Scripts
+# Sweep scripts
 
-This directory contains the CLI and support code for parameter sweeps.
+Command-line tools and support code for parameter sweeps. The user
+documentation is `docs/sweeps.rst`; `configs/sweep_config.yaml` is the
+annotated sweep template.
 
-## Entry Points
+## Entry points
 
-- `sweep_manager.py`: generate configs, create job scripts, and optionally
-  analyze a finished sweep directory.
-- `result_analyzer.py`: analyze an existing sweep results directory.
-- `rerun_missing_configs.py`: requeue missing or failed sweep configs.
-- `summarize_initializer_components.py`: validation-only selector and
-  center/slope contrasts for the analytical/occupancy 2-by-2 initializer
-  factorial. It deliberately never reads held-out test endpoints.
+- `sweep_manager.py` (`dendritic-sweep`): generates the configs, job scripts
+  and frozen manifest of a sweep, submits them unless `--generate-only` or
+  `--dry-run` is given, and with `--analyze` runs the result analyzer on a
+  finished sweep.
+- `result_analyzer.py` (`dendritic-analyze`): collects, aggregates and plots
+  a finished sweep directory.
+- `collect_sweep_metrics.py` (`dendritic-collect-sweep-metrics`):
+  manifest-driven collection of several complete sweeps into one table with
+  one row per trained run. It performs no aggregation across seeds; the
+  collection records hashes of every generated config and held-out
+  performance file it reads.
+- `paired_comparison.py`
+  (`python -m dendritic_modeling.scripts.sweeps.paired_comparison`): pairs
+  two arms of one sweep seed by seed and writes the paired units and a
+  bootstrap summary.
+- `rerun_missing_configs.py`
+  (`python -m dendritic_modeling.scripts.sweeps.rerun_missing_configs`):
+  lists the configs of a sweep without finished results and writes the
+  sweep's array script restricted to them.
+- `control_plane.py`: the site scheduler policy (approved account/partition
+  pairs) and the frozen sweep manifest.
+- `slurm_profile.py`: `SlurmProfile`, the `#SBATCH` header, environment and
+  launch command that every job script of a sweep is rendered from.
 
-## Internal Structure
+## Internal structure
 
-- `analyzers/`: sweep-type detection and grouping logic
-- `collectors/`: result loading and config extraction
+- `unified/`: config expansion and job-script generation (see
+  `unified/README.md`)
+- `collectors/`: result loading (`DataCollector`) and extraction of
+  configuration columns (`ConfigExtractor`)
+- `analyzers/`: the analyzer registry, sweep-type detection and grouping
 - `plotters/`: sweep plots
-- `unified/`: config expansion and SLURM job generation
-- `utils/`: aggregation and plotting metadata
+- `utils/`: seed aggregation, ablation columns, metric labels and formatting
 
-## Supported Analyzer Types
+## Analyzer types
 
-The current registry in `analyzers/__init__.py` supports:
+`analyzers/__init__.py` registers `ei`, `stoch`, `local_learning`, `branch`,
+`general` and `noise`. Without `--type`, `auto_detect_sweep_type` tries them
+in that order on the first five files of `configs/`; `general` accepts any
+directory with `configs/` and `results/`, so `noise` runs only when requested.
 
-- `ei`
-- `stoch`
-- `local_learning`
-- `branch`
-- `general`
-
-## Common Commands
-
-Generate configs only:
+## Common commands
 
 ```bash
-python src/dendritic_modeling/scripts/sweeps/sweep_manager.py \
-    --config configs/sweep_config.yaml --generate-only
+dendritic-sweep --config configs/sweep_config.yaml --generate-only
+dendritic-sweep --config configs/sweep_config.yaml --dry-run
+dendritic-analyze <sweep_dir>
+python -m dendritic_modeling.scripts.sweeps.rerun_missing_configs <sweep_dir> --write-script
+dendritic-collect-sweep-metrics --manifest path/to/collection.yaml
 ```
-
-Dry-run submission:
-
-```bash
-python src/dendritic_modeling/scripts/sweeps/sweep_manager.py \
-    --config configs/sweep_config.yaml --dry-run
-```
-
-Analyze a completed sweep:
-
-```bash
-python src/dendritic_modeling/scripts/sweeps/sweep_manager.py \
-    --analyze --results-dir /path/to/sweep/results
-```
-
-Use the analyzer directly:
-
-```bash
-python src/dendritic_modeling/scripts/sweeps/result_analyzer.py \
-    /path/to/sweep/results --type ei
-```
-
-## Expected Directory Layout
-
-```
-<sweep_dir>/
-|-- configs/
-|-- results/
-|-- plots/
-`-- jobs/
-```
-
-Each generated config writes its outputs under `results/config_<n>/`.
-
-Every successful generation also writes `frozen_sweep_manifest.json` at the
-sweep root. The manifest records the raw input-YAML hash, the fully resolved
-`original_config.yaml` hash, every generated-config hash, the expected config
-count, source/Git identity when available, and the scheduler profile. Declare
-the factorial size in publication sweeps so generation fails closed:
-
-```yaml
-sweep_contract:
-  expected_config_count: 120
-```
-
-The scheduler control plane accepts exactly these account/partition pairs:
-
-- `kempner_dev` / `kempner_priority`
-- `kempner_dev` / `kempner_eng`
-- `kempner_dev` / `kempner_requeue`
-- `kempner_bsabatini_lab` / `kempner_h100`
-- `kempner_bsabatini_lab` / `kempner_h100_priority`
-
-Missing scheduler values become `PLACEHOLDER` only with `--generate-only` or
-`--dry-run`. Explicit values are validated in every mode, and a placeholder
-manifest does not authorize later submission.
 
 ## Notes
 
-- The maintained user documentation is in `docs/sweeps.rst`.
-- Use `configs/sweep_config.yaml` as the maintained generic schema example.
-- Keep project- or paper-specific sweep packs outside the main `configs/`
-  tree (for example under `drafts/*/configs/sweeps/` or local ignored folders).
+- `SweepManager._validate_generated_configs` loads every generated config
+  through the strict config loader before any job script is written. The
+  sweep file's own sections and keys are read with `.get` and are not
+  validated.
+- `frozen_sweep_manifest.json` records the input and resolved YAML hashes,
+  the files of the `extends` chain, every generated-config hash, the expected
+  config count, the scheduler profile and the source identity. The job
+  scripts' source guard exits with code 66, 67 or 68 when the commit, the
+  tracked changes or the untracked `src/` files differ from that identity.
+- Missing scheduler values become `PLACEHOLDER` only with `--generate-only` or
+  `--dry-run`. Explicit values are validated against the site policy in every
+  mode, and a placeholder sweep cannot be submitted or rerun.
+- `utils/aggregation.aggregate_over_seeds` separates conditions only by the
+  columns `ConfigExtractor` extracts; runs that differ only in another swept
+  path are averaged as replicates.
+- Keep project-specific sweep files in the project's own repository, outside
+  this library's `configs/` tree.

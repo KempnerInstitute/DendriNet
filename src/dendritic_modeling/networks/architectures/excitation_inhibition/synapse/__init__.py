@@ -6,8 +6,14 @@ stochastic selection, variance-based selection, dynamic sparse training,
 and block linear layers.
 """
 
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.credit_deepst import (
+    CreditGatedDeepstLinear,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.deepst import (
     DeepstLinear,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.degree_grouped_indexed import (
+    DegreeGroupedIndexedLinear,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.dense_to_sparse import (
     DenseToSparseLinear,
@@ -18,6 +24,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.fac
     get_sparse_layer,
     normalize_sparse_layer_type,
     register_sparse_layer,
+    unregister_sparse_layer,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed import (
     IndexedDynamicTopKLinear,
@@ -48,7 +55,9 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.var
 __all__ = [
     "SPARSE_LAYER_REGISTRY",
     "TOPK_INIT_METHODS",
+    "CreditGatedDeepstLinear",
     "DeepstLinear",
+    "DegreeGroupedIndexedLinear",
     "DenseToSparseLinear",
     "IndexedDynamicTopKLinear",
     "IndexedRewireLinear",
@@ -67,5 +76,6 @@ __all__ = [
     "sample_distance_kernel_mask",
     "sample_fixed_indegree_mask",
     "sample_probability_mask",
+    "unregister_sparse_layer",
     "validate_connection_mask",
 ]

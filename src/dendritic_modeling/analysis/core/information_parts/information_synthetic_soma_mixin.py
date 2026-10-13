@@ -115,8 +115,8 @@ class InformationSyntheticSomaMixin:
 
     @classmethod
     def _empty_soma_statistics(cls) -> dict[str, float]:
-        """Return zero-valued soma statistics for every supported metric."""
-        return dict.fromkeys(cls._soma_statistics_metric_map(), 0.0)
+        """Return unmeasured (NaN) soma statistics for every supported metric."""
+        return dict.fromkeys(cls._soma_statistics_metric_map(), float("nan"))
 
     @classmethod
     def _copy_soma_statistics_from_layer(
@@ -124,7 +124,7 @@ class InformationSyntheticSomaMixin:
     ) -> dict[str, float]:
         """Copy soma metrics from a captured real soma layer into internal keys."""
         return {
-            soma_key: real_soma_stats.get(metric_key, 0.0)
+            soma_key: real_soma_stats.get(metric_key, float("nan"))
             for soma_key, metric_key in cls._soma_statistics_metric_map().items()
         }
 

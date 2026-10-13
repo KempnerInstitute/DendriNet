@@ -6,15 +6,14 @@
 # microcircuit feedback.
 #
 # Run:
-#   PYTHONPATH=src:$PYTHONPATH python \
-#     src/dendritic_modeling/scripts/training/train_experiments.py \
-#     configs/examples/population_network_synapse_types_ampa_nmda_gaba.yaml
+#   dendritic-train configs/examples/population_network_synapse_types_ampa_nmda_gaba.yaml
 # ============================================================================
+
+config_version: 3
 
 experiment:
   seed: 43
   train_valid_split: 0.8
-  enable_hooks: true
   checkpointing:
     enabled: false
 
@@ -28,7 +27,10 @@ data:
       n_samples: 512
       signal_dim: 4
       context_duration: 6
-      integration_duration: 12
+      # Integration lengths are sampled from 20-80 steps.
+      variable_integration: true
+      min_integration: 20
+      max_integration: 80
       delay_duration: 2
       coherence_levels: [0.2, 0.4, 0.8]
       noise_std: 0.1
@@ -57,13 +59,15 @@ model:
             somatic_synapses: true
             reactivate: true
             reactivation_type: "param_tanh"
+            reactivation_memory_efficient: true
             reactivation_init_policy: "occupancy_quantile"
             dbl_init_method: "analytical_expectation"
             weight_transform: "softplus"
             use_shunting: true
             topk_type: "indexed_rewire"
             topk_init_method: "xavier_normal"
-            indexed_seed: 43
+            indexed_index_dtype: "auto"
+            indexed_projection_backend: "recompute"
             indexed_rewire_frequency: 100
             indexed_rewire_quantile: 0.05
             indexed_rewire_until_step: null
@@ -142,10 +146,6 @@ model:
       output_dim: 2
 
 training:
-  encoder:
-    strategy: "standard"
-    common:
-      epochs: 0
   main:
     strategy: "recurrent"
     common:
@@ -156,7 +156,7 @@ training:
       loss_function: "ce"
       early_stopping: false
       use_amp: false
-      weight_decay_rate: 0.01
+      synapse_decay_rate: 0.01
       weight_boosting: true
       param_groups:
         lr: 0.001
@@ -184,8 +184,6 @@ analysis:
       n_timesteps: 40
       save_figures: true
 
-wandb:
-  use_wandb: false
 
 outputs:
   run_name: "population_network_synapse_types_ampa_nmda_gaba"

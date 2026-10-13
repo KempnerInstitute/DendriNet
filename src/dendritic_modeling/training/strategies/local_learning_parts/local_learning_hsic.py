@@ -29,8 +29,7 @@ def compute_kernel_matrix(local_cfg, X: torch.Tensor, Y: torch.Tensor) -> torch.
     elif kernel_type == "polynomial" or kernel_type == "poly":
         dot_product = X @ Y.t()
         return (local_cfg.hsic.coef0 + dot_product) ** local_cfg.hsic.degree
-    else:
-        return X @ Y.t()
+    raise ValueError(f"Unknown hsic.kernel {kernel_type!r}")
 
 
 def compute_hsic_gradient(
@@ -103,13 +102,7 @@ def compute_hsic_gradient(
             grad_z = (weight_mat @ z) * 2.0
             return grad_z * local_cfg.hsic.weight * weight / float(batch_size)
 
-    else:
-        if grad_type == "self":
-            return (2.0 / float(batch_size)) * z * local_cfg.hsic.weight * weight
-        else:
-            cov_zy = (z.t() @ y) / float(batch_size)
-            grad_z = -2.0 * (cov_zy @ y.t()).t() / float(batch_size)
-            return grad_z * local_cfg.hsic.weight * weight
+    raise ValueError(f"Unknown hsic.kernel {kernel_type!r}")
 
 
 def compute_additive_pseudo_signals(

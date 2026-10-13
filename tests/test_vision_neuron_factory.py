@@ -121,3 +121,20 @@ def test_build_neuron_from_yaml_rejects_unknown_template() -> None:
 
     with pytest.raises(ValueError, match="Unknown weight template: unknown"):
         build_neuron_from_yaml("bad", config)
+
+
+def test_gabor_unit_kernels_equal_the_template() -> None:
+    """The softplus-parameterized kernels reproduce the push-pull template."""
+    import numpy as np
+
+    from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.vision_factories.vision_units import (
+        _gabor_kernel,
+    )
+
+    layer = create_gabor_unit(30.0)
+    gabor = torch.tensor(_gabor_kernel(11, 8.0, 30.0, 0.0, 3.0), dtype=torch.float32)
+    excitatory = layer.weight_e_branches.detach()[0, 0, 0]
+    inhibitory = layer.weight_i_branches.detach()[0, 0, 0]
+    assert torch.allclose(excitatory, gabor.clamp_min(0), atol=2e-6)
+    assert torch.allclose(inhibitory, (-gabor).clamp_min(0) + 0.1, atol=2e-6)
+    assert np.isfinite(excitatory.numpy()).all()

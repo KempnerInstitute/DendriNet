@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 from types import SimpleNamespace
 
+import pytest
 import torch
 
 from dendritic_modeling.training.strategies.local_learning_parts.local_learning_pathways import (
@@ -49,10 +50,11 @@ def test_stdp_activity_modes_and_detach():
     torch.testing.assert_close(
         stdp_activity(vals, 0.0, "abs"), torch.tensor([[1.0, 0.5, 2.0]])
     )
-    # unknown mode falls back to relu (with a warning)
     torch.testing.assert_close(
-        stdp_activity(vals, 0.0, "bogus"), torch.tensor([[0.0, 0.5, 2.0]])
+        stdp_activity(vals, 0.0, "relu"), torch.tensor([[0.0, 0.5, 2.0]])
     )
+    with pytest.raises(ValueError, match=r"Unknown stdp\.activity_mode"):
+        stdp_activity(vals, 0.0, "bogus")
 
 
 def test_stdp_activity_reshapes_non_2d_and_centers_threshold():

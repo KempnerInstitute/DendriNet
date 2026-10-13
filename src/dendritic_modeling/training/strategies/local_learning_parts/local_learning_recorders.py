@@ -13,6 +13,10 @@ from dendritic_modeling.networks import DendriticBranchLayer
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
     TopKLinear,
 )
+from dendritic_modeling.networks.architectures.recurrent.stateful_dendrinet import (
+    StatefulDendriNet,
+)
+from dendritic_modeling.networks.structure import inhibitory_branch_layer_ids
 from dendritic_modeling.training.strategies.local_learning_parts.local_learning_pathways import (
     RECORDER_TOPK_PATHS,
     TopKGradientPath,
@@ -28,17 +32,137 @@ from dendritic_modeling.utils.hooks import (
 logger = logging.getLogger(__name__)
 
 
-def _population_label(module_name: str) -> str:
-    return (
-        "explicit_inhibitory" if ".inhibitory_cells." in module_name else "excitatory"
-    )
+def reject_unsupported_branch_layer(name: str, module: DendriticBranchLayer) -> None:
+    """Raise for branch layers whose dynamics the local rules do not model."""
+    if (
+        module.topk_type == "indexed_release"
+        or module.learnable_leak
+        or module.leak_conductance != 1
+        or type(module.reactivation).__name__ == "EndpointNormalizedTanh"
+    ):
+        raise ValueError(
+            "analytic local updates do not support indexed_release synapses, a "
+            f"configurable leak or endpoint_tanh at {name!r}; use backpropagation"
+        )
+    if not module.use_shunting and module.additive_mode != "raw":
+        raise ValueError(
+            "analytic local updates do not implement derivatives for "
+            f"additive_mode={module.additive_mode!r} at {name!r}. "
+            "Use backpropagation for tangent_matched/conductance_normalized "
+            "controls; the local additive rule supports additive_mode='raw' "
+            "including its legacy feature normalization."
+        )
 
 
-def _branch_record(module_name: str, module: DendriticBranchLayer) -> dict[str, Any]:
+def reject_mismatched_dynamics_mode(
+    model: nn.Module, dynamics_mode: str, *, allow_mismatch: bool = False
+) -> None:
+    """Raise when a forced three_factor.dynamics_mode disagrees with a layer.
+
+    ``allow_mismatch`` (three_factor.allow_mismatched_dynamics_mode) accepts
+    the mismatch as a deliberate rule variant.
+    """
+    if dynamics_mode == "auto" or allow_mismatch:
+        return
+    for name, layer in iter_named_modules_of_type(model, DendriticBranchLayer):
+        integration = "conductance" if layer.use_shunting else "additive"
+        if integration != dynamics_mode:
+            raise ValueError(
+                f"three_factor.dynamics_mode {dynamics_mode!r} would apply "
+                f"{dynamics_mode} derivatives to {name}, which integrates "
+                f"{'by shunting' if layer.use_shunting else 'additively'}, so its "
+                "updates would not follow its forward pass; use 'auto', or set "
+                "three_factor.allow_mismatched_dynamics_mode to apply them as a "
+                "rule variant"
+            )
+
+
+def reject_unsupported_forward_paths(model: nn.Module, *, allow: bool = False) -> None:
+    """Raise for cores whose forward equations the local rules do not model.
+
+    ``allow`` (learning_strategy_config.allow_unmodeled_forward_features)
+    applies the rules anyway, as a rule variant, and logs the features.
+    """
+    for name, module in model.named_modules():
+        if not isinstance(module, StatefulDendriNet):
+            continue
+        features = [
+            label
+            for label, enabled in (
+                ("typed synapses", module.synapse_types_enabled),
+                ("a spiking soma", module.spiking_soma is not None),
+                ("dendritic spikes", module.dendritic_spikes_enabled),
+                ("soma feedback", module.soma_feedback_enabled),
+                ("cross_level_mode 'parallel_readout'", module.is_parallel_readout),
+                ("cross_level_mode 'all_active_star'", module.is_all_active_star),
+            )
+            if enabled
+        ]
+        if features and allow:
+            logger.warning(
+                "local_ca applies its rules to %s although it uses %s, whose "
+                "dynamics the rules do not include "
+                "(allow_unmodeled_forward_features).",
+                name,
+                ", ".join(features),
+            )
+        elif features:
+            raise ValueError(
+                "local_ca derives its updates from the branch-layer forward "
+                f"equations, but {name} uses {', '.join(features)}, whose "
+                "dynamics the local rules do not include; use backpropagation "
+                "for this core, or set learning_strategy_config."
+                "allow_unmodeled_forward_features: true to apply the rules as a "
+                "variant that ignores them"
+            )
+
+
+_SYNAPSE_BANKS = {
+    "exc": "branch_excitation",
+    "inh": "branch_inhibition",
+    "rec_exc": "branch_recurrent",
+    "rec_inh": "branch_rec_inhibition",
+}
+
+
+def reject_unsupported_synapses(model: nn.Module, *, stdp_pathways: set[str]) -> None:
+    """Raise for synapse banks whose local updates the rules do not implement.
+
+    Row weight normalization couples the weights of a row, while the local
+    rules apply the elementwise weight-transform derivative; STDP updates
+    TopK banks only.
+    """
+    for name, layer in model.named_modules():
+        if not isinstance(layer, DendriticBranchLayer):
+            continue
+        for pathway, attribute in _SYNAPSE_BANKS.items():
+            bank = getattr(layer, attribute, None)
+            if bank is None:
+                continue
+            if getattr(bank, "weight_norm_order", None) is not None:
+                raise ValueError(
+                    f"{name}.{attribute} normalizes its weight rows "
+                    "(sparsity.weight_norm_order), which the local rules do not "
+                    "model; set weight_norm_order to null or use backpropagation "
+                    "or dfa"
+                )
+            if pathway in stdp_pathways and not isinstance(bank, TopKLinear):
+                raise ValueError(
+                    f"STDP updates TopK synapse banks, but {name}.{attribute} is a "
+                    f"{type(bank).__name__}; remove {pathway!r} from stdp.apply_to "
+                    "or use a TopK synapse type"
+                )
+
+
+def _branch_record(
+    module_name: str, module: DendriticBranchLayer, inhibitory: set[int]
+) -> dict[str, Any]:
     return {
         "layer": module,
         "module_name": module_name,
-        "population": _population_label(module_name),
+        "population": (
+            "explicit_inhibitory" if id(module) in inhibitory else "excitatory"
+        ),
     }
 
 
@@ -54,6 +178,17 @@ def _record_topk_forward(
     rec[path.output_key] = outputs.detach()
     rec[path.module_key] = layer
     try:
+        connection_indices = getattr(layer, "connection_indices", None)
+        pre_weight = getattr(layer, "pre_w", None)
+        if (
+            isinstance(connection_indices, torch.Tensor)
+            and isinstance(pre_weight, torch.Tensor)
+            and connection_indices.shape == pre_weight.shape
+        ):
+            # Every compact parameter is active. A dense fixed-support mask can
+            # be hundreds of GiB and is neither needed nor safe to construct.
+            rec[path.mask_key] = None
+            return
         cached_mask = getattr(layer, "_last_forward_weight_mask", None)
         if isinstance(cached_mask, torch.Tensor):
             rec[path.mask_key] = cached_mask.detach()
@@ -87,8 +222,11 @@ class LocalLearningRecorderMixin(ForwardHookRemovalMixin):
         self._decoder_cache.clear()
 
         try:
-            if hasattr(model, "decoder_network"):
-                handles.extend(self._attach_decoder_recorders(model.decoder_network))
+            component_model = self._unwrap_model(model)
+            if hasattr(component_model, "decoder_network"):
+                handles.extend(
+                    self._attach_decoder_recorders(component_model.decoder_network)
+                )
             branch_records, branch_handles = self._attach_branch_recorders(model)
             records.extend(branch_records)
             handles.extend(branch_handles)
@@ -136,10 +274,12 @@ class LocalLearningRecorderMixin(ForwardHookRemovalMixin):
     ]:
         records: list[dict[str, Any]] = []
         handles: list[torch.utils.hooks.RemovableHandle] = []
+        inhibitory = inhibitory_branch_layer_ids(model)
 
         def _register_branch_hooks(module_entry: tuple[str, DendriticBranchLayer]):
             module_name, module = module_entry
-            rec = _branch_record(module_name, module)
+            reject_unsupported_branch_layer(module_name, module)
+            rec = _branch_record(module_name, module, inhibitory)
             records.append(rec)
 
             def _register_hook_group(hook_group: str):
@@ -167,6 +307,12 @@ class LocalLearningRecorderMixin(ForwardHookRemovalMixin):
         rec: dict[str, Any],
     ) -> torch.utils.hooks.RemovableHandle:
         def _react_hook(m, inputs, outputs, rec=rec):
+            if "v_out" in rec:
+                raise ValueError(
+                    f"local_ca records one forward step per branch layer, but "
+                    f"{rec['module_name']} ran more than once in a forward pass "
+                    "(a recurrent unroll); use backpropagation for this core"
+                )
             try:
                 rec["v_n"] = inputs[0].detach()
             except Exception:
@@ -215,4 +361,10 @@ class LocalLearningRecorderMixin(ForwardHookRemovalMixin):
         return blk_layer.register_forward_hook(_blk_hook)
 
 
-__all__ = ["LocalLearningRecorderMixin"]
+__all__ = [
+    "LocalLearningRecorderMixin",
+    "reject_mismatched_dynamics_mode",
+    "reject_unsupported_branch_layer",
+    "reject_unsupported_forward_paths",
+    "reject_unsupported_synapses",
+]

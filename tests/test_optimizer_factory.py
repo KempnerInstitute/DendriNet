@@ -50,6 +50,14 @@ class TestCreateOptimizer:
         assert optimizer.defaults["betas"] == (0.9, 0.95)
         assert optimizer.defaults["eps"] == 1e-7
 
+    def test_create_adamw_optimizer_can_pin_foreach(self, simple_model):
+        """Matched protocols can disable implementation auto-selection."""
+        config = OptimizerConfig(name="adamw", lr=3e-5, foreach=False)
+
+        optimizer = create_optimizer(simple_model.parameters(), config)
+
+        assert optimizer.defaults["foreach"] is False
+
     def test_create_sgd_optimizer(self, simple_model):
         """Test creating SGD optimizer."""
         config = OptimizerConfig(name="sgd", lr=0.1, momentum=0.9, weight_decay=1e-4)
@@ -324,6 +332,12 @@ class TestValidateOptimizerConfig:
         config = OptimizerConfig(name="adam", lr=0.001, eps=-1e-8)
 
         with pytest.raises(ValueError, match="Epsilon must be positive"):
+            validate_optimizer_config(config)
+
+    def test_validate_rejects_nonboolean_foreach(self):
+        config = OptimizerConfig(name="adamw", lr=0.001, foreach="false")
+
+        with pytest.raises(ValueError, match="foreach must be boolean or None"):
             validate_optimizer_config(config)
 
         config = OptimizerConfig(name="adam", lr=0.001, eps=0.0)

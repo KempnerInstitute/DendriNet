@@ -1,5 +1,6 @@
 """Single-branch information-analysis helpers."""
 
+import hashlib
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -18,6 +19,8 @@ class _SingleBranchLayerData:
     inhibition: np.ndarray
     output: np.ndarray
     branch_input: np.ndarray | None
+    parent_soma_output: np.ndarray | None
+    branch_to_parent_soma_index: np.ndarray | None
     has_exc_synapses: bool
     has_inh_synapses: bool
     has_branch_input: bool
@@ -36,6 +39,79 @@ class _SingleBranchLdaSignals:
 
 class InformationSingleBranchMixin:
     """Compute and aggregate single-branch information metrics."""
+
+    def _select_single_branch_indices(
+        self,
+        *,
+        layer_name: str,
+        n_branches: int,
+        branch_to_parent_soma_index: np.ndarray | None = None,
+    ) -> np.ndarray:
+        """Select a deterministic, label-independent branch subset for one layer."""
+        requested = getattr(self, "branch_sample_count_per_layer", None)
+        if requested is None or requested >= n_branches:
+            return np.arange(n_branches, dtype=np.int64)
+
+        base_seed = int(getattr(self, "branch_sample_seed", 0))
+        digest = hashlib.sha256(f"{base_seed}:{layer_name}".encode()).digest()
+        layer_seed = int.from_bytes(digest[:8], byteorder="little", signed=False)
+        generator = np.random.default_rng(layer_seed)
+        strategy = getattr(self, "branch_sample_strategy", "uniform")
+        if strategy == "parent_soma_balanced":
+            if branch_to_parent_soma_index is None:
+                raise ValueError(
+                    "parent_soma_balanced branch sampling requires a "
+                    "branch-to-parent-soma mapping"
+                )
+            parent_indices = np.asarray(branch_to_parent_soma_index, dtype=np.int64)
+            if parent_indices.shape != (n_branches,):
+                raise ValueError(
+                    "branch-to-parent-soma mapping must contain one index per branch"
+                )
+            return self._select_parent_soma_balanced_indices(
+                parent_indices=parent_indices,
+                requested=int(requested),
+                generator=generator,
+            )
+        return np.sort(
+            generator.choice(n_branches, size=int(requested), replace=False)
+        ).astype(np.int64)
+
+    @staticmethod
+    def _select_parent_soma_balanced_indices(
+        *,
+        parent_indices: np.ndarray,
+        requested: int,
+        generator: np.random.Generator,
+    ) -> np.ndarray:
+        """Select branches round-robin across parent somas."""
+        parents = np.unique(parent_indices)
+        parent_order = generator.permutation(parents)
+        queues = {
+            int(parent): generator.permutation(
+                np.flatnonzero(parent_indices == parent)
+            ).tolist()
+            for parent in parents
+        }
+        selected: list[int] = []
+        cursor = dict.fromkeys(queues, 0)
+        while len(selected) < requested:
+            progress = False
+            for parent_raw in parent_order:
+                parent = int(parent_raw)
+                position = cursor[parent]
+                if position >= len(queues[parent]):
+                    continue
+                selected.append(int(queues[parent][position]))
+                cursor[parent] = position + 1
+                progress = True
+                if len(selected) == requested:
+                    break
+            if not progress:
+                raise ValueError(
+                    "requested more balanced branches than the mapping provides"
+                )
+        return np.sort(np.asarray(selected, dtype=np.int64))
 
     def _prepare_single_branch_layer_data(
         self,
@@ -61,12 +137,26 @@ class InformationSingleBranchMixin:
             if Vb_all_branches_raw is not None
             else None
         )
+        parent_soma_output_raw = layer_data.get("parent_soma_output")
+        parent_soma_output = (
+            parent_soma_output_raw.detach().cpu().numpy()
+            if parent_soma_output_raw is not None
+            else None
+        )
+        branch_to_parent_soma_raw = layer_data.get("branch_to_parent_soma_index")
+        branch_to_parent_soma_index = (
+            np.asarray(branch_to_parent_soma_raw, dtype=np.int64)
+            if branch_to_parent_soma_raw is not None
+            else None
+        )
 
         return _SingleBranchLayerData(
             excitation=E_all_branches_filtered.detach().cpu().numpy(),
             inhibition=I_all_branches_filtered.detach().cpu().numpy(),
             output=layer_data["output"].detach().cpu().numpy(),
             branch_input=branch_input,
+            parent_soma_output=parent_soma_output,
+            branch_to_parent_soma_index=branch_to_parent_soma_index,
             has_exc_synapses=has_exc_synapses,
             has_inh_synapses=has_inh_synapses,
             has_branch_input=has_branch_input,
@@ -125,6 +215,18 @@ class InformationSingleBranchMixin:
             if prepared_layer.branch_input is not None
             else None
         )
+        parent_soma_branch = None
+        if (
+            getattr(self, "compute_soma_coupling_mi", False)
+            and prepared_layer.parent_soma_output is not None
+            and prepared_layer.branch_to_parent_soma_index is not None
+        ):
+            parent_soma_index = int(
+                prepared_layer.branch_to_parent_soma_index[branch_idx]
+            )
+            parent_soma_branch = prepared_layer.parent_soma_output[
+                :, parent_soma_index : parent_soma_index + 1
+            ]
 
         branch_results = self._compute_branch_metrics_with_null_baselines(
             E=E_branch,
@@ -132,6 +234,7 @@ class InformationSingleBranchMixin:
             Vout=Vout_branch,
             C=C,
             Vb=Vb_branch,
+            S=parent_soma_branch,
             has_exc_synapses=prepared_layer.has_exc_synapses,
             has_inh_synapses=prepared_layer.has_inh_synapses,
             has_branch_input=prepared_layer.has_branch_input,
@@ -175,6 +278,7 @@ class InformationSingleBranchMixin:
         all_results: list[dict[str, Any]],
         branch_names: list[str],
         layer_results: dict[str, Any],
+        branch_sampling: dict[str, Any] | None = None,
     ) -> dict[str, Any] | None:
         """Average branch metrics and attach single-branch analysis metadata."""
         if not all_results:
@@ -185,6 +289,8 @@ class InformationSingleBranchMixin:
         results["branch_names"] = branch_names
         results["num_branches"] = len(all_results)
         results["layer_statistics"] = layer_results
+        if branch_sampling is not None:
+            results["branch_sampling"] = branch_sampling
         layer_depths = self.collected_soma_relative_depths()
         if layer_depths:
             results["layer_soma_relative_depths"] = layer_depths
@@ -200,6 +306,7 @@ class InformationSingleBranchMixin:
         all_results = []
         branch_names = []
         layer_results = {}
+        branch_sampling_layers = {}
 
         total_layers = len(
             [name for name, data in self.data_dict.items() if "excitation" in data]
@@ -233,12 +340,52 @@ class InformationSingleBranchMixin:
             lda_signals = self._prepare_single_branch_lda_signals(layer_data, C)
 
             n_branches = prepared_layer.excitation.shape[1]
+            selected_branch_indices = self._select_single_branch_indices(
+                layer_name=layer_name,
+                n_branches=n_branches,
+                branch_to_parent_soma_index=(
+                    prepared_layer.branch_to_parent_soma_index
+                    if getattr(self, "branch_sample_strategy", "uniform")
+                    == "parent_soma_balanced"
+                    else None
+                ),
+            )
+            selected_indices_list = selected_branch_indices.tolist()
+            selected_indices_sha256 = hashlib.sha256(
+                np.asarray(selected_branch_indices, dtype=np.int64).tobytes()
+            ).hexdigest()
+            branch_sampling_layers[layer_name] = {
+                "total_branches": int(n_branches),
+                "selected_count": len(selected_indices_list),
+                "selected_indices": selected_indices_list,
+                "selected_indices_sha256": selected_indices_sha256,
+                "parent_soma_population": layer_data.get("parent_soma_population"),
+                "branches_per_parent_soma": layer_data.get("branches_per_parent_soma"),
+            }
+            if prepared_layer.branch_to_parent_soma_index is not None:
+                selected_parents = prepared_layer.branch_to_parent_soma_index[
+                    selected_branch_indices
+                ]
+                _, selected_parent_counts = np.unique(
+                    selected_parents, return_counts=True
+                )
+                branch_sampling_layers[layer_name].update(
+                    {
+                        "selected_parent_soma_count": int(selected_parent_counts.size),
+                        "selected_branches_per_parent_soma_min": int(
+                            selected_parent_counts.min()
+                        ),
+                        "selected_branches_per_parent_soma_max": int(
+                            selected_parent_counts.max()
+                        ),
+                    }
+                )
             layer_branch_results = []
             layer_start_time = time.time()
 
             short_name = layer_name.split(".")[-1] if "." in layer_name else layer_name
             for branch_idx in tqdm(
-                range(n_branches),
+                selected_indices_list,
                 desc=f"  {short_name}",
                 leave=False,
                 ncols=100,
@@ -271,13 +418,28 @@ class InformationSingleBranchMixin:
                 layer_results[layer_name] = layer_stats
 
             self.logger.info(
-                f"Layer {layer_name} completed: {n_branches} branches processed in {time.time() - layer_start_time:.1f}s"
+                f"Layer {layer_name} completed: {len(selected_indices_list)}/{n_branches} branches processed in {time.time() - layer_start_time:.1f}s"
             )
 
+        branch_sampling = {
+            "mode": (
+                "all"
+                if getattr(self, "branch_sample_count_per_layer", None) is None
+                else "deterministic_subset_per_layer"
+            ),
+            "requested_count_per_layer": getattr(
+                self, "branch_sample_count_per_layer", None
+            ),
+            "strategy": getattr(self, "branch_sample_strategy", "uniform"),
+            "seed": int(getattr(self, "branch_sample_seed", 0)),
+            "selection_depends_on_data_or_labels": False,
+            "layers": branch_sampling_layers,
+        }
         return self._finalize_single_branch_results(
             all_results=all_results,
             branch_names=branch_names,
             layer_results=layer_results,
+            branch_sampling=branch_sampling,
         )
 
     def _merge_lda_branch_metrics_in_place(

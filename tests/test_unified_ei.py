@@ -72,11 +72,19 @@ model:
       rec_ei_synapses_per_branch: [1]
       rec_ie_synapses_per_branch: [1]
       rec_ii_synapses_per_branch: [1]
-    transfer:
-      input_mode: 0
     morphology:
       use_shunting: true
       somatic_synapses: true
+    sparsity:
+      type: indexed
+      indexed:
+        seed: 23
+        index_dtype: int32
+        projection_backend: auto
+    reactivation:
+      enabled: true
+      type: param_tanh
+      memory_efficient: true
     recurrent_ei:
       dt: 1.0
       tau_base: 7.0
@@ -113,6 +121,30 @@ model:
         traces = getattr(state.i_state, trace_name)
         assert len(traces) == 1
         assert traces[0].shape == (2, 3)
+
+    from dendritic_modeling.networks.activations.parametric import ParametricTanh
+    from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_sparse import (
+        IndexedSparseLinear,
+    )
+
+    value = torch.rand(2, 3, 5, requires_grad=True)
+    network(value).square().mean().backward()
+    indexed_layers = [
+        module
+        for module in network.modules()
+        if isinstance(module, IndexedSparseLinear)
+    ]
+    assert indexed_layers
+    assert all(layer.projection_backend == "auto" for layer in indexed_layers)
+    assert all(
+        layer._last_resolved_projection_backend == "recompute"
+        for layer in indexed_layers
+    )
+    reactivations = [
+        module for module in network.modules() if isinstance(module, ParametricTanh)
+    ]
+    assert reactivations
+    assert all(activation.memory_efficient for activation in reactivations)
 
 
 def test_stateful_dendrinet_feedforward_shape():
@@ -296,6 +328,7 @@ def test_voltage_from_currents_does_not_use_branch_current_as_conductance():
     trace_I = torch.ones(2, 3)
     trace_I_rec = torch.zeros(2, 3)
     trace_branch = torch.full((2, 3), 5.0)
+    conductance = torch.full((3,), 0.25)
 
     _voltage, denominator = layer.voltage_from_currents(
         trace_E=trace_E,
@@ -303,9 +336,16 @@ def test_voltage_from_currents_does_not_use_branch_current_as_conductance():
         trace_I=trace_I,
         trace_I_rec=trace_I_rec,
         trace_branch=trace_branch,
+        branch_conductance=conductance,
     )
 
-    assert torch.allclose(denominator, 1 + trace_E + trace_I)
+    # The child current enters the numerator; only its coupling conductance
+    # enters the denominator.
+    assert torch.allclose(denominator, 1 + trace_E + trace_I + conductance)
+    with pytest.raises(ValueError, match="pass branch_conductance"):
+        layer.voltage_from_currents(
+            trace_E=trace_E, trace_E_rec=0, trace_I=trace_I, trace_branch=trace_branch
+        )
 
 
 def _copy_stateful_dendrinet_branch_state(source, target):
@@ -408,6 +448,27 @@ def test_soma_feedback_shunting_requires_shunting_population():
             soma_feedback_enabled=True,
             soma_feedback_mode="shunting",
         )
+
+
+def test_shunting_soma_feedback_needs_a_nonzero_initial_projection():
+    with pytest.raises(ValueError, match="soma_feedback_init_std > 0"):
+        PopulationConfig(
+            n_neurons=4,
+            branch_factors=[1],
+            ff_excitatory_synapses=2,
+            ff_inhibitory_synapses=0,
+            soma_feedback_enabled=True,
+            soma_feedback_mode="shunting",
+        )
+    PopulationConfig(
+        n_neurons=4,
+        branch_factors=[1],
+        ff_excitatory_synapses=2,
+        ff_inhibitory_synapses=0,
+        soma_feedback_enabled=True,
+        soma_feedback_mode="shunting",
+        soma_feedback_init_std=0.01,
+    )
 
 
 def test_soma_feedback_spike_readout_source_falls_back_in_rate_mode():
@@ -546,6 +607,7 @@ def test_legacy_unified_ei_recurrent_only_layer_gets_trainable_upstream_drive():
         }
     }
 
+    torch.manual_seed(0)  # the zero-gradient check depends on the random draw
     net = get_architecture("unified_ei", params, input_dim=4)
 
     assert net.layers[1].config.excitatory.ff_excitatory_synapses == 2
@@ -665,6 +727,54 @@ def test_unified_ei_layer_feedforward():
     assert state is None  # Feedforward mode returns no state
 
 
+@pytest.mark.parametrize(
+    ("role", "overrides", "named"),
+    [
+        ("excitatory", {"rec_excitatory_synapses": 3}, "rec_excitatory_synapses"),
+        ("inhibitory", {"rec_inhibitory_synapses": 1}, "rec_inhibitory_synapses"),
+        (
+            "excitatory",
+            {"rec_excitatory_synapses_by_level": [0, 2]},
+            "rec_excitatory_synapses_by_level",
+        ),
+        ("excitatory", {"dynamics_mode": "spike"}, "stateful dynamics"),
+        ("inhibitory", {"dendritic_spikes_enabled": True}, "stateful dynamics"),
+        ("excitatory", {"soma_feedback_enabled": True}, "stateful dynamics"),
+    ],
+)
+def test_a_non_recurrent_unified_layer_rejects_recurrent_features(
+    role, overrides, named
+):
+    """Without recurrence these would be dropped or run as one zero-state step."""
+    populations = {
+        "excitatory": {
+            "n_neurons": 10,
+            "branch_factors": [2],
+            "ff_excitatory_synapses": 4,
+            "ff_inhibitory_synapses": 3,
+        },
+        "inhibitory": {
+            "n_neurons": 4,
+            "branch_factors": [1],
+            "ff_excitatory_synapses": 4,
+            "ff_inhibitory_synapses": 2,
+        },
+    }
+    populations[role].update(overrides)
+    cfg = EILayerConfig(
+        excitatory=PopulationConfig(**populations["excitatory"]),
+        inhibitory=PopulationConfig(**populations["inhibitory"]),
+        excitatory_input_dim=12,
+        inhibitory_input_dim=5,
+        recurrent=False,
+        dt=1.0,
+    )
+    with pytest.raises(ValueError, match=f"its {role} population sets .*{named}"):
+        EILayer(cfg)
+    cfg.recurrent = True
+    EILayer(cfg)
+
+
 def test_unified_ei_layer_recurrent():
     cfg = EILayerConfig(
         excitatory=PopulationConfig(
@@ -737,11 +847,11 @@ def test_unified_ei_network_feedforward():
     assert y.shape == (5, 6)
 
 
-def test_unified_ei_network_transfer_input_mode0_first_layer_gets_transfer_inhibitory():
+def test_unified_ei_network_transfer_first_layer_gets_transfer_inhibitory():
     cfg = EINetworkConfig(
         input_dim=6,
         use_transfer=True,
-        transfer_params={"input_mode": 0, "independent_pathways": False},
+        transfer_params={"independent_pathways": False},
         layers=[
             EILayerConfig(
                 excitatory=PopulationConfig(
@@ -778,12 +888,12 @@ def test_unified_ei_network_transfer_input_mode0_first_layer_gets_transfer_inhib
     assert torch.allclose(captured["ff_inhibitory"], x)
 
 
-def test_unified_ei_network_recurrent_transfer_input_mode0_first_step_gets_transfer_inhibitory():
+def test_unified_ei_network_recurrent_transfer_first_step_gets_transfer_inhibitory():
     cfg = EINetworkConfig(
         input_dim=6,
         output_mode="all",
         use_transfer=True,
-        transfer_params={"input_mode": 0, "independent_pathways": False},
+        transfer_params={"independent_pathways": False},
         layers=[
             EILayerConfig(
                 excitatory=PopulationConfig(
@@ -1105,7 +1215,6 @@ def test_structured_dendritic_additive_recurrent_is_raw_additive():
             "ie_synapses_per_branch_per_layer": [0],
             "rec_ee_synapses_per_branch": [1],
         },
-        "transfer": {"input_mode": 0},
         "morphology": {
             "use_shunting": True,
             "use_additive_normalization": False,
@@ -1144,7 +1253,6 @@ def test_structured_dendritic_normalized_additive_enables_normalization():
             "ie_synapses_per_branch_per_layer": [0],
             "rec_ee_synapses_per_branch": [1],
         },
-        "transfer": {"input_mode": 0},
         "morphology": {"somatic_synapses": True},
         "reactivation": {"enabled": True, "init_policy": "occupancy_quantile"},
     }
@@ -1203,7 +1311,6 @@ def test_structured_recurrent_inhibitory_copies_reactivation_calibration_fields(
             "rec_ei_synapses_per_branch": [1],
             "rec_ii_synapses_per_branch": [1],
         },
-        "transfer": {"input_mode": 0},
         "morphology": {"use_shunting": True, "somatic_synapses": True},
         "reactivation": {
             "enabled": True,
@@ -1256,7 +1363,6 @@ def test_recurrent_conductance_dynamic_uses_forward_hooks_without_stale_scale_ve
             "ie_synapses_per_branch_per_layer": [0],
             "rec_ee_synapses_per_branch": [1],
         },
-        "transfer": {"input_mode": 0},
         "morphology": {"use_shunting": True, "somatic_synapses": True},
         "sparsity": {"gradient_scaling": "conductance_dynamic"},
         "reactivation": {"enabled": False},
@@ -1291,7 +1397,6 @@ def test_structured_recurrent_factory_propagates_soma_feedback_config():
             "ie_synapses_per_branch_per_layer": [0],
             "rec_ee_synapses_per_branch": [1],
         },
-        "transfer": {"input_mode": 0},
         "morphology": {"use_shunting": True, "somatic_synapses": True},
         "recurrent_ei": {
             "soma_feedback": {
@@ -1335,7 +1440,6 @@ def test_structured_soma_feedback_only_core_is_recurrent():
             "ie_synapses_per_branch_per_layer": [0],
             "rec_ee_synapses_per_branch": [0],
         },
-        "transfer": {"input_mode": 0},
         "morphology": {"use_shunting": True, "somatic_synapses": True},
         "soma_feedback": {"enabled": True, "levels": "distal"},
         "reactivation": {"enabled": False},
@@ -1362,12 +1466,9 @@ def test_factory_builds_einet_recurrent_option_with_transfer():
                 "ie_synapses_per_branch_per_layer": [2],
                 "ii_synapses_per_branch_per_layer": [0],
                 "rec_ee_synapses_per_branch": [2],
-                "rec_ie_synapses_per_branch": [1],
             },
             "transfer": {
-                "input_mode": 1,
                 "independent_pathways": False,
-                "allow_direct_inhibitory_stream": True,
             },
             "morphology": {
                 "use_shunting": True,
@@ -1420,7 +1521,7 @@ def test_factory_builds_einet_recurrent_option_with_transfer():
     assert y.shape == (2, 6)
 
 
-def test_factory_recurrent_einet_input_mode0_uses_transfer_by_default():
+def test_factory_recurrent_einet_uses_transfer_by_default():
     params = OmegaConf.create(
         {
             "architecture": {
@@ -1440,7 +1541,6 @@ def test_factory_recurrent_einet_input_mode0_uses_transfer_by_default():
                 "rec_ii_synapses_per_branch": [1],
             },
             "transfer": {
-                "input_mode": 0,
                 "independent_pathways": False,
             },
             "morphology": {
@@ -1477,7 +1577,7 @@ def test_factory_recurrent_einet_input_mode0_uses_transfer_by_default():
     assert y.shape == (2, 3, 5)
 
 
-def test_factory_recurrent_einet_input_mode1_builds_defined_inhibitory_population():
+def test_factory_recurrent_einet_builds_defined_inhibitory_population():
     params = OmegaConf.create(
         {
             "architecture": {
@@ -1497,7 +1597,6 @@ def test_factory_recurrent_einet_input_mode1_builds_defined_inhibitory_populatio
                 "rec_ii_synapses_per_branch": [1],
             },
             "transfer": {
-                "input_mode": 1,
                 "independent_pathways": False,
             },
             "morphology": {
@@ -1551,9 +1650,7 @@ def test_factory_builds_einet_recurrent_old_style_backward_compat():
                 "ii_synapses_per_branch_per_layer": [0],
             },
             "transfer": {
-                "input_mode": 1,
                 "independent_pathways": False,
-                "allow_direct_inhibitory_stream": True,
             },
             "morphology": {
                 "use_shunting": True,
@@ -1578,7 +1675,6 @@ def test_factory_builds_einet_recurrent_old_style_backward_compat():
                 "enabled": True,
                 "use_transfer": True,
                 "rec_excitatory_synapses_per_layer": [2],
-                "rec_inhibitory_synapses_per_layer": [1],
                 "recurrent_layers": [True],
                 "dt": 1.0,
                 "output_mode": "last",
@@ -1608,9 +1704,7 @@ def test_factory_einet_without_recurrent_option_stays_legacy():
                 "ii_synapses_per_branch_per_layer": [0],
             },
             "transfer": {
-                "input_mode": 1,
                 "independent_pathways": False,
-                "allow_direct_inhibitory_stream": True,
             },
             "morphology": {
                 "use_shunting": True,
@@ -1688,13 +1782,10 @@ def test_factory_einet_recurrent_per_layer_tau():
             },
             "connectivity": {
                 "ee_synapses_per_branch_per_layer": [3],
-                "ie_synapses_per_branch_per_layer": [2],
+                "ie_synapses_per_branch_per_layer": [2, 0],
                 "rec_ee_synapses_per_branch": [2, 3],
             },
-            "transfer": {
-                "input_mode": 1,
-                "allow_direct_inhibitory_stream": True,
-            },
+            "transfer": {},
             "morphology": {
                 "use_shunting": True,
                 "weight_transform": "exp",
@@ -1745,9 +1836,9 @@ def test_factory_requires_layers_for_unified_ei():
 # ---------------------------------------------------------------------------
 
 
-def _make_2layer_recurrent_params(inhibitory_mode="first"):
-    """Helper: 2-layer recurrent EINet config with configurable inhibitory_mode."""
-    return OmegaConf.create(
+def test_recurrent_einet_reads_the_transferred_stream_in_the_first_layer_only():
+    """Without inhibitory cells, only first-layer E cells read the I stream."""
+    params = OmegaConf.create(
         {
             "architecture": {
                 "excitatory_layer_sizes": [6, 4],
@@ -1757,74 +1848,23 @@ def _make_2layer_recurrent_params(inhibitory_mode="first"):
             },
             "connectivity": {
                 "ee_synapses_per_branch_per_layer": [3],
-                "ie_synapses_per_branch_per_layer": [2],
+                "ie_synapses_per_branch_per_layer": [2, 0],
                 "rec_ee_synapses_per_branch": [2],
-                "rec_ie_synapses_per_branch": [1],
             },
-            "transfer": {
-                "input_mode": 1,
-                "independent_pathways": False,
-                "inhibitory_mode": inhibitory_mode,
-                "allow_direct_inhibitory_stream": True,
-            },
+            "transfer": {"independent_pathways": False},
             "morphology": {
                 "use_shunting": True,
                 "weight_transform": "exp",
                 "somatic_synapses": True,
                 "dbl_init_method": "analytical_expectation",
             },
-            "sparsity": {
-                "init_method": "xavier_normal",
-                "type": "standard",
-                "deepst": {},
-            },
-            "reactivation": {
-                "enabled": True,
-                "type": "param_tanh",
-                "init_m": 1.0,
-                "init_b": 0.5,
-            },
-            "blocklinear": {},
-            "implementation": {},
+            "sparsity": {"init_method": "xavier_normal", "type": "standard"},
+            "reactivation": {"enabled": True, "type": "param_tanh"},
             "recurrent_ei": {"dt": 1.0, "output_mode": "last"},
         }
     )
-
-
-def test_inhibitory_mode_none_blocks_transfer():
-    """With inhibitory_mode='none', no layer receives transfer inhibitory."""
-    params = _make_2layer_recurrent_params(inhibitory_mode="none")
     net = get_architecture("EINet", params, input_dim=8)
     assert isinstance(net, EINetwork)
-    # Both layers should have direct_ff_inhibitory_to_excitatory = False
-    for layer in net.layers:
-        assert layer.config.direct_ff_inhibitory_to_excitatory is False
-
-    # Capture ff_inhibitory argument to each layer via hooks
-    captured = {}
-
-    def _hook(name):
-        def fn(module, args):
-            captured[name] = args[1]  # ff_inhibitory is second positional arg
-
-        return fn
-
-    net.layers[0].register_forward_pre_hook(_hook("layer_0"))
-    net.layers[1].register_forward_pre_hook(_hook("layer_1"))
-    net(torch.rand(2, 4, 8))
-    # Both layers should receive None inhibitory
-    assert captured["layer_0"] is None
-    assert captured["layer_1"] is None
-
-
-def test_inhibitory_mode_first_only_layer0():
-    """With inhibitory_mode='first', only layer 0 gets transfer inhibitory."""
-    params = _make_2layer_recurrent_params(inhibitory_mode="first")
-    net = get_architecture("EINet", params, input_dim=8)
-    assert isinstance(net, EINetwork)
-    assert net.layers[0].config.direct_ff_inhibitory_to_excitatory is True
-    assert net.layers[1].config.direct_ff_inhibitory_to_excitatory is False
-
     captured = {}
 
     def _hook(name):
@@ -1838,29 +1878,7 @@ def test_inhibitory_mode_first_only_layer0():
     net(torch.rand(2, 4, 8))
     assert captured["layer_0"] is not None
     assert captured["layer_1"] is None
-
-
-def test_inhibitory_mode_all_every_layer():
-    """With inhibitory_mode='all', every layer gets transfer inhibitory."""
-    params = _make_2layer_recurrent_params(inhibitory_mode="all")
-    net = get_architecture("EINet", params, input_dim=8)
-    assert isinstance(net, EINetwork)
-    for layer in net.layers:
-        assert layer.config.direct_ff_inhibitory_to_excitatory is True
-
-    captured = {}
-
-    def _hook(name):
-        def fn(module, args):
-            captured[name] = args[1]
-
-        return fn
-
-    net.layers[0].register_forward_pre_hook(_hook("layer_0"))
-    net.layers[1].register_forward_pre_hook(_hook("layer_1"))
-    net(torch.rand(2, 4, 8))
-    assert captured["layer_0"] is not None
-    assert captured["layer_1"] is not None
+    assert net.layers[1].e_population.branch_layers[0].branch_inhibition is None
 
 
 # ---------------------------------------------------------------------------
@@ -2535,14 +2553,13 @@ def test_cosine_lr_schedule_values():
 
     trainer = RecurrentTrainer(
         task="classification",
-        grad_clip=1.0,
+        grad_clip_value=1.0,
         lr_schedule="cosine",
         lr_warmup_epochs=5,
         optimizer=dummy_opt,
         epochs=20,
         batch_size=32,
         device="cpu",
-        learning_rate=0.01,
     )
     trainer._build_scheduler(n_epochs=20)
     assert trainer.scheduler is not None
@@ -2583,7 +2600,6 @@ def test_factory_passes_learnable_tau():
             "ee_synapses_per_branch_per_layer": [8],
             "rec_ee_synapses_per_branch": [4],
         },
-        "transfer": {"input_mode": 0},
         "morphology": {"use_shunting": True, "weight_transform": "softplus"},
         "sparsity": {"init_method": "xavier_normal"},
         "recurrent_ei": {
@@ -2599,3 +2615,193 @@ def test_factory_passes_learnable_tau():
     assert e_pop.learnable_tau is True
     assert e_pop.log_tau is not None
     assert e_pop.log_tau.requires_grad is True
+
+
+def test_layers_and_populations_sharing_an_indexed_seed_get_distinct_contacts():
+    def population(n_neurons):
+        return PopulationConfig(
+            n_neurons=n_neurons,
+            branch_factors=[2],
+            ff_excitatory_synapses=3,
+            ff_inhibitory_synapses=0,
+            topk_type="indexed",
+            indexed_seed=7,
+        )
+
+    layers = [
+        EILayerConfig(
+            excitatory=population(8),
+            inhibitory=population(8),
+            recurrent=False,
+        )
+        for _ in range(2)
+    ]
+    network = EINetwork(EINetworkConfig(input_dim=8, layers=layers))
+
+    def contacts(dendrinet):
+        return torch.cat(
+            [
+                buffer.flatten()
+                for name, buffer in dendrinet.named_buffers()
+                if name.endswith("connection_indices")
+            ]
+        )
+
+    first, second = network.layers
+    assert not torch.equal(contacts(first.e_population), contacts(first.i_population))
+    assert not torch.equal(contacts(first.e_population), contacts(second.e_population))
+    rebuilt = EINetwork(EINetworkConfig(input_dim=8, layers=layers))
+    assert torch.equal(
+        contacts(first.e_population), contacts(rebuilt.layers[0].e_population)
+    )
+
+
+def _unified_layer(**layer):
+    return {
+        "unified_ei": {
+            "output_mode": "last",
+            "layers": [
+                {
+                    "excitatory": {
+                        "n_neurons": 4,
+                        "branch_factors": [1],
+                        "ff_excitatory_synapses": 2,
+                        "ff_inhibitory_synapses": 0,
+                        "rec_excitatory_synapses": 1,
+                        "rec_inhibitory_synapses": 0,
+                    },
+                    "recurrent": True,
+                    **layer,
+                }
+            ],
+        }
+    }
+
+
+def test_unified_layer_must_state_its_inhibitory_population():
+    with pytest.raises(ValueError, match="does not say whether the layer has"):
+        get_architecture("unified_ei", _unified_layer(), input_dim=3)
+    net = get_architecture("unified_ei", _unified_layer(inhibitory=None), input_dim=3)
+    assert net.layers[0].i_population is None
+
+
+# ---------------------------------------------------------------------------
+# Synapse counts need a source
+# ---------------------------------------------------------------------------
+
+
+def _sourced_layer(*, inhibitory=True, recurrent=True, exc=None, inh=None):
+    excitatory = {
+        "n_neurons": 6,
+        "branch_factors": [2],
+        "ff_excitatory_synapses": 3,
+        "rec_excitatory_synapses": 2,
+        **(exc or {}),
+    }
+    population = {"n_neurons": 3, "branch_factors": [1], "ff_excitatory_synapses": 3}
+    return {
+        "excitatory": excitatory,
+        "inhibitory": {**population, **(inh or {})} if inhibitory else None,
+        "recurrent": recurrent,
+    }
+
+
+def _sourced_core(*layers, **options):
+    return {"unified_ei": {"output_mode": "last", "layers": list(layers), **options}}
+
+
+def _sourced_build(core):
+    torch.manual_seed(0)
+    return get_architecture("unified_ei", core, input_dim=5)
+
+
+@pytest.mark.parametrize(
+    "core, message",
+    [
+        (
+            _sourced_core(_sourced_layer(inh={"ff_inhibitory_synapses": 6})),
+            r"layers\[0\]\.inhibitory\.ff_inhibitory_synapses=6: use_transfer is "
+            "false",
+        ),
+        (
+            _sourced_core(
+                _sourced_layer(inh={"ff_inhibitory_synapses_by_level": [0, 2]})
+            ),
+            r"inhibitory\.ff_inhibitory_synapses_by_level=\[0, 2\]",
+        ),
+        (
+            _sourced_core(
+                _sourced_layer(inhibitory=False, exc={"ff_inhibitory_synapses": 6})
+            ),
+            r"excitatory\.ff_inhibitory_synapses=6: the layer has no inhibitory "
+            "population and direct_ff_inhibitory_to_excitatory is false",
+        ),
+        (
+            _sourced_core(
+                _sourced_layer(
+                    inhibitory=False,
+                    exc={"ff_inhibitory_synapses": 0, "rec_inhibitory_synapses": 2},
+                )
+            ),
+            r"excitatory\.rec_inhibitory_synapses=2: the layer has no inhibitory",
+        ),
+        (
+            _sourced_core(
+                _sourced_layer(inhibitory=False, exc={"ff_inhibitory_synapses": 0}),
+                _sourced_layer(inh={"ff_inhibitory_synapses": 2}),
+                use_transfer=True,
+            ),
+            r"layers\[1\]\.inhibitory\.ff_inhibitory_synapses=2: layer 0 has no "
+            "inhibitory population",
+        ),
+    ],
+)
+def test_written_synapse_counts_without_a_source_raise(core, message):
+    with pytest.raises(ValueError, match=message):
+        _sourced_build(core)
+
+
+def test_written_counts_with_a_source_build_their_synapses():
+    with_source = _sourced_build(
+        _sourced_core(
+            _sourced_layer(inh={"ff_inhibitory_synapses": 6}), use_transfer=True
+        )
+    )
+    without = _sourced_build(
+        _sourced_core(
+            _sourced_layer(inh={"ff_inhibitory_synapses": 0}), use_transfer=True
+        )
+    )
+    count = sum(p.numel() for p in with_source.parameters())
+    assert count > sum(p.numel() for p in without.parameters())
+
+
+def test_omitted_counts_without_a_source_still_build_no_synapses():
+    # An omitted ff_inhibitory_synapses is the population default 4, which
+    # builds nothing without a source; the layer is the one written with 0.
+    for written, omitted in (
+        (
+            _sourced_layer(inh={"ff_inhibitory_synapses": 0}),
+            _sourced_layer(),
+        ),
+        (
+            _sourced_layer(inhibitory=False, exc={"ff_inhibitory_synapses": 0}),
+            _sourced_layer(inhibitory=False),
+        ),
+    ):
+        expected = _sourced_build(_sourced_core(written)).state_dict()
+        built = _sourced_build(_sourced_core(omitted)).state_dict()
+        assert built.keys() == expected.keys()
+        assert all(torch.equal(built[key], expected[key]) for key in expected)
+
+
+def test_typed_populations_are_checked_by_their_non_default_counts():
+    layer = EILayerConfig(
+        excitatory=PopulationConfig(n_neurons=6, branch_factors=[2]),
+        inhibitory=PopulationConfig(
+            n_neurons=3, branch_factors=[1], ff_inhibitory_synapses=6
+        ),
+        recurrent=False,
+    )
+    with pytest.raises(ValueError, match="ff_inhibitory_synapses=6"):
+        _sourced_build({"unified_ei": {"layers": [layer]}})

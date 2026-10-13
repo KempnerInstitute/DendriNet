@@ -1,6 +1,7 @@
 # Standalone post-training analysis profile for PopulationNetwork checkpoints.
-# Fit probes on validation, evaluate once on test, and average technical draws
-# within each checkpoint before statistical inference across training seeds.
+# Fit probes on validation and evaluate them once on test. Estimate information
+# and geometry on validation, and average technical draws within each checkpoint
+# before statistical inference across training seeds.
 analysis:
   runtime:
     final:
@@ -47,4 +48,18 @@ analysis:
         n_neighbors: 5
         n_label_shuffles: 5
         standardize: true
+      subset_decoding:
+        enabled: true
+        representations: [excitatory]
+        subset_sizes: [1, 2, 4, 8, 16, 32, 64]
+        draws: 10
+        probe:
+          name: subset_linear
+          type: ridge
+          ridge_alpha: 1.0
+          n_label_shuffles: 5
+      geometry:
+        enabled: true
+        representations: [excitatory]
+        variance_epsilon: 1.0e-12
       seed: 42

@@ -1,4 +1,5 @@
 import unittest
+from types import SimpleNamespace
 from unittest.mock import call, patch
 
 import torch
@@ -15,6 +16,15 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.d
     _sample_dendrinet_structured_masks,
     _validate_dendrinet_dimensions,
 )
+
+
+def _opaque_synapse_config():
+    """Minimal synapse-config stand-in without per-depth tangent anchors."""
+    return SimpleNamespace(
+        morphology=SimpleNamespace(
+            additive_tangent_n0=None, additive_tangent_t0=None, epsilon=1e-8
+        )
+    )
 
 
 class TestDendriNet(unittest.TestCase):
@@ -116,7 +126,9 @@ class TestDendriNet(unittest.TestCase):
 
     def test_branch_layer_builder_preserves_layer_and_soma_order(self):
         """Test DendriNet branch layer construction order."""
-        synapse_config = object()
+        # Opaque stand-in: the builder reads only the scalar tangent anchors,
+        # then passes this exact object through unchanged.
+        synapse_config = _opaque_synapse_config()
         extra_kwargs = {"extra": "value"}
         with (
             patch(
@@ -134,6 +146,7 @@ class TestDendriNet(unittest.TestCase):
             layers = _build_dendrinet_branch_layers(
                 n_soma=2,
                 n_branch_layers=1,
+                branch_factors=[2],
                 layer_sizes=[4, 2],
                 input_branch_factors=[None, 2],
                 excitatory_input_dim=7,
@@ -186,6 +199,8 @@ class TestDendriNet(unittest.TestCase):
                     excitatory_synapses_per_branch=3,
                     inhibitory_input_dim=5,
                     inhibitory_synapses_per_branch=2,
+                    excitatory_connection_indices=None,
+                    inhibitory_connection_indices=None,
                     excitatory_connection_mask="exc-0",
                     inhibitory_connection_mask="inh-0",
                     input_branch_factor=None,
@@ -199,6 +214,8 @@ class TestDendriNet(unittest.TestCase):
                     excitatory_synapses_per_branch=3,
                     inhibitory_input_dim=5,
                     inhibitory_synapses_per_branch=2,
+                    excitatory_connection_indices=None,
+                    inhibitory_connection_indices=None,
                     excitatory_connection_mask="exc-1",
                     inhibitory_connection_mask="inh-1",
                     input_branch_factor=2,
@@ -209,17 +226,13 @@ class TestDendriNet(unittest.TestCase):
             ]
         )
 
-    def test_branch_layer_builder_preserves_soma_without_external_synapses(self):
-        """Test DendriNet soma construction when somatic synapses are disabled."""
-        with patch(
-            "dendritic_modeling.networks.architectures.excitation_inhibition."
-            "dendritic.dendrinet._make_dendrinet_branch_layer"
-        ) as make_layer:
-            make_layer.return_value = "soma"
-
-            layers = _build_dendrinet_branch_layers(
+    def test_a_point_dendrinet_without_somatic_synapses_is_rejected(self):
+        """Without dendritic levels the soma is the only input site."""
+        with self.assertRaisesRegex(ValueError, "set somatic_synapses: true"):
+            _build_dendrinet_branch_layers(
                 n_soma=2,
                 n_branch_layers=0,
+                branch_factors=[],
                 layer_sizes=[2],
                 input_branch_factors=[None],
                 excitatory_input_dim=7,
@@ -231,22 +244,23 @@ class TestDendriNet(unittest.TestCase):
                 structured_layer_idx=6,
                 structured_excitatory_pathway="ee",
                 structured_inhibitory_pathway="ie",
-                synapse_config="synapse",
+                synapse_config=_opaque_synapse_config(),
                 branch_extra_kwargs={},
             )
 
-        self.assertEqual(layers, ["soma"])
-        make_layer.assert_called_once_with(
-            output_dim=2,
-            excitatory_input_dim=None,
-            excitatory_synapses_per_branch=None,
-            inhibitory_input_dim=None,
-            inhibitory_synapses_per_branch=None,
-            input_branch_factor=None,
-            layer_idx=0,
-            synapse_config="synapse",
-            branch_extra_kwargs={},
+    def test_a_branched_dendrinet_builds_its_soma_without_external_synapses(self):
+        """With somatic_synapses false the soma integrates only its children."""
+        model = DendriNet(
+            n_soma=2,
+            branch_factors=[3],
+            excitatory_input_dim=7,
+            excitatory_synapses_per_branch=3,
+            somatic_synapses=False,
         )
+        soma = model.branch_layers[-1]
+        assert soma.branch_excitation is None
+        assert soma.branch_inhibition is None
+        assert model.branch_layers[0].branch_excitation is not None
 
     def test_initialization_valid_parameters(self):
         """Test that DendriNet initializes correctly with valid parameters."""

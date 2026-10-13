@@ -42,11 +42,9 @@ def _direct_inhibitory_model() -> Classifier:
             "ii_synapses_per_branch_per_layer": [0],
         },
         "transfer": {
-            "input_mode": 1,
             "independent_pathways": True,
             "excitatory_dim": 3,
             "inhibitory_dim": 3,
-            "allow_direct_inhibitory_stream": True,
         },
         "morphology": {
             "use_shunting": True,
@@ -69,6 +67,51 @@ def _direct_inhibitory_model() -> Classifier:
         "implementation": {},
     }
     core = get_architecture("dendritic_shunting", config, input_dim=6)
+    return Classifier(Identity(6), core, Identity(4))
+
+
+def _direct_inhibitory_population_model() -> Classifier:
+    config = {
+        "population_network": {
+            "use_transfer": True,
+            "transfer_params": {
+                "independent_pathways": True,
+                "excitatory_dim": 3,
+                "inhibitory_dim": 3,
+            },
+            "layers": [
+                {
+                    "name": "layer0",
+                    "readout_population": "e0",
+                    "population_defaults": {
+                        "ff_excitatory_synapses": 2,
+                        "ff_inhibitory_synapses": 2,
+                        "rec_excitatory_synapses": 0,
+                        "rec_inhibitory_synapses": 0,
+                        "somatic_synapses": False,
+                        "use_shunting": True,
+                        "reactivate": True,
+                        "reactivation_type": "param_tanh",
+                        "dbl_init_method": "default",
+                        "weight_transform": "softplus",
+                    },
+                    "populations": [
+                        {
+                            "name": "e0",
+                            "polarity": "excitatory",
+                            "n_neurons": 4,
+                            "branch_factors": [2],
+                        }
+                    ],
+                    "connections": [
+                        {"source": "input_e", "target": "e0"},
+                        {"source": "input_i", "target": "e0"},
+                    ],
+                }
+            ],
+        }
+    }
+    core = get_architecture("population_network", config, input_dim=6)
     return Classifier(Identity(6), core, Identity(4))
 
 
@@ -127,15 +170,31 @@ def test_compartment_snr_captures_direct_inhibitory_stream():
 
     analyzer.collect_raw_data(model, x)
 
-    assert hasattr(analyzer, "excitatory_inputs")
-    assert hasattr(analyzer, "inhibitory_inputs")
-    assert analyzer.excitatory_inputs.shape == (8, 3)
-    assert analyzer.inhibitory_inputs.shape == (8, 3)
+    captured = analyzer._captured_inputs
+    assert captured["excitatory_inputs"].shape == (8, 3)
+    assert captured["inhibitory_inputs"].shape == (8, 3)
 
     stats = analyzer._input_analysis(labels)
     assert "exc_inputs_d_total" in stats
     assert "inh_inputs_d_total" in stats
     assert torch.isfinite(torch.tensor(list(stats.values()))).all()
+
+
+def test_compartment_snr_input_analysis_uses_the_latest_collection():
+    """A training-time call must not supply the final input analysis."""
+    model = _direct_inhibitory_model()
+    x, _labels, _dataset = _toy_dataset()
+    analyzer = CompartmentSNRAnalyzer(CompartmentSNRAnalysisParams())
+
+    analyzer.collect_raw_data(model, x)  # e.g. an epoch call that skips inputs
+    analyzer.collect_raw_data(model, 2.0 * x)
+    fresh = CompartmentSNRAnalyzer(CompartmentSNRAnalysisParams())
+    fresh.collect_raw_data(model, 2.0 * x)
+
+    for name in ("excitatory_inputs", "inhibitory_inputs"):
+        torch.testing.assert_close(
+            analyzer._captured_inputs[name], fresh._captured_inputs[name]
+        )
 
 
 def test_compartment_snr_collects_expected_branch_channels():
@@ -376,6 +435,12 @@ def test_receptive_field_checkpoint_and_activation_tuning(tmp_path):
         n_rows=1,
         n_cols=2,
         compute_activation_tuning=True,
+        activation_sample_signals=["vout"],
+        activation_sample_depths=[0],
+        activation_sample_branch_indices=[0],
+        activation_sample_branch_indices_by_depth={0: [1]},
+        activation_samples_per_class=2,
+        activation_sample_seed=17,
     )
     analyzer = ReceptiveFieldAnalyzer(params)
 
@@ -390,6 +455,19 @@ def test_receptive_field_checkpoint_and_activation_tuning(tmp_path):
     assert results is not None
     assert results["n_receptive_fields"] > 0
     assert "activation_tuning" in results
+    assert "activation_samples" in results
+    samples = results["activation_samples"]
+    assert samples["selection_depends_on_activations"] is False
+    assert samples["selection_depends_on_labels"] is True
+    assert samples["signals"] == ["vout"]
+    assert samples["depths"] == [0]
+    assert samples["branch_indices"] == [0]
+    assert samples["branch_indices_by_depth"] == {"0": [1]}
+    assert samples["records"]
+    assert {record["class_label"] for record in samples["records"]} == {0, 1}
+    assert {record["depth"] for record in samples["records"]} == {0}
+    assert {record["branch_index"] for record in samples["records"]} == {1}
+    assert {record["signal"] for record in samples["records"]} == {"vout"}
     first_layer = analyzer.activation_raw[
         "core_network.layers.0.excitatory_cells.branch_layers.0"
     ]
@@ -402,10 +480,12 @@ def test_receptive_field_checkpoint_and_activation_tuning(tmp_path):
         assert branch_data["inh"].shape == (_x.shape[0],)
         assert branch_data["vout"].shape == (_x.shape[0],)
     for branch_data in second_layer.values():
-        assert set(branch_data) == {"depth", "vout"}
+        assert set(branch_data) == {"depth", "upstream", "vout"}
+        assert branch_data["upstream"].shape == (_x.shape[0],)
         assert branch_data["vout"].shape == (_x.shape[0],)
     assert (tmp_path / "rf_raw_receptive_fields.pt").exists()
     assert (tmp_path / "rf_activation_tuning.json").exists()
+    assert (tmp_path / "rf_activation_samples.json").exists()
 
     loaded = ReceptiveFieldAnalyzer(
         ReceptiveFieldAnalysisParams(load_raw_data=True, n_rows=1, n_cols=2)
@@ -419,6 +499,40 @@ def test_receptive_field_checkpoint_and_activation_tuning(tmp_path):
     assert loaded_results is not None
     assert loaded_results["raw_checkpoint_loaded"]
     assert loaded_results["n_receptive_fields"] == results["n_receptive_fields"]
+
+
+def test_receptive_field_samples_upstream_and_depolarizing_drive():
+    params = ReceptiveFieldAnalysisParams(
+        activation_sample_signals=["upstream", "depolarizing_drive"],
+        activation_sample_depths=[1],
+        activation_samples_per_class=1,
+        activation_sample_seed=3,
+    )
+    analyzer = ReceptiveFieldAnalyzer(params)
+    analyzer.activation_raw = {
+        "core.branch": {
+            0: {
+                "depth": 1,
+                "exc": torch.tensor([1.0, 2.0, 3.0, 4.0]),
+                "upstream": torch.tensor([0.5, 1.0, 1.5, 2.0]),
+            }
+        }
+    }
+
+    records = analyzer._sample_activation_tuning(torch.tensor([0, 0, 1, 1]))
+
+    assert {record["signal"] for record in records} == {
+        "upstream",
+        "depolarizing_drive",
+    }
+    grouped = {
+        (record["signal"], record["dataset_index"]): record["value"]
+        for record in records
+    }
+    for dataset_index in {record["dataset_index"] for record in records}:
+        assert grouped[("depolarizing_drive", dataset_index)] == pytest.approx(
+            1.5 * (dataset_index + 1)
+        )
 
 
 def test_receptive_field_runs_on_non_ei_branch_core(tmp_path):
@@ -518,6 +632,35 @@ def test_receptive_field_component_rfs_outputs(tmp_path):
     assert data["i_mean"].shape == (4, 1, 3)
     assert data["i_comp"].shape == (4, 1, 3)
     assert data["preferred"].shape == (4,)
+
+
+def test_receptive_field_component_rfs_support_population_network(tmp_path):
+    model = _direct_inhibitory_population_model()
+    _x, _labels, dataset = _toy_dataset()
+    analyzer = ReceptiveFieldAnalyzer(
+        ReceptiveFieldAnalysisParams(
+            rf_shape=(1, 3),
+            inh_rf_shape=(1, 3),
+            compute_component_rfs=True,
+            plot_component_rfs=False,
+        )
+    )
+
+    results = analyzer.analyze(
+        model=model,
+        test_dataset=dataset,
+        device="cpu",
+        save_path=str(tmp_path),
+        filename="rf",
+    )
+
+    assert results is not None
+    assert results["component_receptive_fields"]["n_soma"] == 4
+    data = np.load(tmp_path / "rf_component_receptive_fields.npz")
+    assert data["e_mean"].shape == (4, 1, 3)
+    assert data["e_comp"].shape == (4, 1, 3)
+    assert data["i_mean"].shape == (4, 1, 3)
+    assert data["i_comp"].shape == (4, 1, 3)
 
 
 def test_receptive_field_component_rfs_skip_recurrent_branches(tmp_path):
@@ -628,3 +771,18 @@ def test_receptive_field_rf_tuning_removes_hooks_after_failed_collection(
         analyzer._collect_rf_tuning_activation_data(model, layer, x, labels)
 
     assert _count_registered_forward_hooks(model) == 0
+
+
+def test_the_ei_ratio_summary_is_the_ratio_of_class_means():
+    analyzer = ReceptiveFieldAnalyzer(ReceptiveFieldAnalysisParams())
+    labels = torch.tensor([0, 0, 1, 1])
+    excitation = torch.tensor([[1.0], [3.0], [2.0], [2.0]])
+    # One sample with almost no inhibition: its own ratio is 3e6.
+    inhibition = torch.tensor([[1.0], [1e-6], [-4.0], [4.0]])
+
+    summary = analyzer._summarize_ei_ratio(excitation, inhibition, labels)
+
+    eps = analyzer.epsilon
+    assert summary["class_means"]["0"] == pytest.approx(2.0 / ((1 + 1e-6) / 2 + eps))
+    assert summary["class_means"]["1"] == pytest.approx(2.0 / (4.0 + eps))
+    assert summary["preferred_class"] == 0

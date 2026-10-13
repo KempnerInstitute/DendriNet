@@ -188,6 +188,25 @@ class TestConv2dToDendrite:
         assert torch.all(e_counts == 6)
         assert torch.all(i_counts == 9)
 
+    @pytest.mark.parametrize("dendrites", [1, 3])
+    def test_conversion_reproduces_the_kernel(self, dendrites):
+        torch.manual_seed(0)
+        conv = nn.Conv2d(3, 4, kernel_size=3, padding=1, bias=False)
+        layer = conv2d_to_dendrite(
+            conv,
+            n_e_dendrites=dendrites,
+            n_i_dendrites=dendrites,
+            branch_aggregation="sum",
+            baseline_inhib=0.0,
+        )
+        weight = conv.weight.detach()
+        assert torch.allclose(layer.weight_e, weight.clamp_min(0), atol=1e-5)
+        assert torch.allclose(layer.weight_i, (-weight).clamp_min(0), atol=1e-5)
+
+    def test_unknown_init_method_raises(self):
+        with pytest.raises(ValueError, match="init_method must be one of"):
+            DendriteConv2d(1, 1, 3, init_method="xavier")
+
 
 # ---------------------------------------------------------------------------
 # DendriteAttention

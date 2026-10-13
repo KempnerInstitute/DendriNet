@@ -40,74 +40,43 @@ def _prepare_ce_target(y_hat: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
     return y
 
 
-def _prepare_bce_prediction(y_hat: torch.Tensor) -> torch.Tensor:
-    """Prepare BCE predictions from logits or probabilities."""
+def _error_mode_for_loss(loss_function: Any) -> str | None:
+    """Return the soma-error rule of a configured loss, or ``None``."""
 
-    y_hat_detached = y_hat.detach()
-    if y_hat_detached.min() < 0 or y_hat_detached.max() > 1:
-        return torch.sigmoid(y_hat)
-    return torch.clamp(y_hat, min=1e-6, max=1.0 - 1e-6)
+    from dendritic_modeling.training.loss.functions import (
+        BCELoss,
+        CategoricalNLLLoss,
+        CrossEntropyLoss,
+        LogMSELoss,
+        MSELoss,
+    )
 
-
-def _error_mode_from_loss_name(loss_name: str) -> str | None:
-    """Infer soma-error mode from a normalized loss name."""
-
-    if (
-        "cross entropy" in loss_name
-        or "negative log likelihood" in loss_name
-        or "nll" in loss_name
-        or "categorical" in loss_name
-    ):
-        return "ce"
-
-    if "binary cross entropy" in loss_name:
+    if isinstance(loss_function, BCELoss):
         return "bce"
-
+    if isinstance(loss_function, (CrossEntropyLoss, CategoricalNLLLoss)):
+        return "ce"
+    if isinstance(loss_function, MSELoss) and not isinstance(loss_function, LogMSELoss):
+        return "mse"
     return None
 
 
-def _looks_like_class_index_logits(y_hat: torch.Tensor, y: torch.Tensor) -> bool:
-    """Return whether tensors match the legacy class-index/logits heuristic."""
-
-    return (
-        y_hat.dim() >= 2
-        and _is_class_index_target(y)
-        and y.dtype in (torch.long, torch.int64)
-    )
-
-
-def _resolve_soma_error_mode(
-    mode: str,
-    loss_name: str,
-    y_hat: torch.Tensor,
-    y: torch.Tensor,
-) -> str:
-    """Resolve the local soma-error mode without computing the tensor error."""
+def _resolve_soma_error_mode(mode: str, loss_function: Any) -> str:
+    """Resolve the local soma-error rule without computing the tensor error."""
 
     mode = mode.lower()
     if mode in {"mse", "bce", "ce"}:
         return mode
+    if mode != "auto":
+        raise ValueError(f"Unknown error_mode {mode!r}")
 
-    loss_mode = _error_mode_from_loss_name(loss_name)
-    if loss_mode is not None:
-        return loss_mode
-
-    if _looks_like_class_index_logits(y_hat, y):
-        return "ce"
-
-    return "mse"
-
-
-def _dynamics_mode_from_config(cfg_mode: str) -> str | None:
-    """Return an explicit dynamics mode from config, if one was requested."""
-
-    if cfg_mode in {"conductance", "legacy"}:
-        return "conductance"
-
-    if cfg_mode == "additive":
-        return "additive"
-
-    return None
+    loss_mode = _error_mode_for_loss(loss_function)
+    if loss_mode is None:
+        raise ValueError(
+            "local_rule.error_mode 'auto' has no soma error rule for "
+            f"{type(loss_function).__name__}; set error_mode to 'ce', 'bce' or "
+            "'mse'"
+        )
+    return loss_mode
 
 
 def _dynamics_mode_from_layer(layer: Any) -> str:
@@ -178,16 +147,19 @@ def _map_decoder_input_error(
 
 class LocalLearningSignalMixin:
     def _compute_logging_loss(
-        self, model: BaseModel, x: torch.Tensor, y: torch.Tensor
+        self,
+        model: BaseModel,
+        x: torch.Tensor,
+        y: torch.Tensor,
+        predictions: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        """Compute scalar loss for logging using configured loss function.
+        """Compute the configured scalar loss, reusing predictions when supported."""
 
-
-
-        Uses the existing loss_function for compatibility with reporting.
-
-        """
-
+        if predictions is not None:
+            try:
+                return self.loss_function.from_predictions(predictions, y)
+            except NotImplementedError:
+                pass
         return self.loss_function(model, x, y)
 
     def _warn_decoder_soma_fallback_once(self, message: str) -> None:
@@ -199,23 +171,12 @@ class LocalLearningSignalMixin:
         self._warned_decoder_soma_fallback = True
 
     def _compute_soma_error(self, y_hat: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        """Compute output-space error signal: dL/dy_hat per sample.
+        """Return the per-sample output error ``dL/dy_hat``, shape [batch, out].
 
-
-
-        Supports common losses. Falls back to MSE-like residual if unknown.
-
-        Returns tensor of shape [batch, output_dim].
-
+        ``local_rule.error_mode`` selects the rule; ``auto`` takes it from the
+        configured loss and raises for a loss without one.
         """
-
-        loss_name = getattr(self.loss_function, "_loss_name", "").lower()
-        mode = _resolve_soma_error_mode(
-            self.local_cfg.error_mode,
-            loss_name,
-            y_hat,
-            y,
-        )
+        mode = _resolve_soma_error_mode(self.local_cfg.error_mode, self.loss_function)
         return self._error_by_mode(y_hat, y, mode)
 
     def _resolve_local_soma_signals(
@@ -246,7 +207,19 @@ class LocalLearningSignalMixin:
 
         legacy output-space behavior for backward compatibility.
 
+        With ``soma_error_source: dfa`` the decoder Jacobian is replaced by a
+
+        fixed random feedback matrix (the SomaDFA construction), so the
+
+        between-neuron production of the per-soma error can be varied
+
+        independently of the within-arbor broadcast mode.
+
         """
+
+        local_cfg = getattr(self, "local_cfg", None)
+        if str(getattr(local_cfg, "soma_error_source", "decoder")).lower() == "dfa":
+            return self._resolve_dfa_soma_signals(delta_out=delta_out)
 
         # Backward-compatible fallback
 
@@ -254,7 +227,8 @@ class LocalLearningSignalMixin:
 
         delta_local = delta_out.detach()
 
-        if not hasattr(model, "decoder_network"):
+        component_model = self._unwrap_model(model)
+        if not hasattr(component_model, "decoder_network"):
 
             return v0_local, delta_local
 
@@ -270,7 +244,7 @@ class LocalLearningSignalMixin:
 
         # We only apply explicit mapping when decoder is a single linear readout.
 
-        if not _has_single_linear_decoder(model.decoder_network):
+        if not _has_single_linear_decoder(component_model.decoder_network):
 
             self._warn_decoder_soma_fallback_once(
                 "Local soma-error mapping fallback: decoder is not a single linear layer."
@@ -308,6 +282,84 @@ class LocalLearningSignalMixin:
 
         return h_in.detach(), delta_core.detach()
 
+    def _dfa_feedback_for(
+        self,
+        *,
+        soma_dim: int,
+        output_dim: int,
+        device: torch.device,
+        dtype: torch.dtype,
+    ) -> torch.Tensor:
+        """Return the cached fixed random feedback matrix, building it once.
+
+        Shape, seeding and scaling follow ``SomaDFATrainer._feedback_for`` so a
+        matched seed yields the same between-neuron feedback column across
+        within-neuron broadcast modes.
+        """
+
+        expected_shape = (soma_dim, output_dim)
+        cached = getattr(self, "_dfa_feedback_matrix", None)
+        if cached is not None:
+            if tuple(cached.shape) != expected_shape:
+                raise RuntimeError(
+                    "DFA soma-error geometry changed after feedback initialization: "
+                    f"{tuple(cached.shape)} vs {expected_shape}"
+                )
+            return cached.to(device=device, dtype=dtype)
+
+        cfg_seed = getattr(self.local_cfg, "dfa_feedback_seed", None)
+        seed = int(getattr(self, "seed", 0) if cfg_seed is None else cfg_seed)
+        scale = float(getattr(self.local_cfg, "dfa_feedback_scale", 1.0))
+        generator = torch.Generator()
+        generator.manual_seed(seed)
+        feedback = torch.randn(expected_shape, generator=generator)
+        feedback.mul_(scale / float(output_dim) ** 0.5)
+        self._dfa_feedback_matrix = feedback.to(device=device, dtype=dtype)
+        logger.info(
+            "Initialized local-CA DFA feedback matrix shape=%s seed=%s scale=%s",
+            expected_shape,
+            seed,
+            scale,
+        )
+        return self._dfa_feedback_matrix
+
+    def _resolve_dfa_soma_signals(
+        self,
+        *,
+        delta_out: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Produce per-soma error through a fixed random feedback matrix.
+
+        This is an explicit experimental mode: unlike the decoder mapping it
+        raises instead of silently falling back, so a between-neuron DFA cell
+        cannot degrade into the exact-readout cell unnoticed.
+        """
+
+        h_in = self._decoder_cache.get("input")
+        if not isinstance(h_in, torch.Tensor):
+            decoder_input = self._decoder_cache.get("decoder_input")
+            if isinstance(decoder_input, torch.Tensor):
+                h_in = decoder_input.detach()
+        if not isinstance(h_in, torch.Tensor) or h_in.dim() != 2:
+            raise RuntimeError(
+                "soma_error_source='dfa' requires a cached two-dimensional "
+                "decoder input"
+            )
+        if delta_out.dim() != 2 or delta_out.size(0) != h_in.size(0):
+            raise RuntimeError(
+                "soma_error_source='dfa' received incompatible error shapes: "
+                f"{tuple(delta_out.shape)} vs decoder input {tuple(h_in.shape)}"
+            )
+
+        feedback = self._dfa_feedback_for(
+            soma_dim=int(h_in.size(1)),
+            output_dim=int(delta_out.size(1)),
+            device=h_in.device,
+            dtype=h_in.dtype,
+        )
+        delta_core = delta_out.to(dtype=h_in.dtype) @ feedback.t()
+        return h_in.detach(), delta_core.detach()
+
     def _compute_reactivation_derivative(
         self,
         react_module: nn.Module | None,
@@ -316,12 +368,7 @@ class LocalLearningSignalMixin:
     ) -> torch.Tensor:
         """Return the elementwise local slope d a / d V for a branch reactivation."""
 
-        return compute_reactivation_derivative(
-            react_module,
-            v_n,
-            v_out,
-            logger=logger,
-        )
+        return compute_reactivation_derivative(react_module, v_n, v_out)
 
     def _get_layer_activation_derivative(
         self,
@@ -359,95 +406,33 @@ class LocalLearningSignalMixin:
         return deriv
 
     def _resolve_layer_dynamics_mode(self, rec: dict[str, Any]) -> str:
-        """Resolve local update dynamics for the current layer.
+        """Return the derivative family of a layer's local updates.
 
-
-
-        Returns:
-
-            "conductance" for shunting-style updates or "additive" for
-
-            additive-consistent updates.
-
+        The layer's own integration ("conductance" for shunting layers,
+        "additive" otherwise), unless three_factor.allow_mismatched_dynamics_mode
+        forces the configured mode onto every layer. A forced mode without the
+        opt-in must match every layer, which is checked when training starts.
         """
-
-        cfg_mode = str(
-            getattr(self.local_cfg.three_factor, "dynamics_mode", "auto")
-        ).lower()
-
-        resolved_mode = _dynamics_mode_from_config(cfg_mode)
-        if resolved_mode is not None:
-            return resolved_mode
-
-        if cfg_mode != "auto":
-
-            logger.warning(
-                f"Unknown three_factor.dynamics_mode='{cfg_mode}', falling back to auto."
-            )
-
+        three_factor = self.local_cfg.three_factor
+        if getattr(three_factor, "allow_mismatched_dynamics_mode", False):
+            return str(three_factor.dynamics_mode)
         return _dynamics_mode_from_layer(rec.get("layer"))
 
     @staticmethod
     def _error_by_mode(y_hat: torch.Tensor, y: torch.Tensor, mode: str) -> torch.Tensor:
-
+        """Per-sample error of the summed loss with respect to the outputs."""
         if mode == "mse":
-
-            # d/dy_hat (1/2 ||y_hat - y||^2) = (y_hat - y)
-
+            # d/dy_hat (||y_hat - y||^2 / 2)
             return y_hat - y
-
-        elif mode == "bce":
-
-            # Support both logits (BCEWithLogits-style) and probability outputs (BCELoss).
-
-            pred = _prepare_bce_prediction(y_hat)
-
-            return pred - y
-
-        elif mode == "ce":
-
-            # Gradient of CrossEntropy w.r.t logits: softmax(y_hat) - one_hot(y)
-
-            y_onehot = _prepare_ce_target(y_hat, y)
-
-            probs = functional.softmax(y_hat, dim=-1)
-
-            return probs - y_onehot
-
-        else:
-
-            # Fallback
-
-            return y_hat - y
-
-    def _ensure_additive_gain_params(
-        self, out_features: int, device: torch.device
-    ) -> torch.Tensor:
-        """Get or create per-neuron learnable gain params for additive mode.
-
-
-
-        Uses ``_additive_gain_cache`` (persists across steps) rather than
-
-        ``_decoder_cache`` (cleared every forward pass).
-
-        """
-
-        key = f"additive_gain_{out_features}"
-
-        if key not in self._additive_gain_cache:
-
-            # Initialize so sigmoid(param) ≈ 0.5
-
-            param = torch.nn.Parameter(torch.zeros(out_features, device=device))
-
-            self.optimizer.add_param_group(
-                {"params": [param], "lr": self.optimizer.param_groups[0]["lr"]}
-            )
-
-            self._additive_gain_cache[key] = param
-
-        return self._additive_gain_cache[key]
+        if mode == "bce":
+            # Binary cross-entropy of probability outputs (nn.BCELoss):
+            # d/dp [-y log p - (1 - y) log(1 - p)] = (p - y) / (p (1 - p)).
+            p = y_hat.clamp(1e-6, 1.0 - 1e-6)
+            return (p - y) / (p * (1.0 - p))
+        if mode == "ce":
+            # Cross-entropy of logits: softmax(y_hat) - one_hot(y).
+            return functional.softmax(y_hat, dim=-1) - _prepare_ce_target(y_hat, y)
+        raise ValueError(f"Unknown error_mode {mode!r}")
 
     def _compute_additive_pseudo_signals(
         self, rec: dict[str, Any], v_n: torch.Tensor

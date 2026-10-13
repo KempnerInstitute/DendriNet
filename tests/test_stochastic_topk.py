@@ -10,6 +10,7 @@ class TestStochasticTopKLinear(unittest.TestCase):
 
     def test_basic_functionality(self):
         """Test the basic functionality with standard input data."""
+        torch.manual_seed(0)
         in_features = 10
         out_features = 5
         K = 3
@@ -30,28 +31,21 @@ class TestStochasticTopKLinear(unittest.TestCase):
         weights = model.weight()
         self.assertTrue(torch.all(weights >= 0))
 
-        # Check that selection is probabilistic (not exactly K per row)
-        # Run multiple times to check for stochasticity
-        non_zero_counts_list = []
+        # Training selects exactly K contacts per row, and the selected set
+        # varies between forward passes; evaluation selects one fixed set.
+        torch.manual_seed(0)
+        masks = []
         for _ in range(10):
-            output = model(x)
-            pruned_weights = model.pruned_weight()
-            non_zero_counts = (pruned_weights > 0).sum(dim=1)
-            non_zero_counts_list.append(non_zero_counts)
-
-        # Check if there's variation across runs or accept deterministic behavior
-        all_counts = torch.stack(non_zero_counts_list)
-        has_variation = torch.any(all_counts != all_counts[0])
-
-        if has_variation:
-            # If there's variation, it's properly stochastic
-            self.assertTrue(True)
-        else:
-            # If deterministic, just check the counts are reasonable
-            # This might happen with very low temperature or specific implementations
-            non_zero_counts = non_zero_counts_list[0]
-            self.assertTrue(torch.all(non_zero_counts <= K + 1))  # Allow some tolerance
-            self.assertTrue(torch.all(non_zero_counts >= K - 1))  # Allow some tolerance
+            model(x)
+            masks.append(model.pruned_weight() > 0)
+        self.assertTrue(all(torch.all(mask.sum(dim=1) == K) for mask in masks))
+        self.assertTrue(any(not torch.equal(masks[0], mask) for mask in masks[1:]))
+        model.eval()
+        evaluated = []
+        for _ in range(3):
+            model(x)
+            evaluated.append(model.pruned_weight() > 0)
+        self.assertTrue(all(torch.equal(evaluated[0], mask) for mask in evaluated))
 
     def test_ultrafast_implementation(self):
         """Test the ultrafast implementation of stochastic TopK."""
@@ -92,6 +86,7 @@ class TestStochasticTopKLinear(unittest.TestCase):
 
     def test_temperature_effect(self):
         """Test that temperature affects the stochasticity of selection."""
+        torch.manual_seed(0)
         in_features = 20
         out_features = 10
         K = 5
@@ -140,16 +135,9 @@ class TestStochasticTopKLinear(unittest.TestCase):
         low_temp_variance = low_temp_stack.var(dim=0).mean().item()
         high_temp_variance = high_temp_stack.var(dim=0).mean().item()
 
-        # Higher temperature should generally lead to more variation
-        # But if both are very low, just check that the test doesn't crash
-        if high_temp_variance > 1e-6 or low_temp_variance > 1e-6:
-            # Only assert if there's meaningful variation to compare
-            self.assertGreaterEqual(
-                high_temp_variance, low_temp_variance * 0.8
-            )  # Allow some tolerance
-        else:
-            # If both are near zero, just verify the models work
-            self.assertTrue(True)
+        # Higher temperature varies the output more.
+        self.assertGreater(low_temp_variance, 0.0)
+        self.assertGreater(high_temp_variance, low_temp_variance)
 
     def test_zero_temperature(self):
         """Test deterministic behavior with zero temperature."""
@@ -204,6 +192,7 @@ class TestVarianceTopKLinear(unittest.TestCase):
 
     def test_basic_functionality(self):
         """Test the basic functionality with standard input data."""
+        torch.manual_seed(0)
         in_features = 100
         batch_size = 4
         out_features = 10
@@ -232,6 +221,21 @@ class TestVarianceTopKLinear(unittest.TestCase):
 
         # Check that activation statistics have been updated
         self.assertTrue(torch.any(model.activation_var != 1.0))  # Default is 1.0
+
+    def test_transformer_shaped_inputs_reduce_all_leading_axes(self):
+        model = VarianceTopKLinear(
+            in_features=7,
+            out_features=3,
+            K=2,
+            momentum=0.9,
+        )
+        inputs = torch.randn(4, 5, 7)
+
+        output = model(inputs)
+
+        self.assertEqual(output.shape, (4, 5, 3))
+        self.assertEqual(model.activation_mean.shape, (7,))
+        self.assertTrue(torch.allclose(model.activation_mean, inputs.mean(dim=(0, 1))))
 
     def test_train_eval_modes(self):
         """Test that train/eval modes properly control statistics tracking."""

@@ -20,6 +20,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition import (
     TopKLinear,
 )
 from dendritic_modeling.networks.base import BaseNetwork
+from dendritic_modeling.networks.utils.sparse_maintenance import forward_maintenance
 
 
 class MatchedTotalParamMLP(BaseNetwork):
@@ -402,7 +403,9 @@ class SparseStructuredMLP(BaseNetwork):
 
                 if i != len(exc_dendrinet.branch_layers) - 1:
                     K = branch_layer.branch_excitation.K
-                    K += branch_layer.branch_inhibition.K
+                    # A layer without ie synapses has no inhibitory branch input.
+                    if branch_layer.branch_inhibition is not None:
+                        K += branch_layer.branch_inhibition.K
                     synaptic_input_dim = input_dim + n_inh_cells
 
                     n_params += K * branch_layer.n_branches  # synapse params
@@ -512,6 +515,10 @@ class SparseStructuredMLP(BaseNetwork):
 
         for branch_layer in self.exc_layers:
             branch_layer.decay_weights(weight_decay, weight_boosting)
+
+    def apply_rewiring(self):
+        """Forward the optimizer-step rewiring call to the sparse synapses."""
+        forward_maintenance(self, "apply_rewiring")
 
 
 __all__ = ["MatchedActiveParamMLP", "MatchedTotalParamMLP", "SparseStructuredMLP"]

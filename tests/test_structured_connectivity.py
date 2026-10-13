@@ -19,6 +19,11 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse imp
     sample_fixed_indegree_mask,
     sample_probability_mask,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_common import (
+    _resolve_index_dtype,
+    _sample_indices_from_mask,
+    _workspace_limited_chunk_size,
+)
 from dendritic_modeling.networks.architectures.factory import get_architecture
 from dendritic_modeling.networks.architectures.recurrent.structured_einet_factory import (
     _build_structured_inhibitory_population_config,
@@ -32,7 +37,6 @@ from dendritic_modeling.networks.architectures.recurrent.structured_einet_factor
     _resolve_layer_recurrent_timing,
     _resolve_recurrent_input_projection_dims,
     _resolve_recurrent_store_routing,
-    _resolve_recurrent_transfer_params,
     _should_build_inhibitory_population,
     _structured_population_adaptive_init_kwargs,
     _structured_population_blocklinear_kwargs,
@@ -44,6 +48,7 @@ from dendritic_modeling.networks.architectures.recurrent.structured_einet_factor
     _structured_population_soma_feedback_kwargs,
     _structured_population_timing_kwargs,
 )
+from dendritic_modeling.networks.utils.weight_transforms import apply_weight_transform
 
 
 @dataclass(frozen=True)
@@ -232,6 +237,15 @@ def test_structured_population_deepst_kwargs_preserve_all_rewiring_fields():
         "freeze_inhibitory_connectivity": True,
         "init_method": "kaiming_uniform",
         "weight_threshold": 1e-4,
+        "credit_trace_decay": 0.95,
+        "credit_candidate_pool_size": 8,
+        "credit_turnover_fraction": 0.1,
+        "credit_weak_active_pool_fraction": 0.5,
+        "credit_min_observations": 5,
+        "credit_swap_margin": 0.0,
+        "credit_force_turnover": False,
+        "credit_selection": "credit",
+        "credit_warmup_steps": 5,
     }
 
 
@@ -241,6 +255,8 @@ def test_structured_population_adaptive_init_kwargs_preserve_defaults_and_overri
         "adaptive_initialization_policy": "preserve_shunting_center",
         "adaptive_target_conductance": 5.0,
         "initial_child_conductance": 1.0,
+        "initial_conductance_scale": 1.0,
+        "initial_child_conductance_log_sd": 0.0,
     }
 
     assert _structured_population_adaptive_init_kwargs(
@@ -255,6 +271,8 @@ def test_structured_population_adaptive_init_kwargs_preserve_defaults_and_overri
         "adaptive_initialization_policy": "preserve_branch_mass",
         "adaptive_target_conductance": 7.0,
         "initial_child_conductance": 1.25,
+        "initial_conductance_scale": 1.0,
+        "initial_child_conductance_log_sd": 0.0,
     }
 
 
@@ -267,9 +285,15 @@ def test_structured_population_morphology_kwargs_preserve_defaults_and_overrides
         "weight_transform": "softplus",
         "use_shunting": True,
         "use_additive_normalization": False,
+        "leak_conductance": 1.0,
+        "learnable_leak": False,
+        "signal_rounding": "none",
         "additive_mode": "raw",
         "additive_tangent_n0": None,
         "additive_tangent_t0": None,
+        "additive_options": {},
+        "additive_tangent_n0_by_depth": [],
+        "additive_tangent_t0_by_depth": [],
         "allow_self_recurrence": True,
         "somatic_synapses": False,
         "dbl_init_method": "analytical_expectation",
@@ -278,9 +302,13 @@ def test_structured_population_morphology_kwargs_preserve_defaults_and_overrides
     assert _structured_population_morphology_kwargs(
         morphology={
             "weight_transform": "exp",
+            "signal_rounding": "float16",
             "additive_mode": "tangent_matched",
             "additive_tangent_n0": 0.4,
             "additive_tangent_t0": 1.2,
+            "additive_options": {"pool": "input"},
+            "additive_tangent_n0_by_depth": [0.1, 0.2],
+            "additive_tangent_t0_by_depth": [1.1, 1.2],
             # Cross-level control is intentionally a per-population surface;
             # the shared legacy morphology translator must not propagate it.
             "cross_level_mode": "parallel_readout",
@@ -294,9 +322,15 @@ def test_structured_population_morphology_kwargs_preserve_defaults_and_overrides
         "weight_transform": "exp",
         "use_shunting": False,
         "use_additive_normalization": False,
+        "leak_conductance": 1.0,
+        "learnable_leak": False,
+        "signal_rounding": "float16",
         "additive_mode": "tangent_matched",
         "additive_tangent_n0": 0.4,
         "additive_tangent_t0": 1.2,
+        "additive_options": {"pool": "input"},
+        "additive_tangent_n0_by_depth": [0.1, 0.2],
+        "additive_tangent_t0_by_depth": [1.1, 1.2],
         "allow_self_recurrence": False,
         "somatic_synapses": True,
         "dbl_init_method": "legacy",
@@ -314,7 +348,7 @@ def test_structured_population_reactivation_kwargs_preserve_calibration_fields()
             "calibration_max_m": 11,
             "calibration_revert_on_invalid": False,
             "sigma_aware_k": 0.35,
-            "gradient_scaling": "conductance_dynamic",
+            "gradient_scaling": "straight_through",
         },
         reactivation_options=_RecurrentReactivationOptions(
             reactivate=True,
@@ -339,7 +373,8 @@ def test_structured_population_reactivation_kwargs_preserve_calibration_fields()
         "reactivation_calibration_max_m": 11.0,
         "reactivation_calibration_revert_on_invalid": False,
         "reactivation_sigma_aware_k": 0.35,
-        "reactivation_strategy": "conductance_dynamic",
+        "reactivation_gradient_scaling": "straight_through",
+        "reactivation_memory_efficient": False,
     }
 
 
@@ -348,7 +383,7 @@ def test_structured_population_blocklinear_kwargs_preserve_defaults_and_override
         blocklinear={},
         implementation={},
     ) == {
-        "blocklinear_strategy": "none",
+        "blocklinear_gradient_scaling": "none",
         "efficient_blocklinear": False,
         "print_hooks": False,
     }
@@ -357,7 +392,7 @@ def test_structured_population_blocklinear_kwargs_preserve_defaults_and_override
         blocklinear={"gradient_scaling": "distal_upweight_by_idx", "efficient": True},
         implementation={"print_hooks": True},
     ) == {
-        "blocklinear_strategy": "distal_upweight_by_idx",
+        "blocklinear_gradient_scaling": "distal_upweight_by_idx",
         "efficient_blocklinear": True,
         "print_hooks": True,
     }
@@ -406,25 +441,6 @@ def test_layer_recurrent_timing_preserves_repeat_last_semantics():
     assert timing.dt == 0.5
     assert timing.tau_base == 20.0
     assert timing.tau_ratio == 4.0
-
-
-def test_recurrent_transfer_params_preserve_override_order():
-    params = _resolve_recurrent_transfer_params(
-        transfer={
-            "input_mode": 0,
-            "activation": "relu",
-            "hidden_dims": [8],
-        },
-        recurrent_cfg={
-            "transfer": {"activation": "identity", "hidden_dims": [16]},
-            "transfer_params": {"hidden_dims": [32], "output_activation": "relu"},
-        },
-    )
-
-    assert params["input_mode"] == 0
-    assert params["activation"] == "identity"
-    assert params["hidden_dims"] == [32]
-    assert params["output_activation"] == "relu"
 
 
 def test_recurrent_input_projection_dims_preserve_list_only_legacy_behavior():
@@ -850,6 +866,347 @@ def test_indexed_sparse_linear_seed_none_follows_global_rng():
     assert not torch.equal(first.connection_indices, third.connection_indices)
 
 
+@pytest.mark.parametrize("invalid_k", [1.5, True])
+def test_indexed_sparse_linear_rejects_non_integer_k(invalid_k):
+    with pytest.raises(TypeError, match="K must be an integer"):
+        IndexedSparseLinear(
+            in_features=7,
+            out_features=5,
+            K=invalid_k,
+            seed=11,
+        )
+
+
+@pytest.mark.parametrize("invalid_chunk_size", [1.5, True])
+def test_indexed_sparse_linear_rejects_non_integer_output_chunk_size(
+    invalid_chunk_size,
+):
+    with pytest.raises(TypeError, match="output_chunk_size must be an integer"):
+        IndexedSparseLinear(
+            in_features=7,
+            out_features=5,
+            K=3,
+            output_chunk_size=invalid_chunk_size,
+            seed=11,
+        )
+
+
+def test_unmasked_index_sampler_is_chunked_reproducible_and_unique(monkeypatch):
+    """Sparse initialization should avoid per-row full input permutations."""
+    monkeypatch.setattr(
+        torch,
+        "randperm",
+        lambda *args, **kwargs: pytest.fail(
+            "the sparse unmasked path must not call torch.randperm"
+        ),
+    )
+    from dendritic_modeling.networks.architectures.excitation_inhibition.synapse import (
+        indexed_common,
+    )
+
+    monkeypatch.setattr(indexed_common, "_TOPOLOGY_SAMPLING_ROWS", 31)
+    kwargs = {
+        "out_features": 257,
+        "in_features": 1000,
+        "K": 20,
+        "connection_mask": None,
+    }
+    first = _sample_indices_from_mask(
+        **kwargs,
+        generator=torch.Generator().manual_seed(17),
+    )
+    second = _sample_indices_from_mask(
+        **kwargs,
+        generator=torch.Generator().manual_seed(17),
+    )
+
+    assert torch.equal(first, second)
+    assert first.shape == (257, 20)
+    assert bool((first >= 0).all())
+    assert bool((first < 1000).all())
+    sorted_first = first.sort(dim=1).values
+    assert bool((sorted_first[:, 1:] != sorted_first[:, :-1]).all())
+
+
+def test_masked_index_sampler_preserves_seeded_topology_contract():
+    mask = torch.tensor(
+        [
+            [1, 1, 0, 1, 0, 1, 0, 1],
+            [0, 1, 1, 0, 1, 0, 1, 1],
+            [1, 0, 1, 1, 0, 1, 1, 0],
+            [0, 1, 0, 1, 1, 1, 0, 1],
+        ],
+        dtype=torch.bool,
+    )
+    sampled = _sample_indices_from_mask(
+        out_features=4,
+        in_features=8,
+        K=3,
+        connection_mask=mask,
+        forbidden_input_index_per_output=torch.tensor([1, 4, -1, 7]),
+        generator=torch.Generator().manual_seed(2026),
+        index_dtype="int32",
+    )
+
+    assert torch.equal(
+        sampled,
+        torch.tensor(
+            [[3, 0, 5], [1, 2, 7], [3, 2, 0], [5, 1, 4]],
+            dtype=torch.int32,
+        ),
+    )
+
+
+def test_unmasked_index_sampler_excludes_forbidden_without_dense_mask(monkeypatch):
+    """Per-row self-exclusion must stay O(out_features * K)."""
+    original_ones = torch.ones
+
+    def reject_dense_ones(*args, **kwargs):
+        if args[:2] == (257, 1000):
+            pytest.fail("self-exclusion must not allocate a dense allowed mask")
+        return original_ones(*args, **kwargs)
+
+    from dendritic_modeling.networks.architectures.excitation_inhibition.synapse import (
+        indexed_common,
+    )
+
+    monkeypatch.setattr(torch, "ones", reject_dense_ones)
+    monkeypatch.setattr(indexed_common, "_TOPOLOGY_SAMPLING_ROWS", 31)
+    forbidden = torch.arange(257)
+    sampled = _sample_indices_from_mask(
+        out_features=257,
+        in_features=1000,
+        K=20,
+        connection_mask=None,
+        forbidden_input_index_per_output=forbidden,
+        generator=torch.Generator().manual_seed(19),
+        index_dtype="auto",
+    )
+
+    assert sampled.dtype == torch.int32
+    assert not bool((sampled.to(torch.long) == forbidden[:, None]).any())
+    sorted_sampled = sampled.sort(dim=1).values
+    assert bool((sorted_sampled[:, 1:] != sorted_sampled[:, :-1]).all())
+
+
+def test_index_dtype_resolution_and_legacy_default():
+    assert _resolve_index_dtype("auto", in_features=1000) == torch.int32
+    assert _resolve_index_dtype("int64", in_features=1000) == torch.int64
+
+    legacy = IndexedSparseLinear(in_features=8, out_features=4, K=2, seed=3)
+    compact = IndexedSparseLinear(
+        in_features=8,
+        out_features=4,
+        K=2,
+        seed=3,
+        index_dtype="auto",
+    )
+
+    assert legacy.connection_indices.dtype == torch.int64
+    assert compact.connection_indices.dtype == torch.int32
+    assert torch.equal(legacy.connection_indices, compact.connection_indices)
+
+
+def test_indexed_sparse_compact_indices_preserve_forward_and_gradients():
+    indices = torch.tensor([[0, 2], [1, 4], [3, 5]])
+    legacy = IndexedSparseLinear(
+        in_features=6,
+        out_features=3,
+        K=2,
+        connection_indices=indices,
+        weight_transform="softplus",
+        index_dtype="int64",
+    )
+    compact = IndexedSparseLinear(
+        in_features=6,
+        out_features=3,
+        K=2,
+        connection_indices=indices,
+        weight_transform="softplus",
+        index_dtype="int32",
+    )
+    compact.load_state_dict(legacy.state_dict())
+    x_legacy = torch.randn(4, 6, requires_grad=True)
+    x_compact = x_legacy.detach().clone().requires_grad_(True)
+
+    legacy(x_legacy).sum().backward()
+    compact(x_compact).sum().backward()
+
+    torch.testing.assert_close(legacy(x_legacy.detach()), compact(x_compact.detach()))
+    torch.testing.assert_close(x_legacy.grad, x_compact.grad)
+    torch.testing.assert_close(legacy.pre_w.grad, compact.pre_w.grad)
+
+
+@pytest.mark.parametrize("normalize_by_batch", [False, True])
+def test_indexed_local_weight_gradient_matches_dense_active_entries(
+    normalize_by_batch,
+):
+    indices = torch.tensor([[0, 3], [1, 4], [2, 5]])
+    layer = IndexedSparseLinear(
+        in_features=6,
+        out_features=3,
+        K=2,
+        connection_indices=indices,
+        output_chunk_size=2,
+    )
+    factor = torch.randn(4, 3)
+    x_pre = torch.randn(4, 6)
+
+    compact = layer.local_weight_gradient(
+        factor,
+        x_pre,
+        normalize_by_batch=normalize_by_batch,
+    )
+    dense = factor.t() @ x_pre
+    if normalize_by_batch:
+        dense = dense / factor.shape[0]
+    expected = dense.gather(1, indices)
+
+    torch.testing.assert_close(compact, expected)
+
+
+@pytest.mark.parametrize("index_dtype", ["int32", "int64"])
+def test_indexed_recompute_backward_preserves_forward_and_gradients(index_dtype):
+    indices = torch.tensor(
+        [
+            [0, 2, 4],
+            [1, 3, 5],
+            [0, 3, 6],
+            [1, 4, 7],
+        ]
+    )
+    standard = IndexedSparseLinear(
+        in_features=8,
+        out_features=4,
+        K=3,
+        connection_indices=indices,
+        weight_transform="softplus",
+        weight_norm_order=2,
+        index_dtype=index_dtype,
+        output_chunk_size=2,
+    )
+    recomputed = IndexedSparseLinear(
+        in_features=8,
+        out_features=4,
+        K=3,
+        connection_indices=indices,
+        weight_transform="softplus",
+        weight_norm_order=2,
+        index_dtype=index_dtype,
+        output_chunk_size=2,
+        recompute_backward=True,
+    )
+    recomputed.load_state_dict(standard.state_dict())
+    x_standard = torch.randn(3, 8, requires_grad=True)
+    x_recomputed = x_standard.detach().clone().requires_grad_(True)
+
+    output_standard = standard(x_standard)
+    output_recomputed = recomputed(x_recomputed)
+    loss_standard = output_standard.square().sum()
+    loss_recomputed = output_recomputed.square().sum()
+    loss_standard.backward()
+    loss_recomputed.backward()
+
+    torch.testing.assert_close(output_standard, output_recomputed)
+    torch.testing.assert_close(x_standard.grad, x_recomputed.grad)
+    torch.testing.assert_close(standard.pre_w.grad, recomputed.pre_w.grad)
+
+
+def test_indexed_workspace_budget_caps_gathered_output_rows():
+    chunk = _workspace_limited_chunk_size(
+        output_chunk_size=65536,
+        workspace_mb=128,
+        out_features=400000,
+        flattened_batch_size=4,
+        synapses_per_output=5000,
+        element_size=2,
+    )
+
+    assert chunk == 3355
+
+
+def test_indexed_sparse_recurrent_cache_reuses_transformed_weights(monkeypatch):
+    layer = IndexedSparseLinear(
+        in_features=8,
+        out_features=5,
+        K=3,
+        seed=7,
+        cache_transformed_weights=True,
+        weight_transform="softplus",
+    )
+    original = layer._normalized_sparse_weight
+    calls = 0
+
+    def counted_weight():
+        nonlocal calls
+        calls += 1
+        return original()
+
+    monkeypatch.setattr(layer, "_normalized_sparse_weight", counted_weight)
+    x = torch.randn(2, 8, requires_grad=True)
+    layer.set_recurrent_weight_cache(True)
+    loss = layer(x).sum() + layer(x).sum()
+    layer.set_recurrent_weight_cache(False)
+    loss.backward()
+
+    assert calls == 1
+    assert layer.pre_w.grad is not None
+    assert x.grad is not None
+
+
+def test_nonpersistent_indexed_topology_regenerates_from_seed():
+    first = IndexedSparseLinear(
+        in_features=9,
+        out_features=6,
+        K=3,
+        seed=23,
+        persistent_indices=False,
+    )
+    restored = IndexedSparseLinear(
+        in_features=9,
+        out_features=6,
+        K=3,
+        seed=23,
+        persistent_indices=False,
+    )
+
+    assert "connection_indices" not in first.state_dict()
+    assert torch.equal(first.connection_indices, restored.connection_indices)
+    restored.load_state_dict(first.state_dict())
+    x = torch.randn(2, 9)
+    torch.testing.assert_close(first(x), restored(x))
+
+
+def test_rank0_broadcast_mode_defers_nonzero_rank_topology(monkeypatch):
+    monkeypatch.setattr(torch.distributed, "is_available", lambda: True)
+    monkeypatch.setattr(torch.distributed, "is_initialized", lambda: True)
+    monkeypatch.setattr(torch.distributed, "get_rank", lambda: 1)
+    deferred = IndexedSparseLinear(
+        in_features=9,
+        out_features=6,
+        K=3,
+        seed=29,
+        init_mode="rank0_broadcast",
+        index_dtype="auto",
+    )
+
+    with pytest.raises(RuntimeError, match="awaiting rank-0 broadcast"):
+        deferred(torch.randn(2, 9))
+
+    reference = IndexedSparseLinear(
+        in_features=9,
+        out_features=6,
+        K=3,
+        seed=29,
+        index_dtype="auto",
+    )
+    deferred.connection_indices.copy_(reference.connection_indices)
+    deferred._topology_initialized.fill_(1)
+    deferred.load_state_dict(reference.state_dict())
+    x = torch.randn(2, 9)
+    torch.testing.assert_close(deferred(x), reference(x))
+
+
 def test_indexed_dynamic_auto_candidate_size_respects_connection_mask():
     connection_mask = torch.tensor(
         [
@@ -871,6 +1228,49 @@ def test_indexed_dynamic_auto_candidate_size_respects_connection_mask():
     row = torch.arange(layer.out_features)[:, None]
     assert layer.candidate_size == 2
     assert bool(connection_mask[row, layer.connection_indices].all())
+
+
+def test_indexed_dynamic_compact_nonpersistent_topology_and_cache(monkeypatch):
+    forbidden = torch.arange(5)
+    layer = IndexedDynamicTopKLinear(
+        in_features=8,
+        out_features=5,
+        K=2,
+        candidate_size=4,
+        selection="standard",
+        noise_level=0,
+        seed=31,
+        forbidden_input_index_per_output=forbidden,
+        index_dtype="auto",
+        persistent_indices=False,
+        cache_transformed_weights=True,
+        recompute_backward=True,
+        workspace_mb=1,
+    )
+
+    assert layer.connection_indices.dtype == torch.int32
+    assert "connection_indices" not in layer.state_dict()
+    assert not bool(
+        (layer.connection_indices.to(torch.long) == forbidden[:, None]).any()
+    )
+
+    original = layer._normalized_sparse_weight
+    calls = 0
+
+    def counted_weight():
+        nonlocal calls
+        calls += 1
+        return original()
+
+    monkeypatch.setattr(layer, "_normalized_sparse_weight", counted_weight)
+    x = torch.randn(2, 8, requires_grad=True)
+    layer.set_recurrent_weight_cache(True)
+    loss = layer(x).sum() + layer(x).sum()
+    layer.set_recurrent_weight_cache(False)
+    loss.backward()
+
+    assert calls == 1
+    assert layer.pre_w.grad is not None
 
 
 def test_indexed_dynamic_explicit_candidate_size_remains_strict_with_mask():
@@ -907,6 +1307,124 @@ def test_indexed_sparse_linear_forward_param_gradient_scale():
 
     assert layer.pre_w.grad is not None
     assert torch.allclose(layer.pre_w.grad, torch.zeros_like(layer.pre_w.grad))
+
+
+@pytest.mark.parametrize(
+    "layer",
+    [
+        IndexedSparseLinear(
+            in_features=4,
+            out_features=3,
+            K=2,
+            seed=0,
+            weight_transform="exp",
+        ),
+        IndexedDynamicTopKLinear(
+            in_features=4,
+            out_features=3,
+            K=1,
+            candidate_size=2,
+            seed=0,
+            weight_transform="exp",
+        ),
+    ],
+)
+def test_frozen_indexed_layer_releases_transformed_forward_weight(layer):
+    layer.requires_grad_(False)
+
+    output = layer(torch.ones(2, 4))
+
+    assert output.requires_grad is False
+    assert layer._last_forward_param_tensor is None
+
+
+def test_frozen_indexed_sparse_transforms_by_output_chunk(monkeypatch):
+    layer = IndexedSparseLinear(
+        in_features=8,
+        out_features=6,
+        K=4,
+        seed=0,
+        weight_transform="exp",
+        output_chunk_size=2,
+    )
+    layer.requires_grad_(False)
+    inputs = torch.randn(3, 8)
+    expected_weight = layer.pre_w.detach().exp()
+    expected = torch.stack(
+        [
+            (
+                inputs[:, layer.connection_indices[row].to(torch.long)]
+                * expected_weight[row]
+            ).sum(dim=-1)
+            for row in range(layer.out_features)
+        ],
+        dim=-1,
+    )
+
+    transformed_shapes = []
+    original_transform = apply_weight_transform
+
+    def record_transform(weights, transform_type):
+        transformed_shapes.append(tuple(weights.shape))
+        return original_transform(weights, transform_type)
+
+    monkeypatch.setattr(
+        "dendritic_modeling.networks.architectures.excitation_inhibition."
+        "synapse.indexed_sparse.apply_weight_transform",
+        record_transform,
+    )
+
+    actual = layer(inputs)
+
+    torch.testing.assert_close(actual, expected)
+    assert transformed_shapes == [(2, 4), (2, 4), (2, 4)]
+
+
+def test_fsdp_frozen_marker_selects_chunked_transform_for_wrapped_view(monkeypatch):
+    layer = IndexedSparseLinear(
+        in_features=8,
+        out_features=6,
+        K=4,
+        seed=0,
+        weight_transform="exp",
+        output_chunk_size=2,
+    )
+    layer._fsdp_frozen_core = True
+    inputs = torch.randn(3, 8)
+    transformed_shapes = []
+    original_transform = apply_weight_transform
+
+    def record_transform(weights, transform_type):
+        transformed_shapes.append(tuple(weights.shape))
+        return original_transform(weights, transform_type)
+
+    monkeypatch.setattr(
+        "dendritic_modeling.networks.architectures.excitation_inhibition."
+        "synapse.indexed_sparse.apply_weight_transform",
+        record_transform,
+    )
+
+    with torch.no_grad():
+        layer(inputs)
+
+    assert transformed_shapes == [(2, 4), (2, 4), (2, 4)]
+
+
+def test_frozen_indexed_sparse_preserves_required_input_gradients():
+    layer = IndexedSparseLinear(
+        in_features=4,
+        out_features=3,
+        K=2,
+        seed=0,
+        weight_transform="exp",
+    )
+    layer.requires_grad_(False)
+    inputs = torch.randn(2, 4, requires_grad=True)
+
+    layer(inputs).sum().backward()
+
+    assert inputs.grad is not None
+    assert layer._last_forward_param_tensor is None
 
 
 def test_dendritic_branch_layer_passes_connection_mask_to_topk():
@@ -1062,3 +1580,131 @@ def test_factory_applies_structured_connectivity_to_recurrent_einet():
     for branch_layer in branch_layers:
         mask = branch_layer.branch_recurrent.weight_mask()
         assert torch.equal(mask.sum(dim=1), torch.ones(mask.shape[0]))
+
+
+def _index_hash(indices):
+    import hashlib
+
+    data = indices.detach().to("cpu", torch.int64).contiguous()
+    digest = hashlib.sha256(str(tuple(data.shape)).encode())
+    digest.update(data.numpy().tobytes())
+    return digest.hexdigest()[:16]
+
+
+@pytest.mark.parametrize(
+    "shape, seed, golden",
+    [
+        ((784, 5000, 40), 3, "c33ad4402f701706"),
+        ((1000, 300, 50), 11, "d52adb79baa5427e"),
+        ((816, 2500, 64), 7, "5c147e8bc15810ba"),
+    ],
+)
+def test_indexed_topology_matches_golden_and_ignores_output_chunk_size(
+    shape, seed, golden
+):
+    from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_sparse import (
+        IndexedSparseLinear,
+    )
+
+    for chunk in (2048, 256, 65536):
+        layer = IndexedSparseLinear(*shape, seed=seed, output_chunk_size=chunk)
+        assert _index_hash(layer.connection_indices) == golden
+
+
+def test_non_persistent_topology_is_checked_when_a_checkpoint_loads():
+    import warnings
+
+    from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_sparse import (
+        IndexedSparseLinear,
+    )
+
+    def build(seed):
+        return IndexedSparseLinear(64, 32, 4, seed=seed, persistent_indices=False)
+
+    trained = build(1)
+    state = trained.state_dict()
+    assert "connection_indices" not in state
+    build(1).load_state_dict(state)
+    with pytest.raises(RuntimeError, match="different connection topology"):
+        build(2).load_state_dict(state)
+
+    legacy = {k: v for k, v in state.items() if k != "topology_fingerprint"}
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        build(2).load_state_dict(legacy)
+    assert any("predates topology fingerprints" in str(w.message) for w in caught)
+
+
+# ---------------------------------------------------------------------------
+# Key validation of structured-connectivity blocks
+# ---------------------------------------------------------------------------
+
+
+def test_structured_blocks_reject_misspelled_rule_keys():
+    from dendritic_modeling.config.keys import UnknownConfigKeyError
+    from dendritic_modeling.config.structured_connectivity import (
+        validate_structured_connectivity,
+    )
+
+    block = {"enabled": True, "pathways": {"ee": {"probabilty": 0.3}}}
+    with pytest.raises(UnknownConfigKeyError, match="did you mean 'probability'"):
+        validate_structured_connectivity(block, section="structured")
+    spatial = {"enabled": True, "spatial": {"input_shpe": [28, 28]}}
+    with pytest.raises(UnknownConfigKeyError, match="input_shape"):
+        validate_structured_connectivity(spatial, section="structured")
+
+
+def test_structured_blocks_reject_unknown_pathway_names():
+    from dendritic_modeling.config.structured_connectivity import (
+        validate_structured_connectivity,
+    )
+
+    block = {"enabled": True, "pathways": {"e_to_ee": {"probability": 0.3}}}
+    with pytest.raises(ValueError, match="unknown pathway name"):
+        validate_structured_connectivity(block, section="structured")
+
+
+def test_an_enabled_block_needs_a_rule_or_an_explicit_dense_pathway():
+    from dendritic_modeling.config.structured_connectivity import (
+        validate_structured_connectivity,
+    )
+
+    with pytest.raises(ValueError, match="defines no rule"):
+        validate_structured_connectivity({"enabled": True}, section="structured")
+    validate_structured_connectivity(
+        {"enabled": True, "pathways": {"ie": {"probability": 0.2}}},
+        section="structured",
+    )
+    validate_structured_connectivity(
+        {"enabled": True, "pathways": {"ee": {"method": "dense"}}},
+        section="structured",
+    )
+    validate_structured_connectivity({"enabled": False}, section="structured")
+
+
+def test_typed_and_population_blocks_are_checked_when_built():
+    from dendritic_modeling.config.model import StructuredConnectivityConfig
+    from dendritic_modeling.networks.architectures.recurrent import PopulationConfig
+
+    with pytest.raises(ValueError, match="defines no rule"):
+        StructuredConnectivityConfig(enabled=True)
+    with pytest.raises(ValueError, match="did you mean 'enabled'"):
+        PopulationConfig(
+            structured_connectivity={
+                "enabeld": True,
+                "pathways": {"ee": {"probabilty": 0.3}},
+            }
+        )
+
+
+def test_mlp_inhibitory_options_reject_typos_and_keep_unset_defaults():
+    from dendritic_modeling.config.keys import UnknownConfigKeyError
+    from dendritic_modeling.config.model import ArchitectureConfig
+
+    partial = ArchitectureConfig(mlp_inhibitory_network_params={"activation": "tanh"})
+    assert partial.mlp_inhibitory_network_params == {
+        "hidden_dims": [200],
+        "activation": "tanh",
+    }
+    with pytest.raises(UnknownConfigKeyError, match="hidden_dims"):
+        ArchitectureConfig(mlp_inhibitory_network_params={"hiden_dims": [4]})

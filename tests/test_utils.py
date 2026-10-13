@@ -27,8 +27,9 @@ from dendritic_modeling.utils.gpu_estimation import (
     _flat_input_dim,
     _resolve_batch_size,
     _resolve_n_classes,
+    _resolve_optimizer_name,
     _resolve_task_config,
-    _resolve_training_dtype,
+    _resolve_training_dtypes,
 )
 from dendritic_modeling.utils.information.estimators import (
     EstimatorConfig,
@@ -752,29 +753,21 @@ def test_gpu_estimate_class_count_helper_matches_dataset_defaults():
     assert _resolve_n_classes("regression", SimpleNamespace(dataset="mnist"), {}) == 1
 
 
-def test_gpu_estimate_training_dtype_helper_resolves_current_and_legacy_paths():
-    assert _resolve_training_dtype(SimpleNamespace()) == "fp16"
-
-    current = SimpleNamespace(
-        training=SimpleNamespace(
-            main=SimpleNamespace(common=SimpleNamespace(dtype="bf16"))
+def test_gpu_estimate_counts_fp32_master_weights_and_amp_activations():
+    def config(use_amp=None, optimizer=None):
+        common = (
+            SimpleNamespace() if use_amp is None else SimpleNamespace(use_amp=use_amp)
         )
-    )
-    assert _resolve_training_dtype(current) == "bf16"
+        main = SimpleNamespace(common=common)
+        if optimizer is not None:
+            main.optimizer = SimpleNamespace(name=optimizer)
+        return SimpleNamespace(training=SimpleNamespace(main=main))
 
-    current_trainer = SimpleNamespace(
-        training=SimpleNamespace(
-            main=SimpleNamespace(trainer=SimpleNamespace(dtype="fp32"))
-        )
-    )
-    assert _resolve_training_dtype(current_trainer) == "fp32"
-
-    legacy = SimpleNamespace(
-        train=SimpleNamespace(
-            main=SimpleNamespace(trainer=SimpleNamespace(dtype="int8"))
-        )
-    )
-    assert _resolve_training_dtype(legacy) == "int8"
+    assert _resolve_training_dtypes(SimpleNamespace()) == ("fp32", "fp32")
+    assert _resolve_training_dtypes(config(use_amp=False)) == ("fp32", "fp32")
+    assert _resolve_training_dtypes(config(use_amp=True)) == ("fp32", "fp16")
+    assert _resolve_optimizer_name(config()) == "adam"
+    assert _resolve_optimizer_name(config(optimizer="SGD")) == "sgd"
 
 
 if __name__ == "__main__":

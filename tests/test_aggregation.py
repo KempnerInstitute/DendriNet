@@ -38,6 +38,62 @@ class TestAggregation(unittest.TestCase):
         group1 = result[result["ee_value"] == 40].iloc[0]
         self.assertAlmostEqual(group1["test_accuracy_mean"], 0.90, places=2)
 
+    def test_aggregate_over_seeds_accepts_list_valued_group_keys(self):
+        """Architecture lists should form stable groups without mutating input."""
+        data = pd.DataFrame(
+            {
+                "excitatory_layers": [[64], [64], [32, 64], [32, 64]],
+                "branch_factors": ["3-3", "3-3", "2-4", "2-4"],
+                "seed": [0, 1, 0, 1],
+                "test_accuracy": [0.50, 0.52, 0.40, 0.44],
+            }
+        )
+
+        result = aggregate_over_seeds(
+            data,
+            group_by_cols=["excitatory_layers", "branch_factors"],
+        )
+
+        self.assertEqual(len(result), 2)
+        self.assertEqual(set(result["excitatory_layers"]), {(64,), (32, 64)})
+        self.assertAlmostEqual(
+            result.loc[result["branch_factors"] == "3-3", "test_accuracy_mean"].iloc[0],
+            0.51,
+        )
+        self.assertIsInstance(data.loc[0, "excitatory_layers"], list)
+
+    def test_varying_conditions_are_never_pooled_as_seeds(self):
+        """Learning rates that vary across the sweep become their own groups."""
+        data = pd.DataFrame(
+            {
+                "ee_value": [40] * 4,
+                "learning_rate": [0.01, 0.01, 0.1, 0.1],
+                "dataset": ["mnist"] * 4,
+                "seed": [0, 1, 0, 1],
+                "test_accuracy": [0.90, 0.92, 0.50, 0.54],
+            }
+        )
+
+        result = aggregate_over_seeds(
+            data,
+            group_by_cols=["ee_value"],
+            condition_cols=["ee_value", "learning_rate", "dataset", "seed"],
+        )
+
+        self.assertEqual(len(result), 2)
+        by_rate = result.set_index("learning_rate")
+        self.assertAlmostEqual(by_rate.loc[0.01, "test_accuracy_mean"], 0.91)
+        self.assertAlmostEqual(by_rate.loc[0.1, "test_accuracy_mean"], 0.52)
+        # Sample standard deviation over the two seeds of a condition.
+        self.assertAlmostEqual(by_rate.loc[0.01, "test_accuracy_std"], 0.02**0.5 / 10)
+        self.assertEqual(set(result["n_replicates"]), {2})
+        self.assertEqual(set(result["dataset"]), {"mnist"})
+
+    def test_single_replicate_has_no_standard_deviation(self):
+        data = pd.DataFrame({"ee_value": [40], "seed": [0], "test_accuracy": [0.9]})
+        result = aggregate_over_seeds(data, group_by_cols=["ee_value"])
+        self.assertTrue(pd.isna(result.loc[0, "test_accuracy_std"]))
+
     def test_compute_ei_ratio(self):
         """Test E/I ratio computation."""
         data = pd.DataFrame(

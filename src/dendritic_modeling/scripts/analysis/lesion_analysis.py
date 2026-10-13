@@ -1,8 +1,8 @@
 """
 Level lesion analysis for hierarchical dendritic EI models.
 
-Zeroes out weights for a specific dendritic level and measures performance
-degradation conditioned on a task variable (e.g. delay or frequency). This
+Silences one dendritic level at a time and measures performance degradation
+conditioned on a task variable (e.g. delay or frequency). This
 tests whether level routing is causally related to task performance -- lesioning
 a distal level should selectively degrade long-delay performance.
 
@@ -15,7 +15,7 @@ Usage:
 """
 
 import argparse
-import copy
+import contextlib
 import json
 import logging
 import os
@@ -28,40 +28,57 @@ import numpy as np
 import torch
 import torch.utils.data
 
+from dendritic_modeling.utils.logging_config import setup_logging
+
 logger = logging.getLogger(__name__)
 
 
-def lesion_level(model, level_idx: int, layer_idx: int = 0):
-    """Zero out all weights for a specific dendritic level in the model.
+@contextlib.contextmanager
+def lesion_level(model, depth: int, layer_idx: int = 0):
+    """Silence one excitatory dendritic level while the context is open.
 
-    Creates a deep copy of the model so the original is not modified.
-
-    Args:
-        model: Trained EINetwork model.
-        level_idx: Index of the dendritic level to lesion (0=distal, L-1=soma).
-        layer_idx: Index of the EI layer.
-
-    Returns:
-        Lesioned model (deep copy).
+    ``depth`` is the soma-relative depth (0 = soma). The level is silenced
+    through the population's native level mask, so its compartments are
+    removed from the computation whatever the weight transform; the model is
+    unchanged afterwards.
     """
+    from dendritic_modeling.analysis.utils.dendritic_depth import (
+        soma_relative_dendritic_depth,
+    )
     from dendritic_modeling.networks.architectures.recurrent import EINetwork
 
-    lesioned = copy.deepcopy(model)
-    core = lesioned.core_network
+    core = model.core_network
     if not isinstance(core, EINetwork):
         raise TypeError(f"Expected EINetwork, got {type(core)}")
-
     ei_layer = core.layers[layer_idx]
-    exc_pop = ei_layer.e_population
-    branch_layer = exc_pop.branch_layers[level_idx]
+    depths = [
+        soma_relative_dendritic_depth(branch)
+        for branch in ei_layer.e_population.branch_layers
+    ]
+    if depth not in depths:
+        raise ValueError(f"layer {layer_idx} has no dendritic level at depth {depth}")
+    mask = torch.zeros(len(depths))
+    mask[depths.index(depth)] = 1.0
+    ei_layer.set_population_level_silencing("excitatory", mask)
+    logger.info(f"Silenced depth {depth} in layer {layer_idx}")
+    try:
+        yield model
+    finally:
+        ei_layer.set_population_level_silencing("excitatory", None)
 
-    # Zero all parameters in this dendritic level
-    with torch.no_grad():
-        for param in branch_layer.parameters():
-            param.zero_()
 
-    logger.info(f"Lesioned level {level_idx} in layer {layer_idx}")
-    return lesioned
+def level_depths_and_taus(model, layer_idx: int = 0) -> list[tuple[int, float]]:
+    """Return (soma-relative depth, time constant) of each excitatory level."""
+    from dendritic_modeling.analysis.utils.dendritic_depth import (
+        soma_relative_dendritic_depth,
+    )
+
+    population = model.core_network.layers[layer_idx].e_population
+    taus = population.current_taus.detach().reshape(-1).tolist()
+    return [
+        (soma_relative_dendritic_depth(branch), float(tau))
+        for branch, tau in zip(population.branch_layers, taus)
+    ]
 
 
 def evaluate_by_condition(
@@ -130,17 +147,24 @@ def plot_lesion_results(results, output_path: str, branch_labels=None):
     _fig, ax = plt.subplots(figsize=(8, 5))
 
     colors = plt.cm.Set2(np.linspace(0, 1, len(results)))
+    # Markers and line styles repeat the series identity for colour-blind
+    # readers.
+    markers = ["o", "s", "^", "v", "D", "P", "X", "*"]
+    linestyles = ["-", "--", "-.", ":"]
 
-    for (label, acc_dict), color in zip(results.items(), colors):
-        conditions = []
-        accuracies = []
-        for k, v in sorted(acc_dict.items()):
-            if k == "overall":
-                continue
-            conditions.append(float(k))
-            accuracies.append(v["accuracy"])
-        if conditions:
-            ax.plot(conditions, accuracies, "o-", color=color, label=label, linewidth=2)
+    for index, ((label, acc_dict), color) in enumerate(zip(results.items(), colors)):
+        bins = sorted(float(k) for k in acc_dict if k != "overall")
+        accuracies = [acc_dict[k]["accuracy"] for k in bins]
+        if bins:
+            ax.plot(
+                bins,
+                accuracies,
+                marker=markers[index % len(markers)],
+                linestyle=linestyles[index % len(linestyles)],
+                color=color,
+                label=label,
+                linewidth=2,
+            )
 
     ax.set_xlabel("Delay D", fontsize=12)
     ax.set_ylabel("Accuracy", fontsize=12)
@@ -175,11 +199,8 @@ def plot_lesion_bar_chart(results, output_path: str):
         return
 
     def avg_acc(acc_dict, delay_subset):
-        accs = []
-        for d in delay_subset:
-            if d in acc_dict:
-                accs.append(acc_dict[d]["accuracy"])
-        return np.mean(accs) if accs else 0.5
+        accs = [acc_dict[d]["accuracy"] for d in delay_subset if d in acc_dict]
+        return np.mean(accs) if accs else float("nan")
 
     _fig, ax = plt.subplots(figsize=(8, 5))
     x = np.arange(len(lesion_labels))
@@ -195,8 +216,15 @@ def plot_lesion_bar_chart(results, output_path: str):
         short_drops.append(intact_short - avg_acc(lesioned, short_delays))
         long_drops.append(intact_long - avg_acc(lesioned, long_delays))
 
-    ax.bar(x - width / 2, short_drops, width, label="Short delays", color="#4ECDC4")
-    ax.bar(x + width / 2, long_drops, width, label="Long delays", color="#FF6B6B")
+    ax.bar(x - width / 2, short_drops, width, label="Short delays", color="#0072B2")
+    ax.bar(
+        x + width / 2,
+        long_drops,
+        width,
+        label="Long delays",
+        color="#D55E00",
+        hatch="//",
+    )
 
     ax.set_xlabel("Lesioned Level", fontsize=12)
     ax.set_ylabel("Accuracy Drop (intact - lesioned)", fontsize=12)
@@ -217,13 +245,16 @@ def main():
     parser.add_argument("--model_path", required=True)
     parser.add_argument("--config_path", required=True)
     parser.add_argument("--output_dir", required=True)
-    parser.add_argument("--dataset", default="variable_delay_dms")
+    parser.add_argument(
+        "--dataset",
+        default="variable_delay_dms",
+        help="Not read: the dataset is the one of --config_path",
+    )
     parser.add_argument("--n_bins", type=int, default=10)
     parser.add_argument("--batch_size", type=int, default=128)
     parser.add_argument("--device", default="cpu")
     args = parser.parse_args()
 
-    logging.basicConfig(level=logging.INFO)
     os.makedirs(args.output_dir, exist_ok=True)
 
     from dendritic_modeling.scripts.analysis.analyze_routing_by_condition import (
@@ -232,8 +263,8 @@ def main():
     )
 
     logger.info(f"Loading model from {args.model_path}")
-    model, config, test_ds = load_model_and_config(
-        args.model_path, args.config_path, args.device
+    model, _config, test_ds = load_model_and_config(
+        args.model_path, args.config_path, args.device, output_dir=args.output_dir
     )
 
     # Extract conditions
@@ -251,39 +282,20 @@ def main():
         batch_size=args.batch_size,
     )
 
-    # Determine number of levels and tau values from config
-    core_cfg = config.model.core
-    n_levels = 1
-    tau_base = 5.0
-    tau_ratio = 5.0
-    if hasattr(core_cfg, "unified_ei") and core_cfg.unified_ei is not None:
-        layers_cfg = core_cfg.unified_ei.layers
-        if layers_cfg:
-            exc_cfg = (
-                layers_cfg[0].excitatory
-                if hasattr(layers_cfg[0], "excitatory")
-                else None
-            )
-            if exc_cfg is not None:
-                bf = getattr(exc_cfg, "branch_factors", [3, 3])
-                n_levels = len(bf) + 1
-                tau_base = getattr(exc_cfg, "tau_base", 5.0)
-                tau_ratio = getattr(exc_cfg, "tau_ratio", 5.0)
-
-    # Lesion each dendritic level
-    for level in range(n_levels):
-        tau_l = tau_base * tau_ratio ** (n_levels - 1 - level)
-        label = f"Lesion level {level} (tau={tau_l:.0f})"
+    # Silence each excitatory dendritic level in turn, labelled by its
+    # soma-relative depth and the model's time constant.
+    for depth, tau in level_depths_and_taus(model):
+        label = f"Lesion depth {depth} (tau={tau:.0f})"
         logger.info(f"Evaluating: {label}")
-        lesioned_model = lesion_level(model, level_idx=level)
-        results[label] = evaluate_by_condition(
-            lesioned_model,
-            test_ds,
-            conditions,
-            n_bins=args.n_bins,
-            device=args.device,
-            batch_size=args.batch_size,
-        )
+        with lesion_level(model, depth=depth):
+            results[label] = evaluate_by_condition(
+                model,
+                test_ds,
+                conditions,
+                n_bins=args.n_bins,
+                device=args.device,
+                batch_size=args.batch_size,
+            )
 
     # Save results
     serializable = {}
@@ -316,4 +328,5 @@ def main():
 
 
 if __name__ == "__main__":
+    setup_logging()
     main()

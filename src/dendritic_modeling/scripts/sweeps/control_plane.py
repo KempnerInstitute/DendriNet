@@ -1,75 +1,118 @@
 """Reproducibility and scheduler policy for generated sweeps.
 
 The functions in this module deliberately have no dependency on Slurm itself.
-They validate the small set of compute profiles approved for this project and
+They validate scheduler account/partition pairs against a site policy and
 freeze the inputs that determine a generated sweep before any job is submitted.
+
+A site policy is a YAML file listing the approved pairs::
+
+    profiles:
+      - {id: lab_gpu, account: my_lab, partition: gpu}
+
+``DENDRITIC_SCHEDULER_PROFILES`` names it (``none`` for no policy); otherwise
+``$XDG_CONFIG_HOME/dendritic_modeling/scheduler_profiles.yaml`` (default
+``~/.config``) is used when it exists. Without a policy any explicit pair is
+accepted and recorded as unvalidated.
 """
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
-import platform
-import subprocess
 from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from dendritic_modeling.utils.source_identity import (
+    GIT_TIMEOUT_SECONDS,
+    UNTRACKED_SOURCE_ROOT,
+    discover_source_identity,
+    is_git_checkout,
+    package_tree_digest,
+    sha256_file,
+    untracked_source_digest,
+)
+
 SCHEDULER_PLACEHOLDER = "PLACEHOLDER"
 
 
 @dataclass(frozen=True)
 class SchedulerProfile:
-    """One resolved account/partition pairing."""
+    """One resolved account/partition pairing.
+
+    ``policy`` is the site policy file that approved it (``None`` when no
+    policy is configured, with ``validated`` false).
+    """
 
     profile_id: str
     account: str
     partition: str
     validated: bool = True
     placeholder: bool = False
+    policy: str | None = None
 
-    def as_dict(self) -> dict[str, str | bool]:
+    def as_dict(self) -> dict[str, str | bool | None]:
         """Return the stable JSON/YAML representation used in manifests."""
         return asdict(self)
 
 
-# This is the executable policy. Project-specific YAML files may mirror these
-# names for documentation, but cannot expand the accepted pairings.
-ALLOWED_SCHEDULER_PROFILES: tuple[SchedulerProfile, ...] = (
-    SchedulerProfile(
-        profile_id="kempner_dev_priority",
-        account="kempner_dev",
-        partition="kempner_priority",
-    ),
-    SchedulerProfile(
-        profile_id="kempner_dev_eng",
-        account="kempner_dev",
-        partition="kempner_eng",
-    ),
-    SchedulerProfile(
-        profile_id="kempner_dev_requeue",
-        account="kempner_dev",
-        partition="kempner_requeue",
-    ),
-    SchedulerProfile(
-        profile_id="kempner_bsabatini_lab_h100",
-        account="kempner_bsabatini_lab",
-        partition="kempner_h100",
-    ),
-    SchedulerProfile(
-        profile_id="kempner_bsabatini_lab_h100_priority",
-        account="kempner_bsabatini_lab",
-        partition="kempner_h100_priority",
-    ),
-)
+#: Environment variable naming the site scheduler policy file.
+SCHEDULER_POLICY_ENV = "DENDRITIC_SCHEDULER_PROFILES"
+_POLICY_ENTRY_KEYS = frozenset({"id", "account", "partition"})
 
-_PROFILE_BY_PAIR = {
-    (profile.account, profile.partition): profile
-    for profile in ALLOWED_SCHEDULER_PROFILES
-}
+
+def scheduler_policy_path() -> Path | None:
+    """The site scheduler policy file in use, or ``None`` without one."""
+    configured = os.environ.get(SCHEDULER_POLICY_ENV, "").strip()
+    if configured.lower() == "none":
+        return None
+    if configured:
+        path = Path(configured).expanduser()
+        if not path.is_file():
+            raise FileNotFoundError(
+                f"{SCHEDULER_POLICY_ENV}={configured} does not name a file"
+            )
+        return path
+    config_home = os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config"
+    path = Path(config_home) / "dendritic_modeling" / "scheduler_profiles.yaml"
+    return path if path.is_file() else None
+
+
+def load_scheduler_profiles(
+    path: str | Path | None = None,
+) -> tuple[SchedulerProfile, ...] | None:
+    """The approved profiles of a site policy (default: the one in use)."""
+    import yaml
+
+    policy = scheduler_policy_path() if path is None else Path(path)
+    if policy is None:
+        return None
+    data = yaml.safe_load(policy.read_text(encoding="utf-8")) or {}
+    entries = data.get("profiles") if isinstance(data, dict) else None
+    if not isinstance(entries, list) or not entries:
+        raise ValueError(f"{policy}: expected a non-empty 'profiles' list")
+    profiles = []
+    for entry in entries:
+        if not isinstance(entry, dict) or set(entry) != _POLICY_ENTRY_KEYS:
+            raise ValueError(
+                f"{policy}: each profile needs exactly id, account and partition; "
+                f"got {entry!r}"
+            )
+        profiles.append(
+            SchedulerProfile(
+                profile_id=_required_scheduler_value(entry["id"], "profile id"),
+                account=_required_scheduler_value(entry["account"], "account"),
+                partition=_required_scheduler_value(entry["partition"], "partition"),
+                policy=str(policy.resolve()),
+            )
+        )
+    pairs = [(profile.account, profile.partition) for profile in profiles]
+    ids = [profile.profile_id for profile in profiles]
+    if len(set(pairs)) != len(pairs) or len(set(ids)) != len(ids):
+        raise ValueError(f"{policy}: profile ids and account/partition pairs repeat")
+    return tuple(profiles)
 
 
 def _required_scheduler_value(value: Any, field_name: str) -> str:
@@ -114,43 +157,27 @@ def validate_scheduler_profile(
             placeholder=True,
         )
 
-    profile = _PROFILE_BY_PAIR.get((normalized_account, normalized_partition))
-    if profile is not None:
-        return profile
-
-    allowed = ", ".join(
-        f"({item.account}, {item.partition})" for item in ALLOWED_SCHEDULER_PROFILES
-    )
+    profiles = load_scheduler_profiles()
+    if profiles is None:
+        # No site policy: the scheduler decides access; the pair is recorded.
+        return SchedulerProfile(
+            profile_id="unlisted",
+            account=normalized_account,
+            partition=normalized_partition,
+            validated=False,
+        )
+    for profile in profiles:
+        if (profile.account, profile.partition) == (
+            normalized_account,
+            normalized_partition,
+        ):
+            return profile
+    allowed = ", ".join(f"({item.account}, {item.partition})" for item in profiles)
     raise ValueError(
         "Unapproved scheduler account/partition pair "
-        f"({normalized_account}, {normalized_partition}). Allowed pairs: {allowed}"
+        f"({normalized_account}, {normalized_partition}) under the site policy "
+        f"{profiles[0].policy}. Allowed pairs: {allowed}"
     )
-
-
-def sha256_file(path: str | Path) -> str:
-    """Return a streaming SHA-256 digest for one file."""
-    digest = hashlib.sha256()
-    with Path(path).open("rb") as handle:
-        for block in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
-
-
-def _git_value(repo_root: Path, *args: str) -> str | None:
-    try:
-        completed = subprocess.run(
-            ["git", *args],
-            cwd=repo_root,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=3,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return None
-    if completed.returncode != 0:
-        return None
-    return completed.stdout.strip()
 
 
 def _manifest_path(path: Path, *, repo_root: Path, output_dir: Path) -> str:
@@ -162,44 +189,6 @@ def _manifest_path(path: Path, *, repo_root: Path, output_dir: Path) -> str:
             continue
         return f"{prefix}{relative.as_posix()}"
     return str(resolved)
-
-
-def discover_source_identity(
-    repo_root: str | Path,
-    *,
-    source_files: Iterable[str | Path] = (),
-) -> dict[str, Any]:
-    """Collect source and Git identity without requiring a Git checkout."""
-    root = Path(repo_root).resolve()
-    commit = _git_value(root, "rev-parse", "HEAD")
-    branch = _git_value(root, "symbolic-ref", "--short", "-q", "HEAD")
-    tracked_status = _git_value(root, "status", "--porcelain", "--untracked-files=no")
-
-    files = []
-    for source_file in source_files:
-        path = Path(source_file).resolve()
-        if not path.is_file():
-            continue
-        try:
-            display_path = f"repo:{path.relative_to(root).as_posix()}"
-        except ValueError:
-            display_path = str(path)
-        files.append({"path": display_path, "sha256": sha256_file(path)})
-
-    git_identity: dict[str, Any] = {"available": commit is not None}
-    if commit is not None:
-        git_identity["commit"] = commit
-        git_identity["branch"] = branch or None
-        git_identity["tracked_worktree_dirty"] = (
-            None if tracked_status is None else bool(tracked_status)
-        )
-
-    return {
-        "repository_name": root.name,
-        "git": git_identity,
-        "python_version": platform.python_version(),
-        "files": sorted(files, key=lambda item: item["path"]),
-    }
 
 
 def write_frozen_sweep_manifest(
@@ -271,6 +260,7 @@ def write_frozen_sweep_manifest(
         "source_identity": discover_source_identity(
             repository_root,
             source_files=source_files,
+            include_package=True,
         ),
     }
 
@@ -292,11 +282,18 @@ def write_frozen_sweep_manifest(
 
 
 __all__ = [
-    "ALLOWED_SCHEDULER_PROFILES",
+    "GIT_TIMEOUT_SECONDS",
     "SCHEDULER_PLACEHOLDER",
+    "SCHEDULER_POLICY_ENV",
+    "UNTRACKED_SOURCE_ROOT",
     "SchedulerProfile",
     "discover_source_identity",
+    "is_git_checkout",
+    "load_scheduler_profiles",
+    "package_tree_digest",
+    "scheduler_policy_path",
     "sha256_file",
+    "untracked_source_digest",
     "validate_scheduler_profile",
     "write_frozen_sweep_manifest",
 ]

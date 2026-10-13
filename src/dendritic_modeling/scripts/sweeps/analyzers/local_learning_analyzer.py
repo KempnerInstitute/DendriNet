@@ -7,6 +7,8 @@ from typing import ClassVar
 import matplotlib.pyplot as plt
 import pandas as pd
 
+from dendritic_modeling.plotting.styles import indexed_style
+
 from ..plotters import (
     AblationPlotter,
     InformationPlotter,
@@ -329,8 +331,7 @@ class LocalLearningSweepAnalyzer(BaseSweepAnalyzer):
             try:
                 fig, ax = plt.subplots(figsize=(10, 6))
 
-                # Plot each rule variant
-                colors = ["#FF6B6B", "#4ECDC4", "#45B7D1"]
+                # Each rule variant gets its own colour, marker and line style.
                 for idx, variant in enumerate(sorted(rule_variants)):
                     variant_data = data[data["rule_variant"] == variant]
 
@@ -343,8 +344,7 @@ class LocalLearningSweepAnalyzer(BaseSweepAnalyzer):
                         ax.plot(
                             grouped.index,
                             grouped.values,
-                            marker="o",
-                            color=colors[idx % len(colors)],
+                            **indexed_style(idx).kwargs(),
                             label=f"{variant.upper()} rule",
                             linewidth=2,
                             markersize=6,

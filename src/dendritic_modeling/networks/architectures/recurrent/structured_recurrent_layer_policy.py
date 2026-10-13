@@ -4,8 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from dendritic_modeling.config.conversion import layer_value, to_plain_dict
-from dendritic_modeling.config.legacy import normalize_transfer_config
+from dendritic_modeling.config.conversion import layer_value
 from dendritic_modeling.networks.architectures.recurrent.structured_recurrent_types import (
     _LayerPopulationSynapseCounts,
     _LayerRecurrentTiming,
@@ -20,28 +19,21 @@ def _layer_recurrence_enabled(
     explicit_recurrent_layers: Any,
     counts: _RecurrentSynapseCounts,
 ) -> bool:
-    if explicit_recurrent_layers is not None:
-        return bool(layer_value(explicit_recurrent_layers, layer_idx, default=True))
     layer_rec_total = sum(
         int(layer_value(value, layer_idx, default=0))
         for value in (counts.rec_ee, counts.rec_ie, counts.rec_ei, counts.rec_ii)
     )
-    return layer_rec_total > 0
-
-
-def _direct_ff_inhibitory_enabled(
-    *,
-    input_mode: int,
-    transfer_inhibitory_mode: str,
-    layer_idx: int,
-) -> bool:
-    if input_mode != 1:
-        return False
-    if transfer_inhibitory_mode == "all":
-        return True
-    if transfer_inhibitory_mode == "first":
-        return layer_idx == 0
-    return False
+    if explicit_recurrent_layers is None:
+        return layer_rec_total > 0
+    recurrent = bool(layer_value(explicit_recurrent_layers, layer_idx, default=True))
+    if not recurrent and layer_rec_total > 0:
+        raise ValueError(
+            f"model.core.recurrent_ei.recurrent_layers marks layer {layer_idx} as "
+            "feedforward, but the connectivity.rec_* synapse counts give it "
+            "recurrent synapses, which a feedforward layer does not build. Remove "
+            "the synapse counts or the flag."
+        )
+    return recurrent
 
 
 def _resolve_layer_recurrent_timing(
@@ -59,18 +51,6 @@ def _resolve_layer_recurrent_timing(
             layer_value(recurrent_cfg.get("tau_ratio", 3.0), layer_idx, default=3.0)
         ),
     )
-
-
-def _resolve_recurrent_transfer_params(
-    *,
-    transfer: dict[str, Any],
-    recurrent_cfg: dict[str, Any],
-) -> dict[str, Any]:
-    """Merge transfer settings with legacy recurrent transfer override sections."""
-    transfer_params = dict(transfer)
-    transfer_params.update(to_plain_dict(recurrent_cfg.get("transfer", {})))
-    transfer_params.update(to_plain_dict(recurrent_cfg.get("transfer_params", {})))
-    return normalize_transfer_config(transfer_params)
 
 
 def _resolve_recurrent_input_projection_dims(
@@ -156,8 +136,7 @@ def _should_build_inhibitory_population(
     n_inh: int,
     synapses: _LayerPopulationSynapseCounts,
 ) -> bool:
-    # Positive inhibitory sizes without incoming synapses preserve legacy direct-stream
-    # behavior: the size can be present in the config without constructing a population.
+    # check_inhibitory_wiring rejects inhibitory cells without input synapses.
     return n_inh > 0 and synapses.has_incoming_synapses
 
 
@@ -200,7 +179,6 @@ def _effective_layer_recurrence_enabled(
 
 
 __all__ = [
-    "_direct_ff_inhibitory_enabled",
     "_effective_layer_recurrence_enabled",
     "_layer_recurrence_enabled",
     "_resolve_layer_excitatory_synapse_counts",
@@ -208,7 +186,6 @@ __all__ = [
     "_resolve_layer_recurrent_timing",
     "_resolve_recurrent_input_projection_dims",
     "_resolve_recurrent_store_routing",
-    "_resolve_recurrent_transfer_params",
     "_should_build_inhibitory_population",
     "_stateful_layer_features_enabled",
 ]

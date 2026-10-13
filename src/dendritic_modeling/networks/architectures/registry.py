@@ -14,6 +14,8 @@ from typing import Any
 
 import torch.nn as nn
 
+from dendritic_modeling.plugins import load_plugins
+
 ArchitectureBuilder = Callable[..., nn.Module]
 
 
@@ -78,7 +80,10 @@ def get_registered_architecture_names() -> list[str]:
 
 def get_architecture_spec(name: str) -> ArchitectureSpec | None:
     """Return the spec for a registered extension architecture."""
-    return _ARCHITECTURE_REGISTRY.get(str(name).lower())
+    key = str(name).lower()
+    if key not in _ARCHITECTURE_REGISTRY:
+        load_plugins()
+    return _ARCHITECTURE_REGISTRY.get(key)
 
 
 def build_registered_architecture(

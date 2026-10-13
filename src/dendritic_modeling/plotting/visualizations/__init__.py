@@ -17,6 +17,7 @@ from .general_analysis_plots import (  # Training and sweep functions
     plot_branch_sweep_results,
     plot_ei_sweep_results,
     plot_layer_contributions,
+    plot_layer_synapse_statistics,
     plot_loss_curves,
     plot_noise_sweep_branch_results,
     plot_noise_sweep_ei_results,
@@ -57,6 +58,7 @@ __all__ = [
     "plot_info_vs_ei_depth_per_dendritic_layer",
     # Information analysis (now modular)
     "plot_layer_contributions",
+    "plot_layer_synapse_statistics",
     "plot_layer_wise_aggregated_analysis",
     "plot_lda_vs_trained_performance",
     # Training/sweep functions

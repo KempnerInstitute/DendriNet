@@ -24,6 +24,7 @@ import argparse
 import json
 import logging
 import os
+import re
 from typing import Optional
 
 import matplotlib
@@ -35,52 +36,45 @@ import torch
 import torch.utils.data
 from scipy import stats
 
+from dendritic_modeling.plotting.styles import indexed_style
+from dendritic_modeling.utils.logging_config import setup_logging
+
 logger = logging.getLogger(__name__)
 
 
-def load_model_and_config(model_path: str, config_path: str, device: str = "cpu"):
-    """Load a trained model and its config."""
+def load_model_and_config(
+    model_path: str,
+    config_path: str,
+    device: str = "cpu",
+    output_dir: Optional[str] = None,
+):
+    """Rebuild a trained run's model and test set as training built them.
+
+    The run is rebuilt through ``setup_environment`` with the run's resolved
+    seeds, dataset parameters and processing, so a synthetic test set is the
+    one the model was trained beside. The resolved seeds and a log are written
+    to ``output_dir`` (a temporary directory when it is ``None``).
+    """
+    import tempfile
+
     from dendritic_modeling.config import load_config
-    from dendritic_modeling.scripts.script_utils.setup_utils import initialize_model
+    from dendritic_modeling.scripts.script_utils.setup_utils import setup_environment
 
     config = load_config(config_path)
-    model_config = config.model
-
-    # Determine input_dim from dataset
-    from dendritic_modeling.datasets.sequence_datasets import get_sequence_datasets
-
-    dataset_name = config.data.dataset_name
-    ds_params = {}
-    if (
-        hasattr(config.data, "dataset_params")
-        and config.data.dataset_params is not None
-    ):
-        ds_params_section = getattr(config.data.dataset_params, dataset_name, {})
-        if hasattr(ds_params_section, "__dict__"):
-            ds_params = {
-                k: v
-                for k, v in ds_params_section.__dict__.items()
-                if not k.startswith("_")
-            }
-
-    train_ds, _, test_ds = get_sequence_datasets(
-        dataset_name=dataset_name,
-        train_valid_split=config.experiment.train_valid_split,
-        **ds_params,
+    config.experiment.record_dataset_fingerprints = False
+    config.outputs.results_dir = output_dir or tempfile.mkdtemp(
+        prefix="dendritic_analysis_"
     )
-
-    sample = test_ds[0][0] if hasattr(test_ds, "__getitem__") else train_ds[0][0]
-    input_dim = sample.shape[-1]
-
-    # Set input_dim on encoder config before model construction
-    if (
-        hasattr(model_config.encoder, "params")
-        and model_config.encoder.params is not None
-    ):
-        model_config.encoder.params.input_dim = input_dim
-        model_config.encoder.params.input_shape = list(sample.shape)
-
-    model, _ = initialize_model(model_config)
+    config.outputs.run_name = "analysis"
+    config.outputs.exact_run_dir = True
+    _run_dir, _train_ds, _valid_ds, test_ds, model, _ = setup_environment(
+        model_config=config.model,
+        training_config=config.training,
+        data_config=config.data,
+        outputs_config=config.outputs,
+        experiment_config=config.experiment,
+        is_main=True,
+    )
     state_dict = torch.load(model_path, map_location=device, weights_only=True)
     model.load_state_dict(state_dict)
     model.to(device)
@@ -288,6 +282,30 @@ def compute_routing_statistics(binned_results, distal_level_idx: int = 0):
     }
 
 
+def routing_level_labels(model, layer_key: str = "layer_0") -> Optional[list[str]]:
+    """Labels of the excitatory levels of ``layer_key``, in routing order.
+
+    Each label names the level index, its soma-relative depth and the time
+    constant of the built model. None when ``layer_key`` is not ``layer_<i>``
+    of an E/I recurrent core.
+    """
+    from dendritic_modeling.scripts.analysis.lesion_analysis import (
+        level_depths_and_taus,
+    )
+
+    match = re.fullmatch(r"layer_(\d+)", str(layer_key))
+    if match is None:
+        return None
+    try:
+        levels = level_depths_and_taus(model, layer_idx=int(match.group(1)))
+    except (AttributeError, IndexError):
+        return None
+    return [
+        rf"L{index} (depth {depth}, $\tau$={tau:.0f})"
+        for index, (depth, tau) in enumerate(levels)
+    ]
+
+
 def plot_routing_heatmap(binned_results, output_path: str, level_labels=None):
     """Generate routing heatmap: beta_l(t | condition)."""
     conditions = sorted(binned_results.keys())
@@ -351,10 +369,14 @@ def plot_beta_vs_condition(
 
     for lvl in range(n_levels):
         betas = [binned_results[c]["mean_beta"][lvl] for c in conditions]
+        # The colour runs from distal to proximal; the marker and line style
+        # name each level without colour.
+        style = indexed_style(lvl)
         ax.plot(
             conditions,
             betas,
-            "o-",
+            marker=style.marker,
+            linestyle=style.linestyle,
             color=colors[lvl],
             label=level_labels[lvl],
             linewidth=2,
@@ -391,7 +413,11 @@ def main():
     parser.add_argument(
         "--output_dir", required=True, help="Output directory for results"
     )
-    parser.add_argument("--dataset", default="variable_delay_dms", help="Dataset name")
+    parser.add_argument(
+        "--dataset",
+        default="variable_delay_dms",
+        help="Not read: the dataset is the one of --config_path",
+    )
     parser.add_argument(
         "--condition_key", default="delay", help="Condition key (delay or target)"
     )
@@ -408,12 +434,11 @@ def main():
     parser.add_argument("--layer_key", default="layer_0", help="Layer key to analyze")
     args = parser.parse_args()
 
-    logging.basicConfig(level=logging.INFO)
     os.makedirs(args.output_dir, exist_ok=True)
 
     logger.info(f"Loading model from {args.model_path}")
-    model, config, test_ds = load_model_and_config(
-        args.model_path, args.config_path, args.device
+    model, _config, test_ds = load_model_and_config(
+        args.model_path, args.config_path, args.device, output_dir=args.output_dir
     )
 
     # Extract conditions
@@ -443,26 +468,11 @@ def main():
         layer_key=args.layer_key,
     )
 
-    # Level labels from tau values
-    core_cfg = config.model.core
-    level_labels = None
-    if hasattr(core_cfg, "unified_ei") and core_cfg.unified_ei is not None:
-        layers_cfg = core_cfg.unified_ei.layers
-        if layers_cfg:
-            exc_cfg = (
-                layers_cfg[0].excitatory
-                if hasattr(layers_cfg[0], "excitatory")
-                else None
-            )
-            if exc_cfg is not None:
-                tau_base = getattr(exc_cfg, "tau_base", 5.0)
-                tau_ratio = getattr(exc_cfg, "tau_ratio", 5.0)
-                bf = getattr(exc_cfg, "branch_factors", [3, 3])
-                n_levels = len(bf) + 1
-                level_labels = []
-                for lvl in range(n_levels):
-                    tau_lvl = tau_base * tau_ratio ** (n_levels - 1 - lvl)
-                    level_labels.append(rf"L{lvl} ($\tau$={tau_lvl:.0f})")
+    # Level labels from the built model's depths and time constants.
+    level_labels = routing_level_labels(model, args.layer_key)
+    n_levels = {len(bin_data["mean_beta"]) for bin_data in binned.values()}
+    if level_labels is not None and n_levels != {len(level_labels)}:
+        level_labels = None
 
     # Compute statistics
     routing_stats = compute_routing_statistics(binned, distal_level_idx=0)
@@ -496,4 +506,5 @@ def main():
 
 
 if __name__ == "__main__":
+    setup_logging()
     main()

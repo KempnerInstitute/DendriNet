@@ -29,11 +29,9 @@ def _direct_inhibitory_model() -> Classifier:
             "ii_synapses_per_branch_per_layer": [0],
         },
         "transfer": {
-            "input_mode": 1,
             "independent_pathways": True,
             "excitatory_dim": 3,
             "inhibitory_dim": 3,
-            "allow_direct_inhibitory_stream": True,
         },
         "morphology": {
             "use_shunting": True,
@@ -191,18 +189,22 @@ def test_correlation_synaptic_hooks_remove_partial_registration(monkeypatch):
     assert _count_registered_forward_hooks(model) == 0
 
 
-def test_correlation_nested_compute_config_overrides_legacy_flat_fields():
+def test_correlation_contradicting_flat_and_nested_fields_raise():
+    with pytest.raises(ValueError, match="conflicts with"):
+        CorrelationAnalysisParams(
+            computation_level="synaptic",
+            compute=CorrelationComputeParams(computation_level="single_branch"),
+        )
+
     params = CorrelationAnalysisParams(
-        computation_level="synaptic",
-        max_samples=17,
+        computation_level="single_branch",
+        max_samples=23,
         compute=CorrelationComputeParams(
             computation_level="single_branch",
             max_samples=23,
         ),
     )
-
     analyzer = CorrelationAnalyzer(params)
-
     assert analyzer.computation_level == "single_branch"
     assert analyzer.max_samples == 23
 
@@ -211,7 +213,6 @@ def test_correlation_legacy_flat_config_is_used_when_nested_block_is_default():
     params = CorrelationAnalysisParams(
         computation_level="synaptic",
         max_samples=17,
-        batch_process=False,
         per_layer_analysis=False,
         per_einet_analysis=False,
         per_neuron_analysis=True,
@@ -225,7 +226,6 @@ def test_correlation_legacy_flat_config_is_used_when_nested_block_is_default():
 
     assert analyzer.computation_level == "synaptic"
     assert analyzer.max_samples == 17
-    assert analyzer.batch_process is False
     assert analyzer.per_layer_analysis is False
     assert analyzer.per_einet_analysis is False
     assert analyzer.per_neuron_analysis is True
@@ -294,3 +294,214 @@ def test_correlation_branch_result_includes_tuning_and_summary_stats():
     assert "summary_stats" in result
     assert result["tuning"]["n_classes"] == 2
     assert "EE_total_mean" in result["summary_stats"]
+
+
+def _hooked_indices(module, x):
+    analyzer = CorrelationAnalyzer(CorrelationAnalysisParams())
+    analyzer.data_dict = {"layer": {}}
+    hook = analyzer._make_synapse_hook("layer", "E")
+    hook(module, (x,), module(x))
+    return analyzer.data_dict["layer"]
+
+
+def test_synaptic_correlation_uses_the_realized_synapses():
+    from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_sparse import (
+        IndexedSparseLinear,
+    )
+    from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
+        TopKLinear,
+    )
+
+    x = torch.rand(3, 4)
+    # Signed weights select by magnitude.
+    signed = TopKLinear(in_features=4, out_features=2, K=2, weight_transform="identity")
+    with torch.no_grad():
+        signed.pre_w.copy_(
+            torch.tensor([[-5.0, 1.0, 2.0, 0.5], [0.1, -0.2, 3.0, -4.0]])
+        )
+    record = _hooked_indices(signed, x)
+    assert record["E_indices"].tolist() == [[0, 2], [2, 3]]
+
+    # A compact indexed bank stores its connections as slots.
+    indices = torch.tensor([[1, 3], [0, 2]])
+    indexed = IndexedSparseLinear(4, 2, 2, connection_indices=indices)
+    record = _hooked_indices(indexed, x)
+    assert record["E_indices"].tolist() == indices.tolist()
+    torch.testing.assert_close(
+        record["E_synaptic"].sum(dim=-1), indexed(x), rtol=1e-5, atol=1e-6
+    )
+
+
+@pytest.mark.parametrize(
+    "params,path",
+    [
+        ({"compute": {"batch_process": False}}, "params.compute.batch_process"),
+        ({"batch_process": True}, "params.batch_process"),
+    ],
+)
+def test_retired_batch_process_loads_with_a_warning(tmp_path, caplog, params, path):
+    """batch_process was stored but never read; it is retired, not reproduced."""
+    import logging
+
+    import yaml
+
+    from dendritic_modeling.config import load_analysis_config
+
+    config_path = tmp_path / "analysis.yaml"
+    config_path.write_text(
+        yaml.safe_dump(
+            {"analysis": {"correlation": {"enabled": True, "params": params}}}
+        )
+    )
+    with caplog.at_level(logging.WARNING):
+        config = load_analysis_config(str(config_path))
+    assert f"Ignoring analysis.correlation.{path}: it was never read" in caplog.text
+    assert not hasattr(config.correlation.params.compute, "batch_process")
+    assert not hasattr(CorrelationAnalyzer(config.correlation.params), "batch_process")
+
+
+def test_upgrade_config_removes_the_retired_batch_process():
+    from dendritic_modeling.scripts.tools.upgrade_config import upgrade_mapping
+
+    old = {
+        "config_version": 1,
+        "experiment": {"seed": 0},
+        "data": {"dataset_name": "mnist"},
+        "analysis": {
+            "correlation": {
+                "enabled": True,
+                "params": {
+                    "batch_process": True,
+                    "compute": {"batch_process": False, "max_samples": 7},
+                },
+            }
+        },
+    }
+    upgraded, changes, unresolved = upgrade_mapping(old)
+    assert unresolved == []
+    params = upgraded["analysis"]["correlation"]["params"]
+    assert "batch_process" not in params
+    assert params["compute"] == {"max_samples": 7}
+    assert sum("batch_process" in change for change in changes) == 2
+
+
+def test_across_layer_is_gone_from_the_default_categories():
+    from dendritic_modeling.config.analysis import CorrelationSamplingParams
+
+    default = ["within_branch", "within_layer"]
+    assert CorrelationSamplingParams().stratified_categories == default
+    assert CorrelationAnalysisParams().stratified_categories == default
+    analyzer = CorrelationAnalyzer(CorrelationAnalysisParams())
+    assert analyzer.stratified_categories == default
+
+
+def test_retiring_across_layer_keeps_synaptic_results_byte_identical(tmp_path):
+    """across_layer was never read: sampling with it gives the same files."""
+    import hashlib
+
+    from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
+
+    _x, _labels, dataset = _toy_dataset()
+    runtime = EvaluationRuntimeConfig(mode="materialize", num_workers=0)
+    digests = []
+    for name, categories in (
+        ("default", None),
+        ("with_across_layer", ["within_branch", "within_layer", "across_layer"]),
+    ):
+        torch.manual_seed(0)
+        model = _direct_inhibitory_model()
+        analyzer = CorrelationAnalyzer(
+            CorrelationAnalysisParams(computation_level="synaptic")
+        )
+        if categories is not None:  # the list earlier versions sampled from
+            analyzer.stratified_categories = categories
+        np.random.seed(11)
+        analyzer.analyze(
+            model, dataset, save_path=str(tmp_path / name), runtime=runtime
+        )
+        digests.append(
+            {
+                path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+                for path in sorted((tmp_path / name).iterdir())
+                if path.suffix != ".png"
+            }
+        )
+    assert digests[0] and digests[0] == digests[1]
+
+
+def test_a_written_across_layer_loads_with_a_warning(tmp_path, caplog):
+    import logging
+
+    import yaml
+
+    from dendritic_modeling.config import keys as config_keys, load_analysis_config
+
+    config_keys._WARNED_RETIRED_VALUES.clear()
+    path = tmp_path / "analysis.yaml"
+    old_default = ["within_branch", "within_layer", "across_layer"]
+    path.write_text(
+        yaml.safe_dump(
+            {
+                "analysis": {
+                    "correlation": {
+                        "enabled": True,
+                        "params": {
+                            # A config saved by an earlier version: the flat
+                            # spelling at its old default, the grouped one set.
+                            "stratified_categories": old_default,
+                            "sampling": {
+                                "stratified_categories": [
+                                    "within_branch",
+                                    "across_layer",
+                                ]
+                            },
+                        },
+                    }
+                }
+            }
+        )
+    )
+    with caplog.at_level(logging.WARNING):
+        config = load_analysis_config(str(path))
+    params = config.correlation.params
+    assert params.sampling.stratified_categories == ["within_branch"]
+    assert params.stratified_categories == ["within_branch", "within_layer"]
+    assert "entry 'across_layer': it was never implemented" in caplog.text
+
+
+def test_an_unknown_stratified_category_raises():
+    from dendritic_modeling.config.analysis import CorrelationSamplingParams
+
+    with pytest.raises(ValueError, match="did you mean 'within_layer'"):
+        CorrelationSamplingParams(stratified_categories=["within_layers"])
+    with pytest.raises(ValueError, match="lists 'across'"):
+        CorrelationAnalysisParams(stratified_categories=["across"])
+
+
+def test_upgrade_config_removes_the_retired_across_layer_category():
+    from dendritic_modeling.scripts.tools.upgrade_config import upgrade_mapping
+
+    old_default = ["within_branch", "within_layer", "across_layer"]
+    old = {
+        "config_version": 1,
+        "experiment": {"seed": 0},
+        "data": {"dataset_name": "mnist"},
+        "analysis": {
+            "correlation": {
+                "enabled": True,
+                "params": {
+                    "stratified_categories": list(old_default),
+                    "sampling": {"stratified_categories": list(old_default)},
+                },
+            }
+        },
+    }
+    upgraded, changes, unresolved = upgrade_mapping(old)
+    assert unresolved == []
+    params = upgraded["analysis"]["correlation"]["params"]
+    assert params["stratified_categories"] == ["within_branch", "within_layer"]
+    assert params["sampling"]["stratified_categories"] == [
+        "within_branch",
+        "within_layer",
+    ]
+    assert sum("'across_layer'" in change for change in changes) == 2

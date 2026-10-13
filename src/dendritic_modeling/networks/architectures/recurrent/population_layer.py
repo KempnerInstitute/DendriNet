@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import replace
 
 import torch
@@ -9,6 +10,9 @@ import torch.nn as nn
 
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.structured_mask import (
     sample_probability_mask,
+)
+from dendritic_modeling.networks.architectures.recurrent.dendritic_geometry import (
+    resolve_synapses_by_level,
 )
 from dendritic_modeling.networks.architectures.recurrent.ei_config import (
     PopulationConfig,
@@ -48,7 +52,18 @@ from dendritic_modeling.networks.architectures.recurrent.population_state import
 from dendritic_modeling.networks.architectures.recurrent.stateful_dendrinet import (
     StatefulDendriNet,
 )
+from dendritic_modeling.networks.utils.forward_caches import detach_forward_caches
 from dendritic_modeling.utils.stable_hash import stable_seed_offset
+
+logger = logging.getLogger(__name__)
+
+# (timing, pathway, synapse-count prefix) of the four input streams.
+_STREAMS = (
+    (_SAME_STEP, _FF_EXC, "ff_excitatory"),
+    (_SAME_STEP, _FF_INH, "ff_inhibitory"),
+    (_DELAYED, _REC_EXC, "rec_excitatory"),
+    (_DELAYED, _REC_INH, "rec_inhibitory"),
+)
 
 
 class PopulationLayer(nn.Module):
@@ -63,9 +78,13 @@ class PopulationLayer(nn.Module):
         config: PopulationLayerConfig,
         input_dim: int | dict[str, int],
         external_source_polarities: dict[str, str] | None = None,
+        layer_index: int = 0,
     ):
         super().__init__()
         self.config = config
+        # Index of this layer in its network: structured connectivity draws
+        # and configuration messages refer to it.
+        self.layer_index = int(layer_index)
         self.external_input_dims = self._normalize_external_input_dims(input_dim)
         self.external_source_polarities = self._normalize_external_source_polarities(
             external_source_polarities or {}
@@ -142,7 +161,10 @@ class PopulationLayer(nn.Module):
         defaults = dict(config.population_defaults)
         for idx, population in enumerate(self.population_definitions):
             pop_cfg = _population_config_from_definition(
-                population, defaults, layer_idx=idx
+                population,
+                defaults,
+                layer_idx=idx,
+                network_layer_idx=self.layer_index,
             )
             if pop_cfg.indexed_seed is not None:
                 pop_cfg = replace(
@@ -168,6 +190,11 @@ class PopulationLayer(nn.Module):
                     ),
                 )
             self.population_configs[population.name] = pop_cfg
+            self._check_connection_budgets(
+                population,
+                pop_cfg,
+                written=set(defaults) | set(population.population),
+            )
             self._has_temporal_population_state = (
                 self._has_temporal_population_state
                 or _population_requires_temporal_state(pop_cfg)
@@ -201,6 +228,27 @@ class PopulationLayer(nn.Module):
             or self._has_temporal_population_state
             or any(conn.timing == _DELAYED for conn in self.connections if conn.enabled)
         )
+        if self._is_recurrent:  # forward() steps every population
+            for population in self.populations.values():
+                population.prepare_stepped_gradient_scaling()
+        broadcast = sorted(
+            name
+            for name, pop_cfg in self.population_configs.items()
+            if str(pop_cfg.autograd_credit_mode).lower() != "exact"
+        )
+        if self._is_recurrent and broadcast:
+            raise ValueError(
+                f"population_network layer {config.name!r} steps its populations "
+                f"through time, but {broadcast} set autograd_credit_mode="
+                "'soma_broadcast', which applies only to feedforward layers"
+            )
+
+    # Tensors of the last forward pass kept for analyses; copies and pickles
+    # hold them detached (networks.utils.forward_caches).
+    _FORWARD_CACHES = ("_last_outputs", "_last_routing_info")
+
+    def __getstate__(self):
+        return detach_forward_caches(super().__getstate__(), self._FORWARD_CACHES)
 
     @property
     def is_recurrent(self) -> bool:
@@ -408,27 +456,134 @@ class PopulationLayer(nn.Module):
     def _level_dims(self, population: PopulationDefinitionConfig) -> list[int]:
         return _population_level_dims(population.n_neurons, population.branch_factors)
 
+    def _check_connection_budgets(
+        self,
+        population: PopulationDefinitionConfig,
+        pop_cfg: PopulationConfig,
+        *,
+        written: set[str],
+    ) -> None:
+        """Reject declared connections that reach no synapses by default.
+
+        A connection reaches the depths its ``target_levels`` allow (all depths
+        when unset) that carry contacts of its pathway; the soma carries them
+        only with ``somatic_synapses``. A count the config writes as zero is a
+        supported lesion arm and is logged. A zero left at the schema default
+        (``rec_*_synapses`` for delayed edges) raises, naming the field to set,
+        as does a connection whose only targets are soma contacts that
+        ``somatic_synapses: false`` removes.
+        """
+        n_levels = len(self._level_dims(population))
+        for timing, pathway, prefix in _STREAMS:
+            sources = self._stream_sources(population.name, timing, pathway)
+            if not sources:
+                continue
+            # Counts are listed from the most distal level to the soma.
+            counts_by_depth = dict(
+                zip(
+                    range(n_levels - 1, -1, -1),
+                    resolve_synapses_by_level(
+                        per_level=getattr(pop_cfg, f"{prefix}_synapses_by_level"),
+                        fallback=getattr(pop_cfg, f"{prefix}_synapses"),
+                        n_levels=n_levels,
+                        field_name=f"{prefix}_synapses_by_level",
+                    ),
+                )
+            )
+            with_contacts = {
+                depth
+                for depth, count in counts_by_depth.items()
+                if count > 0 and (depth > 0 or pop_cfg.somatic_synapses)
+            }
+            budget_written = bool(
+                {f"{prefix}_synapses", f"{prefix}_synapses_by_level"} & written
+            )
+            for source in sources:
+                conn = self._connection_by_target_pathway_source[
+                    (population.name, timing, pathway, source)
+                ]
+                allowed = conn.target_depths(n_levels)
+                depths = set(counts_by_depth) if allowed is None else allowed
+                if depths & with_contacts:
+                    continue
+                edge = (
+                    f"population_network layer {self.config.name!r} {timing} "
+                    f"connection {source} -> {population.name} ({pathway})"
+                )
+                if budget_written and not any(counts_by_depth[d] for d in depths):
+                    logger.info(
+                        "%s reaches no synapses: %s is written as zero there",
+                        edge,
+                        prefix,
+                    )
+                    continue
+                if budget_written:
+                    raise ValueError(
+                        f"{edge} reaches no synapses: its {prefix} contacts at "
+                        "the depths it targets are soma contacts, and "
+                        "somatic_synapses is false"
+                    )
+                raise ValueError(
+                    f"{edge} reaches no synapses: {prefix}_synapses is unset and "
+                    f"defaults to 0. Set {prefix}_synapses or "
+                    f"{prefix}_synapses_by_level for population "
+                    f"{population.name!r} (write 0 to keep the connection as a "
+                    "lesion)."
+                )
+
     def _build_connection_masks_for_population(
         self,
         population: PopulationDefinitionConfig,
         pop_cfg: PopulationConfig,
     ) -> dict[str, list[torch.Tensor]]:
         masks_by_pathway = {}
-        for timing, pathway, pop_pathway in (
-            (_SAME_STEP, _FF_EXC, pop_cfg.ff_excitatory_pathway),
-            (_SAME_STEP, _FF_INH, pop_cfg.ff_inhibitory_pathway),
-            (_DELAYED, _REC_EXC, pop_cfg.rec_excitatory_pathway),
-            (_DELAYED, _REC_INH, pop_cfg.rec_inhibitory_pathway),
+        level_dims = self._level_dims(population)
+        for timing, pathway, pop_pathway, prefix in (
+            (_SAME_STEP, _FF_EXC, pop_cfg.ff_excitatory_pathway, "ff_excitatory"),
+            (_SAME_STEP, _FF_INH, pop_cfg.ff_inhibitory_pathway, "ff_inhibitory"),
+            (_DELAYED, _REC_EXC, pop_cfg.rec_excitatory_pathway, "rec_excitatory"),
+            (_DELAYED, _REC_INH, pop_cfg.rec_inhibitory_pathway, "rec_inhibitory"),
         ):
             masks = self._build_masks_for_stream(
                 target=population.name,
                 timing=timing,
                 pathway=pathway,
-                level_dims=self._level_dims(population),
+                level_dims=level_dims,
                 allow_self_recurrence=pop_cfg.allow_self_recurrence,
             )
-            if masks is not None:
-                masks_by_pathway[pop_pathway] = masks
+            if masks is None:
+                continue
+            if any(
+                getattr(
+                    self._connection_by_target_pathway_source[
+                        (population.name, timing, pathway, source)
+                    ],
+                    "target_levels",
+                    None,
+                )
+                is not None
+                for source in self._stream_sources(population.name, timing, pathway)
+            ):
+                counts = resolve_synapses_by_level(
+                    per_level=getattr(pop_cfg, f"{prefix}_synapses_by_level"),
+                    fallback=getattr(pop_cfg, f"{prefix}_synapses"),
+                    n_levels=len(level_dims),
+                    field_name=f"{prefix}_synapses_by_level",
+                )
+                for level_idx, (mask, count) in enumerate(zip(masks, counts)):
+                    depth = len(level_dims) - 1 - level_idx
+                    soma = depth == 0
+                    if (
+                        count > 0
+                        and (not soma or pop_cfg.somatic_synapses)
+                        and not bool(mask.any(dim=1).all())
+                    ):
+                        raise ValueError(
+                            f"population {population.name!r} has {count} {prefix} "
+                            f"contacts per compartment at depth {depth} but no "
+                            "projection's target_levels include that depth"
+                        )
+            masks_by_pathway[pop_pathway] = masks
         return masks_by_pathway
 
     def _build_masks_for_stream(
@@ -443,6 +598,23 @@ class PopulationLayer(nn.Module):
         sources = self._stream_sources(target, timing, pathway)
         if not sources:
             return None
+        # Fully allowed streams already resolve to None below. Avoid creating
+        # dense all-ones masks first: sparse populations can have hundreds of
+        # thousands of neurons while retaining only a few contacts per branch.
+        # A delayed self-connection still needs its diagonal exclusion mask.
+        connections = [
+            self._connection_by_target_pathway_source[(target, timing, pathway, source)]
+            for source in sources
+        ]
+        if (
+            all(out_dim >= 0 for out_dim in level_dims)
+            and (allow_self_recurrence or timing != _DELAYED or target not in sources)
+            and all(self._connection_probability(conn) >= 1.0 for conn in connections)
+            and all(
+                getattr(conn, "target_levels", None) is None for conn in connections
+            )
+        ):
+            return None
         masks = [
             self._build_mask_level(
                 target=target,
@@ -451,6 +623,7 @@ class PopulationLayer(nn.Module):
                 sources=sources,
                 out_dim=out_dim,
                 level_idx=level_idx,
+                n_levels=len(level_dims),
                 allow_self_recurrence=allow_self_recurrence,
             )
             for level_idx, out_dim in enumerate(level_dims)
@@ -469,7 +642,9 @@ class PopulationLayer(nn.Module):
         out_dim: int,
         level_idx: int,
         allow_self_recurrence: bool,
+        n_levels: int | None = None,
     ) -> torch.Tensor:
+        """Build one level's mask; ``n_levels`` is required by ``target_levels``."""
         blocks = []
         for source in sources:
             conn = self._connection_by_target_pathway_source[
@@ -477,6 +652,16 @@ class PopulationLayer(nn.Module):
             ]
             probability = self._connection_probability(conn)
             source_dim = self._source_dim(source)
+            allowed_depths = None
+            if getattr(conn, "target_levels", None) is not None:
+                if n_levels is None:
+                    raise ValueError("target_levels masks require the number of levels")
+                allowed_depths = conn.target_depths(n_levels)
+            # level_dims run leaf-to-soma, so depth counts down from the leaves.
+            depth = None if n_levels is None else n_levels - 1 - level_idx
+            if allowed_depths is not None and depth not in allowed_depths:
+                blocks.append(torch.zeros(out_dim, source_dim, dtype=torch.bool))
+                continue
             block = self._sample_connection_block(
                 source=source,
                 target=target,

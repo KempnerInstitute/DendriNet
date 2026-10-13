@@ -1,26 +1,13 @@
-import os
-import sys
-from types import SimpleNamespace
-from unittest.mock import patch
+"""Datasets returned by the loaders support list, tensor and slice indexing."""
 
 import torch
 from torch.utils.data import Dataset
 
+from dendritic_modeling.datasets.indexing import _ensure_slice_safe_triplet
 from dendritic_modeling.datasets.standard_datasets import (
     SliceSafeDataset,
     get_unified_datasets as get_standard_unified_datasets,
 )
-
-experiments_path = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "experiments"
-)
-if experiments_path not in sys.path:
-    sys.path.insert(0, experiments_path)
-
-try:
-    from data_generation.synthetic_datasets import get_unified_datasets
-except ImportError:  # pragma: no cover - integration-only path
-    get_unified_datasets = None
 
 
 def _manual_batch(dataset, indices):
@@ -52,38 +39,16 @@ def _assert_indexing_contract(dataset):
     torch.testing.assert_close(y_slice, y_manual)
 
 
-def test_slice_and_batch_indexing_for_split_synthetic_datasets():
-    if get_unified_datasets is None:
-        return
-
-    train_cfg = SimpleNamespace(train_valid_split=0.8, seed=7)
-
-    dataset_settings = [
-        ("line", {"train_size": 20, "valid_size": 6, "test_size": 6, "image_size": 8}),
-        (
-            "orthonet",
-            {
-                "train_size": 16,
-                "valid_size": 4,
-                "test_size": 4,
-                "input_dim": 6,
-                "n_layers": 2,
-                "noise_std": 0.0,
-            },
-        ),
-    ]
-
-    for dataset_name, parameters in dataset_settings:
+def test_slice_and_batch_indexing_for_library_synthetic_datasets():
+    for dataset_name in ("linear_separable", "nonlinear_transformation"):
         task_cfg = {
             "dataset": dataset_name,
             "data_path": None,
-            "parameters": parameters,
+            "train_valid_split": 0.8,
+            "parameters": {"n_samples": 40, "seed": 7},
         }
-        train_ds, valid_ds, test_ds = get_unified_datasets(task_cfg, train_cfg)
-
-        _assert_indexing_contract(train_ds)
-        _assert_indexing_contract(valid_ds)
-        _assert_indexing_contract(test_ds)
+        for dataset in get_standard_unified_datasets(task_cfg):
+            _assert_indexing_contract(dataset)
 
 
 class _ScalarOnlyDataset(Dataset):
@@ -101,29 +66,10 @@ class _ScalarOnlyDataset(Dataset):
         return torch.tensor([float(idx)]), torch.tensor(idx % 2, dtype=torch.long)
 
 
-def test_standard_loader_wraps_experimental_datasets_as_slice_safe():
-    fake_module = SimpleNamespace(
-        get_unified_datasets=lambda *_: (
-            _ScalarOnlyDataset(10),
-            _ScalarOnlyDataset(6),
-            _ScalarOnlyDataset(6),
-        )
+def test_scalar_only_datasets_are_wrapped_as_slice_safe():
+    triplet = _ensure_slice_safe_triplet(
+        _ScalarOnlyDataset(10), _ScalarOnlyDataset(6), _ScalarOnlyDataset(6)
     )
-
-    with patch(
-        "dendritic_modeling.datasets.standard_datasets.importlib.import_module",
-        return_value=fake_module,
-    ):
-        task_cfg = {
-            "dataset": "custom_experimental_dataset",
-            "data_path": None,
-            "train_valid_split": 0.8,
-            "parameters": {},
-        }
-        train_ds, valid_ds, test_ds = get_standard_unified_datasets(task_cfg)
-
-    assert isinstance(train_ds, SliceSafeDataset)
-    assert isinstance(valid_ds, SliceSafeDataset)
-    assert isinstance(test_ds, SliceSafeDataset)
-
-    _assert_indexing_contract(train_ds)
+    for dataset in triplet:
+        assert isinstance(dataset, SliceSafeDataset)
+        _assert_indexing_contract(dataset)

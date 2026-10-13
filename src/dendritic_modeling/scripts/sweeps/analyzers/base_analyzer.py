@@ -63,7 +63,7 @@ class BaseSweepAnalyzer(ABC):
 
         Args:
             results_dir: Path to results directory
-            output_dir: Path to output directory (defaults to results_dir/analysis)
+            output_dir: Path to output directory (defaults to results_dir/plots)
 
         Returns:
             Dictionary with analysis results and plot paths
@@ -93,7 +93,11 @@ class BaseSweepAnalyzer(ABC):
         # Aggregate over seeds
         logger.info("Aggregating over seeds...")
         group_cols = self.get_groupby_columns()
-        self.aggregated_data = aggregate_over_seeds(processed_data, group_cols)
+        self.aggregated_data = aggregate_over_seeds(
+            processed_data,
+            group_cols,
+            condition_cols=self.data_collector.config_columns,
+        )
 
         logger.info(
             f"Aggregated to {len(self.aggregated_data)} unique parameter combinations"

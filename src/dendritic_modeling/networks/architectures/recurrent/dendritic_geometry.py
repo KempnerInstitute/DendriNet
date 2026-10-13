@@ -37,6 +37,35 @@ def compute_output_owner_index_per_level(
     return owner_indices
 
 
+def sum_level_values_by_output_owner(
+    values: torch.Tensor,
+    n_soma: int,
+) -> torch.Tensor:
+    """Sum contiguous level coordinates belonging to the same soma owner.
+
+    Recurrent dendritic levels are laid out owner-major: every soma owns one
+    contiguous block of coordinates at every level.  This reduction exposes an
+    independently evolving level-width state at soma width without adding a
+    trainable projection or a data-dependent routing choice.
+    """
+
+    if values.ndim < 1:
+        raise ValueError("level values must include a feature dimension")
+    if isinstance(n_soma, bool) or not isinstance(n_soma, int) or n_soma <= 0:
+        raise ValueError("n_soma must be a positive integer")
+    level_dim = int(values.shape[-1])
+    if level_dim % n_soma != 0:
+        raise ValueError(
+            f"level width {level_dim} must be divisible by soma count {n_soma}"
+        )
+    coordinates_per_owner = level_dim // n_soma
+    return values.reshape(
+        *values.shape[:-1],
+        n_soma,
+        coordinates_per_owner,
+    ).sum(dim=-1)
+
+
 def resolve_synapses_by_level(
     *,
     per_level: list[int],
@@ -60,4 +89,5 @@ __all__ = [
     "compute_level_sizes",
     "compute_output_owner_index_per_level",
     "resolve_synapses_by_level",
+    "sum_level_values_by_output_owner",
 ]

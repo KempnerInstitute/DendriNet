@@ -1,0 +1,66 @@
+# Dense MLP baseline for the context-cued EMNIST task (dataset
+# contextual_remapping), trained on a stream of freshly sampled presentations
+# (strategy presentation_stream): 816-246-127-47 with ReLU and dropout 0.1, and
+# the context cue scaled by 8.
+#
+# Data generation runs on the GPU; the data root holds the torchvision EMNIST
+# download under raw/:
+#   dendritic-train configs/examples/contextual_remapping_affine_mlp.yaml --data_dir <root>
+
+config_version: 3
+
+experiment:
+  seed: 2
+  train_valid_split: 0.0
+  checkpointing: {enabled: false}
+  allow_tf32: false
+  float32_matmul_precision: highest
+data:
+  dataset_name: contextual_remapping
+  base_dir: data/contextual_remapping
+  dataset_params:
+    contextual_remapping: {generator_device: cuda, context_scale: 8}
+model:
+  task: classification
+  output_scale_mode: fixed
+  encoder: {type: identity}
+  core:
+    type: affine_mlp
+    affine_mlp:
+      dimensions: [816, 246, 127, 47]
+      mode: dense
+      initialization: kaiming_uniform_xavier_readout
+      activation: relu
+      activate_output: false
+      dropout: 0.1
+  decoder: {type: identity}
+training:
+  main:
+    strategy: presentation_stream
+    common:
+      epochs: 400
+      batch_size: 512
+      loss_function: ce
+      grad_clip_value: 0.0
+      early_stopping: false
+      load_best_state_dict: true
+      plot_losses: false
+      print_every: 10
+      lr_schedule: cosine
+      synapse_decay_rate: 0.0
+      weight_boosting: false
+      param_groups: {lr: 0.001, split_params: false}
+    optimizer:
+      name: adam
+      betas: [0.9, 0.999]
+      eps: 1.0e-08
+      weight_decay: 0.0
+    strategies:
+      presentation_stream: {presentations_per_epoch: 65536, lr_terminal_multiplier: 0.01}
+analysis:
+  performance:
+    enabled: true
+    training: false
+    params: {accuracy: true}
+outputs: {run_name: contextual_remapping_affine_mlp, results_dir: outputs/examples}
+distributed: {mode: none}

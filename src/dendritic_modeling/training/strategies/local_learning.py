@@ -9,6 +9,7 @@ by a broadcast soma error and optional morphology/information factors.
 """
 
 import logging
+import time
 from typing import Any
 
 import torch
@@ -18,7 +19,9 @@ from dendritic_modeling.config.local_learning import (
     coerce_legacy_local_rule_config,
     section_to_dict,
 )
+from dendritic_modeling.config.training import CommonTrainerConfig
 from dendritic_modeling.models import BaseModel
+from dendritic_modeling.networks.structure import inhibitory_branch_layer_ids
 from dendritic_modeling.training.strategies.local_learning_parts.local_learning_broadcast_mixin import (
     LocalLearningBroadcastMixin,
 )
@@ -29,6 +32,7 @@ from dendritic_modeling.training.strategies.local_learning_parts.local_learning_
     _apply_decoder_local_gradients as _apply_decoder_local_gradients,
     _apply_local_decoder_update,
     _apply_path_propagation_factor as _apply_path_propagation_factor,
+    _average_distributed_gradients,
     _average_local_epoch_losses,
     _clear_topk_mask_cache as _clear_topk_mask_cache,
     _clip_model_gradients,
@@ -37,13 +41,11 @@ from dendritic_modeling.training.strategies.local_learning_parts.local_learning_
     _enable_topk_mask_cache as _enable_topk_mask_cache,
     _forward_with_local_recorders,
     _has_dendritic_branch_layers,
-    _move_batch_to_device,
     _prepare_hsic_target,
     _resolve_epoch_update_modes as _resolve_epoch_update_modes,
     _resolve_local_epoch_update_modes,
     _resolve_reactivation_update_enabled,
     _resolve_stdp_error_signals as _resolve_stdp_error_signals,
-    _supports_local_learning_train,
     _zero_optimizer_gradients,
 )
 from dendritic_modeling.training.strategies.local_learning_parts.local_learning_gradients_mixin import (
@@ -60,6 +62,9 @@ from dendritic_modeling.training.strategies.local_learning_parts.local_learning_
 )
 from dendritic_modeling.training.strategies.local_learning_parts.local_learning_recorders import (
     LocalLearningRecorderMixin,
+    reject_mismatched_dynamics_mode,
+    reject_unsupported_forward_paths,
+    reject_unsupported_synapses,
 )
 from dendritic_modeling.training.strategies.local_learning_parts.local_learning_rule_mixin import (
     LocalLearningRuleMixin,
@@ -73,9 +78,53 @@ from dendritic_modeling.training.strategies.local_learning_parts.local_learning_
 from dendritic_modeling.training.strategies.local_learning_parts.local_learning_stdp_mixin import (
     LocalLearningSTDPMixin,
 )
-from dendritic_modeling.training.strategies.standard import Trainer
+from dendritic_modeling.training.strategies.standard import Trainer, _step_seconds
 
 logger = logging.getLogger(__name__)
+
+_COMMON_GRAD_CLIP_DEFAULT = CommonTrainerConfig.__dataclass_fields__[
+    "grad_clip_value"
+].default
+
+
+def _same_clip_value(first: Any, second: Any) -> bool:
+    """Compare clip settings, treating ``None``/non-positive as disabled."""
+    first_disabled = not first or float(first) <= 0
+    second_disabled = not second or float(second) <= 0
+    if first_disabled or second_disabled:
+        return first_disabled and second_disabled
+    return float(first) == float(second)
+
+
+def inactive_auxiliary_terms(local_cfg: Any) -> list[str]:
+    """The enabled auxiliary terms of ``local_cfg`` whose weights make them no-ops.
+
+    HSIC scales its gradients by ``hsic.weight`` (and its self and target parts
+    by ``self_weight`` and ``target_weight``), so a zero weight adds nothing.
+    Inhibitory and voltage homeostasis apply only a positive ``weight``, and
+    gate homeostasis only a positive ``center_weight`` or ``saturation_weight``.
+    """
+    inactive = []
+    hsic = getattr(local_cfg, "hsic", None)
+    if hsic is not None and getattr(hsic, "enabled", False):
+        if float(hsic.weight) == 0.0:
+            inactive.append("hsic (weight=0)")
+        elif float(hsic.self_weight) == 0.0 and float(hsic.target_weight) == 0.0:
+            inactive.append("hsic (self_weight=0 and target_weight=0)")
+    for name in ("inhibitory_homeostasis", "voltage_homeostasis"):
+        cfg = getattr(local_cfg, name, None)
+        if cfg is not None and getattr(cfg, "enabled", False):
+            if float(cfg.weight) <= 0.0:
+                inactive.append(f"{name} (weight={float(cfg.weight):g})")
+    gate = getattr(local_cfg, "gate_homeostasis", None)
+    if gate is not None and getattr(gate, "enabled", False):
+        center, saturation = float(gate.center_weight), float(gate.saturation_weight)
+        if center <= 0.0 and saturation <= 0.0:
+            inactive.append(
+                f"gate_homeostasis (center_weight={center:g}, "
+                f"saturation_weight={saturation:g})"
+            )
+    return inactive
 
 
 class LocalCreditAssignment(
@@ -98,18 +147,40 @@ class LocalCreditAssignment(
     using locally available signals plus a broadcast error from the soma.
     """
 
+    # The local-rule loop bypasses Trainer.train() and its LR scheduler.
+    supports_lr_schedule = False
+    # Options its own step loop does not apply (see STEP_OPTIONS).
+    unapplied_options = Trainer.unapplied_options | frozenset(
+        {"use_amp", "enable_nan_checking"}
+    )
+    # Local gradients are assigned directly and averaged explicitly.
+    ddp_reduces_gradients = False
+
     def __init__(self, *args, **kwargs):
         config_dict = kwargs.pop("local_rule_config", {}) or {}
+        # Keep the common clip value only when it was passed, so the local-rule
+        # path can reject a value it would not apply.
+        self._configured_grad_clip_value = kwargs.get("grad_clip_value")
+        self._configured_grad_clip_mode = kwargs.get("grad_clip_mode")
         super().__init__(*args, **kwargs)
         # Build LocalRuleConfig with proper nested config handling
         self.local_cfg = self._build_local_rule_config(config_dict)
+        inactive = inactive_auxiliary_terms(self.local_cfg)
+        if inactive and self._is_main_process:
+            logger.warning(
+                "local_ca: the auxiliary terms %s are enabled but their weights "
+                "make them change no update; set a positive weight or "
+                "enabled: false (training.main.learning_strategy_config).",
+                "; ".join(inactive),
+            )
         self._layer_stats: dict[int, _LayerStats] = {}
         self._decoder_cache: dict[str, Any] = {}
-        self._additive_gain_cache: dict[str, Any] = {}
         self._additive_running_var: dict[int, torch.Tensor] = {}
         self._broadcast_cache: dict[tuple[Any, ...], Any] = {}
         self._stdp_traces: dict[int, dict[str, torch.Tensor]] = {}
         self._warned_decoder_soma_fallback = False
+        # Trainable parameters that receive no gradient; set at the first step.
+        self.uncovered_parameters: list[str] | None = None
         self.filename_prefix = "local_learning_"
         self.logger_info_prefix = "[Local] "
 
@@ -138,17 +209,99 @@ class LocalCreditAssignment(
         if rec.get("population") != "explicit_inhibitory":
             return True
 
+        return self._explicit_inhibitory_mode() == "local_ca"
+
+    def _report_uncovered_parameters(self, model: BaseModel) -> None:
+        """Record and warn once about trainable parameters left without gradient."""
+        self.uncovered_parameters = [
+            name
+            for name, param in self._unwrap_model(model).named_parameters()
+            if param.requires_grad and param.grad is None
+        ]
+        if self.uncovered_parameters:
+            names = self.uncovered_parameters
+            logger.warning(
+                "%s%d trainable parameters receive no gradient from the local "
+                "rules and the configured update modes and stay fixed: %s",
+                self.logger_info_prefix,
+                len(names),
+                ", ".join(names[:10]) + (" ..." if len(names) > 10 else ""),
+            )
+
+    def _explicit_inhibitory_mode(self) -> str:
         mode = getattr(self.local_cfg, "explicit_inhibitory_update_mode", None)
         if mode is None:
             # Compatibility for older LocalRuleConfig-like objects in tests.
-            return bool(
-                getattr(self.local_cfg, "update_explicit_inhibitory_cells", True)
-            )
-        return str(mode).lower() == "local_ca"
+            update = getattr(self.local_cfg, "update_explicit_inhibitory_cells", True)
+            return "local_ca" if update else "freeze"
+        return str(mode).lower()
 
     # Override: do not run extra pretrain/final phases here
     def _pretrain(self, *args, **kwargs):  # type: ignore[override]
         return [], []
+
+    def _validate_local_rule_options(self, model: BaseModel) -> None:
+        """Reject common options that the local-rule loop does not apply.
+
+        Local rules assign ``param.grad`` directly: backward-hook gradient
+        scaling and the auxiliary regularization loss never act on them, and
+        clipping uses ``learning_strategy_config.clip_grad_value``.
+        """
+        self._reject_unapplied_gradient_scaling(model)
+        reject_unsupported_forward_paths(
+            self._unwrap_model(model),
+            allow=self.local_cfg.allow_unmodeled_forward_features,
+        )
+        three_factor = self.local_cfg.three_factor
+        reject_mismatched_dynamics_mode(
+            self._unwrap_model(model),
+            three_factor.dynamics_mode,
+            allow_mismatch=three_factor.allow_mismatched_dynamics_mode,
+        )
+        reject_unsupported_synapses(
+            self._unwrap_model(model),
+            stdp_pathways={
+                pathway
+                for pathway in ("exc", "inh", "rec_exc", "rec_inh")
+                if self._stdp_enabled() and self._stdp_pathway_enabled(pathway)
+            },
+        )
+        if self._explicit_inhibitory_mode() == "freeze" and not (
+            inhibitory_branch_layer_ids(self._unwrap_model(model))
+        ):
+            raise ValueError(
+                "explicit_inhibitory_update_mode 'freeze' has no inhibitory "
+                "population to freeze in this model"
+            )
+        if self.regularization_manager.has_regularization():
+            raise ValueError(
+                "local_ca assigns local-rule gradients and does not apply "
+                "training.main.regularization; set its l1/l2/E-I weights to 0 "
+                "or use a strategy that applies it (standard, dfa)."
+            )
+        if self._configured_grad_clip_mode not in (None, "value"):
+            raise ValueError(
+                "local_ca clips local-rule gradients element-wise with "
+                "training.main.learning_strategy_config.clip_grad_value, so "
+                "training.main.common.grad_clip_mode="
+                f"{self._configured_grad_clip_mode!r} would not be applied"
+            )
+        configured = self._configured_grad_clip_value
+        local_clip = getattr(self.local_cfg, "clip_grad_value", None)
+        if configured is None or _same_clip_value(configured, local_clip):
+            return
+        if _same_clip_value(configured, _COMMON_GRAD_CLIP_DEFAULT):
+            # The typed common default: local_ca documents that it clips with
+            # learning_strategy_config.clip_grad_value instead.
+            return
+        raise ValueError(
+            "local_ca clips local-rule gradients with "
+            f"training.main.learning_strategy_config.clip_grad_value={local_clip}; "
+            f"training.main.common.grad_clip_value={configured} would not be "
+            "applied. Set learning_strategy_config.clip_grad_value instead, or "
+            f"leave common.grad_clip_value at its default "
+            f"{_COMMON_GRAD_CLIP_DEFAULT}."
+        )
 
     def _resolve_local_reactivation_update_flag(
         self, update_reactivation: bool
@@ -164,17 +317,27 @@ class LocalCreditAssignment(
         self, model: BaseModel, train_loader
     ) -> tuple[float, float, float]:  # type: ignore[override]
         model.train()
-        train_loss = 0.0
-        train_loss_base = 0.0
-        train_loss_reg = 0.0
+        loss_sum = torch.zeros((), dtype=torch.float64, device=self.device)
 
-        # Fallback: if model has no dendritic branch layers, use standard epoch_train
-        if not _has_dendritic_branch_layers(model):
-            # Defer to base implementation
-            return super()._epoch_train(model, train_loader)
+        profile_loader = bool(getattr(self, "profile_dataloader", False))
+        data_wait_total = 0.0
+        step_time_total = 0.0
+        max_data_wait = 0.0
+        n_batches = 0
 
-        for batch in train_loader:
-            x_batch, y_batch = batch[0], batch[1]
+        train_iter = iter(train_loader)
+        while True:
+            fetch_start = time.perf_counter()
+            try:
+                batch = next(train_iter)
+            except StopIteration:
+                break
+            if profile_loader:
+                data_wait = time.perf_counter() - fetch_start
+                data_wait_total += data_wait
+                max_data_wait = max(max_data_wait, data_wait)
+                step_start = time.perf_counter()
+
             # Resolve per-epoch schedule for reactivation/decoder behavior
             update_reactivation, encoder_update_mode, decoder_update_mode = (
                 _resolve_local_epoch_update_modes(
@@ -183,21 +346,23 @@ class LocalCreditAssignment(
                     self._normalize_reactivation_update_mode(),
                 )
             )
-            x_batch, y_batch = _move_batch_to_device(x_batch, y_batch, self.device)
+            x_batch, y_batch = self._move_training_batch_to_device(
+                batch,
+                train_loader,
+            )
 
             # Forward once to obtain outputs and local signals.
             y_hat, layer_records = _forward_with_local_recorders(self, model, x_batch)
 
-            # Compute scalar loss for logging (no backward)
-            loss = self._compute_logging_loss(model, x_batch, y_batch)
-            train_loss, train_loss_base, train_loss_reg = (
-                _accumulate_local_logging_loss(
-                    train_loss=train_loss,
-                    train_loss_base=train_loss_base,
-                    train_loss_reg=train_loss_reg,
-                    loss=loss,
-                )
+            # Reuse the recorded forward for pointwise losses. Model-dependent
+            # losses retain the compatibility fallback to a separate evaluation.
+            loss = self._compute_logging_loss(
+                model,
+                x_batch,
+                y_batch,
+                predictions=y_hat,
             )
+            _accumulate_local_logging_loss(loss_sum, loss)
 
             # Compute output-space error (dL/dy_hat) then resolve local soma-space
             # signals for local dendritic updates.
@@ -239,18 +404,32 @@ class LocalCreditAssignment(
                 normalize_by_batch=self.local_cfg.normalize_by_batch,
             )
 
+            if self.uncovered_parameters is None:
+                self._report_uncovered_parameters(model)
+
+            # LocalCA assigns gradients directly rather than calling
+            # ``loss.backward()``. DDP therefore cannot reduce them through
+            # autograd hooks; average them explicitly before clipping.
+            _average_distributed_gradients(model)
+
             # Optional gradient clipping (value-wise)
             _clip_model_gradients(model, self.local_cfg.clip_grad_value)
 
             # Step optimizer
             self.optimizer.step()
+            n_batches += 1
+            if profile_loader:
+                step_time_total += _step_seconds(step_start, loss_sum)
 
-        return _average_local_epoch_losses(
-            train_loss=train_loss,
-            train_loss_base=train_loss_base,
-            train_loss_reg=train_loss_reg,
-            n_batches=len(train_loader),
-        )
+        if profile_loader and self._is_main_process:
+            self._log_dataloader_profile(
+                n_batches=n_batches,
+                data_wait_total=data_wait_total,
+                step_time_total=step_time_total,
+                max_data_wait=max_data_wait,
+            )
+
+        return _average_local_epoch_losses(loss_sum, n_batches)
 
     def train(
         self,
@@ -258,12 +437,16 @@ class LocalCreditAssignment(
         train_data: torch.utils.data.Dataset,
         valid_data: torch.utils.data.Dataset,
     ):
+        # The local-rule loop never builds the per-epoch LR scheduler.
+        self._resolve_lr_schedule()
         # Standard training loop but with local rule gradient computation
-        if not _supports_local_learning_train(model):
-            logger.info(
-                "No EI/dendritic branch layers detected; falling back to standard training."
+        if not _has_dendritic_branch_layers(model):
+            raise ValueError(
+                "strategy 'local_ca' updates dendritic branch layers with local "
+                "rules, but this model has none; use 'standard' (backpropagation) "
+                "or 'dfa' for this core"
             )
-            return super().train(model, train_data, valid_data)
+        self._validate_local_rule_options(model)
 
         train_loader, valid_loader = self._dataloaders(train_data, valid_data)
         self._initialize_attributes(model, self.epochs)
@@ -285,16 +468,14 @@ class LocalCreditAssignment(
                 train_losses_base=train_losses_base,
                 train_losses_reg=train_losses_reg,
                 logger_info=self.logger_info_prefix,
-                wandb_info={},
             )
         )
 
-        if self.load_best_state_dict:
-            model.load_state_dict(self.best_state_dict)
-
-        # Log best model information like standard training
-        logger.info(f"Best epoch: {self.best_epoch}, Best loss: {self.best_loss:.4f}")
-        logger.info("Final model loaded from best checkpoint")
+        if self._is_main_process:
+            logger.info(
+                f"Best epoch: {self.best_epoch}, Best loss: {self.best_loss:.4f}"
+            )
+        self._restore_best_state(model, valid_losses)
 
         results = {
             "best_epoch": self.best_epoch,
@@ -302,6 +483,10 @@ class LocalCreditAssignment(
             "best_state_dict": self.best_state_dict,
             "train_losses": train_losses,
             "valid_losses": valid_losses,
+            "train_losses_base": train_losses_base,
+            "train_losses_reg": train_losses_reg,
+            "dataloader_tuning": getattr(self, "dataloader_tuning", None),
+            "data_parallel": getattr(self, "data_parallel", None),
         }
         self._loss_plotting(train_losses, valid_losses)
         return results

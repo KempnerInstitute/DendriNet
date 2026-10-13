@@ -24,6 +24,8 @@ import torch
 from torch.distributions.multivariate_normal import MultivariateNormal
 from torch.utils.data import TensorDataset
 
+from dendritic_modeling.utils.reproducibility import preserved_random_state
+
 logger = logging.getLogger(__name__)
 
 _SyntheticDatasetTriplet = tuple[TensorDataset, TensorDataset, TensorDataset]
@@ -1460,8 +1462,8 @@ def create_branch_local_gain_load_dataset(
     ``TransferLayer(independent_pathways=true, split_strategy=ordered)``.
 
     Class information lives in a subset of signal dimensions.  ``support_mode``
-    controls whether these dimensions are the deterministic prefix used by the
-    original Fig. 4 control or a seed-sampled sparse support.  In the legacy
+    controls whether these dimensions are a deterministic prefix (the original
+    task) or a seed-sampled sparse support.  In the legacy
     ``e_only`` mode, class 1 increases the excitatory stream.  In
     ``balanced_ratio`` mode, the total local E+I drive is approximately fixed
     while class identity changes the E/I split; this is the stricter
@@ -1478,8 +1480,7 @@ def create_branch_local_gain_load_dataset(
     name, ``load_mean`` adds positive background to the I input stream after
     gain modulation.  It therefore changes both raw additive subtraction and
     the shunting denominator; it is not an external denominator-only
-    conductance and is not the paper's residual-variance coordinate
-    :math:`\Lambda`.
+    conductance and is not a residual-variance load coordinate.
     """
 
     if seed is not None:
@@ -1766,7 +1767,7 @@ def create_hierarchical_gain_load_dataset(
     matched local sensor; the legacy ``load_mean`` argument adds positive,
     class-independent I-stream background after gain modulation.  It affects
     both integration rules and must not be interpreted as a denominator-only
-    conductance or as the paper's :math:`\Lambda` coordinate.
+    conductance or as a residual-variance load coordinate.
     """
 
     if seed is not None:
@@ -2047,6 +2048,7 @@ def create_mnist_information_sampled_dataset(
     n_classes: int = 10,
     precomputed_fisher_path: Optional[str] = None,
     seed: Optional[int] = None,
+    data_path: Optional[str] = None,
 ) -> tuple[TensorDataset, TensorDataset, TensorDataset, dict]:
     """
     Create MNIST dataset with information-based pixel sampling.
@@ -2059,19 +2061,25 @@ def create_mnist_information_sampled_dataset(
         n_classes: MNIST classes to use (default 10)
         precomputed_fisher_path: Path to precomputed Fisher scores
         seed: Random seed
+        data_path: Data root (``data.base_dir``); empty uses the shared root
 
     Returns:
         train, valid, test datasets, info_dict
     """
     from torchvision import datasets, transforms
 
-    # Load MNIST
-    transform = transforms.Compose([transforms.ToTensor()])
-    train_mnist = datasets.MNIST(
-        root="./data", train=True, download=True, transform=transform
+    # MNIST from the standard loader's cache under the shared data root.
+    from dendritic_modeling.datasets.paths import get_data_directory
+    from dendritic_modeling.datasets.standard_datasets import (
+        _load_torchvision_train_test_pair,
     )
-    test_mnist = datasets.MNIST(
-        root="./data", train=False, download=True, transform=transform
+
+    transform = transforms.Compose([transforms.ToTensor()])
+    train_mnist, test_mnist = _load_torchvision_train_test_pair(
+        datasets.MNIST,
+        root=get_data_directory("mnist", data_path),
+        transform=transform,
+        dataset_name="mnist",
     )
 
     # Convert to tensors
@@ -2454,4 +2462,31 @@ def get_synthetic_datasets(
     spec = _SYNTHETIC_DATASET_SPECS.get(dataset_type)
     if spec is None:
         raise ValueError(f"Unknown synthetic dataset type: {dataset_type}")
-    return spec.build(dataset_config)
+    if (
+        "valid_split_mode" in spec.defaults
+        and "valid_split_mode" not in dataset_config
+        and spec.defaults["valid_split_mode"] != "train"
+    ):
+        logger.warning(
+            "%s draws its validation split from the shifted test distribution "
+            "(valid_split_mode=%r by default), so checkpoint selection and early "
+            "stopping see test-distribution data. Set valid_split_mode: train to "
+            "validate on the training distribution, or set the current value "
+            "explicitly to keep it.",
+            dataset_type,
+            spec.defaults["valid_split_mode"],
+        )
+    # The generators seed the global RNGs themselves; restore the caller's
+    # random state afterwards.
+    with preserved_random_state():
+        return spec.build(dataset_config)
+
+
+def synthetic_dataset_names() -> tuple[str, ...]:
+    """Return the ``data.dataset_name`` values of the synthetic datasets."""
+    return tuple(_SYNTHETIC_DATASET_SPECS)
+
+
+def synthetic_dataset_parameter_keys(dataset_type: str) -> frozenset[str]:
+    """Return the parameter names the synthetic dataset ``dataset_type`` reads."""
+    return frozenset(_SYNTHETIC_DATASET_SPECS[dataset_type].defaults)

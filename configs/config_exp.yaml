@@ -1,124 +1,137 @@
 # ============================================================================
-# DENDRITIC MODELING FRAMEWORK -- POPULATION-NETWORK REFERENCE CONFIG
+# DENDRINET ANNOTATED REFERENCE CONFIG (single process)
 # ============================================================================
-# This is the runnable single-GPU reference config. The active core is defined
-# with the named-population schema under model.core.population_network.
-# E/I compatibility fields are supported by the loader and factory for existing
-# configs, but they are not listed here because population_network does not read
-# them.
+# A complete configuration: a one-layer population network (an inhibitory
+# population feeding an excitatory population with a three-level dendritic
+# tree) trained on CIFAR-10. Each option carries a comment with its type, its
+# accepted values and what it does. The values are an example, not the library
+# defaults; a comment gives the default where the difference matters. Options
+# left out of this file take their defaults.
 #
-# USAGE:
-#   python src/dendritic_modeling/scripts/training/train_experiments.py configs/config_exp.yaml
+# The core is model.core.type "population_network". Sections of other core
+# families (architecture, connectivity, morphology, sparsity, spatial, ...) are
+# left out: a population_network core does not read them, and the loader
+# rejects them when they differ from their defaults.
 #
-#   Command-line overrides:
-#   --output_dir /path    --run_name my_exp    --learning_strategy local_ca
+# Run from the repository root:
+#   dendritic-train configs/config_exp.yaml
+#   dendritic-train configs/config_exp.yaml --validate-only   # build everything, then exit
+#   dendritic-train configs/config_exp.yaml --output_dir runs --run_name test --epochs 5
+# docs/configuration_guide.rst lists every command-line override.
 #
-# For multi-GPU / FSDP training use config_exp_fsdp.yaml.
-# For parameter sweeps use sweep_config.yaml.
+# Multi-GPU FSDP training: config_exp_fsdp.yaml. Parameter sweeps: sweep_config.yaml.
+
+config_version: 3                       # int: configuration format; dendritic-upgrade-config rewrites earlier ones
 
 # ============================================================================
 # EXPERIMENT SETUP
 # ============================================================================
 experiment:
-  seed: 42                              # int: Random seed
-  train_valid_split: 0.8                # float: Train/validation ratio (0.0--1.0)
-  fast_mode: false                      # bool: Fast mode (reduced computation)
-  deterministic: true                   # bool: Deterministic CUDA ops
-  cudnn_benchmark: false                # bool: cuDNN auto-tuner benchmark
-  allow_tf32: false                     # bool: Allow TF32 on Ampere+ GPUs
-  float32_matmul_precision: "highest"   # str: "highest" | "high" | "medium"
-  enable_profiling: false               # bool: PyTorch profiler
-  profiling_output_dir: "results/profiling/"  # str: Profiler output directory
-  enable_hooks: true                    # bool: Gradient hooks for analysis
+  seed: 42                              # int: Root seed; every stream below that is null uses it
+  # Independent random streams (null = seed). Fix one to hold it while varying
+  # the others, for example topology_seed for a fixed connectivity.
+  dataset_seed: null                    # int | null: Generated datasets, data noise and label noise
+  split_seed: null                      # int | null: Train/validation split
+  model_seed: null                      # int | null: Parameter initialization and training-time noise
+  topology_seed: null                   # int | null: Connectivity seeds the model config leaves unset
+  loader_seed: null                     # int | null: Order of the training batches
+  evaluation_seed: null                 # int | null: Sampling of the analysis runtime
+  probe_seed: null                      # int | null: Analysis probes, decoders, nulls and other analyzer draws
+  strict_deterministic: false           # bool: Exact math and PyTorch deterministic algorithms; a contradicting flag below raises
+  train_valid_split: 0.8                # float: Fraction of the training data used for training; the rest is the validation split (datasets with their own splits ignore it)
+  fast_mode: false                      # bool: Flags below that are null follow it (true: nondeterministic cuDNN, autotuning, TF32)
+  # The four flags below are written out, so fast_mode does not change them
+  # here. Set them to null (their default) to let fast_mode decide.
+  deterministic: true                   # bool | null: Deterministic cuDNN kernels (null = not fast_mode); PyTorch deterministic algorithms need strict_deterministic
+  cudnn_benchmark: false                # bool | null: cuDNN autotuner, off while deterministic is true (null = fast_mode and not deterministic)
+  allow_tf32: false                     # bool | null: TF32 matmuls and convolutions (null = fast_mode); must agree with float32_matmul_precision
+  float32_matmul_precision: "highest"   # str | null: "highest" (no TF32) | "high" | "medium" (null = "high" if fast_mode else "highest")
+  # Not shown: sealed_test, allow_test_data, max_test_samples (test-split
+  # sealing, docs/datasets.rst) and record_dataset_fingerprints
+  # (docs/runs_and_outputs.rst).
 
   checkpointing:
-    enabled: false                      # bool: Save model checkpoints
-    save_every_n_epochs: 10             # int: Checkpoint frequency (positive integer)
-    checkpoint_dir: "results/checkpoints/"  # str: Checkpoint directory
+    enabled: false                      # bool: Save the weights every save_every_n_epochs epochs (main_network/<prefix>checkpoints/)
+    save_every_n_epochs: 10             # int: Checkpoint interval in epochs (>= 1)
 
 # ============================================================================
 # DATA
 # ============================================================================
 data:
-  # Standard vision: "cifar10" | "mnist" | "fashion_mnist" | "imagenet"
-  # Synthetic vision: "poisson_generator" | "multixor" | "orientation_bars" | "orthonet" | "mnist_modulo10" | "random_flip_mnist"
-  # Sequence / recurrent: "sequential_mnist" | "copy_task" | "adding_problem" | "variable_delay_dms" | "multi_frequency" | "hierarchical_temporal" | "context_dependent_decision" | "context_dependent_decision_hard" | "switching_context_decision" | "timescale_generalization"
-  # Neural data: "stringer_v1"
-  # Theoretical: "correlated_gaussian" | "nonlinear_interaction" | "linear_separable" | "nonlinear_separable" | "block_correlated" | "balanced_information"
+  # dataset_name: a loadable dataset, for example the vision datasets "cifar10",
+  # "cifar100", "mnist", "fashion_mnist" and "imagenet", derived tasks such as
+  # "poisson_generator" and "mnist_modulo10", sequence tasks such as
+  # "sequential_mnist" and "copy_task", and generated datasets such as
+  # "correlated_gaussian". docs/datasets.rst lists every name with its
+  # dataset_params; an unknown name raises with the full list when the
+  # datasets are built.
   dataset_name: "cifar10"
-  base_dir: ""                          # str: Override dataset root (empty = default)
+  base_dir: ""                          # str: Data root (empty = $DENDRITIC_DATA_DIR, else ~/.cache/dendritic_modeling)
 
   # ---------- Data processing ----------
   processing:
-    flatten: true                       # bool: Flatten spatial dims to 1-D
-    normalize: false                    # bool: Normalize inputs
-    label_noise_rate: 0.0               # float: Fraction of training labels to randomize (0.0 = clean)
+    flatten: null                       # bool | null: Flatten each sample to a vector (null = loader default: true for vision datasets)
+    normalize: null                     # bool | null: Dataset-specific input normalization (null = loader default: false, except sequential_mnist and stringer_v1)
+    label_noise_rate: 0.0               # float: Fraction of training labels replaced by random classes (mnist, fashion_mnist, cifar10 and cifar100 only)
 
   # ---------- Dataset-specific params ----------
+  # Only the block named by dataset_name is read; its keys are checked when the
+  # datasets are built. The blocks below show the options of other datasets and
+  # are ignored while dataset_name is "cifar10".
   dataset_params:
     mnist_modulo10:
-      shuffle_iterations: 2             # int: Number of shuffle iterations
-    random_flip_mnist:
-      flip_probability: 0.5             # float: Probability of flipping each pixel
+      shuffle_iterations: 2             # int: Rounds of random image pairing; each adds one pair per two images
     poisson_generator:
-      base_dataset: "mnist"             # str: Underlying dataset
-      multiplicative_gain: true         # bool: Apply multiplicative gain
-      fixed_gain_factor: null           # float | null: Fixed gain (null = random)
-      max_gain_factor: null             # float | null: Upper bound for gain
-      max_gain_tau_ratio: null          # float | null: Tau-based gain ratio
-      uniform_gain: true                # bool: One gain shared across each sample
-      gain_sampling: "log_uniform"      # str: "log_uniform" or "linear_uniform"
-      poisson_sampling: true            # bool: Poisson spike sampling
-      stimulus_duration: 1.0            # float: Stimulus duration (seconds)
-    multixor:
-      n_bits: 8                         # int: Number of XOR input bits
-    orientation_bars:
-      n_orient_classes: 8               # int: Number of orientation classes
-    orthonet:
-      input_dim: 784                    # int: Input dimensionality
-      n_layers: 5                       # int: Number of orthogonal layers
-      nonlinearity: "sigmoid"           # str: Nonlinearity type
-      repeat_layers: false              # bool: Repeat layers cyclically
-      noise_std: 0.1                    # float: Additive noise std
+      base_dataset: "mnist"             # str: "mnist" | "cifar10"
+      multiplicative_gain: true         # bool: Multiply each input by a gain before Poisson sampling
+      fixed_gain_factor: null           # float | null: One gain for every input (null = draw gains up to max_gain_factor)
+      max_gain_factor: null             # float | null: Draw gains from [1, max_gain_factor] (null with uniform_gain: gain 1)
+      max_gain_tau_ratio: null          # float | null: Sets max_gain_factor = ratio * stimulus_duration when max_gain_factor is null
+      uniform_gain: true                # bool: One gain per sample (false: one per input element)
+      gain_sampling: "log_uniform"      # str: "log_uniform" | "linear_uniform"
+      poisson_sampling: true            # bool: Replace each input by a Poisson count rate over stimulus_duration
+      stimulus_duration: 1.0            # float: Counting window of the Poisson draw
     imagenet:
-      transform_preset: "legacy_resize"      # str: "legacy_resize" (compat) | "pretrained" (torchvision backbone)
-      loader_backend: "auto"            # str: "auto" | "torchvision" | "imagefolder"; use imagefolder for train/val class trees
-      allow_flatten_materialize: false       # bool: Opt in before flattening full ImageNet tensors
-      train_samples_per_class: null     # int | null: Subsample train (null = all)
-      val_samples_per_class: null       # int | null: Subsample val (null = all)
+      transform_preset: "legacy_resize"      # str: "legacy_resize" (resize to 224x224) | "pretrained" (train/eval transforms of pretrained torchvision backbones)
+      loader_backend: "auto"            # str: "auto" | "torchvision" | "imagefolder" (root with train/<class> and val/<class> directories)
+      allow_flatten_materialize: false       # bool: Allow processing.flatten: true for ImageNet (memory-heavy)
+      train_samples_per_class: null     # int | null: Training images per class (null = all)
+      val_samples_per_class: null       # int | null: Validation and test images per class (null = all)
 
     # ---------- Sequence dataset params ----------
+    # n_samples is the size of the training pool, which train_valid_split
+    # divides; the test split has max(n_samples / 5, a dataset minimum) samples.
     sequential_mnist:
-      mode: "pixel"                     # str: "pixel" | "row"
-      normalize: false                  # bool: Normalize inputs
+      mode: "pixel"                     # str: "pixel" (784 steps of 1 value) | "row" (28 steps of 28 values)
+      normalize: true                   # bool: Scale pixels to [0, 1] (false: raw 0-255)
     copy_task:
-      n_samples: 10000                  # int: Number of samples
-      seq_len: 10                       # int: Sequence length
-      delay: 10                         # int: Delay before recall
+      n_samples: 10000                  # int: Training-pool sequences
+      seq_len: 10                       # int: Length of the sequence to copy
+      delay: 10                         # int: Steps between the sequence and its recall (default 50)
       n_symbols: 8                      # int: Number of symbols
     adding_problem:
-      n_samples: 10000                  # int: Number of samples
-      seq_len: 100                      # int: Sequence length
+      n_samples: 10000                  # int: Training-pool sequences
+      seq_len: 100                      # int: Sequence length (default 200)
     variable_delay_dms:
-      n_samples: 10000                  # int: Number of samples
+      n_samples: 10000                  # int: Training-pool sequences
       stimulus_dim: 16                  # int: Stimulus dimensionality
       stimulus_duration: 10             # int: Stimulus presentation steps
-      min_delay: 5                      # int: Minimum delay steps
-      max_delay: 50                     # int: Maximum delay steps
+      min_delay: 5                      # int: Minimum delay steps (default 10)
+      max_delay: 50                     # int: Maximum delay steps (default 100)
       probe_duration: 10                # int: Probe presentation steps
     context_dependent_decision:
-      n_samples: 10000                  # int: Number of samples
-      signal_dim: 16                    # int: Signal dimensionality
+      n_samples: 10000                  # int: Training-pool sequences (default 20000)
+      signal_dim: 16                    # int: Signal dimensionality (default 8)
       context_duration: 10              # int: Context cue steps
-      integration_duration: 30          # int: Integration window steps
-      coherence_levels: [0.1, 0.2, 0.4, 0.8]  # list[float]: Coherence levels
-      noise_std: 0.1                    # float: Noise standard deviation
-      variable_delay: false             # bool: Variable delay between context and integration
+      integration_duration: 30          # int: Integration window steps, used when variable_integration is false (default 50)
+      coherence_levels: [0.1, 0.2, 0.4, 0.8]  # list[float]: Coherence levels (default [0.05, 0.1, 0.2, 0.4])
+      noise_std: 0.1                    # float: Noise standard deviation (default 1.0)
+      variable_integration: false       # bool: Sample the integration length from [min_integration, max_integration] (default true); false uses integration_duration
     timescale_generalization:
       stimulus_dim: 16                  # int: Stimulus dimensionality
       stimulus_duration: 10             # int: Stimulus presentation steps
-      min_delay: 5                      # int: Minimum delay steps
-      max_delay: 50                     # int: Maximum delay steps
+      min_delay: 5                      # int: Minimum delay steps (default 10)
+      max_delay: 50                     # int: Maximum delay steps (default 100)
       probe_duration: 10                # int: Probe presentation steps
 
 # ============================================================================
@@ -126,92 +139,123 @@ data:
 # ============================================================================
 model:
   task: "classification"                # str: "classification" | "regression"
+  # Optional warm start: a state-dict file loaded into the built model before
+  # training.
+  initial_checkpoint: null              # str | null: State-dict checkpoint path
+  initial_checkpoint_sha256: null       # str | null: Expected SHA-256 of the file (a mismatch raises)
+  initial_checkpoint_strict: true       # bool: Reject missing or unexpected keys
+  # Not shown: fixed_output_scale and output_scale_mode (scaling of the
+  # classifier output; docs/network_architectures.rst).
 
   # ---------- Encoder ----------
   encoder:
-    type: "identity"                    # str: "identity" | "conv_autoencoder" | "pretrained" | "pathway_router"
-    load_save_root: "./trained_encoder_networks/"  # str: Directory for trained encoders
+    type: "identity"                    # str: "identity" | "none" | "pathway_router" (alias "router") | "mlpautoencoder" | "mlpvariationalautoencoder" | "cnnautoencoder" | "cnnvariationalautoencoder"
+    # Each encoder type reads only some params; the identity encoder reads
+    # input_dim and input_shape, which training sets from the data. The other
+    # fields belong to the autoencoder and router types. Because this block
+    # lists every field (as a saved config.json does), the loader only warns
+    # when the selected type ignores a field that differs from its default; a
+    # shorter block raises instead.
     params:
-      input_dim: null                   # int | null: Explicit input dim (null = infer)
-      input_shape: [3, 32, 32]          # list[int]: [C, H, W] input shape
-      encoder_hidden_dims: [128, 64]    # list[int]: Hidden dims for conv encoder
-      encoder_kernel_sizes: [3, 3]      # list[int]: Kernel sizes per conv layer
-      encoder_strides: [2, 2]           # list[int]: Strides per conv layer
-      latent_dim: null                  # int | null: Latent space dim (null = infer)
-      latent_shape: null                # list[int] | null: Latent spatial shape
-      decoder_hidden_dims: [64, 128]    # list[int]: Hidden dims for conv decoder
-      activation: "relu"               # str: "relu" | "gelu" | "tanh" | "sigmoid"
-      router_mode: "fixed"             # str: "fixed" | "learned" | "random"
-      pathway_groups: []               # list[list[int]]: Indices per pathway group
-      shared_indices: []               # list[int]: Input indices shared across pathways
-      n_pathways: 2                    # int: Number of pathways
-      pathway_dim: null                # int | null: Per-pathway dim (null = auto)
-      pathway_dims: []                 # list[int]: Explicit per-pathway dims
-      router_activation: "none"        # str: "none" | "softmax" | "sigmoid"
-      learned_router_temperature: 1.0  # float: Temperature for learned router
-      learned_router_init_scale: 4.0   # float: Init scale for learned router
+      input_dim: null                   # int | null: Input size; set from the data at training time
+      input_shape: [3, 32, 32]          # list[int]: Input shape [C, H, W]; set from the data at training time
+      encoder_hidden_dims: [128, 64]    # list[int]: (autoencoders) Encoder hidden sizes
+      latent_dim: null                  # int | null: (MLP autoencoders) Latent size
+      latent_shape: null                # list[int] | null: (CNN autoencoders) Latent shape
+      decoder_hidden_dims: [64, 128]    # list[int]: (autoencoders) Decoder hidden sizes
+      activation: "relu"               # str: (autoencoders) Any activation type, for example "relu" | "gelu" | "silu" | "tanh" | "sigmoid"
+      router_mode: "fixed"             # str: (pathway_router) "fixed" | "learned"
+      pathway_groups: []               # list[list[int]]: (pathway_router) Input indices of each pathway (empty = split the inputs into n_pathways groups)
+      shared_indices: []               # list[int]: (pathway_router) Input indices given to every pathway
+      n_pathways: 2                    # int: (pathway_router) Number of pathways when pathway_groups is empty
+      pathway_dim: null                # int | null: (pathway_router) Output size of every pathway (null = its input count)
+      pathway_dims: []                 # list[int]: (pathway_router) Output size of each pathway (overrides pathway_dim)
+      router_activation: "none"        # str: (pathway_router) Any activation type, for example "none" | "sigmoid" | "relu"
+      learned_router_temperature: 1.0  # float: (pathway_router, learned) Temperature of the learned assignment
+      learned_router_init_scale: 4.0   # float: (pathway_router, learned) Initial logit scale of the learned assignment
 
   # ---------- Core network ----------
   core:
-    # Named-population model. See configs/examples/ for focused variants
-    # covering spiking, receptor kinetics, recurrent timing, additive
-    # normalization, sparse rewiring, and local learning.
+    # Named-population model. configs/examples/ holds focused variants
+    # (spiking, receptor kinetics, recurrent timing, additive normalization,
+    # sparse rewiring, local learning); docs/population_networks.rst documents
+    # the options.
     type: "population_network"
 
-    # ---- Population network / named populations (core.type: population_network) ----
+    # ---- model.core.population_network ----
+    # Keys inside this block are checked when the model is built, not when the
+    # config loads; dendritic-train --validate-only checks them without
+    # training. Network options not shown: input_transform ("identity" |
+    # "relu" | "signed_split"), readout_layer, readout_population, compile_step.
     population_network:
-      use_transfer: false               # bool: Use TransferLayer before first population layer
-      transfer_params: {}               # dict: input_mode, independent_pathways, output_activation, etc.
-      output_mode: "last"               # str: "last" | "mean" | "all" for recurrent sequence output
-      input_projection_dims: []         # list[int]: Optional input projection MLP dims
-      store_routing: false              # bool: Store routing metadata for compatible analyses
-      layers:                           # list[dict]: {name, recurrent, readout_population, population_defaults, populations, connections}
+      use_transfer: false               # bool: Split the input into excitatory and inhibitory streams with a TransferLayer
+      # transfer_params: TransferLayer options (independent_pathways, excitatory_dim,
+      #   inhibitory_dim, split_strategy, output_activation, ...); allowed only with
+      #   use_transfer: true.
+      transfer_params: {}
+      output_mode: "last"               # str: Sequence output of recurrent networks: "last" | "mean" | "all"
+      input_projection_dims: []         # list[int]: Linear + ReLU layers applied to the input before the first layer
+      store_routing: false              # bool: Record per-step routing information on every forward pass (sets it on every layer)
+      layers:                           # list[dict]: Layer keys: name, populations, connections, population_defaults, readout_population, recurrent, dt, connection_seed, store_routing
         - name: "layer0"
-          readout_population: "e"
+          readout_population: "e"       # str: Population whose somas form the layer output
+          # population_defaults: options shared by every population of the
+          # layer; a population's own `population` block overrides them.
+          # n_neurons and branch_factors belong to each population definition
+          # and are rejected here.
           population_defaults:
-            ff_excitatory_synapses: 40
-            ff_inhibitory_synapses: 10
-            rec_excitatory_synapses: 0
-            rec_inhibitory_synapses: 0
-            somatic_synapses: true
-            use_shunting: true
-            reactivate: true
-            reactivation_type: "param_tanh"
-            # Empirical-paper training convention from the 2026-06 diagnostics:
-            #   shunting -> analytical reactivation initialization
-            #   additive -> occupancy_quantile reactivation initialization
-            # Population-network configs may omit reactivation_init_policy to
-            # get this canonical behavior automatically: shunting keeps the
-            # analytical population default, while raw additive is promoted to
-            # occupancy_quantile at the population-config boundary.
+            ff_excitatory_synapses: 40  # int: Feedforward excitatory synapses per dendritic compartment (default 8)
+            ff_inhibitory_synapses: 10  # int: Feedforward inhibitory synapses per compartment (default 4)
+            rec_excitatory_synapses: 0  # int: Recurrent excitatory synapses per compartment (delayed connections)
+            rec_inhibitory_synapses: 0  # int: Recurrent inhibitory synapses per compartment (delayed connections)
+            somatic_synapses: true      # bool: The soma level also receives synapses
+            use_shunting: true          # bool: Shunting (conductance) integration; false = additive
+            reactivate: true            # bool: Apply the reactivation gate to each compartment output (false: no gate)
+            reactivation_type: "param_tanh"   # str: Gate activation; any activation type (docs/dendritic_neurons.rst)
+            reactivation_memory_efficient: true  # bool: Save fewer tensors for backward in param_tanh and param_tanh_only_m gates (default false)
+            # reactivation_init_policy: "analytical" | "fixed" | "empirical" |
+            #   "occupancy_quantile" | "analytical_slope_occupancy_center" |
+            #   "occupancy_slope_analytical_center". Omitted, it is
+            #   "analytical" for shunting populations and "occupancy_quantile"
+            #   for additive ones (use_shunting: false).
             reactivation_init_policy: "analytical"
-            reactivation_init_m: 1.5
-            reactivation_init_b: 0.5
-            dbl_init_method: "analytical_expectation"
-            weight_transform: "softplus"
-            # Use standard TopK for the paper-facing empirical sweeps. Indexed
-            # rewiring is available for large sparse models, but it is not the
-            # reference recipe for the current empirical figures.
+            # reactivation_init_m: 1.0      # float: Start slope (default 1.0), read only by init_policy "fixed"
+            # reactivation_init_b: 0.5      # float: Start midpoint (default 0.5), read only by init_policy "fixed"
+            dbl_init_method: "analytical_expectation"  # str: Initial synaptic weights: "analytical_expectation" | "ei_equivalence" | "naive" | "default" | "fan_in_lognormal" | "mechanism_neutral"
+            weight_transform: "softplus"       # str: "exp" (default) | "softplus" | "relu" | "identity"
+            # topk_type: "standard" | "stochastic" | "variance" | "deepst" |
+            #   "credit_deepst" | "dense_to_sparse" (alias "annealed_topk") |
+            #   "indexed" | "indexed_dynamic" | "indexed_rewire" | "indexed_release".
+            # "standard" keeps dense candidate weights and selects the active
+            # contacts; the indexed types store only the active indices and
+            # suit large sparse models. The indexed_* options below are read
+            # only by the indexed types (indexed_rewire_* only by
+            # "indexed_rewire"); "standard" ignores them.
             topk_type: "standard"
-            topk_init_method: "xavier_normal"
-            indexed_seed: 42
-            indexed_rewire_frequency: 100
-            indexed_rewire_quantile: 0.05
-            indexed_rewire_until_step: null
-            indexed_output_chunk_size: 2048
-            efficient_blocklinear: true
+            topk_init_method: "xavier_normal"    # str: Initializer of contacts that "indexed_rewire" creates; dbl_init_method sets the initial weights
+            indexed_rewire_frequency: 100        # int: (indexed_rewire) Steps between rewiring passes
+            indexed_rewire_quantile: 0.05        # float: (indexed_rewire) Fraction of each output's weakest contacts replaced per pass
+            indexed_rewire_until_step: null      # int | null: (indexed_rewire) Last rewiring step (null = no limit)
+            indexed_output_chunk_size: 8192      # int: (indexed) Output rows per gather chunk (default 2048)
+            indexed_index_dtype: "auto"          # str: (indexed) "auto" | "int32" | "int64" (default); auto uses int32 when it fits
+            indexed_workspace_mb: 128            # float | null: (indexed) Cap of the temporary gather workspace in MB (default null)
+            indexed_cache_transformed_weights: false # bool: (indexed) Reuse fixed transformed weights within an unroll
+            indexed_projection_backend: "auto"   # str: (indexed) Projection backend (default "eager"); auto picks a Triton kernel on CUDA when available, else "recompute"
+            indexed_persistent_indices: true     # bool: (indexed) Store the topology in checkpoints
+            indexed_init_mode: "per_rank"       # str: (indexed) "per_rank" | "rank0_broadcast"
+            efficient_blocklinear: true          # bool: BlockLinear branch couplings without the dense block-diagonal matrix (default false)
           populations:
             - name: "i"
-              polarity: "inhibitory"
-              n_neurons: 32
-              branch_factors: [1]
-              population:
+              polarity: "inhibitory"    # str: "excitatory" | "inhibitory"
+              n_neurons: 32             # int: Number of neurons (somas)
+              branch_factors: [1]       # list[int]: Branches per compartment from the soma outward (default [1])
+              population:               # PopulationConfig options of this population only
                 ff_inhibitory_synapses: 0
             - name: "e"
               polarity: "excitatory"
               n_neurons: 128
               branch_factors: [3, 3, 3]
-          connections:
+          connections:                  # Connection keys: source, target, pathway, timing ("same_step" | "delayed"), enabled, probability, seed, target_levels
             - source: "input"
               target: "i"
             - source: "input"
@@ -221,269 +265,139 @@ model:
 
   # ---------- Decoder ----------
   decoder:
-    type: "MLP"                         # str: "MLP" | "linear"
+    type: "MLP"                         # str: "MLP" | "identity" | "none" (identity and none pass the core output through; a linear readout is MLP with hidden_dims: [])
     params:
-      input_dim: 20                     # int: Input dim (auto-set from core output)
-      hidden_dims: [16]                 # list[int]: Hidden layer dims
-      activation: "relu"               # str: "relu" | "gelu" | "tanh" | "sigmoid"
-      output_dim: 10                    # int: Number of output classes/dims
-
-  # ---------- Vision replacement ----------
-  vision_replacement:
-    enabled: false                      # bool: Replace layers in pretrained backbone
-    backbone: "alexnet"                 # str: "alexnet" | "resnet18" | "resnet50" | "vgg16" | etc.
-    weights: "IMAGENET1K_V1"            # str | null: Pretrained weights identifier
-    input_shape: [3, 224, 224]          # list[int]: [C, H, W] expected by backbone
-    # Replacement contract:
-    #   tensor_map core -> use when suffix expects flat input
-    #   dendritic_conv core -> use when suffix expects spatial input
-    target_modules: []                  # list[str]: Contiguous backbone module names to replace
-    omit_layers: []                     # list[str]: Layers to omit from encoder/decoder
-    trainability:
-      encoder:
-        mode: "frozen"                  # str: "frozen" | "trainable"
-      decoder:
-        mode: "trainable"              # str: "frozen" | "trainable"
+      input_dim: 20                     # int: Replaced by the core output size when the model is built
+      hidden_dims: [16]                 # list[int]: Hidden layer sizes
+      activation: "relu"               # str: Any activation type, for example "relu" | "gelu" | "silu" | "tanh"
+      output_dim: 10                    # int: Number of classes or outputs (identity/none: omit it, or give the core output size)
 
 # ============================================================================
 # TRAINING
 # ============================================================================
 training:
 
-  # ---------- Encoder training ----------
-  encoder:
-    # Strategies: "standard" | "multi_stage" | "local_ca" | "fa" | "dfa" | "shunting_fa" | "shunting_dfa" | "recurrent" | "voltage_stabilization" | "homeostatic_control" | "freeze_layers" | "freeze_branches" | "freeze_branch_kl"
-    strategy: "standard"
-
-    common:
-      epochs: 500                       # int: Training epochs
-      batch_size: 512                   # int: Batch size
-      num_workers: null                 # int | null: DataLoader workers (null = auto)
-      pin_memory: null                  # bool | null: Pin batches when useful (null = auto)
-      persistent_workers: null          # bool | null: Keep workers alive (requires num_workers > 0)
-      prefetch_factor: null             # int | null: DataLoader prefetch factor (requires num_workers > 0)
-      in_order: null                    # bool | null: false can reduce ImageNet worker head-of-line blocking
-      profile_dataloader: false         # bool: Log epoch data-wait timing for input-pipeline profiling
-      shuffle: true                     # bool: Shuffle training data
-      grad_clip_value: 5.0              # float: Gradient clipping value
-      loss_function: "log_mse"          # str: "ce" | "mse" | "log_mse" | "bce"
-      early_stopping: true              # bool: Enable early stopping
-      patience: 100                     # int: Early stopping patience (epochs)
-      load_best_state_dict: true        # bool: Load best model after training
-      plot_losses: false                # bool: Plot loss curves
-      suppress_prints: false            # bool: Suppress training prints
-      print_every: 10                   # int: Print frequency (epochs)
-      use_amp: false                    # bool: Use automatic mixed precision
-      lr_schedule: "none"               # str: "none" | "cosine" | "step" | "exponential"
-      lr_warmup_epochs: 0               # int: LR warmup epochs
-      enable_nan_checking: false        # bool: Check for NaN gradients
-      enable_adaptive_clipping: false   # bool: Adaptive gradient clipping
-      weight_decay_rate: 0.01           # float: Weight decay rate
-      weight_boosting: true             # bool: Weight boosting
-      param_groups:
-        lr: 0.001                       # float: Base learning rate for split-parameter training
-        split_params: true              # bool: Split params into groups
-        topk_lr: 0.001                  # float: TopK parameter LR
-        blocklinear_lr: 0.001           # float: BlockLinear parameter LR
-        reactivation_lr: 0.001          # float: Reactivation parameter LR
-        decoder_lr: 0.001               # float: Decoder LR
-        encoder_lr: null                # float | null: Encoder LR (null = frozen / default LR)
-
-    strategies:
-      standard: {}                      # StandardStrategyConfig (uses common config only)
-
-      multi_stage:
-        analyze_between_stages: true    # bool: Run analysis between stages
-        use_best_from_each_stage: true  # bool: Use best checkpoint from each stage
-        continue_on_failure: false      # bool: Continue on stage failure
-        stages:                         # list[dict]: Stage definitions
-          - learning_strategy: "standard"
-            epochs: 100
-            batch_size: 512
-            save_checkpoint: false
-            param_groups:
-              lr: 0.001
-              split_params: true
-              topk_lr: 0.001
-              blocklinear_lr: 0.001
-              reactivation_lr: 0.001
-              decoder_lr: 0.001
-            trainer_config:
-              loss_function: "ce"
-              early_stopping: true
-              patience: 500
-          - learning_strategy: "local_ca"
-            epochs: 100
-            batch_size: 512
-            reset_optimizer: false
-            save_checkpoint: false
-            param_groups:
-              lr: 0.0001
-              split_params: true
-              topk_lr: 0.0001
-              blocklinear_lr: 0.00001
-              reactivation_lr: 0.00001
-              decoder_lr: 0.001
-            trainer_config:
-              loss_function: "ce"
-              early_stopping: false
-
-      voltage_stabilization:
-        pretrain_epochs: 100            # int: Pre-training epochs
-        stabilize_mode: "vout"          # str: "vout" | "vinf"
-        freeze_reactivation: true       # bool: Freeze reactivation during stabilization
-        target_voltage: 0.5             # float: Target voltage
-        loss_metric: "mse"              # str: "mse" | "mae"
-        # NOTE: this is the autograd-based warm-up trainer.
-        # For the strictly local counterpart, use local_ca with
-        # learning_strategy_config.rule_variant = "3f_vh" / "4f_vh" / "5f_vh".
-
-      homeostatic_control:
-        pretrain_epochs: 100            # int: Pre-training epochs
-        stabilize_mode: "vinf"          # str: "vinf" | "vout"
-        freeze_reactivation: false      # bool: Freeze reactivation
-        target_voltage: 0.5             # float: Target voltage
-        loss_metric: "mse"              # str: "mse" | "mae"
-
-      freeze_layers:
-        pretrain_epochs: 10             # int: Pre-training epochs
-        reverse_training: false         # bool: Train layers in reverse order
-        epochs_per_layer: 50            # int: Epochs per layer
-        final_tune_epochs: 10           # int: Final fine-tuning epochs
-
-      freeze_branches:
-        pretrain_epochs: 10             # int: Pre-training epochs
-        reverse_training: false         # bool: Train branches in reverse order
-        epochs_per_branch: 50           # int: Epochs per branch
-        final_tune_epochs: 10           # int: Final fine-tuning epochs
-
-      freeze_branch_kl:
-        pretrain_epochs: 10             # int: Pre-training epochs
-        reverse_training: false         # bool: Train branches in reverse order
-        epochs_per_branch: 50           # int: Epochs per branch
-        final_tune_epochs: 10           # int: Final fine-tuning epochs
-        kl_weight: 0.1                  # float: KL divergence loss weight
-
-    # ---- Learning strategy config (for encoder.strategy = "local_ca") ----
-    # Uses the same schema as training.main.learning_strategy_config below.
-    learning_strategy_config: null      # LocalRuleConfig | null
-
   # ---------- Main training ----------
   main:
-    # Strategies: "standard" | "multi_stage" | "local_ca" | "fa" | "dfa" | "shunting_fa" | "shunting_dfa" | "recurrent" | "voltage_stabilization" | "homeostatic_control" | "freeze_layers" | "freeze_branches" | "freeze_branch_kl"
+    # strategy: "standard" | "fa" | "dfa" | "soma_dfa" | "local_ca" | "multi_stage" |
+    #   "recurrent" | "presentation_stream" | "voltage_stabilization" |
+    #   "homeostatic_control" | "ei_equilibrium" | "freeze_layers" |
+    #   "freeze_branches" | "freeze_branch_kl" (docs/training_strategies.rst).
+    # A strategy reads its own block under strategies; the other blocks are ignored.
     strategy: "standard"
 
     common:
       epochs: 1000                      # int: Training epochs
-      batch_size: 512                   # int: Batch size
-      num_workers: null                 # int | null: DataLoader workers (null = auto)
-      pin_memory: null                  # bool | null: Pin batches when useful (null = auto)
-      persistent_workers: null          # bool | null: Keep workers alive (requires num_workers > 0)
-      prefetch_factor: null             # int | null: DataLoader prefetch factor (requires num_workers > 0)
-      in_order: null                    # bool | null: false can reduce ImageNet worker head-of-line blocking
-      profile_dataloader: false         # bool: Log epoch data-wait timing for input-pipeline profiling
-      shuffle: true                     # bool: Shuffle training data
-      grad_clip_value: 2.0              # float: Gradient clipping value
-      loss_function: "ce"               # str: "ce" | "mse" | "log_mse" | "bce"
-      early_stopping: true              # bool: Enable early stopping
-      patience: 500                     # int: Early stopping patience (epochs)
-      load_best_state_dict: true        # bool: Load best model after training
-      plot_losses: true                 # bool: Plot loss curves
-      suppress_prints: false            # bool: Suppress training prints
-      print_every: 10                   # int: Print frequency (epochs)
-      use_amp: false                    # bool: Use automatic mixed precision
-      lr_schedule: "none"               # str: "none" | "cosine" | "step" | "exponential"
-      lr_warmup_epochs: 0               # int: LR warmup epochs
-      enable_nan_checking: false        # bool: Check for NaN gradients
-      enable_adaptive_clipping: false   # bool: Adaptive gradient clipping
-      weight_decay_rate: 0.01           # float: Weight decay rate
-      weight_boosting: true             # bool: Weight boosting
-      param_groups:
-        lr: 0.001                       # float: Base learning rate for split-parameter training
-        split_params: true              # bool: Split params into groups
-        topk_lr: 0.001                  # float: TopK parameter LR
-        blocklinear_lr: 0.001           # float: BlockLinear parameter LR
-        reactivation_lr: 0.001          # float: Reactivation parameter LR
-        decoder_lr: 0.001               # float: Decoder LR
-        encoder_lr: null                # float | null: Encoder LR (null = frozen / default LR)
+      batch_size: 512                   # int: Training batch size
+      num_workers: null                 # int | null: DataLoader workers (null = chosen from the dataset type)
+      pin_memory: null                  # bool | null: Pin host batches (null = when training on a GPU)
+      persistent_workers: null          # bool | null: Keep workers alive between epochs (needs num_workers > 0; null = automatic)
+      prefetch_factor: null             # int | null: Batches prefetched per worker (needs num_workers > 0; null = automatic)
+      in_order: null                    # bool | null: Deliver batches in sampler order (null: false for image datasets with workers; strict_deterministic requires true)
+      profile_dataloader: false         # bool: Log the time each epoch waits for data
+      shuffle: true                     # bool: Shuffle the training data
+      grad_clip_value: 2.0              # float | null: Gradient clipping threshold (0 or null = off)
+      grad_clip_mode: null              # str | null: "value" (clamp each element) | "norm" (rescale the global norm); null = "norm" for strategy recurrent and FSDP, else "value"
+      # loss_function: "ce" | "bce" | "mse" | "log_mse" | "cat_nll" | "neg_cos_sim" |
+      #   "log_adj_neg_cos_sim" | "temporal_event_ce" | "masked_dual_task" |
+      #   "masked_dual_task_temporal" | "vae_elbo" (long names such as "cross_entropy" also work)
+      loss_function: "ce"
+      early_stopping: true              # bool: Stop when the validation loss has not improved for patience epochs
+      patience: 500                     # int: Early-stopping patience in epochs
+      load_best_state_dict: true        # bool: End training with the weights of the best validation epoch
+      plot_losses: true                 # bool: Save loss curves (main_network/<prefix>loss_curves.png)
+      suppress_prints: false            # bool: Suppress per-epoch console output
+      print_every: 10                   # int: Epochs between progress prints
+      use_amp: false                    # bool: Automatic mixed precision
+      lr_schedule: "none"               # str: "none" | "cosine" (strategies standard, recurrent, fa, dfa, soma_dfa and presentation_stream apply it; the others raise)
+      lr_warmup_epochs: 0               # int: Linear warm-up epochs of the cosine schedule (needs lr_schedule: "cosine")
+      enable_nan_checking: false        # bool: Zero NaN/inf gradient entries before each step
+      synapse_decay_rate: 0.01          # float: Sparse-synapse maintenance: active Top-K and indexed weights decay by lr * rate before each step (not optimizer.weight_decay)
+      weight_boosting: true             # bool: Also boost unselected candidate weights by that factor (default false; needs synapse_decay_rate > 0)
+      param_groups:                     # Learning rates of the optimizer's parameter groups
+        lr: 0.001                       # float: Rate of parameters outside the groups below, or of all parameters with split_params: false (default 0.01)
+        split_params: true              # bool: Give each component group its own rate
+        topk_lr: 0.001                  # float: Sparse synapses (Top-K and indexed banks)
+        blocklinear_lr: 0.001           # float: BlockLinear branch couplings (default 0.0001)
+        reactivation_lr: 0.001          # float: Reactivation gates (default 0.0001)
+        decoder_lr: 0.001               # float: Decoder and learned output scales
+        encoder_lr: null                # float | null: Trainable encoder parameters (null = lr)
 
     optimizer:
-      name: "adam"                      # str: "adam" | "sgd" | "rmsprop" | "adamw"
-      lr: 0.001                         # float: Optimizer learning rate
-      weight_decay: 0.0                 # float: Built-in L2 regularization (global)
-      momentum: 0.9                     # float: Momentum (SGD only)
-      betas: [0.9, 0.999]              # list[float]: Adam/AdamW betas
-      eps: 0.00000001                   # float: Adam/AdamW epsilon
+      name: "adam"                      # str: "adam" | "adamw" | "sgd" | "rmsprop" | "muonh" (alias "muon_hyperball"; the muon_* options apply only to it)
+      lr: 0.001                         # float: Not used for training: every parameter group takes its rate from common.param_groups (a non-default value must equal param_groups.lr)
+      weight_decay: 0.0                 # float: Optimizer weight decay of every group (decoupled for adamw)
+      momentum: 0.9                     # float: Momentum (sgd, rmsprop)
+      betas: [0.9, 0.999]              # list[float]: Betas (adam, adamw, and the AdamW part of muonh)
+      eps: 0.00000001                   # float: Epsilon (adam, adamw, rmsprop, muonh)
 
-    regularization:
-      l1_weight: 0.0                    # float: L1 regularization strength (0 = off)
-      l2_weight: 0.0                    # float: L2 regularization strength (0 = off)
-      selective:
-        layers: []                      # list[int]: Layer indices (empty = all)
-        branches: []                    # list[str]: Branch names (empty = all)
-        weight_types: ["all"]           # list[str]: Weight types to regularize
-      split_params: false               # bool: Differential regularization per param group
+    regularization:                     # Auxiliary loss terms (local_ca, freeze_branches, freeze_branch_kl and FSDP reject them)
+      l1_weight: 0.0                    # float: L1 penalty strength (0 = off)
+      l2_weight: 0.0                    # float: L2 penalty strength (0 = off; separate from optimizer.weight_decay)
+      selective:                        # Which weights the L1/L2 terms cover (synapse, BlockLinear and dense weights)
+        layers: []                      # list[int]: Layer indices, matched with the first integer in a parameter name (empty = all)
+        branches: []                    # list[str]: Parameter-name substrings (empty = all)
+        weight_types: ["all"]           # list[str]: Parameter-name substrings, or "all"
+      split_params: false               # bool: Use the per-group strengths below (groups not listed use l1_weight/l2_weight)
       param_group_weights:
         topk:
-          l1_weight: 0.0               # float: TopK L1 weight
-          l2_weight: 0.0               # float: TopK L2 weight
+          l1_weight: 0.0               # float: Sparse-synapse L1 strength
+          l2_weight: 0.0               # float: Sparse-synapse L2 strength
         blocklinear:
-          l1_weight: 0.0               # float: BlockLinear L1 weight
-          l2_weight: 0.0               # float: BlockLinear L2 weight
+          l1_weight: 0.0               # float: BlockLinear L1 strength
+          l2_weight: 0.0               # float: BlockLinear L2 strength
         reactivation:
-          l1_weight: 0.0               # float: Reactivation L1 weight
-          l2_weight: 0.0               # float: Reactivation L2 weight
+          l1_weight: 0.0               # float: Reactivation L1 strength
+          l2_weight: 0.0               # float: Reactivation L2 strength
         decoder:
-          l1_weight: 0.0               # float: Decoder L1 weight
-          l2_weight: 0.0               # float: Decoder L2 weight
-      enforce_ei_weight_ratio: false    # bool: Enable E/I weight ratio regularization
-      target_ei_weight_ratio: 0.5       # float: Target E/I weight ratio
-      ei_ratio_loss_weight: 0.5         # float: E/I ratio regularization strength
-      ei_ratio_scope: "per_branch"      # str: "per_branch" | "per_layer" | "global"
+          l1_weight: 0.0               # float: Decoder L1 strength
+          l2_weight: 0.0               # float: Decoder L2 strength
+      enforce_ei_weight_ratio: false    # bool: Add a penalty on the E/I weight ratio
+      target_ei_weight_ratio: 0.5       # float: Target excitatory/inhibitory weight ratio
+      ei_ratio_loss_weight: 0.5         # float: Strength of the E/I ratio penalty
+      ei_ratio_scope: "per_branch"      # str: "per_branch" | "per_layer" | "global" ("global" averages the per-layer ratios)
       ei_ratio_metric: "mean"           # str: "mean" | "median" | "rms"
 
-    pruning:
-      enabled: false                    # bool: Enable pruning
-      threshold: 2                      # float: Prune weights with abs < threshold
+    pruning:                            # Zeroes stored weights after training
+      enabled: false                    # bool: Enable pruning. It rejects exp/softplus-transformed synapses, so it cannot prune this model's synapses
+      threshold: 2                      # float: Prune stored weights with abs(value) < threshold
       selective:
-        layers: []                      # list[int]: Layer indices (empty = all)
-        branches: []                    # list[str]: Branch names (empty = all)
-        weight_types: ["excitatory", "inhibitory"]  # list[str]: Weight types to prune
-      re_evaluate_after: false          # bool: Re-evaluate after pruning
-      dynamic_pruning: false            # bool: Prune during training
-      pruning_frequency: 10             # int: Epochs between dynamic pruning
-      report_non_pruned: true           # bool: Report non-pruned synapse count
-      save_pruning_stats: false         # bool: Save pruning statistics
-      detailed_branch_report: true      # bool: Detailed per-branch pruning report
-      redo_analysis_after_pruning: false  # bool: Redo analyses after pruning
+        layers: []                      # list[int]: Layer indices, matched with the first integer in a parameter name (empty = all)
+        branches: []                    # list[str]: Parameter-name substrings (empty = all)
+        weight_types: ["excitatory", "inhibitory"]  # list[str]: Parameter-name substrings, or "all"; these two match parameter names of structured E/I cores, not of population networks
+      re_evaluate_after: false          # bool: Record training and validation loss before and after pruning
+      report_non_pruned: true           # bool: Print the pruning report
+      save_pruning_stats: false         # bool: Write pruning_stats.json
+      detailed_branch_report: true      # bool: Include per-branch statistics in the report
+      redo_analysis_after_pruning: false  # bool: Not implemented; true raises when pruning is enabled
 
     strategies:
-      standard: {}                      # StandardStrategyConfig (uses common config only)
+      standard: {}                      # The standard strategy uses the common options only
 
       multi_stage:
-        analyze_between_stages: true    # bool: Run analysis between stages
-        use_best_from_each_stage: true  # bool: Use best checkpoint from each stage
-        continue_on_failure: false      # bool: Continue on stage failure
-        stages:                         # list[dict]: Stage definitions
+        analyze_between_stages: true    # bool: Run the analysis after each stage
+        final_state: "last_stage"      # str: Weights the run ends with: "last_stage" | "best_stage" (lowest validation loss)
+        continue_on_failure: false      # bool: Continue with the next stage when a stage fails
+        stages:                         # list[dict]: Stages in order; their learning_strategy is checked when the stage starts
           - learning_strategy: "standard"
-            epochs: 100
-            batch_size: 512
-            save_checkpoint: false
-            param_groups:
+            epochs: 100                 # int: Stage epochs (default common.epochs)
+            batch_size: 512             # int: Stage batch size (default common.batch_size)
+            save_checkpoint: false      # bool: Write <stage directory>/stage_checkpoint.pt (default true)
+            param_groups:               # Stage learning rates (default common.param_groups)
               lr: 0.001
               split_params: true
               topk_lr: 0.001
               blocklinear_lr: 0.001
               reactivation_lr: 0.001
               decoder_lr: 0.001
-            trainer_config:
+            trainer_config:             # Common trainer options overridden for this stage
               loss_function: "ce"
               early_stopping: true
               patience: 500
-          - learning_strategy: "local_ca"
+          - learning_strategy: "local_ca"   # Uses training.main.learning_strategy_config unless local_rule_config is set
             epochs: 100
             batch_size: 512
-            reset_optimizer: false
+            reset_optimizer: false      # bool: Rebuild the optimizer before this stage
             save_checkpoint: false
             param_groups:
               lr: 0.0001
@@ -497,67 +411,77 @@ training:
               early_stopping: false
 
       voltage_stabilization:
-        pretrain_epochs: 100            # int: Pre-training epochs
-        stabilize_mode: "vout"          # str: "vout" | "vinf"
-        freeze_reactivation: true       # bool: Freeze reactivation
-        target_voltage: 0.5             # float: Target voltage
-        loss_metric: "mse"              # str: "mse" | "mae"
+        pretrain_epochs: 100            # int: Warm-up epochs before standard training, >= 1 (default 1)
+        stabilize_mode: "vout"          # str: Activations the warm-up drives: "vinf" (default, gate input) | "vout" (gate output) | "both" | "gate_occupancy"
+        freeze_reactivation: true       # bool: Freeze the gates during the warm-up (default false)
+        target_voltage: 0.5             # float: Target of the warm-up loss
+        loss_metric: "mse"              # str: "mse" | "mae" | "log_mse" | "log_mae" (also the squared/abs_mean_error forms)
 
       homeostatic_control:
-        pretrain_epochs: 100            # int: Pre-training epochs
-        stabilize_mode: "vinf"          # str: "vinf" | "vout"
-        freeze_reactivation: false      # bool: Freeze reactivation
-        target_voltage: 0.5             # float: Target voltage
-        loss_metric: "mse"              # str: "mse" | "mae"
+        pretrain_epochs: 100            # int: Warm-up epochs before standard training, >= 1 (default 1)
+        stabilize_mode: "vinf"          # str: "vinf" | "vout" | "both" | "gate_occupancy"
+        freeze_reactivation: false      # bool: Freeze the gates during the warm-up
+        target_voltage: 0.5             # float: Target of the warm-up loss
+        loss_metric: "mse"              # str: "mse" | "mae" | "log_mse" | "log_mae" (also the squared/abs_mean_error forms)
 
-      recurrent:
-        grad_clip: 1.0                  # float: Recurrent gradient norm clip (0 = off)
-        use_amp: false                  # bool: Recurrent mixed precision
-        lr_schedule: "none"             # str: "none" | "cosine"
-        lr_warmup_epochs: 0             # int: Warmup epochs for recurrent LR schedule
+      ei_equilibrium:                   # Warm-up that drives each branch's excitatory conductance toward its inhibitory one; needs inhibitory synapses
+        pretrain_epochs: 1              # int: Warm-up epochs before standard training, >= 1
+        freeze_reactivation: false      # bool: Freeze the gates during the warm-up
+        loss_metric: "mse"              # str: "mse" | "mae" | "log_mse" | "log_mae" (also the squared/abs_mean_error forms)
+
+      recurrent:                        # null inherits the training.main.common option of the same name
+        grad_clip_value: null           # float | null: Gradient clipping threshold (0 = off)
+        use_amp: null                   # bool | null: Mixed precision
+        lr_schedule: null               # str | null: "none" | "cosine"
+        lr_warmup_epochs: null          # int | null: Warm-up epochs of the cosine schedule
 
       freeze_layers:
-        pretrain_epochs: 10             # int: Pre-training epochs
-        reverse_training: false         # bool: Train layers in reverse
-        epochs_per_layer: 50            # int: Epochs per layer
-        final_tune_epochs: 10           # int: Final fine-tuning epochs
+        pretrain_epochs: 10             # int: Full-network epochs before the layer-by-layer phase
+        reverse_training: false         # bool: Train the layers from last to first
+        epochs_per_layer: 50            # int: Epochs per layer while the others are frozen (default 5)
+        final_tune_epochs: 10           # int: Full-network epochs after the layer-by-layer phase
 
       freeze_branches:
-        pretrain_epochs: 10             # int: Pre-training epochs
-        reverse_training: false         # bool: Train branches in reverse
-        epochs_per_branch: 50           # int: Epochs per branch
-        final_tune_epochs: 10           # int: Final fine-tuning epochs
+        pretrain_epochs: 10             # int: Stage-1 epochs, each training every core layer in turn with a local head (default 5); stage 2 trains end to end for common.epochs
+        reverse_training: false         # bool: Not implemented; a value other than false raises
+        epochs_per_branch: 50           # int: Not implemented; a value other than 50 raises
+        final_tune_epochs: 10           # int: Not implemented; a value other than 10 raises
 
       freeze_branch_kl:
-        pretrain_epochs: 10             # int: Pre-training epochs
-        reverse_training: false         # bool: Train branches in reverse
-        epochs_per_branch: 50           # int: Epochs per branch
-        final_tune_epochs: 10           # int: Final fine-tuning epochs
-        kl_weight: 0.1                  # float: KL divergence weight
+        pretrain_epochs: 10             # int: Stage-1 epochs as in freeze_branches (default 5)
+        reverse_training: false         # bool: Not implemented; a value other than false raises
+        epochs_per_branch: 50           # int: Not implemented; a value other than 50 raises
+        final_tune_epochs: 10           # int: Not implemented; a value other than 10 raises
+        kl_weight: 0.1                  # float: Weight of the KL term pulling each local head toward the model's predictions
 
-    # ---- Learning strategy config (for local_ca rules) ----
+    # ---- Local learning rules (training.main.learning_strategy_config) ----
+    # Read by strategy local_ca and by the local_ca stages of multi_stage; the
+    # other strategies ignore it (a block that differs from the defaults then
+    # warns).
     learning_strategy_config:
-      rule_variant: "3f"                # str: "3f" | "4f" | "5f" | "stdp" | "3f_vh" | "4f_vh" | "5f_vh"
-      error_mode: "auto"               # str: "auto" | "mse" | "ce" | "bce"
-      error_broadcast_mode: "scalar"    # str: "scalar" | "per_soma" | "local_mismatch" | "low_rank" | "path_transport" | "pathway_vector"
-      error_noise_sigma: 0.0           # float: Additive Gaussian noise on broadcast error (0 = off)
-      broadcast_rank: 4                 # int: Rank for low-rank vectorized broadcast
-      broadcast_init_scale: 1.0         # float: Scale for low-rank random broadcast
-      pathway_broadcast_residual: 0.25  # float: Blend with direct local error
-      pathway_activity_gate_strength: 1.0  # float: Modulate by local pathway activity
+      rule_variant: "3f"                # str: "3f" | "4f" | "5f" | "stdp", or "3f_vh" | "4f_vh" | "5f_vh" (adds voltage_homeostasis)
+      error_mode: "auto"               # str: "auto" (from loss_function) | "mse" | "ce" | "bce"
+      error_broadcast_mode: "scalar"    # str: "scalar" | "per_soma" | "per_soma_shared" | "per_soma_tree" | "per_soma_shuffled" | "local_mismatch" | "low_rank" | "path_transport" | "pathway_vector"
+      broadcast_seed: null              # int | null: Seed of the randomized feedback (per_soma_shuffled, low_rank); null = derived from the run seed
+      error_noise_sigma: 0.0           # float: Additive Gaussian noise on the broadcast error (0 = off)
+      broadcast_rank: 4                 # int: Rank of the low_rank broadcast
+      broadcast_init_scale: 1.0         # float: Scale of the low_rank random broadcast
+      pathway_broadcast_residual: 0.25  # float: Blend with the direct local error
+      pathway_activity_gate_strength: 1.0  # float: Modulation by local pathway activity
       broadcast_bandwidth: "full"       # str: "full" | "sign_only" | "quantized" | "sparse_topk"
-      broadcast_bits: 8                 # int: Quantization bits (2, 4, 8); for bandwidth="quantized"
-      broadcast_topk_fraction: 0.3      # float: Fraction to keep; for "sparse_topk"
+      broadcast_bits: 8                 # int: Quantization bits, >= 1 (2^bits levels); for broadcast_bandwidth "quantized"
+      broadcast_topk_fraction: 0.3      # float: Fraction in (0, 1] kept by broadcast_bandwidth "sparse_topk"
 
       three_factor:
-        dynamics_mode: "auto"           # str: "auto" | "conductance" | "additive"
+        dynamics_mode: "auto"           # str: "auto" (each layer's own integration) | "conductance" | "additive" (must match every layer unless allow_mismatched_dynamics_mode)
+        allow_mismatched_dynamics_mode: false  # bool: Apply a forced dynamics_mode to every layer (a rule variant)
         use_conductance_scaling: true   # bool: Scale by R_tot = 1/g_tot
-        use_driving_force: true         # bool: Use (E_rev - V_n) driving force
-        theta: 0.0                      # float: Leak reversal potential
-        e_rev_exc: 1.0                  # float: Excitatory reversal potential
-        e_rev_inh: 0.0                  # float: Inhibitory reversal (shunting)
-        additive_gain_mode: "none"      # str: "none" | "input_dependent" | "running_stats" | "learned_gain"
-        additive_stats_ema_alpha: 0.01  # float: EMA rate for running_stats mode
+        use_driving_force: true         # bool: (E_rev - V_n) driving force; false uses (V_n - theta) / (theta - V_n)
+        theta: 0.0                      # float: Threshold of the use_driving_force=false variant and of additive "input_dependent" mode
+        e_rev_exc: 1.0                  # float: Fixed at 1.0, the model's excitatory reversal
+        e_rev_inh: 0.0                  # float: Fixed at 0.0, the model's inhibitory reversal
+        additive_gain_mode: "none"      # str: "none" | "input_dependent" | "running_stats" (dynamics_mode "additive" only)
+        additive_stats_ema_alpha: 0.01  # float: EMA rate of the running_stats mode
 
       four_factor:
         rho_mode: "pearson"             # str: "pearson" | "dot" | "none"
@@ -572,30 +496,28 @@ training:
         phi_estimator: "conditional_ema"  # str: "conditional_ema" | "variance_ema"
         phi_ridge_lambda: 0.001         # float: Ridge regularization
         layer_wise_phi_scale: 1.0       # float: phi / sqrt(layer_depth)
-        rls_forgetting: 0.99            # float: RLS forgetting factor
         phi_clamp_min: 0.25             # float: Stability clamp min
         phi_clamp_max: 4.0              # float: Stability clamp max
 
       morphology_aware:
         use_path_propagation: false     # bool: Path-integrated propagation
         path_factor_mode: "per_branch"  # str: "per_branch" | "scalar_mean"
-        morphology_modulator_mode: "none"  # str: "none" | "depth" | "centrality"
-        morphology_depth_offset: 1.0    # float: Alpha parameter for depth modulation
-        morphology_centrality_metric: "betweenness"  # str: Centrality metric
-        use_dendritic_normalization: false  # bool: Normalize by sum of conductances
+        morphology_modulator_mode: "none"  # str: "none" | "depth" | "centrality" (inverse branch depth)
+        morphology_depth_offset: 1.0    # float: Offset alpha of the depth modulation
+        use_dendritic_normalization: false  # bool: Normalize by the sum of conductances
         use_branch_type_rules: false    # bool: Apical vs basal differentiation
         apical_branch_scale: 1.0        # float: Scale for apical branches
         basal_branch_scale: 1.0         # float: Scale for basal branches
         use_branch_length_modulation: false  # bool: Branch length modulation
         use_branch_role_rules: false    # bool: Router-derived branch roles
-        branch_role_source: "router_pathways"  # str: Branch role source
+        branch_role_source: "router_pathways"  # str: "router_pathways"
         specialized_branch_scale: 1.0   # float: Specialized branch scale
         mixed_branch_scale: 1.0         # float: Mixed branch scale
         branch_role_power: 1.0          # float: Branch role power
         branch_role_alignment_weight: 0.0  # float: Alignment weight
 
       hsic:
-        enabled: false                  # bool: Enable HSIC
+        enabled: false                  # bool: Enable the HSIC auxiliary loss
         weight: 0.0                     # float: HSIC loss weight
         self_weight: 1.0                # float: Self-decorrelation weight
         target_weight: 1.0              # float: Target-correlation weight
@@ -605,12 +527,12 @@ training:
         degree: 2                       # int: Polynomial degree
         coef0: 1.0                      # float: Polynomial coefficient
         grad_clip_value: 0.0            # float: HSIC gradient clip (0 = off)
-        warmup_epochs: 0                # int: HSIC warmup epochs
-        apply_last_layer_only: false    # bool: HSIC last layer only
+        warmup_epochs: 0                # int: HSIC warm-up epochs
+        apply_last_layer_only: false    # bool: Apply HSIC to the last layer only
 
       stdp:
-        enabled: false                  # bool: Enable trace-based STDP as auxiliary rule; auto true for rule_variant="stdp"
-        apply_to: ["exc", "rec_exc"]    # list[str]: "exc" | "inh" | "rec_exc" | "rec_inh"
+        enabled: false                  # bool: Trace-based STDP as an auxiliary rule; rule_variant "stdp" enables it
+        apply_to: ["exc", "rec_exc"]    # list[str]: "exc" | "inh" | "rec_exc" | "rec_inh" | "all"
         activity_mode: "relu"           # str: "relu" | "identity" | "binary" | "abs"
         pre_threshold: 0.0              # float: Presynaptic activity threshold
         post_threshold: 0.0             # float: Postsynaptic activity threshold
@@ -618,12 +540,12 @@ training:
         tau_post: 20.0                  # float: Postsynaptic trace tau
         a_plus: 1.0                     # float: Potentiation scale
         a_minus: 0.5                    # float: Depression scale
-        learning_rate_scale: 1.0        # float: Multiplier on optimizer LR for STDP update
+        learning_rate_scale: 1.0        # float: Multiplier on the learning rate of the STDP update
         inhibitory_update_sign: -1.0    # float: Sign multiplier for inhibitory pathways
-        use_error_modulation: false     # bool: Modulate STDP by broadcast task error
+        use_error_modulation: false     # bool: Modulate STDP by the broadcast task error
         error_modulation_mode: "scalar_abs"  # str: "scalar_abs" | "scalar_signed"
         clamp_update: 0.0               # float: Absolute update clamp (0 = off)
-        detach_traces: true             # bool: Detach local traces from autograd graph
+        detach_traces: true             # bool: Detach local traces from the autograd graph
 
       inhibitory_homeostasis:
         enabled: false                  # bool: Enable inhibitory homeostasis
@@ -633,103 +555,111 @@ training:
         target_voltage: 0.15            # float: Target voltage
 
       voltage_homeostasis:
-        enabled: false                  # bool: Enable strictly local voltage-centering
+        enabled: false                  # bool: Enable strictly local voltage centering
         weight: 0.0                     # float: Local voltage-homeostasis weight
         target_voltage: 0.5             # float: Midpoint target voltage
-        # NOTE: *_vh rule aliases auto-enable this block with a conservative
-        # default (weight=0.02, target_voltage=0.5) unless you override it here.
+        # The *_vh rule variants enable this block; a weight of 0 then becomes 0.02.
 
       gate_homeostasis:
-        enabled: false                  # bool: Enable local gate-occupancy auxiliary update
-        center_weight: 0.0              # float: Weight for mean gate occupancy target
-        saturation_weight: 0.0          # float: Weight for saturation-control target
-        target_mean: 0.5                # float: Desired mean reactivation gate value
+        enabled: false                  # bool: Enable the local gate-occupancy update
+        center_weight: 0.0              # float: Weight of the mean gate-occupancy target
+        saturation_weight: 0.0          # float: Weight of the saturation target
+        target_mean: 0.5                # float: Desired mean gate value
         target_saturation: 0.2          # float: Desired fraction of saturated gates
-        low_threshold: 0.1              # float: Low gate threshold for saturation metric
-        high_threshold: 0.9             # float: High gate threshold for saturation metric
-        saturation_slope: 20.0          # float: Smooth saturation indicator slope
+        low_threshold: 0.1              # float: Low gate threshold of the saturation metric
+        high_threshold: 0.9             # float: High gate threshold of the saturation metric
+        saturation_slope: 20.0          # float: Slope of the smooth saturation indicator
 
-      update_inactive_weights: false    # bool: Update inactive weights
-      update_reactivation: true         # bool: Update reactivation params
-      explicit_inhibitory_update_mode: "local_ca"  # str: "local_ca" | "freeze" for explicit I-cell dendrites
+      update_inactive_weights: false    # bool: Also update inactive candidate weights
+      update_reactivation: true         # bool: Update the gate parameters with the local rule
+      explicit_inhibitory_update_mode: "local_ca"  # str: "local_ca" | "freeze" for the dendrites of explicit inhibitory populations
       encoder_update_mode: "none"       # str: "backprop" | "none"
       decoder_update_mode: "backprop"   # str: "backprop" | "local" | "none"
-      freeze_encoder_epochs: 0          # int: Freeze encoder for N epochs
-      freeze_reactivation_epochs: 0     # int: Freeze reactivation for N epochs
-      freeze_decoder_epochs: 0          # int: Freeze decoder for N epochs
-      training_schedule: null           # list | null: Custom training schedule
-      clip_grad_value: 5.0              # float: Gradient clipping value
-      normalize_by_batch: true          # bool: Normalize updates by batch size
+      freeze_encoder_epochs: 0          # int: Freeze the encoder for N epochs
+      freeze_reactivation_epochs: 0     # int: Freeze the gates for N epochs
+      freeze_decoder_epochs: 0          # int: Freeze the decoder for N epochs
+      training_schedule: null           # list[dict] | null: Epoch ranges (start_epoch, end_epoch) that set update_reactivation, encoder_update_mode or decoder_update_mode
+      clip_grad_value: 5.0              # float: Element-wise clip of the local-rule gradients (local_ca uses it instead of common.grad_clip_value)
+      normalize_by_batch: true          # bool: Normalize updates by the batch size
 
 # ============================================================================
 # ANALYSIS
 # ============================================================================
+# Every enabled analyzer runs once after training; training: true also runs it
+# during training (some analyzers are final-only). docs/analysis.rst describes
+# every analyzer, including those not shown here (they are off when omitted);
+# configs/templates/analysis_full_template.yaml shows most of them.
 analysis:
-  # Shared dataset-iteration policy for all analysis modules.
-  # Recommended defaults:
-  #   auto        -> best default; small datasets use the materialized path
-  #                  because they stay materialized, large datasets stream.
-  #   materialize -> exact single-GPU materialized tensor path; hook-based
-  #                  analyses use one full batch when dataset slicing is supported.
-  #   stream      -> safest choice for large datasets such as ImageNet.
-  # Models may be moved temporarily to the requested analysis device, but the
-  # original device and train/eval mode are restored automatically afterward.
+  # Dataset iteration shared by all analyzers. mode:
+  #   "auto"        materialize a split when its estimated size is at most
+  #                 materialize_threshold_mb, otherwise stream it
+  #   "materialize" load each split as one batch (hook-based analyses then see
+  #                 the whole split at once when the dataset supports slicing)
+  #   "stream"      iterate in batches through a DataLoader (for large datasets)
+  # Keys left unset take their defaults, except mode: an unset mode is
+  # "materialize" in single-process runs and "auto" under DDP/FSDP.
   runtime:
     training:
       mode: "auto"                      # str: "auto" | "materialize" | "stream"
       batch_size: 256                   # int: Analysis batch size
       num_workers: 4                    # int: DataLoader workers
-      pin_memory: true                  # bool: Pin memory for GPU transfer (auto-disabled on CPU analysis)
-      persistent_workers: true          # bool: Keep workers alive between streamed passes
-      prefetch_factor: 4                # int | null: Batches prefetched per worker
-      in_order: null                    # bool | null: false can reduce ImageNet worker head-of-line blocking
-      max_batches: null                 # int | null: Optional cheap/training-time cap (null = all batches)
-      max_samples: null                 # int | null: Hard cap for expensive analyses that still accumulate CPU tensors
-      materialize_threshold_mb: 1024    # int: Auto-mode threshold (MB); keeps small single-GPU datasets materialized
+      pin_memory: true                  # bool: Pin host memory for GPU analysis (off for CPU analysis)
+      persistent_workers: true          # bool: Keep workers alive between streamed passes (default false)
+      prefetch_factor: 4                # int | null: Batches prefetched per worker (default 2)
+      in_order: null                    # bool | null: false lets batches arrive as workers finish them (null = PyTorch default, in order)
+      max_batches: null                 # int | null: Cap on batches per split (null = all)
+      max_samples: null                 # int | null: Cap on the examples given to each analysis (null = all)
+      materialize_threshold_mb: 1024    # int: Size limit (MB) up to which "auto" materializes a split
     final:
       mode: "auto"                      # str: "auto" | "materialize" | "stream"
       batch_size: 256                   # int: Analysis batch size
       num_workers: 4                    # int: DataLoader workers
-      pin_memory: true                  # bool: Pin memory for GPU transfer (auto-disabled on CPU analysis)
-      persistent_workers: true          # bool: Keep workers alive between streamed passes
-      prefetch_factor: 4                # int | null: Batches prefetched per worker
-      in_order: null                    # bool | null: false can reduce ImageNet worker head-of-line blocking
-      max_batches: null                 # int | null: Optional cap (usually leave null for final analysis)
-      max_samples: null                 # int | null: Use when heavy analyses must inspect only a bounded subset
-      materialize_threshold_mb: 1024    # int: Auto-mode threshold (MB); use materialize for exact small-dataset analysis
+      pin_memory: true                  # bool: Pin host memory for GPU analysis (off for CPU analysis)
+      persistent_workers: true          # bool: Keep workers alive between streamed passes (default false)
+      prefetch_factor: 4                # int | null: Batches prefetched per worker (default 2)
+      in_order: null                    # bool | null: false lets batches arrive as workers finish them (null = PyTorch default, in order)
+      max_batches: null                 # int | null: Cap on batches per split (usually null for the final analysis)
+      max_samples: null                 # int | null: Cap for heavy analyses that should inspect only a subset
+      materialize_threshold_mb: 1024    # int: Size limit (MB) up to which "auto" materializes a split
 
   # ---------- Performance ----------
   performance:
-    enabled: true                       # bool: Enable performance analysis
-    training: false                     # bool: Run during training
+    enabled: true                       # bool: Enable performance analysis (default false)
+    training: false                     # bool: Also run during training
     params:
       accuracy: true                    # bool: Compute accuracy
       auc: true                         # bool: Compute AUC
       categorical_loglikelihood: true   # bool: Compute categorical log-likelihood
       mse: false                        # bool: Compute MSE
       cosine_similarity: false          # bool: Compute cosine similarity
-    training_splits: ["train", "valid", "test"]  # list[str]: Splits to evaluate during training analysis
-    final_splits: ["train", "valid", "test"]     # list[str]: Splits to evaluate during final analysis
+    training_splits: ["train", "validation", "test"]  # list[str]: Splits evaluated during training
+    final_splits: ["train", "validation", "test"]     # list[str]: Splits evaluated after training
 
   # ---------- Information ----------
   information:
-    enabled: true                       # bool: Enable information analysis
-    training: false                     # bool: Run during training
+    enabled: true                       # bool: Enable information analysis (default false)
+    training: false                     # bool: Also run during training
     params:
       # -- Grouped structure --
       selection:
-        components: []                  # list[str]: "basic" | "pairwise" | "conditional" | "gaussian_fisher" | "pid" | "ablation_aligned" | "layer_proxies" | "upstream_unique_cmi"
+        # components: "basic" | "pairwise" | "conditional" | "gaussian_fisher" | "pid" |
+        #   "ablation_aligned" | "layer_proxies" | "upstream_unique_cmi" | "soma_coupling".
+        #   Empty computes basic, pairwise, conditional, ablation_aligned and layer_proxies.
+        components: []
         scopes: []                      # list[str]: "layer" | "einet" | "neuron"
-        signal_variants: []             # list[str]: "network" | "lda" | "random"
+        signal_variants: []             # list[str]: "network" | "lda" | "random" (random needs baselines.random_weights.n_shuffles > 0)
       compute:
         max_samples: null               # int | null: Limit samples (null = all)
-        include_vinf: true              # bool: Include soma activation
+        include_vinf: true              # bool: Include the soma activation
         normalize_mi: false             # bool: Normalize by H(C)
         output_units: "bits"            # str: "bits" | "nats"
+        analysis_split: "test"          # str: "validation" | "test"
         verbose: false                  # bool: Verbose output
         computation_level: "single_branch"  # str: "single_branch" | "layer_branch" | "all_branch"
         branch_aggregation: "mean"      # str: "mean" | "multivariate" | "sample"
-        layer_total_topk: 10            # int: K for topK_sum metrics
+        branch_sample_count_per_layer: null  # int | null: Deterministic per-layer branch subset for single_branch (null = all)
+        branch_sample_seed: null         # int | null: null = derived from experiment.probe_seed
+        layer_total_topk: 10            # int: K of the topK_sum metrics
         gaussian_fisher:
           aggregation: "sum"            # str: "sum" | "mean" | "max"
           mi_transform: "half_log1p"    # str: "half_log1p" | "log1p" | "none"
@@ -740,40 +670,40 @@ analysis:
         kraskov:
           n_neighbors: 10               # int: Number of KSG neighbors
         binned:
-          n_bins: 20                    # int: Number of bins
+          n_bins: 20                    # int: Number of bins (binned estimator; the sklearn estimator uses it too)
           binning_strategy: "quantile"  # str: "quantile" | "uniform"
           bias_correction: "none"       # str: "none" | "miller_madow"
         decoder:
           cv_folds: 5                   # int: Cross-validation folds
           C: 1.0                        # float: Regularization parameter
           standardize: true             # bool: Standardize features
-          seed: 0                       # int: Random seed
+          seed: null                    # int | null: null = derived from experiment.probe_seed
           continuous:
             strategy: "none"            # str: "none" | "binned" | "gaussian"
             max_total_dim: 2            # int: Max total dim for continuous MI/CMI
             gaussian_ridge: 0.000001    # float: Covariance ridge
         copula:
-          type: "gaussian"              # str: "gaussian" | "kernel" | "dvc"
-        sklearn:
-          n_bins: 20                    # int: Number of bins
-          bandwidth: null               # float | null: KDE bandwidth (null = auto)
+          type: "gaussian"              # str: "gaussian" (scalars, vectors, labels) | "kernel" (two continuous scalars)
+        sklearn:                        # Not read: the sklearn estimator takes its bins from estimator.binned.n_bins
+          n_bins: 20                    # int: Not read
+          bandwidth: null               # float | null: Not read
       baselines:
         random_weights:
           n_shuffles: 0                 # int: Number of random-weight shuffles (0 = off)
-          seed: 0                       # int: Random seed
+          seed: null                    # int | null: null = derived from experiment.probe_seed
         label_shuffle_null:
           n_shuffles: 0                 # int: Number of label permutations (0 = off)
-          seed: 0                       # int: Random seed
-          components: ["basic"]         # list[str]: "basic" | "pairwise" | "conditional" | "ablation_aligned" | "layer_proxies" | "upstream_unique_cmi" | "all"
+          seed: null                    # int | null: null = derived from experiment.probe_seed
+          components: ["basic"]         # list[str]: "basic" | "pairwise" | "conditional" | "ablation_aligned" | "upstream_unique_cmi" | "soma_coupling" | "all"
       pid:
-        binarize: true                  # bool: Binarize for PID
+        binarize: false                 # bool: Threshold E, I and Vout (never the labels) before PID
         binarize_method: "median"       # str: "median" | "mean" | "quantile"
-        binarize_threshold: 0.5         # float: Binarization threshold
+        binarize_threshold: 0.5         # float: Quantile in [0, 1]; used only with binarize_method "quantile"
 
   # ---------- Correlation ----------
   correlation:
     enabled: false                      # bool: Enable correlation analysis
-    training: false                     # bool: Run during training
+    training: false                     # bool: Also run during training
     params:
       # -- Grouped structure --
       selection:
@@ -783,48 +713,52 @@ analysis:
       compute:
         computation_level: "layer_branch"  # str: "synaptic" | "single_branch" | "layer_branch" | "all_branch"
         max_samples: 5000               # int | null: Limit samples
-        batch_process: true             # bool: Batch processing for memory
         per_layer_analysis: true        # bool: Per-layer breakdown
-        per_einet_analysis: true        # bool: Per-EI-net breakdown
+        per_einet_analysis: true        # bool: Separate E and I pathway summaries
         per_neuron_analysis: false      # bool: Per-neuron breakdown
       sampling:
         n_synapse_pairs: 10000          # int: Synapse pairs to sample (synaptic level)
-        sampling_strategy: "stratified" # str: "random" | "stratified" | "importance"
-        stratified_categories: ["within_branch", "within_layer", "across_layer"]  # list[str]
+        sampling_strategy: "stratified" # str: "stratified" | "random" (other values raise)
+        stratified_categories: ["within_branch", "within_layer"]  # list[str]: "within_branch" | "within_layer"
         max_pairs_per_category: 1000    # int: Max pairs per stratified category
 
   # ---------- Ablation ----------
   ablation:
     enabled: false                      # bool: Enable ablation analysis
-    training: false                     # bool: Run during training
+    training: false                     # bool: Also run during training
     params:
-      selection:
+      selection:                        # Empty lists select nothing: an ablation needs at least one level, target and metric
         levels: []                      # list[str]: "layer" | "compartment"
         targets: []                     # list[str]: "all_synapses" | "excitation" | "inhibition" | "upstream"
         metrics: []                     # list[str]: "accuracy" | "auc" | "categorical_loglikelihood" | "mse" | "cosine_similarity" | "pred_label_mi_bits"
       methods:
         ablation_methods: ["lesion"]    # list[str]: "lesion" | "shuffle" | "mean_clamp"
-        shuffle_seed: 0                 # int: Seed for shuffle ablation
-        clamp_statistic: "mean"         # str: "mean" | "median"
+        shuffle_seed: null              # int | null: null = derived from experiment.probe_seed
+        clamp_statistic: "mean"         # str: "mean" (the only supported value)
 
   # ---------- Synapse turnover ----------
   synapse_turnover:
     enabled: false                      # bool: Enable synapse turnover analysis
-    training: false                     # bool: Run during training
+    training: true                      # bool: Must be true; turnover compares training snapshots
     params:
-      snapshot_interval: 1              # int: Snapshot frequency (epochs)
-      synaptic_analysis: true           # bool: Compute connectivity summaries
-      save_synaptic_report: true        # bool: Write report to disk
+      snapshot_interval: 1              # int: Epochs between snapshots (first = before training)
+
+  # ---------- Synapse pruning (final-only census) ----------
+  synapse_pruning:
+    enabled: false                      # bool: Census of realized contacts; before/after pruning when the run prunes
+    training: false                     # bool: Must remain false
+    params:
+      save_figures: true                # bool: Per-branch and per-depth contact plots
 
   # ---------- Noise perturbation ----------
   noise_perturbation:
     enabled: false                      # bool: Enable noise perturbation analysis
-    training: false                     # bool: Run during training
+    training: false                     # bool: Also run during training
     params:
       uniform_noise: true               # bool: Uniform noise sweeps
       uniform_magnitudes: [0.1, 0.2]    # list[float]: Uniform noise magnitudes
       gaussian_noise: true              # bool: Gaussian noise sweeps
-      gaussian_sdevs: [0.1, 0.2]       # list[float]: Gaussian noise std devs
+      gaussian_sdevs: [0.1, 0.2]       # list[float]: Gaussian noise standard deviations
       n_samples: 10                     # int: Noisy replicates per setting
       accuracy: true                    # bool: Compute accuracy
       auc: true                         # bool: Compute AUC
@@ -835,22 +769,22 @@ analysis:
   # ---------- Adversarial robustness ----------
   adversarial_robustness:
     enabled: false                      # bool: Enable adversarial robustness (FGSM)
-    training: false                     # bool: Run during training
+    training: false                     # bool: Also run during training
     params:
       epsilons: [0.0, 0.05, 0.1, 0.15, 0.2, 0.3]  # list[float]: FGSM epsilon values
-      batch_size: 256                   # int: Evaluation batch size
+      batch_size: 256                   # int: Not used in training runs: the analysis runtime batch_size replaces it
 
   # ---------- Weight analysis ----------
   weight:
     enabled: false                      # bool: Enable weight analysis
-    training: false                     # bool: Run during training
+    training: false                     # bool: Also run during training
     params:
       synapse_weights: true             # bool: Analyze synapse weights
       branch_weights: true              # bool: Analyze branch-to-output weights
       computation_level: "single_branch"  # str: "single_branch" | "layer_branch" | "all_branch"
       branch_aggregation: "mean"        # str: "mean" | "multivariate" | "sample"
       per_layer_analysis: true          # bool: Per-layer breakdown
-      per_einet_analysis: true          # bool: Per-EI-net breakdown
+      per_einet_analysis: true          # bool: Separate E and I network summaries
       per_neuron_analysis: false        # bool: Per-neuron breakdown (expensive)
       analyze_excitatory: true          # bool: Analyze E weights
       analyze_inhibitory: true          # bool: Analyze I weights
@@ -865,7 +799,7 @@ analysis:
   # ---------- Compartment statistics ----------
   compartment_statistics:
     enabled: false                      # bool: Enable compartment statistics
-    training: false                     # bool: Run during training
+    training: false                     # bool: Also run during training
     params:
       synapse_weights: true             # bool: Analyze synapse weights
       branch_weights: true              # bool: Analyze branch weights
@@ -888,33 +822,61 @@ analysis:
   # n_sig_dirs, and ratio_sig_dirs from between-class vs total covariance.
   compartment_snr:
     enabled: false                      # bool: Enable compartment SNR analysis
-    training: false                     # bool: Run during training
+    training: false                     # bool: Also run during training
     params:
       input_analysis: true              # bool: Input-level statistics
       input_capture_mode: "branch"      # str: "branch" = dendritic branch inputs; "network" = network-level E/I input-output diagnostic
-      global_analysis: true             # bool: Global statistics
       layer_analysis: true              # bool: Layer statistics
       branch_analysis: true             # bool: Branch statistics
       global_aggregation: true          # bool: Aggregate global statistics
       layer_aggregation: true           # bool: Aggregate layer statistics
       branch_aggregation: true          # bool: Aggregate branch statistics
       epsilon: 0.000001                 # float: Numerical epsilon
+      null_permutations: 100            # int: Label shuffles for n_sig_dirs and d_total_null_mean (0: off)
+      null_quantile: 0.95               # float: Null quantile a significant direction must exceed
+      null_seed: null                   # int | null: Shuffle seed (null: from the run's probe seed)
 
   # ---------- Multiplicative gain ----------
   multiplicative_gain:
     enabled: false                      # bool: Enable multiplicative gain analysis
-    training: false                     # bool: Run during training
+    training: false                     # bool: Also run during training
     params:
-      uniform_gain: true                # bool: Uniform gain sweep
+      uniform_gain: true                # bool: One gain per input (false: per-element gains in [1, g])
       gain_min: 0.0                     # float: Minimum gain
       gain_max: 10.0                    # float: Maximum gain
       n_steps: 10                       # int: Number of gain steps
-      logspace: false                   # bool: Log-spaced gain values
-      accuracy: false                   # bool: Compute accuracy
+      logspace: false                   # bool: Log-spaced gains ([1/gain_max, gain_max] when gain_min <= 0)
+      noise_seed: null                  # int | null: Seed of random gains and noise (null: from the run's probe seed)
+      accuracy: true                    # bool: Compute accuracy (default false; enabling the analyzer needs at least one score)
       auc: false                        # bool: Compute AUC
       categorical_loglikelihood: false  # bool: Compute categorical log-likelihood
       mse: false                        # bool: Compute MSE
       cosine_similarity: false          # bool: Compute cosine similarity
+
+  # ---------- Shared gain crossed with independent load ----------
+  gain_load_perturbation:
+    enabled: false                      # bool: Enable final-only gain/load grid
+    training: false                     # bool: Must remain false
+    params:
+      gain_log_sds: [0.0, 0.2, 0.5, 0.8]  # list[float]: Mean-one lognormal gain s.d.
+      load_levels: [0.0, 0.1, 0.3, 0.5]   # list[float]: Declared load levels
+      load_mode: gaussian_input         # str: gaussian_input | positive_inhibitory
+      load_log_sd: 0.2                  # float: Log-s.d. for positive I load
+      inhibitory_start: null            # int | null: Start of ordered I stream
+      draws_per_condition: 5            # int: Technical perturbation draws
+      base_draw_seed: null              # int | null: null = derived from experiment.probe_seed
+      max_samples: null                 # int | null: Evaluation sample cap
+      clamp_min: 0.0                    # float | null: Lower input clamp
+      clamp_max: null                   # float | null: Upper input clamp
+      accuracy: true                    # bool: Record classification accuracy
+      categorical_loglikelihood: true   # bool: Record categorical log-likelihood
+      record_input_statistics: false    # bool: Record realized input moments per cell
+      record_branch_local_sensitivity: false  # bool: Evaluate exact fitted branch derivatives
+      branch_sensitivity_module_name_prefix: null  # str | null: One tree prefix
+      branch_sensitivity_expected_n_somas: null     # int | null: Tree validation
+      branch_sensitivity_include_soma: false        # bool: Include soma-relative d=0
+      branch_sensitivity_max_samples: null           # int | null: Sensitivity sample cap
+      branch_sensitivity_draws: [0]                 # list[int]: Technical draws analyzed
 
   # ---------- Receptive field ----------
   # Default mode collects raw dendritic RF maps. Set compute_activation_tuning for
@@ -923,7 +885,7 @@ analysis:
   # aggregate RF tuning, entropy, discriminability, and E-vs-I RF plots.
   receptive_field:
     enabled: false                      # bool: Enable receptive field visualization
-    training: false                     # bool: Run during training
+    training: false                     # bool: Also run during training
     params:
       n_rows: 2                         # int: Grid rows for plotting
       n_cols: 2                         # int: Grid columns for plotting
@@ -932,6 +894,10 @@ analysis:
       inh_rf_shape: null                # list[int] | null: Inhibitory RF shape [H, W]
       fig_save_format: png              # str: Figure extension, e.g. png or pdf
       compute_activation_tuning: false  # bool: Class-tuning summaries from branch E/I ratio and Vout activations
+      activation_sample_signals: []     # list[str]: Optional "exc" | "inh" | "upstream" | "depolarizing_drive" | "vout" | "ei_ratio" sample records
+      activation_sample_depths: []      # list[int]: Soma-relative depths retained in activation sample records
+      activation_samples_per_class: 0   # int: Label-balanced records per class; 0 disables records
+      activation_sample_seed: null      # int | null: null = derived from experiment.probe_seed
       compute_component_rfs: false      # bool: Compact soma-level E/I mean and conditioned component RF maps
       plot_component_rfs: true          # bool: Save compact component RF figure on final analysis
       compute_rf_tuning: false          # bool: Rich aggregate RF tuning, entropy, and discriminability analysis
@@ -946,7 +912,7 @@ analysis:
   # ---------- Single-layer contribution ----------
   single_layer_contribution:
     enabled: false                      # bool: Enable single-layer contribution analysis
-    training: false                     # bool: Run during training
+    training: false                     # bool: Also run during training
     params:
       excitation_contribution: true     # bool: Excitation-only contribution
       inhibition_contribution: true     # bool: Inhibition-only contribution
@@ -960,7 +926,7 @@ analysis:
   # ---------- Synaptic activation ----------
   synaptic_activation:
     enabled: false                      # bool: Enable synaptic activation analysis
-    training: false                     # bool: Run during training
+    training: false                     # bool: Also run during training
     params:
       network_summary: true             # bool: Network-level summary
       layer_summary: true               # bool: Layer-level summary
@@ -973,7 +939,7 @@ analysis:
   # ---------- Branch activation ----------
   branch_activation:
     enabled: false                      # bool: Enable branch activation analysis
-    training: false                     # bool: Run during training
+    training: false                     # bool: Also run during training
     params:
       synapse_activations: true         # bool: Log synapse activations
       branch_activations: true          # bool: Log branch activations
@@ -988,15 +954,15 @@ analysis:
   # ---------- Local rule components ----------
   local_rule_components:
     enabled: false                      # bool: Enable LocalCA component-factor logging
-    training: false                     # bool: Run during training for epoch trajectories
+    training: false                     # bool: Also run during training, for epoch trajectories
     params:
       max_samples: 1024                 # int | null: Examples per snapshot
       include_dendritic: true           # bool: Include branch-to-parent conductance terms
       include_broadcast: true           # bool: Log scalar/per-soma broadcast-error proxy
       broadcast_mode: "scalar"          # str: "scalar" | "per_soma"
-      error_mode: "auto"                # str: "auto" | "ce" | "mse" | "none"
-      e_rev_exc: 1.0                    # float: Excitatory reversal for driving force
-      e_rev_inh: 0.0                    # float: Inhibitory reversal for driving force
+      error_mode: "auto"                # str: "auto" | "ce" | "bce" | "mse" | "none"
+      e_rev_exc: 1.0                    # float: Fixed at 1.0, the model's excitatory reversal
+      e_rev_inh: 0.0                    # float: Fixed at 0.0, the model's inhibitory reversal
       save_json: true                   # bool: Save per-snapshot JSON
       save_csv: true                    # bool: Save per-snapshot CSV
       append_training_csv: true         # bool: Append training snapshots to trajectory.csv
@@ -1004,7 +970,7 @@ analysis:
   # ---------- Spike train ----------
   spike_train:
     enabled: false                      # bool: Enable LIF spike-train analysis
-    training: false                     # bool: Run during training for epoch trajectories
+    training: false                     # bool: Also run during training, for epoch trajectories
     params:
       dt: 1.0                           # float: Time per recurrent step for rate reporting
       threshold: 0.5                    # float: Binarization threshold for recorded spike outputs
@@ -1016,53 +982,46 @@ analysis:
   # ---------- Routing ----------
   routing:
     enabled: false                      # bool: Enable routing analysis (recurrent models only)
-    training: false                     # bool: Run during training
-
-# ============================================================================
-# WEIGHTS & BIASES
-# ============================================================================
-wandb:
-  use_wandb: false                      # bool: Enable W&B logging
-  entity: ""                            # str: W&B entity (team/user)
-  project: "dendritic-sweeps"           # str: W&B project name
-  group: "unified_sweep"                # str: W&B run group
-  tags: ["debug"]                       # list[str]: W&B tags
+    training: false                     # bool: Also run during training
 
 # ============================================================================
 # OUTPUTS
 # ============================================================================
 outputs:
-  run_name: "ei_sweep"                  # str: Experiment run name
-  results_dir: "results"                # str: Results output directory
+  run_name: "ei_sweep"                  # str: Run name; a run writes to <results_dir>/<run_name>_<YYYYMMDD_HHMMSS>/
+  results_dir: "results"                # str: Parent directory of the run directories
+  # Not shown: exact_run_dir (true: write into results_dir itself;
+  # docs/runs_and_outputs.rst).
 
 # ============================================================================
 # DISTRIBUTED TRAINING
-# Node/GPU counts are controlled by SLURM (--nodes, --gpus-per-node) or by
-# the launcher CLI argument, NOT by this config.
 # ============================================================================
 distributed:
-  # "none" = single GPU, "ddp" = DistributedDataParallel, "fsdp" = FullyShardedDataParallel
-  # For ddp/fsdp, launch via torchrun or SLURM srun; node/GPU counts are set by
-  # the launcher (--nproc_per_node, --nodes), NOT by this config.
+  # "none": one process (dendritic-train). "ddp": DistributedDataParallel,
+  # launched with torchrun -m dendritic_modeling.scripts.training.train_experiments.
+  # "fsdp": FullyShardedDataParallel, launched with torchrun -m
+  # dendritic_modeling.scripts.training.train_experiments_fsdp (see
+  # config_exp_fsdp.yaml). The launcher sets the number of nodes and
+  # processes, not this config.
   mode: "none"                          # str: "none" | "ddp" | "fsdp"
+  # Not shown: timeout_seconds (int | null), the collective timeout of ddp and
+  # fsdp runs (null = PyTorch's default of 600 s under DDP, 1800 s under
+  # FSDP); raise it when rank-0 analyses during training take long.
 
-  # DDP has no configurable parameters in this framework -- just set mode: "ddp"
-  # and PyTorch handles the rest (gradient sync, broadcast, etc.).
-
-  # FSDP settings (only used when mode = "fsdp")
+  # FSDP settings (read only with mode: "fsdp"; docs/distributed_training.rst)
   fsdp:
-    # FULL_SHARD: shard params + grads + optimizer across all ranks (lowest memory)
-    # SHARD_GRAD_OP: shard grads + optimizer only (faster, more memory)
-    # NO_SHARD: no sharding (equivalent to DDP)
-    # HYBRID_SHARD: shard within node, replicate across nodes (multi-node sweet spot)
+    # FULL_SHARD: shard parameters, gradients and optimizer state (lowest memory)
+    # SHARD_GRAD_OP: shard gradients and optimizer state only
+    # NO_SHARD: no sharding (like DDP)
+    # HYBRID_SHARD: shard within a node, replicate across nodes
     sharding_strategy: "FULL_SHARD"       # str: "FULL_SHARD" | "SHARD_GRAD_OP" | "NO_SHARD" | "HYBRID_SHARD"
-    mixed_precision: true                 # bool: FSDP mixed precision (BF16 compute, FP32 reduce)
-    cpu_offload: false                    # bool: Offload params to CPU (saves GPU memory, slower)
-    min_num_params: 1000000               # int: Min params to shard a module
-    reduce_communication_overhead: true   # bool: Reduce communication overhead
-    limit_all_gathers: true              # bool: Limit concurrent all-gathers
-    forward_prefetch: true                # bool: Prefetch next FSDP unit in forward
-    sync_module_states: true              # bool: Sync module states on init (broadcast rank 0)
-    use_orig_params: true                 # bool: Use original param references (needed for param groups)
+    mixed_precision: true                 # bool: FSDP mixed precision; dtypes from mixed_precision_dtype (default "bf16")
+    cpu_offload: false                    # bool: Offload parameters to CPU memory (saves GPU memory, slower)
+    auto_wrap_policy: "none"              # str: "none" (whole model is one unit) | "indexed_synapses" (one unit per indexed synapse module) | "size"
+    min_num_params: 1000000               # int: Size threshold of auto_wrap_policy "size" (other policies reject a non-default value)
+    limit_all_gathers: true               # bool: Limit concurrent all-gathers
+    forward_prefetch: true                # bool: Prefetch the next FSDP unit in forward
+    sync_module_states: true              # bool: Broadcast rank 0's module states when wrapping
+    use_orig_params: true                 # bool: Keep the original parameters (needed for the per-component parameter groups)
     backward_prefetch: "BACKWARD_PRE"     # str: "BACKWARD_PRE" | "BACKWARD_POST"
-    gradient_checkpointing: false         # bool: Activation checkpointing (trade compute for memory)
+    gradient_checkpointing: false         # bool: Activation checkpointing (recompute activations in backward to save memory)

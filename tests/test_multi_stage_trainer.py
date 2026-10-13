@@ -1,6 +1,7 @@
 import json
 from types import SimpleNamespace
 
+import pytest
 import torch
 from torch import nn
 
@@ -10,25 +11,23 @@ from dendritic_modeling.config.multi_stage_training import (
 )
 from dendritic_modeling.training.optimizers.custom import CustomWeightDecayOptimizer
 from dendritic_modeling.training.strategies.multi_stage import (
+    STAGE_CHECKPOINT_NAME,
     MultiStageTrainer,
     _append_stage_result,
     _build_stage_optimizer,
     _build_stage_trainer,
     _build_stage_trainer_config,
     _concatenate_stage_performance_epochs,
-    _configure_stage_trainer_save_path,
     _epoch_files_by_local_epoch,
     _finalize_multi_stage_results,
     _initial_multi_stage_results,
     _iter_resettable_modules,
     _load_stage_checkpoint,
-    _optimizer_class_and_weight_decay,
     _prepare_stage_analysis_root,
     _reset_module_weights,
     _run_between_stage_analysis,
     _stage_checkpoint_optimizer_state,
-    _stage_checkpoint_path,
-    _stage_trainer_save_path,
+    _stage_directory,
     _update_best_stage,
 )
 
@@ -99,7 +98,7 @@ def test_concatenate_stage_performance_epochs_preserves_stage_and_epoch_order(
     _write_json(stage2_epochs / "epoch1.json", {"stage": 2, "epoch": 1})
 
     _concatenate_stage_performance_epochs(
-        [TrainingStageConfig(), TrainingStageConfig(), TrainingStageConfig()],
+        ["stage_1", "stage_2", "stage_3"],
         str(tmp_path),
     )
 
@@ -175,18 +174,15 @@ def test_run_between_stage_analysis_restores_save_root_after_failure(tmp_path):
     assert analysis_manager.save_root == str(tmp_path)
 
 
-def test_build_stage_trainer_config_applies_stage_overrides_and_global_defaults():
+def test_build_stage_trainer_config_applies_stage_overrides():
     base_config = {
         "epochs": 5,
         "batch_size": 16,
+        "shuffle": True,
+        "grad_clip_value": 3.0,
         "loss_function": "cross_entropy",
     }
-    multi_stage_config = MultiStageTrainingConfig(
-        stages=[],
-        global_batch_size=32,
-        global_shuffle=False,
-        global_grad_clip_value=0.25,
-    )
+    multi_stage_config = MultiStageTrainingConfig(stages=[])
     stage_config = TrainingStageConfig(
         epochs=2,
         batch_size=None,
@@ -203,59 +199,54 @@ def test_build_stage_trainer_config_applies_stage_overrides_and_global_defaults(
 
     assert stage_trainer_config == {
         "epochs": 2,
-        "batch_size": 32,
+        "batch_size": 16,
+        "shuffle": True,
+        "grad_clip_value": 3.0,
         "loss_function": "mse",
         "extra": "value",
         "param_groups": {"encoder": {"lr": 1e-3}},
-        "shuffle": False,
-        "grad_clip_value": 0.25,
         "local_rule_config": {"rule": "stdp"},
     }
-    assert base_config == {
-        "epochs": 5,
-        "batch_size": 16,
-        "loss_function": "cross_entropy",
-    }
+    assert base_config["loss_function"] == "cross_entropy"
 
 
-def test_build_stage_trainer_config_keeps_existing_shuffle_and_grad_clip():
-    base_config = {"shuffle": True, "grad_clip_value": 3.0}
-    multi_stage_config = MultiStageTrainingConfig(
-        stages=[],
-        global_shuffle=False,
-        global_grad_clip_value=0.25,
-    )
-    stage_config = TrainingStageConfig(batch_size=64)
-
-    stage_trainer_config = _build_stage_trainer_config(
-        base_config,
-        multi_stage_config,
-        stage_config,
-    )
-
-    assert stage_trainer_config["batch_size"] == 64
-    assert stage_trainer_config["shuffle"] is True
-    assert stage_trainer_config["grad_clip_value"] == 3.0
+@pytest.mark.parametrize("key", ["epochs", "batch_size", "param_groups"])
+def test_stage_level_keys_inside_trainer_config_raise(key):
+    with pytest.raises(ValueError, match="write them at stage level"):
+        TrainingStageConfig(trainer_config={key: 1})
 
 
-def test_optimizer_class_and_weight_decay_handles_plain_and_wrapped_optimizers():
-    model = nn.Linear(2, 1)
-    plain_optimizer = torch.optim.Adam(model.parameters(), lr=0.02)
-    optimizer_class, weight_decay = _optimizer_class_and_weight_decay(plain_optimizer)
-    assert optimizer_class is torch.optim.Adam
-    assert weight_decay == 0.0
-
-    wrapped_optimizer = CustomWeightDecayOptimizer(
-        model=model,
-        optimizer=torch.optim.SGD(model.parameters(), lr=0.03),
-        weight_decay=0.2,
-    )
-    optimizer_class, weight_decay = _optimizer_class_and_weight_decay(wrapped_optimizer)
-    assert optimizer_class is torch.optim.SGD
-    assert weight_decay == 0.2
+def test_stage_names_must_be_unique_directory_names():
+    with pytest.raises(ValueError, match="more than once"):
+        MultiStageTrainingConfig(
+            stages=[TrainingStageConfig(stage_name="a"), {"stage_name": "a"}]
+        )
+    with pytest.raises(ValueError, match="plain file name"):
+        TrainingStageConfig(stage_name="../escape")
 
 
-def test_build_stage_optimizer_reuses_base_optimizer_after_first_non_reset_stage():
+def test_the_former_best_stage_flag_loads_as_final_state():
+    from dendritic_modeling.config import config_from_mapping
+
+    def final_state(**block):
+        stages = [{"learning_strategy": "standard", "epochs": 1}]
+        config = config_from_mapping(
+            {
+                "training": {
+                    "main": {"strategies": {"multi_stage": {**block, "stages": stages}}}
+                }
+            }
+        )
+        return config.training.main.strategies.multi_stage.final_state
+
+    assert final_state() == "last_stage"
+    assert final_state(use_best_from_each_stage=True) == "best_stage"
+    assert final_state(use_best_from_each_stage=False) == "last_stage"
+    with pytest.raises(ValueError, match="final_state='best' is not supported"):
+        final_state(final_state="best")
+
+
+def test_build_stage_optimizer_continues_base_optimizer_without_reset():
     model = nn.Linear(2, 1)
     base_optimizer = torch.optim.Adam(model.parameters(), lr=0.02)
 
@@ -266,30 +257,56 @@ def test_build_stage_optimizer_reuses_base_optimizer_after_first_non_reset_stage
         stage_idx=2,
     )
 
+    # The optimizer state continues; the wrapper runs sparse maintenance.
+    assert isinstance(stage_optimizer, CustomWeightDecayOptimizer)
+    assert stage_optimizer.optimizer is base_optimizer
+    assert stage_optimizer.weight_decay == 0.0
+
+
+def test_build_stage_optimizer_reuses_matching_wrapper_without_reset():
+    model = nn.Linear(2, 1)
+    base_optimizer = CustomWeightDecayOptimizer(
+        model=model,
+        optimizer=torch.optim.Adam(model.parameters(), lr=0.02),
+        weight_decay=0.2,
+        weight_boosting=True,
+    )
+
+    stage_optimizer = _build_stage_optimizer(
+        model,
+        base_optimizer,
+        TrainingStageConfig(reset_optimizer=False),
+        stage_idx=0,
+        stage_trainer_config={"synapse_decay_rate": 0.2, "weight_boosting": True},
+    )
+
     assert stage_optimizer is base_optimizer
 
 
-def test_build_stage_optimizer_reset_preserves_legacy_reset_lr():
+def test_build_stage_optimizer_reset_rebuilds_from_param_groups():
     model = nn.Linear(2, 1)
-    base_optimizer = torch.optim.Adam(model.parameters(), lr=0.02)
+    base_optimizer = torch.optim.Adam(model.parameters(), lr=0.02, eps=1e-6)
 
     stage_optimizer = _build_stage_optimizer(
         model,
         base_optimizer,
         TrainingStageConfig(reset_optimizer=True),
         stage_idx=2,
+        stage_trainer_config={"param_groups": {"lr": 0.05}},
     )
 
-    assert isinstance(stage_optimizer, torch.optim.Adam)
-    assert stage_optimizer is not base_optimizer
-    assert stage_optimizer.param_groups[0]["lr"] == 0.001
+    assert isinstance(stage_optimizer, CustomWeightDecayOptimizer)
+    assert isinstance(stage_optimizer.optimizer, torch.optim.Adam)
+    assert stage_optimizer.optimizer is not base_optimizer
+    assert stage_optimizer.optimizer.param_groups[0]["lr"] == 0.05
+    assert stage_optimizer.optimizer.defaults["eps"] == 1e-6
 
 
 def test_build_stage_optimizer_wraps_reset_optimizer_when_base_uses_custom_decay():
     model = _ParamGroupModel()
     base_optimizer = CustomWeightDecayOptimizer(
         model=model,
-        optimizer=torch.optim.SGD(model.parameters(), lr=0.03),
+        optimizer=torch.optim.SGD(model.parameters(), lr=0.03, momentum=0.5),
         weight_decay=0.2,
     )
 
@@ -303,7 +320,12 @@ def test_build_stage_optimizer_wraps_reset_optimizer_when_base_uses_custom_decay
     assert isinstance(stage_optimizer, CustomWeightDecayOptimizer)
     assert isinstance(stage_optimizer.optimizer, torch.optim.SGD)
     assert stage_optimizer.weight_decay == 0.2
-    assert stage_optimizer.optimizer.param_groups[0]["lr"] == 0.001
+    assert stage_optimizer.optimizer.defaults["momentum"] == 0.5
+    # Rebuilt from model.get_param_groups(ParamGroupsConfig()) defaults.
+    assert [group["lr"] for group in stage_optimizer.optimizer.param_groups] == [
+        0.01,
+        0.001,
+    ]
 
 
 def test_build_stage_optimizer_uses_model_param_groups_when_configured():
@@ -317,7 +339,8 @@ def test_build_stage_optimizer_uses_model_param_groups_when_configured():
         stage_idx=2,
     )
 
-    assert isinstance(stage_optimizer, torch.optim.Adam)
+    assert isinstance(stage_optimizer, CustomWeightDecayOptimizer)
+    assert isinstance(stage_optimizer.optimizer, torch.optim.Adam)
     assert model.seen_param_groups_config.lr == 0.03
     assert model.seen_param_groups_config.decoder_lr == 0.004
     assert [group["lr"] for group in stage_optimizer.param_groups] == [0.03, 0.004]
@@ -433,50 +456,29 @@ def test_execute_stage_restores_analysis_root_after_failure(tmp_path, monkeypatc
     assert analysis_manager.save_root == str(tmp_path)
 
 
-def test_stage_paths_preserve_legacy_string_format():
-    assert _stage_trainer_save_path("/tmp/run", 2, "stage_3") == (
-        "/tmp/run/stage_2_stage_3"
-    )
-    assert _stage_checkpoint_path("/tmp/run", 2, "stage_3") == (
-        "/tmp/run/checkpoint_stage_2_stage_3.pt"
-    )
+def test_each_stage_gets_its_own_created_directory(tmp_path):
+    directory = _stage_directory(str(tmp_path), "pretrain")
+
+    assert directory == str(tmp_path / "pretrain")
+    assert (tmp_path / "pretrain").is_dir()
+    assert STAGE_CHECKPOINT_NAME == "stage_checkpoint.pt"
 
 
-def test_configure_stage_trainer_save_path_respects_save_checkpoint_flag():
-    stage_trainer = SimpleNamespace()
-
-    _configure_stage_trainer_save_path(
-        stage_trainer,
-        "/tmp/run",
-        TrainingStageConfig(save_checkpoint=False),
-        0,
-        "stage_1",
-    )
-    assert not hasattr(stage_trainer, "save_path")
-
-    _configure_stage_trainer_save_path(
-        stage_trainer,
-        "/tmp/run",
-        TrainingStageConfig(save_checkpoint=True),
-        0,
-        "stage_1",
-    )
-    assert stage_trainer.save_path == "/tmp/run/stage_0_stage_1"
-
-
-def test_initial_multi_stage_results_matches_legacy_result_shape():
-    results = _initial_multi_stage_results()
+def test_initial_multi_stage_results_shape():
+    results = _initial_multi_stage_results("last_stage")
 
     assert results == {
         "stages": [],
-        "final_state_dict": None,
-        "best_stage": None,
+        "final_state": "last_stage",
+        "final_stage": None,
         "best_loss": float("inf"),
+        "best_epoch": None,
+        "final_state_dict": None,
     }
 
 
 def test_append_stage_result_preserves_legacy_stage_record_shape():
-    all_results = _initial_multi_stage_results()
+    all_results = _initial_multi_stage_results("last_stage")
     stage_results = {"best_loss": 0.25}
 
     _append_stage_result(all_results, "stage_2", 1, stage_results)
@@ -535,24 +537,26 @@ def test_update_best_stage_ignores_results_without_best_loss():
     assert best_stage == "stage_1"
 
 
-def test_finalize_multi_stage_results_sets_final_model_and_best_metadata():
+def test_finalize_records_the_final_stage_and_a_copy_of_its_weights():
     model = nn.Linear(2, 1)
     with torch.no_grad():
         model.weight.fill_(0.5)
         model.bias.fill_(-0.1)
-    all_results = _initial_multi_stage_results()
+    all_results = _initial_multi_stage_results("last_stage")
 
     _finalize_multi_stage_results(
-        all_results,
-        model,
-        best_stage_name="stage_2",
-        best_overall_loss=0.2,
+        all_results, model, "stage_2", {"best_loss": 0.2, "best_epoch": 3}
     )
+    with torch.no_grad():
+        model.weight.fill_(9.0)  # later changes do not reach the recorded copy
 
-    assert all_results["best_stage"] == "stage_2"
+    assert all_results["final_stage"] == "stage_2"
     assert all_results["best_loss"] == 0.2
-    assert torch.equal(all_results["final_state_dict"]["weight"], model.weight)
-    assert torch.equal(all_results["final_state_dict"]["bias"], model.bias)
+    assert all_results["best_epoch"] == 3
+    assert torch.equal(
+        all_results["final_state_dict"]["weight"], torch.full((1, 2), 0.5)
+    )
+    assert all_results["final_state_dict"]["bias"].device.type == "cpu"
 
 
 def test_resettable_modules_preserve_order_and_reset_rule():

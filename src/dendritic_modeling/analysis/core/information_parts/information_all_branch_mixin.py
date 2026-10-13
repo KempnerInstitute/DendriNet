@@ -95,10 +95,21 @@ class InformationAllBranchMixin:
                 else None
             )
             Vout = torch.cat(layer_output, dim=0).detach().cpu().numpy()
-            total_samples = E.shape[0]
-            original_samples = C.shape[0]
-            expansion_factor = total_samples // original_samples
-            C_for_metrics = np.repeat(C, expansion_factor, axis=0)
+            # Each layer holds its samples' branches sample by sample, and the
+            # layers follow one another, so labels repeat per layer.
+            n_samples = C.shape[0]
+            C_for_metrics = np.concatenate(
+                [
+                    np.repeat(C, layer.shape[0] // n_samples, axis=0)
+                    for layer in layer_excitation
+                ],
+                axis=0,
+            )
+            if C_for_metrics.shape[0] != E.shape[0]:
+                raise ValueError(
+                    "all_branch sample aggregation found layers whose rows are "
+                    f"not a multiple of the {n_samples} samples"
+                )
         else:
             E = torch.cat(layer_excitation, dim=1).detach().cpu().numpy()
             I_var = torch.cat(layer_inhibition, dim=1).detach().cpu().numpy()

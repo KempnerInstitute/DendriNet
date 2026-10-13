@@ -1,10 +1,17 @@
 from types import SimpleNamespace
 
+import numpy as np
+import pytest
 import torch
+from torch.utils.data import TensorDataset
 
 from dendritic_modeling.analysis.tools.weight import (
     WeightAnalyzer,
     _branch_synapse_statistics,
+    _mean_pairwise_jaccard,
+    _source_activity_alignment_statistics,
+    _source_support_statistics,
+    _spatial_region_alignment_statistics,
     _weight_tensor_statistics,
 )
 from dendritic_modeling.config.analysis import WeightAnalysisParams
@@ -137,6 +144,237 @@ def test_weight_active_weights_uses_configured_threshold():
     active = analyzer._active_weights(torch.tensor([0.0, 0.25, 0.3, 0.7]))
 
     torch.testing.assert_close(active, torch.tensor([0.3, 0.7]))
+
+
+def test_source_support_helpers_preserve_branch_level_support():
+    mask = torch.tensor(
+        [
+            [1.0, 0.0, 1.0, 0.0],
+            [1.0, 1.0, 0.0, 0.0],
+        ]
+    )
+
+    assert _mean_pairwise_jaccard(mask) == 1.0 / 3.0
+    stats = _source_support_statistics(mask, torch.ones_like(mask))
+
+    assert stats["source_coverage_fraction"] == 0.75
+    assert stats["eligible_source_fraction"] == 1.0
+    assert stats["source_coverage_of_eligible"] == 0.75
+    assert stats["mean_pairwise_branch_jaccard"] == 1.0 / 3.0
+    assert 0.0 < stats["normalized_source_entropy"] <= 1.0
+
+
+def test_source_region_alignment_helpers_keep_components_and_controls():
+    profile = torch.tensor([2.0, 0.0, 0.0, 0.0])
+    preferred = torch.tensor([1.0, 0.0, 0.5, 0.0])
+    rest = torch.tensor([0.0, 1.0, 0.0, 0.5])
+
+    activity = _source_activity_alignment_statistics(profile, preferred, rest)
+    spatial = _spatial_region_alignment_statistics(
+        profile,
+        torch.tensor([1.0, 1.0, 0.0, 0.0]),
+    )
+
+    assert activity["preferred_foreground_fraction"] == 1.0
+    assert activity["preferred_background_fraction"] == 0.0
+    assert activity["rest_foreground_fraction"] == 0.0
+    assert activity["rest_background_fraction"] == 1.0
+    assert activity["preferred_rest_foreground_contrast"] == 1.0
+    assert activity["uniform_preferred_foreground_occupancy"] == 0.375
+    assert activity["preferred_foreground_occupancy_enrichment"] == pytest.approx(
+        1.0 / 0.375
+    )
+    assert spatial["center_support_fraction"] == 1.0
+    assert spatial["surround_support_fraction"] == 0.0
+    assert spatial["center_pixel_fraction"] == 0.5
+    assert spatial["center_support_enrichment"] == 2.0
+
+
+def test_weight_source_region_alignment_uses_reference_occupancy_and_skips_nonimages(
+    tmp_path,
+):
+    analyzer = WeightAnalyzer(
+        WeightAnalysisParams(
+            compute_source_support=True,
+            source_support_image_shape=(2, 2),
+            compute_source_region_alignment=True,
+            source_region_soma_to_class=[0, 1],
+            source_region_foreground_thresholds=[0.0, 0.5],
+            source_region_center_bounds=(0, 1, 0, 2),
+        )
+    )
+    inputs = torch.tensor(
+        [
+            [1.0, 0.0, 1.0, 0.0],
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 1.0],
+            [0.0, 1.0, 0.0, 0.0],
+        ]
+    )
+    labels = torch.tensor([0, 0, 1, 1])
+    profiles = {
+        "image_contact": np.asarray([[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0]]),
+        "image_conductance": np.asarray([[2.0, 0.0, 0.0, 0.0], [0.0, 3.0, 0.0, 0.0]]),
+        # A later-layer source can coincidentally match the image width; the
+        # explicit layer declaration must still prevent pixel interpretation.
+        "hidden_contact": np.ones((2, 4)),
+        "hidden_conductance": np.ones((2, 4)),
+    }
+    structural = {
+        "network_layer_index": 0,
+        "population_name": "e0",
+        "target_polarity": "excitatory",
+        "dendritic_depth": 1,
+        "depth_label": "1",
+        "pathway": "ff_excitatory",
+        "source_polarity": "excitatory",
+        "n_soma": 2,
+        "branches_per_soma": 1,
+        "selection_policy": "standard",
+        "mask_source": "test",
+    }
+    metadata = [
+        {
+            **structural,
+            "source_dim": 4,
+            "contact_frequency_key": "image_contact",
+            "mean_effective_conductance_key": "image_conductance",
+        },
+        {
+            **structural,
+            "network_layer_index": 1,
+            "source_dim": 4,
+            "contact_frequency_key": "hidden_contact",
+            "mean_effective_conductance_key": "hidden_conductance",
+        },
+    ]
+
+    result = analyzer._compute_source_region_alignment(
+        profiles=profiles,
+        profile_metadata=metadata,
+        reference_dataset=TensorDataset(inputs, labels),
+        reference_split="validation",
+        runtime=None,
+    )
+
+    assert result["reference"]["split"] == "validation"
+    assert result["reference"]["class_counts"] == {"0": 2, "1": 2}
+    assert result["n_source_activity_records"] == 8
+    assert result["n_spatial_region_records"] == 4
+    assert result["n_skipped_profile_blocks"] == 1
+    assert result["skipped_profile_blocks"][0]["skip_reason"] == (
+        "network_layer_not_declared_image_source"
+    )
+    row = next(
+        record
+        for record in result["source_activity_records"]
+        if record["quantity"] == "contact_frequency"
+        and record["soma_index"] == 0
+        and record["foreground_threshold"] == 0.5
+    )
+    assert row["preferred_foreground_fraction"] == 1.0
+    assert row["rest_foreground_fraction"] == 0.0
+    assert row["preferred_rest_foreground_contrast"] == 1.0
+    assert row["center_preferred_foreground_fraction"] == 1.0
+    assert row["center_rest_foreground_fraction"] == 0.0
+    assert row["center_preferred_rest_foreground_contrast"] == 1.0
+    assert row["preferred_class_sample_count"] == 2
+    assert row["rest_class_sample_count"] == 2
+
+    analyzer._save_source_region_alignment_outputs(
+        result,
+        save_path=str(tmp_path),
+        filename="final",
+    )
+    for key in (
+        "source_activity_records_file",
+        "spatial_region_records_file",
+        "skipped_profile_blocks_file",
+    ):
+        assert result[key] is not None
+        assert (tmp_path / result[key]).is_file()
+
+
+def test_source_region_config_requires_exact_structural_prerequisites():
+    with pytest.raises(ValueError, match="compute_source_support"):
+        WeightAnalysisParams(
+            compute_source_region_alignment=True,
+            source_support_image_shape=(2, 2),
+            source_region_soma_to_class=[0, 1],
+        )
+    with pytest.raises(ValueError, match=r"explicit.*mapping"):
+        WeightAnalysisParams(
+            compute_source_support=True,
+            compute_source_region_alignment=True,
+            source_support_image_shape=(2, 2),
+        )
+    with pytest.raises(ValueError, match="reference_split"):
+        WeightAnalysisParams(source_region_reference_split="holdout")
+
+
+def test_weight_source_support_emits_exact_profiles_and_audit_plot(tmp_path):
+    analyzer = WeightAnalyzer(
+        WeightAnalysisParams(
+            compute_source_support=True,
+            source_support_image_shape=(2, 2),
+            source_support_plot_soma_indices=[0, 1],
+            source_support_fig_save_format="png",
+        )
+    )
+    branch_layer = DendriticBranchLayer(
+        output_dim=4,
+        excitatory_input_dim=4,
+        excitatory_synapses_per_branch=1,
+        inhibitory_input_dim=4,
+        inhibitory_synapses_per_branch=1,
+        reactivate=False,
+        topk_noise_level=0.0,
+        layer_idx=1,
+    )
+    population = SimpleNamespace(n_soma=2, branch_layers=[branch_layer])
+    population_definition = SimpleNamespace(name="e0", polarity="excitatory")
+    model = SimpleNamespace(
+        core_network=SimpleNamespace(
+            layers=[
+                SimpleNamespace(
+                    config=SimpleNamespace(name="layer0"),
+                    populations={"e0": population},
+                    population_definitions=[population_definition],
+                )
+            ]
+        )
+    )
+
+    summary, profiles, profile_metadata = analyzer._compute_source_support(model)
+
+    assert summary["n_scalar_records"] == 8
+    assert summary["n_profile_arrays"] == 8
+    assert {row["depth_label"] for row in summary["records"]} == {"1", "all"}
+    assert {row["pathway"] for row in summary["records"]} == {
+        "ff_excitatory",
+        "ff_inhibitory",
+    }
+    for metadata in profile_metadata:
+        frequency = profiles[metadata["contact_frequency_key"]]
+        assert frequency.shape == (2, 4)
+        torch.testing.assert_close(
+            torch.from_numpy(frequency.sum(axis=1)),
+            torch.ones(2, dtype=torch.float64),
+        )
+
+    analyzer._save_source_support_outputs(
+        summary,
+        profiles,
+        profile_metadata,
+        save_path=str(tmp_path),
+        filename="final",
+        plot=True,
+    )
+
+    assert (tmp_path / "final_source_support_profiles.npz").exists()
+    assert (tmp_path / "final_source_support_records.csv").exists()
+    assert len(summary["figure_files"]) == 2
+    assert all((tmp_path / name).exists() for name in summary["figure_files"])
 
 
 def test_weight_branch_layer_iterator_preserves_layer_idx_rules():

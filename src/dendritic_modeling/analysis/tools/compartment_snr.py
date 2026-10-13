@@ -37,6 +37,7 @@ from dendritic_modeling.networks import (
     ParametricActivation,
     TopKLinear,
 )
+from dendritic_modeling.plotting.styles import bar_kwargs, indexed_style
 from dendritic_modeling.utils import save_dict
 from dendritic_modeling.utils.hooks import (
     ForwardHookRemovalMixin,
@@ -47,6 +48,15 @@ from dendritic_modeling.utils.hooks import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Hatches of the activation types' bar series, so that bars read without colour.
+_ACTIVATION_HATCHES = {
+    "vout": "",
+    "exc": "//",
+    "inh": "..",
+    "vinf": "xx",
+    "upstream": "\\\\",
+}
 
 
 METRIC_MAPPING = {
@@ -79,6 +89,76 @@ def _summarize_population_values(
         stats_dict[f"{field}_mean"] = data_tensor.mean().item()
         stats_dict[f"{field}_std"] = data_tensor.std(correction=0).item()
     return stats_dict
+
+
+def class_discriminability(
+    data: torch.Tensor,
+    labels: torch.Tensor,
+    *,
+    null_permutations: int,
+    null_quantile: float,
+    generator: torch.Generator,
+) -> dict[str, float]:
+    """Squared canonical correlations between activity and class labels.
+
+    The eigenvalues of ``S_T^(-1/2) S_B S_T^(-1/2)`` (total and between-class
+    covariances of ``data``, samples by features), computed in float64 on the
+    non-null space of ``S_T``; each lies in ``[0, 1]`` and at most ``C - 1``
+    are nonzero. ``d_max`` and ``d_total`` are the largest eigenvalue and the
+    sum. They are in-sample: without any class signal the sum is about
+    ``(C - 1) D / (n - 1)`` (``dim_over_n`` reports ``D / n``), so
+    ``d_total_null_mean`` reports the mean sum over label shuffles, and a
+    leading direction counts in ``n_sig_dirs`` when its eigenvalue exceeds the
+    ``null_quantile`` of the same-rank eigenvalue over ``null_permutations``
+    shuffles (``nan`` without shuffles). ``ratio_sig_dirs`` divides by ``D``.
+    """
+    x = data.reshape(data.shape[0], -1).to(torch.float64)
+    x = x - x.mean(dim=0)
+    n_samples, n_dims = x.shape
+    covariance = x.T @ x / n_samples
+    eigenvalues, eigenvectors = torch.linalg.eigh(covariance)
+    floor = eigenvalues.max().clamp_min(0.0) * n_dims * torch.finfo(torch.float64).eps
+    keep = eigenvalues > floor
+    whitened = x @ (eigenvectors[:, keep] / eigenvalues[keep].sqrt())
+    _classes, codes = torch.unique(labels.reshape(-1).cpu(), return_inverse=True)
+    n_classes = int(codes.max()) + 1 if codes.numel() else 0
+    rank = min(max(n_classes - 1, 0), whitened.shape[1])
+
+    def _spectrum(class_codes: torch.Tensor) -> torch.Tensor:
+        class_codes = class_codes.to(whitened.device)
+        counts = torch.bincount(class_codes, minlength=n_classes).to(torch.float64)
+        sums = torch.zeros(
+            n_classes, whitened.shape[1], dtype=torch.float64, device=whitened.device
+        ).index_add_(0, class_codes, whitened)
+        weighted = (
+            sums / counts.clamp_min(1.0)[:, None] * (counts / n_samples).sqrt()[:, None]
+        )
+        spectrum = torch.linalg.eigvalsh(weighted @ weighted.T).flip(0)
+        return spectrum[:rank].clamp(0.0, 1.0)
+
+    observed = _spectrum(codes)
+    results = {
+        "d_max": float(observed[0]) if rank else 0.0,
+        "d_total": float(observed.sum()),
+        "dim_over_n": n_dims / n_samples,
+    }
+    if null_permutations > 0 and rank:
+        null = torch.stack(
+            [
+                _spectrum(codes[torch.randperm(n_samples, generator=generator)])
+                for _ in range(null_permutations)
+            ]
+        )
+        thresholds = torch.quantile(null, null_quantile, dim=0)
+        exceeds = (observed > thresholds).tolist()
+        n_sig = next((k for k, above in enumerate(exceeds) if not above), rank)
+        results["d_total_null_mean"] = float(null.sum(dim=1).mean())
+    else:
+        n_sig = float("nan") if rank else 0
+        results["d_total_null_mean"] = float("nan") if rank else 0.0
+    results["n_sig_dirs"] = float(n_sig)
+    results["ratio_sig_dirs"] = float(n_sig) / n_dims
+    return results
 
 
 class CompartmentSNRAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
@@ -117,10 +197,18 @@ class CompartmentSNRAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         self.branch_aggregation = getattr(params, "branch_aggregation", True)
 
         self.epsilon = getattr(params, "epsilon", torch.finfo(torch.float32).eps)
+        self.null_permutations = int(getattr(params, "null_permutations", 100))
+        self.null_quantile = float(getattr(params, "null_quantile", 0.95))
+        null_seed = getattr(params, "null_seed", None)
+        # An unset seed outside a run takes the documented default.
+        self.null_seed = 0 if null_seed is None else int(null_seed)
 
     def collect_raw_data(self, model: BaseModel, x: torch.Tensor):
         """Collect raw data from the model."""
         self.raw_dict = {}
+        # Inputs captured during this call only; an earlier (training-time)
+        # call must not supply the final input analysis.
+        self._captured_inputs: dict[str, torch.Tensor] = {}
 
         core_network = getattr(model, "core_network", model)
         direct_ei_core = isinstance(core_network, ExcitationInhibitionNetwork)
@@ -239,11 +327,9 @@ class CompartmentSNRAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         )
 
     def _capture_input_once(self, name: str, tensor: torch.Tensor | None) -> None:
-        if tensor is None or hasattr(self, name):
+        if not torch.is_tensor(tensor) or name in self._captured_inputs:
             return
-        if not torch.is_tensor(tensor):
-            return
-        setattr(self, name, tensor.detach().cpu())
+        self._captured_inputs[name] = tensor.detach().cpu()
 
     def network_input_hook(
         self,
@@ -267,8 +353,9 @@ class CompartmentSNRAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         """Capture the actual tensors entering a branch layer.
 
         This is intentionally attached to ``DendriticBranchLayer`` rather than
-        to the whole E/I network.  It therefore records direct inhibitory
-        streams from ``input_mode=1`` as inhibitory inputs, while explicit
+        to the whole E/I network.  It therefore records the transferred
+        inhibitory stream that first-layer excitatory cells read directly as
+        inhibitory input, while explicit
         inhibitory-cell outputs are captured only when they are actually passed
         into the analyzed excitatory dendrites.
         """
@@ -289,9 +376,9 @@ class CompartmentSNRAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         activation_type: str,
     ):
         if self.input_analysis and self.input_capture_mode == "branch":
-            if activation_type == "exc" and not hasattr(self, "excitatory_inputs"):
+            if activation_type == "exc":
                 self._capture_input_once("excitatory_inputs", input[0])
-            elif activation_type == "inh" and not hasattr(self, "inhibitory_inputs"):
+            elif activation_type == "inh":
                 self._capture_input_once("inhibitory_inputs", input[0])
 
         for branch_idx in range(output.shape[-1]):
@@ -303,53 +390,23 @@ class CompartmentSNRAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
             self.raw_dict[key][branch_idx][activation_type] = branch_activation
 
     def _input_analysis(self, labels: torch.Tensor):
+        captured = getattr(self, "_captured_inputs", {})
         results = {}
-
-        if hasattr(self, "excitatory_inputs"):
-            results = self._compute_discriminability_multivariate(
-                data_tensor=self.excitatory_inputs,
-                labels=labels,
-                prefix="exc_inputs",
-                stats_dict=results,
-            )
-            delattr(self, "excitatory_inputs")
-
-        if hasattr(self, "inhibitory_inputs"):
-            results = self._compute_discriminability_multivariate(
-                data_tensor=self.inhibitory_inputs,
-                labels=labels,
-                prefix="inh_inputs",
-                stats_dict=results,
-            )
-            delattr(self, "inhibitory_inputs")
-
-        if hasattr(self, "upstream_inputs"):
-            results = self._compute_discriminability_multivariate(
-                data_tensor=self.upstream_inputs,
-                labels=labels,
-                prefix="upstream_inputs",
-                stats_dict=results,
-            )
-            delattr(self, "upstream_inputs")
-
-        if hasattr(self, "network_excitatory_inputs"):
-            results = self._compute_discriminability_multivariate(
-                data_tensor=self.network_excitatory_inputs,
-                labels=labels,
-                prefix="network_exc_inputs",
-                stats_dict=results,
-            )
-            delattr(self, "network_excitatory_inputs")
-
-        if hasattr(self, "network_inhibitory_outputs"):
-            results = self._compute_discriminability_multivariate(
-                data_tensor=self.network_inhibitory_outputs,
-                labels=labels,
-                prefix="network_inh_outputs",
-                stats_dict=results,
-            )
-            delattr(self, "network_inhibitory_outputs")
-
+        for name, prefix in (
+            ("excitatory_inputs", "exc_inputs"),
+            ("inhibitory_inputs", "inh_inputs"),
+            ("upstream_inputs", "upstream_inputs"),
+            ("network_excitatory_inputs", "network_exc_inputs"),
+            ("network_inhibitory_outputs", "network_inh_outputs"),
+        ):
+            if name in captured:
+                results = self._compute_discriminability_multivariate(
+                    data_tensor=captured[name],
+                    labels=labels,
+                    prefix=prefix,
+                    stats_dict=results,
+                )
+        captured.clear()
         return results
 
     def _layer_analysis(self, labels: torch.Tensor):
@@ -392,100 +449,17 @@ class CompartmentSNRAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         prefix: str,
         stats_dict: dict[str, float],
     ) -> dict[str, float]:
-        """Compute discriminability for a multivariate activation tensor."""
-        if data_tensor.ndim == 1:
-            data_tensor = data_tensor[:, None]
-        else:
-            data_tensor = data_tensor.reshape(data_tensor.shape[0], -1)
-        n_samples = data_tensor.shape[0]
-        n_dims = data_tensor.shape[1]
-
-        if n_dims == 1:
-            total_mean = data_tensor.mean(dim=0)
-            total_var = data_tensor[:, 0].var(correction=0)
-            between_var = data_tensor.new_tensor(0.0)
-            for label in torch.unique(labels):
-                class_data = data_tensor[labels == label]
-                class_prob = class_data.shape[0] / max(n_samples, 1)
-                diff = class_data.mean(dim=0) - total_mean
-                between_var = between_var + class_prob * diff[0].pow(2)
-
-            d2 = (between_var / (total_var + self.epsilon)).item()
-            stats_dict[f"{prefix}_d_max"] = d2
-            stats_dict[f"{prefix}_d_total"] = d2
-            stats_dict[f"{prefix}_n_sig_dirs"] = float(d2 > self.epsilon)
-            stats_dict[f"{prefix}_ratio_sig_dirs"] = float(d2 > self.epsilon)
-            return stats_dict
-
-        # cov = torch.cov(data_tensor.T, correction=0)
-        # eigvals_cov, eigvecs_cov = torch.linalg.eigh(cov)
-        # inv_sqrt_e = torch.diag(
-        #     torch.clamp(eigvals_cov, min=1e-3).rsqrt()
-        # )
-        # cov_inv_sqrt = eigvecs_cov @ inv_sqrt_e @ eigvecs_cov.T
-
-        # total_mean = data_tensor.mean(dim=0)
-
-        # n_samples = data_tensor.shape[0]
-        # n_dims = data_tensor.shape[1]
-
-        # cov_b = torch.zeros_like(cov)
-
-        # for label in torch.unique(labels):
-        #     class_data = data_tensor[labels == label]
-
-        #     class_mean = class_data.mean(dim=0)
-        #     class_prob = class_data.shape[0] / n_samples
-
-        #     diff_means = (class_mean - total_mean)[:, None]
-        #     cov_b += class_prob * (diff_means @ diff_means.T)
-
-        # F = cov_inv_sqrt @ cov_b @ cov_inv_sqrt.T
-        # eigvals_F = torch.linalg.eigvalsh(F)
-        # eigvals_F = torch.where(eigvals_F > self.epsilon, eigvals_F, 0)
-
-        # d_max = eigvals_F[-1].item()
-        # d_total = eigvals_F.sum().item()
-
-        # n_sig_dims = (eigvals_F > self.epsilon).sum().float().item()
-        # ratio_sig_dims = n_sig_dims / n_dims
-
-        # stats_dict[f"{prefix}_d_max"] = d_max
-        # stats_dict[f"{prefix}_d_total"] = d_total
-        # stats_dict[f"{prefix}_n_sig_dims"] = n_sig_dims
-        # stats_dict[f"{prefix}_ratio_sig_dims"] = ratio_sig_dims
-
-        cov = torch.cov(data_tensor.T, correction=0)
-        inv_cov: torch.Tensor = torch.linalg.pinv(cov)
-
-        cov_b = torch.zeros_like(cov)
-        total_mean = data_tensor.mean(dim=0)
-
-        for label in torch.unique(labels):
-            class_data = data_tensor[labels == label]
-
-            class_mean = class_data.mean(dim=0)
-            class_prob = class_data.shape[0] / n_samples
-
-            diff_means = (class_mean - total_mean)[:, None]
-            cov_b += class_prob * (diff_means @ diff_means.T)
-
-        F = inv_cov @ cov_b
-
-        eigvals_F: torch.Tensor = torch.linalg.eigvals(F)
-        eigvals_F = eigvals_F.real
-
-        d_max = torch.max(eigvals_F).item()
-        d_total = eigvals_F.sum().item()
-
-        n_sig_dirs = (eigvals_F > self.epsilon).sum().float().item()
-        ratio_sig_dirs = n_sig_dirs / n_dims
-
-        stats_dict[f"{prefix}_d_max"] = d_max
-        stats_dict[f"{prefix}_d_total"] = d_total
-        stats_dict[f"{prefix}_n_sig_dirs"] = n_sig_dirs
-        stats_dict[f"{prefix}_ratio_sig_dirs"] = ratio_sig_dirs
-
+        """Add the class discriminability of an activation tensor under ``prefix``."""
+        generator = torch.Generator().manual_seed(int(self.null_seed))
+        results = class_discriminability(
+            data_tensor,
+            labels,
+            null_permutations=self.null_permutations,
+            null_quantile=self.null_quantile,
+            generator=generator,
+        )
+        for name, value in results.items():
+            stats_dict[f"{prefix}_{name}"] = value
         return stats_dict
 
     def _global_layer_aggregation(
@@ -645,10 +619,12 @@ class CompartmentSNRAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
             self.logger.warning(
                 "Skipping SNR analysis: model has no DendriticBranchLayer modules"
             )
+            self.report_skip("the model has no dendritic branch layers")
             return None
 
         if not isinstance(model, Classifier):
             self.logger.warning("Skipping SNR analysis: model is not a Classifier")
+            self.report_skip("the model is not a classifier")
             return None
 
         start_time = time.time()
@@ -807,7 +783,7 @@ def plot_branch_analysis_global_agg_vs_training(
 
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(10, 6))
 
-    for act_type in activation_types:
+    for index, act_type in enumerate(activation_types):
         mean_key = f"{act_type}_d'^2_mean"
         std_key = f"{act_type}_d'^2_std"
 
@@ -820,12 +796,14 @@ def plot_branch_analysis_global_agg_vs_training(
             mean_array = np.array(mean_values)
             std_array = np.array(std_values)
 
-            # Plot mean line
+            # Plot mean line; marker and line style name the type
             ax.plot(
                 epoch_numbers,
                 mean_array,
                 label=act_type,
                 color=colors[act_type],
+                marker=indexed_style(index).marker,
+                linestyle=indexed_style(index).linestyle,
                 linewidth=2,
             )
 
@@ -870,7 +848,7 @@ def plot_branch_analysis_layer_agg_vs_training(
 
     # Generate colors for each layer using a colormap
     # Use a colormap that provides distinct colors
-    cmap = plt.cm.get_cmap("tab10")
+    cmap = plt.get_cmap("tab10")
     n_layers = len(layer_keys)
     if n_layers == 1:
         layer_colors = {layer_keys[0]: cmap(0)}
@@ -890,7 +868,7 @@ def plot_branch_analysis_layer_agg_vs_training(
         ax = axes[row_idx]
 
         # Plot each layer
-        for layer_key in layer_keys:
+        for layer_index, layer_key in enumerate(layer_keys):
             mean_key = f"{act_type}_d'^2_mean"
             std_key = f"{act_type}_d'^2_std"
 
@@ -905,12 +883,14 @@ def plot_branch_analysis_layer_agg_vs_training(
                 # Get layer color
                 color = layer_colors[layer_key]
 
-                # Plot mean line with layer label
+                # Plot mean line with layer label, marker and line style
                 ax.plot(
                     epoch_numbers,
                     mean_array,
                     label=f"depth {layer_data[layer_key]['depth']}",
                     color=color,
+                    marker=indexed_style(layer_index).marker,
+                    linestyle=indexed_style(layer_index).linestyle,
                     linewidth=2,
                 )
 
@@ -1080,7 +1060,7 @@ def plot_branch_analysis_layer_agg_final(
             valid_y_values,
             width=width,
             label=activation_labels[act_type],
-            color=colors[act_type],
+            **bar_kwargs(colors[act_type], _ACTIVATION_HATCHES[act_type]),
             yerr=valid_yerr_values,
             capsize=5,
             error_kw={"elinewidth": 1.5, "capthick": 1.5},
@@ -1203,12 +1183,13 @@ def plot_branch_analysis_branch_agg_final(branch_data: dict, save_path: str):
         "upstream": r"$d'^2_{upstream}$",
     }
 
-    # Scatter faceted by (row=dep, col=indep) with hue=depth
+    # Scatter faceted by (row=dep, col=indep); depth by colour and marker
     g = sns.relplot(
         data=df,
         x="x",
         y="y",
         hue="depth",
+        style="depth",
         row="row",
         col="col",
         kind="scatter",
@@ -1396,7 +1377,7 @@ def plot_layer_analysis_layer_agg_final(
             valid_y_values,
             width=width,
             label=activation_labels[act_type],
-            color=colors[act_type],
+            **bar_kwargs(colors[act_type], _ACTIVATION_HATCHES[act_type]),
             capsize=5,
             error_kw={"elinewidth": 1.5, "capthick": 1.5},
         )
@@ -1652,7 +1633,7 @@ def plot_layer_analysis_layer_agg_final_both_metrics(
             valid_y_values,
             width=width,
             label=activation_labels[act_type],
-            color=colors[act_type],
+            **bar_kwargs(colors[act_type], _ACTIVATION_HATCHES[act_type]),
             capsize=5,
             error_kw={"elinewidth": 1.5, "capthick": 1.5},
         )
@@ -1678,7 +1659,7 @@ def plot_layer_analysis_layer_agg_final_both_metrics(
             valid_y_values,
             width=width,
             label=activation_labels[act_type],
-            color=colors[act_type],
+            **bar_kwargs(colors[act_type], _ACTIVATION_HATCHES[act_type]),
             capsize=5,
             error_kw={"elinewidth": 1.5, "capthick": 1.5},
         )
@@ -1961,7 +1942,7 @@ def plot_layer_analysis_layer_agg_vs_training(
                 valid_y_values,
                 width=width,
                 label=activation_labels[act_type],
-                color=colors[act_type],
+                **bar_kwargs(colors[act_type], _ACTIVATION_HATCHES[act_type]),
                 capsize=5,
                 error_kw={"elinewidth": 1.5, "capthick": 1.5},
             )
@@ -2328,7 +2309,7 @@ def plot_layer_analysis_layer_agg_vs_training_both_metrics(
                 valid_y_values,
                 width=width,
                 label=activation_labels[act_type],
-                color=colors[act_type],
+                **bar_kwargs(colors[act_type], _ACTIVATION_HATCHES[act_type]),
                 capsize=5,
                 error_kw={"elinewidth": 1.5, "capthick": 1.5},
             )
@@ -2385,7 +2366,7 @@ def plot_layer_analysis_layer_agg_vs_training_both_metrics(
                 valid_y_values,
                 width=width,
                 label=activation_labels[act_type],
-                color=colors[act_type],
+                **bar_kwargs(colors[act_type], _ACTIVATION_HATCHES[act_type]),
                 capsize=5,
                 error_kw={"elinewidth": 1.5, "capthick": 1.5},
             )

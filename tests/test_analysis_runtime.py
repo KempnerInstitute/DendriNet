@@ -54,7 +54,6 @@ def test_legacy_performance_runtime_maps_to_shared_runtime(tmp_path):
         "data": {"dataset_name": "mnist", "processing": {"flatten": True}},
         "model": {"task": "classification"},
         "training": {},
-        "wandb": {"use_wandb": False},
         "outputs": {"results_dir": str(tmp_path / "outputs")},
         "analysis": {
             "performance": {
@@ -82,8 +81,8 @@ def test_legacy_performance_runtime_maps_to_shared_runtime(tmp_path):
     assert cfg.analysis.runtime.training.mode == "stream"
     assert cfg.analysis.runtime.training.batch_size == 32
     assert cfg.analysis.runtime.final.mode == "materialize"
-    assert cfg.analysis.performance_analysis.training_splits == ["valid"]
-    assert cfg.analysis.performance_analysis.final_splits == ["test"]
+    assert cfg.analysis.performance.training_splits == ["validation"]
+    assert cfg.analysis.performance.final_splits == ["test"]
 
 
 def test_evaluation_kwargs_preserve_worker_runtime_options():
@@ -221,7 +220,6 @@ def test_single_gpu_without_runtime_defaults_to_materialize(tmp_path):
         "data": {"dataset_name": "mnist", "processing": {"flatten": True}},
         "model": {"task": "classification"},
         "training": {},
-        "wandb": {"use_wandb": False},
         "outputs": {"results_dir": str(tmp_path / "outputs")},
         "distributed": {"mode": "none"},
         "analysis": {"performance": {"enabled": True}},
@@ -241,7 +239,6 @@ def test_distributed_without_runtime_keeps_auto_default(tmp_path):
         "data": {"dataset_name": "mnist", "processing": {"flatten": True}},
         "model": {"task": "classification"},
         "training": {},
-        "wandb": {"use_wandb": False},
         "outputs": {"results_dir": str(tmp_path / "outputs")},
         "distributed": {"mode": "fsdp"},
         "analysis": {"performance": {"enabled": True}},
@@ -261,7 +258,6 @@ def test_explicit_runtime_overrides_single_gpu_default(tmp_path):
         "data": {"dataset_name": "mnist", "processing": {"flatten": True}},
         "model": {"task": "classification"},
         "training": {},
-        "wandb": {"use_wandb": False},
         "outputs": {"results_dir": str(tmp_path / "outputs")},
         "distributed": {"mode": "none"},
         "analysis": {
@@ -291,7 +287,6 @@ def test_explicit_runtime_ignores_legacy_split_fields(tmp_path):
         "data": {"dataset_name": "mnist", "processing": {"flatten": True}},
         "model": {"task": "classification"},
         "training": {},
-        "wandb": {"use_wandb": False},
         "outputs": {"results_dir": str(tmp_path / "outputs")},
         "analysis": {
             "runtime": {
@@ -384,6 +379,16 @@ def test_performance_analyzer_stream_matches_materialize():
         lhs = res_materialize[metric_name]["test"]
         rhs = res_stream[metric_name]["test"]
         assert abs(float(lhs) - float(rhs)) < 1e-6
+
+    # Oracle: the identity classifier's logits are x, so its one-vs-rest AUC is
+    # sklearn's on softmax(x), and its accuracy is 1 (labels are argmax x).
+    from sklearn.metrics import roc_auc_score
+
+    expected_auc = roc_auc_score(
+        y.numpy(), torch.softmax(x, dim=-1).numpy(), multi_class="ovr"
+    )
+    assert float(res_materialize["auc"]["test"]) == pytest.approx(expected_auc)
+    assert float(res_materialize["accuracy"]["test"]) == pytest.approx(1.0)
 
 
 def test_evaluate_metric_generic_forwards_seq_lengths_across_runtime_modes():
@@ -879,3 +884,46 @@ def test_iter_analysis_batches_materialize_falls_back_without_slice_support():
     batch_y = torch.cat([batch[1] for batch in batches], dim=0)
     torch.testing.assert_close(batch_x, x)
     torch.testing.assert_close(batch_y, y)
+
+
+def test_unknown_runtime_mode_raises_at_load(tmp_path):
+    """A misspelled mode used to behave as 'auto' without notice."""
+    config_data = {
+        "experiment": {"seed": 0},
+        "data": {"dataset_name": "mnist", "processing": {"flatten": True}},
+        "model": {"task": "classification"},
+        "training": {},
+        "outputs": {"results_dir": str(tmp_path / "outputs")},
+        "analysis": {"runtime": {"final": {"mode": "streaming"}}},
+    }
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(yaml.safe_dump(config_data))
+
+    with pytest.raises(ValueError, match=r"mode='streaming'.*did you mean 'stream'"):
+        load_config(str(config_path))
+
+
+def test_runtime_mode_spellings_are_canonical():
+    assert EvaluationRuntimeConfig(mode="Stream").mode == "stream"
+    assert EvaluationRuntimeConfig(mode="MATERIALIZE").mode == "materialize"
+    assert EvaluationRuntimeConfig().mode == "auto"
+    with pytest.raises(ValueError, match="choose one of auto, materialize, stream"):
+        EvaluationRuntimeConfig(mode="lazy")
+
+
+def test_materialize_decision_rejects_unknown_modes_built_in_code():
+    from types import SimpleNamespace
+
+    from dendritic_modeling.analysis.utils.dataset_runtime import (
+        should_materialize_dataset,
+    )
+    from dendritic_modeling.training.utils._evaluation.runtime import (
+        _should_materialize,
+    )
+
+    dataset = TensorDataset(torch.zeros(4, 2), torch.zeros(4))
+    assert should_materialize_dataset(dataset, SimpleNamespace(mode="stream")) is False
+    with pytest.raises(ValueError, match="mode='bogus'"):
+        should_materialize_dataset(dataset, SimpleNamespace(mode="bogus"))
+    with pytest.raises(ValueError, match="mode='bogus'"):
+        _should_materialize(dataset, mode="bogus")

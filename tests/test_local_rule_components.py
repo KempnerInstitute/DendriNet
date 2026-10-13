@@ -23,7 +23,6 @@ from dendritic_modeling.analysis.tools.local_rule_components import (
     _delta_out_for_outputs,
     _depth_labels_for_records,
     _layer_broadcast_for_error,
-    _population_label_for_module_name,
     _select_analysis_dataset,
     _set_topk_mask_cache_for_modules,
     _topk_modules_in_model,
@@ -46,6 +45,7 @@ class _LayerWithShunting(nn.Module):
     def __init__(self, use_shunting: bool) -> None:
         super().__init__()
         self.use_shunting = use_shunting
+        self.effective_leak = 1.0
 
 
 class _BlockConductanceModule(nn.Module):
@@ -175,14 +175,6 @@ def test_local_rule_component_depth_labels_method_uses_shared_helper() -> None:
     assert analyzer._depth_labels(records) == _depth_labels_for_records(records)
 
 
-def test_local_rule_component_population_label_helper_preserves_name_rules() -> None:
-    assert _population_label_for_module_name("branch_layers.0") == "excitatory"
-    assert (
-        _population_label_for_module_name("core.inhibitory_cells.branch_layers.2")
-        == "explicit_inhibitory"
-    )
-
-
 def test_local_rule_component_branch_record_helper_preserves_metadata() -> None:
     layer = _branch_at_depth(5)
 
@@ -197,17 +189,14 @@ def test_local_rule_component_branch_record_helper_preserves_metadata() -> None:
     }
 
 
-def test_local_rule_component_branch_record_method_uses_shared_helpers() -> None:
-    analyzer = LocalRuleComponentAnalyzer(LocalRuleComponentAnalysisParams())
+def test_local_rule_component_branch_record_labels_inhibitory_layers_by_identity() -> (
+    None
+):
     layer = _branch_at_depth(3)
 
-    assert analyzer._branch_record(
-        "core.inhibitory_cells.branch_layers.2", layer
-    ) == _branch_record_for_module("core.inhibitory_cells.branch_layers.2", layer)
-    assert (
-        analyzer._population_label("core.inhibitory_cells.branch_layers.2")
-        == "explicit_inhibitory"
-    )
+    record = _branch_record_for_module("core.branch_layers.2", layer, {id(layer)})
+
+    assert record["population"] == "explicit_inhibitory"
 
 
 def test_local_rule_component_activation_derivative_preserves_empty_fallback() -> None:
@@ -326,9 +315,7 @@ def test_local_rule_component_total_conductance_preserves_shunting_terms() -> No
 
     conductance = _total_conductance_for_record(rec, v_n)
 
-    assert torch.equal(
-        conductance, torch.ones_like(v_n) + exc_out.relu() + inh_out.relu()
-    )
+    assert torch.equal(conductance, torch.ones_like(v_n) + exc_out + inh_out)
 
 
 def test_local_rule_component_total_conductance_broadcasts_block_conductances() -> None:
@@ -341,7 +328,7 @@ def test_local_rule_component_total_conductance_broadcasts_block_conductances() 
 
     conductance = _total_conductance_for_record(rec, v_n)
 
-    expected = torch.ones_like(v_n) + torch.tensor([[0.0, 0.5, 2.0]]).expand_as(v_n)
+    expected = torch.ones_like(v_n) + torch.tensor([[-1.0, 0.5, 2.0]]).expand_as(v_n)
     assert torch.equal(conductance, expected)
     assert not conductance.requires_grad
 
@@ -784,13 +771,10 @@ def test_local_rule_component_layer_broadcast_preserves_scalar_expansion() -> No
     )
 
 
-@pytest.mark.parametrize("mode", ["per_soma", "neuron_wise", "neuron-wise"])
-def test_local_rule_component_layer_broadcast_preserves_per_soma_modes(
-    mode: str,
-) -> None:
+def test_local_rule_component_layer_broadcast_preserves_per_soma_mode() -> None:
     delta = torch.tensor([[1.0, 3.0], [4.0, 6.0]])
 
-    broadcast = _layer_broadcast_for_error(delta, 2, mode)
+    broadcast = _layer_broadcast_for_error(delta, 2, "per_soma")
 
     assert broadcast is delta
 

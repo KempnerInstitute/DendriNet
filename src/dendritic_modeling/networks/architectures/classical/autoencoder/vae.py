@@ -6,6 +6,7 @@ from torch.distributions import Normal
 
 from dendritic_modeling.networks.architectures.classical.autoencoder.base import (
     BaseAutoencoder,
+    FreezableEncoder,
 )
 from dendritic_modeling.networks.architectures.classical.cnn.cnn import (
     CNNDownsample,
@@ -15,7 +16,7 @@ from dendritic_modeling.networks.architectures.classical.mlp.mlp import MLP
 from dendritic_modeling.networks.base import BaseNetwork
 
 
-class VariationalEncoder(BaseNetwork):
+class VariationalEncoder(FreezableEncoder, BaseNetwork):
     def __init__(self, net: MLP, latent_dim: int):
         super().__init__()
 
@@ -40,9 +41,16 @@ class VariationalEncoder(BaseNetwork):
         return z_mu, z_sigma
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Return ``sigmoid(z)``: a reparameterized sample in training mode,
+        the latent mean in eval mode (deterministic, no random draw).
+
+        The ELBO loss samples from ``latent_distribution`` itself, so this
+        choice affects only consumers of the encoder output (reconstruction,
+        or the encoder used as a feature extractor).
+        """
         z_mu, z_sigma = self.latent_distribution(x)
-        z = torch.sigmoid(Normal(z_mu, z_sigma).rsample())
-        return z
+        z = Normal(z_mu, z_sigma).rsample() if self.training else z_mu
+        return torch.sigmoid(z)
 
 
 class BaseVariationalAutoencoder(BaseAutoencoder):
@@ -84,7 +92,7 @@ class MLPVariationalAutoencoder(BaseVariationalAutoencoder):
         return x_reconstructed
 
 
-class CNNVariationalEncoder(BaseNetwork):
+class CNNVariationalEncoder(FreezableEncoder, BaseNetwork):
     def __init__(self, net: CNNDownsample):
         super().__init__()
 
@@ -127,9 +135,11 @@ class CNNVariationalEncoder(BaseNetwork):
         return z_mu, z_sigma
 
     def forward(self, x: torch.Tensor, flatten: bool = True) -> torch.Tensor:
-        """Sample from the latent distribution and return spatial latent tensor."""
+        """Return the spatial latent ``sigmoid(z)``: sampled in training mode,
+        the latent mean in eval mode (deterministic)."""
         z_mu, z_sigma = self.latent_distribution(x)
-        z = torch.sigmoid(Normal(z_mu, z_sigma).rsample())
+        z = Normal(z_mu, z_sigma).rsample() if self.training else z_mu
+        z = torch.sigmoid(z)
         if flatten:
             z = torch.flatten(z, start_dim=-3)
         return z

@@ -6,6 +6,7 @@ from typing import Any
 
 import torch
 
+from dendritic_modeling.config.keys import config_from_payload
 from dendritic_modeling.networks.architectures.recurrent.population_configs import (
     PopulationProjectionConfig,
 )
@@ -23,7 +24,11 @@ def _as_projection_config(
         payload = dict(connection)
         if "probability" not in payload and "p_connect" in payload:
             payload["probability"] = payload.pop("p_connect")
-        return PopulationProjectionConfig(**payload)
+        return config_from_payload(
+            PopulationProjectionConfig,
+            payload,
+            section="model.core.population_network connection",
+        )
     raise TypeError(
         "connections entries must be PopulationProjectionConfig or dict, "
         f"got {type(connection).__name__}"

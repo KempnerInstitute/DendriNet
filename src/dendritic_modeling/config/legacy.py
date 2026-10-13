@@ -6,35 +6,26 @@ spellings are normalized here so compatibility stays explicit and contained.
 
 from __future__ import annotations
 
+import copy
+import difflib
 import logging
+from collections.abc import Mapping
 from typing import Any
 
 from dendritic_modeling.config.conversion import to_plain_dict
+from dendritic_modeling.config.inhibitory_wiring import strip_retired_routing_keys
+from dendritic_modeling.config.keys import field_default
 
 logger = logging.getLogger(__name__)
 
 
 def normalize_transfer_config(transfer: Any) -> dict[str, Any]:
-    """Return transfer params with deprecated aliases mapped to canonical keys."""
-    normalized = to_plain_dict(transfer)
+    """Return transfer params without the retired inhibitory-routing keys.
 
-    # Historical code treated this alias as an opt-in OR with the canonical
-    # field, so preserve that behavior even when both are present.
-    if "allow_direct_inhibitory_input" in normalized:
-        normalized["allow_direct_inhibitory_stream"] = bool(
-            normalized.get("allow_direct_inhibitory_stream", False)
-        ) or bool(normalized["allow_direct_inhibitory_input"])
-        normalized.pop("allow_direct_inhibitory_input", None)
-
-    # Historical code gave the canonical field precedence when both were set.
-    if "build_inhibitory_population_for_input_mode1" in normalized:
-        normalized.setdefault(
-            "input_mode1_build_inhibitory_population",
-            normalized["build_inhibitory_population_for_input_mode1"],
-        )
-        normalized.pop("build_inhibitory_population_for_input_mode1", None)
-
-    return normalized
+    Structured EINet builders check those keys against the rest of the core
+    first (``inhibitory_wiring.check_retired_inhibitory_routing``).
+    """
+    return strip_retired_routing_keys(to_plain_dict(transfer))
 
 
 def _is_legacy_unified_ei_layer(layer: dict[str, Any]) -> bool:
@@ -161,6 +152,7 @@ def _canonicalize_legacy_unified_ei_layer(
 def canonicalize_unified_ei_config(unified_cfg: Any) -> dict[str, Any]:
     """Normalize old/new unified-EI config spellings before dataclass build."""
     canonical = to_plain_dict(unified_cfg)
+    raw_keys = set(canonical)
     if (
         "input_projection_dims" not in canonical
         and "input_projection_layers" in canonical
@@ -177,9 +169,11 @@ def canonicalize_unified_ei_config(unified_cfg: Any) -> dict[str, Any]:
         )
 
     canonical_layers = []
+    uses_legacy_layers = False
     for layer in canonical.get("layers", []) or []:
         layer_payload = to_plain_dict(layer)
         if layer_payload and _is_legacy_unified_ei_layer(layer_payload):
+            uses_legacy_layers = True
             logger.warning(
                 "Legacy unified_ei.layers[] shorthand is deprecated; use explicit "
                 "unified_ei.layers[].excitatory / inhibitory population blocks."
@@ -191,7 +185,18 @@ def canonicalize_unified_ei_config(unified_cfg: Any) -> dict[str, Any]:
             canonical_layers.append(layer)
     canonical["layers"] = canonical_layers
 
-    allowed_keys = {
+    _reject_unused_unified_ei_keys(
+        canonical, raw_keys=raw_keys, uses_legacy_layers=uses_legacy_layers
+    )
+    return {
+        key: value
+        for key, value in canonical.items()
+        if key in _UNIFIED_EI_CANONICAL_KEYS
+    }
+
+
+_UNIFIED_EI_CANONICAL_KEYS = frozenset(
+    {
         "layers",
         "input_dim",
         "use_transfer",
@@ -200,10 +205,223 @@ def canonicalize_unified_ei_config(unified_cfg: Any) -> dict[str, Any]:
         "output_mode",
         "store_routing",
     }
-    return {key: value for key, value in canonical.items() if key in allowed_keys}
+)
+# Top-level keys read only while expanding the legacy layers[] shorthand.
+_UNIFIED_EI_LEGACY_LAYER_KEYS = frozenset(
+    {
+        "n_excitatory",
+        "n_inhibitory",
+        "tau_base",
+        "i_tau",
+        "learnable_tau",
+        "learn_taus",
+        "soma_mode",
+        "recurrent",
+        "dt",
+        "allow_recurrent_only_layers",
+        "legacy_recurrent_only_ff_synapses",
+    }
+)
+
+
+def _reject_unused_unified_ei_keys(
+    canonical: dict[str, Any],
+    *,
+    raw_keys: set[str],
+    uses_legacy_layers: bool,
+) -> None:
+    """Fail on top-level unified_ei keys that the builder would drop."""
+    unknown = sorted(
+        key
+        for key in raw_keys
+        if key not in _UNIFIED_EI_CANONICAL_KEYS
+        and key not in _UNIFIED_EI_LEGACY_LAYER_KEYS
+        and key != "input_projection_layers"
+    )
+    if unknown:
+        known = sorted(
+            _UNIFIED_EI_CANONICAL_KEYS
+            | _UNIFIED_EI_LEGACY_LAYER_KEYS
+            | {"input_projection_layers"}
+        )
+        hints = {key: difflib.get_close_matches(key, known, n=1) for key in unknown}
+        raise ValueError(
+            "Unknown model.core.unified_ei key(s): "
+            + ", ".join(
+                f"{key}" + (f" (did you mean {hints[key][0]!r}?)" if hints[key] else "")
+                for key in unknown
+            )
+        )
+    if not uses_legacy_layers:
+        unused = sorted(raw_keys & _UNIFIED_EI_LEGACY_LAYER_KEYS)
+        if unused:
+            raise ValueError(
+                f"model.core.unified_ei keys {unused} are read only by the legacy "
+                "layers[] shorthand; with explicit excitatory/inhibitory population "
+                "blocks set them per layer or per population instead"
+            )
+    if "input_projection_layers" in raw_keys and "input_projection_dims" in raw_keys:
+        raise ValueError(
+            "Set only model.core.unified_ei.input_projection_dims; the deprecated "
+            "input_projection_layers alias is ignored when both are present"
+        )
+
+
+# Deprecated flat analysis parameters and the grouped fields they name. The
+# analyzers read the grouped fields, whose non-empty defaults used to shadow the
+# flat spellings; the loader and the params classes now move flat values onto
+# their grouped twins.
+INFORMATION_FLAT_PARAMS: dict[str, tuple[str, ...]] = {
+    "method": ("estimator", "method"),
+    "n_neighbors": ("estimator", "kraskov", "n_neighbors"),
+    "n_bins": ("estimator", "binned", "n_bins"),
+    "copula_type": ("estimator", "copula", "type"),
+    "decoder_cv_folds": ("estimator", "decoder", "cv_folds"),
+    "decoder_C": ("estimator", "decoder", "C"),
+    "decoder_standardize": ("estimator", "decoder", "standardize"),
+    "decoder_seed": ("estimator", "decoder", "seed"),
+    "decoder_continuous_strategy": ("estimator", "decoder", "continuous", "strategy"),
+    "decoder_continuous_max_total_dim": (
+        "estimator",
+        "decoder",
+        "continuous",
+        "max_total_dim",
+    ),
+    "decoder_gaussian_ridge": ("estimator", "decoder", "continuous", "gaussian_ridge"),
+    "binning_strategy": ("estimator", "binned", "binning_strategy"),
+    "binning_bias_correction": ("estimator", "binned", "bias_correction"),
+    "max_samples": ("compute", "max_samples"),
+    "include_vinf": ("compute", "include_vinf"),
+    "normalize_mi": ("compute", "normalize_mi"),
+    "verbose": ("compute", "verbose"),
+    "computation_level": ("compute", "computation_level"),
+    "branch_aggregation": ("compute", "branch_aggregation"),
+    "per_neuron_analysis": ("compute", "per_neuron_analysis"),
+    "per_einet_analysis": ("compute", "per_einet_analysis"),
+    "per_layer_analysis": ("compute", "per_layer_analysis"),
+    "compute_lda_weights": ("compute", "compute_lda_weights"),
+    "layer_total_topk": ("compute", "layer_total_topk"),
+    "components": ("selection", "components"),
+    "scopes": ("selection", "scopes"),
+    "views": ("selection", "views"),
+    "signal_variants": ("selection", "signal_variants"),
+    "pid_binarize": ("pid", "binarize"),
+    "pid_binarize_method": ("pid", "binarize_method"),
+    "pid_binarize_threshold": ("pid", "binarize_threshold"),
+    "mi_null_shuffles": ("baselines", "label_shuffle_null", "n_shuffles"),
+    "mi_null_seed": ("baselines", "label_shuffle_null", "seed"),
+    "lda_n_shuffles": ("baselines", "random_weights", "n_shuffles"),
+}
+
+CORRELATION_FLAT_PARAMS: dict[str, tuple[str, ...]] = {
+    "components": ("selection", "components"),
+    "pairs": ("selection", "pairs"),
+    "scopes": ("selection", "scopes"),
+    "computation_level": ("compute", "computation_level"),
+    "max_samples": ("compute", "max_samples"),
+    "per_layer_analysis": ("compute", "per_layer_analysis"),
+    "per_einet_analysis": ("compute", "per_einet_analysis"),
+    "per_neuron_analysis": ("compute", "per_neuron_analysis"),
+    "n_synapse_pairs": ("sampling", "n_synapse_pairs"),
+    "sampling_strategy": ("sampling", "sampling_strategy"),
+    "stratified_categories": ("sampling", "stratified_categories"),
+    "max_pairs_per_category": ("sampling", "max_pairs_per_category"),
+}
+
+
+def _warn_moved(section: str, moved: list[str], table: dict[str, tuple[str, ...]]):
+    targets = ", ".join(f"{name} -> {'.'.join(table[name])}" for name in moved)
+    logger.warning(
+        "Flat %s keys are deprecated and were moved to their grouped fields: %s",
+        section,
+        targets,
+    )
+
+
+def migrate_flat_params(
+    params: dict[str, Any],
+    table: dict[str, tuple[str, ...]],
+    *,
+    params_cls: type,
+    section: str,
+) -> None:
+    """Move deprecated flat keys of a loaded params mapping onto grouped keys.
+
+    Operates in place on the mapping read from a config file. A flat key equal
+    to its former default is dropped. A flat key whose grouped twin is also
+    written raises unless both agree.
+    """
+    moved = []
+    for name, path in table.items():
+        if name not in params:
+            continue
+        value = params.pop(name)
+        node = params
+        for key in path[:-1]:
+            child = node.get(key)
+            if child is None:
+                child = {}
+            elif isinstance(child, Mapping):
+                child = dict(child)
+            else:
+                raise ValueError(f"{section}.{key} must be a mapping")
+            node[key] = child
+            node = child
+        leaf = path[-1]
+        grouped = f"{section}.{'.'.join(path)}"
+        default = field_default(params_cls, name)
+        if leaf in node:
+            if node[leaf] == value or value == default:
+                continue
+            raise ValueError(
+                f"{section}.{name}={value!r} conflicts with {grouped}="
+                f"{node[leaf]!r}; keep only {grouped}"
+            )
+        if value == default:
+            continue
+        node[leaf] = value
+        moved.append(name)
+    if moved:
+        _warn_moved(section, moved, table)
+
+
+def migrate_flat_fields(
+    params: Any, table: dict[str, tuple[str, ...]], *, section: str
+) -> None:
+    """Copy deprecated flat fields that differ from their defaults to grouped ones.
+
+    Used by ``__post_init__`` of params built in code. A flat field that
+    contradicts a grouped field already changed from its default raises.
+    """
+    moved = []
+    for name, path in table.items():
+        value = getattr(params, name)
+        if value == field_default(type(params), name):
+            continue
+        parent = params
+        for key in path[:-1]:
+            parent = getattr(parent, key)
+        leaf = path[-1]
+        current = getattr(parent, leaf)
+        if current == value:
+            continue
+        grouped = f"{section}.{'.'.join(path)}"
+        if current != field_default(type(parent), leaf):
+            raise ValueError(
+                f"{section}.{name}={value!r} conflicts with {grouped}="
+                f"{current!r}; keep only {grouped}"
+            )
+        setattr(parent, leaf, copy.deepcopy(value))
+        moved.append(name)
+    if moved:
+        _warn_moved(section, moved, table)
 
 
 __all__ = [
+    "CORRELATION_FLAT_PARAMS",
+    "INFORMATION_FLAT_PARAMS",
     "canonicalize_unified_ei_config",
+    "migrate_flat_fields",
+    "migrate_flat_params",
     "normalize_transfer_config",
 ]

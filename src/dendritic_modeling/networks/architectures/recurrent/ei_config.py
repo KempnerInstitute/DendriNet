@@ -4,14 +4,33 @@ Configuration dataclasses for unified E-I layers/networks with optional recurren
 
 import math
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any, ClassVar, Optional
 
 from dendritic_modeling.config.base import BaseConfig
+from dendritic_modeling.config.choices import (
+    DEEPST_REWIRING_MODES,
+    normalize_choice,
+    normalize_gradient_scaling,
+)
+from dendritic_modeling.config.reactivation import normalize_reactivation_init_policy
+from dendritic_modeling.config.structured_connectivity import (
+    validate_structured_connectivity,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.kernels import (
+    normalize_indexed_projection_backend,
+)
+from dendritic_modeling.networks.utils.signal_rounding import signal_rounding_dtype
 
 
 @dataclass
 class PopulationConfig(BaseConfig):
     """Configuration for one population (E or I)."""
+
+    RENAMED_FIELDS: ClassVar[dict[str, tuple[str, str]]] = {
+        "topk_strategy": ("topk_gradient_scaling", "2026-10-08"),
+        "reactivation_strategy": ("reactivation_gradient_scaling", "2026-10-08"),
+        "blocklinear_strategy": ("blocklinear_gradient_scaling", "2026-10-08"),
+    }
 
     n_neurons: int = 64
     branch_factors: list[int] = field(default_factory=lambda: [1])
@@ -25,14 +44,27 @@ class PopulationConfig(BaseConfig):
     rec_excitatory_synapses_by_level: list[int] = field(default_factory=list)
     rec_inhibitory_synapses_by_level: list[int] = field(default_factory=list)
 
+    # Overwritten by dbl_init_method at construction, so only the discarded
+    # constructor draw uses it; indexed_rewire regrows contacts with the
+    # weight of the contact they replace.
     topk_init_method: str = "xavier_normal"
     topk_noise_level: float = 0.0
     topk_type: str = "standard"
     topk_weight_norm_order: Optional[int] = None
     topk_gamma: float = 1.0
-    topk_temperature: float = 0.0
-    topk_ultrafast: bool = False
-    topk_strategy: str = "none"
+    topk_temperature: float = 0.5
+    topk_ultrafast: bool = True
+    # Input statistic of topk_type "variance": "absolute" (variance) or the
+    # scale-free "relative" (variance / second moment).
+    topk_variance_score: str = "absolute"
+    topk_gradient_scaling: str = "none"
+    release_p_min: float = 0.5
+    release_p_max: float = 1.0
+    release_weight_scale: float | None = None
+    release_impact_decay: float = 0.99
+    release_impact_metric: str = "drive"
+    release_max_conductance: float | None = None
+    release_track_source_activity: bool = False
     indexed_seed: Optional[int] = None
     indexed_candidate_size: Optional[int] = None
     indexed_selection: str = "standard"
@@ -52,9 +84,19 @@ class PopulationConfig(BaseConfig):
     weight_transform: str = "exp"
     use_shunting: bool = True
     use_additive_normalization: bool = False
+    leak_conductance: float = 1.0
+    learnable_leak: bool = False
+    # Opt-in reduced-precision rounding of signals and conductances
+    # ("none", "float16" or "bfloat16"); see networks.utils.signal_rounding.
+    signal_rounding: str = "none"
     additive_mode: str = "raw"
     additive_tangent_n0: Optional[float] = None
     additive_tangent_t0: Optional[float] = None
+    # Options of a plugin additive rule (see branch_dynamics.AdditiveRule).
+    additive_options: dict[str, Any] = field(default_factory=dict)
+    # Values are ordered by soma-relative depth: soma=0, proximal=1, ... .
+    additive_tangent_n0_by_depth: list[float] = field(default_factory=list)
+    additive_tangent_t0_by_depth: list[float] = field(default_factory=list)
     reactivate: bool = True
     reactivation_type: str = "param_tanh"
     reactivation_init_m: float = 1.0
@@ -68,8 +110,8 @@ class PopulationConfig(BaseConfig):
     reactivation_calibration_max_m: float = 50.0
     reactivation_calibration_revert_on_invalid: bool = True
     reactivation_sigma_aware_k: float = 0.25
-    reactivation_strategy: str = "none"
-    blocklinear_strategy: str = "none"
+    reactivation_gradient_scaling: str = "none"
+    blocklinear_gradient_scaling: str = "none"
 
     # Per-level taus. Empty list -> auto-generated (distal slower, proximal faster).
     level_taus: list[float] = field(default_factory=list)
@@ -95,12 +137,26 @@ class PopulationConfig(BaseConfig):
     synapses_per_branch: Optional[int] = None
     freeze_excitatory_connectivity: bool = False
     freeze_inhibitory_connectivity: bool = False
+    # DeepST regrowth initializer. Branch-layer DeepST weights live in log space,
+    # where every registered method regrows contacts at weight_threshold; only
+    # null (uniform regrowth) differs, and other values are rejected.
     init_method: str = "xavier_normal"
     weight_threshold: float = 1e-6
+    credit_trace_decay: float = 0.95
+    credit_candidate_pool_size: int = 8
+    credit_turnover_fraction: float = 0.1
+    credit_weak_active_pool_fraction: float = 0.5
+    credit_min_observations: int = 5
+    credit_swap_margin: float = 0.0
+    credit_force_turnover: bool = False
+    credit_selection: str = "credit"
+    credit_warmup_steps: int = 5
     adaptive_initialization: bool = True
     adaptive_initialization_policy: str = "preserve_shunting_center"
     adaptive_target_conductance: float = 5.0
     initial_child_conductance: float = 1.0
+    initial_conductance_scale: float = 1.0
+    initial_child_conductance_log_sd: float = 0.0
     # When configured, every population/path/depth receives a stable keyed RNG
     # substream so changing an unrelated path does not perturb matched weights.
     initialization_seed: Optional[int] = None
@@ -111,6 +167,9 @@ class PopulationConfig(BaseConfig):
     # ei/ii for I targets, and rec_* for recurrent inputs).
     structured_connectivity: dict[str, Any] = field(default_factory=dict)
     structured_layer_idx: int = 0
+    # Population networks: the index of the population's layer in the network
+    # (structured_layer_idx is its position in the layer). None elsewhere.
+    structured_network_layer_idx: Optional[int] = None
     ff_excitatory_pathway: str = "ee"
     ff_inhibitory_pathway: str = "ie"
     rec_excitatory_pathway: str = "rec_ee"
@@ -159,17 +218,94 @@ class PopulationConfig(BaseConfig):
     # Appended to retain the positional constructor order of all legacy fields.
     # ``parallel_readout`` removes serial child-to-parent drive and pools every
     # non-soma level directly into the soma readout while retaining the same
-    # per-level state banks.
-    cross_level_mode: str = "hierarchical"  # hierarchical | parallel_readout
+    # per-level state banks. ``all_active_star`` retains the serial child
+    # aggregators as independent, leaky star-arm drives, but prevents one arm's
+    # state from entering the next level's local computation.
+    cross_level_mode: str = "hierarchical"
+
+    # Standard autograd uses the exact loss derivative arriving at every
+    # compartment. ``soma_broadcast`` retains autograd eligibility derivatives
+    # but replaces each non-somatic output derivative by the derivative of its
+    # owning soma. This feedforward control isolates the cost of a neuron-level
+    # teaching coordinate without changing the forward graph.
+    autograd_credit_mode: str = "exact"
+
+    # Appended indexed-synapse scaling controls. Defaults preserve legacy
+    # topology storage, checkpoint, and initialization behavior.
+    indexed_index_dtype: str = "int64"
+    indexed_workspace_mb: Optional[float] = None
+    indexed_cache_transformed_weights: bool = False
+    indexed_recompute_backward: bool = False
+    indexed_persistent_indices: bool = True
+    indexed_init_mode: str = "per_rank"
+    indexed_projection_backend: str = "eager"
+    reactivation_memory_efficient: bool = False
 
     def __post_init__(self):
+        validate_structured_connectivity(
+            self.structured_connectivity, section="population structured_connectivity"
+        )
+        self.topk_gradient_scaling = normalize_gradient_scaling(
+            self.topk_gradient_scaling, "topk"
+        )
+        self.blocklinear_gradient_scaling = normalize_gradient_scaling(
+            self.blocklinear_gradient_scaling, "blocklinear"
+        )
+        self.reactivation_gradient_scaling = normalize_gradient_scaling(
+            self.reactivation_gradient_scaling, "reactivation"
+        )
+        self.reactivation_init_policy = normalize_reactivation_init_policy(
+            self.reactivation_init_policy
+        )
+        self.rewiring_mode = normalize_choice(
+            self.rewiring_mode, DEEPST_REWIRING_MODES, field="rewiring_mode"
+        )
         if self.n_neurons <= 0:
             raise ValueError(f"n_neurons must be > 0, got {self.n_neurons}")
-        self.cross_level_mode = str(self.cross_level_mode).lower()
-        if self.cross_level_mode not in {"hierarchical", "parallel_readout"}:
+        self.indexed_index_dtype = str(self.indexed_index_dtype).lower()
+        if self.indexed_index_dtype not in {"auto", "int32", "int64", "long"}:
             raise ValueError(
-                "cross_level_mode must be 'hierarchical' or 'parallel_readout', "
+                "indexed_index_dtype must be one of 'auto', 'int32', or 'int64', "
+                f"got {self.indexed_index_dtype!r}"
+            )
+        if self.indexed_workspace_mb is not None and self.indexed_workspace_mb <= 0:
+            raise ValueError(
+                "indexed_workspace_mb must be > 0 when provided, got "
+                f"{self.indexed_workspace_mb}"
+            )
+        self.indexed_projection_backend = normalize_indexed_projection_backend(
+            self.indexed_projection_backend
+        )
+        if self.indexed_recompute_backward and self.indexed_projection_backend not in {
+            "eager",
+            "recompute",
+        }:
+            raise ValueError(
+                "indexed_recompute_backward cannot be combined with "
+                f"indexed_projection_backend={self.indexed_projection_backend!r}"
+            )
+        self.indexed_init_mode = str(self.indexed_init_mode).lower()
+        if self.indexed_init_mode not in {"per_rank", "rank0_broadcast"}:
+            raise ValueError(
+                "indexed_init_mode must be 'per_rank' or 'rank0_broadcast', "
+                f"got {self.indexed_init_mode!r}"
+            )
+        self.cross_level_mode = str(self.cross_level_mode).lower()
+        if self.cross_level_mode not in {
+            "hierarchical",
+            "parallel_readout",
+            "all_active_star",
+        }:
+            raise ValueError(
+                "cross_level_mode must be 'hierarchical', 'parallel_readout', "
+                "or 'all_active_star', "
                 f"got {self.cross_level_mode!r}"
+            )
+        self.autograd_credit_mode = str(self.autograd_credit_mode).lower()
+        if self.autograd_credit_mode not in {"exact", "soma_broadcast"}:
+            raise ValueError(
+                "autograd_credit_mode must be 'exact' or 'soma_broadcast', "
+                f"got {self.autograd_credit_mode!r}"
             )
         if any(b < 1 for b in self.branch_factors):
             raise ValueError(
@@ -198,6 +334,33 @@ class PopulationConfig(BaseConfig):
             raise ValueError(f"tau_ratio must be > 0, got {self.tau_ratio}")
         if self.level_taus and any(t <= 0 for t in self.level_taus):
             raise ValueError(f"level_taus must all be > 0, got {self.level_taus}")
+        signal_rounding_dtype(self.signal_rounding)
+        if (
+            not math.isfinite(self.initial_conductance_scale)
+            or self.initial_conductance_scale <= 0
+        ):
+            raise ValueError("initial_conductance_scale must be finite and positive")
+        if (
+            self.initial_conductance_scale != 1
+            and self.dbl_init_method != "fan_in_lognormal"
+        ):
+            raise ValueError(
+                "initial_conductance_scale currently requires fan_in_lognormal"
+            )
+        if (
+            not math.isfinite(self.initial_child_conductance_log_sd)
+            or self.initial_child_conductance_log_sd < 0
+        ):
+            raise ValueError(
+                "initial_child_conductance_log_sd must be finite and nonnegative"
+            )
+        if (
+            self.initial_child_conductance_log_sd > 0
+            and self.dbl_init_method != "fan_in_lognormal"
+        ):
+            raise ValueError(
+                "initial_child_conductance_log_sd currently requires fan_in_lognormal"
+            )
         if (
             not math.isfinite(self.initial_child_conductance)
             or self.initial_child_conductance <= 0
@@ -289,6 +452,16 @@ class PopulationConfig(BaseConfig):
                 "soma_feedback_init_std must be >= 0, "
                 f"got {self.soma_feedback_init_std}"
             )
+        if (
+            self.soma_feedback_enabled
+            and self.soma_feedback_mode == "shunting"
+            and self.soma_feedback_init_std == 0
+        ):
+            raise ValueError(
+                "soma_feedback_mode='shunting' rectifies the projected feedback, "
+                "whose gradient is zero at a zero-initialized projection, so it "
+                "could never learn; set soma_feedback_init_std > 0"
+            )
 
 
 @dataclass
@@ -310,8 +483,10 @@ class EILayerConfig(BaseConfig):
     # Set/overwritten by network at build time.
     excitatory_input_dim: int = 64
     inhibitory_input_dim: Optional[int] = None
-    # If True, excitatory population can consume external inhibitory FF input
-    # directly even when no inhibitory population is built in this layer.
+    # If True (with a transfer layer), this layer's feedforward inhibitory input
+    # is the transferred inhibitory stream: the inhibitory population reads it
+    # instead of the previous layer's inhibitory output, and the excitatory
+    # population reads it directly when the layer has no inhibitory population.
     direct_ff_inhibitory_to_excitatory: bool = False
 
     recurrent: bool = False

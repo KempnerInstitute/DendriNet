@@ -23,6 +23,7 @@ from dendritic_modeling.analysis.utils.dendritic_depth import (
     soma_relative_dendritic_depth,
 )
 from dendritic_modeling.analysis.utils.einet_core import has_einet_core
+from dendritic_modeling.analysis.utils.lesions import lesion_raw_value
 from dendritic_modeling.analysis.utils.runtime import (
     analysis_device_context,
     evaluation_kwargs_from_runtime,
@@ -31,11 +32,18 @@ from dendritic_modeling.analysis.utils.runtime import (
     subset_dataset_for_runtime,
 )
 from dendritic_modeling.config.analysis import (
+    ABLATION_LEVEL_ALIASES,
+    ABLATION_METRIC_ALIASES,
+    ABLATION_TARGET_ALIASES,
     AblationAnalysisParams,
     EvaluationRuntimeConfig,
+    canonical_selectors,
+    check_ablation_methods,
 )
+from dendritic_modeling.config.seeds import seed_or_default
 from dendritic_modeling.models import BaseModel, Classifier, Regressor
 from dendritic_modeling.networks.architectures import DendriticBranchLayer
+from dendritic_modeling.plotting.styles import bar_kwargs, indexed_hatch, indexed_style
 from dendritic_modeling.plotting.visualizations.general_analysis_plots import (
     plot_ablation_results,
     plot_layer_ablation,
@@ -116,9 +124,6 @@ class AblationAnalyzer(AbstractAnalyzer):
         """Initialize with ablation parameters."""
         super().__init__("AblationAnalyzer")
 
-        def _norm(x: str) -> str:
-            return str(x).strip().lower().replace("-", "_").replace(" ", "_")
-
         selection_cfg = getattr(params, "selection", None)
         methods_cfg = getattr(params, "methods", None)
 
@@ -127,45 +132,44 @@ class AblationAnalyzer(AbstractAnalyzer):
         )
         if not self.ablation_methods:
             self.ablation_methods = ["lesion"]
-        self.shuffle_seed = int(getattr(methods_cfg, "shuffle_seed", 0))
+        self.shuffle_seed = seed_or_default(
+            getattr(methods_cfg, "shuffle_seed", None), 0
+        )
         self.clamp_statistic = str(getattr(methods_cfg, "clamp_statistic", "mean"))
+        check_ablation_methods(self.ablation_methods, self.clamp_statistic)
 
-        levels_raw = list(getattr(selection_cfg, "levels", []) or [])
-        targets_raw = list(getattr(selection_cfg, "targets", []) or [])
-        metrics_raw = list(getattr(selection_cfg, "metrics", []) or [])
-
-        levels = {_norm(x) for x in levels_raw if str(x).strip()}
-        targets = {_norm(x) for x in targets_raw if str(x).strip()}
-        metrics = {_norm(x) for x in metrics_raw if str(x).strip()}
+        # Unknown entries raise: they would ablate or report nothing.
+        section = "analysis.ablation.params.selection"
+        levels = canonical_selectors(
+            getattr(selection_cfg, "levels", None),
+            ABLATION_LEVEL_ALIASES,
+            field=f"{section}.levels",
+        )
+        targets = canonical_selectors(
+            getattr(selection_cfg, "targets", None),
+            ABLATION_TARGET_ALIASES,
+            field=f"{section}.targets",
+        )
+        metrics = canonical_selectors(
+            getattr(selection_cfg, "metrics", None),
+            ABLATION_METRIC_ALIASES,
+            field=f"{section}.metrics",
+        )
 
         self.layer_ablation = "layer" in levels
         self.compartment_ablation = "compartment" in levels
 
-        self.ablate_all_synapses = bool({"all_synapses", "all"}.intersection(targets))
-        self.ablate_excitation = bool({"excitation", "exc"}.intersection(targets))
-        self.ablate_inhibition = bool({"inhibition", "inh"}.intersection(targets))
-        self.ablate_upstream = bool(
-            {"upstream", "vb", "branch_input"}.intersection(targets)
-        )
+        self.ablate_all_synapses = "all_synapses" in targets
+        self.ablate_excitation = "excitation" in targets
+        self.ablate_inhibition = "inhibition" in targets
+        self.ablate_upstream = "upstream" in targets
 
         self.accuracy = "accuracy" in metrics
         self.auc = "auc" in metrics
-        self.categorical_ll = bool(
-            {
-                "categorical_loglikelihood",
-                "categorical_ll",
-                "loglikelihood",
-                "log_likelihood",
-            }.intersection(metrics)
-        )
+        self.categorical_ll = "categorical_loglikelihood" in metrics
         self.mse = "mse" in metrics
-        self.cosine_similarity = bool(
-            {"cosine_similarity", "cosine"}.intersection(metrics)
-        )
-        self.compute_pred_label_mi = bool(
-            {"pred_label_mi_bits", "pred_label_mi", "pred_mi"}.intersection(metrics)
-        )
-        self.lesion_value = -1000.0
+        self.cosine_similarity = "cosine_similarity" in metrics
+        self.compute_pred_label_mi = "pred_label_mi_bits" in metrics
         self._mean_clamp_references: dict[tuple[int, str], torch.Tensor] = {}
 
     @staticmethod
@@ -190,15 +194,6 @@ class AblationAnalyzer(AbstractAnalyzer):
         ):
             targets.append("upstream")
         return tuple(targets)
-
-    @staticmethod
-    def _resolve_lesion_value(model: BaseModel) -> float:
-        """Return a weight-space lesion value matched to the model transform."""
-        core_network = getattr(model, "core_network", None)
-        weight_transform = str(getattr(core_network, "weight_transform", "")).lower()
-        if weight_transform in {"identity", "relu"}:
-            return 0.0
-        return -1000.0
 
     def _collect_fixed_mean_clamp_references(
         self,
@@ -492,18 +487,22 @@ class AblationAnalyzer(AbstractAnalyzer):
                         if module.branch_excitation is not None and hasattr(
                             module.branch_excitation, "pre_w"
                         ):
-                            module.branch_excitation.pre_w.data.fill_(self.lesion_value)
+                            module.branch_excitation.pre_w.data.fill_(
+                                lesion_raw_value(module.branch_excitation)
+                            )
                     if target_type_norm in {"all_synapses", "inhibition"}:
                         if module.branch_inhibition is not None and hasattr(
                             module.branch_inhibition, "pre_w"
                         ):
-                            module.branch_inhibition.pre_w.data.fill_(self.lesion_value)
+                            module.branch_inhibition.pre_w.data.fill_(
+                                lesion_raw_value(module.branch_inhibition)
+                            )
                     if target_type_norm == "upstream":
                         if hasattr(module, "branches_to_output") and hasattr(
                             module.branches_to_output, "log_weight"
                         ):
                             module.branches_to_output.log_weight.data.fill_(
-                                self.lesion_value
+                                lesion_raw_value(module.branches_to_output)
                             )
 
                 elif ablation_method in {"shuffle", "mean_clamp"}:
@@ -630,15 +629,15 @@ class AblationAnalyzer(AbstractAnalyzer):
             try:
                 if target_type_norm in {"all_synapses", "excitation"}:
                     module.branch_excitation.pre_w.data[branch_ix, :] = (
-                        self.lesion_value
+                        lesion_raw_value(module.branch_excitation)
                     )
                 if target_type_norm in {"all_synapses", "inhibition"}:
                     module.branch_inhibition.pre_w.data[branch_ix, :] = (
-                        self.lesion_value
+                        lesion_raw_value(module.branch_inhibition)
                     )
                 if target_type_norm == "upstream":
                     module.branches_to_output.log_weight.data[branch_ix, :] = (
-                        self.lesion_value
+                        lesion_raw_value(module.branches_to_output)
                     )
 
                 if self.accuracy:
@@ -741,8 +740,6 @@ class AblationAnalyzer(AbstractAnalyzer):
         """Perform ablation analysis and return results."""
         if not has_einet_core(model):
             return
-
-        self.lesion_value = self._resolve_lesion_value(model)
 
         eval_kwargs = evaluation_kwargs_from_runtime(runtime)
         test_dataset = subset_dataset_for_runtime(test_dataset, runtime)
@@ -1193,6 +1190,7 @@ def create_video_layer_ablation_vs_training(
                     results[ablation_type]["decrease"],
                     width=width,
                     label=ablation_type.replace("_", " ").title(),
+                    **bar_kwargs(indexed_style(i).color, indexed_hatch(i)),
                 )
 
         # Update title with epoch number and baseline

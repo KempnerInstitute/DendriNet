@@ -586,7 +586,6 @@ def test_population_network_transfer_named_input_streams_split_first_layer():
         "population_network": {
             "use_transfer": True,
             "transfer_params": {
-                "input_mode": 0,
                 "independent_pathways": True,
                 "excitatory_dim": 3,
                 "inhibitory_dim": 2,
@@ -635,7 +634,6 @@ def test_population_network_input_i_defaults_to_inhibitory_pathway():
         "population_network": {
             "use_transfer": True,
             "transfer_params": {
-                "input_mode": 1,
                 "independent_pathways": True,
                 "excitatory_dim": 3,
                 "inhibitory_dim": 2,
@@ -742,7 +740,7 @@ def test_population_network_delayed_external_input_sources_error():
         get_architecture("population_network", cfg, input_dim=3)
 
 
-def test_population_network_second_layer_input_streams_are_previous_readout():
+def test_population_network_second_layer_input_is_previous_readout():
     cfg = {
         "population_network": {
             "layers": [
@@ -782,10 +780,7 @@ def test_population_network_second_layer_input_streams_are_previous_readout():
                             "branch_factors": [1],
                         }
                     ],
-                    "connections": [
-                        {"source": "input_e", "target": "e1"},
-                        {"source": "input_i", "target": "e1"},
-                    ],
+                    "connections": [{"source": "input", "target": "e1"}],
                 },
             ]
         }
@@ -793,8 +788,7 @@ def test_population_network_second_layer_input_streams_are_previous_readout():
     net = get_architecture("population_network", cfg, input_dim=3)
     layer1 = net.layers[1]
     assert layer1.input_dim == 5
-    assert layer1.external_input_dims["input_e"] == 5
-    assert layer1.external_input_dims["input_i"] == 5
+    assert layer1.connections[0].pathway == "ff_excitatory"
 
     y = net(torch.randn(2, 3))
     assert y.shape == (2, 4)
@@ -1395,3 +1389,87 @@ def test_population_network_delayed_edges_require_recurrent_layer():
     }
     with pytest.raises(ValueError, match="recurrent=true"):
         get_architecture("population_network", cfg, input_dim=3)
+
+
+def _two_layer_config(*, layer0_readout="e", layer1_source="input"):
+    population = _base_population(
+        {"rec_excitatory_synapses": 0, "rec_inhibitory_synapses": 0}
+    )
+    layer0 = {
+        "name": "layer0",
+        "readout_population": layer0_readout,
+        "population_defaults": population,
+        "populations": [
+            {
+                "name": "e",
+                "polarity": "excitatory",
+                "n_neurons": 4,
+                "branch_factors": [1],
+            },
+            {
+                "name": "i",
+                "polarity": "inhibitory",
+                "n_neurons": 3,
+                "branch_factors": [1],
+            },
+        ],
+        "connections": [
+            {"source": "input", "target": "e"},
+            {"source": "input", "target": "i"},
+            {"source": "i", "target": "e"},
+        ],
+    }
+    layer1 = {
+        "name": "layer1",
+        "readout_population": "e",
+        "population_defaults": population,
+        "populations": [
+            {
+                "name": "e",
+                "polarity": "excitatory",
+                "n_neurons": 5,
+                "branch_factors": [1],
+            }
+        ],
+        "connections": [
+            {"source": "layer0.e", "target": "e"},
+            {"source": layer1_source, "target": "e"},
+        ],
+    }
+    return {"population_network": {"layers": [layer0, layer1]}}
+
+
+@pytest.mark.parametrize("source", ["input_i", "input_e", "input_inh"])
+def test_later_layers_reject_streams_of_the_network_input(source):
+    with pytest.raises(ValueError, match="reaches only the first layer"):
+        get_architecture(
+            "population_network", _two_layer_config(layer1_source=source), input_dim=4
+        )
+
+
+@pytest.mark.parametrize(
+    "readout, pathway", [("e", "ff_excitatory"), ("i", "ff_inhibitory")]
+)
+def test_later_layer_input_takes_the_readout_population_polarity(readout, pathway):
+    net = get_architecture(
+        "population_network", _two_layer_config(layer0_readout=readout), input_dim=4
+    )
+    connection = next(c for c in net.layers[1].connections if c.source == "input")
+    assert connection.pathway == pathway
+
+
+def test_population_strategy_fields_load_under_their_new_names(caplog):
+    import logging
+
+    from dendritic_modeling.config import keys
+
+    keys._WARNED_RENAMED.clear()
+    cfg = _single_layer_temporal_population_config(
+        {"blocklinear_strategy": "none", "topk_strategy": "none"}
+    )
+    with caplog.at_level(logging.WARNING):
+        net = get_architecture("population_network", cfg, input_dim=4)
+    population = net.layers[0].population_configs["e"]
+    assert population.topk_gradient_scaling == "none"
+    assert population.blocklinear_gradient_scaling == "none"
+    assert "topk_strategy was renamed" in caplog.text

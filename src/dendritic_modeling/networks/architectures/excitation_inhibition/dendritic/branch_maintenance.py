@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
+import torch
+
+from dendritic_modeling.networks.utils.sparse_maintenance import forward_maintenance
+
 
 def decay_branch_synapse_weights(
     owner: Any,
@@ -11,35 +15,36 @@ def decay_branch_synapse_weights(
     weight_boosting: bool = False,
 ) -> None:
     """Apply custom decay to all active sparse synapse sublayers."""
-    if owner.branch_excitation is not None:
-        owner.branch_excitation.decay_weights(weight_decay, weight_boosting)
-    if owner.branch_inhibition is not None:
-        owner.branch_inhibition.decay_weights(weight_decay, weight_boosting)
-    if owner.branch_recurrent is not None:
-        owner.branch_recurrent.decay_weights(weight_decay, weight_boosting)
-    if owner.branch_rec_inhibition is not None:
-        owner.branch_rec_inhibition.decay_weights(weight_decay, weight_boosting)
+    forward_maintenance(owner, "decay_weights", weight_decay, weight_boosting)
 
 
 def apply_branch_rewiring(owner: Any) -> None:
-    """Apply rewiring/noise hooks to all active sparse synapse sublayers."""
+    """Apply one optimizer step of rewiring to all sparse synapse sublayers.
 
-    def _apply_synapse_rewiring(layer):
-        if layer is None:
-            return
-        if rewire_condition and hasattr(layer, "apply_noise_and_enforce_constraints"):
-            layer.apply_noise_and_enforce_constraints()
-        elif hasattr(layer, "apply_rewiring"):
-            layer.apply_rewiring()
+    Each sublayer owns its schedule: DeepST and indexed-rewire layers keep a
+    checkpointed step counter and rewire every ``rewire_frequency`` calls, so
+    this container path and the direct leaf helpers follow the same schedule.
+    """
+    forward_maintenance(owner, "apply_rewiring")
 
-    if not hasattr(owner, "step_counter"):
-        owner.step_counter = 0
-    owner.step_counter += 1
-    rewire_condition = owner.step_counter % owner.rewire_frequency == 0
-    _apply_synapse_rewiring(owner.branch_excitation)
-    _apply_synapse_rewiring(owner.branch_inhibition)
-    _apply_synapse_rewiring(owner.branch_recurrent)
-    _apply_synapse_rewiring(owner.branch_rec_inhibition)
+
+def branch_rewiring_step_count(owner: Any) -> int:
+    """Return the optimizer steps seen by a branch layer's rewiring synapses.
+
+    The count is read from the sublayers' checkpointed ``rewire_step``
+    buffers, so it survives ``state_dict`` round trips.
+    """
+    count = 0
+    for layer in (
+        owner.branch_excitation,
+        owner.branch_inhibition,
+        owner.branch_recurrent,
+        owner.branch_rec_inhibition,
+    ):
+        counter = getattr(layer, "rewire_step", None)
+        if isinstance(counter, torch.Tensor):
+            count = max(count, int(counter))
+    return count
 
 
 def collect_from_branch_synapse_layers(owner: Any, method_name: str):
@@ -58,6 +63,7 @@ def collect_from_branch_synapse_layers(owner: Any, method_name: str):
 
 __all__ = [
     "apply_branch_rewiring",
+    "branch_rewiring_step_count",
     "collect_from_branch_synapse_layers",
     "decay_branch_synapse_weights",
 ]

@@ -10,6 +10,9 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.s
 from dendritic_modeling.networks.architectures.recurrent.ei_config import (
     PopulationConfig,
 )
+from dendritic_modeling.networks.architectures.recurrent.stateful_dendrinet import (
+    StatefulDendriNet,
+)
 
 
 def _configured_layer(
@@ -234,6 +237,31 @@ def test_explicit_calibration_uses_shunting_diagnostic_means():
     )
 
 
+def test_calibration_rejects_a_reference_with_another_leak():
+    """The tangent expands N / (1 + T), not N / (leak + T)."""
+    reference = DendriticBranchLayer(
+        output_dim=2,
+        excitatory_input_dim=3,
+        excitatory_synapses_per_branch=2,
+        inhibitory_input_dim=2,
+        inhibitory_synapses_per_branch=1,
+        input_branch_factor=2,
+        use_shunting=True,
+        leak_conductance=0.03,
+        reactivate=False,
+        dbl_init_method="default",
+        adaptive_initialization=False,
+    )
+    reference.set_branch_diagnostics(True)
+    reference(*_inputs())
+    diagnostics = reference.get_branch_diagnostics()
+    assert torch.all(diagnostics["leak"] == 0.03)
+
+    tangent = _configured_layer(additive_mode="tangent_matched")
+    with pytest.raises(ValueError, match=r"this reference has leak 0\.03"):
+        tangent.calibrate_additive_operating_point(diagnostics)
+
+
 def test_new_modes_cannot_be_confused_with_legacy_feature_zscore():
     with pytest.raises(ValueError, match="legacy per-sample, across-output z-score"):
         DendriticBranchLayer(
@@ -262,6 +290,43 @@ def test_population_config_bridge_round_trips_additive_control_semantics():
     assert kwargs["additive_mode"] == "tangent_matched"
     assert kwargs["additive_tangent_n0"] == pytest.approx(0.45)
     assert kwargs["additive_tangent_t0"] == pytest.approx(1.75)
+
+
+def test_population_uses_soma_relative_tangent_anchors_per_depth():
+    population = StatefulDendriNet(
+        pop_config=PopulationConfig(
+            n_neurons=2,
+            branch_factors=[2, 3],
+            ff_excitatory_synapses=1,
+            use_shunting=False,
+            additive_mode="tangent_matched",
+            additive_tangent_n0_by_depth=[0.2, 0.4, 0.6],
+            additive_tangent_t0_by_depth=[1.2, 1.4, 1.6],
+            reactivate=False,
+            somatic_synapses=False,
+        ),
+        excitatory_input_dim=4,
+    )
+
+    # Branch layers are stored distal-to-soma; anchors are declared soma-first.
+    expected = [(0.6, 1.6), (0.4, 1.4), (0.2, 1.2)]
+    for layer, anchor in zip(population.branch_layers, expected, strict=True):
+        assert layer.additive_operating_point == pytest.approx(anchor)
+
+
+def test_population_rejects_incomplete_per_depth_tangent_anchors():
+    with pytest.raises(ValueError, match="must be provided together"):
+        StatefulDendriNet(
+            pop_config=PopulationConfig(
+                n_neurons=2,
+                branch_factors=[2],
+                ff_excitatory_synapses=1,
+                use_shunting=False,
+                additive_mode="tangent_matched",
+                additive_tangent_n0_by_depth=[0.2, 0.4],
+            ),
+            excitatory_input_dim=4,
+        )
 
 
 def test_tangent_anchor_persists_and_old_state_dicts_still_load_strictly():
@@ -368,3 +433,25 @@ def test_initial_child_conductance_must_be_finite_and_positive(value):
             adaptive_initialization=False,
             initial_child_conductance=value,
         )
+
+
+def test_voltage_from_currents_counts_scalar_traces_in_the_shunting_denominator():
+    layer = _configured_layer(use_shunting=True)
+    tensors = [torch.full((1, 2), value) for value in (0.4, 0.5, 0.3, 0.2)]
+    scalars = [tensors[0], 0.5, 0.3, 0.2]  # E as a tensor, the rest as scalars
+    conductance = torch.full((2,), 0.7)
+
+    from_tensors, _ = layer.voltage_from_currents(
+        *tensors, trace_branch=0, branch_conductance=conductance
+    )
+    from_scalars, _ = layer.voltage_from_currents(
+        *scalars, trace_branch=0, branch_conductance=conductance
+    )
+    torch.testing.assert_close(from_scalars, from_tensors)
+
+
+def test_shunting_layers_with_children_need_their_coupling_conductance():
+    layer = _configured_layer(use_shunting=True)  # input_branch_factor=2
+    current = torch.full((1, 2), 0.3)
+    with pytest.raises(ValueError, match="pass branch_conductance"):
+        layer.voltage_from_currents(current, 0, current, 0, trace_branch=current)

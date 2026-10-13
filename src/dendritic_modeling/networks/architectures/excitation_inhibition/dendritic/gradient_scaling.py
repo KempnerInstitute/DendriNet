@@ -5,72 +5,13 @@ Provides a GradientScaler class that registers backward hooks to implement
 various gradient-scaling strategies for BlockLinear or other modules.
 """
 
-import functools
 import logging
 
 import torch
 
+from dendritic_modeling.config.choices import normalize_gradient_scaling
+
 logger = logging.getLogger(__name__)
-_WARNED_HOOK_FAILURES: set[tuple[str, str, str]] = set()
-
-
-def _warn_hook_fallback(context: str, exc: Exception) -> None:
-    """Warn once when a gradient-scaling hook falls back to unscaled gradients."""
-    key = (context, type(exc).__name__, str(exc))
-    if key in _WARNED_HOOK_FAILURES:
-        return
-    _WARNED_HOOK_FAILURES.add(key)
-    logger.warning(
-        "Gradient-scaling hook %s failed; returning unscaled gradients. "
-        "Fix this warning if the run depends on gradient_scaling. Error: %s",
-        context,
-        exc,
-        exc_info=True,
-    )
-
-
-def safe_hook(hook_fn):
-    """
-    Decorator for backward hooks to ensure they return None when no inputs require gradients.
-    This prevents the "Backward hook for Modules where no input requires gradient" error.
-
-    Args:
-        hook_fn: The original hook function to decorate
-
-    Returns:
-        A decorated hook function that properly handles the case when no inputs require gradients
-    """
-
-    @functools.wraps(hook_fn)
-    def safe_hook_fn(module, grad_input, grad_output):
-        # Check if any grad_input requires gradient
-        requires_grad = False
-        if grad_input is not None:
-            for g in grad_input:
-                if g is not None:
-                    requires_grad = True
-                    break
-
-        # Check parameters too (some hooks need this)
-        if not requires_grad:
-            for p in module.parameters(recurse=True):
-                if p.requires_grad:
-                    requires_grad = True
-                    break
-
-        # If nothing requires gradients, return None
-        if not requires_grad:
-            return None
-
-        # Otherwise, call the original hook function
-        try:
-            result = hook_fn(module, grad_input, grad_output)
-            return result
-        except Exception as e:
-            _warn_hook_fallback(getattr(hook_fn, "__name__", "unknown"), e)
-            return grad_input
-
-    return safe_hook_fn
 
 
 def amp_safe_dtype_cast(grad, target_dtype=torch.float32):
@@ -99,22 +40,14 @@ def scale_activation_grad_hook(module, grad_input, grad_output):
     """
     A hook for reactivation functions. If inputs don't require gradients,
     return None as required.
+
+    Gradient scaling is a training rule: in eval mode the hook leaves the
+    activation gradient unchanged, so analyses see the model's true gradient.
     """
-    # Check if prints are enabled
-    print_hooks = getattr(module, "print_hooks", False)
+    if not module.training:
+        return None
 
-    # Check for AMP compatibility mode
-    disable_hooks_with_amp = getattr(module, "disable_hooks_with_amp", False)
-    if (
-        disable_hooks_with_amp
-        and hasattr(module, "_amp_enabled")
-        and module._amp_enabled
-    ):
-        if print_hooks:
-            logger.info("Skipping reactivation hook due to AMP compatibility mode")
-        return grad_output
-
-    if print_hooks:
+    if getattr(module, "print_hooks", False):
         logger.info("Scaling reactivation gradient")
 
     # Simply return grad_output to preserve dtypes
@@ -132,21 +65,7 @@ def scale_layer_input_gradients_elementwise(module, grad_input, grad_output):
         if module.input_scale_vec is not None:
             input_scale_vec = module.input_scale_vec
 
-    # Check if prints are enabled
-    print_hooks = getattr(module, "print_hooks", False)
-
-    # Check for AMP compatibility mode
-    disable_hooks_with_amp = getattr(module, "disable_hooks_with_amp", False)
-    if (
-        disable_hooks_with_amp
-        and hasattr(module, "_amp_enabled")
-        and module._amp_enabled
-    ):
-        if print_hooks:
-            logger.info("Skipping input gradient scaling due to AMP compatibility mode")
-        return grad_input
-
-    if print_hooks:
+    if getattr(module, "print_hooks", False):
         for i, grad in enumerate(grad_input):
             if grad is not None:
                 # Use AMP-safe dtype casting for statistics
@@ -175,25 +94,11 @@ def scale_layer_input_gradients_elementwise(module, grad_input, grad_output):
     return tuple(scaled_gradients)
 
 
-def scale_layer_param_gradients_elementwise(
-    grad,
-    param_scale_vec,
-    print_hooks=False,
-    disable_hooks_with_amp=False,
-    amp_enabled=False,
-):
+def scale_layer_param_gradients_elementwise(grad, param_scale_vec, print_hooks=False):
     """
     Apply element-wise scaling to the parameter gradients.
     """
     param_scale_vec = 1 if param_scale_vec is None else param_scale_vec
-
-    # Check for AMP compatibility mode
-    if disable_hooks_with_amp and amp_enabled:
-        if print_hooks:
-            logger.info(
-                "Skipping parameter gradient scaling due to AMP compatibility mode"
-            )
-        return grad
 
     if grad is None:
         return None
@@ -241,20 +146,6 @@ def scale_layer_gradients_scalar(module, grad_input, grad_output, scale_factor):
     return tuple(g * scale_factor if (g is not None) else None for g in grad_input)
 
 
-# Apply the safe_hook decorator to create safe versions
-# safe_scale_layer_input_gradients_elementwise = (
-#     lambda module, grad_input, grad_output: safe_hook(
-#         lambda m, gi, go: scale_layer_input_gradients_elementwise(m, gi, go)
-#     )(module, grad_input, grad_output)
-# )
-
-# safe_scale_layer_gradients_scalar = (
-#     lambda module, grad_input, grad_output, scale_factor: safe_hook(
-#         lambda m, gi, go: scale_layer_gradients_scalar(m, gi, go, scale_factor)
-#     )(module, grad_input, grad_output)
-# )
-
-
 class GradientScaler:
     """
     A class for hooking into BlockLinear or other modules to apply
@@ -269,57 +160,43 @@ class GradientScaler:
         scale_factor=1.0,
         layer_idx=0,
         print_hooks=False,
-        disable_hooks_with_amp=False,
-        amp_enabled=False,
     ):
         """
         Parameters
         ----------
-        strategy : str
-            One of ['none', 'distal_upweight_by_idx', 'block_conductance_dynamic'].
+        reactivation_strategy : str
+            ``"none"`` or ``"straight_through"`` (the gate passes its output
+            gradient to its input in training mode).
+        blocklinear_strategy : str
+            ``"none"``, ``"conductance_dynamic"`` or ``"distal_upweight_by_idx"``.
+        topk_strategy : str
+            ``"none"`` or ``"conductance_dynamic"``.
         scale_factor : float
-            Base scaling factor for certain strategies.
+            Base factor of ``distal_upweight_by_idx``.
         layer_idx : int
-            For 'distal_upweight_by_idx' if needed.
+            Layer index used by ``distal_upweight_by_idx``.
         print_hooks : bool
             Whether to print gradient statistics in hooks. Default is False.
-        disable_hooks_with_amp : bool
-            Whether to disable hooks when AMP is enabled. Default is False.
-        amp_enabled : bool
-            Whether AMP is currently enabled. Default is False.
         """
-        self.reactivation_strategy = reactivation_strategy
-        self.blocklinear_strategy = blocklinear_strategy
-        self.topk_strategy = topk_strategy
+        self.reactivation_strategy = normalize_gradient_scaling(
+            reactivation_strategy, "reactivation"
+        )
+        self.blocklinear_strategy = normalize_gradient_scaling(
+            blocklinear_strategy, "blocklinear"
+        )
+        self.topk_strategy = normalize_gradient_scaling(topk_strategy, "topk")
         self.scale_factor = scale_factor
         self.layer_idx = layer_idx
         self.print_hooks = print_hooks
-        self.disable_hooks_with_amp = disable_hooks_with_amp
-        self.amp_enabled = amp_enabled
 
     def register_reactivation_inverse(self, reactivation_layer):
         """
         Register a backward hook to invert the reactivation function gradient.
         """
         if self.reactivation_strategy != "none":
-            # First remove any existing hooks to prevent conflicts
-            if hasattr(reactivation_layer, "_backward_hooks"):
-                reactivation_layer._backward_hooks.clear()
-            if hasattr(reactivation_layer, "_backward_pre_hooks"):
-                reactivation_layer._backward_pre_hooks.clear()
 
-            # Set the print_hooks attribute
             reactivation_layer.print_hooks = self.print_hooks
-
-            # Set AMP compatibility attributes
-            reactivation_layer.disable_hooks_with_amp = self.disable_hooks_with_amp
-            reactivation_layer._amp_enabled = self.amp_enabled
-
-            # Register with full backward hook consistently
-            reactivation_layer.register_full_backward_hook(
-                # safe_hook(scale_activation_grad_hook)
-                scale_activation_grad_hook
-            )
+            reactivation_layer.register_full_backward_hook(scale_activation_grad_hook)
 
     def register_block_linear_dynamic(self, block_linear_layer):
         """
@@ -328,6 +205,10 @@ class GradientScaler:
 
         If 'distal_upweight_by_idx', we do (layer_idx+1) * scale_factor for entire param.
         If 'none', no special scaling.
+
+        The hooks scale gradients only while the layer is in training mode; in
+        eval mode gradients are left unscaled (stale training scales are not
+        applied to analysis gradients).
         """
         if self.print_hooks:
             logger.info(
@@ -336,34 +217,48 @@ class GradientScaler:
             )
 
         def input_hook_fn(module, grad_input, grad_output):
+            if not module.training:
+                return None
             # Apply the appropriate scaling strategy
             if self.print_hooks:
                 logger.info("BlockLinear input hook call")
             if self.blocklinear_strategy == "conductance_dynamic":
                 if getattr(module, "_use_forward_dynamic_grad_scaling", False):
                     return grad_input
-                try:
-                    return scale_layer_input_gradients_elementwise(
-                        module, grad_input, grad_output
-                    )
-                except Exception as exc:
-                    _warn_hook_fallback("blocklinear_input_conductance_dynamic", exc)
-                    return grad_input
+                return scale_layer_input_gradients_elementwise(
+                    module, grad_input, grad_output
+                )
 
             elif self.blocklinear_strategy == "distal_upweight_by_idx":
-                try:
-                    scale_val = (self.layer_idx + 1) * self.scale_factor
-                    return scale_layer_gradients_scalar(
-                        module, grad_input, grad_output, scale_val
-                    )
-                except Exception as exc:
-                    _warn_hook_fallback("blocklinear_input_distal_upweight", exc)
-                    return grad_input
+                scale_val = (self.layer_idx + 1) * self.scale_factor
+                return scale_layer_gradients_scalar(
+                    module, grad_input, grad_output, scale_val
+                )
 
             else:
                 return grad_input
 
+        if self.blocklinear_strategy != "none":
+
+            block_linear_layer.print_hooks = self.print_hooks
+            block_linear_layer.register_full_backward_hook(input_hook_fn)
+            self.register_block_linear_param_hook(block_linear_layer)
+            if self.print_hooks:
+                logger.info("Registered block linear dynamic")
+
+    def register_block_linear_param_hook(self, block_linear_layer):
+        """Register the ``log_weight`` gradient hook of the BlockLinear strategy.
+
+        Part of :meth:`register_block_linear_dynamic`. Tensor hooks are not
+        carried over by ``copy.deepcopy`` or pickling, so owners call this to
+        restore them on a copied layer (module hooks are copied).
+        """
+        if self.blocklinear_strategy == "none":
+            return
+
         def param_hook_fn(grad):
+            if not block_linear_layer.training:
+                return grad
             if self.print_hooks:
                 logger.info("BlockLinear parameter hook call")
             if self.blocklinear_strategy == "conductance_dynamic":
@@ -371,122 +266,54 @@ class GradientScaler:
                     block_linear_layer, "_use_forward_dynamic_grad_scaling", False
                 ):
                     return grad
-                try:
-                    return scale_layer_param_gradients_elementwise(
-                        grad,
-                        block_linear_layer.param_scale_vec,
-                        self.print_hooks,
-                        self.disable_hooks_with_amp,
-                        self.amp_enabled,
-                    )
-                except Exception as exc:
-                    _warn_hook_fallback("blocklinear_param_conductance_dynamic", exc)
-                    return grad
+                return scale_layer_param_gradients_elementwise(
+                    grad, block_linear_layer.param_scale_vec, self.print_hooks
+                )
 
             else:
                 return grad
 
-        if self.blocklinear_strategy != "none":
-            # First remove any existing hooks to prevent conflicts
-            if hasattr(block_linear_layer, "_backward_hooks"):
-                block_linear_layer._backward_hooks.clear()
-            if hasattr(block_linear_layer, "_backward_pre_hooks"):
-                block_linear_layer._backward_pre_hooks.clear()
-
-            # Set the print_hooks attribute
-            block_linear_layer.print_hooks = self.print_hooks
-
-            # Set AMP compatibility attributes
-            block_linear_layer.disable_hooks_with_amp = self.disable_hooks_with_amp
-            block_linear_layer._amp_enabled = self.amp_enabled
-
-            # Register consistently with full backward hook
-            block_linear_layer.register_full_backward_hook(input_hook_fn)
-            block_linear_layer.log_weight.register_hook(param_hook_fn)
-            if self.print_hooks:
-                logger.info("Registered block linear dynamic")
+        block_linear_layer.log_weight.register_hook(param_hook_fn)
 
     def register_topk_dynamic(self, topk_layer):
-        """
-        If strategy='conductance_dynamic', attach a backward hook that
-        computes conduction-based scaling from the current block plus excit/inhib.
+        """Attach the ``conductance_dynamic`` TopK gradient scaling.
 
-        If 'distal_upweight_by_idx', we do (layer_idx+1) * scale_factor for entire param.
-        If 'none', no special scaling.
+        The scale is applied to the ``pre_w`` gradient in training mode (or by
+        the forward hook path of stateful layers). ``"none"`` attaches nothing.
         """
         if self.print_hooks:
             logger.info("Registering TopK dynamic, strategy: %s", self.topk_strategy)
-
-        def input_hook_fn(module, grad_input, grad_output):
-            # Apply the appropriate scaling strategy
-            if self.print_hooks:
-                logger.info("TopK input hook call")
-            if self.topk_strategy == "conductance_dynamic":
-                if getattr(module, "_use_forward_dynamic_grad_scaling", False):
-                    return grad_input
-                try:
-                    return scale_layer_input_gradients_elementwise(
-                        module, grad_input, grad_output
-                    )
-                except Exception as exc:
-                    _warn_hook_fallback("topk_input_conductance_dynamic", exc)
-                    return grad_input
-
-            elif self.topk_strategy == "distal_upweight_by_idx":
-                try:
-                    scale_val = (self.layer_idx + 1) * self.scale_factor
-                    return scale_layer_gradients_scalar(
-                        module, grad_input, grad_output, scale_val
-                    )
-                except Exception as exc:
-                    _warn_hook_fallback("topk_input_distal_upweight", exc)
-                    return grad_input
-
-            else:
-                return grad_input
-
-        def param_hook_fn(grad):
-            if self.print_hooks:
-                logger.info("TopK parameter hook call")
-            if self.topk_strategy == "conductance_dynamic":
-                if getattr(topk_layer, "_use_forward_dynamic_grad_scaling", False):
-                    return grad
-                try:
-                    return scale_layer_param_gradients_elementwise(
-                        grad,
-                        topk_layer.param_scale_vec,
-                        self.print_hooks,
-                        self.disable_hooks_with_amp,
-                        self.amp_enabled,
-                    )
-                except Exception as exc:
-                    _warn_hook_fallback("topk_param_conductance_dynamic", exc)
-                    return grad
-
-            else:
-                return grad
 
         if self.topk_strategy != "none":
             if self.topk_strategy == "conductance_dynamic":
                 topk_layer._use_forward_dynamic_grad_scaling = True
 
-            # First remove any existing hooks to prevent conflicts
-            if hasattr(topk_layer, "_backward_hooks"):
-                topk_layer._backward_hooks.clear()
-            if hasattr(topk_layer, "_backward_pre_hooks"):
-                topk_layer._backward_pre_hooks.clear()
-
-            # Set the print_hooks attribute
             topk_layer.print_hooks = self.print_hooks
+            self.register_topk_param_hook(topk_layer)
 
-            # Set AMP compatibility attributes
-            topk_layer.disable_hooks_with_amp = self.disable_hooks_with_amp
-            topk_layer._amp_enabled = self.amp_enabled
+    def register_topk_param_hook(self, topk_layer):
+        """Register the ``pre_w`` gradient hook of the TopK strategy.
 
-            # Register consistently with full backward hook
-            # topk_layer.register_full_backward_hook(input_hook_fn)
-            topk_layer.pre_w.register_hook(param_hook_fn)
+        Part of :meth:`register_topk_dynamic`. Tensor hooks are not carried
+        over by ``copy.deepcopy`` or pickling, so owners call this to restore
+        them on a copied layer.
+        """
+        if self.topk_strategy == "none":
+            return
 
+        def param_hook_fn(grad):
+            if not topk_layer.training:
+                return grad
+            if self.print_hooks:
+                logger.info("TopK parameter hook call")
+            if self.topk_strategy == "conductance_dynamic":
+                if getattr(topk_layer, "_use_forward_dynamic_grad_scaling", False):
+                    return grad
+                return scale_layer_param_gradients_elementwise(
+                    grad, topk_layer.param_scale_vec, self.print_hooks
+                )
 
-# Apply the safe_hook decorator to our existing functions
-# scale_activation_grad_hook = safe_hook(scale_activation_grad_hook)
+            else:
+                return grad
+
+        topk_layer.pre_w.register_hook(param_hook_fn)

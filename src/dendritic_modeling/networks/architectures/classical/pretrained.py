@@ -2,39 +2,32 @@
 Pretrained backbone splitter for encoder-core-decoder pipelines.
 
 Splits Sequential-based torchvision backbones (e.g., AlexNet, VGG) at named
-layers to create a prefix encoder and suffix decoder, with a dendritic core
-network replacing the layers in between.
+layers into a prefix (encoder), the replaced span and a suffix (decoder), so a
+network of the caller's choice can stand in for the span. This is a
+programmatic API; configurations do not assemble such models.
 
 Models whose ``forward()`` is not a simple Sequential walk (e.g., ResNet with
 skip connections) are supported only when the split points fall *outside* the
 residual blocks — typically ``avgpool`` or ``fc``.
 
-Config::
+Example::
 
-    model:
-      vision_replacement:
-        backbone: "alexnet"
-        weights: "IMAGENET1K_V1"
-        input_shape: [3, 224, 224]
-        target_modules: ["classifier.4", "classifier.5"]
-
-        omit_layers: ["classifier.0", "classifier.3"]   # e.g. dropout
-
-        trainability:
-          encoder:
-            mode: "frozen"
-          decoder:
-            mode: "trainable"
-
-      core:
-        type: "einet"
-        ...
+    plan = build_split_plan(
+        "alexnet",
+        "IMAGENET1K_V1",
+        target_modules=["classifier.4", "classifier.5"],
+        omit_layers=["classifier.0", "classifier.3"],  # dropout
+    )
+    encoder, decoder = build_encoder_decoder_from_plan(plan)
+    # plan.prefix_output_dim -> core -> plan.suffix_input_dim
 """
 
 from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Iterable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 
 import torch
@@ -84,7 +77,7 @@ class TensorSpec:
 # ---------------------------------------------------------------------------
 # Backbone loading
 # ---------------------------------------------------------------------------
-def _load_backbone(backbone: str, weights: str | None = None) -> nn.Module:
+def load_backbone(backbone: str, weights: str | None = None) -> nn.Module:
     """Load a torchvision model, optionally with pretrained weights or a local file."""
     if weights is None:
         return get_model(backbone, weights=None)
@@ -102,7 +95,26 @@ def _load_backbone(backbone: str, weights: str | None = None) -> nn.Module:
 # ---------------------------------------------------------------------------
 # Layer utilities
 # ---------------------------------------------------------------------------
-def _flatten_model_layers(model: nn.Module) -> list[tuple[str, nn.Module]]:
+@contextmanager
+def _shape_probe_mode(roots: Iterable[nn.Module]) -> Iterator[None]:
+    """Run shape-inference forwards in eval mode without gradients.
+
+    A train-mode probe would update BatchNorm running statistics of
+    pretrained layers. Every submodule's previous mode is restored.
+    """
+    roots = list(roots)
+    modes = [(module, module.training) for root in roots for module in root.modules()]
+    try:
+        for root in roots:
+            root.eval()
+        with torch.no_grad():
+            yield
+    finally:
+        for module, training in modes:
+            module.training = training
+
+
+def flatten_model_layers(model: nn.Module) -> list[tuple[str, nn.Module]]:
     """Walk top-level children, expanding ``nn.Sequential`` containers.
 
     Returns ``(dotted_name, module)`` pairs in forward-execution order.
@@ -127,7 +139,7 @@ def list_backbone_layers(backbone: str) -> list[str]:
         ['features.0', 'features.1', ..., 'classifier.6']
     """
     model = get_model(backbone, weights=None)
-    return [name for name, _ in _flatten_model_layers(model)]
+    return [name for name, _ in flatten_model_layers(model)]
 
 
 def _extract_layers(
@@ -141,7 +153,7 @@ def _extract_layers(
 
     Used internally by :func:`build_split_plan`.
     """
-    all_layers = _flatten_model_layers(model)
+    all_layers = flatten_model_layers(model)
     all_names = [name for name, _ in all_layers]
     selected = _select_layers_for_boundary(
         all_layers,
@@ -149,8 +161,8 @@ def _extract_layers(
         split_after=split_after,
         split_from=split_from,
     )
-    filtered = _filter_omitted_layers(selected, drop_layers)
-    names, modules = _names_and_modules(filtered)
+    filtered = filter_omitted_layers(selected, drop_layers)
+    names, modules = names_and_modules(filtered)
 
     return modules, names
 
@@ -180,7 +192,7 @@ def _require_split_index(
     """Return a split boundary index while preserving legacy error text."""
     if layer_name not in all_names:
         raise ValueError(
-            f"{arg_name}='{layer_name}' not found. " f"Available layers: {all_names}"
+            f"{arg_name}='{layer_name}' not found. Available layers: {all_names}"
         )
     return all_names.index(layer_name)
 
@@ -272,6 +284,10 @@ class BackboneSegment(BaseNetwork):
 
     Wraps a list of modules into an ``nn.Sequential``, handles spatial→flat
     transitions automatically, and exposes ``output_dim``.
+
+    A frozen segment (``freeze=True``) is a fixed function: its layers stay in
+    eval mode even when the surrounding model trains, so BatchNorm running
+    statistics are not updated and dropout is inactive.
     """
 
     def __init__(
@@ -293,8 +309,9 @@ class BackboneSegment(BaseNetwork):
         self._layer_names = names
         self._auto_flatten = auto_flatten
 
-        # Compute output shape via dummy forward
-        with torch.no_grad():
+        # Compute output shape via a dummy forward that leaves BatchNorm
+        # running statistics and module modes untouched.
+        with _shape_probe_mode([self.layers]):
             dummy = torch.zeros(*input_size)
             out = self.layers(dummy)
 
@@ -306,6 +323,13 @@ class BackboneSegment(BaseNetwork):
 
         if freeze:
             self.requires_grad_(False)
+            self.layers.eval()
+
+    def train(self, mode: bool = True):
+        super().train(mode)
+        if getattr(self, "frozen", False):
+            self.layers.eval()
+        return self
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x, batch_shape, squeezed = _prepare_segment_input(
@@ -345,6 +369,7 @@ class BackboneSplitPlan:
 
     # Modules (from a single loaded model instance)
     prefix_modules: list[nn.Module]
+    replaced_modules: list[nn.Module]
     suffix_modules: list[nn.Module]
 
     # Shape metadata (flattened path — always populated)
@@ -387,7 +412,7 @@ def _resolve_replacement_span(
     replace_end: str,
     target_modules: list[str] | None,
 ) -> tuple[str, str, int, int]:
-    target_span = _resolve_target_module_span(all_names, target_modules)
+    target_span = resolve_target_module_span(all_names, target_modules)
     if target_span is not None:
         start_idx, end_idx = target_span
         resolved_start = all_names[start_idx]
@@ -407,7 +432,7 @@ def _resolve_replacement_span(
 
     if not replace_start or not replace_end:
         raise ValueError(
-            "Vision replacement requires replace.start/replace.end or " "target_modules"
+            "Vision replacement requires replace.start/replace.end or target_modules"
         )
 
     start_idx = _require_layer_index(all_names, replace_start, backbone=backbone)
@@ -420,9 +445,14 @@ def _resolve_replacement_span(
     return replace_start, replace_end, start_idx, end_idx
 
 
-def _resolve_target_module_span(
+def resolve_target_module_span(
     all_names: list[str], target_modules: list[str] | None
 ) -> tuple[int, int] | None:
+    """Return the first and last index of ``target_modules`` in ``all_names``.
+
+    The targets must form one contiguous span of the flattened layer order;
+    None when no targets are given.
+    """
     targets = [str(name) for name in (target_modules or [])]
     if not targets:
         return None
@@ -449,15 +479,16 @@ def _require_layer_index(
 ) -> int:
     if layer_name not in all_names:
         raise ValueError(
-            f"Layer {layer_name!r} not found in {backbone}. " f"Available: {all_names}"
+            f"Layer {layer_name!r} not found in {backbone}. Available: {all_names}"
         )
     return all_names.index(layer_name)
 
 
-def _filter_omitted_layers(
+def filter_omitted_layers(
     layers: list[tuple[str, nn.Module]],
     omit_layers: list[str] | None,
 ) -> list[tuple[str, nn.Module]]:
+    """Drop the ``(name, module)`` pairs named in ``omit_layers``."""
     omit_set = set(omit_layers or [])
     return [(name, module) for name, module in layers if name not in omit_set]
 
@@ -477,14 +508,15 @@ def _slice_layers_by_span(
     )
 
 
-def _names_and_modules(
+def names_and_modules(
     layers: list[tuple[str, nn.Module]],
 ) -> tuple[list[str], list[nn.Module]]:
     """Return parallel layer-name and module lists."""
     return [name for name, _ in layers], [module for _, module in layers]
 
 
-def _resolve_split_input_size(input_shape: list[int] | None) -> tuple[int, ...]:
+def resolve_split_input_size(input_shape: list[int] | None) -> tuple[int, ...]:
+    """Batch-of-one probe input size for ``input_shape`` (``[C, H, W]``)."""
     if input_shape:
         return (1, *input_shape)
     return _DEFAULT_INPUT_SIZE
@@ -493,9 +525,9 @@ def _resolve_split_input_size(input_shape: list[int] | None) -> tuple[int, ...]:
 def _run_modules_no_grad(
     modules: list[nn.Module], input_tensor: torch.Tensor
 ) -> torch.Tensor:
-    """Run a temporary sequential module under ``torch.no_grad``."""
+    """Run a temporary sequential shape probe in eval mode without gradients."""
     sequence = nn.Sequential(*list(modules))
-    with torch.no_grad():
+    with _shape_probe_mode([sequence]):
         return sequence(input_tensor)
 
 
@@ -624,8 +656,8 @@ def build_split_plan(
             ``prefix_output_dim`` / ``suffix_input_dim`` are still computed for
             backward compatibility and for cores that flatten internally.
     """
-    model = _load_backbone(backbone, weights)
-    all_layers = _flatten_model_layers(model)
+    model = load_backbone(backbone, weights)
+    all_layers = flatten_model_layers(model)
     all_names = [name for name, _ in all_layers]
     replace_start, replace_end, start_idx, end_idx = _resolve_replacement_span(
         all_names=all_names,
@@ -639,15 +671,16 @@ def build_split_plan(
         all_layers, start_idx, end_idx
     )
 
-    prefix_filtered = _filter_omitted_layers(prefix_layers, omit_layers)
-    suffix_filtered = _filter_omitted_layers(suffix_layers, omit_layers)
+    prefix_filtered = filter_omitted_layers(prefix_layers, omit_layers)
+    replaced_filtered = filter_omitted_layers(replaced_layers, omit_layers)
+    suffix_filtered = filter_omitted_layers(suffix_layers, omit_layers)
 
-    prefix_names, prefix_modules = _names_and_modules(prefix_filtered)
-    replaced_names, _ = _names_and_modules(replaced_layers)
-    suffix_names, suffix_modules = _names_and_modules(suffix_filtered)
+    prefix_names, prefix_modules = names_and_modules(prefix_filtered)
+    replaced_names, replaced_modules = names_and_modules(replaced_filtered)
+    suffix_names, suffix_modules = names_and_modules(suffix_filtered)
 
     # Compute prefix output shape
-    input_size = _resolve_split_input_size(input_shape)
+    input_size = resolve_split_input_size(input_shape)
     prefix_output_dim = _compute_prefix_output_dim(prefix_modules, input_size)
 
     # Infer suffix input_dim from its first Linear layer
@@ -678,6 +711,7 @@ def build_split_plan(
         replaced_names=replaced_names,
         suffix_names=suffix_names,
         prefix_modules=prefix_modules,
+        replaced_modules=replaced_modules,
         suffix_modules=suffix_modules,
         input_size=input_size,
         prefix_output_dim=prefix_output_dim,
@@ -739,11 +773,65 @@ def build_encoder_decoder_from_plan(
     return encoder, decoder
 
 
+def build_pretrained_core_from_plan(
+    plan: BackboneSplitPlan,
+    *,
+    freeze: bool = False,
+) -> BackboneSegment:
+    """Retain the loaded replacement span as a training-matched dense core.
+
+    The prefix, core boundary, suffix, and training pipeline then match a
+    configured replacement, while the original modules and pretrained weights
+    in the declared span remain intact. Flat and spatial spans are both
+    supported; spatial spans preserve their ``(C,H,W)`` interface.
+    """
+
+    if plan.is_spatial:
+        input_spec = plan.prefix_output_spec
+        expected_spec = plan.suffix_input_spec
+        if input_spec is None or expected_spec is None:
+            raise ValueError("Spatial retained span is missing interface metadata")
+        core = BackboneSegment(
+            plan.replaced_modules,
+            plan.replaced_names,
+            freeze=freeze,
+            input_size=(1, input_spec.channels, input_spec.height, input_spec.width),
+            auto_flatten=False,
+        )
+        if core.output_spec != expected_spec:
+            raise ValueError(
+                "Retained pretrained spatial span output does not match the suffix: "
+                f"{core.output_spec} != {expected_spec}"
+            )
+        return core
+
+    core = BackboneSegment(
+        plan.replaced_modules,
+        plan.replaced_names,
+        freeze=freeze,
+        input_size=(1, plan.prefix_output_dim),
+        auto_flatten=True,
+    )
+    if core.output_dim != plan.suffix_input_dim:
+        raise ValueError(
+            "Retained pretrained span output_dim does not match the suffix: "
+            f"{core.output_dim} != {plan.suffix_input_dim}"
+        )
+    return core
+
+
 __all__ = [
     "BackboneSegment",
     "BackboneSplitPlan",
     "TensorSpec",
     "build_encoder_decoder_from_plan",
+    "build_pretrained_core_from_plan",
     "build_split_plan",
+    "filter_omitted_layers",
+    "flatten_model_layers",
     "list_backbone_layers",
+    "load_backbone",
+    "names_and_modules",
+    "resolve_split_input_size",
+    "resolve_target_module_span",
 ]

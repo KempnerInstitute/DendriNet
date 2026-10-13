@@ -2,6 +2,7 @@
 Unified E-I layer: feedforward special case and recurrent mode in one class.
 """
 
+from dataclasses import replace
 from typing import Optional
 
 import torch
@@ -9,15 +10,80 @@ import torch.nn as nn
 
 from dendritic_modeling.networks.architectures.recurrent.ei_config import EILayerConfig
 from dendritic_modeling.networks.architectures.recurrent.ei_state import EIState
+from dendritic_modeling.networks.architectures.recurrent.population_common import (
+    population_requires_temporal_state,
+)
 from dendritic_modeling.networks.architectures.recurrent.stateful_dendrinet import (
     StatefulDendriNet,
 )
+from dendritic_modeling.networks.utils.forward_caches import detach_forward_caches
+from dendritic_modeling.utils.stable_hash import stable_seed_offset
+
+
+def _layer_population_config(population, layer_index: int, population_name: str):
+    """Give one layer population its own indexed-topology stream.
+
+    Layers and their E and I populations share one configured base seed; the
+    offset by layer index and role keeps their sampled contacts independent,
+    as the population-network builder does for named populations.
+    """
+    if population is None or population.indexed_seed is None:
+        return population
+    return replace(
+        population,
+        indexed_seed=(
+            int(population.indexed_seed)
+            + stable_seed_offset("ei_layer", int(layer_index), population_name)
+        )
+        % ((1 << 63) - 1),
+    )
+
+
+def _reject_recurrent_populations(config: EILayerConfig, layer_index: int) -> None:
+    """Reject recurrent synapses and stateful dynamics in a non-recurrent layer.
+
+    A non-recurrent layer passes no recurrent inputs, so recurrent synapses
+    would not be built, and it runs stateful dynamics as a single step from
+    a zero state; both need ``recurrent: true``.
+    """
+    for role in ("excitatory", "inhibitory"):
+        population = getattr(config, role, None)
+        if population is None:
+            continue
+        features = [
+            name
+            for name in (
+                "rec_excitatory_synapses",
+                "rec_inhibitory_synapses",
+                "rec_excitatory_synapses_by_level",
+                "rec_inhibitory_synapses_by_level",
+            )
+            if any(
+                value > 0
+                for value in (
+                    getattr(population, name)
+                    if isinstance(getattr(population, name), (list, tuple))
+                    else [getattr(population, name)]
+                )
+            )
+        ]
+        if population_requires_temporal_state(population):
+            features.append(
+                "stateful dynamics (spiking soma, synapse_types, dendritic "
+                "spikes or soma feedback)"
+            )
+        if features:
+            raise ValueError(
+                f"unified_ei layer {layer_index} is not recurrent, but its {role} "
+                f"population sets {', '.join(features)}, which need recurrent "
+                "state; set recurrent: true on the layer"
+            )
 
 
 class EILayer(nn.Module):
     """Unified E-I layer with optional recurrence."""
 
-    def __init__(self, config: EILayerConfig):
+    def __init__(self, config: EILayerConfig, layer_index: int = 0):
         super().__init__()
         for population_name in ("excitatory", "inhibitory"):
             population = getattr(config, population_name, None)
@@ -31,6 +97,8 @@ class EILayer(nn.Module):
                 )
         self.config = config
         self.recurrent = config.recurrent
+        if not self.recurrent:
+            _reject_recurrent_populations(config, layer_index)
         self._last_routing_info: dict = {}
 
         self.n_exc = config.excitatory.n_neurons
@@ -45,7 +113,9 @@ class EILayer(nn.Module):
         self.i_population: Optional[StatefulDendriNet]
         if config.inhibitory is not None and self.n_inh > 0:
             self.i_population = StatefulDendriNet(
-                pop_config=config.inhibitory,
+                pop_config=_layer_population_config(
+                    config.inhibitory, layer_index, "inhibitory"
+                ),
                 excitatory_input_dim=config.excitatory_input_dim,
                 inhibitory_input_dim=config.inhibitory_input_dim,
                 recurrent_excitatory_input_dim=rec_e_dim,
@@ -68,7 +138,9 @@ class EILayer(nn.Module):
             )
         )
         self.e_population = StatefulDendriNet(
-            pop_config=config.excitatory,
+            pop_config=_layer_population_config(
+                config.excitatory, layer_index, "excitatory"
+            ),
             excitatory_input_dim=config.excitatory_input_dim,
             inhibitory_input_dim=e_ff_inhibitory_dim,
             recurrent_excitatory_input_dim=rec_e_dim,
@@ -77,8 +149,19 @@ class EILayer(nn.Module):
             recurrent_inhibitory_is_self_population=False,
             dt=config.dt,
         )
+        if self.recurrent:  # forward() steps both populations
+            for population in (self.i_population, self.e_population):
+                if population is not None:
+                    population.prepare_stepped_gradient_scaling()
 
         self.output_dim = self.n_exc
+
+    # Tensors of the last forward pass kept for analyses; copies and pickles
+    # hold them detached (networks.utils.forward_caches).
+    _FORWARD_CACHES = ("_last_routing_info",)
+
+    def __getstate__(self):
+        return detach_forward_caches(super().__getstate__(), self._FORWARD_CACHES)
 
     @property
     def store_routing(self) -> bool:
@@ -89,6 +172,16 @@ class EILayer(nn.Module):
         self.e_population.store_routing = value
         if self.i_population is not None:
             self.i_population.store_routing = value
+
+    def decay_weights(self, weight_decay, weight_boosting=False):
+        if self.i_population is not None:
+            self.i_population.decay_weights(weight_decay, weight_boosting)
+        self.e_population.decay_weights(weight_decay, weight_boosting)
+
+    def apply_rewiring(self):
+        if self.i_population is not None:
+            self.i_population.apply_rewiring()
+        self.e_population.apply_rewiring()
 
     def set_population_level_silencing(
         self,

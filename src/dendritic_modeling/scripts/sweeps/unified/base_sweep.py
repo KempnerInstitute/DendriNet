@@ -5,13 +5,95 @@ This module provides abstract base classes that define the interface
 for different sweep types (EI, branch, noise, general).
 """
 
+import logging
 import os
+import re
+import shlex
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
 from omegaconf import DictConfig, OmegaConf
+
+from dendritic_modeling.config import CONFIG_VERSION
+from dendritic_modeling.scripts.sweeps.control_plane import (
+    UNTRACKED_SOURCE_ROOT,
+    discover_source_identity,
+)
+from dendritic_modeling.scripts.sweeps.slurm_profile import SlurmProfile
+
+logger = logging.getLogger(__name__)
+
+# The checkout containing this module; jobs run its src/.
+REPO_ROOT = Path(__file__).resolve().parents[5]
+SUBMITTED_JOBS_NAME = "submitted_jobs.tsv"
+
+
+def _execution_source_guard(
+    repo_root: Path, identity: dict[str, Any] | None = None
+) -> str:
+    """Return a shell preflight that binds a job to a source identity.
+
+    ``identity`` defaults to the checkout's current one (sweep generation); a
+    rerun passes the identity frozen in the sweep's manifest. The job exits
+    when the commit, the tracked changes or the untracked files under
+    ``src/`` differ from it.
+    """
+    if identity is None:
+        identity = discover_source_identity(repo_root)
+    git_identity = identity.get("git", {})
+    if not git_identity.get("available"):
+        logger.warning(
+            "%s is not a Git checkout: the sweep's jobs are not bound to a source "
+            "state",
+            repo_root,
+        )
+        return "# Source guard unavailable: the library is not a Git checkout.\n"
+
+    expected_head = str(git_identity["commit"])
+    expected_diff = git_identity.get("tracked_diff_sha256")
+    if not expected_diff:
+        raise RuntimeError("could not fingerprint the tracked generation worktree")
+
+    quoted_root = shlex.quote(str(repo_root))
+    guard = (
+        "# Refuse execution after the source checkout changes.\n"
+        f"REPOSITORY_ROOT={quoted_root}\n"
+        f'EXPECTED_REPOSITORY_HEAD="{expected_head}"\n'
+        f'EXPECTED_TRACKED_DIFF_SHA256="{expected_diff}"\n'
+        'ACTUAL_REPOSITORY_HEAD="$(git -C "$REPOSITORY_ROOT" rev-parse HEAD)"\n'
+        'ACTUAL_TRACKED_DIFF_SHA256="$(git -C "$REPOSITORY_ROOT" '
+        "diff --binary HEAD | sha256sum | awk '{print $1}')\"\n"
+        'if [ "$ACTUAL_REPOSITORY_HEAD" != "$EXPECTED_REPOSITORY_HEAD" ]; then\n'
+        '  echo "Source commit changed after sweep generation: expected '
+        '$EXPECTED_REPOSITORY_HEAD, observed $ACTUAL_REPOSITORY_HEAD" >&2\n'
+        "  exit 66\n"
+        "fi\n"
+        'if [ "$ACTUAL_TRACKED_DIFF_SHA256" != "$EXPECTED_TRACKED_DIFF_SHA256" ]; then\n'
+        '  echo "Tracked source changes differ from the frozen generation worktree" >&2\n'
+        "  exit 67\n"
+        "fi\n"
+    )
+    expected_untracked = git_identity.get("untracked_src_sha256")
+    if expected_untracked:
+        # Same digest as control_plane.untracked_source_digest.
+        guard += (
+            f'EXPECTED_UNTRACKED_SRC_SHA256="{expected_untracked}"\n'
+            'ACTUAL_UNTRACKED_SRC_SHA256="$(cd "$REPOSITORY_ROOT" && '
+            f"git ls-files --others --exclude-standard -z -- {UNTRACKED_SOURCE_ROOT} "
+            "| LC_ALL=C sort -z | while IFS= read -r -d '' name; do "
+            "printf '%s\\0%s\\n' \"$name\" "
+            '"$(sha256sum < "$name" | awk \'{print $1}\')"; done '
+            "| sha256sum | awk '{print $1}')\"\n"
+            'if [ "$ACTUAL_UNTRACKED_SRC_SHA256" != "$EXPECTED_UNTRACKED_SRC_SHA256" ]; '
+            "then\n"
+            '  echo "Untracked files under src/ differ from the frozen generation '
+            'worktree" >&2\n'
+            "  exit 68\n"
+            "fi\n"
+        )
+    return guard
 
 
 class BaseSweepGenerator(ABC):
@@ -53,8 +135,12 @@ class BaseSweepGenerator(ABC):
     def create_output_directory(
         self, base_dir: str, prefix: Optional[str] = None
     ) -> str:
-        """
-        Create timestamped output directory for sweep results.
+        """Create a new sweep directory ``<base_dir>/<prefix>_<timestamp>``.
+
+        The timestamp is taken now and the path is absolute. A directory that
+        already exists (a second sweep in the same second) is never reused:
+        the new one gets a numeric suffix, so one sweep cannot overwrite the
+        configs that another sweep's queued jobs will read.
 
         Args:
             base_dir: Base directory for outputs
@@ -65,29 +151,65 @@ class BaseSweepGenerator(ABC):
         """
         if prefix is None:
             prefix = self.sweep_type
+        base = os.path.abspath(os.path.expanduser(base_dir))
+        os.makedirs(base, exist_ok=True)
+        self.timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        name = f"{prefix}_{self.timestamp}"
+        output_dir = os.path.join(base, name)
+        suffix = 1
+        while True:
+            try:
+                os.mkdir(output_dir)
+                break
+            except FileExistsError:
+                suffix += 1
+                output_dir = os.path.join(base, f"{name}_{suffix}")
 
-        output_dir = os.path.join(base_dir, f"{prefix}_{self.timestamp}")
-        os.makedirs(output_dir, exist_ok=True)
-
-        # Create standard subdirectories
         for subdir in ["configs", "results", "plots", "jobs"]:
-            os.makedirs(os.path.join(output_dir, subdir), exist_ok=True)
+            os.makedirs(os.path.join(output_dir, subdir))
 
         return output_dir
 
-    def save_configs(self, configs: list[DictConfig], output_dir: str) -> list[str]:
+    def save_configs(
+        self,
+        configs: list[DictConfig],
+        output_dir: str,
+        execution_results_dir: Optional[str] = None,
+    ) -> list[str]:
         """
         Save generated configurations to files.
 
         Args:
             configs: List of configurations to save
             output_dir: Directory to save configurations
+            execution_results_dir: Optional root used by training jobs for
+                checkpoints and metrics. This permits lightweight sweep
+                manifests and job scripts to be staged separately from large
+                execution outputs.
 
         Returns:
             List of paths to saved configuration files
         """
         config_dir = os.path.join(output_dir, "configs")
-        results_base_dir = os.path.join(output_dir, "results")
+        results_base_dir = execution_results_dir or os.path.join(output_dir, "results")
+        if execution_results_dir is not None:
+            staged_results = Path(output_dir) / "results"
+            if staged_results.is_symlink():
+                if os.readlink(staged_results) != execution_results_dir:
+                    raise FileExistsError(
+                        f"staged results link has a different target: {staged_results}"
+                    )
+            else:
+                if staged_results.exists():
+                    if any(staged_results.iterdir()):
+                        raise FileExistsError(
+                            "cannot replace non-empty staged results directory: "
+                            f"{staged_results}"
+                        )
+                    staged_results.rmdir()
+                staged_results.symlink_to(
+                    execution_results_dir, target_is_directory=True
+                )
         config_paths = []
 
         for i, config in enumerate(configs):
@@ -98,6 +220,12 @@ class BaseSweepGenerator(ABC):
             if "outputs" not in config:
                 config["outputs"] = {}
             config["outputs"]["results_dir"] = config_results_dir
+            # The collectors read results/config_<i>/ directly.
+            config["outputs"]["exact_run_dir"] = True
+            # Record the configuration format the generated file was validated
+            # in, so dendritic-upgrade-config never reads it as an older one.
+            if config.get("config_version") is None:
+                config["config_version"] = CONFIG_VERSION
 
             # Save the config
             config_path = os.path.join(config_dir, f"{self.sweep_type}_config_{i}.yaml")
@@ -211,13 +339,77 @@ class BaseSweepAnalyzer(ABC):
                     f.write("-" * 30 + "\n")
                     for i, config_info in enumerate(best_configs[:5]):
                         f.write(
-                            f"{i+1}. Score: {config_info['score']:.4f} "
+                            f"{i + 1}. Score: {config_info['score']:.4f} "
                             f"(Config ID: {config_info['config_id']})\n"
                         )
             except Exception as e:
                 f.write(f"\nCould not determine best configurations: {e}\n")
 
         return report_path
+
+
+# An absolute path written as a YAML value: at the start of a line or after
+# whitespace, a quote, ``[``, ``,``, ``=`` or ``:``.
+_CONFIG_ABSOLUTE_PATH = re.compile(
+    r"""(?:^|(?<=[\s"'\[,=:]))(/[^\s"'\],#]+)""", re.MULTILINE
+)
+
+
+def _containing_mount(path: Path) -> Path | None:
+    """The mount point holding ``path`` (its deepest existing ancestor), or
+    ``None`` when that is the root filesystem."""
+    for candidate in (path, *path.parents):
+        if candidate == Path(candidate.anchor):
+            return None
+        if os.path.ismount(candidate):
+            return candidate
+    return None
+
+
+def _config_mount_points(config_paths: list[str]) -> list[str]:
+    """Mount points (other than ``/``) of the absolute paths the configs name."""
+    mounts: set[str] = set()
+    seen: set[str] = set()
+    for config_path in config_paths:
+        try:
+            text = Path(config_path).read_text(encoding="utf-8")
+        except OSError:
+            continue
+        for match in _CONFIG_ABSOLUTE_PATH.finditer(text):
+            path = match.group(1).rstrip("/") or "/"
+            if path in seen:
+                continue
+            seen.add(path)
+            mount = _containing_mount(Path(path))
+            if mount is not None:
+                mounts.add(str(mount))
+    return sorted(mounts)
+
+
+def _mount_canary(config_paths: list[str]) -> str:
+    """Return a preflight that fails fast when a mount the configs use hangs.
+
+    The mount points holding the absolute paths named in the configs (found
+    when the script is generated; the root filesystem is not probed) are each
+    checked with a 60 s ``stat`` on the allocated node: a hung network mount
+    would otherwise stall the first path access inside Python until the job's
+    time limit, and a missing one would fail only then. Configs without such
+    paths get no probe.
+    """
+    mounts = _config_mount_points(config_paths)
+    if not mounts:
+        return "# Mount canary: the configs name no paths on separate mounts\n"
+    roots = " ".join(shlex.quote(mount) for mount in mounts)
+    return (
+        "# Mount canary (fail fast on wedged or missing mounts)\n"
+        f"for fs_root in {roots}; do\n"
+        '    if ! timeout 60 stat -t "$fs_root" > /dev/null 2>&1; then\n'
+        '        echo "MOUNT CANARY FAILED on $(hostname): $fs_root unreachable" >&2\n'
+        "        exit 75\n"
+        "    fi\n"
+        "done\n"
+        'echo "Mount canary passed on $(hostname)"\n'
+    )
 
 
 class SweepJobManager:
@@ -233,50 +425,55 @@ class SweepJobManager:
         config_paths: list[str],
         output_dir: str,
         split_jobs: Optional[int] = None,
-        use_array_jobs: bool = True,
+        use_array_jobs: Optional[bool] = None,
     ) -> list[str]:
-        """
-        Create SLURM job scripts for sweep configurations.
+        """Write the sweep's job scripts and ``submit_all_jobs.sh``.
+
+        A sweep of several configs is one array job by default (task ``i``
+        runs config ``i``). ``split_jobs=N`` writes up to ``N`` sequential jobs
+        instead, whose config lists differ in length by at most one and
+        together cover every config; ``use_array_jobs=False`` writes one
+        sequential job.
 
         Args:
             config_paths: List of configuration file paths
             output_dir: Output directory for sweep
-            split_jobs: Number of jobs to split into (None for single job or array)
-            use_array_jobs: If True, use SLURM array jobs for parallel execution
+            split_jobs: Number of sequential jobs to split the configs into
+            use_array_jobs: Array job (default unless ``split_jobs`` is given)
 
         Returns:
             List of paths to created job scripts
         """
+        if not config_paths:
+            raise ValueError("a sweep without configs has no jobs to write")
+        if split_jobs is not None:
+            if int(split_jobs) < 1:
+                raise ValueError("split_jobs must be a positive number of jobs")
+            if use_array_jobs:
+                raise ValueError(
+                    "split_jobs writes sequential jobs; it cannot be combined with "
+                    "use_array_jobs=True"
+                )
+        if use_array_jobs is None:
+            use_array_jobs = split_jobs is None
         jobs_dir = os.path.join(output_dir, "jobs")
         job_scripts = []
 
         if use_array_jobs and len(config_paths) > 1:
-            # Use SLURM array jobs for parallel execution
             script_path = os.path.join(jobs_dir, "run_array_sweep.sh")
             self._create_array_job_script(script_path, config_paths, output_dir)
             job_scripts.append(script_path)
-        elif split_jobs is None or split_jobs <= 1:
-            # Single job script (sequential execution)
+        elif split_jobs is None or int(split_jobs) == 1:
             script_path = os.path.join(jobs_dir, "run_sweep.sh")
             self._create_single_job_script(script_path, config_paths, output_dir)
             job_scripts.append(script_path)
         else:
-            # Split into multiple jobs
-            configs_per_job = max(1, len(config_paths) // split_jobs)
-
-            for i in range(split_jobs):
-                start_idx = i * configs_per_job
-                end_idx = min((i + 1) * configs_per_job, len(config_paths))
-
-                if start_idx >= len(config_paths):
-                    break
-
-                job_configs = config_paths[start_idx:end_idx]
+            chunks = _split_evenly(list(config_paths), int(split_jobs))
+            for i, job_configs in enumerate(chunks):
                 script_path = os.path.join(jobs_dir, f"run_sweep_{i}.sh")
                 self._create_single_job_script(script_path, job_configs, output_dir)
                 job_scripts.append(script_path)
 
-        # Create main submission script
         main_script = self._create_main_submission_script(job_scripts, output_dir)
 
         return [*job_scripts, main_script]
@@ -284,209 +481,75 @@ class SweepJobManager:
     def _create_single_job_script(
         self, script_path: str, config_paths: list[str], output_dir: str
     ):
-        """Create a single SLURM job script."""
-        repo_root = Path(__file__).resolve().parents[5]
-        account = self.slurm_config.get("account")
-        partition = self.slurm_config.get("partition")
-        qos = self.slurm_config.get("qos")
-        if not account:
-            raise ValueError(
-                "SLURM account not set. Provide 'account' in slurm_config."
-            )
-        if not partition:
-            raise ValueError(
-                "SLURM partition not set. Provide 'partition' in slurm_config."
-            )
+        """Create a SLURM job script that runs ``config_paths`` in sequence."""
+        profile = SlurmProfile.from_config(self.slurm_config)
         with open(script_path, "w") as f:
-            f.write("#!/bin/bash\n")
             f.write(
-                f"#SBATCH --job-name={self.slurm_config.get('run_name') or self.slurm_config.get('job_name', 'sweep')}\n"
-            )
-            f.write(f"#SBATCH --account={account}\n")
-            f.write(f"#SBATCH --partition={partition}\n")
-            if qos:
-                f.write(f"#SBATCH --qos={qos}\n")
-            f.write(f"#SBATCH --chdir={repo_root}\n")
-            constraint = self.slurm_config.get("constraint", None)
-            if constraint:
-                f.write(f"#SBATCH --constraint={constraint}\n")
-            f.write(f"#SBATCH --time={self.slurm_config.get('time', '02:00:00')}\n")
-            f.write(f"#SBATCH --nodes={self.slurm_config.get('nodes', 1)}\n")
-            f.write(
-                f"#SBATCH --ntasks-per-node={self.slurm_config.get('ntasks_per_node', 1)}\n"
-            )
-            f.write(f"#SBATCH --gres=gpu:{self.slurm_config.get('gpus_per_node', 1)}\n")
-            f.write(
-                f"#SBATCH --cpus-per-task={self.slurm_config.get('cpus_per_task', 4)}\n"
-            )
-            f.write(f"#SBATCH --mem={self.slurm_config.get('mem', '32G')}\n")
-
-            # Exclude specific nodes if specified
-            exclude_nodes = self.slurm_config.get("exclude_nodes", [])
-            if exclude_nodes:
-                exclude_list = ",".join(exclude_nodes)
-                f.write(f"#SBATCH --exclude={exclude_list}\n")
-
-            f.write(f"#SBATCH --output={output_dir}/jobs/%j.out\n")
-            f.write(f"#SBATCH --error={output_dir}/jobs/%j.err\n\n")
-
-            # Load modules
-            modules = self.slurm_config.get("modules_to_load", [])
-            for module in modules:
-                f.write(f"module load {module}\n")
-
-            # Set up Python environment
-            conda_env_path = self.slurm_config.get("conda_env_path")
-            if conda_env_path:
-                # Use direct path to Python interpreter in conda environment
-                python_path = f"{conda_env_path}/bin/python"
-                f.write(f"# Using conda environment at: {conda_env_path}\n")
-                f.write(f'PYTHON_BIN="{python_path}"\n')
-                f.write("\n")
-                # Add LD_LIBRARY_PATH to ensure conda libs are found
-                f.write("# Set library path for conda environment\n")
-                f.write(
-                    f'export LD_LIBRARY_PATH="{conda_env_path}/lib:${{LD_LIBRARY_PATH:-}}"\n'
+                profile.header(
+                    repo_root=REPO_ROOT,
+                    output=f"{output_dir}/jobs/%j.out",
+                    error=f"{output_dir}/jobs/%j.err",
                 )
-                f.write("\n")
-                f.write("# Verify environment works\n")
-                f.write(
-                    "$PYTHON_BIN -c \"import torch; print(f'PyTorch version: {torch.__version__}')\"\n"
-                )
-            else:
-                # Fallback to system python
-                f.write("# Using system python\n")
-                f.write('PYTHON_BIN="python"\n')
-            f.write('export PYTHONPATH="$(pwd)/src:${PYTHONPATH:-}"\n')
-
+            )
+            f.write("set -euo pipefail\n\n")
+            f.write(_execution_source_guard(REPO_ROOT))
+            f.write("\n")
+            f.write(profile.environment())
+            f.write(_mount_canary(list(config_paths)))
             f.write("\n# Run experiments\n")
-
-            # Training script
-            training_script = self.slurm_config.get(
-                "training_script", "src/dendritic_modeling/scripts/train_experiments.py"
-            )
-
             for config_path in config_paths:
                 rel_config_path = os.path.relpath(
-                    os.path.abspath(config_path), start=repo_root
+                    os.path.abspath(config_path), start=REPO_ROOT
                 )
-                f.write(f"$PYTHON_BIN {training_script} {rel_config_path}\n")
-
-        # Make executable
+                f.write(
+                    f"{profile.launch_prefix()} {profile.training_script} "
+                    f"{rel_config_path}\n"
+                )
         os.chmod(script_path, 0o755)
 
     def _create_array_job_script(
-        self, script_path: str, config_paths: list[str], output_dir: str
+        self,
+        script_path: str,
+        config_paths: list[str],
+        output_dir: str,
+        *,
+        indices: list[int] | None = None,
+        source_identity: dict[str, Any] | None = None,
     ):
-        """Create a SLURM array job script for parallel execution."""
-        repo_root = Path(__file__).resolve().parents[5]
-        account = self.slurm_config.get("account")
-        partition = self.slurm_config.get("partition")
-        if not account:
-            raise ValueError(
-                "SLURM account not set. Provide 'account' in slurm_config."
-            )
-        if not partition:
-            raise ValueError(
-                "SLURM partition not set. Provide 'partition' in slurm_config."
-            )
-        num_configs = len(config_paths)
-        max_concurrent = self.slurm_config.get("max_concurrent_jobs", 10)
+        """Create a SLURM array job script for parallel execution.
 
-        # Format time properly
-        time_value = self.slurm_config.get("time", "02:00:00")
-        if isinstance(time_value, (int, float)) or (
-            isinstance(time_value, str) and time_value.isdigit()
-        ):
-            seconds = int(time_value)
-            hours = seconds // 3600
-            minutes = (seconds % 3600) // 60
-            seconds = seconds % 60
-            formatted_time = f"{hours}:{minutes:02d}:{seconds:02d}"
-        else:
-            formatted_time = time_value
-
-        qos = self.slurm_config.get("qos")
+        Task ``i`` runs ``config_paths[i]``. ``indices`` restricts the array to
+        those configs (a rerun) and ``source_identity`` binds it to a frozen
+        source identity; the header otherwise equals the sweep's array script.
+        """
+        profile = SlurmProfile.from_config(self.slurm_config)
+        array = profile.array_spec(
+            list(range(len(config_paths))) if indices is None else list(indices)
+        )
         with open(script_path, "w") as f:
-            f.write("#!/bin/bash\n")
+            # Logs go to the existing jobs directory: vanilla Slurm opens them
+            # before the job script could create a per-task directory.
             f.write(
-                f"#SBATCH --job-name={self.slurm_config.get('run_name') or self.slurm_config.get('job_name', 'sweep')}\n"
+                profile.header(
+                    repo_root=REPO_ROOT,
+                    output=f"{output_dir}/jobs/output_%A_%a.out",
+                    error=f"{output_dir}/jobs/error_%A_%a.err",
+                    array=array,
+                )
             )
-            f.write(f"#SBATCH --account={account}\n")
-            f.write(f"#SBATCH --partition={partition}\n")
-            if qos:
-                f.write(f"#SBATCH --qos={qos}\n")
-            f.write(f"#SBATCH --chdir={repo_root}\n")
-            f.write(f"#SBATCH --time={formatted_time}\n")
-            f.write(f"#SBATCH --nodes={self.slurm_config.get('nodes', 1)}\n")
-            f.write(
-                f"#SBATCH --ntasks-per-node={self.slurm_config.get('ntasks_per_node', 1)}\n"
-            )
-            f.write(f"#SBATCH --gres=gpu:{self.slurm_config.get('gpus_per_node', 1)}\n")
-            f.write(
-                f"#SBATCH --cpus-per-task={self.slurm_config.get('cpus_per_task', 4)}\n"
-            )
-            f.write(f"#SBATCH --mem={self.slurm_config.get('mem', '32G')}\n")
-
-            # Exclude specific nodes if specified
-            exclude_nodes = self.slurm_config.get("exclude_nodes", [])
-            if exclude_nodes:
-                exclude_list = ",".join(exclude_nodes)
-                f.write(f"#SBATCH --exclude={exclude_list}\n")
-
-            # Array job with optional concurrent limit
-            if num_configs > max_concurrent:
-                f.write(f"#SBATCH --array=0-{num_configs-1}%{max_concurrent}\n")
-            else:
-                f.write(f"#SBATCH --array=0-{num_configs-1}\n")
-
-            # Use the existing jobs directory directly.  Some Slurm site
-            # wrappers create `%A_%a` directories automatically, but vanilla
-            # Slurm opens output files before the job script can create them.
-            f.write(f"#SBATCH --output={output_dir}/jobs/output_%A_%a.out\n")
-            f.write(f"#SBATCH --error={output_dir}/jobs/error_%A_%a.err\n\n")
-
             # IMPORTANT: SBATCH directives must appear before any shell commands.
             f.write("set -euo pipefail\n\n")
-
+            f.write(_execution_source_guard(REPO_ROOT, source_identity))
+            f.write("\n")
             f.write(
                 "# ================================================================\n"
-            )
-            f.write("# This file has been generated by the unified sweep system\n")
-            f.write("#                            ***\n")
-            f.write("#       Manual changes to this file may be overwritten.\n")
-            f.write(
+                "# This file has been generated by the unified sweep system\n"
+                "#                            ***\n"
+                "#       Manual changes to this file may be overwritten.\n"
                 "# ================================================================\n\n"
             )
+            f.write(profile.environment())
 
-            # Load modules
-            f.write("module purge\n")
-            modules = self.slurm_config.get("modules_to_load", [])
-            for module in modules:
-                f.write(f"module load {module}\n")
-            f.write("\n")
-
-            # Set up Python environment
-            conda_env_path = self.slurm_config.get("conda_env_path")
-            if conda_env_path:
-                python_path = f"{conda_env_path}/bin/python"
-                f.write(f"# Using conda environment at: {conda_env_path}\n")
-                f.write(f'PYTHON="{python_path}"\n\n')
-                # Add LD_LIBRARY_PATH to ensure conda libs are found
-                f.write("# Set library path for conda environment\n")
-                f.write(
-                    f'export LD_LIBRARY_PATH="{conda_env_path}/lib:${{LD_LIBRARY_PATH:-}}"\n\n'
-                )
-                f.write("# Verify environment works\n")
-                f.write(
-                    "$PYTHON -c \"import torch; print(f'PyTorch version: {torch.__version__}')\"\n\n"
-                )
-            else:
-                f.write("# Using system python\n")
-                f.write('PYTHON="python"\n\n')
-            f.write('export PYTHONPATH="$(pwd)/src:${PYTHONPATH:-}"\n\n')
-
-            # Define config directory and files
             config_dir = (
                 os.path.dirname(config_paths[0])
                 if config_paths
@@ -494,94 +557,126 @@ class SweepJobManager:
             )
             f.write("# Path to the config file directory\n")
             f.write(f'CONFIG_DIR="{config_dir}"\n\n')
-
-            f.write("# Path to output directory\n")
+            f.write(_mount_canary(list(config_paths)))
+            f.write("\n# Path to output directory\n")
             f.write(f'OUTPUT_DIR="{output_dir}"\n\n')
+            if profile.execution_results_dir:
+                f.write("# External root for checkpoints and metrics\n")
+                f.write(f'EXECUTION_RESULTS_DIR="{profile.execution_results_dir}"\n\n')
 
-            # Array job config selection
             f.write("# Array job: select config based on SLURM_ARRAY_TASK_ID\n")
             f.write("CONFIG_FILES=(\n")
             for config_path in config_paths:
                 rel_config_path = os.path.relpath(
-                    os.path.abspath(config_path), start=repo_root
+                    os.path.abspath(config_path), start=REPO_ROOT
                 )
                 f.write(f'    "{rel_config_path}"\n')
             f.write(")\n\n")
-
             f.write("# Get the config file for this array task\n")
             f.write('CONFIG="${CONFIG_FILES[$SLURM_ARRAY_TASK_ID]}"\n')
             f.write('RUN_NAME="sweep_${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}"\n\n')
-
             f.write("# Path to the folder to save outputs for this specific run\n")
-            f.write(
-                'OUTPUT_FOLDER_PATH="${OUTPUT_DIR}/results/config_${SLURM_ARRAY_TASK_ID}"\n\n'
+            results_root = (
+                "${EXECUTION_RESULTS_DIR}"
+                if profile.execution_results_dir
+                else "${OUTPUT_DIR}/results"
             )
-
+            f.write(
+                f'OUTPUT_FOLDER_PATH="{results_root}/config_${{SLURM_ARRAY_TASK_ID}}"\n\n'
+            )
             f.write("# Create output directory\n")
             f.write("mkdir -p ${OUTPUT_FOLDER_PATH}\n\n")
-
             f.write('echo "Starting training job at $(date)"\n')
             f.write('echo "Array task $SLURM_ARRAY_TASK_ID processing: $CONFIG"\n')
             f.write("start_time=$(date +%s)\n\n")
 
-            # Training script
-            training_script = self.slurm_config.get(
-                "training_script",
-                "src/dendritic_modeling/scripts/training/train_experiments.py",
-            )
-
+            training_script = profile.training_script
+            if not training_script.startswith("/"):
+                training_script = f"$(pwd)/{training_script}"
             f.write("# Run experiment with srun\n")
             f.write("srun \\\n")
             f.write("  --cpus-per-task=${SLURM_CPUS_PER_TASK} \\\n")
             f.write("  --kill-on-bad-exit \\\n")
-
-            if training_script.startswith("/"):
-                f.write(
-                    f'  $PYTHON -u {training_script} "$CONFIG" --output_dir "$OUTPUT_FOLDER_PATH"\n\n'
-                )
-            else:
-                f.write(
-                    f'  $PYTHON -u $(pwd)/{training_script} "$CONFIG" --output_dir "$OUTPUT_FOLDER_PATH"\n\n'
-                )
-
+            f.write(
+                f"  {profile.launch_prefix()} {training_script} "
+                '"$CONFIG" --output_dir "$OUTPUT_FOLDER_PATH"\n\n'
+            )
             f.write("end_time=$(date +%s)\n")
             f.write('echo "Done with training job at $(date)"\n')
             f.write('echo "Total duration: $((end_time - start_time)) seconds."\n')
-
-        # Make executable
         os.chmod(script_path, 0o755)
 
     def _create_main_submission_script(
         self, job_scripts: list[str], output_dir: str
     ) -> str:
-        """Create main script to submit all jobs."""
+        """Write ``submit_all_jobs.sh``, which submits the job scripts.
+
+        It stops at the first failed ``sbatch`` and appends each job ID, the
+        script name and the submission time to ``jobs/submitted_jobs.tsv``.
+        """
         main_script = os.path.join(output_dir, "submit_all_jobs.sh")
-        repo_root = Path(__file__).resolve().parents[5]
+        names = [
+            os.path.basename(script)
+            for script in job_scripts
+            if not script.endswith("submit_all_jobs.sh")
+        ]
 
         with open(main_script, "w") as f:
             f.write("#!/bin/bash\n")
             f.write("set -euo pipefail\n")
-            f.write("# Main script to submit all sweep jobs\n\n")
+            f.write("# Submit the sweep's jobs and record their job IDs.\n\n")
             f.write(f"# Sweep output directory: {output_dir}\n\n")
-            f.write(f'REPO_ROOT="{repo_root}"\n')
-            f.write('SWEEP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"\n\n')
-
-            f.write('echo "Submitting sweep jobs..."\n')
-            f.write('echo "- sweep_dir: ${SWEEP_DIR}"\n')
-            f.write('echo "- repo_root: ${REPO_ROOT}"\n')
-            for script in job_scripts:
-                if script.endswith("submit_all_jobs.sh"):
-                    continue  # Skip self
-                script_basename = os.path.basename(script)
-                # NOTE: This is a Python f-string; we must escape bash `${VAR}` braces as `${{VAR}}`
-                # so Python doesn't try to interpolate `{VAR}` as a Python variable.
-                f.write(f'echo "Submitting ${{SWEEP_DIR}}/jobs/{script_basename}"\n')
-                f.write(
-                    f'sbatch --chdir "${{REPO_ROOT}}" "${{SWEEP_DIR}}/jobs/{script_basename}"\n'
-                )
-                f.write("sleep 2  # Brief delay between submissions\n")
-
-            f.write('\necho "Submitted. Check status with: squeue -u $USER"\n')
+            f.write(f"REPO_ROOT={shlex.quote(str(REPO_ROOT))}\n")
+            f.write('SWEEP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"\n')
+            f.write(f'LEDGER="${{SWEEP_DIR}}/jobs/{SUBMITTED_JOBS_NAME}"\n\n')
+            f.write(
+                "submit() {\n"
+                "    local job_id\n"
+                '    job_id="$(sbatch --parsable --chdir "${REPO_ROOT}" '
+                '"${SWEEP_DIR}/jobs/$1")"\n'
+                '    job_id="${job_id%%;*}"\n'
+                '    printf \'%s\\t%s\\t%s\\n\' "${job_id}" "$1" '
+                '"$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "${LEDGER}"\n'
+                '    echo "Submitted $1 as job ${job_id}"\n'
+                "}\n\n"
+            )
+            f.write('echo "Submitting sweep jobs from ${SWEEP_DIR}"\n')
+            for index, name in enumerate(names):
+                if index:
+                    f.write("sleep 2  # Brief delay between submissions\n")
+                f.write(f"submit {shlex.quote(name)}\n")
+            f.write('\necho "Job IDs recorded in ${LEDGER}"\n')
 
         os.chmod(main_script, 0o755)
         return main_script
+
+
+def _split_evenly(items: list, parts: int) -> list[list]:
+    """Split ``items`` into at most ``parts`` consecutive, non-empty chunks.
+
+    Chunk lengths differ by at most one and the chunks cover ``items`` in order.
+    """
+    parts = max(1, min(int(parts), len(items)))
+    size, extra = divmod(len(items), parts)
+    chunks, start = [], 0
+    for index in range(parts):
+        stop = start + size + (1 if index < extra else 0)
+        chunks.append(items[start:stop])
+        start = stop
+    if [item for chunk in chunks for item in chunk] != list(items):
+        raise AssertionError("split jobs do not cover the sweep's configs")
+    return chunks
+
+
+def read_submitted_jobs(sweep_dir: str | Path) -> list[dict[str, str]]:
+    """Return the job IDs ``submit_all_jobs.sh`` recorded for a sweep."""
+    ledger = Path(sweep_dir) / "jobs" / SUBMITTED_JOBS_NAME
+    if not ledger.is_file():
+        return []
+    records = []
+    for line in ledger.read_text().splitlines():
+        job_id, script, submitted_utc = line.split("\t")
+        records.append(
+            {"job_id": job_id, "script": script, "submitted_utc": submitted_utc}
+        )
+    return records

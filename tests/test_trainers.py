@@ -20,29 +20,16 @@ def test_standard_trainer(simple_model, sample_data):
     assert "valid_losses" in results
 
 
-def test_fsdp_trainer_init(simple_model):
-    # Skip if CUDA is not available or if CUDA drivers are not working
-    if not torch.cuda.is_available():
-        pytest.skip("CUDA not available")
-
-    try:
-        # Test if we can actually set a CUDA device (this will fail in CI without drivers)
-        torch.cuda.set_device(0)
-    except RuntimeError as e:
-        if "Found no NVIDIA driver" in str(e):
-            pytest.skip("NVIDIA drivers not available")
-        else:
-            raise
-
-    torch.optim.Adam(simple_model.parameters())
+@pytest.mark.requires_gpu
+def test_fsdp_trainer_init(simple_model, tmp_path):
     fsdp_config = {"sharding_strategy": "FULL_SHARD"}
     trainer = FSDPTrainer(
         rank=0,
         world_size=1,
         fsdp_config=fsdp_config,
-        checkpoint_dir="checkpoints",
+        checkpoint_dir=str(tmp_path / "checkpoints"),
         save_every_n_epochs=5,  # Add this to satisfy parent constructor condition
-        optimizer_config={"lr": 0.001},
+        optimizer_config={"param_groups": {"lr": 0.001}},
         epochs=1,
         loss_function="cross_entropy",
     )

@@ -45,7 +45,7 @@ def test_build_information_estimators_constructs_decoder_with_nested_params():
         method="decoder",
         n_neighbors=5,
         n_bins=13,
-        copula_type="student",
+        copula_type="kernel",
         verbose=True,
     )
 
@@ -55,7 +55,7 @@ def test_build_information_estimators_constructs_decoder_with_nested_params():
     assert estimator.config.method == EstimationMethod.DECODER
     assert estimator.config.n_neighbors == 5
     assert estimator.config.n_bins == 13
-    assert estimator.config.copula_type == "student"
+    assert estimator.config.copula_type == "kernel"
     assert estimator.config.verbose is True
     assert estimator.config.method_params == {
         "cv_folds": 7,

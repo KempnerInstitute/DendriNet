@@ -6,7 +6,6 @@ from unittest.mock import Mock, patch
 
 import pytest
 import torch
-import torch.nn as nn
 
 from dendritic_modeling.config.training import (
     HomeostaticControlStrategyConfig,
@@ -14,17 +13,14 @@ from dendritic_modeling.config.training import (
     ParamGroupsConfig,
     PruningConfig,
     RegularizationConfig,
-    ReportingConfig,
     VoltageStabilizationStrategyConfig,
 )
 from dendritic_modeling.training.factory import (
     TRAINER_STRATEGY_REGISTRY,
     _extract_enhanced_configs,
-    extract_weights_from_simple_mlp,
     get_available_trainer_strategies,
     get_trainer,
     register_trainer_strategy,
-    transfer_mlp_weights_to_input_net,
 )
 
 
@@ -87,7 +83,6 @@ class TestExtractEnhancedConfigs:
             "pruning": {
                 "enabled": True,
                 "threshold": 0.01,
-                "dynamic_pruning": True,
             }
         }
 
@@ -115,22 +110,10 @@ class TestExtractEnhancedConfigs:
         assert result["regularization_config"].l1_weight == 0.001
         assert result["regularization_config"].l2_weight == 0.01
 
-    def test_extract_reporting_config(self):
-        """Test extracting reporting configuration."""
-        trainer_config = {
-            "reporting": {
-                "report_non_pruned": True,
-                "save_pruning_stats": False,
-                "detailed_branch_report": True,
-            }
-        }
-
-        result = _extract_enhanced_configs(trainer_config)
-
-        assert "reporting_config" in result
-        assert isinstance(result["reporting_config"], ReportingConfig)
-        assert result["reporting_config"].report_non_pruned is True
-        assert result["reporting_config"].save_pruning_stats is False
+    def test_removed_reporting_option_raises(self):
+        """The trainer option 'reporting' was never read and is rejected."""
+        with pytest.raises(ValueError, match="'reporting' was removed"):
+            _extract_enhanced_configs({"reporting": {"report_non_pruned": True}})
 
     def test_extract_all_configs(self):
         """Test extracting all configuration types together."""
@@ -138,7 +121,6 @@ class TestExtractEnhancedConfigs:
             "optimizer": {"name": "sgd", "lr": 0.1},
             "pruning": {"enabled": False},
             "regularization": {"l1_weight": 0.001},
-            "reporting": {"report_non_pruned": False},
         }
 
         result = _extract_enhanced_configs(trainer_config)
@@ -146,13 +128,11 @@ class TestExtractEnhancedConfigs:
         assert "optimizer_config" in result
         assert "pruning_config" in result
         assert "regularization_config" in result
-        assert "reporting_config" in result
 
         # All original configs should be cleaned
         assert "optimizer" not in trainer_config
         assert "pruning" not in trainer_config
         assert "regularization" not in trainer_config
-        assert "reporting" not in trainer_config
 
     def test_extract_no_configs(self):
         """Test extracting when no configs are present."""
@@ -165,9 +145,7 @@ class TestExtractEnhancedConfigs:
 
     def test_extract_param_groups_config_normalized_dict(self):
         """Test extracting and normalizing param groups from dict config."""
-        trainer_config = {
-            "param_groups": {"lr": 0.02, "split_params": False, "unknown_key": 123}
-        }
+        trainer_config = {"param_groups": {"lr": 0.02, "split_params": False}}
 
         result = _extract_enhanced_configs(trainer_config)
 
@@ -175,8 +153,13 @@ class TestExtractEnhancedConfigs:
         assert isinstance(result["param_groups_config"], ParamGroupsConfig)
         assert result["param_groups_config"].lr == 0.02
         assert result["param_groups_config"].split_params is False
-        assert not hasattr(result["param_groups_config"], "unknown_key")
         assert "param_groups" not in trainer_config
+
+    def test_unknown_param_groups_keys_raise(self):
+        from dendritic_modeling.config.keys import UnknownConfigKeyError
+
+        with pytest.raises(UnknownConfigKeyError, match="did you mean 'topk_lr'"):
+            _extract_enhanced_configs({"param_groups": {"topk_lrr": 0.1}})
 
     def test_extract_param_groups_config_passthrough_typed(self):
         """Test preserving typed param groups config objects."""
@@ -246,7 +229,6 @@ class TestExtractEnhancedConfigs:
             "homeostatic_control_config": {"homeostasis_mode": "occupancy"},
             "freeze_layers_config": {"freeze_until": 2},
             "freeze_branches_config": {"branch_warmup": 3},
-            "fa_config": {"alignment_scale": 0.4},
             "freeze_branch_kl_config": {"kl_weight": 0.7},
         }
 
@@ -257,19 +239,14 @@ class TestExtractEnhancedConfigs:
             "homeostasis_mode": "occupancy",
             "freeze_until": 2,
             "branch_warmup": 3,
-            "alignment_scale": 0.4,
             "kl_weight": 0.7,
         }
         assert trainer_config == {}
 
-    def test_extract_flat_strategy_config_ignores_non_dict_value(self):
-        """Non-dict strategy configs should preserve the previous drop behavior."""
-        trainer_config = {"fa_config": "legacy-non-dict"}
-
-        result = _extract_enhanced_configs(trainer_config)
-
-        assert result == {}
-        assert trainer_config == {}
+    def test_extract_flat_strategy_config_rejects_non_dict_value(self):
+        """A strategy config that is not a mapping raises instead of vanishing."""
+        with pytest.raises(TypeError, match="freeze_layers_config must be a mapping"):
+            _extract_enhanced_configs({"freeze_layers_config": "not-a-mapping"})
 
 
 class TestGetTrainer:
@@ -388,27 +365,23 @@ class TestGetTrainer:
             ("shunting_dfa", "dfa"),
         ],
     )
-    def test_get_shunting_feedback_alignment_trainer(
+    def test_shunting_feedback_alignment_names_build_fa_and_dfa(
         self,
         strategy,
         mode,
         mock_optimizer,
         basic_trainer_config,
     ):
-        """Test creating shunting feedback-alignment trainers."""
-        trainer_config = dict(basic_trainer_config)
-        trainer_config["e_rev_exc"] = 0.7
-
+        """The retired shunting variants build the trainer they name."""
         with patch(
-            "dendritic_modeling.training.factory.ShuntingFeedbackAlignmentTrainer"
+            "dendritic_modeling.training.factory.FeedbackAlignmentTrainer"
         ) as mock_trainer:
-            get_trainer(strategy, mock_optimizer, trainer_config)
+            get_trainer(strategy, mock_optimizer, dict(basic_trainer_config))
 
             mock_trainer.assert_called_once()
             call_args = mock_trainer.call_args[1]
             assert call_args["optimizer"] == mock_optimizer
             assert call_args["mode"] == mode
-            assert call_args["e_rev_exc"] == 0.7
 
     def test_get_fsdp_trainer_is_not_supported(
         self, mock_optimizer, basic_trainer_config
@@ -446,7 +419,7 @@ class TestGetTrainer:
             "grad_clip_value": 5.0,
             "use_amp": False,
             "recurrent_config": {
-                "grad_clip": 0.25,
+                "grad_clip_value": 0.25,
                 "use_amp": True,
                 "lr_schedule": "cosine",
                 "lr_warmup_epochs": 3,
@@ -461,7 +434,7 @@ class TestGetTrainer:
             call_args = mock_trainer.call_args[1]
             assert call_args["optimizer"] == mock_optimizer
             assert call_args["task"] == "classification"
-            assert call_args["grad_clip"] == 0.25
+            assert call_args["grad_clip_value"] == 0.25
             assert call_args["use_amp"] is True
             assert call_args["lr_schedule"] == "cosine"
             assert call_args["lr_warmup_epochs"] == 3
@@ -524,228 +497,6 @@ class TestStrategyConfigDefaults:
     def test_homeostatic_control_default_target_saturation(self):
         cfg = HomeostaticControlStrategyConfig()
         assert cfg.target_saturation == 0.2
-
-
-class TestTransferMLPWeights:
-    """Test transfer_mlp_weights_to_input_net function."""
-
-    @pytest.fixture
-    def mock_mlp_net(self):
-        """Create mock MLP network."""
-        mlp = Mock()
-
-        # Mock MLP layer with excit_pre_w structure
-        mlp_layer = Mock()
-        mlp_layer.excit_pre_w = torch.log(torch.randn(5, 10).abs())  # Log weights
-        mlp_layer.bias = Mock()
-        mlp_layer.bias.data = torch.randn(5)
-
-        mlp.layers = [mlp_layer]
-        return mlp
-
-    @pytest.fixture
-    def mock_input_net(self):
-        """Create mock InputNetTransform."""
-        input_net = Mock()
-
-        # Mock shared layers
-        shared_layer = Mock(spec=nn.Linear)
-        shared_layer.weight = Mock()
-        shared_layer.weight.data = torch.randn(5, 10)
-        shared_layer.bias = Mock()
-        shared_layer.bias.data = torch.randn(5)
-        input_net.shared = [shared_layer]
-
-        # Mock excitatory head
-        head_layer = Mock(spec=nn.Linear)
-        head_layer.weight = Mock()
-        head_layer.weight.data = torch.randn(3, 5)
-        head_layer.bias = Mock()
-        head_layer.bias.data = torch.randn(3)
-        input_net.head_exc = [head_layer]
-
-        # Mock inhibitory head
-        inh_head_layer = Mock(spec=nn.Linear)
-        inh_head_layer.weight = Mock()
-        inh_head_layer.weight.data = torch.randn(3, 5)
-        inh_head_layer.bias = Mock()
-        inh_head_layer.bias.data = torch.randn(3)
-        input_net.head_inh = [inh_head_layer]
-
-        return input_net
-
-    def test_transfer_excitatory_weights(self, mock_mlp_net, mock_input_net):
-        """Test transferring weights to excitatory head."""
-        with patch("dendritic_modeling.training.factory.logger") as mock_logger:
-            transfer_mlp_weights_to_input_net(
-                mock_mlp_net, mock_input_net, "excitatory"
-            )
-
-            # Should log info messages
-            assert mock_logger.info.call_count >= 2
-
-    def test_transfer_inhibitory_weights(self, mock_mlp_net, mock_input_net):
-        """Test transferring weights to inhibitory head."""
-        with patch("dendritic_modeling.training.factory.logger") as mock_logger:
-            transfer_mlp_weights_to_input_net(
-                mock_mlp_net, mock_input_net, "inhibitory"
-            )
-
-            # Should log info messages
-            assert mock_logger.info.call_count >= 1
-
-    def test_mlp_without_layers_attribute(self, mock_input_net):
-        """Test MLP without layers attribute."""
-        mlp_net = Mock()
-        mlp_net.net = Mock()
-        mlp_net.net.layers = [Mock()]
-
-        # Remove layers attribute
-        if hasattr(mlp_net, "layers"):
-            delattr(mlp_net, "layers")
-
-        with patch("dendritic_modeling.training.factory.logger") as mock_logger:
-            transfer_mlp_weights_to_input_net(mlp_net, mock_input_net, "excitatory")
-
-            # Should work with net.layers
-            mock_logger.info.assert_called()
-
-    def test_mlp_without_extractable_layers(self, mock_input_net):
-        """Test MLP without extractable layers."""
-        mlp_net = Mock()
-        # Remove both layers and net.layers
-        if hasattr(mlp_net, "layers"):
-            delattr(mlp_net, "layers")
-        if hasattr(mlp_net, "net"):
-            delattr(mlp_net, "net")
-
-        with patch("dendritic_modeling.training.factory.logger") as mock_logger:
-            transfer_mlp_weights_to_input_net(mlp_net, mock_input_net, "excitatory")
-
-            mock_logger.warning.assert_called_once()
-            assert "Could not extract layers" in mock_logger.warning.call_args[0][0]
-
-    def test_mlp_layer_unexpected_structure(self, mock_input_net):
-        """Test MLP layer with unexpected structure."""
-        mlp_net = Mock()
-        mlp_layer = Mock()
-        # Remove excit_pre_w attribute
-        if hasattr(mlp_layer, "excit_pre_w"):
-            delattr(mlp_layer, "excit_pre_w")
-        mlp_net.layers = [mlp_layer]
-
-        with patch("dendritic_modeling.training.factory.logger") as mock_logger:
-            transfer_mlp_weights_to_input_net(mlp_net, mock_input_net, "excitatory")
-
-            mock_logger.warning.assert_called()
-            assert (
-                "Unexpected MLP layer structure" in mock_logger.warning.call_args[0][0]
-            )
-
-    def test_empty_head_layers(self, mock_mlp_net):
-        """Test with empty head layers."""
-        input_net = Mock()
-        input_net.shared = []
-        input_net.head_exc = []
-        input_net.head_inh = []
-
-        with patch("dendritic_modeling.training.factory.logger") as mock_logger:
-            transfer_mlp_weights_to_input_net(mock_mlp_net, input_net, "excitatory")
-
-            # Should complete without error
-            mock_logger.info.assert_called()
-
-
-class TestExtractWeightsFromSimpleMLP:
-    """Test extract_weights_from_simple_mlp function."""
-
-    @pytest.fixture
-    def simple_mlp(self):
-        """Create simple MLP for testing."""
-        mlp = Mock()
-        mlp.net = Mock()
-        mlp.net.network = nn.Sequential(
-            nn.Linear(10, 8), nn.ReLU(), nn.Linear(8, 5), nn.ReLU(), nn.Linear(5, 2)
-        )
-        return mlp
-
-    @pytest.fixture
-    def mock_input_net_transform(self):
-        """Create mock InputNetTransform."""
-        transform = Mock()
-
-        # Mock shared layers
-        shared_layers = [Mock(spec=nn.Linear), Mock(spec=nn.Linear)]
-        for layer in shared_layers:
-            layer.weight = Mock()
-            layer.weight.data = torch.randn(8, 10)
-            layer.bias = Mock()
-            layer.bias.data = torch.randn(8)
-
-        transform.shared = shared_layers
-
-        # Mock heads
-        exc_head = Mock(spec=nn.Linear)
-        exc_head.weight = Mock()
-        exc_head.weight.data = torch.randn(2, 5)
-        exc_head.weight.shape = (2, 5)  # Add shape attribute
-        exc_head.bias = Mock()
-        exc_head.bias.data = torch.randn(2)
-        exc_head.bias.shape = (2,)  # Add shape attribute
-
-        inh_head = Mock(spec=nn.Linear)
-        inh_head.weight = Mock()
-        inh_head.weight.data = torch.randn(2, 5)
-        inh_head.weight.shape = (2, 5)  # Add shape attribute
-        inh_head.bias = Mock()
-        inh_head.bias.data = torch.randn(2)
-        inh_head.bias.shape = (2,)  # Add shape attribute
-
-        transform.head_exc = [exc_head]
-        transform.head_inh = [inh_head]
-
-        return transform
-
-    def test_extract_weights_basic(self, simple_mlp, mock_input_net_transform):
-        """Test basic weight extraction."""
-        with patch("dendritic_modeling.training.factory.logger") as mock_logger:
-            extract_weights_from_simple_mlp(simple_mlp, mock_input_net_transform)
-
-            # Should log completion
-            mock_logger.info.assert_called()
-            assert (
-                "Weight transfer from SimpleMLP to InputNetTransform completed"
-                in mock_logger.info.call_args[0][0]
-            )
-
-    def test_extract_weights_mismatched_dimensions(self, mock_input_net_transform):
-        """Test with mismatched dimensions."""
-        # Create MLP with different dimensions
-        mismatched_mlp = Mock()
-        mismatched_mlp.net = Mock()
-        mismatched_mlp.net.network = nn.Sequential(
-            nn.Linear(15, 12),  # Different input size
-            nn.ReLU(),
-            nn.Linear(12, 3),  # Different output size
-        )
-
-        with patch("dendritic_modeling.training.factory.logger") as mock_logger:
-            extract_weights_from_simple_mlp(mismatched_mlp, mock_input_net_transform)
-
-            # Should complete and log info
-            mock_logger.info.assert_called()
-
-    def test_extract_weights_empty_mlp(self, mock_input_net_transform):
-        """Test with empty MLP."""
-        empty_mlp = Mock()
-        empty_mlp.net = Mock()
-        empty_mlp.net.network = nn.Sequential()
-
-        with patch("dendritic_modeling.training.factory.logger") as mock_logger:
-            extract_weights_from_simple_mlp(empty_mlp, mock_input_net_transform)
-
-            # Should handle gracefully
-            mock_logger.info.assert_called()
 
 
 class TestTrainingFactoryEdgeCases:

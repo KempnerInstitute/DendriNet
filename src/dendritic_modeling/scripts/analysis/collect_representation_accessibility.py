@@ -19,11 +19,20 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import yaml
 
+from dendritic_modeling.analysis.managers.analysis_status import describe_incomplete
+from dendritic_modeling.scripts.analysis.collect_checkpoint_analysis import (
+    incomplete_recorded_analyses,
+)
 from dendritic_modeling.scripts.sweeps.control_plane import discover_source_identity
+from dendritic_modeling.utils.logging_config import setup_logging
 
 SCHEMA_VERSION = "representation_accessibility_collection_v1"
+CONFIG_SCHEMA_VERSION = "representation_accessibility_collection_config_v1"
 RESULT_SUBDIRECTORY = "representation_accessibility"
+RUN_SCHEMA_VERSION = "checkpoint_analysis_run_v1"
+RESULT_SCHEMA_VERSION = 1
 
 
 def _sha256_file(path: Path, *, chunk_size: int = 2**20) -> str:
@@ -126,8 +135,9 @@ def _validate_run(
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     result = json.loads(final_path.read_text(encoding="utf-8"))
     provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
-    if result.get("analysis_type") != "representation_accessibility":
-        raise ValueError(f"Unexpected analysis type in {final_path}")
+    _validate_result_contract(result, final_path=final_path)
+    if provenance.get("schema_version") != RUN_SCHEMA_VERSION:
+        raise ValueError(f"Unexpected checkpoint-analysis schema in {provenance_path}")
     if provenance.get("training_performed") is not False:
         raise ValueError(
             f"Checkpoint analysis unexpectedly trained in {provenance_path}"
@@ -136,6 +146,13 @@ def _validate_run(
         raise ValueError(f"Non-strict checkpoint loading in {provenance_path}")
     if provenance.get("missing_keys") or provenance.get("unexpected_keys"):
         raise ValueError(f"Checkpoint incompatibilities recorded in {provenance_path}")
+    enabled = provenance.get("enabled_analyzers")
+    if not isinstance(enabled, list) or "representation_accessibility" not in {
+        str(value) for value in enabled
+    }:
+        raise ValueError(
+            f"Representation analyzer is absent from provenance in {provenance_path}"
+        )
     if (
         Path(str(provenance.get("output_dir"))).resolve()
         != Path(str(job["output_dir"])).resolve()
@@ -151,6 +168,81 @@ def _validate_run(
             hash_cache=hash_cache,
         )
     return result, provenance
+
+
+def _validate_result_contract(
+    result: Mapping[str, Any],
+    *,
+    final_path: Path,
+) -> None:
+    """Reject outputs whose split semantics cannot support publication claims.
+
+    Outputs without information records (probe-only outputs written before
+    the explicit information metadata) remain admissible because no
+    information estimate is present. Any output containing information records must carry
+    the validation-only contract introduced with the information-split fix.
+    """
+
+    if result.get("schema_version") != RESULT_SCHEMA_VERSION:
+        raise ValueError(f"Unexpected representation result schema in {final_path}")
+    if result.get("analysis_type") != "representation_accessibility":
+        raise ValueError(f"Unexpected analysis type in {final_path}")
+    if result.get("fit_split") != "valid":
+        raise ValueError(f"Representation probes were not fit on valid in {final_path}")
+    if result.get("evaluation_split") != "test":
+        raise ValueError(
+            f"Representation probes were not evaluated on test in {final_path}"
+        )
+    if result.get("test_used_for_probe_selection") is not False:
+        raise ValueError(f"Test data were used for probe selection in {final_path}")
+
+    joint_records = result.get("joint_information_records", [])
+    per_soma_records = result.get("per_soma_information_records", [])
+    per_soma_summary = result.get("per_soma_information_summary", [])
+    for name, records in (
+        ("joint_information_records", joint_records),
+        ("per_soma_information_records", per_soma_records),
+        ("per_soma_information_summary", per_soma_summary),
+    ):
+        if not isinstance(records, list):
+            raise ValueError(f"{name} is not a list in {final_path}")
+
+    has_information = bool(joint_records or per_soma_records or per_soma_summary)
+    if has_information:
+        if result.get("information_split") != "valid":
+            raise ValueError(
+                f"Representation information is not declared validation-only in {final_path}"
+            )
+        if result.get("test_used_for_information") is not False:
+            raise ValueError(f"Test data were used for information in {final_path}")
+        information_records = [
+            *joint_records,
+            *per_soma_records,
+            *per_soma_summary,
+        ]
+        if any(
+            record.get("information_split") != "valid" for record in information_records
+        ):
+            raise ValueError(
+                f"An information record is not declared validation-only in {final_path}"
+            )
+    else:
+        information_split = result.get("information_split")
+        if information_split not in {None, "valid"}:
+            raise ValueError(f"Unexpected information split in {final_path}")
+        test_used = result.get("test_used_for_information")
+        if test_used not in {None, False}:
+            raise ValueError(f"Test data were used for information in {final_path}")
+
+    geometry_records = result.get("population_geometry_records", [])
+    if not isinstance(geometry_records, list):
+        raise ValueError(f"population_geometry_records is not a list in {final_path}")
+    if any(
+        record.get("measurement_split") != "valid"
+        or record.get("label_usage") != "none"
+        for record in geometry_records
+    ):
+        raise ValueError(f"Population geometry is not validation-only in {final_path}")
 
 
 def _metric_summary(values: Iterable[float], prefix: str) -> dict[str, Any]:
@@ -234,6 +326,10 @@ def collect_representation_accessibility(
         "joint_information_technical_summary": [],
         "per_soma_information_records": [],
         "per_soma_information_summary": [],
+        "subset_probe_records": [],
+        "subset_probe_technical_summary": [],
+        "subset_probe_missing": [],
+        "population_geometry_records": [],
     }
 
     for job_index, job in enumerate(jobs):
@@ -260,6 +356,21 @@ def collect_representation_accessibility(
             provenance_path=provenance_path,
             hash_cache=hash_cache,
         )
+        incomplete = incomplete_recorded_analyses(
+            provenance, ["representation_accessibility"], run_dir=job_output
+        )
+        if incomplete:
+            reason = describe_incomplete(incomplete)
+            if not allow_incomplete:
+                raise ValueError(f"the run recorded incomplete analyses: {reason}")
+            skipped.append(
+                {
+                    "job_index": job_index,
+                    "output_dir": str(job_output),
+                    "incomplete": reason,
+                }
+            )
+            continue
         source_artifacts.append(
             {
                 "job_index": job_index,
@@ -290,6 +401,12 @@ def collect_representation_accessibility(
                 "per_soma_information_record_count": len(
                     result.get("per_soma_information_records", [])
                 ),
+                "subset_probe_record_count": len(
+                    result.get("subset_probe_records", [])
+                ),
+                "population_geometry_record_count": len(
+                    result.get("population_geometry_records", [])
+                ),
                 "run_code_identity": _csv_cell(provenance.get("code_identity")),
             }
         )
@@ -302,6 +419,9 @@ def collect_representation_accessibility(
             "joint_information_records",
             "per_soma_information_records",
             "per_soma_information_summary",
+            "subset_probe_records",
+            "subset_probe_missing",
+            "population_geometry_records",
         ):
             tables[table_name].extend(
                 _record_row(job_index, job, record)
@@ -353,6 +473,29 @@ def collect_representation_accessibility(
                 ),
             )
         )
+        tables["subset_probe_technical_summary"].extend(
+            _technical_summary(
+                job_index=job_index,
+                job=job,
+                records=result.get("subset_probe_records", []),
+                grouping_fields=(
+                    "network_layer_index",
+                    "network_layer_number",
+                    "representation",
+                    "population_names",
+                    "native_feature_count",
+                    "subset_size",
+                    "probe_name",
+                    "probe_type",
+                    "probe_family",
+                ),
+                metric_fields=(
+                    "class_accessibility_above_null",
+                    "heldout_test_balanced_accuracy",
+                    "heldout_test_label_shuffle_balanced_accuracy",
+                ),
+            )
+        )
 
     if expected_count is not None and not allow_incomplete:
         collected = len(tables["checkpoint_summary"])
@@ -397,16 +540,52 @@ def collect_representation_accessibility(
     return provenance
 
 
+def _resolve_config_path(value: str | Path, *, base: Path) -> Path:
+    path = Path(value).expanduser()
+    return (base / path).resolve() if not path.is_absolute() else path.resolve()
+
+
+def _load_collection_config(path: Path) -> dict[str, Any]:
+    payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict) or payload.get("schema_version") != (
+        CONFIG_SCHEMA_VERSION
+    ):
+        raise ValueError(f"unsupported representation collection config: {path}")
+    missing = {"jobs", "output_dir"} - set(payload)
+    if missing:
+        raise ValueError(f"collection config lacks required fields: {sorted(missing)}")
+    jobs = payload["jobs"]
+    if not isinstance(jobs, list) or not jobs:
+        raise ValueError("collection config jobs must be a nonempty list")
+    base = path.resolve().parent
+    return {
+        "jobs_paths": [_resolve_config_path(value, base=base) for value in jobs],
+        "output_dir": _resolve_config_path(payload["output_dir"], base=base),
+        "expected_count": payload.get("expected_count"),
+        "allow_incomplete": bool(payload.get("allow_incomplete", False)),
+    }
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
+        "--config",
+        type=Path,
+        help="Collection configuration file; replaces the other options",
+    )
+    parser.add_argument(
         "--jobs",
         action="append",
-        required=True,
         help="JSONL job declaration; repeat for pilot and production files",
     )
-    parser.add_argument("--output-dir", required=True)
-    parser.add_argument("--expected-count", type=int)
+    parser.add_argument(
+        "--output-dir", help="Directory to write the collected tables into"
+    )
+    parser.add_argument(
+        "--expected-count",
+        type=int,
+        help="Number of declared jobs the collection must contain",
+    )
     parser.add_argument(
         "--allow-incomplete",
         action="store_true",
@@ -417,6 +596,22 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> dict[str, Any]:
     args = _build_parser().parse_args(argv)
+    if args.config is not None:
+        explicit = any(
+            (
+                args.jobs,
+                args.output_dir,
+                args.expected_count is not None,
+                args.allow_incomplete,
+            )
+        )
+        if explicit:
+            raise ValueError("--config cannot be combined with explicit options")
+        return collect_representation_accessibility(
+            **_load_collection_config(args.config)
+        )
+    if not args.jobs or args.output_dir is None:
+        raise ValueError("--jobs and --output-dir are required without --config")
     return collect_representation_accessibility(
         jobs_paths=args.jobs,
         output_dir=args.output_dir,
@@ -425,5 +620,12 @@ def main(argv: list[str] | None = None) -> dict[str, Any]:
     )
 
 
+def cli_main(argv: list[str] | None = None) -> int:
+    """Console entry point: run :func:`main` and exit 0 on success."""
+    setup_logging()
+    main(argv)
+    return 0
+
+
 if __name__ == "__main__":  # pragma: no cover
-    main()
+    raise SystemExit(cli_main())

@@ -53,13 +53,22 @@ def add_error_bars(
     label: str,
     capsize: int = 4,
     capthick: float = 1.5,
+    *,
+    marker: str = "o",
+    linestyle: str = "-",
 ):
-    """Add error bars to a plot with standard styling."""
+    """Add error bars to a plot with standard styling.
+
+    A plot with several series passes each its own ``marker`` and
+    ``linestyle`` (for example from ``dendritic_modeling.plotting.styles.
+    indexed_style``), so that the series read without colour.
+    """
     return ax.errorbar(
         x,
         y,
         yerr=yerr,
-        marker="o",
+        marker=marker,
+        linestyle=linestyle,
         linewidth=2,
         color=color,
         label=label,

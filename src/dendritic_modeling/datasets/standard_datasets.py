@@ -5,7 +5,7 @@ This module contains functions for loading and preprocessing standard datasets
 like MNIST, CIFAR, and ImageNet, as well as synthetic datasets for theoretical validation.
 """
 
-import importlib
+import difflib
 import logging
 import os
 import pickle
@@ -52,12 +52,16 @@ from .paired import (
     _build_paired_arithmetic_dataset as _build_paired_arithmetic_dataset,
     _make_pair_indices as _make_pair_indices,
 )
+from .parameters import (
+    reject_unapplied_label_noise,
+    reject_unapplied_processing,
+    reject_unread_dataset_params,
+)
 from .paths import get_data_directory, split_generator as _split_generator
 from .poisson import PoissonGeneratorDataset as PoissonGeneratorDataset
-from .registry import build_registered_dataset
-from .synthetic_datasets import get_synthetic_datasets
+from .registry import build_registered_dataset, get_dataset_spec
+from .synthetic_datasets import get_synthetic_datasets, synthetic_dataset_parameter_keys
 from .unified_options import (
-    _EXPERIMENTAL_DATASET_IMPORT_CANDIDATES,
     _THEORETICAL_SYNTHETIC_DATASET_NAMES,
     _DatasetTriplet,
     _get_config_value as _imported_get_config_value,
@@ -138,7 +142,12 @@ def _maybe_apply_label_noise_to_triplet(
     label_noise_seed: int,
 ) -> tuple[Dataset, Dataset, Dataset]:
     """Apply label noise to the training TensorDataset only when configured."""
-    if label_noise_rate > 0.0 and isinstance(train_ds, TensorDataset):
+    if label_noise_rate > 0.0:
+        if not isinstance(train_ds, TensorDataset):
+            raise TypeError(
+                "label noise needs an in-memory TensorDataset training split, got "
+                f"{type(train_ds).__name__}"
+            )
         num_classes = _infer_num_classes(train_ds)
         if num_classes > 0:
             train_ds = _apply_label_noise(
@@ -220,15 +229,28 @@ def _is_recoverable_torchvision_error(exc: BaseException) -> bool:
     return any(pattern in message for pattern in recoverable_patterns)
 
 
-def _clear_dataset_cache(root: str) -> None:
-    """Remove cached dataset payload while preserving the download lock file."""
-    if not os.path.isdir(root):
-        return
+def _dataset_cache_entries(dataset_cls: Any, root: str) -> list[str]:
+    """Return the paths under ``root`` that hold ``dataset_cls``'s own files.
 
-    for entry in os.listdir(root):
-        if entry == ".download.lock":
-            continue
-        entry_path = os.path.join(root, entry)
+    CIFAR-10 and CIFAR-100 share one root, each with an extracted folder
+    (``base_folder``) and its archive (``filename``). MNIST-style datasets keep
+    everything under ``root/<class name>``.
+    """
+    base_folder = getattr(dataset_cls, "base_folder", None)
+    if isinstance(base_folder, str):
+        entries = [base_folder]
+        archive = getattr(dataset_cls, "filename", None)
+        if isinstance(archive, str):
+            entries.append(archive)
+    else:
+        name = getattr(dataset_cls, "__name__", None)
+        entries = [name] if isinstance(name, str) else []
+    return [os.path.join(root, entry) for entry in entries]
+
+
+def _clear_dataset_cache(dataset_cls: Any, root: str) -> None:
+    """Remove ``dataset_cls``'s cached files, leaving other datasets in ``root``."""
+    for entry_path in _dataset_cache_entries(dataset_cls, root):
         try:
             if os.path.isdir(entry_path):
                 shutil.rmtree(entry_path)
@@ -259,7 +281,7 @@ def _load_torchvision_train_test_pair(dataset_cls, *, root, transform, dataset_n
                 root,
                 exc,
             )
-            _clear_dataset_cache(root)
+            _clear_dataset_cache(dataset_cls, root)
             train_dataset = dataset_cls(
                 root=root, train=True, download=True, transform=transform
             )
@@ -508,11 +530,12 @@ def _materialize_cifar_tensor_triplet(
             torch.utils.data.TensorDataset(x_test, y_test),
         )
 
+    # train_valid_split=1.0 keeps every training sample and holds out none.
     x_train, y_train = _dataset_to_tensors(train_dataset, flatten=flatten)
     x_test, y_test = _dataset_to_tensors(test_dataset, flatten=flatten)
     return (
         torch.utils.data.TensorDataset(x_train, y_train),
-        torch.utils.data.TensorDataset(x_train.clone(), y_train.clone()),
+        torch.utils.data.TensorDataset(x_train[:0], y_train[:0]),
         torch.utils.data.TensorDataset(x_test, y_test),
     )
 
@@ -959,65 +982,33 @@ def _load_theoretical_synthetic_dataset_triplet(
     return get_synthetic_datasets(dataset_config)
 
 
-def _experimental_dataset_import_path_candidates() -> list[str]:
-    """Return historical experiments-package import roots in legacy order."""
-    repo_root = os.path.dirname(
-        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    )
-    experiments_root = os.path.join(repo_root, "experiments")
-    return [
-        experiments_root,
-        os.path.join(experiments_root, "experiments"),
-    ]
-
-
-def _ensure_experimental_dataset_import_paths(path_candidates: list[str]) -> None:
-    """Add existing experiments-package roots to ``sys.path`` with legacy insertion."""
-    import sys
-
-    for candidate_path in path_candidates:
-        if os.path.isdir(candidate_path) and candidate_path not in sys.path:
-            sys.path.insert(0, candidate_path)
-
-
-def _resolve_experimental_dataset_loader() -> tuple[Callable | None, Exception | None]:
-    """Resolve the optional experiments dataset loader plus the final import error."""
-    last_error: Exception | None = None
-    get_experimental_datasets = None
-    for module_name in _EXPERIMENTAL_DATASET_IMPORT_CANDIDATES:
-        try:
-            module = importlib.import_module(module_name)
-            get_experimental_datasets = module.get_unified_datasets
-            break
-        except Exception as e:  # pragma: no cover - fallback path
-            last_error = e
-    return get_experimental_datasets, last_error
-
-
-def _load_experimental_dataset_triplet(
-    *,
-    dataset_name: str,
-    task_cfg: Any,
-) -> tuple[Dataset, Dataset, Dataset]:
-    """Load a dataset from the optional experiments package fallback."""
-    # For synthetic/experimental datasets, delegate to experiments synthetic datasets.
-    # Keep this robust to both layouts:
-    #   <repo>/experiments/experiments/data_generation/synthetic_datasets.py
-    #   <repo>/experiments/data_generation/synthetic_datasets.py
-    # Ensure both candidate roots are importable regardless launch cwd/PYTHONPATH.
-    _ensure_experimental_dataset_import_paths(
-        _experimental_dataset_import_path_candidates()
+def _known_dataset_names() -> list[str]:
+    """Return every name ``get_unified_datasets`` can load."""
+    from dendritic_modeling.datasets.registry import get_registered_dataset_names
+    from dendritic_modeling.datasets.sequence.builders.registry import (
+        SEQUENCE_DATASET_BUILDERS,
     )
 
-    get_experimental_datasets, last_error = _resolve_experimental_dataset_loader()
+    return sorted(
+        {
+            *_STANDARD_VISION_DATASET_LOADERS,
+            *_SPECIAL_DATASET_LOADERS,
+            *_THEORETICAL_SYNTHETIC_DATASET_NAMES,
+            *SEQUENCE_DATASET_BUILDERS,
+            *get_registered_dataset_names(),
+        }
+    )
 
-    if get_experimental_datasets is None:
-        raise ValueError(
-            f"Unknown dataset name: {dataset_name}. Synthetic datasets not available: {last_error}"
-        )
 
-    train_ds, valid_ds, test_ds = get_experimental_datasets(task_cfg, task_cfg)
-    return _ensure_slice_safe_triplet(train_ds, valid_ds, test_ds)
+def _reject_unknown_dataset(dataset_name: str) -> None:
+    known = _known_dataset_names()
+    match = difflib.get_close_matches(str(dataset_name), known, n=1)
+    hint = f" (did you mean {match[0]!r}?)" if match else ""
+    raise ValueError(
+        f"Unknown dataset {dataset_name!r}{hint}. Known datasets: "
+        f"{', '.join(known)}. Datasets defined outside the library are added with "
+        "dendritic_modeling.datasets.registry.register_dataset."
+    )
 
 
 def _load_poisson_generator_from_options(
@@ -1091,7 +1082,6 @@ def _load_paired_arithmetic_from_options(
     *,
     default_shuffle_iterations: int,
     include_context: bool,
-    valid_fallback_to_test: bool = False,
     slice_safe: bool = False,
 ) -> _DatasetTriplet:
     data = loader(
@@ -1101,11 +1091,7 @@ def _load_paired_arithmetic_from_options(
             include_context=include_context,
         )
     )
-    return _dataset_mapping_to_triplet(
-        data,
-        valid_fallback_to_test=valid_fallback_to_test,
-        slice_safe=slice_safe,
-    )
+    return _dataset_mapping_to_triplet(data, slice_safe=slice_safe)
 
 
 def _load_mnist_modulo10_from_options(
@@ -1116,7 +1102,6 @@ def _load_mnist_modulo10_from_options(
         load_mnist_modulo10,
         default_shuffle_iterations=2,
         include_context=False,
-        valid_fallback_to_test=True,
     )
 
 
@@ -1170,6 +1155,48 @@ _SPECIAL_DATASET_LOADERS: dict[
 }
 
 
+_PAIRED_ARITHMETIC_KEYS = frozenset({"shuffle_iterations", "pair_seed"})
+# The data.dataset_params keys each non-sequence loader reads. Sequence
+# builders are checked against the keys they look up while building.
+_DATASET_PARAMETER_KEYS: dict[str, frozenset[str]] = {
+    **dict.fromkeys(_STANDARD_VISION_DATASET_LOADERS, frozenset()),
+    "poisson_generator": frozenset(
+        {
+            "base_dataset",
+            "poisson_sampling",
+            "stimulus_duration",
+            "multiplicative_gain",
+            "fixed_gain_factor",
+            "max_gain_factor",
+            "max_gain_tau_ratio",
+            "uniform_gain",
+            "gain_sampling",
+        }
+    ),
+    "imagenet": frozenset(
+        {
+            "train_samples_per_class",
+            "val_samples_per_class",
+            "transform_preset",
+            "allow_flatten_materialize",
+            "loader_backend",
+        }
+    ),
+    "mnist_modulo10": _PAIRED_ARITHMETIC_KEYS,
+    "cifar10_modulo10": _PAIRED_ARITHMETIC_KEYS,
+    "double_cifar10_contextual_mod10": _PAIRED_ARITHMETIC_KEYS | {"context_seed"},
+    "double_mnist_contextual_mod10": _PAIRED_ARITHMETIC_KEYS | {"context_seed"},
+}
+
+
+def _declared_parameter_keys(dataset_name: str) -> frozenset[str] | None:
+    """Return the parameter keys a non-sequence loader reads, else None."""
+    keys = _DATASET_PARAMETER_KEYS.get(dataset_name)
+    if keys is None and dataset_name in _THEORETICAL_SYNTHETIC_DATASET_NAMES:
+        keys = synthetic_dataset_parameter_keys(dataset_name)
+    return keys
+
+
 def _load_special_dataset_triplet(
     options: _UnifiedDatasetOptions,
 ) -> _DatasetTriplet | None:
@@ -1197,6 +1224,40 @@ def _load_special_dataset_triplet(
     return None
 
 
+# data.processing options each non-sequence loader applies. Synthetic
+# datasets are flat vectors, so a flatten request is already met.
+_PROCESSING_BY_LOADER = {
+    **dict.fromkeys(
+        _STANDARD_VISION_DATASET_LOADERS, frozenset({"flatten", "normalize"})
+    ),
+    "imagenet": frozenset({"flatten", "normalize"}),
+    "poisson_generator": frozenset({"flatten"}),
+    **dict.fromkeys(
+        (
+            "mnist_modulo10",
+            "cifar10_modulo10",
+            "double_cifar10_contextual_mod10",
+            "double_mnist_contextual_mod10",
+        ),
+        frozenset({"flatten", "normalize"}),
+    ),
+}
+
+
+def _applied_processing(dataset_name: str) -> frozenset[str] | None:
+    """Return the processing options a non-sequence loader applies, else None.
+
+    Sequence builders are checked against the options they read while building;
+    registered datasets declare theirs (None leaves them unchecked).
+    """
+    if dataset_name in _PROCESSING_BY_LOADER:
+        return _PROCESSING_BY_LOADER[dataset_name]
+    if dataset_name in _THEORETICAL_SYNTHETIC_DATASET_NAMES:
+        return frozenset({"flatten"})
+    spec = get_dataset_spec(dataset_name)
+    return None if spec is None else spec.processing
+
+
 def get_unified_datasets(task_cfg):
     """
     Get datasets based on configuration.
@@ -1210,10 +1271,24 @@ def get_unified_datasets(task_cfg):
     options = _resolve_unified_dataset_options(task_cfg)
     dataset_name = options.dataset_name
     task_data_path = options.task_data_path
+    reject_unapplied_label_noise(dataset_name, options.label_noise_rate)
+    applied = _applied_processing(dataset_name)
+    if applied is not None:
+        reject_unapplied_processing(dataset_name, options.parameters, applied)
 
     registered = build_registered_dataset(dataset_name, task_cfg)
     if registered is not None:
         return registered
+    # Registered datasets define their own splits; every other loader trains
+    # on the first train_valid_split fraction of its training data.
+    if float(options.train_valid_split) == 0.0:
+        raise ValueError(
+            f"experiment.train_valid_split=0 leaves dataset {dataset_name!r} no "
+            "training samples"
+        )
+    declared_keys = _declared_parameter_keys(dataset_name)
+    if declared_keys is not None:
+        reject_unread_dataset_params(dataset_name, options.parameters, declared_keys)
 
     # Handle standard datasets directly
     standard_vision_datasets = _load_standard_vision_dataset_triplet(
@@ -1233,7 +1308,4 @@ def get_unified_datasets(task_cfg):
     if special_datasets is not None:
         return special_datasets
 
-    return _load_experimental_dataset_triplet(
-        dataset_name=dataset_name,
-        task_cfg=task_cfg,
-    )
+    _reject_unknown_dataset(dataset_name)

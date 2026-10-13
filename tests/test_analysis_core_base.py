@@ -43,14 +43,16 @@ class TestAbstractAnalyzer:
         """Test initialization with default logger name."""
         analyzer = ConcreteAnalyzer()
 
-        assert analyzer.logger.name == "ConcreteAnalyzer"
+        assert analyzer.logger.name == "dendritic_modeling.analysis.ConcreteAnalyzer"
         assert isinstance(analyzer.logger, logging.Logger)
 
     def test_init_custom_logger(self):
         """Test initialization with custom logger name."""
         analyzer = ConcreteAnalyzer(logger_name="custom_analyzer")
 
-        assert analyzer.logger.name == "custom_analyzer"
+        assert analyzer.logger.name == "dendritic_modeling.analysis.custom_analyzer"
+        package_name = ConcreteAnalyzer(logger_name="dendritic_modeling.tools.x")
+        assert package_name.logger.name == "dendritic_modeling.tools.x"
 
     def test_analyze_method_implementation(self):
         """Test that concrete implementation works."""
@@ -340,12 +342,17 @@ class TestAbstractAnalyzerEdgeCases:
         # Test with module-style naming
         analyzer = ConcreteAnalyzer(logger_name="module.submodule.analyzer")
 
-        assert analyzer.logger.name == "module.submodule.analyzer"
+        assert (
+            analyzer.logger.name
+            == "dendritic_modeling.analysis.module.submodule.analyzer"
+        )
 
         # Test logger propagation
         with patch("logging.getLogger") as mock_get_logger:
             ConcreteAnalyzer(logger_name="test.logger")
-            mock_get_logger.assert_called_with("test.logger")
+            mock_get_logger.assert_called_with(
+                "dendritic_modeling.analysis.test.logger"
+            )
 
     def test_analyze_with_all_kwargs(self):
         """Test analyze method with various kwargs."""
@@ -404,3 +411,48 @@ class TestAbstractAnalyzerEdgeCases:
         assert isinstance(result["numpy_array"], np.ndarray)
         assert isinstance(result["numpy_2d"], np.ndarray)
         assert result["torch_tensor"] == [5, 6, 7]
+
+
+def test_analyzer_records_reach_the_run_log(tmp_path):
+    """Analyzer warnings and INFO records are written to dendritic_modeling.log."""
+    from dendritic_modeling.analysis.tools.compartment_statistics import (
+        CompartmentStatisticsAnalyzer,
+    )
+    from dendritic_modeling.config.analysis import CompartmentStatisticsAnalysisParams
+    from dendritic_modeling.utils.logging_config import LOG_FILE_NAME, LoggerManager
+
+    package = logging.getLogger("dendritic_modeling")
+    main_logger = logging.getLogger("__main__")
+    saved = {item: (list(item.handlers), item.level) for item in (package, main_logger)}
+    try:
+        LoggerManager().set_log_directory(str(tmp_path))
+        analyzer = CompartmentStatisticsAnalyzer(CompartmentStatisticsAnalysisParams())
+        assert analyzer.logger.name.startswith("dendritic_modeling.analysis.")
+        analyzer.logger.warning("analyzer warning record")
+        analyzer.logger.info("analyzer info record")
+        ConcreteAnalyzer(logger_name="CustomName").logger.warning("custom record")
+        for handler in package.handlers:
+            handler.flush()
+        text = (tmp_path / LOG_FILE_NAME).read_text()
+        assert "analyzer warning record" in text
+        assert "analyzer info record" in text
+        assert "custom record" in text
+    finally:
+        for item, (handlers, level) in saved.items():
+            for handler in list(item.handlers):
+                if handler not in handlers:
+                    item.removeHandler(handler)
+                    handler.close()
+            item.setLevel(level)
+
+
+def test_information_estimator_loggers_are_inside_the_package_tree():
+    from dendritic_modeling.utils.information.estimators import (
+        BinnedEstimator,
+        EstimatorConfig,
+    )
+
+    estimator = BinnedEstimator(EstimatorConfig(method="binned"))
+    assert estimator.logger.name == (
+        "dendritic_modeling.utils.information.estimators.BinnedEstimator"
+    )

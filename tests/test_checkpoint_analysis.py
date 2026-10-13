@@ -43,7 +43,7 @@ def test_load_standalone_analysis_config(tmp_path: Path) -> None:
 
     config = load_analysis_config(str(path))
 
-    section = config.representation_accessibility_analysis
+    section = config.representation_accessibility
     assert section.enabled is True
     assert section.params.projections[0].type == "balanced_countsketch"
     assert section.params.projections[0].output_dim == 8
@@ -74,6 +74,8 @@ def test_run_checkpoint_analysis_records_provenance(
     model = torch.nn.Linear(2, 2)
     torch.save(model.state_dict(), checkpoint_path)
     config = Config()
+    config.experiment.record_dataset_fingerprints = True
+    setup_arguments = {}
 
     monkeypatch.setattr(runner, "load_config", lambda _: config)
     monkeypatch.setattr(
@@ -81,25 +83,26 @@ def test_run_checkpoint_analysis_records_provenance(
         "load_analysis_config",
         lambda *_args, **_kwargs: config.analysis,
     )
-    monkeypatch.setattr(
-        runner,
-        "setup_environment",
-        lambda **_kwargs: (
+
+    def fake_setup_environment(**kwargs):
+        setup_arguments.update(kwargs)
+        return (
             str(output_dir),
             [(torch.zeros(2), 0)],
             [(torch.zeros(2), 0)],
             [(torch.zeros(2), 0)],
             model,
             None,
-        ),
-    )
+        )
+
+    monkeypatch.setattr(runner, "setup_environment", fake_setup_environment)
 
     class FakeManager:
         def __init__(self, **_kwargs):
             pass
 
         def run_analysis(self, **_kwargs):
-            return {"ok": True}
+            return {"complete": True, "analyses": {}}
 
     monkeypatch.setattr(runner, "AnalysisManager", FakeManager)
 
@@ -112,8 +115,11 @@ def test_run_checkpoint_analysis_records_provenance(
     )
 
     provenance = result["provenance"]
+    assert "checkpoint_analysis_provenance.json" in result["result_files"]
     assert provenance["training_performed"] is False
     assert provenance["state_dict_key_count"] == 2
     assert provenance["dataset_sizes"] == {"train": 1, "valid": 1, "test": 1}
     assert "code_identity" in provenance
+    assert provenance["analysis_status"] == {"complete": True, "analyses": {}}
+    assert setup_arguments["experiment_config"].record_dataset_fingerprints is False
     assert (output_dir / "checkpoint_analysis_provenance.json").is_file()

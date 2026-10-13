@@ -31,6 +31,7 @@ from dendritic_modeling.analysis.utils.recurrent_introspection import (
 )
 from dendritic_modeling.config.analysis import JacobianSpectrumAnalysisParams
 from dendritic_modeling.models import BaseModel
+from dendritic_modeling.plotting.styles import indexed_style
 from dendritic_modeling.utils import save_dict
 
 logger = logging.getLogger(__name__)
@@ -233,7 +234,8 @@ class JacobianSpectrumAnalyzer(AbstractAnalyzer):
                     ax_curve.plot(
                         range(len(sigma_rec)),
                         sigma_rec,
-                        marker="o",
+                        marker=indexed_style(j).marker,
+                        linestyle=indexed_style(j).linestyle,
                         ms=3.0,
                         lw=1.0,
                         color=colors[j],

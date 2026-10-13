@@ -7,13 +7,26 @@ from typing import Any
 
 from torch.utils.data import Dataset
 
+from dendritic_modeling.datasets.poisson import POISSON_GENERATOR_DEFAULTS
+from dendritic_modeling.datasets.synthetic_datasets import synthetic_dataset_names
+
 _SEQUENCE_DATASET_NAMES = (
     "sequential_mnist",
     "copy_task",
     "adding_problem",
     "variable_delay_dms",
+    "speeded_distractor_dms",
+    "speeded_distractor_dms_positive",
     "multi_frequency",
     "hierarchical_temporal",
+    "bayesian_ready_set_go",
+    "bayesian_ready_set_go_positive",
+    "factual_bayesian_ready_set_go",
+    "factual_bayesian_ready_set_go_positive",
+    "ready_set_go",
+    "ready_set_go_positive",
+    "contextual_ready_set_go",
+    "contextual_ready_set_go_positive",
     "context_dependent_decision",
     "context_dependent_decision_hard",
     "context_dependent_decision_positive",
@@ -35,22 +48,8 @@ _SEQUENCE_DATASET_NAMES = (
     "stringer_v1",
 )
 
-_THEORETICAL_SYNTHETIC_DATASET_NAMES = (
-    "correlated_gaussian",
-    "nonlinear_interaction",
-    "linear_separable",
-    "nonlinear_separable",
-    "block_correlated",
-    "balanced_information",
-    "contextual_stream_gain_shift",
-    "branch_local_gain_load",
-    "hierarchical_gain_load",
-)
-
-_EXPERIMENTAL_DATASET_IMPORT_CANDIDATES = (
-    "experiments.data_generation.synthetic_datasets",
-    "data_generation.synthetic_datasets",
-)
+# Every synthetic dataset of the library is selectable by name.
+_THEORETICAL_SYNTHETIC_DATASET_NAMES = synthetic_dataset_names()
 
 _DatasetTriplet = tuple[Dataset, Dataset, Dataset]
 
@@ -90,6 +89,7 @@ def _resolve_unified_dataset_options(task_cfg: Any) -> _UnifiedDatasetOptions:
     parameters = _get_config_value(task_cfg, "parameters", {})
     if task_data_path == "":
         task_data_path = None
+    poisson = POISSON_GENERATOR_DEFAULTS
 
     return _UnifiedDatasetOptions(
         dataset_name=dataset_name,
@@ -98,15 +98,25 @@ def _resolve_unified_dataset_options(task_cfg: Any) -> _UnifiedDatasetOptions:
         train_valid_split=_get_config_value(task_cfg, "train_valid_split", 1.0),
         flatten=parameters.get("flatten", True),
         normalize=parameters.get("normalize", False),
-        base_dataset=parameters.get("base_dataset", "mnist"),
-        poisson_sampling=parameters.get("poisson_sampling", True),
-        stimulus_duration=parameters.get("stimulus_duration", 1.0),
-        multiplicative_gain=parameters.get("multiplicative_gain", True),
-        fixed_gain_factor=parameters.get("fixed_gain_factor", None),
-        max_gain_factor=parameters.get("max_gain_factor", None),
-        max_gain_tau_ratio=parameters.get("max_gain_tau_ratio", None),
-        uniform_gain=parameters.get("uniform_gain", True),
-        gain_sampling=parameters.get("gain_sampling", "log_uniform"),
+        base_dataset=parameters.get("base_dataset", poisson["base_dataset"]),
+        poisson_sampling=parameters.get(
+            "poisson_sampling", poisson["poisson_sampling"]
+        ),
+        stimulus_duration=parameters.get(
+            "stimulus_duration", poisson["stimulus_duration"]
+        ),
+        multiplicative_gain=parameters.get(
+            "multiplicative_gain", poisson["multiplicative_gain"]
+        ),
+        fixed_gain_factor=parameters.get(
+            "fixed_gain_factor", poisson["fixed_gain_factor"]
+        ),
+        max_gain_factor=parameters.get("max_gain_factor", poisson["max_gain_factor"]),
+        max_gain_tau_ratio=parameters.get(
+            "max_gain_tau_ratio", poisson["max_gain_tau_ratio"]
+        ),
+        uniform_gain=parameters.get("uniform_gain", poisson["uniform_gain"]),
+        gain_sampling=parameters.get("gain_sampling", poisson["gain_sampling"]),
         split_seed=int(parameters.get("split_seed", parameters.get("seed", 0)) or 0),
         label_noise_rate=parameters.get("label_noise_rate", 0.0),
         label_noise_seed=parameters.get("label_noise_seed", 0),
@@ -114,7 +124,6 @@ def _resolve_unified_dataset_options(task_cfg: Any) -> _UnifiedDatasetOptions:
 
 
 __all__ = [
-    "_EXPERIMENTAL_DATASET_IMPORT_CANDIDATES",
     "_SEQUENCE_DATASET_NAMES",
     "_THEORETICAL_SYNTHETIC_DATASET_NAMES",
     "_DatasetTriplet",

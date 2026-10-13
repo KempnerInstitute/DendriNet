@@ -7,6 +7,10 @@ Configuration classes for regularization and pruning.
 from dataclasses import dataclass, field
 
 from dendritic_modeling.config.base import BaseConfig
+from dendritic_modeling.config.choices import normalize_choice
+
+EI_RATIO_SCOPES = ("per_branch", "per_layer", "global")
+EI_RATIO_METRICS = ("mean", "median", "rms")
 
 
 @dataclass
@@ -50,8 +54,20 @@ class RegularizationConfig(BaseConfig):
     ei_ratio_loss_weight: float = (
         0.5  # Regularization strength (fraction of total loss)
     )
-    ei_ratio_scope: str = "per_branch"  # Options: "per_branch", "per_layer", "global"
-    ei_ratio_metric: str = "mean"  # Options: "mean", "median", "rms"
+    # Statistics run over each synapse bank's dense weight matrix, inactive
+    # candidates included as zeros. "per_branch" compares each branch's E and I
+    # statistic; "per_layer" each layer's; "global" is the per-layer ratio
+    # averaged over layers (the same computation as "per_layer").
+    ei_ratio_scope: str = "per_branch"  # "per_branch", "per_layer", "global"
+    ei_ratio_metric: str = "mean"  # "mean", "median", "rms"
+
+    def __post_init__(self) -> None:
+        self.ei_ratio_scope = normalize_choice(
+            self.ei_ratio_scope, EI_RATIO_SCOPES, field="ei_ratio_scope"
+        )
+        self.ei_ratio_metric = normalize_choice(
+            self.ei_ratio_metric, EI_RATIO_METRICS, field="ei_ratio_metric"
+        )
 
 
 @dataclass
@@ -66,8 +82,6 @@ class PruningConfig(BaseConfig):
         )
     )
     re_evaluate_after: bool = False  # Whether to re-evaluate after pruning
-    dynamic_pruning: bool = False  # Whether to prune during training
-    pruning_frequency: int = 10  # Epochs between dynamic pruning
 
     report_non_pruned: bool = True  # Report number of non-pruned synapses
     save_pruning_stats: bool = False  # Save pruning statistics to file

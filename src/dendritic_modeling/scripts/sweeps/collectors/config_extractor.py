@@ -5,7 +5,17 @@ from pathlib import Path
 
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
+from dendritic_modeling.config.training import LOCAL_RULE_STRATEGIES
+
 logger = logging.getLogger(__name__)
+
+
+# Population-network fields renamed on 2026-10-08, keyed by the old name.
+_RENAMED_POPULATION_FIELDS = {
+    "topk_strategy": "topk_gradient_scaling",
+    "reactivation_strategy": "reactivation_gradient_scaling",
+    "blocklinear_strategy": "blocklinear_gradient_scaling",
+}
 
 
 class ConfigExtractor:
@@ -96,6 +106,12 @@ class ConfigExtractor:
                         self._extract_population_network_params(core.population_network)
                     )
 
+                target_active_parameters = getattr(
+                    core, "target_active_parameters", None
+                )
+                if target_active_parameters is not None:
+                    params["target_active_parameters"] = int(target_active_parameters)
+
                 # Connectivity parameters
                 if hasattr(core, "connectivity"):
                     conn = core.connectivity
@@ -121,9 +137,27 @@ class ConfigExtractor:
                 if hasattr(core, "architecture"):
                     arch = core.architecture
                     if hasattr(arch, "excitatory_layer_sizes"):
-                        params["excitatory_layers"] = arch.excitatory_layer_sizes
+                        excitatory_layers = self._to_plain_container(
+                            arch.excitatory_layer_sizes
+                        )
+                        params["excitatory_layers"] = excitatory_layers
+                        if (
+                            isinstance(excitatory_layers, list)
+                            and excitatory_layers
+                            and len(set(excitatory_layers)) == 1
+                        ):
+                            params["excitatory_width"] = excitatory_layers[0]
                     if hasattr(arch, "inhibitory_layer_sizes"):
-                        params["inhibitory_layers"] = arch.inhibitory_layer_sizes
+                        inhibitory_layers = self._to_plain_container(
+                            arch.inhibitory_layer_sizes
+                        )
+                        params["inhibitory_layers"] = inhibitory_layers
+                        if (
+                            isinstance(inhibitory_layers, list)
+                            and inhibitory_layers
+                            and len(set(inhibitory_layers)) == 1
+                        ):
+                            params["inhibitory_width"] = inhibitory_layers[0]
                     if hasattr(arch, "excitatory_branch_factors"):
                         branch_factors = arch.excitatory_branch_factors
                         if (
@@ -148,6 +182,12 @@ class ConfigExtractor:
                             "mlp",
                         ]:
                             params["point_reference_use_shunting"] = saved_use_shunting
+                    if hasattr(morph, "use_additive_normalization"):
+                        params["use_additive_normalization"] = bool(
+                            morph.use_additive_normalization
+                        )
+                    if hasattr(morph, "additive_mode"):
+                        params["additive_mode"] = str(morph.additive_mode)
 
                 # If core.type explicitly specifies the network variant, make sure the
                 # extracted `use_shunting` matches the *actual* instantiated behavior.
@@ -189,6 +229,15 @@ class ConfigExtractor:
 
         except Exception as e:
             logger.warning(f"Error extracting model params: {e}")
+
+        network_type = str(params.get("network_type", "")).lower()
+        if "use_shunting" in params and network_type not in {"point_mlp", "mlp"}:
+            if bool(params["use_shunting"]):
+                params["integration_rule"] = "shunting"
+            elif bool(params.get("use_additive_normalization", False)):
+                params["integration_rule"] = "normalized_additive"
+            else:
+                params["integration_rule"] = str(params.get("additive_mode", "raw"))
 
         return params
 
@@ -249,6 +298,61 @@ class ConfigExtractor:
             return unique[0]
         return "mixed:" + "|".join(sorted(str(value) for value in unique))
 
+    def _summarize_structured_connectivity(
+        self, layers: list
+    ) -> tuple[bool | str, str, str]:
+        """Summarize the effective structured-routing policy across populations."""
+        values: list[tuple[bool, str, str]] = []
+        for layer in layers:
+            if not isinstance(layer, dict):
+                continue
+            defaults = layer.get("population_defaults") or {}
+            if not isinstance(defaults, dict):
+                defaults = {}
+            populations = layer.get("populations") or []
+            population_records = populations if isinstance(populations, list) else []
+            if not population_records:
+                population_records = [{}]
+            for population in population_records:
+                if not isinstance(population, dict):
+                    continue
+                overrides = population.get("population") or {}
+                if not isinstance(overrides, dict):
+                    overrides = {}
+                declaration = overrides.get(
+                    "structured_connectivity",
+                    defaults.get("structured_connectivity", {}),
+                )
+                declaration = self._to_plain_container(declaration) or {}
+                if not isinstance(declaration, dict):
+                    declaration = {}
+                enabled = bool(declaration.get("enabled", False))
+                method = str(declaration.get("method", "none")) if enabled else "none"
+                spatial = declaration.get("spatial") or {}
+                if not isinstance(spatial, dict):
+                    spatial = {}
+                region_mode = (
+                    str(spatial.get("region_mode", "partition"))
+                    if enabled
+                    and method in {"spatial_morphology", "morphology_spatial"}
+                    else "none"
+                )
+                value = (enabled, method, region_mode)
+                if value not in values:
+                    values.append(value)
+
+        if not values:
+            return False, "none", "none"
+        if len(values) == 1:
+            return values[0]
+        methods = "|".join(
+            sorted(
+                f"{int(enabled)}:{method}:{region_mode}"
+                for enabled, method, region_mode in values
+            )
+        )
+        return "mixed", f"mixed:{methods}", "mixed"
+
     def _extract_population_network_params(self, population_network) -> dict:
         """Extract sweep axes from canonical ``population_network`` configs.
 
@@ -270,6 +374,7 @@ class ConfigExtractor:
         params["network_layer_count"] = len(layers)
         for field in (
             "blocklinear_strategy",
+            "topk_type",
             "topk_strategy",
             "reactivation_strategy",
             "reactivation_init_policy",
@@ -278,8 +383,35 @@ class ConfigExtractor:
             "init_method",
         ):
             value = self._summarize_population_field(layers, field)
+            current_name = _RENAMED_POPULATION_FIELDS.get(field)
+            if current_name is not None:
+                # Configs written since 2026-10-08 use the new field names; the
+                # output columns keep the old names.
+                current = self._summarize_population_field(layers, current_name)
+                if current is not None:
+                    value = current
             if value is not None:
                 params[field] = value
+
+        structured_enabled, structured_method, spatial_region_mode = (
+            self._summarize_structured_connectivity(layers)
+        )
+        params["structured_connectivity_enabled"] = structured_enabled
+        params["structured_connectivity_method"] = structured_method
+        params["spatial_region_mode"] = spatial_region_mode
+        if structured_enabled is True:
+            params["synaptic_routing"] = (
+                f"{structured_method}_{spatial_region_mode}"
+                if structured_method in {"spatial_morphology", "morphology_spatial"}
+                and spatial_region_mode != "partition"
+                else structured_method
+            )
+        elif structured_enabled is False and params.get("topk_type") == "indexed":
+            params["synaptic_routing"] = "global_fixed_index"
+        elif structured_enabled == "mixed":
+            params["synaptic_routing"] = "mixed"
+        else:
+            params["synaptic_routing"] = "unstructured"
 
         first_layer = layers[0]
         if not isinstance(first_layer, dict):
@@ -325,6 +457,8 @@ class ConfigExtractor:
             params["use_additive_normalization"] = bool(
                 pop_params["use_additive_normalization"]
             )
+        if "additive_mode" in pop_params:
+            params["additive_mode"] = str(pop_params["additive_mode"])
 
         if isinstance(readout_pop, dict):
             if "branch_factors" in readout_pop:
@@ -429,7 +563,9 @@ class ConfigExtractor:
                         ("early_stopping", "early_stopping"),
                         ("patience", "early_stopping_patience"),
                         ("grad_clip_value", "grad_clip_value"),
+                        # Records written before 2026-10-08 use weight_decay_rate.
                         ("weight_decay_rate", "sparse_weight_decay_rate"),
+                        ("synapse_decay_rate", "sparse_weight_decay_rate"),
                         ("weight_boosting", "sparse_weight_boosting"),
                     ):
                         if hasattr(common, source_key):
@@ -446,10 +582,12 @@ class ConfigExtractor:
                             optimizer, "weight_decay", 0.0
                         )
 
-                # Local learning parameters
+                # Local learning parameters, for the strategies that read them
                 if (
                     hasattr(main, "learning_strategy_config")
                     and main.learning_strategy_config
+                    and str(getattr(main, "strategy", "standard")).lower()
+                    in LOCAL_RULE_STRATEGIES
                 ):
                     local_cfg = main.learning_strategy_config
                     params.update(self._extract_local_learning_params(local_cfg))
@@ -556,6 +694,9 @@ class ConfigExtractor:
         params = {}
 
         try:
+            if hasattr(config, "_sweep_variant"):
+                params["sweep_variant"] = str(config._sweep_variant)
+
             if hasattr(config, "experiment"):
                 exp = config.experiment
                 if hasattr(exp, "seed"):

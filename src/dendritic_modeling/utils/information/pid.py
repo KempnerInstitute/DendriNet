@@ -1,57 +1,86 @@
-"""Utility functions for Partial Information Decomposition (PID)."""
+"""Partial information decomposition (PID) of two sources about a target.
+
+The minimum-mutual-information (MMI) measure takes the redundancy to be the
+smaller single-source information (Barrett, Phys. Rev. E 91, 052802, 2015)::
+
+    R   = min(I(S1;T), I(S2;T))
+    U1  = I(S1;T) - R
+    U2  = I(S2;T) - R
+    Syn = I(S1,S2;T) - I(S1;T) - I(S2;T) + R
+
+For jointly Gaussian sources and a univariate target the common PID measures
+reduce to MMI. The three mutual informations come from any estimator, so the
+terms inherit its bias: with estimated values the synergy can come out slightly
+negative, and it is reported unclipped. A non-finite mutual information makes
+every term NaN.
+"""
 
 from __future__ import annotations
 
-import logging
+from collections.abc import Callable
+from dataclasses import dataclass
 
 import numpy as np
 
-try:
-    from external import PID
-except Exception as e:
-    PID = None
-    pid_error: Exception = e
-else:
-    pid_error = None
+PID_MEASURES = ("mmi",)
 
 
-def check_pid_available() -> None:
-    """Raise an ImportError if the PID package is not available."""
-    if PID is None:
-        raise ImportError("PID package not found.") from pid_error
+@dataclass(frozen=True)
+class PIDTerms:
+    """Redundant, unique and synergistic information, in the estimator's units."""
+
+    redundancy: float
+    unique_1: float
+    unique_2: float
+    synergy: float
+    joint: float
 
 
-def pid_synergy_redundancy(
-    sources: list[np.ndarray], target: np.ndarray
-) -> tuple[float, float]:
-    """Compute synergy and redundancy using the external PID library.
+def mmi_pid(i_1: float, i_2: float, i_joint: float) -> PIDTerms:
+    """Decompose ``I(S1,S2;T)`` with the minimum-mutual-information redundancy."""
+    i_1, i_2, i_joint = float(i_1), float(i_2), float(i_joint)
+    if not np.all(np.isfinite([i_1, i_2, i_joint])):
+        nan = float("nan")
+        return PIDTerms(nan, nan, nan, nan, i_joint)
+    redundancy = min(i_1, i_2)
+    return PIDTerms(
+        redundancy=redundancy,
+        unique_1=i_1 - redundancy,
+        unique_2=i_2 - redundancy,
+        synergy=i_joint - i_1 - i_2 + redundancy,
+        joint=i_joint,
+    )
 
-    Parameters
-    ----------
-    sources : list of ndarrays
-        List of source variables with shape ``(n_samples, n_features)``.
-    target : ndarray
-        Target variable with shape ``(n_samples, n_features)``.
 
-    Returns
-    -------
-    tuple of floats
-        ``(synergy, redundancy)`` from the chosen PID method.
+def _as_2d(values: np.ndarray) -> np.ndarray:
+    array = np.asarray(values)
+    return array.reshape(-1, 1) if array.ndim == 1 else array
+
+
+def partial_information_decomposition(
+    source_1: np.ndarray,
+    source_2: np.ndarray,
+    target: np.ndarray,
+    mutual_information: Callable[[np.ndarray, np.ndarray], float],
+) -> PIDTerms:
+    """MMI decomposition of the information two sources carry about ``target``.
+
+    ``mutual_information(x, y)`` estimates ``I(X;Y)`` from samples in rows; the
+    joint term passes both sources side by side.
     """
+    s1, s2 = _as_2d(source_1), _as_2d(source_2)
+    if len(s1) != len(s2) or len(s1) != len(target):
+        raise ValueError("sources and target need the same number of samples")
+    return mmi_pid(
+        mutual_information(s1, target),
+        mutual_information(s2, target),
+        mutual_information(np.hstack([s1, s2]), target),
+    )
 
-    check_pid_available()
 
-    # The exact API will depend on the external library.  Here we
-    # demonstrate a generic usage pattern expected from typical PID
-    # implementations.
-    data = np.hstack([*sources, target])
-    pid_obj = PID(data)
-
-    try:
-        synergy = pid_obj.synergy()
-        redundancy = pid_obj.redundancy()
-    except AttributeError as exc:  # pragma: no cover - depends on PID API
-        logging.error("Unexpected PID API: %s", exc)
-        raise
-
-    return float(synergy), float(redundancy)
+__all__ = [
+    "PID_MEASURES",
+    "PIDTerms",
+    "mmi_pid",
+    "partial_information_decomposition",
+]

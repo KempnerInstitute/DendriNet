@@ -53,3 +53,38 @@ def test_stable_seed_is_identity_sensitive_and_supports_legacy_rules() -> None:
         )
         != first
     )
+
+
+def test_stable_seed_prints_numpy_scalars_as_numpy_1_does() -> None:
+    # Grouped pandas keys are NumPy scalars, which NumPy 2 prints with their
+    # type (np.int64(0)); the seed must not depend on the NumPy version.
+    python_key = ("additive", 0, 1, True, 0.1, 0.1)
+    numpy_key = (
+        "additive",
+        np.int64(0),
+        np.int32(1),
+        np.bool_(True),
+        np.float64(0.1),
+        np.float32(0.1),
+    )
+    for representation in ("repr", "pipe"):
+        assert stable_seed(7, *numpy_key, representation=representation) == stable_seed(
+            7, *python_key, representation=representation
+        )
+
+    # A bootstrap seed of a published summary (the empirical manuscript's
+    # source-activity group_summary.csv of 2026-08-12, written under NumPy 1).
+    key = ("additive_occupancy_2x2", "additive", 0, 1)
+    key += ("ff_excitatory", "excitatory", "image_pixels")
+    numpy_key = tuple(np.int64(v) if isinstance(v, int) else v for v in key)
+    for identity in (key, numpy_key):
+        seed = stable_seed(20260812, "checkpoint-metric-summary", *identity)
+        assert seed == 5247841351293295840
+
+
+def test_stable_seed_ignores_print_options() -> None:
+    identity = ("shunting", np.int64(3), np.float64(0.1))
+    expected = stable_seed(42, *identity)
+    with np.printoptions(legacy="1.13", precision=2, sign="+"):
+        assert stable_seed(42, *identity) == expected
+        assert repr(np.float64(0.1)) != "0.1"  # the caller's options still apply

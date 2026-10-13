@@ -1,4 +1,4 @@
-"""Spatial dendritic core networks for pretrained backbone replacement.
+"""Spatial dendritic cores over image feature maps.
 
 Two variants:
 - **Tensor Map** (baseline/control): flatten spatial input → DendriNet → project.

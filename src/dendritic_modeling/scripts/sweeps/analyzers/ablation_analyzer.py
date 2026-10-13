@@ -6,6 +6,8 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 
+from dendritic_modeling.plotting.styles import indexed_style
+
 from ..plotters import PerformancePlotter
 from .base_analyzer import BaseSweepAnalyzer
 
@@ -123,7 +125,8 @@ class AblationSweepAnalyzer(BaseSweepAnalyzer):
         try:
             fig, ax = plt.subplots(figsize=(12, 6))
 
-            for method, target in ablation_types:
+            # Each ablation type gets its own marker and line style.
+            for index, (method, target) in enumerate(ablation_types):
                 layer_accuracies = []
 
                 for depth in depths:
@@ -146,7 +149,7 @@ class AblationSweepAnalyzer(BaseSweepAnalyzer):
                     ax.plot(
                         depths,
                         layer_accuracies,
-                        marker="o",
+                        **indexed_style(index).kwargs(),
                         label=f"{method.replace('_', ' ').title()} {target.replace('_', ' ').title()}",
                         linewidth=2,
                         markersize=6,

@@ -12,13 +12,20 @@ from dendritic_modeling.training.optimizers.factory import (
     register_optimizer,
     unregister_optimizer,
     validate_optimizer_config,
+    validate_param_group_learning_rates,
 )
+
+# Importing registers "muonh" in the optimizer registry (opt-in via
+# training.main.optimizer.name; the default AdamW path is untouched).
+from dendritic_modeling.training.optimizers.muonh import MuonH
 
 __all__ = [
     "CustomWeightDecayOptimizer",
+    "MuonH",
     "create_optimizer",
     "get_available_optimizers",
     "register_optimizer",
     "unregister_optimizer",
     "validate_optimizer_config",
+    "validate_param_group_learning_rates",
 ]

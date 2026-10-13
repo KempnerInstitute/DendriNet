@@ -72,7 +72,7 @@ def _make_trainer(model: _DummyRecurrentModel, should_step: bool) -> RecurrentTr
     trainer = RecurrentTrainer(
         optimizer=wrapped_opt,
         task="classification",
-        grad_clip=1.0,
+        grad_clip_value=1.0,
         use_amp=False,
     )
     trainer.device = "cpu"

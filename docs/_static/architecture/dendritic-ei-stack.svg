@@ -31,23 +31,23 @@
   </defs>
 
   <rect width="1320" height="930" fill="#fbfcfe"/>
-  <text x="60" y="72" class="title">Excitation-Inhibition Core</text>
-  <text x="60" y="108" class="subtitle">encoder -&gt; transfer -&gt; x_E, x_I -&gt; EI layers -&gt; y</text>
+  <text x="60" y="72" class="title">Structured E/I core</text>
+  <text x="60" y="108" class="subtitle">encoder -&gt; transfer -&gt; x_E, x_I -&gt; E/I layers -&gt; y</text>
 
   <rect x="60" y="132" width="128" height="34" class="chip"/>
   <text x="92" y="154" class="chiptext">System</text>
   <rect x="200" y="132" width="166" height="34" class="chip"/>
-  <text x="222" y="154" class="chiptext">Stacked EI Layers</text>
+  <text x="222" y="154" class="chiptext">Stacked E/I layers</text>
 
   <rect x="60" y="188" width="220" height="114" class="accent"/>
   <text x="88" y="230" class="label">Encoder</text>
-  <text x="88" y="258" class="body">Identity / MLP / CNN</text>
+  <text x="88" y="258" class="body">identity, router or autoencoder</text>
   <text x="88" y="282" class="small">raw input x</text>
 
   <rect x="334" y="178" width="308" height="132" class="accent"/>
   <text x="362" y="220" class="label">TransferLayer</text>
   <text x="362" y="250" class="body">pathway split / remap</text>
-  <text x="362" y="276" class="small">input_mode, independent_pathways,</text>
+  <text x="362" y="276" class="small">independent_pathways,</text>
   <text x="362" y="294" class="small">output_activation</text>
 
   <rect x="716" y="188" width="214" height="108" class="exc"/>
@@ -111,12 +111,12 @@
   <text x="1016" y="778" class="body">branch_factors, layer sizes</text>
   <text x="1016" y="802" class="body">somatic_synapses</text>
   <text x="1016" y="822" class="body">use_shunting</text>
-  <text x="1016" y="846" class="small">topk, gamma, weight_transform</text>
+  <text x="1016" y="846" class="small">weight_transform, dbl_init_method</text>
 
   <path d="M824 296 L824 448 L490 448 L490 468" class="arrow-thin dashed"/>
   <path d="M1074 296 L1074 458 L210 458 L210 468" class="arrow-thin"/>
   <path d="M350 688 L350 720" class="arrow"/>
 
   <rect x="60" y="882" width="1200" height="30" class="takeaway"/>
-  <text x="84" y="902" class="small">Takeaway: output = final excitatory population; inhibitory populations remain internal modulators.</text>
+  <text x="84" y="902" class="small">The core output is the final excitatory population; inhibitory populations act inside each layer.</text>
 </svg>

@@ -42,9 +42,13 @@ _CORE_MORPHOLOGY_ALIAS_OVERRIDES: dict[str, dict[str, object]] = {
         "use_shunting": False,
         "use_additive_normalization": True,
     },
-    "dendritic_mlp": {"use_shunting": False},
-    "flat_mlp": {"use_shunting": False},
-    "mlp": {"use_shunting": False},
+    # Signed-weight and merged-bank (mlp) types build additive layers with
+    # signed weights.
+    "dendritic_signed": {"use_shunting": False, "weight_transform": "identity"},
+    "flat_signed": {"use_shunting": False, "weight_transform": "identity"},
+    "dendritic_mlp": {"use_shunting": False, "weight_transform": "identity"},
+    "flat_mlp": {"use_shunting": False, "weight_transform": "identity"},
+    "mlp": {"use_shunting": False, "weight_transform": "identity"},
 }
 
 # Recurrent (unified-EI) parallel aliases. These no longer force a fixed

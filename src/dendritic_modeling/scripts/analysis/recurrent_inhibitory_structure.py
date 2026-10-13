@@ -44,6 +44,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import torch
 
+from dendritic_modeling.utils.logging_config import setup_logging
+
 
 def _load_config(path: Path) -> dict[str, Any]:
     suffix = path.suffix.lower()
@@ -430,4 +432,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    setup_logging()
     main()

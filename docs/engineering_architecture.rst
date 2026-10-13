@@ -1,281 +1,263 @@
-Engineering Architecture
+Engineering architecture
 ========================
 
-This page is for engineers working inside the repository. It focuses on how
-the codebase is organized, where the main control points live, and how a run
-moves from YAML to artifacts.
+This page is for developers who change the library. It maps the package,
+follows a training run from the YAML file to the run directory, and names the
+modules to read when tracing a bug or adding a component.
 
-System Overview
----------------
-
-The framework has a small number of stable layers:
-
-.. image:: _static/architecture/system-overview.svg
-   :alt: System overview of configs, datasets, model factory, training, analysis, and artifacts.
+.. figure:: _static/architecture/system-overview.svg
+   :alt: System overview. Configuration (example YAML, typed config, alias resolution, registries, factory) feeds the model modules (encoder: identity, pathway router or autoencoders; population core with biophysical options; decoder: MLP or identity) and the training, sweep and analysis stack (data loaders, trainers, sweeps, analysis manager, artifacts).
    :width: 100%
 
-For neuron-level and operator-level diagrams of the dendritic core itself, see
-:doc:`network_architectures`. That page shows the actual ``DendriNet`` tree
-layout, ``TopKLinear`` synapse banks, ``BlockLinear`` branch aggregation, and
-the E/I layer stack used by the factory.
+   The configuration is loaded into typed settings, the factory builds the
+   encoder, core and decoder through the registries, and the trainers,
+   sweeps and analysis manager produce the run's artifacts.
 
-The practical rule of thumb is:
+For the structure of the dendritic neurons themselves, see
+:doc:`network_architectures` and :doc:`dendritic_neurons`.
 
-- ``config/`` and ``configs/`` define intent.
-- ``src/dendritic_modeling/networks`` defines model behavior.
-- ``src/dendritic_modeling/scripts`` turns config into a runnable experiment.
-- ``src/dendritic_modeling/training`` defines update rules and training loops.
-- ``src/dendritic_modeling/analysis`` turns checkpoints and trajectories into diagnostics.
+Package layout
+--------------
 
-Repository Layout
------------------
-
-The main directories are:
+The Python package ``dendritic_modeling`` lives in ``src/dendritic_modeling``:
 
 .. list-table::
    :header-rows: 1
-   :widths: 20 80
+   :widths: 30 70
 
-   * - Path
-     - Responsibility
-   * - ``src/dendritic_modeling/config``
-     - Structured config dataclasses and config-facing defaults.
-   * - ``src/dendritic_modeling/datasets``
-     - Standard dataset loaders, synthetic tasks, and dataset utilities.
-   * - ``src/dendritic_modeling/networks/architectures``
-     - Feedforward E/I cores, recurrent E/I cores, dendritic operators, and baselines.
-   * - ``src/dendritic_modeling/training``
-     - Training strategies such as backprop and local learning variants.
-   * - ``src/dendritic_modeling/analysis``
-     - Reusable analyzers and the analysis manager used by training and evaluation scripts.
-   * - ``src/dendritic_modeling/scripts``
-     - Top-level experiment entry points, environment setup, and config canonicalization.
-   * - ``configs/``
-     - Example and experiment YAMLs.
-   * - ``docs/``
-     - User-facing and engineering-facing documentation.
+   * - Subpackage
+     - Contents
+   * - ``config``
+     - Typed configuration dataclasses, the strict loader (``load_config``,
+       ``config_from_mapping``), retired and renamed keys (``keys.py``), the
+       rules for which ``model.core`` sections and encoder/decoder options each
+       type reads (``core_sections.py``, ``io_params.py``) and core-type alias
+       semantics (``model_aliases.py``).
+   * - ``datasets``
+     - Vision, synthetic and sequence datasets, the dataset registry and the
+       data-root resolution (``paths.py``).
+   * - ``networks.architectures``
+     - The architecture factory and registry, and the cores:
+       ``excitation_inhibition`` (structured E/I networks, dendritic trees,
+       sparse synapses and their kernels), ``recurrent`` (population networks,
+       unified E/I networks, baseline recurrent networks), ``classical``
+       (MLP, CNN, autoencoder and pathway-router building blocks and the
+       matched controls), ``vision`` (dendritic AlexNet), ``replacement``
+       (input and output adapters that place a dendritic core inside another
+       network) and ``transformer`` (dendritic replacements of transformer
+       feed-forward blocks).
+   * - ``networks`` (other)
+     - Activation and reactivation-gate builders (``activations``), weight
+       transforms, sparse-maintenance and readout helpers (``utils``), the
+       parameter-budget model families (``benchmarks``) and checkpoint helpers
+       (``checkpoints.py``).
+   * - ``models``
+     - The wrappers that combine encoder, core and decoder: ``Classifier``,
+       ``RecurrentClassifier`` and ``Regressor``, with parameter groups for the
+       optimizer.
+   * - ``training``
+     - The trainer factory and strategies (``strategies``; the local-learning
+       implementation is split into mixins under
+       ``strategies/local_learning_parts``), optimizers, losses,
+       regularization and pruning, data loaders and FSDP helpers.
+   * - ``analysis``
+     - The analysis manager (``managers``), the analyzer registry, and the
+       analyzers (``core``, ``metrics``, ``tools``) with shared helpers
+       (``utils``).
+   * - ``deployment``
+     - Compact export of trained models with frozen sparse topology
+       (``compression.py``) and the optional torchao backends.
+   * - ``kernels``
+     - Triton kernels for indexed synapses (``triton_ell.py``).
+   * - ``plotting``
+     - Plotting helpers used by the analyzers.
+   * - ``scripts``
+     - The command-line programs: ``training``, ``sweeps``, ``analysis``,
+       ``deployment``, ``tools`` (Slurm job writers, GPU memory estimates),
+       ``benchmarks``, ``verification`` and ``docs``, with shared helpers in
+       ``script_utils``.
+   * - ``utils``
+     - Logging setup, seeds and reproducibility records, the runtime
+       environment record, information-estimation utilities
+       (``utils/information``) and general helpers.
 
-Build Path: From YAML to Model
-------------------------------
+Outside the package, the repository holds ``configs/`` (example and reference
+YAML files; see :doc:`examples`), ``docs/`` (these pages), ``tests/``,
+``setup/`` (environment file, constraints files and
+``freeze_constraints.py``) and ``scripts/train_fsdp.sh`` (a Slurm launcher
+for FSDP training).
 
-Most experiment entry points follow the same build sequence:
-
-.. image:: _static/architecture/training-analysis-flow.svg
-   :alt: Experiment build and training flow from YAML through canonicalization, model init, training, analysis, and saved artifacts.
-   :width: 100%
-
-The important engineering points are:
-
-- ``config.model_aliases.canonicalize_model_core_flags`` and
-  ``canonicalize_rnn_core_flags`` normalize alias-driven settings before model
-  construction. ``scripts.script_utils.config_utils`` provides script-facing
-  wrappers around the same behavior.
-- ``setup_utils.initialize_model`` is the standard entry point for creating a
-  model from the resolved config.
-- ``networks.architectures.factory.get_architecture`` is the central dispatch
-  point from config type strings to actual modules. Project-local
-  architectures can register extension builders with
-  ``networks.architectures.register_architecture`` without editing the factory.
-- post-build gate diagnostics write ``init_gate_stats.json`` when learnable
-  reactivation gates are present.
-
-Feedforward and Recurrent E/I Consistency
------------------------------------------
-
-The feedforward and recurrent E/I stacks share the same branch-level building
-blocks. The recurrent stack adds temporal state and recurrent routing, but it
-does not redefine the dendritic branch semantics.
-
-.. image:: _static/architecture/recurrent-ei-flow.svg
-   :alt: Recurrent E/I architecture showing shared branch logic, stateful dendritic traces, recurrent masking, and outputs.
-   :width: 100%
-
-The consistency contract is:
-
-- both feedforward and recurrent E/I models use the same branch-layer logic
-  for dendritic integration and reactivation-gate initialization
-- recurrent aliases only add type-implied flags and recurrent connectivity;
-  they do not change the underlying dendritic branch implementation
-- ``allow_self_recurrence`` is a recurrent-only extension that masks
-  same-population self-feedback while preserving other recurrent connectivity
-- positive shunting safety is enforced at the transfer-layer boundary, so raw
-  inputs may be normalized as long as the transfer output is clamped back to a
-  non-negative range before the first shunting layer
-
-Recurrent Dynamics Boundaries
------------------------------
-
-The recurrent dendritic implementation is split by runtime responsibility:
-
-- network orchestration: ``population_network.py`` builds ordered
-  population-network layers, manages sequence state, and applies readout
-  reduction
-- layer routing: ``population_layer.py`` maps named populations and directed
-  connections into ``StatefulDendriNet`` modules
-- config/state helpers: ``population_configs.py``, ``population_sources.py``,
-  ``population_state.py``, and ``population_constants.py`` define the
-  dataclasses and source normalization used by both feedforward and recurrent
-  population-network execution
-- population configuration: ``ei_config.py`` defines synapse counts, dendritic
-  morphology, temporal constants, synapse-type options, soma dynamics, branch
-  spike options, and soma-feedback options
-- temporal population execution: ``stateful_dendrinet.py`` owns branch-layer
-  construction and the recurrent step
-- typed synapse dynamics: ``stateful_typed_dynamics.py`` integrates configured
-  receptor traces, short-term plasticity, voltage gates, and typed shunting or
-  additive currents
-
-LIF soma dynamics live in ``spiking_soma.py``. Local dendritic branch
-spike/plateau updates live in ``dendritic_spikes.py``. ``StatefulDendriNet``
-remains the orchestration point for per-timestep state updates; geometry
-helpers live in ``dendritic_geometry.py``. New recurrent features should follow
-the same boundary rule: standalone dynamics belong in a focused helper or
-mixin, while branch construction and the ordered step remain in
-``StatefulDendriNet``.
-
-Key Runtime Objects
--------------------
-
-When you are tracing a bug or extending the code, these are the most useful
-landmarks to keep in mind:
-
-- ``src/dendritic_modeling/scripts/training/train_experiments.py``:
-  experiment entry point for standard training
-- ``src/dendritic_modeling/scripts/script_utils/setup_utils.py``:
-  environment setup and model initialization
-- ``src/dendritic_modeling/config/model_aliases.py``:
-  config alias canonicalization and type-implied model defaults
-- ``src/dendritic_modeling/scripts/script_utils/config_utils.py``:
-  script compatibility wrappers and config-to-runtime flattening helpers
-- ``src/dendritic_modeling/networks/architectures/factory.py``:
-  model factory and architecture dispatch
-- ``src/dendritic_modeling/networks/architectures/registry.py``:
-  extension registry for project-local architecture builders
-- ``src/dendritic_modeling/networks/architectures/excitation_inhibition``:
-  feedforward E/I implementation
-- ``src/dendritic_modeling/networks/architectures/excitation_inhibition/synapse``:
-  sparse synapse implementations and sparse-layer factory. ``factory.py`` owns
-  sparse layer registration and lookup. ``indexed.py`` is the public facade for
-  fixed indexed, adaptive rewiring, and candidate-pool indexed TopK layers;
-  implementation files are split by behavior.
-- ``src/dendritic_modeling/networks/architectures/recurrent``:
-  recurrent unified-EI and population-network implementation
-- ``src/dendritic_modeling/networks/architectures/replacement``:
-  shared replacement-cell components: input adapters, dendritic core/output
-  adapter contracts, and layerwise replacement-stack helpers
-- ``src/dendritic_modeling/networks/architectures/transformer``:
-  transformer FFN replacement modules, config translation, parameter estimates,
-  and Hugging Face patching utilities. Transformer code owns placement inside
-  decoder blocks; the reusable replacement-cell contract lives in
-  ``architectures/replacement``. Population-network translation helpers live in
-  ``config_translation_population.py`` while ``config_translation.py`` remains
-  the stable public builder surface.
-- ``src/dendritic_modeling/networks/architectures/classical/pretrained.py``:
-  vision-backbone splitter for ``model.vision_replacement``; resolves contiguous
-  ``target_modules`` into encoder/core/decoder tensor contracts, including
-  spatial CNN spans when the core is convolutional
-- ``src/dendritic_modeling/training/vision_replacement.py``:
-  block-output distillation loop for vision replacement cores or patched full
-  vision models using cached tensors
-- ``src/dendritic_modeling/training/_transformer_replacement``:
-  transformer replacement training internals split by common result types, data
-  sources, checkpoint loading, evaluation, joint LM losses, and training loops.
-  ``training/transformer_replacement.py`` remains the public import facade.
-- ``src/dendritic_modeling/training/strategies/local_learning.py``:
-  public local-learning strategy. Signal construction, recorders, broadcast
-  helpers, STDP rules, and modulators live in focused ``local_learning_*``
-  mixins.
-- ``src/dendritic_modeling/training/optimizers/factory.py``:
-  registry-backed optimizer construction
-- ``src/dendritic_modeling/training/loss/functions.py``:
-  registry-backed loss-function construction
-- ``src/dendritic_modeling/datasets/registry.py``:
-  extension registry for project-local dataset loaders
-- ``src/dendritic_modeling/datasets/sequence``:
-  sequence dataset package split by task family. ``sequence_datasets.py``
-  remains a compatibility facade.
-- ``src/dendritic_modeling/analysis/registry.py``:
-  analyzer metadata registry for discovery and future manager refactors
-- ``src/dendritic_modeling/analysis/managers/analysis_manager.py``:
-  lifecycle coordinator for analyzers
-- ``src/dendritic_modeling/analysis/core/information_parts/information_helpers.py`` and
-  ``information_parts/information_results.py``: pure information-analysis
-  utilities for estimator math, unit conversion, metric filtering, result
-  aggregation, and layer-level summaries. ``information_metrics_mixin.py``,
-  ``information_hooks_mixin.py``, and ``information_signal_mixin.py`` separate
-  metric computation, hook collection, and LDA/E-I signal summaries.
-  ``information.py`` keeps the public ``InformationAnalyzer`` entry point.
-- ``src/dendritic_modeling/networks/architectures/excitation_inhibition/dendritic/initialize.py``:
-  compatibility facade for dendritic branch initialization. Expectation math,
-  reactivation calibration, scaling, and named initialization methods live in
-  the adjacent ``initialize_*`` modules.
-
-Artifacts and Outputs
----------------------
-
-A normal run can produce:
-
-- resolved ``config.json``
-- checkpoints and optimizer state
-- ``performance`` summaries
-- ``init_gate_stats.json`` for gate-aware models
-- analyzer-specific JSON, tensors, and figures
-
-When debugging reproducibility or regressions, the first artifacts to compare
-are usually:
-
-1. ``config.json``
-2. ``init_gate_stats.json``
-3. the first few epoch metrics
-4. analyzer outputs tied to the affected subsystem
-
-How To Extend Safely
---------------------
-
-When adding model, data, optimizer, loss, or analysis behavior, use this
-extension pattern:
-
-1. add or extend a config field in ``src/dendritic_modeling/config``
-2. normalize any alias behavior in ``config/model_aliases.py`` or the relevant
-   config helper
-3. register the component when a registry exists:
-   ``register_architecture``, ``register_optimizer``, ``register_loss_function``,
-   or ``register_dataset``
-4. add at least one focused test near the changed subsystem
-5. document the control point in the relevant doc page
-
-That sequence keeps feedforward and recurrent behavior aligned and reduces the
-chance of config-only drift.
-
-Current Safe Extension APIs
+How a training run executes
 ---------------------------
 
-These extension points let project-local components add named behavior without
-shadowing built-in config strings.
+``dendritic-train`` calls ``dendritic_modeling.scripts.training.train_experiments.main``,
+which runs these steps:
 
-.. list-table::
-   :header-rows: 1
-   :widths: 25 35 40
+#. **Load the configuration.** ``dendritic_modeling.config.load_config``
+   applies the command-line options as dot-path overrides and builds the
+   typed configuration. Unknown keys raise; retired and renamed keys produce
+   a warning or an error that names the replacement (see
+   :ref:`strict-loader`).
+   ``utils.training_stability_validator.validate_training_stability`` then
+   rejects configurations with known critical problems.
+#. **Start distributed training**, when launched by ``torchrun``, and check
+   ``distributed.mode`` against the launcher.
+#. **Set up the run** (``scripts.script_utils.setup_utils.setup_environment``):
+   resolve the seed streams and numerics settings, create the run directory
+   and its log files, write ``resolved_seeds.json`` and
+   ``runtime_environment.json``, load the datasets
+   (``datasets.get_unified_datasets``: registered datasets first, then the
+   built-in loaders) and build the model.
+#. **Build the model** (``setup_utils.initialize_model``): the encoder, the
+   core through ``networks.architectures.factory.get_architecture`` and the
+   decoder, wrapped in a ``Classifier``, ``RecurrentClassifier`` or
+   ``Regressor``. Structured E/I cores resolve their type aliases
+   (``config.model_aliases``) while they are built.
+#. **Record the start state**: wrap the model for DDP when there are several
+   processes, write ``init_gate_stats.json`` and ``config.json``.
+#. **Prepare training**: create the analysis manager
+   (``analysis.AnalysisManager``), calibrate data-driven reactivation gates
+   (``reactivation_calibration.json``), create the optimizer from the
+   model's parameter groups and the trainer from
+   ``training.factory.get_trainer``. ``--validate-only`` stops here, after
+   writing ``nparams``, ``model_resources.json`` and
+   ``operator_card.json``.
+#. **Train**, then apply pruning when it is configured.
+#. **Write the results**: ``nparams``, ``model_resources.json``,
+   ``operator_card.json``, ``training_summary.json``, ``final_model.pt``,
+   and the outputs of the final analysis.
 
-   * - Component family
-     - API
-     - Builder contract
-   * - Architecture
-     - ``register_architecture(name, builder)``
-     - ``builder(parameters, input_dim=None, suffix_input_dim=None) -> nn.Module``
-   * - Optimizer
-     - ``register_optimizer(name, builder)``
-     - ``builder(model_parameters, optimizer_config) -> torch.optim.Optimizer``
-   * - Loss function
-     - ``register_loss_function(name, builder)``
-     - ``builder() -> LossFunction``
-   * - Dataset
-     - ``register_dataset(name, builder)``
-     - ``builder(task_cfg) -> (train_ds, valid_ds, test_ds)``
-   * - Analyzer metadata
-     - ``register_analyzer(name, ...)``
-     - Records config field, class path, save directory, and manager attribute
+:ref:`run-outputs` describes every file. The FSDP entry point
+(``train_experiments_fsdp``) follows the same order with an FSDP-wrapped
+model and its own trainer.
 
-The analyzer registry records analyzer metadata. ``AnalysisManager`` owns
-execution order and analyzer-specific call signatures, so registry entries do
-not change analysis output by themselves.
+.. figure:: _static/architecture/training-analysis-flow.svg
+   :alt: Experiment lifecycle. Build and initialization: load YAML, resolve config, build model, gate calibration, data loaders. Training paths: standard backpropagation, local rules, recurrent backpropagation through time, distributed training, metrics. Analysis, sweeps and reproducibility: analysis runtime, analyzers, sweeps, run artifacts, comparisons of paired seeds and checkpoint summaries.
+   :width: 100%
+
+   The resolved configuration drives model construction, gate
+   initialization, training, analysis and the saved artifacts.
+
+Feedforward and recurrent E/I layers
+------------------------------------
+
+The feedforward and recurrent E/I layers use the same branch-level building
+blocks (``DendriticBranchLayer`` and the initialization in
+``dendritic/initialize*.py``). The recurrent layers add temporal state and
+recurrent synapses; they do not change how a branch integrates its inputs.
+
+.. figure:: _static/architecture/recurrent-ei-flow.svg
+   :alt: One time step t of a recurrent unified E/I layer. The inhibitory population updates first from the excitatory stream x_ff, the inhibitory stream x_I and the previous-step outputs, and produces h_I(t). The excitatory population then reads x_ff, the same-step h_I(t) and the previous-step outputs, and produces s_E(t). Only s_E(t) goes to the next layer or the decoder. The layer state holds s_E(t-1) and h_I(t-1) and is replaced by s_E(t) and h_I(t).
+   :width: 100%
+
+   One time step of a recurrent unified E/I layer (``EILayerConfig`` with an
+   excitatory and an inhibitory ``PopulationConfig``).
+
+At each time step the inhibitory population updates first, from the
+feedforward excitatory and inhibitory streams and the previous-step outputs
+of both populations. The excitatory population then reads the feedforward
+stream, the same-step inhibitory output and the previous-step outputs. Only
+the excitatory output goes to the next layer or to the decoder.
+``allow_self_recurrence: false`` removes the previous-step input of each
+population to itself and keeps the recurrence between the two populations.
+See :ref:`unified-ei`.
+
+Recurrent module boundaries
+---------------------------
+
+The recurrent dendritic implementation in
+``networks/architectures/recurrent`` is split by responsibility:
+
+* network orchestration: ``population_network.py`` builds the ordered
+  population-network layers, manages the sequence state and reduces the
+  readout;
+* layer routing: ``population_layer.py`` maps named populations and directed
+  connections onto ``StatefulDendriNet`` modules;
+* configuration and state: ``population_configs.py``,
+  ``population_common.py``, ``population_sources.py``,
+  ``population_state.py`` and ``population_constants.py`` hold the
+  dataclasses, source-name normalization and runtime state;
+* population options: ``ei_config.py`` defines ``PopulationConfig``
+  (synapse counts, morphology, time constants, synapse types, soma dynamics,
+  dendritic spikes, soma feedback);
+* temporal execution: ``stateful_dendrinet.py`` owns the branch layers and
+  the per-step update, with helpers in ``stateful_layers.py``,
+  ``stateful_setup.py``, ``stateful_step.py`` and ``stateful_feedback.py``;
+* typed synapse dynamics: ``stateful_typed_dynamics.py`` integrates
+  receptor traces, short-term plasticity, voltage gates and typed shunting
+  or additive currents;
+* soma and branch events: ``spiking_soma.py`` (leaky integrate-and-fire
+  somas) and ``dendritic_spikes.py`` (branch spikes and plateaus);
+* morphology: ``dendritic_geometry.py`` (level sizes and synapse budgets);
+* structured recurrent cores: the ``structured_*`` modules translate the
+  structured E/I sections into recurrent networks;
+* unified E/I networks: ``ei_layer.py``, ``ei_network.py`` and
+  ``ei_state.py``; baselines: ``baseline_rnn.py``,
+  ``heterogeneous_leak_ctrnn.py`` and ``legendre_memory.py``.
+
+A new recurrent feature puts its standalone dynamics in a focused helper
+module and leaves the branch construction and the ordered step in
+``StatefulDendriNet``.
+
+Key modules
+-----------
+
+* ``scripts/training/train_experiments.py``: the training entry point.
+* ``scripts/script_utils/setup_utils.py``: run setup and ``initialize_model``.
+* ``config/config.py``: ``load_config``, ``config_from_mapping`` and
+  ``load_analysis_config``.
+* ``networks/architectures/factory.py``: ``get_architecture`` and the
+  built-in core builders (with ``factory_recurrent.py``,
+  ``factory_spatial.py`` and ``factory_unified.py``);
+  ``networks/architectures/registry.py``: registered architectures.
+* ``networks/architectures/excitation_inhibition/ei_network.py``:
+  ``ConfigurableEINetwork``, the structured E/I core.
+* ``networks/architectures/excitation_inhibition/dendritic/``: ``DendriNet``,
+  ``DendriticBranchLayer``, ``BlockLinear`` and the initialization methods
+  (``initialize.py`` re-exports the ``initialize_*`` modules).
+* ``networks/architectures/excitation_inhibition/synapse/``: the sparse
+  synapse classes, their registry (``factory.py``), the indexed synapses
+  (``indexed.py`` re-exports the fixed, rewiring and candidate-pool
+  variants) and the projection backends (``kernels/backend.py``).
+* ``models/base.py``: parameter groups and the training hooks shared by the
+  model wrappers.
+* ``training/factory.py``: ``get_trainer`` and the strategy registry;
+  ``training/strategies/``: the trainers; ``training/optimizers/`` and
+  ``training/loss/``: optimizer and loss registries.
+* ``datasets/standard_datasets.py``: ``get_unified_datasets``;
+  ``datasets/registry.py``: registered datasets; ``datasets/sequence/``:
+  sequence tasks, with the builder registry in ``sequence/builders``.
+* ``analysis/managers/analysis_manager.py``: runs the analyzers;
+  ``analysis/registry.py``: analyzer metadata (configuration field, class,
+  output directory) from which the manager builds the built-in analyzers.
+* ``analysis/core/information.py``: ``InformationAnalyzer``; its
+  implementation mixins live in ``analysis/core/information_parts/``.
+* ``networks/architectures/classical/pretrained.py``: a torchvision backbone
+  splitter (``list_backbone_layers``), a Python API that the training entry
+  points do not use.
+* ``utils/runtime_environment.py`` and ``utils/logging_config.py``: the
+  environment record and the logging setup.
+
+Adding a component
+------------------
+
+#. Add or extend the typed configuration field in
+   ``src/dendritic_modeling/config``, with validation, so the loader accepts
+   and checks it.
+#. Implement the component and register it where a registry exists (see
+   :ref:`extension-registries`), or add it to the built-in dispatch.
+#. Keep the default behaviour unchanged: a new option is off by default, and
+   a test shows that the default output does not change.
+#. Add focused tests next to the changed subsystem (see :doc:`contributing`).
+#. Document the option on the page that explains its topic, and add an
+   example configuration when it helps.
+
+Debugging a run
+---------------
+
+When a result changes unexpectedly, compare the run directories in this
+order: ``config.json``, ``resolved_seeds.json``, ``runtime_environment.json``
+(library commit, dependency versions, devices), ``init_gate_stats.json``,
+the first epochs in ``training_summary.json`` and the logs, then the outputs
+of the analyzers for the affected subsystem. See :ref:`run-outputs` and
+:ref:`run-reproducibility`.

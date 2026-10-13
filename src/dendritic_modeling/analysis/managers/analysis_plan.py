@@ -9,6 +9,7 @@ from dendritic_modeling.analysis.registry import (
     AnalyzerSpec,
     get_analyzer_spec,
     get_builtin_analyzer_names,
+    get_extension_analyzer_names,
     load_analyzer_class,
 )
 
@@ -72,6 +73,9 @@ class _AnalyzerInitializer(_RegisteredAnalysisMetadata):
         if constructor_style == "model_params":
             return analyzer_cls(model=model, params=params)
         if constructor_style == "params":
+            params_builder = getattr(params, "to_analyzer_params", None)
+            if callable(params_builder):
+                params = params_builder()
             return analyzer_cls(params)
         raise ValueError(
             "Unsupported analyzer constructor style for "
@@ -136,6 +140,8 @@ class _AnalysisSequenceStep:
     method_name: str
     pass_runtime: bool = False
     runners: object | None = None
+    # Plugin analyzers registered for this phase run after the built-in runners.
+    phase: str | None = None
 
     def run(
         self,
@@ -148,7 +154,7 @@ class _AnalysisSequenceStep:
         """Call the manager method declared by this step."""
         kwargs = {"filename": filename, "training": training}
         if self.runners is not None:
-            kwargs["runners"] = self.runners
+            kwargs["runners"] = tuple(self.runners) + extension_runners(self.phase)
         if self.pass_runtime:
             kwargs["runtime"] = runtime
         getattr(manager, self.method_name)(**kwargs)
@@ -158,6 +164,41 @@ _ANALYZER_INITIALIZER_NAMES = get_builtin_analyzer_names()
 _ANALYZER_INITIALIZERS = tuple(
     _AnalyzerInitializer(name) for name in _ANALYZER_INITIALIZER_NAMES
 )
+
+
+def analyzer_initializers() -> tuple[_AnalyzerInitializer, ...]:
+    """Built-in analyzers in their declared order, then plugin analyzers."""
+    return _ANALYZER_INITIALIZERS + tuple(
+        _AnalyzerInitializer(name) for name in get_extension_analyzer_names()
+    )
+
+
+def extension_runners(phase: str | None) -> tuple[object, ...]:
+    """Runners of the plugin analyzers registered for ``phase``."""
+    if phase is None:
+        return ()
+    runners: list[object] = []
+    for name in get_extension_analyzer_names():
+        spec = _registered_analyzer_spec(name)
+        if spec.phase != phase:
+            continue
+        if phase == "model_only":
+            runners.append(
+                _ModelOnlyAnalysisRunner(
+                    name,
+                    start_message=f"Starting {name} analysis...",
+                    complete_message=f"{name} analysis completed successfully",
+                )
+            )
+        else:
+            runners.append(
+                _TestDatasetAnalysisRunner(
+                    name,
+                    pass_training=spec.pass_training,
+                    require_analyzer=spec.require_analyzer,
+                )
+            )
+    return tuple(runners)
 
 
 _INHIBITORY_SPECIALIZATION_ANALYSIS = _ModelOnlyAnalysisRunner(
@@ -189,10 +230,25 @@ _PRE_WEIGHT_TEST_DATASET_ANALYSES = (
         "ablation",
         pass_training=True,
     ),
+    _TestDatasetAnalysisRunner(
+        "path_matched_intervention",
+        pass_training=True,
+        require_analyzer=True,
+    ),
+    _TestDatasetAnalysisRunner(
+        "local_inhibitory_population_intervention",
+        pass_training=True,
+        require_analyzer=True,
+    ),
 )
 
 
 _POST_REACTIVATION_TEST_DATASET_ANALYSES = (
+    _TestDatasetAnalysisRunner(
+        "branch_local_sensitivity",
+        pass_training=True,
+        require_analyzer=True,
+    ),
     _TestDatasetAnalysisRunner(
         "compartment_statistics",
         pass_training=True,
@@ -204,6 +260,11 @@ _POST_REACTIVATION_TEST_DATASET_ANALYSES = (
     _TestDatasetAnalysisRunner(
         "multiplicative_gain",
         pass_training=True,
+    ),
+    _TestDatasetAnalysisRunner(
+        "gain_load_perturbation",
+        pass_training=True,
+        require_analyzer=True,
     ),
     _TestDatasetAnalysisRunner(
         "receptive_field",
@@ -218,21 +279,36 @@ _ORDERED_ANALYSIS_SEQUENCE = (
     _AnalysisSequenceStep("_run_performance_analysis", pass_runtime=True),
     _AnalysisSequenceStep("_run_information_analysis", pass_runtime=True),
     _AnalysisSequenceStep(
+        "_run_path_matched_information_analysis",
+        pass_runtime=True,
+    ),
+    _AnalysisSequenceStep(
         "_run_representation_accessibility_analysis",
         pass_runtime=True,
     ),
+    _AnalysisSequenceStep(
+        "_run_source_tuning_support_analysis",
+        pass_runtime=True,
+    ),
     _AnalysisSequenceStep("_run_synaptic_turnover_analysis"),
+    _AnalysisSequenceStep("_run_synapse_pruning_analysis"),
     _AnalysisSequenceStep(
         "_run_test_dataset_analysis_runners",
         pass_runtime=True,
         runners=_PRE_WEIGHT_TEST_DATASET_ANALYSES,
+        phase="pre_weight",
     ),
-    _AnalysisSequenceStep("_run_weight_analysis"),
+    _AnalysisSequenceStep(
+        "_run_input_region_intervention_analysis",
+        pass_runtime=True,
+    ),
+    _AnalysisSequenceStep("_run_weight_analysis", pass_runtime=True),
     _AnalysisSequenceStep("_run_reactivation_dynamics_analysis", pass_runtime=True),
     _AnalysisSequenceStep(
         "_run_test_dataset_analysis_runners",
         pass_runtime=True,
         runners=_POST_REACTIVATION_TEST_DATASET_ANALYSES,
+        phase="post_reactivation",
     ),
     _AnalysisSequenceStep("_run_local_rule_component_analysis", pass_runtime=True),
     _AnalysisSequenceStep("_run_correlation_analysis", pass_runtime=True),
@@ -240,6 +316,7 @@ _ORDERED_ANALYSIS_SEQUENCE = (
     _AnalysisSequenceStep(
         "_run_model_only_analysis_runners",
         runners=_MODEL_ONLY_ANALYSES,
+        phase="model_only",
     ),
     _AnalysisSequenceStep("_run_spike_train_analysis", pass_runtime=True),
     _AnalysisSequenceStep("_run_adversarial_robustness_analysis", pass_runtime=True),

@@ -1,36 +1,42 @@
-# Unified Sweep Implementation
+# Unified sweep implementation
 
-This directory contains the implementation used by
-`src/dendritic_modeling/scripts/sweeps/sweep_manager.py`.
+The implementation behind `dendritic-sweep`
+(`dendritic_modeling.scripts.sweeps.sweep_manager`). It is not a separate
+command-line tool. The user documentation is `docs/sweeps.rst`.
 
 ## Files
 
-- `base_sweep.py`: shared sweep generator/analyzer base classes and
-  `SweepJobManager` support code.
-- `sweep_types/unified_sweep.py`: the current config expander and filter logic
-  used for sweep generation.
+- `sweep_types/unified_sweep.py`: `UnifiedSweepGenerator`, which expands a
+  sweep file into training configs, and `expand_axis`, which reads one axis
+  value (literal list, scalar or explicit `range`/`linspace`/`geomspace`/
+  `values` form).
+- `base_sweep.py`: the generator and analyzer base classes, the sweep
+  directory and config writer, and `SweepJobManager`, which writes the array,
+  sequential and rerun job scripts and `submit_all_jobs.sh`.
 
 ## Responsibilities
 
-The unified generator is responsible for:
+The generator:
 
-- expanding `sweep_config`
-- applying `filter_config`
-- generating per-config output directories
-- writing config files
-- preparing job scripts for SLURM execution
+- expands the `sweep_config` axes and crosses them with the named
+  `sweep_variants`;
+- applies `filter_config`: the E/I pair filter and the branch sweeps;
+- expands each condition into `experiment_settings.seeds_per_condition`
+  replicates (`experiment.seed = base_seed + r`, also written to
+  `seed_paths`);
+- writes the configs, each with its own `outputs.results_dir`
+  (`results/config_<i>` or `<execution_results_dir>/config_<i>`).
+
+`SweepManager` composes the sweep file with its `extends` chain, loads every
+generated config through the strict loader, checks
+`sweep_contract.expected_config_count`, writes the job scripts with
+`SweepJobManager` and writes `frozen_sweep_manifest.json`.
 
 ## Usage
 
-Treat this as implementation code, not a separate public CLI.
-Use it through:
-
 ```bash
-python src/dendritic_modeling/scripts/sweeps/sweep_manager.py --config <yaml>
+dendritic-sweep --config <sweep.yaml> --generate-only
 ```
 
-## Notes
-
-- Current schema and examples are documented in `docs/sweeps.rst`.
-- Use `configs/sweep_config.yaml` as the maintained generic example. Keep
-  project-specific sweep packs outside the main `configs/` tree.
+Use `configs/sweep_config.yaml` as the generic template, and keep
+project-specific sweep files outside the library's `configs/` tree.

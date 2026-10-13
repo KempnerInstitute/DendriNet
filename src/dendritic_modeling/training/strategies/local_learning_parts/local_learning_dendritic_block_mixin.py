@@ -103,7 +103,7 @@ def _additive_dendritic_block_factor(
             raise ValueError("pseudo_R is required for input_dependent additive mode.")
         diff = x_blk - v_n.unsqueeze(-1)
         return e_v.unsqueeze(-1) * pseudo_R.unsqueeze(-1) * diff
-    if additive_mode in ("learned_gain", "running_stats"):
+    if additive_mode == "running_stats":
         return post_factor_raw.unsqueeze(-1) * x_blk
     return e_v.unsqueeze(-1) * x_blk
 

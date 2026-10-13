@@ -179,8 +179,6 @@ class InformationAnalyzer(
             selection_cfg=selection_cfg,
         )
 
-        self._disable_pid_if_requested()
-
         self._configure_gaussian_fisher_metrics(gaussian_fisher_cfg=gaussian_fisher_cfg)
 
         self._configure_runtime_options(
@@ -221,8 +219,6 @@ class InformationAnalyzer(
             copula_type=self.copula_type,
             verbose=self.verbose,
         )
-
-        self._check_pid_available()
 
     def analyze(
         self,
@@ -278,6 +274,7 @@ class InformationAnalyzer(
 
         except Exception as e:
             self._handle_analysis_exception(e)
+            raise
         finally:
             self._restore_model_after_analysis(
                 model=model,

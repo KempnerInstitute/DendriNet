@@ -15,7 +15,7 @@ from dendritic_modeling.networks.architectures.recurrent import (
 )
 
 
-def test_static_direct_tree_resources_match_the_fig2_config_contract() -> None:
+def test_static_direct_tree_resources_match_the_declared_config() -> None:
     summary = static_dendritic_resource_summary(
         branch_factors=[3, 3, 3, 3],
         n_somas=20,
@@ -219,6 +219,57 @@ def test_indexed_topology_is_reproducible_and_namespaced_by_pathway() -> None:
         first_branch.branch_excitation.connection_indices,
         first_branch.branch_recurrent.connection_indices,
     )
+
+
+def test_indexed_resource_summary_uses_compact_fixed_indices(monkeypatch) -> None:
+    network = _indexed_point_population_network()
+
+    def reject_dense_snapshot(_synapse):
+        raise AssertionError("indexed resource accounting must remain compact")
+
+    monkeypatch.setattr(
+        "dendritic_modeling.analysis.utils.model_resources."
+        "effective_synapse_snapshot",
+        reject_dense_snapshot,
+    )
+    summary = model_resource_summary(network)
+
+    assert summary["active_synapses"] == 16
+    assert summary["candidate_synapse_slots"] == 32
+    assert {record["selection_policy"] for record in summary["synapses"]} == {
+        "indexed_fixed"
+    }
+    assert {record["mask_source"] for record in summary["synapses"]} == {
+        "fixed_indices"
+    }
+
+
+def test_indexed_effective_params_uses_exact_compact_counts(monkeypatch) -> None:
+    network = _indexed_point_population_network()
+    total = sum(parameter.numel() for parameter in network.parameters())
+    expected = total
+    synapses = []
+    for branch_layer in network.branch_layers:
+        for attr in (
+            "branch_excitation",
+            "branch_inhibition",
+            "branch_recurrent",
+            "branch_rec_inhibition",
+        ):
+            synapse = getattr(branch_layer, attr, None)
+            if synapse is None or synapse in synapses:
+                continue
+            synapses.append(synapse)
+            expected -= sum(parameter.numel() for parameter in synapse.parameters())
+            expected += int(synapse.connectivity_resource_counts()["active_synapses"])
+
+    def reject_dense_mask():
+        raise AssertionError("indexed active accounting must remain compact")
+
+    for synapse in synapses:
+        monkeypatch.setattr(synapse, "weight_mask", reject_dense_mask)
+
+    assert network.get_effective_params() == expected
 
 
 def test_indexed_topology_base_seed_is_namespaced_by_layer_and_population() -> None:

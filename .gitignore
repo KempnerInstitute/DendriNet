@@ -6,6 +6,7 @@ results/*
 slurm_jobs/  # Generated SLURM script directories
 dendritic_modeling.egg-info/*
 dendritic_modeling/__pycache__/*
+/point_dendrite_credit_runs/
 # Ignore ad-hoc root shell scripts; keep scripts under src/ addable.
 /*.sh
 *.out
@@ -18,9 +19,9 @@ notebook/test/*
 # experiments/* - now using submodule
 data/*
 configs/*.txt
-# Private merge/runtime comparison configs belong under ignored projects/ or
-# external review folders, not in the public configs/ namespace.
+# Local configuration folders.
 configs/branch_comparison/
+configs/local/
 configs/examples/*_multi_population_ei.yaml
 configs/examples/recurrent_synapse_types_ampa_nmda_gaba.yaml
 configs/examples/recurrent_soma_feedback.yaml
@@ -95,7 +96,8 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/
-
+artifacts/
+local_sweep_runs/
 # Filesystem mount points - prevent accidental inclusion of cluster filesystem
 n/
 
@@ -232,6 +234,12 @@ scripts_backup/
 # Ignore experiments folder completely (managed as separate repo)
 /experiments/
 
+# uv lockfile — this project pins deps via requirements/pyproject, and the
+# check-added-large-files hook rejects it (>500 KB).
+uv.lock
+# Stray pytest cache-file directories occasionally created in the repo root.
+pytest-cache-files-*/
+
 # Local scratch + external dependencies (kept untracked in this repo).
 drafts/
 review_round2/
@@ -239,8 +247,7 @@ external/
 /scripts/*
 !/scripts/ci/
 !/scripts/ci/**
-!/scripts/train_transformer_replacement_array.sh
-!/scripts/train_transformer_replacement_ddp.sh
+!/scripts/train_fsdp.sh
 scratch/
 figures/
 outputs_smoke/
@@ -258,5 +265,5 @@ _tmp_reviewer_*.py
 src/dendritic_modeling/analysis/**/__pycache__/
 src/dendritic_modeling/analysis/**/*.py[cod]
 
-# Internal code-review working docs (keep out of version control)
+# Local review notes.
 CODEBASE_REVIEW_*.md

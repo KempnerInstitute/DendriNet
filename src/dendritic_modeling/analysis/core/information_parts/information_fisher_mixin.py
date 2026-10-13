@@ -123,8 +123,8 @@ class InformationFisherMetricsMixin:
                 self.logger.warning(
                     f"Failed to compute Fisher flow increment I(Vb;C|E,I)_fisher: {e}"
                 )
-                metrics["I(Vb;C|E,I)_fisher_F"] = 0.0
-                metrics["I(Vb;C|E,I)_fisher"] = 0.0
+                metrics["I(Vb;C|E,I)_fisher_F"] = float("nan")
+                metrics["I(Vb;C|E,I)_fisher"] = float("nan")
 
         return metrics
 

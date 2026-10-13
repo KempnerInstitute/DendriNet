@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import Any
 
 from dendritic_modeling.config.conversion import (
@@ -11,6 +12,11 @@ from dendritic_modeling.config.conversion import (
 )
 
 _BASELINE_RNN_TYPES = {"gru", "lstm", "vanilla_rnn", "rnn"}
+_HETEROGENEOUS_LEAK_CTRNN_TYPES = {
+    "heterogeneous_leak_ctrnn",
+    "heterogeneous_ctrnn",
+}
+_LEGENDRE_MEMORY_TYPES = {"legendre_memory"}
 _POPULATION_NETWORK_TYPES = {
     "population_network",
 }
@@ -26,15 +32,29 @@ _UNIFIED_EI_TYPES = {
     "rnn_flat_additive",
     "rnn_flat_normalized_additive",
 }
+# model.core.recurrent selected the legacy DendriticRNNCell stack, removed on
+# 2026-02-27. load_config retires the key; plain-dict cores fail here.
+LEGACY_RECURRENT_ENABLED_MESSAGE = (
+    "model.core.recurrent.enabled=true selects the removed legacy recurrent "
+    "cell stack; no builder consumes it. Use connectivity.rec_* synapse counts "
+    "(EINet types), model.core.unified_ei, or model.core.population_network "
+    "with recurrent layers instead."
+)
+
+# Core types built from the structured ``architecture``/``connectivity``
+# schema, feedforward or recurrent. This is the registry the factory uses.
 _STRUCTURED_EI_TYPES = {
     "einet",
     "dendritic_shunting",
     "dendritic_additive",
     "dendritic_normalized_additive",
+    "dendritic_mlp",
+    "dendritic_signed",
     "flat_shunting",
     "flat_additive",
     "flat_normalized_additive",
-    "dendritic_mlp",
+    "flat_mlp",
+    "flat_signed",
 }
 
 
@@ -42,6 +62,50 @@ def _get_value(cfg: Any, key: str, default: Any = None) -> Any:
     if isinstance(cfg, dict):
         return cfg.get(key, default)
     return getattr(cfg, key, default)
+
+
+# Older placements of the structured-EINet feature blocks. ``load_config``
+# rejects them; programmatic configs may still use them (with a warning).
+_NESTED_FEATURE_BLOCKS = {
+    "dendritic_spikes": ("dynamics",),
+    "soma_feedback": ("dynamics", "recurrent_ei"),
+}
+
+
+def resolve_feature_block(core_cfg: Any, name: str) -> dict[str, Any]:
+    """Return ``model.core.<name>`` for a structured EINet core.
+
+    ``name`` is ``"dendritic_spikes"`` or ``"soma_feedback"``. Programmatic
+    configs may still nest the block under ``dynamics`` (and ``soma_feedback``
+    under ``recurrent_ei``); a nested block is used, with a deprecation
+    warning, when the top-level block is empty. Different non-empty blocks in
+    two places raise, because one of them would be ignored.
+    """
+    top = to_plain_dict(_get_value(core_cfg, name, {}) or {})
+    nested: list[tuple[str, dict[str, Any]]] = []
+    for parent in _NESTED_FEATURE_BLOCKS[name]:
+        container = _get_value(core_cfg, parent, None)
+        if parent == "dynamics" and not container:
+            container = _get_value(core_cfg, "spiking", None)
+        block = to_plain_dict(to_plain_dict(container or {}).get(name, {}) or {})
+        if block:
+            nested.append((f"model.core.{parent}.{name}", block))
+    if not nested:
+        return top
+    reference_path, reference = (f"model.core.{name}", top) if top else nested[0]
+    for path, block in nested:
+        if block != reference:
+            raise ValueError(
+                f"{path} conflicts with {reference_path}; set the block once, "
+                f"as model.core.{name}"
+            )
+    if not top:
+        warnings.warn(
+            f"{reference_path} is deprecated; set model.core.{name} instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+    return reference
 
 
 def _core_type(core_cfg: Any) -> str:
@@ -69,8 +133,12 @@ def _any_positive_in(mapping: Any, keys: tuple[str, ...]) -> bool:
 def _legacy_recurrent_enabled(core_cfg: Any) -> bool:
     rec = _get_value(core_cfg, "recurrent", {})
     if isinstance(rec, dict):
-        return bool(rec.get("enabled", False))
-    return bool(getattr(rec, "enabled", False))
+        enabled = bool(rec.get("enabled", False))
+    else:
+        enabled = bool(getattr(rec, "enabled", False))
+    if enabled:
+        raise ValueError(LEGACY_RECURRENT_ENABLED_MESSAGE)
+    return False
 
 
 def _has_unified_recurrent_layers(core_cfg: Any) -> bool:
@@ -111,7 +179,7 @@ def _has_structured_einet_recurrence(core_cfg: Any) -> bool:
         return True
 
     dynamics = to_plain_dict(_get_value(core_cfg, "dynamics", {}))
-    soma_feedback = to_plain_dict(_get_value(core_cfg, "soma_feedback", {}))
+    soma_feedback = resolve_feature_block(core_cfg, "soma_feedback")
     if bool(
         soma_feedback.get(
             "enabled",
@@ -125,7 +193,7 @@ def _has_structured_einet_recurrence(core_cfg: Any) -> bool:
     ):
         return True
 
-    dendritic_spikes = to_plain_dict(_get_value(core_cfg, "dendritic_spikes", {}))
+    dendritic_spikes = resolve_feature_block(core_cfg, "dendritic_spikes")
     if bool(
         dendritic_spikes.get(
             "enabled",
@@ -137,19 +205,12 @@ def _has_structured_einet_recurrence(core_cfg: Any) -> bool:
         return True
 
     recurrent_ei = _get_value(core_cfg, "recurrent_ei", {})
-    recurrent_feedback = to_plain_dict(_get_value(recurrent_ei, "soma_feedback", {}))
-    if bool(recurrent_feedback.get("enabled", False)):
-        return True
     if not recurrent_ei:
         return False
 
     enabled = bool(_get_value(recurrent_ei, "enabled", False))
     if enabled:
-        per_layer = _get_value(
-            recurrent_ei,
-            "recurrent_layers",
-            _get_value(recurrent_ei, "recurrent_per_layer", None),
-        )
+        per_layer = _get_value(recurrent_ei, "recurrent_layers", None)
         if per_layer is None:
             return True
         if isinstance(per_layer, list):
@@ -214,6 +275,10 @@ def is_recurrent_core_config(core_cfg: Any) -> bool:
     core_type = _core_type(core_cfg)
     if core_type in _BASELINE_RNN_TYPES:
         return True
+    if core_type in _HETEROGENEOUS_LEAK_CTRNN_TYPES:
+        return True
+    if core_type in _LEGENDRE_MEMORY_TYPES:
+        return True
     if core_type in _POPULATION_NETWORK_TYPES:
         return _population_network_requires_recurrent_wrapper(core_cfg)
     if core_type in _UNIFIED_EI_TYPES:
@@ -225,4 +290,4 @@ def is_recurrent_core_config(core_cfg: Any) -> bool:
     return _legacy_recurrent_enabled(core_cfg)
 
 
-__all__ = ["is_recurrent_core_config"]
+__all__ = ["is_recurrent_core_config", "resolve_feature_block"]

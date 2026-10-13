@@ -31,7 +31,7 @@
   <text x="60" y="108" class="subtitle">external sparsity and tree aggregation</text>
 
   <rect x="60" y="132" width="148" height="34" class="chip"/>
-  <text x="106" y="154" class="chiptext">TopK</text>
+  <text x="106" y="154" class="chiptext">Top-K</text>
   <rect x="220" y="132" width="118" height="34" class="chip"/>
   <text x="250" y="154" class="chiptext">Block</text>
 
@@ -121,5 +121,5 @@
   <text x="1088" y="638" class="small">tree fan-in</text>
 
   <rect x="60" y="796" width="1200" height="30" class="takeaway"/>
-  <text x="84" y="816" class="small">Takeaway: TopKLinear selects external inputs; BlockLinear merges sibling branches toward the soma.</text>
+  <text x="84" y="816" class="small">TopKLinear selects external inputs; BlockLinear merges sibling branches toward the soma.</text>
 </svg>

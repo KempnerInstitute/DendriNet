@@ -36,7 +36,6 @@ def einet_config():
             "ii_synapses_per_branch_per_layer": [0],
         },
         "transfer": {
-            "input_mode": 0,
             "independent_pathways": False,
             "excitatory_dim": None,
             "inhibitory_dim": None,
@@ -101,6 +100,124 @@ class TestHierarchicalDendriticConv:
         )
         assert core.out_channels == 32
         assert core.output_dim == 32
+
+    def test_output_contract_is_channel_aligned(self, einet_config):
+        core = get_architecture(
+            "hierarchical_dendritic_conv",
+            einet_config,
+            input_dim=16,
+        )
+
+        assert core.spatial_output_contract() == {
+            "input_layout": "BCHW",
+            "patch_layout": "channel_y_x_flat",
+            "output_layout": "BCHW",
+            "spatial_weight_sharing": True,
+            "input_transform": "identity",
+            "input_scale": 1.0,
+            "adapted_input_channels": 16,
+            "output_channels": 32,
+            "excitatory_somas_per_location": 32,
+            "channel_mapping": "one_excitatory_soma_per_output_channel",
+            "propagated_population": "excitatory",
+            "inhibitory_population_scope": "local_per_output_position",
+            "output_adapter": "identity",
+        }
+
+    def test_input_scale_rescales_patch_drive(self, einet_config):
+        einet_config["spatial"]["input_scale"] = 0.25
+        scaled_core = get_architecture(
+            "hierarchical_dendritic_conv",
+            einet_config,
+            input_dim=16,
+        )
+        reference_config = {
+            **einet_config,
+            "spatial": {**einet_config["spatial"], "input_scale": 1.0},
+        }
+        reference_core = get_architecture(
+            "hierarchical_dendritic_conv",
+            reference_config,
+            input_dim=16,
+        )
+        reference_core.load_state_dict(scaled_core.state_dict())
+
+        x = torch.rand(2, 16, 8, 8)
+        torch.testing.assert_close(scaled_core(x), reference_core(0.25 * x))
+        assert scaled_core.spatial_output_contract()["input_scale"] == 0.25
+        assert (
+            scaled_core.get_effective_params() == reference_core.get_effective_params()
+        )
+
+    def test_input_scale_must_be_positive(self, einet_config):
+        einet_config["spatial"]["input_scale"] = 0.0
+        with pytest.raises(ValueError, match="input_scale"):
+            get_architecture(
+                "hierarchical_dendritic_conv",
+                einet_config,
+                input_dim=16,
+            )
+
+    def test_threshold_relu_output_adapter_is_config_selectable(self, einet_config):
+        einet_config["spatial"][
+            "output_adapter_mode"
+        ] = "learned_per_channel_threshold_relu"
+        einet_config["spatial"]["output_initial_threshold"] = 10.0
+        core = get_architecture(
+            "hierarchical_dendritic_conv",
+            einet_config,
+            input_dim=16,
+        )
+
+        output = core(torch.rand(2, 16, 8, 8))
+
+        assert torch.count_nonzero(output) == 0
+        assert core.spatial_output_contract()["output_adapter"] == (
+            "learned_per_channel_threshold_relu"
+        )
+        assert core.output_adapter.log_scale.numel() == core.out_channels
+        identity_config = {
+            **einet_config,
+            "spatial": {
+                **einet_config["spatial"],
+                "output_adapter_mode": "identity",
+            },
+        }
+        identity_core = get_architecture(
+            "hierarchical_dendritic_conv",
+            identity_config,
+            input_dim=16,
+        )
+        assert core.get_effective_params() == (
+            identity_core.get_effective_params() + 2 * core.out_channels
+        )
+
+    def test_signed_split_preserves_signed_spatial_input(self, einet_config):
+        einet_config["spatial"]["input_transform"] = "signed_split"
+        core = get_architecture(
+            "hierarchical_dendritic_conv",
+            einet_config,
+            input_dim=3,
+        )
+        inputs = torch.randn(2, 3, 8, 8)
+
+        adapted = core.input_adapter(inputs)
+
+        assert adapted.shape == (2, 6, 8, 8)
+        torch.testing.assert_close(adapted[:, :3] - adapted[:, 3:], inputs)
+        assert core.einet.input_dim == 6 * 3 * 3
+
+    def test_identical_patches_emit_identical_channel_vectors(self, einet_config):
+        einet_config["spatial"]["padding"] = 0
+        core = get_architecture(
+            "hierarchical_dendritic_conv",
+            einet_config,
+            input_dim=16,
+        )
+
+        output = core(torch.ones(1, 16, 5, 5))
+        reference = output[:, :, :1, :1].expand_as(output)
+        torch.testing.assert_close(output, reference)
 
     def test_stride_reduces_spatial(self, einet_config):
         """Stride > 1 should reduce spatial dimensions."""
@@ -183,11 +300,69 @@ class TestFactoryAliases:
                 core, HierarchicalDendriticConv
             ), f"Failed for alias: {alias}"
 
+    def test_sparse_active_matched_point_conv_matches_reference(self, einet_config):
+        """The spatial point control shares patches and matches active scalars."""
+
+        einet_config["sparsity"] = {
+            **einet_config["sparsity"],
+            "type": "indexed",
+            "indexed": {"seed": 17, "output_chunk_size": 32},
+        }
+        reference = get_architecture(
+            "hierarchical_dendritic_conv", einet_config, input_dim=16
+        )
+        point = get_architecture(
+            "sparse_active_matched_point_conv", einet_config, input_dim=16
+        )
+        x = torch.rand(2, 16, 8, 8)
+        assert point(x).shape == reference(x).shape == (2, 32, 8, 8)
+        assert point.get_effective_params() == reference.get_effective_params()
+
 
 # ---------------------------------------------------------------------------
 # Gradient flow
 # ---------------------------------------------------------------------------
 class TestGradientFlow:
+    def test_indexed_backend_config_reaches_shared_patch_einet(self, einet_config):
+        from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_sparse import (
+            IndexedSparseLinear,
+        )
+
+        einet_config["sparsity"] = {
+            **einet_config["sparsity"],
+            "type": "indexed",
+            "indexed": {
+                "seed": 17,
+                "index_dtype": "int32",
+                "projection_backend": "auto",
+            },
+        }
+        einet_config["reactivation"] = {
+            **einet_config["reactivation"],
+            "memory_efficient": True,
+        }
+        core = get_architecture(
+            "hierarchical_dendritic_conv",
+            einet_config,
+            input_dim=4,
+        )
+        value = torch.rand(2, 4, 5, 5, requires_grad=True)
+
+        core(value).square().mean().backward()
+
+        indexed_layers = [
+            module
+            for module in core.modules()
+            if isinstance(module, IndexedSparseLinear)
+        ]
+        assert indexed_layers
+        assert all(layer.projection_backend == "auto" for layer in indexed_layers)
+        assert all(
+            layer._last_resolved_projection_backend == "recompute"
+            for layer in indexed_layers
+        )
+        assert value.grad is not None
+
     def test_gradients_flow_through(self, einet_config):
         """Gradients should flow from output back to input via the core."""
         core = get_architecture(
@@ -286,17 +461,6 @@ class TestIntrospection:
 # ---------------------------------------------------------------------------
 # Spatial decoder support (pretrained.py integration)
 # ---------------------------------------------------------------------------
-@pytest.fixture()
-def _skip_if_no_torchvision():
-    try:
-        from torchvision.models import get_model
-
-        get_model("alexnet", weights=None)
-    except Exception:
-        pytest.skip("torchvision alexnet not available")
-
-
-@pytest.mark.usefixtures("_skip_if_no_torchvision")
 class TestSpatialDecoderSupport:
     def test_conv_suffix_split_no_longer_raises(self):
         """Splitting mid-conv should now build a spatial decoder, not raise."""
@@ -448,16 +612,14 @@ class TestConfigPath:
 # ---------------------------------------------------------------------------
 # Spatial contract validation tests
 # ---------------------------------------------------------------------------
-@pytest.mark.usefixtures("_skip_if_no_torchvision")
 class TestSpatialContractValidation:
-    def test_flat_suffix_with_spatial_conv_raises(self, tmp_path):
-        """Using spatial conv core on a flat-suffix split should raise ValueError."""
+    def test_enabled_extension_section_is_rejected_before_its_split(self, tmp_path):
+        """An enabled extension section fails before its split is validated."""
         import yaml
 
         from dendritic_modeling.config import load_config
 
-        # Build a tensor-map style config inline (flat suffix), then switch
-        # core type to spatial conv — this should raise because suffix is flat.
+        # Standalone spatial construction is tested below.
         cfg_dict = {
             "experiment": {"seed": 42, "train_valid_split": 0.8},
             "data": {
@@ -466,17 +628,7 @@ class TestSpatialContractValidation:
             },
             "model": {
                 "task": "classification",
-                "pretrained_replacement": {
-                    "enabled": True,
-                    "backbone": "alexnet",
-                    "weights": None,
-                    "input_shape": [3, 224, 224],
-                    "replace": {
-                        "start": "classifier.1",
-                        "end": "classifier.5",
-                    },
-                    "omit_layers": ["classifier.0", "classifier.3"],
-                },
+                "pretrained_replacement": {"enabled": True},
                 "encoder": {"type": "identity"},
                 "core": {
                     "type": "hierarchical_dendritic_conv",
@@ -491,14 +643,8 @@ class TestSpatialContractValidation:
         cfg_path = tmp_path / "flat_suffix_test.yaml"
         cfg_path.write_text(yaml.dump(cfg_dict))
 
-        cfg = load_config(str(cfg_path))
-
-        from dendritic_modeling.scripts.script_utils.setup_utils import (
-            _build_from_pretrained_replacement,
-        )
-
-        with pytest.raises(ValueError, match="suffix expects flat input"):
-            _build_from_pretrained_replacement(cfg.model)
+        with pytest.raises(ValueError, match="DendriNet plugin"):
+            load_config(str(cfg_path))
 
     def test_valid_spatial_split_builds_cleanly(self, einet_config):
         """A correctly configured spatial conv split should build without error."""
@@ -555,8 +701,8 @@ class TestSpatialContractValidation:
             spatial=True,
         )
 
-        if plan.prefix_output_spec is None or plan.suffix_input_spec is None:
-            pytest.skip("Split did not produce spatial specs")
+        assert plan.prefix_output_spec is not None
+        assert plan.suffix_input_spec is not None
 
         encoder, decoder = build_encoder_decoder_from_plan(plan, prefix_freeze=True)
 
@@ -581,7 +727,6 @@ class TestSpatialContractValidation:
                 "ii_synapses_per_branch_per_layer": [0],
             },
             "transfer": {
-                "input_mode": 0,
                 "independent_pathways": False,
                 "excitatory_dim": None,
                 "inhibitory_dim": None,

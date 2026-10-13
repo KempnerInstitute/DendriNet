@@ -2,20 +2,18 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
+from dendritic_modeling.config.keys import build_section
 from dendritic_modeling.config.training import (
-    FiveFactorConfig,
-    FourFactorConfig,
-    HSICConfig,
-    InhibitoryHomeostasisConfig,
-    LocalGateHomeostasisConfig,
+    LOCAL_RULE_VH_ALIASES,
+    VOLTAGE_HOMEOSTASIS_ALIAS_TARGET,
+    VOLTAGE_HOMEOSTASIS_ALIAS_WEIGHT,
     LocalRuleConfig,
-    LocalVoltageHomeostasisConfig,
-    MorphologyAwareConfig,
-    STDPConfig,
-    ThreeFactorConfig,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def section_to_dict(section: Any) -> dict[str, Any]:
@@ -84,14 +82,12 @@ def coerce_legacy_local_rule_config(config_dict: dict[str, Any]) -> dict[str, An
             "phi_estimator",
             "phi_ridge_lambda",
             "layer_wise_phi_scale",
-            "rls_forgetting",
         ],
         "morphology_aware": [
             "use_path_propagation",
             "path_factor_mode",
             "morphology_modulator_mode",
             "morphology_depth_offset",
-            "morphology_centrality_metric",
             "use_dendritic_normalization",
             "use_branch_type_rules",
             "apical_branch_scale",
@@ -116,11 +112,23 @@ def coerce_legacy_local_rule_config(config_dict: dict[str, Any]) -> dict[str, An
         ],
     }
 
+    moved: list[str] = []
+
+    def move(legacy_name: str, section: dict[str, Any], nested_name: str) -> None:
+        value = cfg.pop(legacy_name)
+        if nested_name in section and section[nested_name] != value:
+            raise ValueError(
+                f"Local-rule option {legacy_name}={value!r} conflicts with the "
+                f"nested value {section[nested_name]!r}; keep only the nested key"
+            )
+        section[nested_name] = value
+        moved.append(legacy_name)
+
     for section_name, field_names in legacy_group_fields.items():
         section = ensure_section(section_name)
         for field_name in field_names:
-            if field_name in cfg and field_name not in section:
-                section[field_name] = cfg.pop(field_name)
+            if field_name in cfg:
+                move(field_name, section, field_name)
 
     hsic_section = ensure_section("hsic")
     hsic_field_map = {
@@ -138,8 +146,8 @@ def coerce_legacy_local_rule_config(config_dict: dict[str, Any]) -> dict[str, An
         "hsic_apply_last_layer_only": "apply_last_layer_only",
     }
     for legacy_name, nested_name in hsic_field_map.items():
-        if legacy_name in cfg and nested_name not in hsic_section:
-            hsic_section[nested_name] = cfg.pop(legacy_name)
+        if legacy_name in cfg:
+            move(legacy_name, hsic_section, nested_name)
 
     stdp_section = ensure_section("stdp")
     stdp_field_map = {
@@ -160,100 +168,42 @@ def coerce_legacy_local_rule_config(config_dict: dict[str, Any]) -> dict[str, An
         "stdp_detach_traces": "detach_traces",
     }
     for legacy_name, nested_name in stdp_field_map.items():
-        if legacy_name in cfg and nested_name not in stdp_section:
-            stdp_section[nested_name] = cfg.pop(legacy_name)
+        if legacy_name in cfg:
+            move(legacy_name, stdp_section, nested_name)
 
-    # Drop known legacy-only keys that are not part of LocalRuleConfig.
-    for legacy_only_key in [
-        "rho_value",
-        "weight_lr_multiplier",
-        "compute_gradient_stats",
-    ]:
-        cfg.pop(legacy_only_key, None)
-
+    if moved:
+        logger.warning(
+            "Flat local-rule options %s are deprecated; write them in their "
+            "nested sections (three_factor, four_factor, five_factor, "
+            "morphology_aware, hsic, stdp, inhibitory_homeostasis, "
+            "voltage_homeostasis).",
+            ", ".join(sorted(moved)),
+        )
     return cfg
 
 
-def build_local_rule_config(config_dict: dict[str, Any]) -> LocalRuleConfig:
-    """Build LocalRuleConfig from dict with proper nested config handling."""
+def build_local_rule_config(
+    config_dict: dict[str, Any],
+    *,
+    section: str = "training.main.learning_strategy_config",
+) -> LocalRuleConfig:
+    """Build LocalRuleConfig from a mapping, rejecting keys it does not read."""
 
     cfg_kwargs = coerce_legacy_local_rule_config(dict(config_dict))
 
-    # Convenience aliases: allow readable shorthand like "5f_vh" while
-    # keeping the actual implementation as ordinary LocalCA + a strictly
-    # local voltage-homeostasis modifier.
-    raw_rule_variant = str(cfg_kwargs.get("rule_variant", "3f")).lower()
-    vh_alias_map = {
-        "3f_vh": "3f",
-        "3f+vh": "3f",
-        "3f-vh": "3f",
-        "4f_vh": "4f",
-        "4f+vh": "4f",
-        "4f-vh": "4f",
-        "5f_vh": "5f",
-        "5f+vh": "5f",
-        "5f-vh": "5f",
-    }
-    if raw_rule_variant in vh_alias_map:
-        cfg_kwargs["rule_variant"] = vh_alias_map[raw_rule_variant]
-        vh_cfg = cfg_kwargs.get("voltage_homeostasis")
-        if isinstance(vh_cfg, dict):
-            vh_cfg = dict(vh_cfg)
-            vh_cfg.setdefault("enabled", True)
-            vh_cfg.setdefault("weight", 0.02)
-            vh_cfg.setdefault("target_voltage", 0.5)
-            cfg_kwargs["voltage_homeostasis"] = vh_cfg
-        elif vh_cfg is None:
-            cfg_kwargs["voltage_homeostasis"] = {
-                "enabled": True,
-                "weight": 0.02,
-                "target_voltage": 0.5,
-            }
+    # "<rule>_vh" is ordinary LocalCA plus strictly local voltage homeostasis.
+    # Explicitly written homeostasis settings take precedence over the alias.
+    raw_rule_variant = str(cfg_kwargs.get("rule_variant", "3f")).strip().lower()
+    base_rule = LOCAL_RULE_VH_ALIASES.get(raw_rule_variant.replace("-", "_"))
+    if base_rule is not None:
+        cfg_kwargs["rule_variant"] = base_rule
+        vh_cfg = dict(cfg_kwargs.get("voltage_homeostasis") or {})
+        vh_cfg.setdefault("enabled", True)
+        vh_cfg.setdefault("weight", VOLTAGE_HOMEOSTASIS_ALIAS_WEIGHT)
+        vh_cfg.setdefault("target_voltage", VOLTAGE_HOMEOSTASIS_ALIAS_TARGET)
+        cfg_kwargs["voltage_homeostasis"] = vh_cfg
 
-    if "three_factor" in cfg_kwargs and isinstance(cfg_kwargs["three_factor"], dict):
-        cfg_kwargs["three_factor"] = ThreeFactorConfig(**cfg_kwargs["three_factor"])
-
-    if "four_factor" in cfg_kwargs and isinstance(cfg_kwargs["four_factor"], dict):
-        cfg_kwargs["four_factor"] = FourFactorConfig(**cfg_kwargs["four_factor"])
-
-    if "five_factor" in cfg_kwargs and isinstance(cfg_kwargs["five_factor"], dict):
-        cfg_kwargs["five_factor"] = FiveFactorConfig(**cfg_kwargs["five_factor"])
-
-    if "morphology_aware" in cfg_kwargs and isinstance(
-        cfg_kwargs["morphology_aware"], dict
-    ):
-        cfg_kwargs["morphology_aware"] = MorphologyAwareConfig(
-            **cfg_kwargs["morphology_aware"]
-        )
-
-    if "hsic" in cfg_kwargs and isinstance(cfg_kwargs["hsic"], dict):
-        cfg_kwargs["hsic"] = HSICConfig(**cfg_kwargs["hsic"])
-
-    if "stdp" in cfg_kwargs and isinstance(cfg_kwargs["stdp"], dict):
-        cfg_kwargs["stdp"] = STDPConfig(**cfg_kwargs["stdp"])
-
-    if "inhibitory_homeostasis" in cfg_kwargs and isinstance(
-        cfg_kwargs["inhibitory_homeostasis"], dict
-    ):
-        cfg_kwargs["inhibitory_homeostasis"] = InhibitoryHomeostasisConfig(
-            **cfg_kwargs["inhibitory_homeostasis"]
-        )
-
-    if "voltage_homeostasis" in cfg_kwargs and isinstance(
-        cfg_kwargs["voltage_homeostasis"], dict
-    ):
-        cfg_kwargs["voltage_homeostasis"] = LocalVoltageHomeostasisConfig(
-            **cfg_kwargs["voltage_homeostasis"]
-        )
-
-    if "gate_homeostasis" in cfg_kwargs and isinstance(
-        cfg_kwargs["gate_homeostasis"], dict
-    ):
-        cfg_kwargs["gate_homeostasis"] = LocalGateHomeostasisConfig(
-            **cfg_kwargs["gate_homeostasis"]
-        )
-
-    return LocalRuleConfig(**cfg_kwargs)
+    return build_section(LocalRuleConfig, cfg_kwargs, section=section)
 
 
 __all__ = [

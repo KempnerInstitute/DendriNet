@@ -4,18 +4,23 @@ Activation Factory.
 This module provides a factory for building different activation/reactivation modules.
 """
 
-from collections.abc import Callable
+import inspect
+from collections.abc import Callable, Mapping
 from typing import Any
 
 import torch.nn as nn
 
+from dendritic_modeling.networks.activations.endpoint_tanh import EndpointNormalizedTanh
 from dendritic_modeling.networks.activations.parametric import (
     ParametricLinearSigmoid,
     ParametricLinearTanh,
     ParametricLinearTanhTransition,
+    ParametricReLU,
     ParametricTanh,
     ParametricTanhOnlyM,
+    ResidualSiLU,
 )
+from dendritic_modeling.plugins import load_plugins
 
 ActivationBuilder = Callable[..., nn.Module]
 
@@ -56,23 +61,63 @@ def _tanh_builder(**_: Any) -> nn.Module:
     return nn.Tanh()
 
 
+def _gelu_builder(**_: Any) -> nn.Module:
+    return nn.GELU()
+
+
+def _silu_builder(**_: Any) -> nn.Module:
+    return nn.SiLU()
+
+
+def _softplus_builder(**_: Any) -> nn.Module:
+    return nn.Softplus()
+
+
 def _param_tanh_builder(
-    *, output_dim: int | None, init_m: float, init_b: float, **_: Any
+    *,
+    output_dim: int | None,
+    init_m: float,
+    init_b: float,
+    memory_efficient: bool = False,
+    **_: Any,
 ) -> nn.Module:
     return ParametricTanh(
         _require_output_dim(output_dim, "ParametricTanh"),
         init_m,
         init_b,
+        memory_efficient=memory_efficient,
+    )
+
+
+def _param_relu_builder(
+    *,
+    output_dim: int | None,
+    init_m: float,
+    init_b: float,
+    memory_efficient: bool = False,
+    **_: Any,
+) -> nn.Module:
+    return ParametricReLU(
+        _require_output_dim(output_dim, "ParametricReLU"),
+        init_m,
+        init_b,
+        memory_efficient=memory_efficient,
     )
 
 
 def _param_tanh_only_m_builder(
-    *, output_dim: int | None, init_m: float, fixed_b: float, **_: Any
+    *,
+    output_dim: int | None,
+    init_m: float,
+    fixed_b: float,
+    memory_efficient: bool = False,
+    **_: Any,
 ) -> nn.Module:
     return ParametricTanhOnlyM(
         _require_output_dim(output_dim, "ParametricTanhOnlyM"),
         init_m,
         fixed_b,
+        memory_efficient=memory_efficient,
     )
 
 
@@ -82,14 +127,14 @@ def _param_linear_sigmoid_builder(
     init_m: float,
     init_b: float,
     fixed_b: float,
-    **kwargs: Any,
+    memory_efficient: bool = False,
+    **_: Any,
 ) -> nn.Module:
     return ParametricLinearSigmoid(
         _require_output_dim(output_dim, "ParametricLinearSigmoid"),
         init_m=init_m,
         init_b=init_b,
         trainable=True,
-        **kwargs,
     )
 
 
@@ -99,14 +144,14 @@ def _linear_sigmoid_builder(
     init_m: float,
     init_b: float,
     fixed_b: float,
-    **kwargs: Any,
+    memory_efficient: bool = False,
+    **_: Any,
 ) -> nn.Module:
     return ParametricLinearSigmoid(
         _require_output_dim(output_dim, "ParametricLinearSigmoid"),
         init_m=init_m,
         init_b=init_b,
         trainable=False,
-        **kwargs,
     )
 
 
@@ -116,14 +161,14 @@ def _param_linear_tanh_builder(
     init_m: float,
     init_b: float,
     fixed_b: float,
-    **kwargs: Any,
+    memory_efficient: bool = False,
+    **_: Any,
 ) -> nn.Module:
     return ParametricLinearTanh(
         _require_output_dim(output_dim, "ParametricLinearTanh"),
         init_m=init_m,
         init_b=init_b,
         trainable=True,
-        **kwargs,
     )
 
 
@@ -133,14 +178,14 @@ def _linear_tanh_builder(
     init_m: float,
     init_b: float,
     fixed_b: float,
-    **kwargs: Any,
+    memory_efficient: bool = False,
+    **_: Any,
 ) -> nn.Module:
     return ParametricLinearTanh(
         _require_output_dim(output_dim, "ParametricLinearTanh"),
         init_m=init_m,
         init_b=init_b,
         trainable=False,
-        **kwargs,
     )
 
 
@@ -176,7 +221,26 @@ def _linear_tanh_transition_builder(
     )
 
 
+def _residual_silu_builder(
+    *,
+    output_dim: int | None,
+    init_mix: float = 0.0,
+    **_: Any,
+) -> nn.Module:
+    """Opt-in: identity at construction, SiLU at mix 1 (see ResidualSiLU)."""
+
+    return ResidualSiLU(_require_output_dim(output_dim, "ResidualSiLU"), init_mix)
+
+
+def _endpoint_tanh_builder(*, output_dim, init_m=3.0, init_b=1.5, **_):
+    return EndpointNormalizedTanh(
+        _require_output_dim(output_dim, "EndpointNormalizedTanh"), init_m, init_b
+    )
+
+
 _ACTIVATION_REGISTRY: dict[str, ActivationBuilder] = {
+    "endpoint_tanh": _endpoint_tanh_builder,
+    "gelu": _gelu_builder,
     "linear_sigmoid": _linear_sigmoid_builder,
     "linear_tanh": _linear_tanh_builder,
     "linear_tanh_transition": _linear_tanh_transition_builder,
@@ -184,10 +248,15 @@ _ACTIVATION_REGISTRY: dict[str, ActivationBuilder] = {
     "param_linear_sigmoid": _param_linear_sigmoid_builder,
     "param_linear_tanh": _param_linear_tanh_builder,
     "param_linear_tanh_transition": _param_linear_tanh_transition_builder,
+    "param_relu": _param_relu_builder,
     "param_tanh": _param_tanh_builder,
     "param_tanh_only_m": _param_tanh_only_m_builder,
     "relu": _relu_builder,
+    "residual_silu": _residual_silu_builder,
     "sigmoid": _sigmoid_builder,
+    "silu": _silu_builder,
+    "softplus": _softplus_builder,
+    "swish": _silu_builder,
     "tanh": _tanh_builder,
 }
 
@@ -219,13 +288,37 @@ def get_activation_builder(act_type: str) -> ActivationBuilder:
     normalized_type = _normalize_activation_type(act_type)
     builder = _ACTIVATION_REGISTRY.get(normalized_type)
     if builder is None:
+        load_plugins()
+        builder = _ACTIVATION_REGISTRY.get(normalized_type)
+    if builder is None:
         raise ValueError(f"Unknown activation type: {normalized_type}")
     return builder
 
 
 def get_registered_activation_types() -> list[str]:
-    """Return registered activation type names."""
+    """Return registered activation type names, including those of plugins."""
+    load_plugins()
     return sorted(_ACTIVATION_REGISTRY)
+
+
+def unused_activation_options(act_type: Any, options: Mapping[str, Any]) -> list[str]:
+    """Return option names that ``ActivationFactory.create`` would discard.
+
+    Builders name the options they use; a catch-all ``**_`` parameter discards
+    the rest. Builders that forward ``**kwargs`` to a module constructor keep
+    every option, and that constructor validates them.
+    """
+    builder = _resolve_activation_builder(act_type)
+    named = {"fixed_b"}
+    forwards_extra = False
+    for name, parameter in inspect.signature(builder).parameters.items():
+        if parameter.kind is inspect.Parameter.VAR_KEYWORD:
+            forwards_extra = name != "_"
+        elif parameter.kind is not inspect.Parameter.VAR_POSITIONAL:
+            named.add(name)
+    if forwards_extra:
+        return []
+    return sorted(set(options) - named)
 
 
 class ActivationFactory:
@@ -276,4 +369,5 @@ __all__ = [
     "get_registered_activation_types",
     "register_activation_builder",
     "unregister_activation_builder",
+    "unused_activation_options",
 ]

@@ -12,6 +12,7 @@ import argparse
 import hashlib
 import json
 import logging
+from collections import OrderedDict
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -21,9 +22,15 @@ import torch
 from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.analysis.registry import get_registered_analyzers
 from dendritic_modeling.config import load_analysis_config, load_config
+from dendritic_modeling.config.analysis import analysis_section
+from dendritic_modeling.networks.checkpoints import (
+    copy_state_metadata,
+    load_state_dict_with_record,
+)
 from dendritic_modeling.scripts.script_utils.setup_utils import setup_environment
 from dendritic_modeling.scripts.sweeps.control_plane import discover_source_identity
 from dendritic_modeling.utils import resolve_experiment_seeds, save_dict
+from dendritic_modeling.utils.logging_config import setup_logging
 
 logger = logging.getLogger(__name__)
 
@@ -60,13 +67,15 @@ def _extract_state_dict(payload: Any) -> Mapping[str, torch.Tensor]:
 
 def _normalize_state_dict_keys(
     state_dict: Mapping[str, torch.Tensor],
-) -> dict[str, torch.Tensor]:
-    """Remove a uniform DDP ``module.`` prefix without altering other keys."""
+) -> OrderedDict:
+    """Remove a uniform DDP ``module.`` prefix, keeping module version metadata."""
 
     keys = list(state_dict)
-    if keys and all(key.startswith("module.") for key in keys):
-        return {key[7:]: value for key, value in state_dict.items()}
-    return dict(state_dict)
+    uniform = bool(keys) and all(key.startswith("module.") for key in keys)
+    normalized = OrderedDict(
+        (key[7:] if uniform else key, value) for key, value in state_dict.items()
+    )
+    return copy_state_metadata(state_dict, normalized, strip_prefix=uniform)
 
 
 def _enabled_analyzer_names(analysis_config: Any) -> list[str]:
@@ -77,7 +86,7 @@ def _enabled_analyzer_names(analysis_config: Any) -> list[str]:
         for name, spec in get_registered_analyzers().items()
         if bool(
             getattr(
-                getattr(analysis_config, spec.config_field, None),
+                analysis_section(analysis_config, spec.config_field),
                 "enabled",
                 False,
             )
@@ -95,7 +104,12 @@ def run_checkpoint_analysis(
     device: str | None = None,
     strict: bool = True,
 ) -> dict[str, Any]:
-    """Execute one reproducible, post-training checkpoint analysis."""
+    """Execute one reproducible, post-training checkpoint analysis.
+
+    Returns the run directory the analyzers wrote into, the files it holds and
+    the provenance record (also saved as ``checkpoint_analysis_provenance.json``),
+    which includes the completion status of every requested analyzer.
+    """
 
     config_path = Path(config_path).resolve()
     checkpoint_path = Path(checkpoint_path).resolve()
@@ -110,16 +124,19 @@ def run_checkpoint_analysis(
         str(analysis_config_path),
         distributed_mode=str(getattr(config.distributed, "mode", "none")),
     )
-    config.wandb.use_wandb = False
     config.outputs.results_dir = str(output_dir)
     config.outputs.run_name = "checkpoint_analysis"
     config.outputs.exact_run_dir = True
+    # Training provenance may request a complete dataset inventory. Re-emitting
+    # that inventory for every frozen-checkpoint analysis is redundant and can
+    # be multi-gigabyte for ImageFolder datasets. The analysis provenance below
+    # already binds the training config, checkpoint, analysis config, and code.
+    config.experiment.record_dataset_fingerprints = False
 
     run_save_path, train_ds, valid_ds, test_ds, model, _ = setup_environment(
         model_config=config.model,
         training_config=config.training,
         data_config=config.data,
-        wandb_config=config.wandb,
         outputs_config=config.outputs,
         experiment_config=config.experiment,
         is_main=True,
@@ -128,7 +145,7 @@ def run_checkpoint_analysis(
     selected_device = device or ("cuda" if torch.cuda.is_available() else "cpu")
     payload = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
     state_dict = _normalize_state_dict_keys(_extract_state_dict(payload))
-    incompatibilities = model.load_state_dict(state_dict, strict=strict)
+    load_record = load_state_dict_with_record(model, state_dict, strict=strict)
     model.to(selected_device)
     model.eval()
 
@@ -142,7 +159,9 @@ def run_checkpoint_analysis(
         evaluation_seed=seeds.evaluation_seed,
         probe_seed=seeds.probe_seed,
     )
-    results = manager.run_analysis(filename=filename, training=False)
+    # With analysis.require_completion an incomplete pass raises here; its
+    # status is in analysis_status.json either way.
+    analysis_status = manager.run_analysis(filename=filename, training=False)
 
     provenance = {
         "schema_version": SCHEMA_VERSION,
@@ -158,8 +177,7 @@ def run_checkpoint_analysis(
         "device": selected_device,
         "strict_checkpoint_loading": bool(strict),
         "state_dict_key_count": len(state_dict),
-        "missing_keys": list(incompatibilities.missing_keys),
-        "unexpected_keys": list(incompatibilities.unexpected_keys),
+        **load_record,
         "resolved_seeds": seeds.asdict(),
         "dataset_sizes": {
             "train": len(train_ds),
@@ -167,6 +185,10 @@ def run_checkpoint_analysis(
             "test": len(test_ds),
         },
         "enabled_analyzers": _enabled_analyzer_names(config.analysis),
+        # Completion status of each requested analyzer (analysis_status.json).
+        "analysis_status": (
+            dict(analysis_status) if isinstance(analysis_status, Mapping) else None
+        ),
         "code_identity": discover_source_identity(
             _repo_root(), source_files=(Path(__file__),)
         ),
@@ -176,7 +198,15 @@ def run_checkpoint_analysis(
         "Checkpoint analysis complete: %s",
         json.dumps(provenance, sort_keys=True),
     )
-    return {"results": results, "provenance": provenance}
+    run_dir = Path(run_save_path)
+    result_files = sorted(
+        str(path.relative_to(run_dir)) for path in run_dir.rglob("*") if path.is_file()
+    )
+    return {
+        "output_dir": str(run_dir),
+        "result_files": result_files,
+        "provenance": provenance,
+    }
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -188,8 +218,16 @@ def _build_parser() -> argparse.ArgumentParser:
         required=True,
         help="Standalone YAML containing the analysis profile",
     )
-    parser.add_argument("--output-dir", required=True)
-    parser.add_argument("--filename", default="final")
+    parser.add_argument(
+        "--output-dir",
+        required=True,
+        help="Directory the analyzers and the provenance record write into",
+    )
+    parser.add_argument(
+        "--filename",
+        default="final",
+        help="Result name of the analyzers' output files",
+    )
     parser.add_argument("--device", default=None, help="For example cuda, cuda:0, cpu")
     parser.add_argument(
         "--no-strict",
@@ -212,5 +250,12 @@ def main(argv: list[str] | None = None) -> dict[str, Any]:
     )
 
 
+def cli_main(argv: list[str] | None = None) -> int:
+    """Console entry point: run :func:`main` and exit 0 on success."""
+    setup_logging()
+    main(argv)
+    return 0
+
+
 if __name__ == "__main__":  # pragma: no cover
-    main()
+    raise SystemExit(cli_main())

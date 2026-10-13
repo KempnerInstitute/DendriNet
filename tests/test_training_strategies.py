@@ -8,6 +8,7 @@ This module tests all training functionality including:
 - Training workflows
 """
 
+import contextlib
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -16,7 +17,7 @@ import torch
 import torch.nn as nn
 
 from dendritic_modeling.config import TransferFunctionConfig
-from dendritic_modeling.config.training import PruningConfig
+from dendritic_modeling.config.training import PruningConfig, SelectiveConfig
 from dendritic_modeling.models import Classifier
 from dendritic_modeling.networks import ExcitationInhibitionNetwork, Identity
 from dendritic_modeling.networks.activations.parametric import (
@@ -37,12 +38,10 @@ from dendritic_modeling.training.strategies.specialized import (
     _start_warmup_phase,
 )
 from dendritic_modeling.training.strategies.two_step import (
-    _forward_through_local_layers,
     _initialize_local_heads,
+    _local_features,
     _make_local_optimizers,
-    _prepend_pretrain_losses,
     _resolve_layer_container,
-    _restore_full_model_trainability,
 )
 
 
@@ -59,13 +58,13 @@ class TestTrainerFactory(unittest.TestCase):
                 input_dim=10,
                 transfer_params=transfer_params,
                 excitatory_layer_sizes=[4],
-                inhibitory_layer_sizes=[4],
+                inhibitory_layer_sizes=[0],
                 excitatory_branch_factors=[2],
                 inhibitory_branch_factors=[2],
                 ee_synapses_per_branch_per_layer=[1],
-                ei_synapses_per_branch_per_layer=[1],
+                ei_synapses_per_branch_per_layer=[0],
                 ie_synapses_per_branch_per_layer=[1],
-                ii_synapses_per_branch_per_layer=[1],
+                ii_synapses_per_branch_per_layer=[0],
             ),
             decoder_network=Identity(input_dim=4),
         )
@@ -126,6 +125,7 @@ class TestTrainerFactory(unittest.TestCase):
             "loss_function": "cross_entropy",
             "epochs": 10,
             "reactivation_update_mode": "quantile",
+            "recalibrate_reactivation_every": 1,
             "reactivation_recalibration_mode": "occupancy_quantile",
             "reactivation_recalibration_start_epoch": 2,
             "reactivation_recalibration_num_batches": 7,
@@ -153,13 +153,13 @@ class TestTrainer(unittest.TestCase):
                 input_dim=8,
                 transfer_params=transfer_params,
                 excitatory_layer_sizes=[4],
-                inhibitory_layer_sizes=[4],
+                inhibitory_layer_sizes=[0],
                 excitatory_branch_factors=[2],
                 inhibitory_branch_factors=[2],
                 ee_synapses_per_branch_per_layer=[1],
-                ei_synapses_per_branch_per_layer=[1],
+                ei_synapses_per_branch_per_layer=[0],
                 ie_synapses_per_branch_per_layer=[1],
-                ii_synapses_per_branch_per_layer=[1],
+                ii_synapses_per_branch_per_layer=[0],
             ),
             decoder_network=Identity(input_dim=4),
         )
@@ -207,8 +207,8 @@ class TestTrainer(unittest.TestCase):
         self.assertGreater(len(results["train_losses"]), 0)
         self.assertGreater(len(results["valid_losses"]), 0)
 
-    def test_apply_pruning_and_evaluate_returns_pre_post_metrics(self):
-        """Test separate pruning step used by train_experiments."""
+    def test_apply_pruning_rejects_positively_transformed_weights(self):
+        """Zeroing exp/softplus-transformed weights does not remove contacts."""
         trainer = Trainer(
             optimizer=torch.optim.Adam(self.model.parameters(), lr=0.01),
             loss_function="cross_entropy",
@@ -218,8 +218,30 @@ class TestTrainer(unittest.TestCase):
             num_workers=0,
         )
 
+        with self.assertRaisesRegex(ValueError, "positive transform"):
+            trainer._apply_pruning_and_evaluate(
+                self.model, self.train_data, self.valid_data
+            )
+
+    def test_apply_pruning_and_evaluate_returns_pre_post_metrics(self):
+        """Test separate pruning step used by train_experiments."""
+        model = nn.Sequential(nn.Linear(8, 4), nn.ReLU(), nn.Linear(4, 2))
+        trainer = Trainer(
+            optimizer=torch.optim.Adam(model.parameters(), lr=0.01),
+            loss_function="cross_entropy",
+            pruning_config=PruningConfig(
+                enabled=True,
+                threshold=1e9,
+                selective=SelectiveConfig(weight_types=["all"]),
+                re_evaluate_after=True,
+            ),
+            batch_size=8,
+            suppress_prints=True,
+            num_workers=0,
+        )
+
         results = trainer._apply_pruning_and_evaluate(
-            self.model, self.train_data, self.valid_data
+            model, self.train_data, self.valid_data
         )
 
         self.assertIn("pre_pruning_performance", results)
@@ -236,7 +258,10 @@ class _TinyLayeredCore(nn.Module):
         self.output_dim = 3
 
     def forward(self, x):
-        for layer in self.layers:
+        return self.forward_until(x, len(self.layers) - 1)
+
+    def forward_until(self, x, layer_index):
+        for layer in self.layers[: layer_index + 1]:
             x = torch.relu(layer(x))
         return x
 
@@ -274,37 +299,16 @@ class TestTwoStepLocalHeads(unittest.TestCase):
         self.assertIs(_resolve_layer_container(net_model), core_network)
         self.assertIs(_resolve_layer_container(bare_model), bare_model)
 
-    def test_restore_full_model_trainability_enables_all_parameters(self):
-        model = _TinyLayeredModel()
-        for param in model.parameters():
-            param.requires_grad = False
+    def test_local_features_run_the_encoder_and_the_core_forward(self):
+        core = _TinyLayeredCore()
+        core.layers.append(nn.Linear(3, 3))
+        model = SimpleNamespace(encoder_network=nn.Linear(5, 4))
+        x_batch = torch.randn(6, 5)
 
-        _restore_full_model_trainability(model)
+        expected = torch.relu(core.layers[0](model.encoder_network(x_batch)))
+        actual = _local_features(model, core, x_batch, layer_idx=0)
 
-        self.assertTrue(all(param.requires_grad for param in model.parameters()))
-
-    def test_prepend_pretrain_losses_preserves_stage_order(self):
-        results = {"train_losses": [3.0], "valid_losses": [4.0]}
-
-        merged = _prepend_pretrain_losses(results, [1.0, 2.0], [1.5, 2.5])
-
-        self.assertIs(merged, results)
-        self.assertEqual(merged["train_losses"], [1.0, 2.0, 3.0])
-        self.assertEqual(merged["valid_losses"], [1.5, 2.5, 4.0])
-
-    def test_forward_through_local_layers_matches_inline_path(self):
-        net_obj = SimpleNamespace(
-            layers=nn.ModuleList([nn.Linear(4, 3), _ActivationLayer()])
-        )
-        x_batch = torch.randn(5, 4)
-
-        manual = net_obj.layers[0](x_batch)
-        manual = net_obj.layers[1](manual)
-        manual = net_obj.layers[1].activation(manual)
-
-        actual = _forward_through_local_layers(net_obj, x_batch, layer_idx=1)
-
-        torch.testing.assert_close(actual, manual)
+        torch.testing.assert_close(actual, expected)
 
     @patch("torch.distributed.is_initialized", return_value=True)
     def test_two_step_raises_explicitly_under_ddp(self, _mock_dist):
@@ -339,7 +343,7 @@ class TestTwoStepLocalHeads(unittest.TestCase):
         trainer.pretrain_epochs = 1
         trainer.device = "cpu"
         trainer.local_heads = _initialize_local_heads(
-            model.core_network, model, trainer.device
+            model.core_network, model, torch.randn(1, 4)
         )
         trainer.local_optimizers = _make_local_optimizers(
             model.core_network, trainer.local_heads, trainer.optimizer
@@ -374,6 +378,8 @@ class TestTwoStepLocalHeads(unittest.TestCase):
                 )
                 trainer.pretrain_epochs = 1
                 trainer.device = "cpu"
+                # Heads given up front: sizing them runs no local forward.
+                trainer.local_heads = [nn.Linear(3, 2)]
                 train_data = torch.utils.data.TensorDataset(
                     torch.randn(4, 4), torch.randint(0, 2, (4,))
                 )
@@ -393,7 +399,7 @@ class TestTwoStepLocalHeads(unittest.TestCase):
 
                 with patch(
                     "dendritic_modeling.training.strategies.two_step."
-                    "_forward_through_local_layers",
+                    "_local_features",
                     side_effect=_fail_after_freeze,
                 ):
                     with self.assertRaisesRegex(RuntimeError, "local pretrain failed"):
@@ -545,6 +551,9 @@ class TestReactivationUpdateModes(unittest.TestCase):
             pretrain_epochs=3,
             freeze_reactivation=True,
             best_loss=0.25,
+            # A single-process model: the DDP guard has nothing to reject.
+            _reject_trainability_change_under_ddp=lambda *_args: None,
+            _run_epoch_count=lambda _total: contextlib.nullcontext(),
         )
         train_data = object()
         valid_data = object()
@@ -595,7 +604,9 @@ class TestReactivationUpdateModes(unittest.TestCase):
         self.assertEqual(trainer.logger_info_prefix, "[Standard] ")
         self.assertEqual(trainer.best_loss, float("inf"))
         self.assertTrue(model.trainable.log_m.requires_grad)
-        self.assertTrue(model.frozen.log_m.requires_grad)
+        # The warm-up restores each parameter's pre-warm-up trainability; it no
+        # longer unfreezes activations constructed with trainable=False.
+        self.assertFalse(model.frozen.log_m.requires_grad)
 
     def test_quantile_mode_freezes_and_backprop_restores_original_trainability(self):
         model = _MixedTrainabilityReactivationModel()
@@ -657,6 +668,7 @@ class TestReactivationUpdateModes(unittest.TestCase):
             loss_function="cross_entropy",
             suppress_prints=True,
             reactivation_update_mode="quantile",
+            recalibrate_reactivation_every=1,
             num_workers=0,
         )
         trainer.device = torch.device("cpu")
@@ -711,6 +723,7 @@ class TestReactivationUpdateModes(unittest.TestCase):
             loss_function="cross_entropy",
             suppress_prints=True,
             reactivation_update_mode="quantile",
+            recalibrate_reactivation_every=1,
             reactivation_recalibration_num_batches=2,
             reactivation_recalibration_ema_alpha=0.25,
             num_workers=0,
@@ -743,6 +756,7 @@ class TestLocalReactivationUpdateModes(unittest.TestCase):
             suppress_prints=True,
             num_workers=0,
             reactivation_update_mode="quantile",
+            recalibrate_reactivation_every=1,
             local_rule_config={"update_reactivation": True},
         )
 

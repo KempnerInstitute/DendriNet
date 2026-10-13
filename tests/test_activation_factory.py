@@ -13,6 +13,9 @@ from dendritic_modeling.networks.activations.factory import (
     register_activation_builder,
     unregister_activation_builder,
 )
+from dendritic_modeling.networks.activations.memory_efficient import (
+    fused_shunt_reactivation,
+)
 from dendritic_modeling.networks.activations.parametric import (
     ParametricLinearSigmoid,
     ParametricLinearTanh,
@@ -44,6 +47,20 @@ def test_create_sigmoid():
 def test_create_tanh():
     act = ActivationFactory.create("tanh")
     assert isinstance(act, nn.Tanh)
+
+
+@pytest.mark.parametrize(
+    ("name", "expected_type"),
+    [
+        ("gelu", nn.GELU),
+        ("silu", nn.SiLU),
+        ("swish", nn.SiLU),
+        ("softplus", nn.Softplus),
+    ],
+)
+def test_create_transformer_and_positive_activations(name, expected_type):
+    act = ActivationFactory.create(name)
+    assert isinstance(act, expected_type)
 
 
 def test_create_param_tanh():
@@ -190,6 +207,121 @@ def test_parametric_tanh_gradient_flow():
     out.sum().backward()
     assert act.log_m.grad is not None
     assert act.b.grad is not None
+
+
+@pytest.mark.parametrize("activation_name", ["param_tanh", "param_tanh_only_m"])
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
+def test_memory_efficient_positive_tanh_matches_eager(
+    activation_name,
+    dtype,
+):
+    results = []
+    for memory_efficient in (False, True):
+        torch.manual_seed(7)
+        activation = ActivationFactory.create(
+            activation_name,
+            output_dim=7,
+            init_m=1.5,
+            init_b=0.4,
+            fixed_b=0.4,
+            memory_efficient=memory_efficient,
+        ).to(dtype)
+        value = torch.randn(5, 7, dtype=dtype, requires_grad=True)
+        output = activation(value)
+        output.square().sum().backward()
+        results.append(
+            (
+                output.detach(),
+                value.grad.detach(),
+                tuple(
+                    parameter.grad.detach()
+                    for parameter in activation.parameters()
+                    if parameter.grad is not None
+                ),
+            )
+        )
+
+    eager, efficient = results
+    torch.testing.assert_close(efficient[0], eager[0], rtol=3e-5, atol=5e-7)
+    torch.testing.assert_close(efficient[1], eager[1], rtol=3e-5, atol=5e-7)
+    assert len(efficient[2]) == len(eager[2])
+    for efficient_grad, eager_grad in zip(efficient[2], eager[2], strict=True):
+        torch.testing.assert_close(
+            efficient_grad,
+            eager_grad,
+            rtol=3e-5,
+            atol=5e-7,
+        )
+
+
+def test_memory_efficient_positive_tanh_preserves_fp32_parameters_with_bfloat16_input():
+    results = []
+    for memory_efficient in (False, True):
+        torch.manual_seed(17)
+        activation = ParametricTanh(
+            output_dim=7,
+            init_m=1.5,
+            init_b=0.37,
+            memory_efficient=memory_efficient,
+        )
+        value = torch.randn(5, 7, dtype=torch.bfloat16, requires_grad=True)
+        output = activation(value)
+        output.square().sum().backward()
+        results.append(
+            (
+                output.detach(),
+                value.grad.detach(),
+                activation.log_m.grad.detach(),
+                activation.b.grad.detach(),
+            )
+        )
+
+    eager, efficient = results
+    assert eager[0].dtype == efficient[0].dtype == torch.float32
+    for efficient_value, eager_value in zip(efficient, eager, strict=True):
+        torch.testing.assert_close(efficient_value, eager_value, rtol=3e-5, atol=3e-6)
+
+
+@pytest.mark.parametrize("spread", [0.5, 2.0, 12.0])
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
+def test_memory_efficient_fused_shunt_matches_eager_at_saturation(spread, dtype):
+    results = []
+    for memory_efficient in (False, True):
+        torch.manual_seed(3)
+        activation = ActivationFactory.create(
+            "param_tanh",
+            output_dim=7,
+            init_m=1.5,
+            init_b=0.5,
+            memory_efficient=memory_efficient,
+        ).to(dtype)
+        numerator = (torch.randn(11, 7, dtype=dtype) * spread).requires_grad_(True)
+        denominator = (1.0 + 3.0 * torch.rand(11, 7, dtype=dtype)).requires_grad_(True)
+        if memory_efficient:
+            fused = fused_shunt_reactivation(activation)
+            assert fused is not None
+            output = fused(numerator, denominator, 1e-6)
+        else:
+            assert fused_shunt_reactivation(activation) is None
+            output = activation(numerator / (denominator + 1e-6))
+        output.square().sum().backward()
+        results.append(
+            (
+                output.detach(),
+                numerator.grad.detach(),
+                denominator.grad.detach(),
+                activation.log_m.grad.detach(),
+                activation.b.grad.detach(),
+            )
+        )
+
+    for efficient_value, eager_value in zip(results[1], results[0], strict=True):
+        torch.testing.assert_close(
+            efficient_value,
+            eager_value,
+            rtol=3e-5 if dtype == torch.float32 else 1e-10,
+            atol=3e-6 if dtype == torch.float32 else 1e-12,
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,51 @@
+architecture:
+  excitatory_layer_sizes:
+  - 32
+  inhibitory_layer_sizes:
+  - 8
+  excitatory_branch_factors:
+  - 2
+  - 2
+  inhibitory_branch_factors:
+  - 2
+  - 2
+  inhibitory_network_type: dendritic
+  mlp_inhibitory_network_params:
+    hidden_dims: []
+    activation: relu
+connectivity:
+  ee_synapses_per_branch_per_layer:
+  - 8
+  ei_synapses_per_branch_per_layer:
+  - 4
+  ie_synapses_per_branch_per_layer:
+  - 4
+  ii_synapses_per_branch_per_layer:
+  - 0
+transfer:
+  independent_pathways: false
+  excitatory_dim: null
+  inhibitory_dim: null
+  output_activation: relu
+morphology:
+  somatic_synapses: false
+  use_shunting: false
+  weight_transform: softplus
+  dbl_init_method: analytical_expectation
+sparsity:
+  type: indexed
+  init_method: xavier_normal
+  indexed:
+    seed: 7
+reactivation:
+  enabled: true
+  type: param_tanh
+  init_m: 1.5
+  init_b: 0.5
+  init_policy: occupancy_quantile
+blocklinear:
+  efficient: true
+implementation:
+  adaptive_initialization: false
+  print_hooks: false
+biological_neuron: true

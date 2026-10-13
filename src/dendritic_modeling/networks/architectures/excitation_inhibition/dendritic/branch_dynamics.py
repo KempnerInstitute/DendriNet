@@ -2,18 +2,95 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
 from typing import Any
 
 import torch
 
+from dendritic_modeling.networks.activations.memory_efficient import (
+    fused_shunt_reactivation,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_rule_override import (
+    active_branch_rule_override,
+    check_branch_rule_override_target,
+)
+from dendritic_modeling.networks.utils.signal_rounding import round_signal
+from dendritic_modeling.plugins import load_plugins
+
+#: The library's additive integration rules.
 ADDITIVE_MODES = frozenset({"raw", "tangent_matched", "conductance_normalized"})
+
+
+@dataclass(frozen=True)
+class AdditiveRule:
+    """An additive integration rule that a plugin provides.
+
+    ``voltage(layer, *, excitation, inhibition, child_current, child_conductance,
+    raw_voltage, inputs)`` returns the compartment voltage before reactivation.
+    The currents are those of the built-in rules (``raw_voltage`` is
+    ``excitation - inhibition + child_current``); ``inputs`` maps ``x``,
+    ``inhibitory_input`` and ``branch_input`` to the layer's inputs on the
+    feedforward path, and is None where voltages are computed from stored
+    currents (recurrent and analysis paths), where a rule that needs the inputs
+    must raise.
+
+    ``options`` holds the rule's options and their defaults; a layer receives
+    them as ``additive_options``. ``setup(layer, options)``, if given, runs once
+    while the layer is constructed (after its leak parameter) to create the
+    rule's parameters and buffers and to check the layer.
+    """
+
+    voltage: Callable[..., Any]
+    options: Mapping[str, Any] = field(default_factory=dict)
+    setup: Callable[[Any, dict[str, Any]], None] | None = None
+
+
+_ADDITIVE_RULES: dict[str, AdditiveRule] = {}
+
+
+def register_additive_rule(
+    name: str, rule: AdditiveRule, *, allow_override: bool = False
+) -> None:
+    """Register an additive integration rule under ``additive_mode: <name>``."""
+    key = str(name).strip().lower()
+    if not key:
+        raise ValueError("additive rule name must be non-empty")
+    if key in ADDITIVE_MODES:
+        raise ValueError(f"additive_mode {key!r} is built in")
+    if key in _ADDITIVE_RULES and not allow_override:
+        raise ValueError(
+            f"additive rule {key!r} is already registered; pass allow_override=True "
+            "to replace it"
+        )
+    if not isinstance(rule, AdditiveRule):
+        raise TypeError("rule must be an AdditiveRule")
+    _ADDITIVE_RULES[key] = rule
+
+
+def unregister_additive_rule(name: str) -> None:
+    """Remove a registered additive rule if present."""
+    _ADDITIVE_RULES.pop(str(name).strip().lower(), None)
+
+
+def get_additive_rule(name: str) -> AdditiveRule | None:
+    """The registered rule for a non-built-in additive mode, or None."""
+    return _ADDITIVE_RULES.get(str(name).strip().lower())
+
+
+def available_additive_modes() -> frozenset[str]:
+    """Built-in and registered additive modes."""
+    return ADDITIVE_MODES | frozenset(_ADDITIVE_RULES)
 
 
 def normalize_additive_mode(mode: Any) -> str:
     """Return a validated additive control name."""
     normalized = str(mode).strip().lower()
-    if normalized not in ADDITIVE_MODES:
-        choices = ", ".join(sorted(ADDITIVE_MODES))
+    if normalized in ADDITIVE_MODES or normalized in _ADDITIVE_RULES:
+        return normalized
+    load_plugins()
+    if normalized not in _ADDITIVE_RULES:
+        choices = ", ".join(sorted(available_additive_modes()))
         raise ValueError(f"additive_mode must be one of {{{choices}}}, got {mode!r}")
     return normalized
 
@@ -110,6 +187,7 @@ def _store_branch_diagnostics(
         "N": _diagnostic_component(N, V),
         "T": _diagnostic_component(T, V),
         "V": V.detach(),
+        "leak": _diagnostic_component(owner.effective_leak, V),
         "realized_K": detached_k,
         "mode": "shunting" if owner.use_shunting else owner.additive_mode,
     }
@@ -160,6 +238,7 @@ def compute_additive_control_voltage(
     C: Any,
     G: Any,
     raw_voltage: Any = None,
+    inputs: Mapping[str, Any] | None = None,
 ):
     """Compute one explicitly named additive comparison control."""
     mode = owner.additive_mode
@@ -167,6 +246,17 @@ def compute_additive_control_voltage(
         raw_voltage = E - inhibitory + C
     if mode == "raw":
         return owner.normalize_additive_voltage(raw_voltage)
+    rule = _ADDITIVE_RULES.get(mode)
+    if rule is not None:
+        return rule.voltage(
+            owner,
+            excitation=E,
+            inhibition=inhibitory,
+            child_current=C,
+            child_conductance=G,
+            raw_voltage=raw_voltage,
+            inputs=inputs,
+        )
 
     N = E + C
     T = E + inhibitory + G
@@ -196,10 +286,16 @@ def forward_branch_dynamics(
     G = 0
     raw_voltage = 0
     shunt_numerator = 0
-    shunt_denominator = 1
+    shunt_denominator = owner.effective_leak
     store_diagnostics = bool(getattr(owner, "_store_diagnostics", False))
-    needs_components = store_diagnostics or (
-        not owner.use_shunting and owner.additive_mode != "raw"
+    rounding = getattr(owner, "_signal_round_dtype", None)
+    analysis_rule = active_branch_rule_override(owner)
+    if analysis_rule is not None:
+        check_branch_rule_override_target(owner)
+    needs_components = (
+        store_diagnostics
+        or analysis_rule is not None
+        or (not owner.use_shunting and owner.additive_mode != "raw")
     )
     active_pathways: set[str] = set()
 
@@ -279,10 +375,33 @@ def forward_branch_dynamics(
         if store_diagnostics:
             active_pathways.add("I_rec")
 
+    fused_shunt = None
+    if (
+        owner.use_shunting
+        and not store_diagnostics
+        and not getattr(owner, "_store_analysis_currents", False)
+        and analysis_rule is None
+        and rounding is None
+    ):
+        fused_shunt = fused_shunt_reactivation(owner.reactivation)
+
     denominator = None
-    if owner.use_shunting:
+    voltage = None
+    if fused_shunt is not None:
         denominator = shunt_denominator
-        voltage = shunt_numerator / (denominator + owner.epsilon)
+    elif owner.use_shunting:
+        denominator = shunt_denominator
+        if analysis_rule is None:
+            voltage = shunt_numerator / (denominator + owner.epsilon)
+        else:
+            voltage = analysis_rule.voltage(
+                owner,
+                shunt_numerator,
+                denominator - 1,
+                excitation=E,
+                inhibition=inhibitory_total,
+                child_current=C,
+            )
     else:
         voltage = compute_additive_control_voltage(
             owner,
@@ -291,12 +410,23 @@ def forward_branch_dynamics(
             C=C,
             G=G,
             raw_voltage=raw_voltage,
+            inputs=(
+                {
+                    "x": x,
+                    "inhibitory_input": inhibitory_input,
+                    "branch_input": branch_input,
+                }
+                if owner.additive_mode in _ADDITIVE_RULES
+                else None
+            ),
         )
+    if rounding is not None:
+        voltage = round_signal(voltage, rounding)
 
     if store_diagnostics:
         if owner.use_shunting:
             N = shunt_numerator
-            T = denominator - 1
+            T = denominator - owner.effective_leak
         else:
             N = E + C
             T = E + inhibitory_total + G
@@ -318,9 +448,17 @@ def forward_branch_dynamics(
         owner.topk_strategy,
         owner.blocklinear_strategy,
     ]:
-        owner.compute_grad_scales(g_total=denominator if owner.use_shunting else None)
+        owner.compute_grad_scales(
+            g_total=denominator if owner.use_shunting else None,
+            use_forward_hooks=bool(
+                getattr(owner, "_forward_dynamic_grad_scaling", False)
+            ),
+        )
 
-    result = owner.reactivation(voltage)
+    if fused_shunt is not None:
+        result = fused_shunt(shunt_numerator, denominator, owner.epsilon)
+    else:
+        result = round_signal(owner.reactivation(voltage), rounding)
     if getattr(owner, "_store_analysis_currents", False):
         owner._last_analysis_currents = {
             # Canonical stage-explicit analysis names.
@@ -411,6 +549,7 @@ def compute_branch_voltage_from_currents(
     trace_I_rec=0,
     trace_branch=0,
     branch_conductance=None,
+    record_diagnostics=True,
 ):
     """Compute pre-reactivation voltage from integrated recurrent traces.
 
@@ -418,27 +557,46 @@ def compute_branch_voltage_from_currents(
     additive voltage ignores it; explicitly normalized additive controls may
     use it through their named comparison rule. This asymmetry is useful for
     mechanism-isolation interventions but is not a same-physical-input model
-    of additive and conductance-based neurons.
+    of additive and conductance-based neurons. ``record_diagnostics=False``
+    leaves the layer's stored diagnostics untouched (for analyses that apply
+    the rule to substituted currents).
     """
-    store_diagnostics = bool(getattr(owner, "_store_diagnostics", False))
+    store_diagnostics = record_diagnostics and bool(
+        getattr(owner, "_store_diagnostics", False)
+    )
+    if active_branch_rule_override(owner) is not None:
+        raise ValueError(
+            "branch rule overrides apply to the feedforward forward pass; "
+            "voltages computed from currents (recurrent and stateful paths, "
+            "analyses that substitute currents) would ignore them"
+        )
     denominator = None
     if owner.use_shunting:
+        child_current = torch.is_tensor(trace_branch) or bool(trace_branch)
+        if (
+            child_current
+            and branch_conductance is None
+            and getattr(owner, "input_branches", False)
+        ):
+            raise ValueError(
+                "a shunting layer given its child-branch current needs their "
+                "coupling conductance (branches_to_output.sum_conductances()) in "
+                "the denominator; pass branch_conductance"
+            )
         N = trace_E + trace_E_rec
         if torch.is_tensor(trace_branch):
             N = N + trace_branch
         elif trace_branch:
             N = N + trace_branch
 
-        denominator = 1 + trace_E
-        if torch.is_tensor(trace_E_rec):
-            denominator = denominator + trace_E_rec
-        if torch.is_tensor(trace_I):
-            denominator = denominator + trace_I
-        if torch.is_tensor(trace_I_rec):
-            denominator = denominator + trace_I_rec
+        denominator = owner.effective_leak + trace_E
+        # Scalars count as well as tensors (zero scalars add nothing).
+        for term in (trace_E_rec, trace_I, trace_I_rec):
+            if torch.is_tensor(term) or term:
+                denominator = denominator + term
         if branch_conductance is not None:
             denominator = denominator + branch_conductance
-        T = denominator - 1
+        T = denominator - owner.effective_leak
         voltage = N / (denominator + owner.epsilon)
     else:
         raw_voltage = trace_E + trace_E_rec - trace_I - trace_I_rec
@@ -490,12 +648,47 @@ def compute_branch_voltage_from_currents(
     return voltage, denominator
 
 
+def compute_branch_output_from_currents(
+    owner: Any,
+    excitation,
+    inhibition,
+    branch_current=0,
+    branch_conductance=None,
+):
+    """Branch output for given currents under the layer's own rule.
+
+    Applies the layer's voltage rule (leak, integration mode and, for a
+    shunting layer with child branches, their coupling conductance), its
+    signal rounding and its reactivation, as the forward pass does. Analyses
+    that substitute, condition or project currents use this instead of
+    copying the equation; the layer's stored diagnostics are left untouched.
+    """
+    rounding = getattr(owner, "_signal_round_dtype", None)
+    voltage, _ = compute_branch_voltage_from_currents(
+        owner,
+        trace_E=excitation,
+        trace_E_rec=0,
+        trace_I=inhibition,
+        trace_branch=branch_current,
+        branch_conductance=branch_conductance,
+        record_diagnostics=False,
+    )
+    voltage = round_signal(voltage, rounding)
+    return round_signal(owner.reactivation(voltage), rounding)
+
+
 __all__ = [
     "ADDITIVE_MODES",
+    "AdditiveRule",
+    "available_additive_modes",
     "compute_additive_control_voltage",
+    "compute_branch_output_from_currents",
     "compute_branch_raw_currents",
     "compute_branch_voltage_from_currents",
     "forward_branch_dynamics",
+    "get_additive_rule",
     "normalize_additive_mode",
     "normalize_branch_additive_voltage",
+    "register_additive_rule",
+    "unregister_additive_rule",
 ]

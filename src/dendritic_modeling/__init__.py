@@ -21,21 +21,24 @@ For detailed documentation on each module, see the respective module docstrings.
 # NOTE:
 # -----
 # Keep this module *lightweight* so users can import analysis/plotting utilities
-# without pulling in optional training/script dependencies (e.g., wandb/torchinfo).
+# without pulling in optional training/script dependencies (e.g., torchinfo).
 
 from __future__ import annotations
 
-# Set up the logging environment
 import importlib
+import logging
 from typing import Any
 
-from dendritic_modeling.utils.logging_config import LoggerManager
+from dendritic_modeling.utils.logging_config import LOGGER_NAME, LoggerManager
 
+# Library logging: programs configure output with
+# dendritic_modeling.utils.logging_config.setup_logging.
+logging.getLogger(LOGGER_NAME).addHandler(logging.NullHandler())
 logger_manager = LoggerManager()
 logger = logger_manager.get_logger()
 
 # Version information
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 _LAZY_SUBMODULES: set[str] = {
     "analysis",

@@ -4,7 +4,49 @@ Shared pytest fixtures for dendritic modeling tests.
 This module contains common fixtures used across multiple test files.
 """
 
+import os
+from pathlib import Path
+
 import pytest
+
+#: The repository these tests belong to. Tests marked ``requires_git_checkout``
+#: read its Git checkout (commit, tracked files), which an archive lacks.
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+
+# The core suite tests built-in components; installed plugins stay unloaded
+# unless DENDRITIC_MODELING_PLUGINS is set (for example to 1).
+os.environ.setdefault("DENDRITIC_MODELING_PLUGINS", "0")
+
+
+def pytest_collection_modifyitems(config, items):
+    """Mark every test parametrized with a CUDA ``device`` as ``requires_gpu``."""
+    for item in items:
+        callspec = getattr(item, "callspec", None)
+        device = None if callspec is None else callspec.params.get("device")
+        if str(device or "").startswith("cuda"):
+            item.add_marker(pytest.mark.requires_gpu)
+
+
+def pytest_runtest_setup(item):
+    """Skip ``requires_gpu`` tests without CUDA and ``requires_git_checkout``
+    tests outside a Git checkout of the library."""
+    if item.get_closest_marker("requires_gpu") is not None:
+        import torch
+
+        if not torch.cuda.is_available():
+            pytest.skip("needs a CUDA GPU")
+    if item.get_closest_marker("requires_git_checkout") is not None:
+        if not (REPOSITORY_ROOT / ".git").exists():
+            pytest.skip("needs the library's Git checkout, not a source archive")
+
+
+@pytest.fixture(autouse=True)
+def _hermetic_site_settings(monkeypatch, tmp_path_factory):
+    """Tests see no site scheduler policy and keep data under a temporary root."""
+    monkeypatch.setenv("DENDRITIC_SCHEDULER_PROFILES", "none")
+    monkeypatch.setenv(
+        "DENDRITIC_DATA_DIR", str(tmp_path_factory.getbasetemp() / "data_root")
+    )
 
 
 @pytest.fixture

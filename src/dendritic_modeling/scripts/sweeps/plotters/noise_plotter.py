@@ -6,6 +6,8 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 
+from dendritic_modeling.plotting.styles import indexed_style
+
 from .base_plotter import BasePlotter
 
 logger = logging.getLogger(__name__)
@@ -67,7 +69,8 @@ class NoisePlotter(BasePlotter):
             try:
                 fig, ax = plt.subplots(figsize=self.default_figsize)
 
-                for noise_type in noise_types:
+                # Each noise type gets its own marker and line style.
+                for index, noise_type in enumerate(sorted(noise_types)):
                     pattern = f"noise_{noise_type}_{metric}_"
                     level_cols = [
                         col
@@ -96,7 +99,7 @@ class NoisePlotter(BasePlotter):
                         ax.plot(
                             levels,
                             values,
-                            marker="o",
+                            **indexed_style(index).kwargs(),
                             label=f"{noise_type.title()} Noise",
                             linewidth=2,
                             markersize=6,

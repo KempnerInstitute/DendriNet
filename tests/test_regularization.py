@@ -312,13 +312,11 @@ class TestPruningManager:
             assert torch.equal(param.data, original_weights[name])
 
     def test_gradual_pruning(self, simple_model):
-        """Test gradual pruning over multiple epochs."""
+        """Test repeated pruning of freshly drawn weights."""
         config = PruningConfig(
             enabled=True,
             threshold=0.001,
             selective=SelectiveConfig(),
-            dynamic_pruning=True,
-            pruning_frequency=10,
         )
         manager = PruningManager(config)
 

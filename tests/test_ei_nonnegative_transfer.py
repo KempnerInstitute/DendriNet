@@ -16,13 +16,13 @@ def _make_network(weight_transform="softplus", output_activation=None):
         input_dim=8,
         transfer_params=_make_transfer_params(output_activation),
         excitatory_layer_sizes=[4],
-        inhibitory_layer_sizes=[4],
+        inhibitory_layer_sizes=[0],
         excitatory_branch_factors=[2],
         inhibitory_branch_factors=[2],
         ee_synapses_per_branch_per_layer=[1],
-        ei_synapses_per_branch_per_layer=[1],
+        ei_synapses_per_branch_per_layer=[0],
         ie_synapses_per_branch_per_layer=[1],
-        ii_synapses_per_branch_per_layer=[1],
+        ii_synapses_per_branch_per_layer=[0],
         weight_transform=weight_transform,
     )
 

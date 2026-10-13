@@ -1,11 +1,9 @@
-"""Tests for training stability safeguards and auto-fixes."""
+"""Tests for the training stability validator."""
 
 from types import SimpleNamespace
 
 import dendritic_modeling.utils.training_stability_validator as tsv
 from dendritic_modeling.utils.training_stability_validator import (
-    apply_automatic_safeguards,
-    suggest_optimal_config_for_model_size,
     validate_training_stability,
 )
 
@@ -20,12 +18,12 @@ class ConfigNode(SimpleNamespace):
 def _build_config(
     *,
     use_amp=False,
-    enable_hooks=True,
     distributed_mode="none",
     fsdp_config=None,
     learning_rate=0.001,
     grad_clip_value=None,
-    topk_ultrafast=False,
+    sparsity_type="standard",
+    ultrafast=True,
     efficient_blocklinear=False,
     reactivation_strategy="none",
     topk_strategy="none",
@@ -38,23 +36,8 @@ def _build_config(
     dataset_name="synthetic",
     dataset_params=None,
 ):
-    architecture = ConfigNode(
-        topk_ultrafast=topk_ultrafast,
-        efficient_blocklinear=efficient_blocklinear,
-        reactivation_strategy=reactivation_strategy,
-        topk_strategy=topk_strategy,
-        blocklinear_strategy=blocklinear_strategy,
-    )
-    core_network_params = ConfigNode(
-        reactivation_strategy=reactivation_strategy,
-        topk_strategy=topk_strategy,
-        blocklinear_strategy=blocklinear_strategy,
-    )
-
     return ConfigNode(
-        experiment=ConfigNode(
-            enable_hooks=enable_hooks,
-        ),
+        experiment=ConfigNode(),
         training=ConfigNode(
             main=ConfigNode(
                 common=ConfigNode(
@@ -71,14 +54,22 @@ def _build_config(
         model=ConfigNode(
             core=ConfigNode(
                 type=core_type,
-                architecture=architecture,
+                sparsity=ConfigNode(
+                    type=sparsity_type,
+                    ultrafast=ultrafast,
+                    gradient_scaling=topk_strategy,
+                ),
+                reactivation=ConfigNode(gradient_scaling=reactivation_strategy),
+                blocklinear=ConfigNode(
+                    gradient_scaling=blocklinear_strategy,
+                    efficient=efficient_blocklinear,
+                ),
                 morphology=ConfigNode(
                     use_shunting=morphology_use_shunting,
                     weight_transform=weight_transform,
                 ),
                 transfer=ConfigNode(output_activation=transfer_output_activation),
             ),
-            core_network=ConfigNode(parameters=core_network_params),
         ),
         data=ConfigNode(
             dataset_name=dataset_name,
@@ -88,23 +79,18 @@ def _build_config(
     )
 
 
-def test_training_stability_context_resolves_current_and_legacy_paths():
-    fsdp_config = ConfigNode(
-        sharding_strategy="full",
-        reduce_communication_overhead=False,
-    )
+def test_training_stability_context_reads_the_typed_paths():
+    fsdp_config = ConfigNode(sharding_strategy="full", forward_prefetch=False)
     config = _build_config(
         use_amp=True,
-        enable_hooks=False,
         distributed_mode="fsdp",
         fsdp_config=fsdp_config,
         learning_rate=0.02,
         grad_clip_value=20.0,
-        topk_ultrafast=True,
-        efficient_blocklinear=True,
-        reactivation_strategy="scaled",
-        topk_strategy="legacy_scaled",
-        blocklinear_strategy="block_scaled",
+        sparsity_type="stochastic",
+        reactivation_strategy="straight_through",
+        topk_strategy="conductance_dynamic",
+        blocklinear_strategy="distal_upweight_by_idx",
         core_type="dendritic_shunting",
         morphology_use_shunting=True,
         weight_transform="softplus",
@@ -117,12 +103,10 @@ def test_training_stability_context_resolves_current_and_legacy_paths():
     context = tsv._collect_training_stability_context(config)
 
     assert context.enable_amp is True
-    assert context.enable_hooks is False
     assert context.topk_ultrafast is True
-    assert context.efficient_blocklinear is True
-    assert context.reactivation_strategy == "scaled"
-    assert context.topk_strategy == "legacy_scaled"
-    assert context.blocklinear_strategy == "block_scaled"
+    assert context.reactivation_strategy == "straight_through"
+    assert context.topk_strategy == "conductance_dynamic"
+    assert context.blocklinear_strategy == "distal_upweight_by_idx"
     assert context.effective_use_shunting is True
     assert context.weight_transform == "softplus"
     assert context.transfer_output_activation == "relu"
@@ -133,33 +117,15 @@ def test_training_stability_context_resolves_current_and_legacy_paths():
     assert context.trainer_params.grad_clip_value == 20.0
 
 
-def test_automatic_safeguard_gradient_scaling_detects_current_sections():
-    config = _build_config(
-        reactivation_strategy="none",
-        topk_strategy="none",
-        blocklinear_strategy="none",
-    )
-
-    assert not tsv._automatic_safeguard_gradient_scaling_enabled(config)
-
-    config.model.core.reactivation = ConfigNode(gradient_scaling="scaled")
-
-    assert tsv._automatic_safeguard_gradient_scaling_enabled(config)
-
-
 def test_validate_training_stability_logs_expected_warnings(monkeypatch):
     config = _build_config(
         use_amp=True,
-        enable_hooks=True,
         distributed_mode="fsdp",
-        fsdp_config=ConfigNode(
-            sharding_strategy="full",
-            reduce_communication_overhead=False,
-        ),
+        fsdp_config=ConfigNode(sharding_strategy="full", limit_all_gathers=False),
         learning_rate=0.02,
         grad_clip_value=20.0,
-        topk_ultrafast=True,
-        reactivation_strategy="scaled",
+        sparsity_type="stochastic",
+        reactivation_strategy="straight_through",
     )
 
     warnings = []
@@ -175,7 +141,18 @@ def test_validate_training_stability_logs_expected_warnings(monkeypatch):
     assert "AMP + Gradient Hooks" in messages
     assert "High NaN Risk" in messages
     assert "FSDP Performance" in messages
+    assert "distributed.fsdp.limit_all_gathers off" in messages
+    assert "adaptive" not in messages  # no such clipping mode
     assert "High Gradient Clipping" in messages
+
+
+def test_ultrafast_counts_only_for_stochastic_topk():
+    standard = tsv._collect_training_stability_context(_build_config())
+    assert standard.topk_ultrafast is False
+    stochastic = tsv._collect_training_stability_context(
+        _build_config(sparsity_type="stochastic")
+    )
+    assert stochastic.topk_ultrafast is True
 
 
 def test_validate_training_stability_warns_on_memory_optimization_without_amp(
@@ -262,59 +239,3 @@ def test_validate_training_stability_allows_relu_clamped_shunting_input(monkeypa
 
     assert validate_training_stability(config) is True
     assert errors == []
-
-
-def test_suggest_optimal_config_for_model_size_ranges():
-    small = suggest_optimal_config_for_model_size(9_999_999)
-    assert small["training.main.common.use_amp"] is False
-    assert small["distributed.mode"] == "none"
-    assert small["experiment.enable_profiling"] is True
-
-    medium = suggest_optimal_config_for_model_size(50_000_000)
-    assert medium["training.main.common.use_amp"] is True
-    assert medium["distributed.mode"] == "ddp"
-    assert medium["experiment.enable_hooks"] is True
-
-    large = suggest_optimal_config_for_model_size(100_000_000)
-    assert large["training.main.common.use_amp"] is True
-    assert large["distributed.mode"] == "fsdp"
-    assert large["experiment.enable_hooks"] is False
-    assert large["distributed.fsdp.sharding_strategy"] == "HYBRID_SHARD"
-
-
-def test_apply_automatic_safeguards_sets_flags_for_amp_with_gradient_scaling(
-    monkeypatch,
-):
-    config = _build_config(
-        use_amp=True,
-        topk_strategy="scaled",
-    )
-    info_messages = []
-    monkeypatch.setattr(
-        tsv.logger,
-        "info",
-        lambda message: info_messages.append(message),
-    )
-
-    apply_automatic_safeguards(config)
-
-    common = config.training.main.common
-    assert common.enable_adaptive_clipping is True
-    assert common.disable_hooks_with_amp is True
-    assert "Auto-enabled adaptive gradient clipping" in "\n".join(info_messages)
-
-
-def test_apply_automatic_safeguards_does_not_override_existing_values():
-    config = _build_config(use_amp=True, topk_strategy="scaled")
-    config.training.main.common.enable_adaptive_clipping = False
-    config.training.main.common.disable_hooks_with_amp = False
-
-    apply_automatic_safeguards(config)
-
-    assert config.training.main.common.enable_adaptive_clipping is False
-    assert config.training.main.common.disable_hooks_with_amp is False
-
-
-def test_apply_automatic_safeguards_handles_missing_nested_config():
-    config = ConfigNode(training=ConfigNode())
-    apply_automatic_safeguards(config)

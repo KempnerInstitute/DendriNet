@@ -2,7 +2,7 @@
 
 Analysis code must not confuse a layer's dense candidate parameters with its
 realized sparse operator.  The helpers in this module centralize that contract
-for standard, indexed, dynamic, and stochastic Top-K implementations.
+for standard, variance, indexed, dynamic, release, and stochastic synapses.
 """
 
 from __future__ import annotations
@@ -19,6 +19,10 @@ class EffectiveSynapseSnapshot:
     ``candidate_weight`` is the transformed dense compatibility view,
     ``active_mask`` is the exact binary realization used to construct
     ``effective_weight``, and ``realized_k`` counts active inputs per output.
+    Release synapses retain their structural contact mask and use mean-release
+    coefficients in evaluation mode. With signal rounding, these coefficients
+    describe the rounded weights and probabilities; input and output rounding
+    still belong to the forward pass and cannot be represented by a matrix.
     For stochastic selectors the mask must come from a cached forward pass;
     sampling a fresh mask during analysis would not describe the analyzed
     computation.
@@ -31,9 +35,18 @@ class EffectiveSynapseSnapshot:
     realized_k: torch.Tensor
     selection_policy: str
     mask_source: str
+    transmission_mode: str = "deterministic"
+    signal_rounding: str = "none"
 
 
 def _selection_is_stochastic(module: torch.nn.Module) -> bool:
+    """Whether the module samples its active set in its current mode.
+
+    Stochastic and noisy selectors sample only in training mode; in eval mode
+    their mask is the deterministic top-K.
+    """
+    if not module.training:
+        return False
     selection = str(getattr(module, "selection", "")).lower()
     class_name = type(module).__name__.lower()
     return (
@@ -49,9 +62,12 @@ def _candidate_mask(module: torch.nn.Module, reference: torch.Tensor) -> torch.T
         return candidate_mask_fn().to(device=reference.device, dtype=reference.dtype)
 
     mask = torch.ones_like(reference)
-    connection_mask = getattr(module, "connection_mask", None)
-    if isinstance(connection_mask, torch.Tensor) and connection_mask.numel() > 0:
-        mask = mask * connection_mask.to(device=reference.device, dtype=reference.dtype)
+    for name in ("connection_mask", "_allowed_connection_mask"):
+        connection_mask = getattr(module, name, None)
+        if isinstance(connection_mask, torch.Tensor) and connection_mask.numel() > 0:
+            mask = mask * connection_mask.to(
+                device=reference.device, dtype=reference.dtype
+            )
 
     forbidden = getattr(module, "_forbidden_input_index_per_output", None)
     if isinstance(forbidden, torch.Tensor) and forbidden.numel() > 0:
@@ -68,6 +84,25 @@ def _effective_weight_from_mask(
     candidate_weight: torch.Tensor,
     active_mask: torch.Tensor,
 ) -> torch.Tensor:
+    from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed_release import (
+        IndexedReleaseLinear,
+    )
+    from dendritic_modeling.networks.utils.signal_rounding import round_signal
+
+    if isinstance(module, IndexedReleaseLinear):
+        if module.training:
+            raise RuntimeError(
+                "Release synapse snapshots require eval mode for mean transmission; "
+                "per-example training releases are not a single weight matrix."
+            )
+        weights = round_signal(module.sparse_weight(), module._round_dtype)
+        probability = round_signal(
+            module.release_probability(weights), module._round_dtype
+        )
+        return torch.zeros_like(candidate_weight).scatter_add(
+            1, module.connection_indices.long(), weights * probability
+        )
+
     from_mask = getattr(module, "_pruned_weight_from_mask", None)
     if callable(from_mask):
         return from_mask(active_mask)
@@ -143,6 +178,9 @@ def effective_synapse_snapshot(
     candidate_mask = _candidate_mask(module, candidate_weight)
     realized_k = active_mask.ne(0).sum(dim=-1)
     selection_policy = str(getattr(module, "selection", type(module).__name__)).lower()
+    transmission_mode = (
+        "mean_release" if hasattr(module, "release_probability") else "deterministic"
+    )
 
     if detach:
         candidate_weight = candidate_weight.detach()
@@ -159,6 +197,8 @@ def effective_synapse_snapshot(
         realized_k=realized_k,
         selection_policy=selection_policy,
         mask_source=mask_source,
+        transmission_mode=transmission_mode,
+        signal_rounding=str(getattr(module, "signal_rounding", "none")),
     )
 
 

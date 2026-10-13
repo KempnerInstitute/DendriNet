@@ -54,10 +54,9 @@ class PointMatchedParamMLP(nn.Module):
         # Create default transfer_params if not provided in kwargs (to build EINet)
         if "transfer_params" not in kwargs:
             kwargs["transfer_params"] = {
-                "input_mode": 0,
                 "independent_pathways": False,
-                "excitatory_dim": [],
-                "inhibitory_dim": [],
+                "excitatory_dim": None,
+                "inhibitory_dim": None,
                 "output_activation": "none",
             }
 

@@ -37,17 +37,18 @@ from dendritic_modeling.config.analysis import (
     LocalRuleComponentAnalysisParams,
 )
 from dendritic_modeling.models import BaseModel
-from dendritic_modeling.networks.activations.parametric import (
-    ParametricTanh,
-    ParametricTanhOnlyM,
-)
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer import (
     DendriticBranchLayer,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
     TopKLinear,
 )
+from dendritic_modeling.networks.structure import inhibitory_branch_layer_ids
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_activation_derivatives import (
+    compute_reactivation_derivative,
+)
 from dendritic_modeling.training.strategies.local_learning_parts.local_learning_broadcast import (
+    compute_layer_total_conductance,
     reduce_error_to_scalar as _reduce_error_to_scalar,
 )
 from dendritic_modeling.training.strategies.local_learning_parts.local_learning_pathways import (
@@ -55,6 +56,9 @@ from dendritic_modeling.training.strategies.local_learning_parts.local_learning_
     INHIBITORY_TOPK_PATHS,
     TopKGradientPath,
     iter_topk_path_modules,
+)
+from dendritic_modeling.training.strategies.local_learning_parts.local_learning_recorders import (
+    reject_unsupported_branch_layer,
 )
 from dendritic_modeling.utils import save_dict
 from dendritic_modeling.utils.hooks import (
@@ -229,19 +233,15 @@ def _parse_branch_module_index(module_name: str) -> int:
     return int(match.group(1))
 
 
-def _population_label_for_module_name(module_name: str) -> str:
-    if ".inhibitory_cells." in module_name:
-        return "explicit_inhibitory"
-    return "excitatory"
-
-
 def _branch_record_for_module(
-    module_name: str, module: DendriticBranchLayer
+    module_name: str, module: DendriticBranchLayer, inhibitory: set[int] = frozenset()
 ) -> dict[str, Any]:
     return {
         "layer": module,
         "module_name": module_name,
-        "population": _population_label_for_module_name(module_name),
+        "population": (
+            "explicit_inhibitory" if id(module) in inhibitory else "excitatory"
+        ),
         "branch_module_index": _parse_branch_module_index(module_name),
         "dendritic_depth": int(getattr(module, "layer_idx", -1)),
     }
@@ -275,48 +275,20 @@ def _depth_labels_for_records(records: list[dict[str, Any]]) -> dict[int, str]:
 
 
 def _activation_derivative_for_record(rec: dict[str, Any]) -> torch.Tensor:
+    """The gate slope the LocalCA trainer uses, exact for every gate type."""
     v_n = rec.get("v_n")
     if not isinstance(v_n, torch.Tensor):
         return torch.empty(0)
-    layer = rec["layer"]
-    reactivation = getattr(layer, "reactivation", None)
-    v_out = rec.get("v_out")
-    if reactivation is None or isinstance(reactivation, nn.Identity):
-        return torch.ones_like(v_n)
-    if isinstance(reactivation, nn.ReLU):
-        return (v_n > 0).to(dtype=v_n.dtype)
-    if isinstance(reactivation, nn.Sigmoid):
-        y = v_out if isinstance(v_out, torch.Tensor) else torch.sigmoid(v_n)
-        return y * (1.0 - y)
-    if isinstance(reactivation, nn.Tanh):
-        y = v_out if isinstance(v_out, torch.Tensor) else torch.tanh(v_n)
-        return 1.0 - y.square()
-    if isinstance(reactivation, (ParametricTanh, ParametricTanhOnlyM)):
-        y = v_out if isinstance(v_out, torch.Tensor) else reactivation(v_n)
-        m = reactivation.log_m.detach().exp().to(device=v_n.device, dtype=v_n.dtype)
-        return 0.5 * m.unsqueeze(0) * (1.0 - (2.0 * y - 1.0).square())
-    return torch.ones_like(v_n)
+    reactivation = getattr(rec["layer"], "reactivation", None)
+    return compute_reactivation_derivative(reactivation, v_n, rec.get("v_out"))
 
 
 def _total_conductance_for_record(
     rec: dict[str, Any], v_n: torch.Tensor
 ) -> torch.Tensor:
-    layer = rec["layer"]
-    if not bool(getattr(layer, "use_shunting", False)):
+    if not bool(getattr(rec["layer"], "use_shunting", False)):
         return torch.ones_like(v_n)
-
-    g_tot = torch.ones_like(v_n)
-    exc_out = rec.get("exc_out")
-    if isinstance(exc_out, torch.Tensor):
-        g_tot = g_tot + functional.relu(exc_out)
-    inh_out = rec.get("inh_out")
-    if isinstance(inh_out, torch.Tensor):
-        g_tot = g_tot + functional.relu(inh_out)
-    blk_module = rec.get("blk_module")
-    if blk_module is not None and hasattr(blk_module, "sum_conductances"):
-        g_blk = blk_module.sum_conductances().detach()[None, :].expand_as(v_n)
-        g_tot = g_tot + functional.relu(g_blk)
-    return g_tot
+    return compute_layer_total_conductance(rec, v_n)
 
 
 def _active_presynaptic_values_for_layer(
@@ -388,6 +360,8 @@ def _delta_out_for_outputs(
     mode = str(error_mode).lower()
     if mode == "none":
         return None
+    if mode == "bce":
+        return torch.sigmoid(y_hat) - y.to(device=y_hat.device, dtype=y_hat.dtype)
     if mode == "mse" or (
         mode == "auto" and y.shape == y_hat.shape and y_hat.dtype.is_floating_point
     ):
@@ -417,11 +391,7 @@ def _layer_broadcast_for_error(
         return None
     scalar = _reduce_error_to_scalar(delta0)
     mode = str(broadcast_mode).lower()
-    if (
-        mode in {"per_soma", "neuron_wise", "neuron-wise"}
-        and delta0.dim() == 2
-        and delta0.size(1) == out_features
-    ):
+    if mode == "per_soma" and delta0.dim() == 2 and delta0.size(1) == out_features:
         return delta0
     return scalar.expand(-1, out_features)
 
@@ -503,13 +473,18 @@ class LocalRuleComponentAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
                     )
                 )
 
+            inhibitory = inhibitory_branch_layer_ids(model)
+
             def _register_branch_entry(
                 module_entry: tuple[str, DendriticBranchLayer],
             ):
                 module_name, module = module_entry
+                # The components describe the LocalCA rule only where it applies.
+                reject_unsupported_branch_layer(module_name, module)
                 rec, branch_handles = self._attach_branch_recorders(
                     module_name,
                     module,
+                    inhibitory,
                 )
                 records.append(rec)
                 return branch_handles
@@ -530,8 +505,9 @@ class LocalRuleComponentAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         self,
         module_name: str,
         module: DendriticBranchLayer,
+        inhibitory: set[int] = frozenset(),
     ) -> tuple[dict[str, Any], list[torch.utils.hooks.RemovableHandle]]:
-        rec = self._branch_record(module_name, module)
+        rec = _branch_record_for_module(module_name, module, inhibitory)
 
         def _register_hook_group(hook_group: str):
             if hook_group == "reactivation":
@@ -555,18 +531,16 @@ class LocalRuleComponentAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         decoder_cache: dict[str, torch.Tensor],
     ) -> torch.utils.hooks.RemovableHandle:
         def _decoder_pre_hook(_mod, inputs):
-            if inputs and isinstance(inputs[0], torch.Tensor):
-                decoder_cache["decoder_input"] = inputs[0]
+            if not inputs or not isinstance(inputs[0], torch.Tensor):
+                return None
+            decoder_input = inputs[0]
+            if not decoder_input.requires_grad:
+                # Frozen models: map the error through the decoder all the same.
+                decoder_input = decoder_input.detach().requires_grad_(True)
+            decoder_cache["decoder_input"] = decoder_input
+            return (decoder_input, *inputs[1:])
 
         return decoder_network.register_forward_pre_hook(_decoder_pre_hook)
-
-    def _branch_record(
-        self, module_name: str, module: DendriticBranchLayer
-    ) -> dict[str, Any]:
-        return _branch_record_for_module(module_name, module)
-
-    def _population_label(self, module_name: str) -> str:
-        return _population_label_for_module_name(module_name)
 
     def _register_reactivation_hook(
         self,
@@ -574,6 +548,12 @@ class LocalRuleComponentAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         rec: dict[str, Any],
     ) -> torch.utils.hooks.RemovableHandle:
         def _react_hook(_m, inputs, outputs, rec=rec):
+            if "v_out" in rec:
+                raise ValueError(
+                    "the local-rule analysis records one forward step per branch "
+                    f"layer, but {rec['module_name']} ran more than once in a "
+                    "forward pass (a recurrent unroll)"
+                )
             rec["v_n"] = inputs[0].detach() if inputs else None
             rec["v_out"] = outputs.detach() if torch.is_tensor(outputs) else None
 
@@ -584,6 +564,13 @@ class LocalRuleComponentAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         module: DendriticBranchLayer,
         rec: dict[str, Any],
     ) -> list[torch.utils.hooks.RemovableHandle]:
+        for path, bank in iter_topk_path_modules(module, _LOCAL_RULE_TOPK_PATHS):
+            if not callable(getattr(bank, "weight_mask", None)):
+                raise ValueError(
+                    f"{rec['module_name']}.{path.module_attr} is a "
+                    f"{type(bank).__name__}, which exposes no weight_mask(); the "
+                    "local-rule analysis cannot locate its active contacts"
+                )
         return register_hook_groups(
             iter_topk_path_modules(module, _LOCAL_RULE_TOPK_PATHS),
             lambda path_layer: [
@@ -675,21 +662,21 @@ class LocalRuleComponentAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
             return None
 
         decoder_input = decoder_cache.get("decoder_input")
-        if isinstance(decoder_input, torch.Tensor) and decoder_input.requires_grad:
-            try:
-                grad = torch.autograd.grad(
-                    outputs=y_hat,
-                    inputs=decoder_input,
-                    grad_outputs=delta_out,
-                    retain_graph=False,
-                    create_graph=False,
-                    allow_unused=True,
-                )[0]
-                if isinstance(grad, torch.Tensor):
-                    return grad.detach()
-            except Exception as exc:
-                self.logger.debug("Could not map output error to soma space: %s", exc)
-        return delta_out.detach()
+        if decoder_input is None:
+            # No decoder: the core output is the model output.
+            return delta_out.detach()
+        (grad,) = torch.autograd.grad(
+            outputs=y_hat,
+            inputs=decoder_input,
+            grad_outputs=delta_out,
+            allow_unused=True,
+        )
+        if grad is None:
+            raise RuntimeError(
+                "the model output does not depend on the decoder input, so the "
+                "output error cannot be mapped to the somata"
+            )
+        return grad.detach()
 
     def _layer_broadcast(
         self,
@@ -760,7 +747,7 @@ class LocalRuleComponentAnalyzer(ForwardHookRemovalMixin, AbstractAnalyzer):
         layer = rec["layer"]
         x = rec.get(x_key)
         syn_layer = rec.get(module_key)
-        if not isinstance(x, torch.Tensor) or not isinstance(syn_layer, TopKLinear):
+        if not isinstance(x, torch.Tensor) or syn_layer is None:
             return
         active_x, active_mask = self._active_presynaptic_values(
             x, syn_layer, rec.get(mask_key)

@@ -17,36 +17,51 @@ For FSDP (very large models that don't fit on one GPU), use
 
 from __future__ import annotations
 
-# Suppress TensorFlow warnings for cleaner output
-import os
-
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = (
-    "2"  # Suppress TensorFlow INFO and WARNING messages
-)
-os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"  # Disable oneDNN optimizations warnings
-
-# Core imports
 import argparse
+import copy
 import logging
+import math
+import os
 from dataclasses import asdict, dataclass
-from typing import Any
+from datetime import timedelta
+from pathlib import Path
+from typing import Any, Optional
 
 import torch
 import torch.distributed as dist
 
 # External imports
 import torchinfo
-import wandb
 from omegaconf import DictConfig, OmegaConf
 from torch.utils.data import DataLoader
 
 from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.analysis.utils.model_resources import model_resource_summary
 from dendritic_modeling.config import load_config
-from dendritic_modeling.config.training import OptimizerConfig, ParamGroupsConfig
+from dendritic_modeling.config.analysis import fill_analysis_seeds
+from dendritic_modeling.config.keys import apply_renamed_fields, field_default
+from dendritic_modeling.config.training import (
+    LOCAL_ERROR_BROADCAST_MODES,
+    CommonTrainerConfig,
+    OptimizerConfig,
+    ParamGroupsConfig,
+    default_grad_clip_mode,
+)
+from dendritic_modeling.models.builders import resolve_model_builder
 from dendritic_modeling.networks import Identity
 from dendritic_modeling.networks.architectures.classical.autoencoder import (
     BaseAutoencoder,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.impact_rewiring import (
+    build_population_impact_rewiring,
+)
+from dendritic_modeling.networks.architectures.factory import (
+    builds_autoencoder,
+    builtin_architecture_class,
+)
+from dendritic_modeling.networks.checkpoints import save_state_dict
+from dendritic_modeling.networks.utils.sparse_maintenance import (
+    mark_rank_reduced_statistics,
 )
 from dendritic_modeling.plotting.visualizations.performance_plots import (
     PerformancePlotter,
@@ -56,19 +71,20 @@ from dendritic_modeling.scripts.script_utils.init_diagnostics import (
     dump_init_gate_stats,
 )
 from dendritic_modeling.scripts.script_utils.setup_utils import setup_environment
-from dendritic_modeling.scripts.training.train_encoder_network import (
-    load_train_encoder_network,
-)
 from dendritic_modeling.training import CustomWeightDecayOptimizer, get_trainer
 from dendritic_modeling.training.dataloader_utils import (
     dataloader_kwargs_from_config,
     seeded_dataloader_kwargs,
 )
-from dendritic_modeling.training.optimizers import create_optimizer
+from dendritic_modeling.training.encoder_pretraining import pretrain_autoencoder
+from dendritic_modeling.training.optimizers import (
+    create_optimizer,
+    validate_param_group_learning_rates,
+)
+from dendritic_modeling.training.reactivation_sync import broadcast_reactivation_state
 from dendritic_modeling.utils import resolve_experiment_seeds, save_dict
+from dendritic_modeling.utils.logging_config import setup_logging
 from dendritic_modeling.utils.training_stability_validator import (
-    apply_automatic_safeguards,
-    suggest_optimal_config_for_model_size,
     validate_training_stability,
 )
 
@@ -92,9 +108,23 @@ class _MainTrainingSettings:
     strategy: str
     optimizer_config: OptimizerConfig
     param_groups: Any
-    weight_decay_rate: float
+    synapse_decay_rate: float
     weight_boosting: bool
     common_epochs: int
+
+
+@dataclass(frozen=True)
+class _MainTrainerSetup:
+    trainer: Any
+    main_train_config: Any
+    trainer_config_dict: dict[str, Any]
+    optimizer: Any
+    strategy: str
+    common_epochs: int
+    original_pruning_config: Any
+    # The trainer config before get_trainer consumed its keys, for the
+    # trainer that applies post-training pruning.
+    pruning_trainer_config: dict[str, Any]
 
 
 @dataclass(frozen=True)
@@ -106,6 +136,7 @@ class _MainTrainingRun:
     common_epochs: int
     original_pruning_config: Any
     training_results: dict[str, Any]
+    pruning_trainer_config: dict[str, Any]
 
 
 @dataclass(frozen=True)
@@ -136,7 +167,6 @@ class _PreparedTrainingConfig:
     model_config: Any
     training_config: Any
     analysis_config: Any
-    wandb_config: Any
     outputs_config: Any
 
 
@@ -169,13 +199,46 @@ if normalize_param_groups_config is None:
         return ParamGroupsConfig(**sanitized)
 
 
+def _configured_main_strategy(config) -> str:
+    """Return ``training.main.strategy`` from dict or object configs (default standard)."""
+    main = getattr(getattr(config, "training", None), "main", None)
+    if isinstance(main, dict):
+        return str(main.get("strategy") or "standard")
+    return str(getattr(main, "strategy", None) or "standard")
+
+
+def _no_calibration_batches_message(train_dataset, batch_size: int) -> str:
+    """Explain why data-driven gate calibration found no training batch."""
+    message = (
+        "Data-driven reactivation initialization was requested, but no "
+        "training batches were available for calibration"
+    )
+    try:
+        split_size = len(train_dataset)
+    except TypeError:
+        return message + "."
+    if split_size < batch_size:
+        return (
+            f"{message}: the training split has {split_size} samples, fewer than "
+            f"one calibration batch of {batch_size} "
+            "(training.main.common.reactivation_initialization_batch_size), and "
+            "calibration drops incomplete batches. Set "
+            "reactivation_initialization_batch_size to at most "
+            f"{split_size}, or use a larger training split."
+        )
+    return (
+        f"{message} (training split of {split_size} samples, calibration batch "
+        f"size {batch_size})."
+    )
+
+
 def _maybe_calibrate_data_driven_reactivation(
     config,
     model,
     train_dataset,
     is_main: bool = True,
-    n_batches: int = 3,
-    batch_size: int = 256,
+    n_batches: int | None = None,
+    batch_size: int | None = None,
     n_iterations: int | None = None,
 ):
     """Run and report data-driven reactivation calibration when requested."""
@@ -214,6 +277,36 @@ def _maybe_calibrate_data_driven_reactivation(
     )
     if not requested_policies:
         return None
+    initial_checkpoint = getattr(
+        getattr(config, "model", None), "initial_checkpoint", None
+    )
+    if initial_checkpoint:
+        # The warm-start checkpoint already holds trained gates; recalibrating
+        # would overwrite them.
+        policies = sorted(requested_policies)
+        logger.warning(
+            "[reactivation-calibration] skipped: model.initial_checkpoint (%s) "
+            "provides the reactivation gates, so the data-driven init_policy (%s) "
+            "does not recalibrate them.",
+            initial_checkpoint,
+            ", ".join(policies),
+        )
+        return {
+            "calibration": "skipped_initial_checkpoint",
+            "policies": policies,
+            "initial_checkpoint": str(initial_checkpoint),
+        }
+    if _configured_main_strategy(config) == "presentation_stream":
+        # Calibration batches come from the training set's items, which for a
+        # presentation stream are not the sampled training presentations (for
+        # contextual_remapping: clean images at gain 1 with context 0).
+        raise ValueError(
+            "Data-driven reactivation initialization "
+            f"({', '.join(sorted(requested_policies))}) is not supported with the "
+            "presentation_stream strategy: calibration would fit voltages of the "
+            "training set's items, not of the sampled training presentations. Use "
+            "reactivation init_policy 'fixed' or 'analytical'."
+        )
 
     if saw_layer_policy:
         mode = None
@@ -236,13 +329,28 @@ def _maybe_calibrate_data_driven_reactivation(
     common_config = getattr(
         getattr(getattr(config, "training", None), "main", None), "common", None
     )
+    if n_batches is None:
+        n_batches = int(
+            getattr(common_config, "reactivation_initialization_num_batches", 3)
+        )
+    if batch_size is None:
+        batch_size = int(
+            getattr(common_config, "reactivation_initialization_batch_size", 256)
+        )
+    if n_iterations is None:
+        configured_iterations = getattr(
+            common_config,
+            "reactivation_initialization_max_iterations",
+            None,
+        )
+        if configured_iterations is not None:
+            n_iterations = int(configured_iterations)
+    n_batches = max(1, int(n_batches))
+    batch_size = max(1, int(batch_size))
+    if n_iterations is not None:
+        n_iterations = max(1, int(n_iterations))
     experiment_config = getattr(config, "experiment", None)
-    configured_loader_seed = getattr(experiment_config, "loader_seed", None)
-    calibration_loader_seed = int(
-        getattr(experiment_config, "seed", 0)
-        if configured_loader_seed is None
-        else configured_loader_seed
-    )
+    calibration_loader_seed = resolve_experiment_seeds(experiment_config).loader_seed
     loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
@@ -279,10 +387,7 @@ def _maybe_calibrate_data_driven_reactivation(
             batches.append(sample.to(device))
 
     if not batches:
-        raise RuntimeError(
-            "Data-driven reactivation initialization was requested, but no "
-            "training batches were available for calibration."
-        )
+        raise RuntimeError(_no_calibration_batches_message(train_dataset, batch_size))
 
     # Recurrent models expect [B, T, D]. Preserve full sequence inputs when the
     # dataset already provides them, and only synthesize a length-1 time axis
@@ -438,28 +543,86 @@ def _maybe_calibrate_data_driven_reactivation(
     }
 
 
-def setup_distributed() -> tuple[int, int, int]:
+def launch_ranks() -> tuple[int, int, int]:
+    """``(rank, local_rank, world_size)`` of a ``torchrun`` launch, else ``(0, 0, 1)``.
+
+    Read from the environment ``torchrun`` sets, before any process group
+    exists, and the local GPU is selected for a multi-process launch.
+    """
+    if "RANK" not in os.environ:
+        return 0, 0, 1
+    rank = int(os.environ["RANK"])
+    local_rank = int(os.environ.get("LOCAL_RANK", 0))
+    world_size = int(os.environ.get("WORLD_SIZE", 1))
+    if world_size > 1 and torch.cuda.is_available():
+        torch.cuda.set_device(local_rank)
+    return rank, local_rank, world_size
+
+
+def setup_distributed(timeout_seconds: Optional[int] = None) -> tuple[int, int, int]:
     """Initialize distributed training if launched via ``torchrun``.
 
     ``torchrun`` sets ``RANK``, ``LOCAL_RANK``, and ``WORLD_SIZE``
     automatically.  When these are absent the function returns
     ``(0, 0, 1)`` and does nothing, preserving single-GPU behaviour.
+    ``timeout_seconds`` (``distributed.timeout_seconds``) bounds every
+    collective; None keeps PyTorch's NCCL default of 600 seconds.
 
     Returns:
         (rank, local_rank, world_size)
     """
-    if "RANK" not in os.environ:
-        return 0, 0, 1
-
-    rank = int(os.environ["RANK"])
-    local_rank = int(os.environ.get("LOCAL_RANK", 0))
-    world_size = int(os.environ.get("WORLD_SIZE", 1))
-
+    rank, local_rank, world_size = launch_ranks()
     if world_size > 1 and not dist.is_initialized():
-        dist.init_process_group(backend="nccl")
-        torch.cuda.set_device(local_rank)
-
+        options = {}
+        if timeout_seconds is not None:
+            options["timeout"] = timedelta(seconds=int(timeout_seconds))
+        dist.init_process_group(backend="nccl", **options)
     return rank, local_rank, world_size
+
+
+def _resolve_distributed_mode(config, *, launcher: str, world_size: int) -> None:
+    """Check ``distributed.mode`` against the launch and record the runtime.
+
+    ``train_experiments`` trains in one process (``none``) or with DDP under
+    ``torchrun`` (``ddp``); ``train_experiments_fsdp`` trains with FSDP
+    (``fsdp``). A mode the launch cannot run raises; a mode that differs
+    from the actual runtime otherwise is replaced, with a warning, so
+    ``config.json`` records how the run trained.
+    """
+    distributed = getattr(config, "distributed", None)
+    if distributed is None:
+        return
+    mode = str(getattr(distributed, "mode", "none") or "none").strip().lower()
+    if launcher == "fsdp":
+        if mode == "ddp":
+            raise ValueError(
+                "distributed.mode: ddp trains with train_experiments under "
+                "torchrun; train_experiments_fsdp trains with FSDP"
+            )
+        actual = "fsdp"
+    else:
+        if mode == "fsdp":
+            raise ValueError(
+                "distributed.mode: fsdp trains with train_experiments_fsdp: "
+                "torchrun --nproc_per_node=<gpus> -m "
+                "dendritic_modeling.scripts.training.train_experiments_fsdp <config>"
+            )
+        if mode == "ddp" and "RANK" not in os.environ:
+            raise ValueError(
+                "distributed.mode: ddp needs torchrun: torchrun "
+                "--nproc_per_node=<gpus> -m "
+                "dendritic_modeling.scripts.training.train_experiments <config>"
+            )
+        actual = "ddp" if world_size > 1 else "none"
+    if mode != actual:
+        logger.warning(
+            "distributed.mode is %r but this run trains as %r; config.json "
+            "records %r.",
+            mode,
+            actual,
+            actual,
+        )
+        distributed.mode = actual
 
 
 def normalize_optimizer_config(optimizer_cfg) -> OptimizerConfig:
@@ -521,7 +684,7 @@ def _maybe_plot_performance_evolution(
     training_config=None,
 ) -> None:
     """Generate final performance-evolution plots when epoch tracking exists."""
-    if not analysis_manager.config.performance_analysis.training:
+    if not analysis_manager.config.performance.training:
         return
 
     performance_dir = os.path.join(run_save_path, "performance", "epochs")
@@ -580,23 +743,71 @@ def run_analysis(
         logger.info("Analysis completed")
 
 
-def _apply_cli_overrides(config, args) -> None:
-    """Apply command-line overrides to a loaded training config."""
-    if not args:
-        return
+_LEARNING_RATE_ARGUMENTS = (
+    "lr",
+    "topk_lr",
+    "blocklinear_lr",
+    "reactivation_lr",
+    "decoder_lr",
+)
+_IMAGENET_SAMPLE_ARGUMENTS = ("train_samples_per_class", "val_samples_per_class")
 
-    if args.learning_strategy:
-        config.training.main.strategy = args.learning_strategy
-        logger.info(f"Override learning strategy: {args.learning_strategy}")
-    if args.output_dir:
-        config.outputs.results_dir = args.output_dir
-        logger.info(f"Override output directory: {args.output_dir}")
-    if args.run_name:
-        config.outputs.run_name = args.run_name
-        logger.info(f"Override run name: {args.run_name}")
-    if getattr(args, "seed", None) is not None:
-        config.experiment.seed = args.seed
-        logger.info(f"Override seed: {args.seed}")
+
+def _cli_overrides(args) -> dict[str, Any]:
+    """Return the configuration overrides requested on the command line.
+
+    The overrides are applied to the YAML before validation, so they are
+    checked exactly like values written in the file.
+    """
+    if not args:
+        return {}
+    overrides: dict[str, Any] = {}
+
+    def put(path: str, value: Any) -> None:
+        if value is not None:
+            overrides[path] = value
+
+    put("training.main.strategy", getattr(args, "learning_strategy", None))
+    put(
+        "training.main.learning_strategy_config.error_broadcast_mode",
+        getattr(args, "error_broadcast_mode", None),
+    )
+    put("outputs.results_dir", getattr(args, "output_dir", None))
+    put("data.base_dir", getattr(args, "data_dir", None))
+    put("outputs.run_name", getattr(args, "run_name", None))
+    put("experiment.seed", getattr(args, "seed", None))
+    epochs = getattr(args, "epochs", None)
+    if epochs is not None and epochs < 1:
+        raise ValueError("--epochs must be positive")
+    put("training.main.common.epochs", epochs)
+    for name in _LEARNING_RATE_ARGUMENTS:
+        value = getattr(args, name, None)
+        if value is not None and value < 0:
+            raise ValueError(f"--{name} must be non-negative")
+        put(f"training.main.common.param_groups.{name}", value)
+    for name in _IMAGENET_SAMPLE_ARGUMENTS:
+        value = getattr(args, name, None)
+        if value is not None and value < 1:
+            raise ValueError(f"--{name} must be positive")
+        put(f"data.dataset_params.imagenet.{name}", value)
+    return overrides
+
+
+def _reject_unread_cli_overrides(config, overrides: dict[str, Any]) -> None:
+    """Fail when an override sets dataset options the selected dataset ignores."""
+    imagenet = [
+        f"--{name}"
+        for name in _IMAGENET_SAMPLE_ARGUMENTS
+        if f"data.dataset_params.imagenet.{name}" in overrides
+    ]
+    if not imagenet:
+        return
+    dataset_name = str(getattr(config.data, "dataset_name", ""))
+    if dataset_name != "imagenet":
+        raise ValueError(
+            f"{', '.join(imagenet)} applies only to data.dataset_name: imagenet "
+            f"(this config uses {dataset_name!r})"
+        )
 
 
 def _load_and_prepare_training_config(
@@ -607,11 +818,15 @@ def _load_and_prepare_training_config(
     world_size: int,
 ) -> _PreparedTrainingConfig:
     """Load, validate, safeguard, and split the training configuration."""
-    config = load_config(config_path)
+    overrides = _cli_overrides(args)
+    config = load_config(config_path, overrides=overrides)
+    _reject_unread_cli_overrides(config, overrides)
     if is_main:
         logger.info(f"Loaded configuration from {config_path}")
+        for path, value in overrides.items():
+            logger.info("Command-line override: %s = %r", path, value)
         if world_size > 1:
-            logger.info(f"DDP enabled: world_size={world_size}")
+            logger.info(f"Distributed run: world_size={world_size}")
 
     if is_main:
         logger.info("Validating configuration...")
@@ -622,15 +837,6 @@ def _load_and_prepare_training_config(
         )
         raise ValueError("Invalid configuration - critical errors detected")
 
-    apply_automatic_safeguards(config)
-    if is_main:
-        logger.info("Configuration safeguards applied")
-
-    if not is_main and hasattr(config, "wandb"):
-        config.wandb.use_wandb = False
-
-    _apply_cli_overrides(config, args)
-
     return _PreparedTrainingConfig(
         config=config,
         experiment_config=config.experiment,
@@ -638,7 +844,6 @@ def _load_and_prepare_training_config(
         model_config=config.model,
         training_config=config.training,
         analysis_config=config.analysis,
-        wandb_config=config.wandb,
         outputs_config=config.outputs,
     )
 
@@ -659,13 +864,24 @@ def _resolve_main_training_settings(main_train_config) -> _MainTrainingSettings:
         )
 
     if isinstance(common_config, dict):
+        # Unset keys take the typed defaults, as on the typed path.
         param_groups = common_config.get("param_groups", {})
-        weight_decay_rate = common_config.get("weight_decay_rate", 0.0)
-        weight_boosting = common_config.get("weight_boosting", False)
-        common_epochs = common_config.get("epochs", 100)
+        common_config = apply_renamed_fields(
+            CommonTrainerConfig, common_config, section="training.main.common"
+        )
+        synapse_decay_rate = common_config.get(
+            "synapse_decay_rate",
+            field_default(CommonTrainerConfig, "synapse_decay_rate"),
+        )
+        weight_boosting = common_config.get(
+            "weight_boosting", field_default(CommonTrainerConfig, "weight_boosting")
+        )
+        common_epochs = common_config.get(
+            "epochs", field_default(CommonTrainerConfig, "epochs")
+        )
     else:
         param_groups = common_config.param_groups
-        weight_decay_rate = common_config.weight_decay_rate
+        synapse_decay_rate = common_config.synapse_decay_rate
         weight_boosting = getattr(common_config, "weight_boosting", False)
         common_epochs = common_config.epochs
 
@@ -674,18 +890,21 @@ def _resolve_main_training_settings(main_train_config) -> _MainTrainingSettings:
         strategy=strategy,
         optimizer_config=optimizer_config,
         param_groups=param_groups,
-        weight_decay_rate=weight_decay_rate,
+        synapse_decay_rate=synapse_decay_rate,
         weight_boosting=weight_boosting,
         common_epochs=common_epochs,
     )
 
 
 def _install_encoder_network(unwrapped_model, encoder_network) -> None:
-    """Install the post-pretraining encoder on the unwrapped model."""
+    """Install the encoder the main phase uses on the unwrapped model.
+
+    An autoencoder contributes its (pretrained) encoder.
+    """
     if isinstance(encoder_network, Identity):
         unwrapped_model.encoder_network = encoder_network
     elif hasattr(encoder_network, "encoder"):
-        unwrapped_model.encoder_network = Identity(encoder_network.encoder.output_dim)
+        unwrapped_model.encoder_network = encoder_network.encoder
     else:
         unwrapped_model.encoder_network = encoder_network
 
@@ -693,25 +912,42 @@ def _install_encoder_network(unwrapped_model, encoder_network) -> None:
 def _record_model_size_summary(unwrapped_model, config, run_save_path: str) -> int:
     """Persist model size metadata and log size-based configuration suggestions."""
     nparams = sum(p.numel() for p in unwrapped_model.parameters())
-    if wandb.run is not None:
-        wandb.log({"nparams": nparams})
     save_dict({"nparams": nparams}, run_save_path, "nparams")
-    save_dict(
-        model_resource_summary(unwrapped_model),
-        run_save_path,
-        "model_resources.json",
-    )
+    resources = model_resource_summary(unwrapped_model)
+    resources["runtime_device"] = "cuda" if torch.cuda.is_available() else "cpu"
+    resources["cuda_peak_memory_allocated_bytes"] = None
+    resources["cuda_peak_memory_reserved_bytes"] = None
+    if torch.cuda.is_available():
+        try:
+            device = torch.cuda.current_device()
+            resources["cuda_device_name"] = torch.cuda.get_device_name(device)
+            resources["cuda_peak_memory_allocated_bytes"] = int(
+                torch.cuda.max_memory_allocated(device)
+            )
+            resources["cuda_peak_memory_reserved_bytes"] = int(
+                torch.cuda.max_memory_reserved(device)
+            )
+        except (AssertionError, RuntimeError) as error:
+            # Some login/test environments expose a CUDA-enabled build without
+            # assigning a usable device. Preserve a valid resource artifact.
+            resources["cuda_memory_measurement_error"] = str(error)
+    save_dict(resources, run_save_path, "model_resources.json")
 
-    suggestions = suggest_optimal_config_for_model_size(nparams)
-    if suggestions:
-        logger.info(
-            f"=== MODEL SIZE RECOMMENDATIONS (Model has {nparams:,} parameters) ==="
+    # Companion artifact: the operator axes of the constructed core, read from
+    # its dendritic layers. Best-effort by design: the card must never
+    # interfere with training.
+    try:
+        from dendritic_modeling.config.operator_card import build_operator_card
+
+        save_dict(
+            build_operator_card(
+                getattr(config.model, "core", None), model=unwrapped_model
+            ),
+            run_save_path,
+            "operator_card.json",
         )
-        for key, value in suggestions.items():
-            current_value = getattr(config.training, key, "Not available")
-            if current_value != value:
-                logger.info(f"  Consider: {key} = {value} (current: {current_value})")
-        logger.info("=" * 50)
+    except Exception as card_error:  # pragma: no cover - defensive guard
+        logger.warning("Skipping operator card: %s", card_error)
 
     return nparams
 
@@ -759,40 +995,136 @@ def _save_run_config(config, run_save_path: str) -> None:
     save_dict(config_payload, run_save_path, "config.json")
 
 
-def _load_or_train_encoder_datasets(
+def _check_encoder_request(
+    *,
+    autoencoder: bool,
+    name: str,
+    pretraining,
+    initial_checkpoint,
+    world_size: int,
+    fsdp: bool,
+) -> None:
+    """Raise for an encoder request the main phase cannot run.
+
+    ``autoencoder`` says whether ``model.encoder`` builds an autoencoder and
+    ``name`` names what it builds. The same rules run before the run directory
+    is created (:func:`_validate_encoder_request`) and on the built encoder.
+    """
+    epochs = 0 if pretraining is None else int(pretraining.epochs)
+    if not autoencoder:
+        if epochs > 0:
+            raise ValueError(
+                f"training.encoder_pretraining.epochs={epochs} pretrains autoencoder "
+                f"encoders, but model.encoder builds {name}, "
+                "which the main phase trains with the core; set it to 0"
+            )
+        return
+    if fsdp:
+        raise ValueError(
+            f"model.encoder builds an autoencoder ({name}); FSDP training does not "
+            "support autoencoder encoders, so train in a single process or with DDP"
+        )
+    if epochs > 0 and initial_checkpoint:
+        raise ValueError(
+            "training.encoder_pretraining.epochs is set, but model.initial_checkpoint "
+            "already holds the trained encoder; set the epochs to 0"
+        )
+    if epochs == 0 and not initial_checkpoint:
+        raise ValueError(
+            f"model.encoder builds an autoencoder ({name}), which must be trained "
+            "before the main phase: set training.encoder_pretraining.epochs, or load "
+            "a trained one with model.initial_checkpoint"
+        )
+    if epochs > 0 and world_size > 1:
+        raise ValueError(
+            "training.encoder_pretraining runs in single-process training; "
+            "pretrain in a single-process run and start the distributed run "
+            "from its checkpoint (model.initial_checkpoint)"
+        )
+
+
+def _validate_encoder_request(
+    model_config, training_config, *, world_size: int, fsdp: bool = False
+) -> None:
+    """Reject an unsupported encoder request before the run directory exists.
+
+    Built-in encoder types tell from their name whether they build an
+    autoencoder. An encoder that a registered model builder or an extension
+    architecture builds is checked once it is built, by
+    :func:`_encoder_datasets`.
+    """
+    encoder_config = getattr(model_config, "encoder", None)
+    if encoder_config is None or resolve_model_builder(model_config) is not None:
+        return
+    encoder_type = str(getattr(encoder_config, "type", None) or "").lower()
+    autoencoder = builds_autoencoder(encoder_type)
+    if autoencoder is None:
+        return
+    cls = builtin_architecture_class(encoder_type)
+    _check_encoder_request(
+        autoencoder=autoencoder,
+        name=cls.__name__ if cls is not None else f"the {encoder_type!r} architecture",
+        pretraining=getattr(training_config, "encoder_pretraining", None),
+        initial_checkpoint=getattr(model_config, "initial_checkpoint", None),
+        world_size=world_size,
+        fsdp=fsdp,
+    )
+
+
+def _encoder_datasets(
     *,
     encoder_network,
-    training_config,
-    model_config,
-    data_config,
     train_ds,
     valid_ds,
     test_ds,
-    world_size: int,
-    is_main: bool,
+    pretraining=None,
+    initial_checkpoint=None,
+    run_save_path: str | None = None,
+    seed: int = 0,
+    loader_seed: int | None = None,
+    world_size: int = 1,
+    fsdp: bool = False,
 ):
-    """Load/train the encoder and return encoded datasets with DDP serialization."""
-    loader_kwargs = {
-        "encoder_network": encoder_network,
-        "encoder_train_config": training_config.encoder,
-        "train_ds": train_ds,
-        "valid_ds": valid_ds,
-        "test_ds": test_ds,
-        "encoder_network_config": model_config.encoder,
-        "task_config": data_config,
-    }
+    """Return the encoder and the datasets the main phase trains on.
 
-    if world_size > 1 and isinstance(encoder_network, BaseAutoencoder):
-        if is_main:
-            encoded = load_train_encoder_network(**loader_kwargs)
-        dist.barrier()  # wait for rank 0 to finish training/saving
-        if not is_main:
-            # Rank 0 has saved a checkpoint; non-rank-0 will find it and
-            # skip training, just load + encode.
-            encoded = load_train_encoder_network(**loader_kwargs)
-        return encoded
-
-    return load_train_encoder_network(**loader_kwargs)
+    The main phase trains a regular encoder jointly with the core. An
+    autoencoder encoder must be trained first: by reconstruction pretraining
+    (``training.encoder_pretraining``, in single-process training) or as part
+    of ``model.initial_checkpoint``. Its encoder is then the model's encoder,
+    frozen unless ``training.encoder_pretraining.freeze_encoder`` is false.
+    """
+    autoencoder = isinstance(encoder_network, BaseAutoencoder)
+    _check_encoder_request(
+        autoencoder=autoencoder,
+        name=type(encoder_network).__name__,
+        pretraining=pretraining,
+        initial_checkpoint=initial_checkpoint,
+        world_size=world_size,
+        fsdp=fsdp,
+    )
+    if not autoencoder:
+        return encoder_network, train_ds, valid_ds, test_ds
+    epochs = 0 if pretraining is None else int(pretraining.epochs)
+    if epochs > 0:
+        save_path = (
+            None
+            if run_save_path is None
+            else os.path.join(run_save_path, "encoder_pretraining")
+        )
+        summary = pretrain_autoencoder(
+            encoder_network,
+            train_ds,
+            valid_ds,
+            pretraining,
+            save_path=save_path,
+            seed=seed,
+            loader_seed=loader_seed,
+        )
+        if save_path is not None:
+            save_dict(summary, save_path, "summary.json")
+    if pretraining is None or pretraining.freeze_encoder:
+        encoder_network.encoder.freeze()
+    return encoder_network, train_ds, valid_ds, test_ds
 
 
 def _create_analysis_manager(
@@ -873,24 +1205,29 @@ def _prepare_encoded_training_state(
         getattr(config, "experiment", None),
         analysis_config,
     )
+    experiment_config = getattr(config, "experiment", None)
+    resolved_seeds = (
+        None
+        if experiment_config is None
+        else resolve_experiment_seeds(experiment_config)
+    )
     encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds = (
-        _load_or_train_encoder_datasets(
+        _encoder_datasets(
             encoder_network=encoder_network,
-            training_config=training_config,
-            model_config=model_config,
-            data_config=data_config,
             train_ds=train_ds,
             valid_ds=valid_ds,
             test_ds=test_ds,
+            pretraining=getattr(training_config, "encoder_pretraining", None),
+            initial_checkpoint=getattr(model_config, "initial_checkpoint", None),
+            run_save_path=run_save_path if is_main else None,
+            seed=0 if resolved_seeds is None else resolved_seeds.seed,
+            loader_seed=None if resolved_seeds is None else resolved_seeds.loader_seed,
             world_size=world_size,
-            is_main=is_main,
         )
     )
 
     analysis_seed_kwargs = {}
-    experiment_config = getattr(config, "experiment", None)
-    if experiment_config is not None:
-        resolved_seeds = resolve_experiment_seeds(experiment_config)
+    if resolved_seeds is not None:
         analysis_seed_kwargs = {
             "evaluation_seed": resolved_seeds.evaluation_seed,
             "probe_seed": resolved_seeds.probe_seed,
@@ -913,16 +1250,19 @@ def _prepare_encoded_training_state(
         train_dataset=encoded_train_ds,
         is_main=is_main,
     )
+    # DDP replicas calibrated after wrapping; rank 0's gates become everyone's.
+    broadcast_reactivation_state(unwrapped_model)
     if is_main and calibration_summary is not None:
         save_dict(
             calibration_summary,
             run_save_path,
             "reactivation_calibration.json",
         )
-        _dump_post_calibration_gate_stats_diagnostic(
-            unwrapped_model,
-            run_save_path,
-        )
+        if calibration_summary.get("calibration") != "skipped_initial_checkpoint":
+            _dump_post_calibration_gate_stats_diagnostic(
+                unwrapped_model,
+                run_save_path,
+            )
 
     return _EncodedTrainingState(
         encoder_network=encoder_network,
@@ -945,7 +1285,7 @@ def _maybe_plot_multistage_training_performance(
     """Plot multi-stage training performance when epoch traces are available."""
     if strategy != "multi_stage":
         return
-    if not analysis_config.performance_analysis.training:
+    if not analysis_config.performance.training:
         return
 
     performance_dir = os.path.join(run_save_path, "performance", "epochs")
@@ -955,7 +1295,9 @@ def _maybe_plot_multistage_training_performance(
     try:
         multi_stage = main_train_config.strategies.multi_stage
         stages = multi_stage.stages
-        total_epochs = sum(getattr(stage, "epochs", common_epochs) for stage in stages)
+        total_epochs = sum(
+            getattr(stage, "epochs", None) or common_epochs for stage in stages
+        )
         plotter = PerformancePlotter()
         plotter.plot_performance_evolution(
             performance_dir=performance_dir,
@@ -965,6 +1307,63 @@ def _maybe_plot_multistage_training_performance(
         )
     except Exception as e:
         logger.error(f"Failed to generate performance plots: {e}")
+
+
+def _main_steps_per_epoch(strategy, trainer_config_dict, train_dataset) -> int:
+    batch_size = int(trainer_config_dict["batch_size"])
+    if strategy == "presentation_stream":
+        stream_config = trainer_config_dict.get("presentation_stream_config") or {}
+        presentations = int(stream_config.get("presentations_per_epoch", 65536))
+        return math.ceil(presentations / batch_size)
+    return math.ceil(len(train_dataset) / batch_size)
+
+
+def _build_topology_controllers(
+    *,
+    unwrapped_model,
+    strategy: str,
+    trainer_config_dict: dict,
+    experiment_config,
+    train_dataset,
+) -> list:
+    """Optimizer-step topology controllers configured under training.main.common."""
+    impact_options = trainer_config_dict.pop("impact_rewiring", None) or {}
+    if not impact_options:
+        return []
+    if strategy not in {"standard", "presentation_stream"}:
+        raise ValueError(
+            "training.main.common.impact_rewiring supports the standard and "
+            f"presentation_stream strategies, not {strategy!r}"
+        )
+    if dist.is_available() and dist.is_initialized():
+        raise ValueError("impact_rewiring does not support distributed training")
+    seed = resolve_experiment_seeds(experiment_config).topology_seed
+    return [
+        build_population_impact_rewiring(
+            unwrapped_model.core_network,
+            impact_options,
+            steps_per_epoch=_main_steps_per_epoch(
+                strategy, trainer_config_dict, train_dataset
+            ),
+            epochs=int(trainer_config_dict["epochs"]),
+            seed=int(seed),
+        )
+    ]
+
+
+def _validate_pruning_request(pruning_config, unwrapped_model) -> None:
+    """Fail before training when the post-training pruning step cannot work."""
+    if not pruning_config or not pruning_config.get("enabled", False):
+        return
+    if not isinstance(unwrapped_model, torch.nn.Module):
+        return  # the weight selection needs module introspection
+    from dendritic_modeling.config.regularization import PruningConfig, SelectiveConfig
+    from dendritic_modeling.training.regularization import PruningManager
+
+    options = dict(pruning_config)
+    if isinstance(options.get("selective"), dict):
+        options["selective"] = SelectiveConfig(**options["selective"])
+    PruningManager(PruningConfig(**options)).validate_model(unwrapped_model)
 
 
 def _run_main_training_phase(
@@ -980,6 +1379,41 @@ def _run_main_training_phase(
     analysis_manager,
 ) -> _MainTrainingRun:
     """Build the main trainer, run training, and return downstream state."""
+    setup = _build_main_trainer(
+        unwrapped_model=unwrapped_model,
+        training_config=training_config,
+        model_config=model_config,
+        experiment_config=experiment_config,
+        run_save_path=run_save_path,
+        encoded_train_ds=encoded_train_ds,
+        analysis_manager=analysis_manager,
+    )
+    training_results = setup.trainer.train(
+        model=model, train_data=encoded_train_ds, valid_data=encoded_valid_ds
+    )
+    return _MainTrainingRun(
+        main_train_config=setup.main_train_config,
+        trainer_config_dict=setup.trainer_config_dict,
+        optimizer=setup.optimizer,
+        strategy=setup.strategy,
+        common_epochs=setup.common_epochs,
+        original_pruning_config=setup.original_pruning_config,
+        training_results=training_results,
+        pruning_trainer_config=setup.pruning_trainer_config,
+    )
+
+
+def _build_main_trainer(
+    *,
+    unwrapped_model,
+    training_config,
+    model_config,
+    experiment_config,
+    run_save_path: str,
+    encoded_train_ds,
+    analysis_manager,
+) -> _MainTrainerSetup:
+    """Build the optimizer and main trainer without training."""
     main_net_save_path = os.path.join(run_save_path, "main_network")
     os.makedirs(main_net_save_path, exist_ok=True)
 
@@ -989,28 +1423,36 @@ def _run_main_training_phase(
         experiment_config=experiment_config,
         save_path=main_net_save_path,
     )
-    base_seed = int(getattr(experiment_config, "seed", 0) or 0)
-    main_trainer_config_dict["seed"] = base_seed
-    configured_loader_seed = getattr(experiment_config, "loader_seed", None)
-    main_trainer_config_dict["loader_seed"] = int(
-        base_seed if configured_loader_seed is None else configured_loader_seed
-    )
+    resolved_seeds = resolve_experiment_seeds(experiment_config)
+    main_trainer_config_dict["seed"] = resolved_seeds.seed
+    main_trainer_config_dict["loader_seed"] = resolved_seeds.loader_seed
 
     settings = _resolve_main_training_settings(main_train_config)
     strategy = settings.strategy
     common_epochs = settings.common_epochs
     param_groups = normalize_param_groups_config(settings.param_groups)
     model_param_groups = unwrapped_model.get_param_groups(param_groups)
+    # optimizer.lr is only the optimizer default; param_groups.lr is the base rate.
+    validate_param_group_learning_rates(settings.optimizer_config, param_groups)
     base_optimizer = create_optimizer(model_param_groups, settings.optimizer_config)
 
+    topology_controllers = _build_topology_controllers(
+        unwrapped_model=unwrapped_model,
+        strategy=strategy,
+        trainer_config_dict=main_trainer_config_dict,
+        experiment_config=experiment_config,
+        train_dataset=encoded_train_ds,
+    )
     optimizer = CustomWeightDecayOptimizer(
         model=unwrapped_model,
         optimizer=base_optimizer,
-        weight_decay=settings.weight_decay_rate,
+        weight_decay=settings.synapse_decay_rate,
         weight_boosting=settings.weight_boosting,
+        topology_controllers=topology_controllers,
     )
 
     original_pruning_config = main_trainer_config_dict.get("pruning", {})
+    _validate_pruning_request(original_pruning_config, unwrapped_model)
     main_trainer_config_dict["pruning"] = {}
 
     if strategy == "multi_stage":
@@ -1018,9 +1460,13 @@ def _run_main_training_phase(
             raise ValueError(
                 "Learning strategy is 'multi_stage' but no 'multi_stage_config' found"
             )
+        # Stages that rebuild their optimizer use training.main.optimizer.
+        main_trainer_config_dict["optimizer_config"] = settings.optimizer_config
         logger.info("Using multi-stage training strategy")
 
     main_trainer_config_dict["task"] = model_config.task
+    # get_trainer pops keys from the dict it receives.
+    pruning_trainer_config = copy.deepcopy(main_trainer_config_dict)
 
     main_trainer = get_trainer(
         strategy=strategy,
@@ -1028,19 +1474,15 @@ def _run_main_training_phase(
         trainer_config_dict=main_trainer_config_dict,
         analysis_manager=analysis_manager,
     )
-
-    training_results = main_trainer.train(
-        model=model, train_data=encoded_train_ds, valid_data=encoded_valid_ds
-    )
-
-    return _MainTrainingRun(
+    return _MainTrainerSetup(
+        trainer=main_trainer,
         main_train_config=main_train_config,
         trainer_config_dict=main_trainer_config_dict,
         optimizer=optimizer,
         strategy=strategy,
         common_epochs=common_epochs,
         original_pruning_config=original_pruning_config,
-        training_results=training_results,
+        pruning_trainer_config=pruning_trainer_config,
     )
 
 
@@ -1065,9 +1507,6 @@ def _maybe_apply_pruning_step(
     if is_main:
         logger.info("Applying pruning as separate step...")
     main_trainer_config_dict["pruning"] = original_pruning_config
-    main_trainer_config_dict["reporting"] = main_trainer_config_dict.get(
-        "reporting", {}
-    )
 
     pruning_trainer = get_trainer(
         strategy=strategy,
@@ -1076,11 +1515,16 @@ def _maybe_apply_pruning_step(
         analysis_manager=analysis_manager,
     )
 
-    pruning_trainer._initialize_attributes(model, common_epochs)
+    # Device setup only: the pruning step does not track a best state.
+    pruning_trainer._initialize_attributes(model, common_epochs, snapshot_best=False)
 
+    if is_main and analysis_manager is not None:
+        analysis_manager.record_pruning_start()
     pruning_results = pruning_trainer._apply_pruning_and_evaluate(
         model=model, train_data=encoded_train_ds, valid_data=encoded_valid_ds
     )
+    if is_main and analysis_manager is not None:
+        analysis_manager.record_pruning_end(pruning_results)
     training_results.update(pruning_results)
     if is_main:
         logger.info("Pruning completed")
@@ -1100,11 +1544,25 @@ def _save_final_model_and_analysis(
     training_config,
     training_results: dict,
 ) -> None:
-    """Save the final model and run non-multi-stage final analysis."""
-    torch.save(
+    """Save the final model and run non-multi-stage final analysis.
+
+    When the final weights are those of the run's best-validation checkpoint
+    (training restored them), ``final_model.pt`` is a hard link to it rather
+    than a second copy. The main trainer writes that checkpoint under
+    ``main_network/``; with several best checkpoints nothing is linked.
+    """
+    best_checkpoints = sorted(
+        path
+        for folder in (Path(run_save_path), Path(run_save_path) / "main_network")
+        for path in folder.glob("*best_model.pt")
+    )
+    outcome = save_state_dict(
         unwrapped_model.state_dict(),
         os.path.join(run_save_path, "final_model.pt"),
+        identical_to=best_checkpoints[0] if len(best_checkpoints) == 1 else None,
     )
+    if outcome == "linked":
+        logger.info("final_model.pt links %s (same weights)", best_checkpoints[0].name)
 
     if any_analysis_enabled and strategy != "multi_stage":
         run_analysis(
@@ -1153,7 +1611,7 @@ def _finalize_main_training_phase(
     training_results = _maybe_apply_pruning_step(
         original_pruning_config=main_training.original_pruning_config,
         is_main=is_main,
-        main_trainer_config_dict=main_training.trainer_config_dict,
+        main_trainer_config_dict=main_training.pruning_trainer_config,
         strategy=main_training.strategy,
         optimizer=main_training.optimizer,
         analysis_manager=analysis_manager,
@@ -1208,11 +1666,43 @@ def _broadcast_run_save_path(
     return bytes(path_tensor.cpu().tolist()).decode("utf-8")
 
 
+def _reject_rank_dependent_rewiring(model) -> None:
+    """Fail when DeepST rewiring would differ between data-parallel replicas.
+
+    DDP synchronizes gradients, not the parameter writes rewiring makes, so
+    every replica must take the same rewiring decisions. Seeded DeepST layers
+    do; unseeded ones draw from each rank's RNG, and credit-gated DeepST
+    decides from credit recorded before gradients are averaged.
+    """
+    from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.credit_deepst import (
+        CreditGatedDeepstLinear,
+    )
+    from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.deepst import (
+        DeepstLinear,
+    )
+
+    for name, module in model.named_modules():
+        if isinstance(module, CreditGatedDeepstLinear):
+            raise ValueError(
+                f"{name}: credit_deepst does not support multi-process training; "
+                "its rewiring uses credit recorded before gradients are averaged"
+            )
+        if isinstance(module, DeepstLinear) and module.seed is None:
+            raise ValueError(
+                f"{name}: an unseeded DeepST layer would rewire differently on "
+                "each rank; set the topology seed (sparsity.indexed.seed or the "
+                "population indexed_seed)"
+            )
+
+
 def _wrap_ddp_model(model, *, world_size: int, local_rank: int, is_main: bool):
     """Wrap the model in DDP when running with multiple processes."""
     if world_size <= 1:
         return model
 
+    _reject_rank_dependent_rewiring(model)
+    # Synapses that keep batch statistics reduce them over the ranks.
+    mark_rank_reduced_statistics(model)
     device = torch.device(f"cuda:{local_rank}")
     model = model.to(device)
     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[local_rank])
@@ -1246,15 +1736,8 @@ def _dump_post_calibration_gate_stats_diagnostic(
         ) from exc
 
 
-def _cleanup_training_runtime(wandb_config, *, world_size: int) -> None:
-    """Finish optional logging and tear down distributed runtime state."""
-    if (
-        hasattr(wandb_config, "use_wandb")
-        and wandb_config.use_wandb
-        and wandb.run is not None
-    ):
-        wandb.finish()
-
+def _cleanup_training_runtime(*, world_size: int) -> None:
+    """Tear down distributed runtime state."""
     if world_size > 1 and dist.is_initialized():
         dist.destroy_process_group()
 
@@ -1284,16 +1767,9 @@ def _log_model_summary_before_training(unwrapped_model, train_ds, config) -> Non
                 "Skipping torchinfo summary for recurrent model. "
                 f"total_params={total_params}, trainable_params={trainable_params}"
             )
-            if wandb.run:
-                wandb.log(
-                    {
-                        "total_params": total_params,
-                        "trainable_params": trainable_params,
-                    }
-                )
         else:
             sample_input: torch.Tensor = train_ds[0][0]
-            summary = torchinfo.summary(
+            torchinfo.summary(
                 unwrapped_model,
                 input_size=(100, *sample_input.shape),
                 col_names=["input_size", "output_size", "num_params"],
@@ -1302,13 +1778,6 @@ def _log_model_summary_before_training(unwrapped_model, train_ds, config) -> Non
                 depth=7,
             )
             logger.info("Model summary generated (see console output)")
-            if wandb.run:
-                wandb.log(
-                    {
-                        "total_params": summary.total_params,
-                        "trainable_params": summary.trainable_params,
-                    }
-                )
     except Exception as e:
         logger.error(f"Failed to generate model summary before training: {e}")
 
@@ -1319,7 +1788,6 @@ def _setup_training_environment(
     model_config,
     training_config,
     data_config,
-    wandb_config,
     outputs_config,
     experiment_config,
     world_size: int,
@@ -1332,7 +1800,6 @@ def _setup_training_environment(
             model_config=model_config,
             training_config=training_config,
             data_config=data_config,
-            wandb_config=wandb_config,
             outputs_config=outputs_config,
             experiment_config=experiment_config,
             is_main=is_main,
@@ -1344,6 +1811,23 @@ def _setup_training_environment(
         world_size=world_size,
         is_main=is_main,
     )
+    # Record the clipping operator the strategy applies when none is configured.
+    main_training = getattr(getattr(config, "training", None), "main", None)
+    common = getattr(main_training, "common", None)
+    if common is not None and getattr(common, "grad_clip_mode", None) is None:
+        common.grad_clip_mode = default_grad_clip_mode(
+            getattr(main_training, "strategy", None),
+            getattr(getattr(config, "distributed", None), "mode", None),
+        )
+    # Fill unset analysis seeds before config.json records the run.
+    analysis_config = getattr(config, "analysis", None)
+    if analysis_config is not None:
+        resolved_seeds = resolve_experiment_seeds(experiment_config)
+        fill_analysis_seeds(
+            analysis_config,
+            evaluation_seed=resolved_seeds.evaluation_seed,
+            probe_seed=resolved_seeds.probe_seed,
+        )
 
     model = _wrap_ddp_model(
         model,
@@ -1374,8 +1858,20 @@ def _setup_training_environment(
 
 
 def main(config_path: str, args=None):
-    rank, local_rank, world_size = setup_distributed()
+    rank, local_rank, world_size = launch_ranks()
     is_main = rank == 0
+
+    # Measure the complete per-process model build and training footprint.
+    # Reset before dataset/model setup so architecture comparisons use the same
+    # scope and the final resource artifact can be collected without rerunning.
+    if torch.cuda.is_available():
+        try:
+            # ``launch_ranks`` already selected the local device for DDP.
+            # Let PyTorch resolve the current device here; passing an integer
+            # before the first CUDA context exists fails on some Slurm nodes.
+            torch.cuda.reset_peak_memory_stats()
+        except (AssertionError, RuntimeError) as error:
+            logger.warning("CUDA peak-memory reset was unavailable: %s", error)
 
     prepared_config = _load_and_prepare_training_config(
         config_path,
@@ -1384,21 +1880,22 @@ def main(config_path: str, args=None):
         world_size=world_size,
     )
     config = prepared_config.config
+    setup_distributed(timeout_seconds=config.distributed.timeout_seconds)
+    _resolve_distributed_mode(config, launcher="standard", world_size=world_size)
     experiment_config = prepared_config.experiment_config
     data_config = prepared_config.data_config
     model_config = prepared_config.model_config
     training_config = prepared_config.training_config
     analysis_config = prepared_config.analysis_config
-    wandb_config = prepared_config.wandb_config
     outputs_config = prepared_config.outputs_config
 
     _validate_sealed_test_analysis(experiment_config, analysis_config)
+    _validate_encoder_request(model_config, training_config, world_size=world_size)
     environment = _setup_training_environment(
         config=config,
         model_config=model_config,
         training_config=training_config,
         data_config=data_config,
-        wandb_config=wandb_config,
         outputs_config=outputs_config,
         experiment_config=experiment_config,
         world_size=world_size,
@@ -1413,6 +1910,7 @@ def main(config_path: str, args=None):
     unwrapped_model = environment.unwrapped_model
     encoder_network = environment.encoder_network
 
+    validate_only = bool(getattr(args, "validate_only", False))
     encoded_state = _prepare_encoded_training_state(
         config=config,
         unwrapped_model=unwrapped_model,
@@ -1431,6 +1929,26 @@ def main(config_path: str, args=None):
     encoded_train_ds = encoded_state.encoded_train_ds
     encoded_valid_ds = encoded_state.encoded_valid_ds
     analysis_manager = encoded_state.analysis_manager
+
+    if validate_only:
+        # Build everything a run needs (analysis manager, calibrated gates,
+        # optimizer, trainer) so every configuration check runs; skip training.
+        _build_main_trainer(
+            unwrapped_model=unwrapped_model,
+            training_config=training_config,
+            model_config=model_config,
+            experiment_config=experiment_config,
+            run_save_path=run_save_path,
+            encoded_train_ds=encoded_train_ds,
+            analysis_manager=analysis_manager,
+        )
+        if is_main:
+            _record_model_size_summary(unwrapped_model, config, run_save_path)
+            logger.info(
+                "Validation-only preflight completed successfully; training was not run"
+            )
+        _cleanup_training_runtime(world_size=world_size)
+        return
 
     main_training = _run_main_training_phase(
         unwrapped_model=unwrapped_model,
@@ -1461,39 +1979,39 @@ def main(config_path: str, args=None):
         training_results=main_training.training_results,
     )
 
-    _cleanup_training_runtime(wandb_config, world_size=world_size)
+    _cleanup_training_runtime(world_size=world_size)
 
     if is_main:
         logger.info("Training experiment completed successfully")
 
 
-def _parse_cli_args():
-    parser = argparse.ArgumentParser(
-        description="Run dendritic modeling training and evaluation."
-    )
+def _public_training_strategies() -> list[str]:
+    """Return the training strategies this installation can run, with plugins."""
+    from dendritic_modeling.training.factory import get_available_trainer_strategies
+
+    return sorted(set(get_available_trainer_strategies()))
+
+
+def _build_cli_parser(description: str) -> argparse.ArgumentParser:
+    """Return the command-line parser of the training entry points."""
+    parser = argparse.ArgumentParser(description=description)
     parser.add_argument("config", help="Path to the configuration YAML file.")
     parser.add_argument(
         "--output_dir", help="Override output directory specified in config."
     )
     parser.add_argument("--run_name", help="Override run name specified in config.")
     parser.add_argument(
+        "--data_dir", help="Override data.base_dir (dataset root) specified in config."
+    )
+    parser.add_argument(
         "--learning_strategy",
-        choices=[
-            "standard",
-            "freeze_layers",
-            "freeze_branches",
-            "fa",
-            "dfa",
-            "shunting_fa",
-            "shunting_dfa",
-            "local_ca",
-            "freeze_branch_kl",
-            "voltage_stabilization",
-            "homeostatic_control",
-            "recurrent",
-            "multi_stage",
-        ],
+        choices=_public_training_strategies(),
         help="Override learning strategy specified in config.",
+    )
+    parser.add_argument(
+        "--error_broadcast_mode",
+        choices=LOCAL_ERROR_BROADCAST_MODES,
+        help="Override the LocalCA error-routing mode specified in config.",
     )
     parser.add_argument(
         "--seed",
@@ -1501,12 +2019,75 @@ def _parse_cli_args():
         default=None,
         help="Override experiment seed (for running multiple seeds per config).",
     )
+    parser.add_argument(
+        "--epochs",
+        type=int,
+        default=None,
+        help="Override the number of main-training epochs.",
+    )
+    parser.add_argument(
+        "--lr",
+        type=float,
+        default=None,
+        help="Override the main trainer's fallback learning rate.",
+    )
+    parser.add_argument(
+        "--topk_lr",
+        type=float,
+        default=None,
+        help="Override the main trainer's sparse-synapse learning rate.",
+    )
+    parser.add_argument(
+        "--blocklinear_lr",
+        type=float,
+        default=None,
+        help="Override the main trainer's dendritic-coupling learning rate.",
+    )
+    parser.add_argument(
+        "--reactivation_lr",
+        type=float,
+        default=None,
+        help="Override the main trainer's reactivation learning rate.",
+    )
+    parser.add_argument(
+        "--decoder_lr",
+        type=float,
+        default=None,
+        help="Override the main trainer's decoder learning rate.",
+    )
+    parser.add_argument(
+        "--train_samples_per_class",
+        type=int,
+        default=None,
+        help="Bound ImageNet training samples per class (for a short check run).",
+    )
+    parser.add_argument(
+        "--val_samples_per_class",
+        type=int,
+        default=None,
+        help="Bound ImageNet evaluation samples per class (for a short check run).",
+    )
+    parser.add_argument(
+        "--validate-only",
+        action="store_true",
+        help=(
+            "Load and validate the config; build the datasets, model, analysis "
+            "manager, calibrated gates, optimizer and trainer; write construction "
+            "diagnostics, then exit without training."
+        ),
+    )
+    return parser
 
-    return parser.parse_args()
+
+def _parse_cli_args():
+    return _build_cli_parser(
+        "Run dendritic modeling training and evaluation."
+    ).parse_args()
 
 
 def cli_main():
     """Console-script entry point for ``dendritic-train``."""
+    setup_logging()
     args = _parse_cli_args()
     main(config_path=args.config, args=args)
 

@@ -4,6 +4,11 @@ MLP architectures.
 This module contains various MLP-based neural network architectures.
 """
 
+from dendritic_modeling.networks.architectures.classical.mlp.affine_mlp import (
+    AffineMLP,
+    SparseAffine,
+    build_affine_mlp,
+)
 from dendritic_modeling.networks.architectures.classical.mlp.direct_active_matched import (
     DirectActiveMatchedPointBottleneck,
     matched_direct_bottleneck_width,
@@ -26,12 +31,15 @@ from dendritic_modeling.networks.architectures.classical.mlp.sparse_active_match
 
 __all__ = [
     "MLP",
+    "AffineMLP",
     "DirectActiveMatchedPointBottleneck",
     "EffectiveMatchedParamMLP",
     "MatchedActiveParamMLP",
     "MatchedTotalParamMLP",
     "PointMatchedParamMLP",
     "SparseActiveMatchedPointAffine",
+    "SparseAffine",
     "SparseStructuredMLP",
+    "build_affine_mlp",
     "matched_direct_bottleneck_width",
 ]

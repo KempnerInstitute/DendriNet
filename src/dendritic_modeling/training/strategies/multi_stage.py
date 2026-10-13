@@ -10,20 +10,34 @@ import logging
 import os
 import shutil
 from collections.abc import Iterator
+from dataclasses import asdict
 from typing import Any, Optional
 
 import torch
 import torch.nn as nn
 
 from dendritic_modeling.config import ParamGroupsConfig
+from dendritic_modeling.config.keys import apply_renamed_fields
 from dendritic_modeling.config.multi_stage_training import (
     MultiStageTrainingConfig,
     TrainingStageConfig,
+    stage_names,
+)
+from dendritic_modeling.config.training import (
+    LOCAL_RULE_STRATEGIES,
+    CommonTrainerConfig,
+    OptimizerConfig,
 )
 from dendritic_modeling.models import BaseModel
+from dendritic_modeling.networks.checkpoints import (
+    atomic_torch_save,
+    load_model_state_checkpoint,
+)
 from dendritic_modeling.training.optimizers.custom import CustomWeightDecayOptimizer
+from dendritic_modeling.training.optimizers.factory import create_optimizer
 from dendritic_modeling.training.strategies.standard import Trainer
 from dendritic_modeling.utils.epoch_files import epoch_files_by_number
+from dendritic_modeling.utils.general import convert_to_serializable
 from dendritic_modeling.utils.hooks import iter_modules_matching
 
 logger = logging.getLogger(__name__)
@@ -82,8 +96,40 @@ def _iter_resettable_modules(model: nn.Module) -> Iterator[nn.Module]:
     yield from iter_modules_matching(model, _is_resettable_module)
 
 
+def _unresettable_parameter_names(model: nn.Module) -> list[str]:
+    """Names of parameters the between-stage reset rule leaves unchanged.
+
+    The rule re-initializes modules with ``reset_parameters`` and plain
+    ``nn.Linear``/``nn.Conv2d`` layers. Parameters owned by other modules
+    (for example ``TopKLinear.pre_w``, ``BlockLinear.log_weight``,
+    reactivation gates or a learned output scale) are not reset.
+    """
+    covered: set[int] = set()
+    for module in _iter_resettable_modules(model):
+        covered.update(id(param) for param in module.parameters(recurse=False))
+    return [
+        name for name, param in model.named_parameters() if id(param) not in covered
+    ]
+
+
+def _validate_reset_model_stages(model: nn.Module, stages) -> None:
+    """Fail before training when ``reset_model`` cannot reset every parameter."""
+    if not any(getattr(stage, "reset_model", False) for stage in stages):
+        return
+    unresettable = _unresettable_parameter_names(model)
+    if unresettable:
+        shown = ", ".join(unresettable[:5])
+        more = f" and {len(unresettable) - 5} more" if len(unresettable) > 5 else ""
+        raise ValueError(
+            "multi_stage reset_model re-initializes only modules with "
+            "reset_parameters() and nn.Linear/nn.Conv2d layers; it would leave "
+            f"these parameters unchanged: {shown}{more}. Start a new run from "
+            "the model config instead of resetting between stages."
+        )
+
+
 def _concatenate_stage_performance_epochs(
-    stages: list[TrainingStageConfig],
+    names: list[str],
     original_save_root: str,
 ) -> None:
     main_epochs_dir = os.path.join(original_save_root, "performance", "epochs")
@@ -91,8 +137,7 @@ def _concatenate_stage_performance_epochs(
     _remove_epoch_files(main_epochs_dir)
 
     global_epoch = 1
-    for stage_idx, _stage_config in enumerate(stages):
-        stage_name = f"stage_{stage_idx + 1}"
+    for stage_name in names:
         stage_dir = os.path.join(original_save_root, stage_name)
         stage_epochs_dir = os.path.join(stage_dir, "performance", "epochs")
 
@@ -145,50 +190,59 @@ def _build_stage_trainer_config(
     stage_config: TrainingStageConfig,
 ) -> dict[str, Any]:
     stage_trainer_config = base_trainer_config.copy()
-    stage_trainer_config.update(stage_config.trainer_config)
+    # training.main.learning_strategy_config serves the local-rule stages
+    # that do not set their own; other stages do not read it.
+    shared_rule_config = stage_trainer_config.pop("local_rule_config", None)
+    stage_trainer_config.update(
+        apply_renamed_fields(
+            CommonTrainerConfig,
+            stage_config.trainer_config,
+            section="training.main.multi_stage_config.stages[].trainer_config",
+        )
+    )
 
     if stage_config.epochs is not None:
         stage_trainer_config["epochs"] = stage_config.epochs
     if stage_config.batch_size is not None:
         stage_trainer_config["batch_size"] = stage_config.batch_size
-    elif multi_stage_config.global_batch_size is not None:
-        stage_trainer_config["batch_size"] = multi_stage_config.global_batch_size
 
     if stage_config.param_groups is not None:
         stage_trainer_config["param_groups"] = stage_config.param_groups
 
-    stage_trainer_config["shuffle"] = stage_trainer_config.get(
-        "shuffle", multi_stage_config.global_shuffle
-    )
-    stage_trainer_config["grad_clip_value"] = stage_trainer_config.get(
-        "grad_clip_value", multi_stage_config.global_grad_clip_value
-    )
-
     if stage_config.local_rule_config is not None:
         stage_trainer_config["local_rule_config"] = stage_config.local_rule_config
+    elif (
+        shared_rule_config is not None
+        and str(stage_config.learning_strategy).lower() in LOCAL_RULE_STRATEGIES
+    ):
+        stage_trainer_config["local_rule_config"] = shared_rule_config
 
     return stage_trainer_config
 
 
-def _optimizer_class_and_weight_decay(base_optimizer):
-    if hasattr(base_optimizer, "optimizer"):
-        actual_optimizer = base_optimizer.optimizer
-        optimizer_class = type(actual_optimizer)
-        weight_decay = base_optimizer.weight_decay
-    else:
-        optimizer_class = type(base_optimizer)
-        weight_decay = 0.0
-    return optimizer_class, weight_decay
+def _stage_param_groups_config(
+    stage_config: TrainingStageConfig,
+    stage_trainer_config: dict[str, Any],
+) -> ParamGroupsConfig:
+    """Return the stage's param groups, else the configured common groups."""
+    if stage_config.param_groups is not None:
+        # Unknown stage keys fail here, as before.
+        return ParamGroupsConfig(**stage_config.param_groups)
+    raw = stage_trainer_config.get(
+        "param_groups_config", stage_trainer_config.get("param_groups")
+    )
+    if isinstance(raw, ParamGroupsConfig):
+        return raw
+    allowed = set(ParamGroupsConfig.__dataclass_fields__)
+    return ParamGroupsConfig(
+        **{key: value for key, value in dict(raw or {}).items() if key in allowed}
+    )
 
 
-def _wrap_with_custom_weight_decay(model, optimizer, weight_decay: float):
-    if weight_decay > 0:
-        return CustomWeightDecayOptimizer(
-            model=model,
-            optimizer=optimizer,
-            weight_decay=weight_decay,
-        )
-    return optimizer
+def _model_param_groups(model, param_groups_config: ParamGroupsConfig) -> list[dict]:
+    if hasattr(model, "get_param_groups"):
+        return model.get_param_groups(param_groups_config)
+    return [{"params": list(model.parameters()), "lr": param_groups_config.lr}]
 
 
 def _build_stage_optimizer(
@@ -196,33 +250,83 @@ def _build_stage_optimizer(
     base_optimizer,
     stage_config: TrainingStageConfig,
     stage_idx: int,
+    *,
+    stage_trainer_config: Optional[dict[str, Any]] = None,
+    optimizer_config: Optional[OptimizerConfig] = None,
 ):
-    if stage_config.param_groups is not None:
-        param_groups_config = ParamGroupsConfig(**stage_config.param_groups)
-        optimizer_class, weight_decay = _optimizer_class_and_weight_decay(
-            base_optimizer
-        )
-        param_groups = model.get_param_groups(param_groups_config)
-        new_optimizer = optimizer_class(param_groups)
-        return _wrap_with_custom_weight_decay(model, new_optimizer, weight_decay)
+    """Return the optimizer of one stage, wrapped for sparse maintenance.
 
-    if stage_config.reset_optimizer or stage_idx == 0:
-        optimizer_class, weight_decay = _optimizer_class_and_weight_decay(
-            base_optimizer
+    A stage continues the incoming optimizer (and its state) unless it sets
+    ``param_groups`` or ``reset_optimizer``. Then the optimizer is rebuilt
+    from ``model.get_param_groups`` (the stage's ``param_groups``, else the
+    common ones) with the configured ``OptimizerConfig``
+    (``training.main.optimizer``); without one, the incoming optimizer's class
+    and hyperparameters are reused. The result is always a
+    ``CustomWeightDecayOptimizer`` with the stage's ``synapse_decay_rate`` and
+    ``weight_boosting`` (the ``training.main.common`` values unless the
+    stage's ``trainer_config`` overrides them), so sparse maintenance and
+    rewiring run in every stage.
+    """
+    del stage_idx  # every stage follows the same rule
+    stage_trainer_config = stage_trainer_config or {}
+    base_wrapper = (
+        base_optimizer
+        if isinstance(base_optimizer, CustomWeightDecayOptimizer)
+        else None
+    )
+    inner_optimizer = base_wrapper.optimizer if base_wrapper else base_optimizer
+    synapse_decay_rate = float(
+        stage_trainer_config.get(
+            "synapse_decay_rate", base_wrapper.weight_decay if base_wrapper else 0.0
         )
-        new_optimizer = optimizer_class(model.parameters(), lr=0.001)
-        return _wrap_with_custom_weight_decay(model, new_optimizer, weight_decay)
+        or 0.0
+    )
+    weight_boosting = bool(
+        stage_trainer_config.get(
+            "weight_boosting", base_wrapper.weight_boosting if base_wrapper else False
+        )
+    )
 
-    return base_optimizer
+    rebuild = stage_config.param_groups is not None or stage_config.reset_optimizer
+    if not rebuild and (
+        base_wrapper is not None
+        and base_wrapper.weight_decay == synapse_decay_rate
+        and base_wrapper.weight_boosting == weight_boosting
+    ):
+        return base_wrapper
+
+    if rebuild:
+        param_groups = _model_param_groups(
+            model, _stage_param_groups_config(stage_config, stage_trainer_config)
+        )
+        if optimizer_config is not None:
+            inner_optimizer = create_optimizer(param_groups, optimizer_config)
+        else:
+            try:
+                inner_optimizer = type(inner_optimizer)(
+                    param_groups, **dict(inner_optimizer.defaults)
+                )
+            except TypeError as exc:
+                raise ValueError(
+                    "multi_stage cannot rebuild a "
+                    f"{type(inner_optimizer).__name__} optimizer from its "
+                    "defaults; pass the training.main.optimizer config "
+                    "(MultiStageTrainer optimizer_config)."
+                ) from exc
+
+    return CustomWeightDecayOptimizer(
+        model=model,
+        optimizer=inner_optimizer,
+        weight_decay=synapse_decay_rate,
+        weight_boosting=weight_boosting,
+        topology_controllers=getattr(base_wrapper, "topology_controllers", ()),
+    )
 
 
 def _load_stage_checkpoint(model: BaseModel, checkpoint_path: str) -> None:
+    """Load a stage checkpoint (or a bare state dict) with the weights-only loader."""
     logger.info(f"Loading checkpoint: {checkpoint_path}")
-    checkpoint = torch.load(checkpoint_path)
-    if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint:
-        model.load_state_dict(checkpoint["model_state_dict"])
-    else:
-        model.load_state_dict(checkpoint)
+    model.load_state_dict(load_model_state_checkpoint(checkpoint_path))
 
 
 def _build_stage_trainer(
@@ -241,35 +345,15 @@ def _build_stage_trainer(
     )
 
 
-def _stage_trainer_save_path(
-    save_path: str,
-    stage_idx: int,
-    stage_name: str,
-) -> str:
-    return f"{save_path}/stage_{stage_idx}_{stage_name}"
+# File each stage writes into its directory when save_checkpoint is set.
+STAGE_CHECKPOINT_NAME = "stage_checkpoint.pt"
 
 
-def _stage_checkpoint_path(
-    save_path: str,
-    stage_idx: int,
-    stage_name: str,
-) -> str:
-    return f"{save_path}/checkpoint_stage_{stage_idx}_{stage_name}.pt"
-
-
-def _configure_stage_trainer_save_path(
-    stage_trainer,
-    save_path: str,
-    stage_config: TrainingStageConfig,
-    stage_idx: int,
-    stage_name: str,
-) -> None:
-    if save_path and stage_config.save_checkpoint:
-        stage_trainer.save_path = _stage_trainer_save_path(
-            save_path,
-            stage_idx,
-            stage_name,
-        )
+def _stage_directory(save_path: str, stage_name: str) -> str:
+    """Create and return the directory of one stage's trainer artifacts."""
+    directory = os.path.join(save_path, stage_name)
+    os.makedirs(directory, exist_ok=True)
+    return directory
 
 
 def _optimizer_state_dict(optimizer):
@@ -295,24 +379,29 @@ def _save_stage_checkpoint(
     checkpoint_path: str,
 ) -> None:
     optimizer_state = _stage_checkpoint_optimizer_state(stage_trainer, stage_optimizer)
+    # Plain containers only, so the weights-only loader can read the file.
     checkpoint_data = {
         "model_state_dict": model.state_dict(),
-        "stage_config": stage_config,
-        "stage_results": stage_results,
+        "stage_config": convert_to_serializable(asdict(stage_config)),
+        "stage_results": json.loads(
+            json.dumps(convert_to_serializable(stage_results), default=str)
+        ),
     }
     if optimizer_state is not None:
         checkpoint_data["optimizer_state_dict"] = optimizer_state
 
-    torch.save(checkpoint_data, checkpoint_path)
+    atomic_torch_save(checkpoint_data, checkpoint_path)
     logger.info(f"Saved checkpoint: {checkpoint_path}")
 
 
-def _initial_multi_stage_results() -> dict[str, Any]:
+def _initial_multi_stage_results(final_state: str) -> dict[str, Any]:
     return {
         "stages": [],
-        "final_state_dict": None,
-        "best_stage": None,
+        "final_state": final_state,
+        "final_stage": None,
         "best_loss": float("inf"),
+        "best_epoch": None,
+        "final_state_dict": None,
     }
 
 
@@ -351,12 +440,44 @@ def _update_best_stage(
 def _finalize_multi_stage_results(
     all_results: dict[str, Any],
     model: BaseModel,
-    best_stage_name: Optional[str],
-    best_overall_loss: float,
+    final_stage: Optional[str],
+    final_stage_results: dict[str, Any],
 ) -> None:
-    all_results["final_state_dict"] = model.state_dict()
-    all_results["best_stage"] = best_stage_name
-    all_results["best_loss"] = best_overall_loss
+    """Record the stage the run ends with and a copy of the final weights."""
+    all_results["final_stage"] = final_stage
+    all_results["best_loss"] = final_stage_results.get("best_loss", float("inf"))
+    all_results["best_epoch"] = final_stage_results.get("best_epoch")
+    all_results["final_state_dict"] = {
+        name: tensor.detach().to("cpu", copy=True)
+        for name, tensor in model.state_dict().items()
+    }
+
+
+def _check_best_stage_comparable(
+    stages: list[TrainingStageConfig], stage_trainer_configs: list[dict[str, Any]]
+) -> None:
+    """Fail when final_state 'best_stage' would compare incomparable losses."""
+    losses = {
+        str(config.get("loss_function", "ce")).lower()
+        for config in stage_trainer_configs
+    }
+    if len(losses) > 1:
+        raise ValueError(
+            "multi_stage final_state 'best_stage' compares the stages' validation "
+            f"losses, but the stages use different loss functions {sorted(losses)}; "
+            "use final_state 'last_stage'"
+        )
+    selected_differently = [
+        stage.learning_strategy
+        for stage in stages
+        if str(stage.learning_strategy).lower() == "presentation_stream"
+    ]
+    if selected_differently:
+        raise ValueError(
+            "multi_stage final_state 'best_stage' compares validation losses, but "
+            "presentation_stream stages select their best state by their own "
+            "metric; use final_state 'last_stage'"
+        )
 
 
 class MultiStageTrainer(Trainer):
@@ -370,12 +491,16 @@ class MultiStageTrainer(Trainer):
     - Run analysis between stages
     """
 
+    # Each stage builds its own trainer; a schedule belongs to a stage config.
+    supports_lr_schedule = False
+
     def __init__(
         self,
         multi_stage_config: MultiStageTrainingConfig,
         base_optimizer: torch.optim.Optimizer,
         base_trainer_config: dict[str, Any],
         analysis_manager: Optional[object] = None,
+        optimizer_config: Optional[OptimizerConfig] = None,
         **kwargs,
     ):
         """
@@ -386,17 +511,22 @@ class MultiStageTrainer(Trainer):
             base_optimizer: Base optimizer (can be recreated for each stage)
             base_trainer_config: Base trainer configuration (can be overridden per stage)
             analysis_manager: Optional analysis manager
+            optimizer_config: Configured ``training.main.optimizer``; stages
+                that rebuild their optimizer use it with ``create_optimizer``
             **kwargs: Additional arguments passed to base Trainer
         """
-        # Remove optimizer from base_trainer_config if present to avoid duplicate
+        # Remove optimizer from base_trainer_config if present to avoid
+        # duplicate; the local-rule block is for the stages.
         base_trainer_config_copy = base_trainer_config.copy()
         base_trainer_config_copy.pop("optimizer", None)
+        base_trainer_config_copy.pop("local_rule_config", None)
 
         # Initialize with base config for compatibility
         super().__init__(optimizer=base_optimizer, **base_trainer_config_copy, **kwargs)
 
         self.multi_stage_config = multi_stage_config
         self.base_optimizer = base_optimizer
+        self.optimizer_config = optimizer_config
         self.base_trainer_config = base_trainer_config
         self.analysis_manager = analysis_manager
         self.stage_results = []
@@ -418,31 +548,47 @@ class MultiStageTrainer(Trainer):
         Returns:
             Dictionary containing results from all stages
         """
+        self._require_single_process(
+            "its stages load the unwrapped best state into the "
+            "DistributedDataParallel wrapper and every rank writes the stage "
+            "checkpoints"
+        )
         if not self.multi_stage_config.stages:
             raise ValueError("No training stages defined in multi_stage_config")
+        _validate_reset_model_stages(model, self.multi_stage_config.stages)
 
-        logger.info(
-            f"Starting multi-stage training with {len(self.multi_stage_config.stages)} stages"
-        )
+        stages = self.multi_stage_config.stages
+        names = stage_names(stages)
+        final_state = self.multi_stage_config.final_state
+        if final_state == "best_stage":
+            _check_best_stage_comparable(
+                stages,
+                [
+                    _build_stage_trainer_config(
+                        self.base_trainer_config, self.multi_stage_config, stage
+                    )
+                    for stage in stages
+                ],
+            )
+        logger.info(f"Starting multi-stage training with {len(stages)} stages")
 
-        all_results = _initial_multi_stage_results()
+        all_results = _initial_multi_stage_results(final_state)
 
-        # Keep track of the best model across all stages
+        # The lowest-loss stage (final_state 'best_stage') and the last stage
+        # that finished
         best_overall_loss = float("inf")
         best_overall_state_dict = None
         best_stage_name = None
+        last_stage_name, last_stage_results = None, {}
+        stage_results_by_name: dict[str, dict[str, Any]] = {}
 
         original_save_root = (
             self.analysis_manager.save_root if self.analysis_manager else None
         )
 
-        for stage_idx, stage_config in enumerate(self.multi_stage_config.stages):
-            stage_name = f"stage_{stage_idx + 1}"
-
+        for stage_idx, (stage_config, stage_name) in enumerate(zip(stages, names)):
             logger.info(f"\n{'='*60}")
-            logger.info(
-                f"Starting Stage {stage_idx + 1}/{len(self.multi_stage_config.stages)}: {stage_name}"
-            )
+            logger.info(f"Starting Stage {stage_idx + 1}/{len(stages)}: {stage_name}")
             logger.info(f"Learning strategy: {stage_config.learning_strategy}")
             logger.info(f"{'='*60}\n")
 
@@ -463,6 +609,8 @@ class MultiStageTrainer(Trainer):
                     stage_idx,
                     stage_results,
                 )
+                last_stage_name, last_stage_results = stage_name, stage_results
+                stage_results_by_name[stage_name] = stage_results
 
                 (
                     best_overall_loss,
@@ -492,22 +640,20 @@ class MultiStageTrainer(Trainer):
                     raise
                 logger.warning("Continuing to next stage despite failure")
 
+        final_stage = last_stage_name
+        if final_state == "best_stage" and best_overall_state_dict is not None:
+            logger.info(
+                f"Loading the best stage: {best_stage_name} "
+                f"(loss: {best_overall_loss:.4f})"
+            )
+            model.load_state_dict(best_overall_state_dict)
+            final_stage = best_stage_name
         _finalize_multi_stage_results(
             all_results,
             model,
-            best_stage_name,
-            best_overall_loss,
+            final_stage,
+            stage_results_by_name.get(final_stage, last_stage_results),
         )
-
-        # Load best model if requested
-        if (
-            self.multi_stage_config.use_best_from_each_stage
-            and best_overall_state_dict is not None
-        ):
-            logger.info(
-                f"Loading best model from stage: {best_stage_name} (loss: {best_overall_loss:.4f})"
-            )
-            model.load_state_dict(best_overall_state_dict)
 
         if (
             self.multi_stage_config.analyze_between_stages
@@ -515,10 +661,7 @@ class MultiStageTrainer(Trainer):
             and original_save_root is not None
         ):
             logger.info("Concatenating performance data across stages")
-            _concatenate_stage_performance_epochs(
-                self.multi_stage_config.stages,
-                original_save_root,
-            )
+            _concatenate_stage_performance_epochs(names, original_save_root)
 
         return all_results
 
@@ -559,6 +702,8 @@ class MultiStageTrainer(Trainer):
                 self.base_optimizer,
                 stage_config,
                 stage_idx,
+                stage_trainer_config=stage_trainer_config,
+                optimizer_config=self.optimizer_config,
             )
 
             stage_trainer = _build_stage_trainer(
@@ -568,13 +713,12 @@ class MultiStageTrainer(Trainer):
                 self.analysis_manager,
             )
 
-            _configure_stage_trainer_save_path(
-                stage_trainer,
-                self.save_path,
-                stage_config,
-                stage_idx,
-                stage_name,
+            stage_directory = (
+                _stage_directory(self.save_path, stage_name) if self.save_path else None
             )
+            if stage_directory is not None:
+                # Every stage writes its trainer artifacts into its own directory.
+                stage_trainer.save_path = stage_directory
 
             logger.info(
                 f"Training with {stage_config.learning_strategy} for {stage_trainer_config.get('epochs', 'default')} epochs"
@@ -584,12 +728,8 @@ class MultiStageTrainer(Trainer):
             if hasattr(stage_trainer, "optimizer"):
                 self.base_optimizer = stage_trainer.optimizer
 
-            if stage_config.save_checkpoint and self.save_path:
-                checkpoint_path = _stage_checkpoint_path(
-                    self.save_path,
-                    stage_idx,
-                    stage_name,
-                )
+            if stage_config.save_checkpoint and stage_directory is not None:
+                checkpoint_path = os.path.join(stage_directory, STAGE_CHECKPOINT_NAME)
 
                 _save_stage_checkpoint(
                     model,

@@ -1,8 +1,9 @@
 """
-Base Input Transform for neural networks.
+Input networks that map raw inputs to excitatory and inhibitory streams.
 
-InputNetTransform maps raw inputs to excitatory and inhibitory pathways
-for dendritic network architectures.
+``InputNetTransform`` produces the ``(excitatory_input, inhibitory_input)``
+pair that E-I dendritic cores consume, either with a trainable MLP or by
+splitting the input features by index.
 """
 
 import logging
@@ -18,12 +19,25 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.input_trans
 
 logger = logging.getLogger(__name__)
 
+NETWORK_TYPES = ("MLP", "IndexInputTransform")
+
 
 class InputNetTransform(nn.Module):
-    """
-    A transform that maps the raw input x to (excitatory_input, inhibitory_input).
-    This is a generalized version that can support different network architectures.
-    By default, it uses an MLP with configurable hidden dimensions.
+    """Map a raw input ``x`` to ``(excitatory_input, inhibitory_input)``.
+
+    ``network_type`` selects the mapping:
+
+    * ``"MLP"`` (default): a shared trunk (``input_dim -> hidden_dims``,
+      ``shared``) followed by an excitatory head (``-> excitatory_hidden_dims
+      -> excitatory_dim``, ``head_exc``) and an inhibitory head
+      (``-> inhibitory_hidden_dims -> inhibitory_dim``, ``head_inh``). With
+      ``independent_heads=True`` there is no shared trunk and each head starts
+      with its own ``hidden_dims`` layers. Hidden layers use ``activation``;
+      the heads end in a linear layer, so a shunting core that needs
+      nonnegative inputs needs a nonnegative activation after this transform.
+    * ``"IndexInputTransform"``: splits the input features by index into
+      ``excitatory_dim`` and ``inhibitory_dim`` features (``split_seed``
+      fixes the split). It has no MLP options.
     """
 
     def __init__(
@@ -33,106 +47,101 @@ class InputNetTransform(nn.Module):
         independent_heads: bool = False,
         excitatory_dim: Optional[int] = None,
         inhibitory_dim: Optional[int] = None,
-        output_dim: Optional[int] = None,
-        input_shape: Optional[tuple[int, int, int]] = None,
         excitatory_hidden_dims: Optional[list[int]] = None,
         inhibitory_hidden_dims: Optional[list[int]] = None,
-        excitatory_kernel_sizes: Optional[list[int]] = None,
-        inhibitory_kernel_sizes: Optional[list[int]] = None,
-        excitatory_strides: Optional[list[int]] = None,
-        inhibitory_strides: Optional[list[int]] = None,
+        activation: str = "relu",
         network_type: str = "MLP",
         split_seed: Optional[int] = None,
     ):
         super().__init__()
+        if network_type not in NETWORK_TYPES:
+            raise ValueError(
+                f"Unknown network type: {network_type!r} (expected one of "
+                f"{', '.join(NETWORK_TYPES)})"
+            )
         self.network_type = network_type
 
         if network_type == "IndexInputTransform":
+            mlp_options = {
+                "hidden_dims": hidden_dims,
+                "independent_heads": independent_heads or None,
+                "excitatory_hidden_dims": excitatory_hidden_dims,
+                "inhibitory_hidden_dims": inhibitory_hidden_dims,
+            }
+            given = sorted(name for name, value in mlp_options.items() if value)
+            if given:
+                raise ValueError(
+                    f"{', '.join(given)} configure the MLP input network; "
+                    "network_type 'IndexInputTransform' splits the input by index"
+                )
             self.input_transform = IndexInputTransform(
                 input_dim=input_dim,
                 excitatory_dim=excitatory_dim,
                 inhibitory_dim=inhibitory_dim,
                 split_seed=split_seed,
             )
+            return
 
-        elif network_type == "MLP":
-            self.input_transform = MLP(
-                input_dim=input_dim, hidden_dims=hidden_dims, output_dim=output_dim
+        if split_seed is not None:
+            raise ValueError("split_seed applies to network_type 'IndexInputTransform'")
+        missing = [
+            name
+            for name, value in (
+                ("input_dim", input_dim),
+                ("excitatory_dim", excitatory_dim),
+                ("inhibitory_dim", inhibitory_dim),
             )
-            self.input_transform.set_readout(False)
-            self.input_transform.disable_grad()
-
-        elif network_type == "FeatureExtractorMLP":
-            from ..mlp import FeatureExtractorMLP
-
-            self.input_transform = FeatureExtractorMLP(
-                input_dim=input_dim, hidden_dims=hidden_dims, output_dim=output_dim
-            )
-            self.input_transform.set_readout(False)
-            self.input_transform.disable_grad()
-
-        elif network_type == "AlexNetTransform":
-            # AlexNet feature extraction requires implementation of AlexNetInputTransform class
-            raise NotImplementedError(
-                "AlexNetInputTransform not implemented. To use AlexNet features, "
-                "implement the AlexNetInputTransform class in networks.architectures.classical.cnn.alexnet"
-            )
-
-        elif network_type == "CNNInputTransform":
-            # CNN-based input transformation requires implementation of CNNInputTransform class
-            raise NotImplementedError(
-                "CNNInputTransform not implemented. To use CNN-based input transformation, "
-                "implement the CNNInputTransform class in networks.architectures.classical.cnn.cnn"
-            )
-
+            if value is None
+        ]
+        if missing:
+            raise ValueError(f"the MLP input network needs {', '.join(missing)}")
+        trunk = list(hidden_dims or [])
+        if independent_heads:
+            self.shared = nn.Identity()
+            head_input_dim = input_dim
+            excitatory_hidden = trunk + list(excitatory_hidden_dims or [])
+            inhibitory_hidden = trunk + list(inhibitory_hidden_dims or [])
         else:
-            raise ValueError(f"Unknown network type: {network_type}")
+            self.shared = MLP(input_dim, trunk, activation=activation)
+            head_input_dim = self.shared.output_dim
+            excitatory_hidden = list(excitatory_hidden_dims or [])
+            inhibitory_hidden = list(inhibitory_hidden_dims or [])
+        self.head_exc = MLP(
+            head_input_dim,
+            excitatory_hidden,
+            activation=activation,
+            output_dim=excitatory_dim,
+        )
+        self.head_inh = MLP(
+            head_input_dim,
+            inhibitory_hidden,
+            activation=activation,
+            output_dim=inhibitory_dim,
+        )
 
     def forward(self, x):
-        excitatory_input, inhibitory_input = self.input_transform(x)
-        return excitatory_input, inhibitory_input
+        if self.network_type == "IndexInputTransform":
+            return self.input_transform(x)
+        features = self.shared(x)
+        return self.head_exc(features), self.head_inh(features)
 
-    def load_pretrained_weights(self, source, weights_path=None, pytorch_model=None):
-        """
-        Load pre-trained weights for the input network.
+    def load_pretrained_weights(self, source, weights_path=None):
+        """Load a state dict saved from this transform.
 
         Args:
-            source (str): Source of weights - 'file', 'pytorch', or 'none'
-            weights_path (str, optional): Path to weights file if source is 'file'
-            pytorch_model (str, optional): Name of PyTorch model if source is 'pytorch'
+            source: ``"none"`` (keep the current weights) or ``"file"``.
+            weights_path: Path of the state dict when ``source`` is ``"file"``.
         """
         if source == "none":
             logger.info("No pre-trained weights to load.")
             return
-
-        elif source == "file":
+        if source == "file":
             if not weights_path:
                 raise ValueError("weights_path must be provided when source is 'file'")
-            logger.info(f"Loading weights from file: {weights_path}")
-            state_dict = torch.load(weights_path)
-            self.load_state_dict(state_dict)
-
-        elif source == "pytorch":
-            if not pytorch_model:
-                raise ValueError(
-                    "pytorch_model must be provided when source is 'pytorch'"
-                )
-            logger.info(f"Loading pre-trained PyTorch model: {pytorch_model}")
-
-            import torchvision.models as models
-
-            if pytorch_model == "alexnet":
-                pretrained_model = models.alexnet(pretrained=True)
-                # Copy features to shared backbone
-                if self.network_type == "AlexNetTransform":
-                    # For AlexNet, we can directly copy the features
-                    for i, layer in enumerate(list(pretrained_model.features)):
-                        if i < len(list(self.shared)):
-                            self.shared[i].load_state_dict(layer.state_dict())
-            else:
-                raise ValueError(f"Unsupported PyTorch model: {pytorch_model}")
-        else:
-            raise ValueError(f"Unknown source: {source}")
+            logger.info("Loading weights from file: %s", weights_path)
+            self.load_state_dict(torch.load(weights_path, weights_only=True))
+            return
+        raise ValueError(f"Unknown source: {source!r} (expected 'none' or 'file')")
 
 
-__all__ = ["InputNetTransform"]
+__all__ = ["NETWORK_TYPES", "InputNetTransform"]

@@ -1,20 +1,19 @@
 # ============================================================================
 # Population Network Local Credit Assignment on MNIST
 # ============================================================================
-# Trains a DendriNet with biologically plausible local learning rules instead
-# of end-to-end backpropagation through the core. The decoder is still trained
-# with backprop.
+# Trains a population network with local credit-assignment rules instead of
+# end-to-end backpropagation through the core. The decoder is still trained
+# with backpropagation.
 #
 # Run:
-#   PYTHONPATH=src:$PYTHONPATH python \
-#     src/dendritic_modeling/scripts/training/train_experiments.py \
-#     configs/examples/population_network_local_learning_mnist.yaml
+#   dendritic-train configs/examples/population_network_local_learning_mnist.yaml
 # ============================================================================
+
+config_version: 3
 
 experiment:
   seed: 42
   train_valid_split: 0.8
-  enable_hooks: true
   checkpointing:
     enabled: false
 
@@ -43,14 +42,14 @@ model:
             use_shunting: true
             reactivate: true
             reactivation_type: "param_tanh"
+            reactivation_memory_efficient: true
             reactivation_init_policy: "occupancy_quantile"
-            reactivation_init_m: 1.5
-            reactivation_init_b: 0.5
             dbl_init_method: "analytical_expectation"
             weight_transform: "softplus"
             topk_type: "indexed_rewire"
             topk_init_method: "xavier_normal"
-            indexed_seed: 42
+            indexed_index_dtype: "auto"
+            indexed_projection_backend: "recompute"
             indexed_rewire_frequency: 100
             indexed_rewire_quantile: 0.05
             indexed_rewire_until_step: null
@@ -82,10 +81,6 @@ model:
       output_dim: 10
 
 training:
-  encoder:
-    strategy: "standard"
-    common:
-      epochs: 0
   main:
     strategy: "local_ca"
     common:
@@ -106,17 +101,17 @@ training:
         decoder_lr: 0.001
     optimizer:
       name: "adam"
-    # Canonical local rule config for training.main.strategy = "local_ca".
-    # You can also use the readable shorthand "3f_vh" / "4f_vh" / "5f_vh"
-    # to enable the strictly local voltage-homeostasis modifier.
+    # Local rule settings for training.main.strategy: local_ca. The shorthands
+    # "3f_vh" / "4f_vh" / "5f_vh" add the local voltage-homeostasis term to
+    # the three-, four- or five-factor rule.
     learning_strategy_config:
       rule_variant: "4f_vh"
       error_mode: "auto"
-      error_broadcast_mode: "per_soma"
+      error_broadcast_mode: "per_soma_shared"
       broadcast_bandwidth: "full"       # "full" | "sign_only" | "quantized" | "sparse_topk"
-      # LocalCA-only policy for explicit inhibitory DendriNet populations:
-      # "local_ca" updates them with the same rule used for E-cell dendrites;
-      # "freeze" leaves them fixed while E-cell I-to-E synapses still learn.
+      # local_ca only: how explicit inhibitory populations learn. "local_ca"
+      # updates them with the rule used for the excitatory dendrites; "freeze"
+      # keeps them fixed while the excitatory cells' I-to-E synapses still learn.
       explicit_inhibitory_update_mode: "local_ca"
       three_factor:
         dynamics_mode: "auto"
@@ -154,8 +149,6 @@ analysis:
     params:
       snapshot_interval: 10
 
-wandb:
-  use_wandb: false
 
 outputs:
   run_name: "population_network_local_learning_mnist"

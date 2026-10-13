@@ -12,6 +12,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.gridspec import GridSpec
 
+from dendritic_modeling.plotting.styles import (
+    bar_kwargs,
+    indexed_hatch,
+    indexed_linestyle,
+    indexed_style,
+)
+
 from .plotting_utils import get_color_scheme, handle_plot_error, save_plot
 
 
@@ -448,7 +455,7 @@ def plot_correlation_comparisons(results: dict[str, Any], save_path: str) -> Non
             if corr_values:
                 # Create bar plot
                 x = np.arange(len(layer_names))
-                bars = ax.bar(x, corr_values, color=plt.cm.get_cmap(cmap)(0.6))
+                bars = ax.bar(x, corr_values, color=plt.get_cmap(cmap)(0.6))
                 ax.set_xticks(x)
                 ax.set_xticklabels(layer_names, rotation=45, ha="right")
                 ax.set_ylabel("Correlation")
@@ -549,8 +556,20 @@ def plot_total_vs_noise_correlations(stats: dict[str, float], ax: plt.Axes) -> N
         x = np.arange(len(correlation_types))
         width = 0.35
 
-        _ = ax.bar(x - width / 2, total_vals, width, label="Total", alpha=0.7)
-        _ = ax.bar(x + width / 2, noise_vals, width, label="Noise", alpha=0.7)
+        _ = ax.bar(
+            x - width / 2,
+            total_vals,
+            width,
+            label="Total",
+            **bar_kwargs(indexed_style(0).color, indexed_hatch(0), alpha=0.7),
+        )
+        _ = ax.bar(
+            x + width / 2,
+            noise_vals,
+            width,
+            label="Noise",
+            **bar_kwargs(indexed_style(1).color, indexed_hatch(1), alpha=0.7),
+        )
 
         ax.set_xticks(x)
         ax.set_xticklabels(correlation_types)
@@ -986,14 +1005,22 @@ def _plot_class_preference_distribution(
     """Plot distribution of preferred classes across units."""
     n_classes = len(class_labels)
 
-    # Count preferred classes for each type
-    for var_type, color in [("E", "red"), ("I", "blue"), ("Vout", "green")]:
+    # Count preferred classes for each type; hatches tell the types apart.
+    for index, (var_type, color) in enumerate(
+        [("E", "red"), ("I", "blue"), ("Vout", "green")]
+    ):
         if f"{var_type}_selectivity" in tuning:
             pref_classes = tuning[f"{var_type}_selectivity"]["preferred_class"]
             counts = np.bincount(pref_classes, minlength=n_classes)
 
             x = np.arange(n_classes) + {"E": -0.25, "I": 0, "Vout": 0.25}[var_type]
-            ax.bar(x, counts, width=0.25, label=var_type, color=color, alpha=0.7)
+            ax.bar(
+                x,
+                counts,
+                width=0.25,
+                label=var_type,
+                **bar_kwargs(color, indexed_hatch(index), alpha=0.7),
+            )
 
     ax.set_xticks(range(n_classes))
     ax.set_xticklabels([f"Class {i}" for i in class_labels])
@@ -1010,13 +1037,23 @@ def _plot_selectivity_distributions(
     """Plot distributions of selectivity metrics."""
     colors = {"E": "red", "I": "blue", "Vout": "green"}
 
-    for var_type in ["E", "I", "Vout"]:
+    for index, var_type in enumerate(["E", "I", "Vout"]):
         if (
             f"{var_type}_selectivity" in tuning
             and metric in tuning[f"{var_type}_selectivity"]
         ):
             values = tuning[f"{var_type}_selectivity"][metric]
-            ax.hist(values, bins=30, alpha=0.5, label=var_type, color=colors[var_type])
+            # Outlines in their own line styles keep the overlapping
+            # histograms apart without colour.
+            ax.hist(
+                values,
+                bins=30,
+                histtype="step",
+                linewidth=2,
+                linestyle=indexed_linestyle(index),
+                label=var_type,
+                color=colors[var_type],
+            )
 
     ax.set_xlabel(metric.replace("_", " ").title())
     ax.set_ylabel("Count")

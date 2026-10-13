@@ -7,6 +7,8 @@ import argparse
 
 import yaml
 
+from dendritic_modeling.utils.logging_config import setup_logging
+
 
 def calculate_dendritic_branches(branch_factors: list[int]) -> int:
     """Calculate total number of branches from branch factors."""
@@ -198,4 +200,5 @@ def main():
 
 
 if __name__ == "__main__":
+    setup_logging()
     main()

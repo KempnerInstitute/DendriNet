@@ -30,6 +30,9 @@ class SequentialMNISTDataset(Dataset):
     ):
         from torchvision import datasets, transforms
 
+        from dendritic_modeling.datasets.paths import get_data_directory
+        from dendritic_modeling.datasets.standard_datasets import _dataset_download_lock
+
         transform = (
             transforms.ToTensor()
             if normalize
@@ -37,10 +40,12 @@ class SequentialMNISTDataset(Dataset):
                 [transforms.ToTensor(), transforms.Lambda(lambda x: x * 255)]
             )
         )
-        root = data_path or "./data"
-        mnist = datasets.MNIST(
-            root=root, train=train, download=True, transform=transform
-        )
+        # The MNIST cache of the standard loader, under the shared data root.
+        root = get_data_directory("mnist", data_path)
+        with _dataset_download_lock(root):
+            mnist = datasets.MNIST(
+                root=root, train=train, download=True, transform=transform
+            )
 
         self.mode = mode
         images = mnist.data.float() / 255.0 if normalize else mnist.data.float()

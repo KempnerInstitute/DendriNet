@@ -12,20 +12,20 @@ from typing import Any, Optional, Union
 import torch
 import torch.nn as nn
 from omegaconf import DictConfig
+from torch._dynamo import disable as _dynamo_disable
 
+from dendritic_modeling.config.conversion import (
+    has_enabled_synapse_types,
+    to_plain_dict,
+)
+from dendritic_modeling.config.inhibitory_wiring import (
+    check_inhibitory_wiring,
+    check_retired_inhibitory_routing,
+)
 from dendritic_modeling.config.legacy import normalize_transfer_config
-
-# Import dynamo config for JIT compilation optimization
-try:
-    import torch._dynamo.config
-    from torch._dynamo import disable as _dynamo_disable
-except ImportError:
-    torch._dynamo = None
-
-    def _dynamo_disable(fn):
-        return fn
-
-
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer import (
+    DendriticBranchLayer,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.ei_layer import (
     ExcitationInhibitionLayer,
 )
@@ -69,7 +69,6 @@ def _prepare_ei_synapse_schedules(
     ie_synapses_per_branch_per_layer: list[int],
     ii_synapses_per_branch_per_layer: list[int],
     num_layers: int,
-    input_mode: int,
     has_inhibitory_neurons: bool,
 ) -> tuple[list[int], list[int], list[int], list[int]]:
     """Prepare per-layer E/I synapse schedules with legacy required fields."""
@@ -92,8 +91,11 @@ def _prepare_ei_synapse_schedules(
     ie_synapses = _extend_synapse_schedule(
         ie_synapses_per_branch_per_layer,
         num_layers=num_layers,
-        required=input_mode == 1 or has_inhibitory_neurons,
-        empty_error="ie_synapses_per_branch_per_layer cannot be empty",
+        required=has_inhibitory_neurons,
+        empty_error=(
+            "ie_synapses_per_branch_per_layer cannot be empty when "
+            "inhibitory neurons exist"
+        ),
     )
     ii_synapses = _extend_synapse_schedule(
         ii_synapses_per_branch_per_layer,
@@ -112,28 +114,13 @@ def _prepare_ei_layer_size_sequences(
     input_dim: int,
     excitatory_layer_sizes: list[int],
     inhibitory_layer_sizes: list[int],
-    input_mode: int,
-    input_mode1_builds_i: bool,
 ) -> tuple[list[int], list[int | None]]:
     """Prepare per-layer E/I sizes including the input sentinel."""
 
     prepared_excitatory_sizes = deepcopy(excitatory_layer_sizes)
     prepared_inhibitory_sizes: list[int | None] = deepcopy(inhibitory_layer_sizes)
     prepared_excitatory_sizes.insert(0, input_dim)
-
-    # Preserve the legacy feedforward contract: input_mode=1 uses the
-    # transferred inhibitory stream directly and does not build explicit
-    # inhibitory cells. New configs can opt into input_mode=1 plus explicit
-    # I cells with transfer.input_mode1_build_inhibitory_population.
-    if input_mode == 1:
-        if not input_mode1_builds_i:
-            prepared_inhibitory_sizes = [None] * len(excitatory_layer_sizes)
-        elif not prepared_inhibitory_sizes:
-            prepared_inhibitory_sizes = [None] * len(excitatory_layer_sizes)
-        prepared_inhibitory_sizes.insert(0, None)
-    else:
-        prepared_inhibitory_sizes.insert(0, None)
-
+    prepared_inhibitory_sizes.insert(0, None)
     return prepared_excitatory_sizes, prepared_inhibitory_sizes
 
 
@@ -183,35 +170,57 @@ def _resolve_ei_layer_build_spec(
     }
 
 
-def _validate_direct_inhibitory_stream_contract(
-    *,
-    input_mode: int,
-    has_inhibitory_neurons: bool,
-    ie_synapses_per_branch_per_layer: list[int],
-    allow_direct_inhibitory_stream: bool,
-    require_direct_stream_opt_in: bool,
-) -> None:
-    """Validate explicit opt-in when input_mode=1 uses direct inhibitory drive."""
+_RECURRENT_SYNAPSE_KEYS = (
+    "rec_ee_synapses_per_branch",
+    "rec_ie_synapses_per_branch",
+    "rec_ei_synapses_per_branch",
+    "rec_ii_synapses_per_branch",
+)
 
-    uses_direct_inhibitory_stream = (
-        input_mode == 1
-        and not has_inhibitory_neurons
-        and any(int(v or 0) > 0 for v in ie_synapses_per_branch_per_layer)
-    )
-    if (
-        uses_direct_inhibitory_stream
-        and require_direct_stream_opt_in
-        and not allow_direct_inhibitory_stream
+
+def _consume_recurrent_only_options(options: dict[str, Any]) -> None:
+    """Remove recurrent-EINet options, failing when a value would be ignored.
+
+    The structured config passes these fields to every EINet. The feedforward
+    network has no recurrent state, so they must keep their inert defaults;
+    they are removed here so they cannot reach the branch layers as unknown
+    options.
+    """
+    unused = []
+    projection_dims = options.pop("input_projection_dims", None)
+    if projection_dims:
+        unused.append(f"architecture.input_projection_dims={list(projection_dims)!r}")
+    if bool(options.pop("store_routing", False)):
+        unused.append("implementation.store_routing=true")
+    if not bool(options.pop("allow_self_recurrence", True)):
+        unused.append("morphology.allow_self_recurrence=false")
+    for key in _RECURRENT_SYNAPSE_KEYS:
+        value = options.pop(key, None)
+        values = value if isinstance(value, (list, tuple)) else [value]
+        if any(item is not None and float(item) > 0 for item in values):
+            unused.append(f"connectivity.{key}={value!r}")
+    synapse_types = options.pop("synapse_types", None) or {}
+    if has_enabled_synapse_types(synapse_types):
+        unused.append("synapse_types.enabled")
+    dynamics = to_plain_dict(options.pop("dynamics", None) or {})
+    if str(dynamics.get("mode", dynamics.get("dynamics_mode", "rate"))).lower() == (
+        "spike"
     ):
+        unused.append("dynamics.mode=spike")
+    for key in ("soma_feedback_enabled", "dendritic_spikes_enabled"):
+        if bool(dynamics.get(key, False)):
+            unused.append(f"dynamics.{key}=true")
+    for key in ("soma_feedback", "dendritic_spikes"):
+        block = to_plain_dict(dynamics.get(key) or {})
+        if bool(block.get("enabled", False)):
+            unused.append(f"dynamics.{key}.enabled=true")
+    if unused:
         raise ValueError(
-            "input_mode=1 with empty inhibitory_layer_sizes and nonzero "
-            "ie_synapses_per_branch_per_layer would use the transferred "
-            "inhibitory stream directly instead of building inhibitory "
-            "neurons. To build an inhibitory population, set positive "
-            "architecture.inhibitory_layer_sizes and "
-            "transfer.input_mode1_build_inhibitory_population=true. To use "
-            "the direct stream explicitly, set "
-            "transfer.allow_direct_inhibitory_stream=true."
+            "Feedforward EINet does not apply "
+            + ", ".join(unused)
+            + "; these options are used only by recurrent EINet "
+            "(connectivity.rec_* > 0 or stateful dynamics). Remove them for "
+            "feedforward models."
         )
 
 
@@ -280,6 +289,9 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         use_shunting: bool = True,
         synapse_mode: str = "ei",
         reactivation_type: str = "param_tanh",
+        reactivation_soma_type: str | None = None,
+        reactivation_soma_init_m: float = 1.0,
+        reactivation_soma_init_b: float = 0.0,
         reactivation_strategy: str = "none",
         blocklinear_strategy: str = "none",
         topk_init_method: str = "xavier_normal",
@@ -306,11 +318,14 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         adaptive_initialization_policy="preserve_shunting_center",
         adaptive_target_conductance=5.0,
         initial_child_conductance=1.0,
+        initial_conductance_scale=1.0,
+        initial_child_conductance_log_sd=0.0,
         compile_forward: bool = False,
         structured_connectivity=None,
         **kwargs,
     ):
         super().__init__()
+        _consume_recurrent_only_options(kwargs)
         self.input_dim = input_dim
         self.transfer_params = normalize_transfer_config(transfer_params)
         self.output_dim = excitatory_layer_sizes[-1]
@@ -341,6 +356,9 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         self.use_shunting = use_shunting
         self.synapse_mode = synapse_mode
         self.reactivation_type = reactivation_type
+        self.reactivation_soma_type = reactivation_soma_type
+        self.reactivation_soma_init_m = reactivation_soma_init_m
+        self.reactivation_soma_init_b = reactivation_soma_init_b
         self.reactivation_strategy = reactivation_strategy
         self.blocklinear_strategy = blocklinear_strategy
         self.topk_init_method = topk_init_method
@@ -367,6 +385,8 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         self.adaptive_initialization_policy = adaptive_initialization_policy
         self.adaptive_target_conductance = adaptive_target_conductance
         self.initial_child_conductance = initial_child_conductance
+        self.initial_conductance_scale = initial_conductance_scale
+        self.initial_child_conductance_log_sd = initial_child_conductance_log_sd
         self.compile_forward = compile_forward
         self.structured_connectivity = structured_connectivity
 
@@ -393,8 +413,8 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         # Positive conductance weights should not receive explicitly signed
         # presynaptic drive. We keep the runtime behavior config-driven rather
         # than silently mutating the transfer function here, so unrelated
-        # backprop experiments are not changed behind the scenes. The paper
-        # configs that require nonnegative first-layer drive set
+        # backprop experiments are not changed behind the scenes. Configs that
+        # require nonnegative first-layer drive set
         # transfer.output_activation explicitly.
         if weight_transform_norm in POSITIVE_WEIGHT_TRANSFORMS:
             if (
@@ -424,6 +444,11 @@ class ExcitationInhibitionNetwork(BaseNetwork):
     ) -> ExcitationInhibitionLayer:
         """Build one EI layer from resolved dimensions and per-layer schedules."""
 
+        extra_kwargs = dict(extra_kwargs)
+        if extra_kwargs.get("initialization_seed") is not None:
+            # Keyed initialization streams must differ between network layers.
+            base = extra_kwargs.get("initialization_namespace") or "einet"
+            extra_kwargs["initialization_namespace"] = f"{base}.layer.{layer_idx}"
         return ExcitationInhibitionLayer(
             n_excitatory_cells=layer_spec["n_excitatory_cells"],
             n_inhibitory_cells=layer_spec["n_inhibitory_cells"],
@@ -450,6 +475,9 @@ class ExcitationInhibitionNetwork(BaseNetwork):
             reactivation_strategy=self.reactivation_strategy,
             blocklinear_strategy=self.blocklinear_strategy,
             reactivation_type=self.reactivation_type,
+            reactivation_soma_type=self.reactivation_soma_type,
+            reactivation_soma_init_m=self.reactivation_soma_init_m,
+            reactivation_soma_init_b=self.reactivation_soma_init_b,
             topk_noise_level=self.topk_noise_level,
             topk_strategy=self.topk_strategy,
             topk_type=self.topk_type,
@@ -473,6 +501,8 @@ class ExcitationInhibitionNetwork(BaseNetwork):
             adaptive_initialization_policy=self.adaptive_initialization_policy,
             adaptive_target_conductance=self.adaptive_target_conductance,
             initial_child_conductance=self.initial_child_conductance,
+            initial_conductance_scale=self.initial_conductance_scale,
+            initial_child_conductance_log_sd=self.initial_child_conductance_log_sd,
             structured_connectivity=self.structured_connectivity,
             structured_layer_idx=layer_idx,
             **extra_kwargs,
@@ -510,25 +540,26 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         # Create network layers using ExcitationInhibitionLayer
         layers = []
 
-        input_mode = self.transfer_params.get("input_mode", 0)
-        input_mode1_builds_i = bool(
-            self.transfer_params.get("input_mode1_build_inhibitory_population", False)
+        check_inhibitory_wiring(
+            {
+                "excitatory_layer_sizes": self.excitatory_layer_sizes,
+                "inhibitory_layer_sizes": self.inhibitory_layer_sizes,
+            },
+            {
+                "ee_synapses_per_branch_per_layer": self.ee_synapses_per_branch_per_layer,
+                "ei_synapses_per_branch_per_layer": self.ei_synapses_per_branch_per_layer,
+                "ie_synapses_per_branch_per_layer": self.ie_synapses_per_branch_per_layer,
+                "ii_synapses_per_branch_per_layer": self.ii_synapses_per_branch_per_layer,
+            },
+            has_transfer_stream=True,
         )
         excitatory_layer_sizes, inhibitory_layer_sizes = (
             _prepare_ei_layer_size_sequences(
                 input_dim=self.input_dim,
                 excitatory_layer_sizes=self.excitatory_layer_sizes,
                 inhibitory_layer_sizes=self.inhibitory_layer_sizes,
-                input_mode=input_mode,
-                input_mode1_builds_i=input_mode1_builds_i,
             )
         )
-
-        # Set up synapses per branch per layer
-        ee_syn = list(self.ee_synapses_per_branch_per_layer)
-        ei_syn = list(self.ei_synapses_per_branch_per_layer)
-        ie_syn = list(self.ie_synapses_per_branch_per_layer)
-        ii_syn = list(self.ii_synapses_per_branch_per_layer)
 
         # Extend lists if needed - use exactly what's specified, no smart defaulting
         num_layers = len(excitatory_layer_sizes) - 1
@@ -537,27 +568,20 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         has_inhibitory_neurons = any(
             size is not None and size > 0 for size in inhibitory_layer_sizes
         )
-        _validate_direct_inhibitory_stream_contract(
-            input_mode=input_mode,
-            has_inhibitory_neurons=has_inhibitory_neurons,
-            ie_synapses_per_branch_per_layer=ie_syn,
-            allow_direct_inhibitory_stream=bool(
-                self.transfer_params.get("allow_direct_inhibitory_stream", False)
-            ),
-            require_direct_stream_opt_in=bool(
-                self.transfer_params.get(
-                    "require_explicit_direct_inhibitory_stream", False
-                )
-            ),
-        )
-
         ee_syn, ei_syn, ie_syn, ii_syn = _prepare_ei_synapse_schedules(
-            ee_synapses_per_branch_per_layer=ee_syn,
-            ei_synapses_per_branch_per_layer=ei_syn,
-            ie_synapses_per_branch_per_layer=ie_syn,
-            ii_synapses_per_branch_per_layer=ii_syn,
+            ee_synapses_per_branch_per_layer=list(
+                self.ee_synapses_per_branch_per_layer
+            ),
+            ei_synapses_per_branch_per_layer=list(
+                self.ei_synapses_per_branch_per_layer
+            ),
+            ie_synapses_per_branch_per_layer=list(
+                self.ie_synapses_per_branch_per_layer
+            ),
+            ii_synapses_per_branch_per_layer=list(
+                self.ii_synapses_per_branch_per_layer
+            ),
             num_layers=num_layers,
-            input_mode=input_mode,
             has_inhibitory_neurons=has_inhibitory_neurons,
         )
 
@@ -591,18 +615,32 @@ class ExcitationInhibitionNetwork(BaseNetwork):
 
         # Optional torch.compile acceleration. Keep this opt-in because
         # Inductor caches can be fragile on shared filesystems and in tests.
+        # Module.compile leaves dynamo's process-wide settings alone, and
+        # copies and pickles of the module drop the compiled call.
         if self.compile_forward:
-            try:
-                if torch._dynamo is not None:
-                    # Increase recompile limit to reduce warnings
-                    torch._dynamo.config.recompile_limit = 100
-                    torch._dynamo.config.force_parameter_static_shapes = (
-                        False  # Allow dynamic params
-                    )
-                self.forward = torch.compile(self.forward, dynamic=True)
-            except (AttributeError, ImportError):
-                # torch.compile not available in older PyTorch versions
-                pass
+            self._reject_uncompilable_gradient_scaling()
+            self.compile(dynamic=True)
+
+    def _reject_uncompilable_gradient_scaling(self) -> None:
+        """Refuse what ``compile_forward`` cannot compile before training starts.
+
+        Inductor fails at the first training step on the conductance-scaled
+        BlockLinear gradient hooks of shunting layers. The Top-K conductance
+        scaling of shunting layers and the BlockLinear rule of additive layers
+        compile and match the uncompiled gradients.
+        """
+        if any(
+            isinstance(layer, DendriticBranchLayer)
+            and layer.use_shunting
+            and layer.blocklinear_strategy == "conductance_dynamic"
+            for layer in self.modules()
+        ):
+            raise ValueError(
+                "compile_forward does not support blocklinear gradient_scaling: "
+                "conductance_dynamic in shunting layers (torch.compile fails on "
+                "its gradient hooks at the first training step); set "
+                "compile_forward: false"
+            )
 
     def decay_weights(self, weight_decay, weight_boosting=False):
         for layer in self.layers:
@@ -631,11 +669,17 @@ class ExcitationInhibitionNetwork(BaseNetwork):
             self._nonneg_input_checked = True
             return
 
-        mins = []
-        for tensor in (excitatory_x, inhibitory_x):
-            if torch.is_tensor(tensor):
-                mins.append(float(tensor.detach().min().item()))
-        x_min = min(mins) if mins else 0.0
+        # One host read for both streams (often the same tensor).
+        streams = {
+            id(tensor): tensor
+            for tensor in (excitatory_x, inhibitory_x)
+            if torch.is_tensor(tensor)
+        }
+        x_min = (
+            float(torch.stack([t.detach().min() for t in streams.values()]).min())
+            if streams
+            else 0.0
+        )
         if x_min < -1e-5:  # small tolerance for float-precision negatives
             raise ValueError(
                 "ExcitationInhibitionNetwork received signed conductance-driving "
@@ -659,12 +703,11 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         self._nonneg_input_checked = True
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Forward logic:
-        - TransferLayer splits/duplicates input based on input_mode and independent_pathways
-        - All EI layers now build and process their own inhibitory cells
-        - First layer's inhibitory cells receive the same input as excitatory cells
-        - Subsequent layers receive outputs from previous layers
+        """Run the transfer layer, then every E/I layer in order.
+
+        The transfer layer returns the excitatory and inhibitory input streams.
+        Each layer returns its excitatory output and its inhibitory cells'
+        output, which feed the next layer (see ``config.inhibitory_wiring``).
         """
         excitatory_x, inhibitory_x = self.transfer_fn(x)
         self._check_nonneg_network_input(excitatory_x, inhibitory_x)
@@ -675,19 +718,39 @@ class ExcitationInhibitionNetwork(BaseNetwork):
 
         return excitatory_x
 
+    def forward_until(self, x: torch.Tensor, layer_index: int) -> torch.Tensor:
+        """Excitatory output of layer ``layer_index``, computed as ``forward`` does.
+
+        The transfer layer and the layers before it run exactly as in
+        ``forward``, passing the excitatory and inhibitory streams; later
+        layers do not run. ``forward_until(x, len(layers) - 1)`` equals
+        ``forward(x)``.
+        """
+        if not 0 <= int(layer_index) < len(self.layers):
+            raise IndexError(
+                f"layer_index {layer_index} outside the {len(self.layers)} layers"
+            )
+        excitatory_x, inhibitory_x = self.transfer_fn(x)
+        self._check_nonneg_network_input(excitatory_x, inhibitory_x)
+        for layer in self.layers[: int(layer_index) + 1]:
+            excitatory_x, inhibitory_x = layer(excitatory_x, inhibitory_x)
+        return excitatory_x
+
     @property
     def branch_layers(self):
-        """Get all layers that have branch structures"""
+        """Get all layers that have branch structures.
+
+        Inhibitory cells built as an MLP (``inhibitory_network_type: mlp``)
+        have no branches and contribute none.
+        """
         branch_layers = []
         for layer in self.layers:
             layer: ExcitationInhibitionLayer
             if hasattr(layer, "excitatory_cells"):
                 branch_layers.extend(layer.excitatory_cells.branch_layers)
-            if (
-                hasattr(layer, "inhibitory_cells")
-                and layer.inhibitory_cells is not None
-            ):
-                branch_layers.extend(layer.inhibitory_cells.branch_layers)
+            inhibitory_cells = getattr(layer, "inhibitory_cells", None)
+            if inhibitory_cells is not None:
+                branch_layers.extend(getattr(inhibitory_cells, "branch_layers", ()))
         return branch_layers
 
     @property
@@ -753,6 +816,11 @@ class ExcitationInhibitionNetwork(BaseNetwork):
                 and layer.inhibitory_cells is not None
             ):
                 inhibitory_cells = layer.inhibitory_cells
+                if not hasattr(inhibitory_cells, "branch_layers"):
+                    # An MLP (inhibitory_network_type: mlp) is dense, so every
+                    # parameter acts.
+                    effective += sum(p.numel() for p in inhibitory_cells.parameters())
+                    continue
                 for branch_layer in inhibitory_cells.branch_layers:
                     # Excitatory branch (TopKLinear)
                     if (
@@ -830,9 +898,10 @@ class ConfigurableEINetwork(ExcitationInhibitionNetwork):
             prepare_ei_network_params,
         )
 
-        params = prepare_ei_network_params(
-            canonicalize_model_core_flags(config), input_dim
-        )
+        check_retired_inhibitory_routing(config, recurrent=False)
+        # A plain-dict copy: callers pass typed CoreConfig objects or mappings.
+        core_config = canonicalize_model_core_flags(config)
+        params = prepare_ei_network_params(core_config, input_dim)
 
         if synapse_mode is not None:
             params["synapse_mode"] = synapse_mode
@@ -851,6 +920,16 @@ class ConfigurableEINetwork(ExcitationInhibitionNetwork):
             params["excitatory_branch_factors"] = [branch_compartments_per_soma]
 
         super().__init__(**params)
+
+        from dendritic_modeling.config.biological import resolve_biological_neuron
+
+        core_type = core_config.get("type") or "einet"
+        if resolve_biological_neuron(core_type, core_config.get("biological_neuron")):
+            from dendritic_modeling.networks.architectures.biological_constraints import (
+                enforce_biological_neuron,
+            )
+
+            enforce_biological_neuron(core_type, self)
 
 
 __all__ = ["ConfigurableEINetwork", "ExcitationInhibitionNetwork"]

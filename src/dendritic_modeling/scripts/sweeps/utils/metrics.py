@@ -1,5 +1,11 @@
 """Metric definitions and mappings for sweep analysis."""
 
+from dendritic_modeling.plotting.styles import (
+    CATEGORY_ALIASES,
+    CATEGORY_STYLES,
+    category_style,
+)
+
 # Comprehensive metric mapping for display labels
 METRIC_MAPPING: dict[str, str] = {
     # Performance metrics
@@ -65,80 +71,17 @@ METRIC_CATEGORIES: dict[str, list[str]] = {
     ],
 }
 
-# Color schemes for different network categories
+# Network-category styles: colour, marker and line style come from one
+# registry in which every category has its own (marker, line style) pair.
+_CATEGORY_NAMES = (*CATEGORY_STYLES, *CATEGORY_ALIASES)
 NETWORK_CATEGORY_COLORS: dict[str, str] = {
-    # Canonical EINet categories
-    "dendritic_shunting": "#1f77b4",  # Blue
-    "dendritic_additive": "#ff0000",  # Red
-    "dendritic_normalized_additive": "#ff7f0e",  # Orange
-    "flat_normalized_additive": "#ff7f0e",  # Orange
-    "flat_shunting": "#1f77b4",  # Blue (dashed line distinguishes)
-    "flat_additive": "#ff0000",  # Red
-    "dendritic_signed": "#2ca02c",  # Green
-    "flat_signed": "#2ca02c",  # Green
-    "dendritic_mlp": "#7f7f7f",  # Gray
-    "flat_mlp": "#7f7f7f",  # Gray
-    # MLP baselines
-    "point_mlp": "#9467bd",  # Purple
-    "ss_mlp": "#2ca02c",  # Green
-    "ss_mlp_flat": "#2ca02c",  # Green
-    "total_param_mlp": "#7f7f7f",  # Gray
-    "active_param_mlp": "#7f7f7f",  # Gray
-    # Legacy aliases (kept for backward compatibility)
-    "shunting": "#1f77b4",
-    "no_shunting": "#ff0000",
-    "mlp": "#9467bd",
-    # Fallback
-    "unknown": "#7f7f7f",  # Gray
-    "default": "#2ca02c",  # Green
+    name: category_style(name).color for name in _CATEGORY_NAMES
 }
-
 NETWORK_CATEGORY_MARKERS: dict[str, str] = {
-    # Canonical categories
-    "dendritic_shunting": "o",  # Circle
-    "dendritic_additive": "s",  # Square
-    "dendritic_normalized_additive": "X",  # Filled X
-    "flat_shunting": "^",  # Triangle up
-    "flat_additive": "+",  # Plus
-    "flat_normalized_additive": "x",  # X
-    "dendritic_signed": "D",  # Diamond
-    "flat_signed": "x",  # X
-    "dendritic_mlp": "*",  # Star
-    "flat_mlp": "p",  # Pentagon
-    "point_mlp": "D",  # Diamond
-    "ss_mlp": "*",  # Star
-    "ss_mlp_flat": "d",  # Thin diamond
-    "total_param_mlp": ".",  # Point
-    "active_param_mlp": "d",  # Thin diamond
-    # Legacy aliases
-    "shunting": "o",
-    "no_shunting": "s",
-    "mlp": "D",
-    # Fallback
-    "unknown": "x",  # X
-    "default": "^",  # Triangle
+    name: category_style(name).marker for name in _CATEGORY_NAMES
 }
-
 NETWORK_CATEGORY_LINESTYLES: dict[str, str] = {
-    # Canonical categories
-    "dendritic_shunting": "-",  # Solid
-    "dendritic_additive": "-",  # Solid
-    "dendritic_normalized_additive": "-",  # Dash-dot
-    "flat_shunting": "--",  # Dashed
-    "flat_additive": "--",  # Dashed
-    "flat_normalized_additive": "--",  # Dotted
-    "dendritic_signed": "-",  # Solid
-    "flat_signed": "--",  # Dashed
-    "dendritic_mlp": "-",  # Solid
-    "flat_mlp": "--",  # Dashed
-    "point_mlp": ":",  # Dotted
-    "ss_mlp": "-",  # Solid
-    "ss_mlp_flat": "--",  # Dashed
-    "total_param_mlp": ":",  # Dotted
-    "active_param_mlp": "-.",  # Dash-dot
-    # Fallback
-    "unknown": "-",
-    "default": "-",
+    name: category_style(name).linestyle for name in _CATEGORY_NAMES
 }
 
 # Information theory color scheme

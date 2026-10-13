@@ -21,6 +21,7 @@ from dendritic_modeling.datasets.dimensions import (
     dataset_class_count,
     dataset_input_shape,
 )
+from dendritic_modeling.datasets.parameters import set_processing_parameters
 from dendritic_modeling.utils.hooks import iter_modules_matching
 from dendritic_modeling.utils.reproducibility import resolve_experiment_seeds
 
@@ -55,7 +56,7 @@ FSDP_ACTIVATION_CHECKPOINT_FACTOR = 0.7
 FSDP_CONFIG_ACTIVATION_FACTOR = 0.8
 FSDP_CONFIG_OVERHEAD_FACTOR = 0.1
 DEFAULT_BATCH_SIZE = 32
-DEFAULT_TRAINING_DTYPE = "fp16"
+DEFAULT_TRAINING_DTYPE = "fp32"
 DEFAULT_ESTIMATION_OPTIMIZER = "adam"
 DEFAULT_CLASS_COUNT = 10
 REGRESSION_OUTPUT_DIM = 1
@@ -137,7 +138,9 @@ def _resolve_task_config(config: Any) -> tuple[Any, Any]:
         task_cfg.parameters = task_params
         return task_cfg, task_params
 
-    processing_params = to_plain_dict(getattr(config.data, "processing", {}))
+    processing_params = set_processing_parameters(
+        getattr(config.data, "processing", None)
+    )
     dataset_name = config.data.dataset_name
     all_dataset_params = to_plain_dict(getattr(config.data, "dataset_params", {}))
     dataset_params = to_plain_dict(all_dataset_params.get(dataset_name, {}))
@@ -224,9 +227,21 @@ def _resolve_trainer_params(config: Any) -> dict[str, Any]:
     return {}
 
 
-def _resolve_training_dtype(config: Any) -> str:
-    """Resolve training dtype used by the memory estimator."""
-    return _resolve_trainer_params(config).get("dtype", DEFAULT_TRAINING_DTYPE)
+def _resolve_training_dtypes(config: Any) -> tuple[str, str]:
+    """Storage of (parameters, gradients and optimizer states; activations).
+
+    Training keeps fp32 parameters and optimizer states; AMP
+    (``training.main.common.use_amp``) stores activations in fp16.
+    """
+    use_amp = bool(_resolve_trainer_params(config).get("use_amp", False))
+    return DEFAULT_TRAINING_DTYPE, "fp16" if use_amp else DEFAULT_TRAINING_DTYPE
+
+
+def _resolve_optimizer_name(config: Any) -> str:
+    """The configured optimizer (``training.main.optimizer.name``)."""
+    main = getattr(getattr(config, "training", None), "main", None)
+    name = getattr(getattr(main, "optimizer", None), "name", None)
+    return str(name or DEFAULT_ESTIMATION_OPTIMIZER).lower()
 
 
 def _resolve_estimation_input_shape(
@@ -297,10 +312,18 @@ def _build_estimation_encoder(
 
 
 def _build_estimation_core(model_config: Any, encoder: torch.nn.Module):
-    """Build the core network used for memory estimation."""
+    """Build the core network used for memory estimation.
+
+    A typed core is built as training builds it, for every core type.
+    """
+    from dendritic_modeling.config.model import CoreConfig
     from dendritic_modeling.networks.architectures.factory import get_architecture
 
     core_config = getattr(model_config, "core_network", None) or model_config.core
+    if isinstance(core_config, CoreConfig):
+        return get_architecture(
+            core_config.type, core_config, input_dim=encoder.output_dim
+        )
     core_type = core_config.type.lower()
     structured_core_types = {
         "einet",
@@ -372,7 +395,6 @@ def _build_estimation_model(
             encoder_network=encoder,
             core_network=core_network,
             decoder_network=decoder,
-            learned_output_scale=getattr(model_config, "learned_output_scale", True),
             fixed_output_scale=getattr(model_config, "fixed_output_scale", 1.0),
             output_scale_mode=getattr(model_config, "output_scale_mode", None),
         )
@@ -552,17 +574,27 @@ class GPUMemoryEstimator:
         "H100": {"memory_gb": 80, "compute": "high"},
     }
 
-    def __init__(self, dtype: str = "fp16", optimizer: str = "adam"):
+    def __init__(
+        self,
+        dtype: str = "fp32",
+        optimizer: str = "adam",
+        activation_dtype: Optional[str] = None,
+    ):
         """
         Initialize the estimator.
 
         Args:
-            dtype: Data type ('fp16', 'fp32', 'bf16')
+            dtype: Storage of parameters, gradients and optimizer states
+                ('fp32', 'fp16', 'bf16'); training keeps fp32 master weights,
+                also under AMP
             optimizer: Optimizer type ('adam', 'sgd', 'adamw')
+            activation_dtype: Activation storage (default: ``dtype``); fp16
+                under AMP
         """
         self.dtype = dtype
         self.optimizer = optimizer
         self.bytes_per_param = self._get_bytes_per_param(dtype)
+        self.activation_bytes = self._get_bytes_per_param(activation_dtype or dtype)
         self.optimizer_state_multiplier = self._get_optimizer_multiplier(optimizer)
 
     def _get_bytes_per_param(self, dtype: str) -> int:
@@ -628,7 +660,7 @@ class GPUMemoryEstimator:
             input_dim = np.prod(input_shape)
 
             # Transfer layer activations
-            activation_memory_bytes += batch_size * input_dim * self.bytes_per_param
+            activation_memory_bytes += batch_size * input_dim * self.activation_bytes
 
             # Calculate branch factors product for each layer
             e_branch_product = 1
@@ -645,7 +677,7 @@ class GPUMemoryEstimator:
                 # Dendritic branch activations
                 # Each neuron has branch_product branches
                 branch_activations = (
-                    batch_size * layer_size * e_branch_product * self.bytes_per_param
+                    batch_size * layer_size * e_branch_product * self.activation_bytes
                 )
                 activation_memory_bytes += branch_activations
 
@@ -658,7 +690,7 @@ class GPUMemoryEstimator:
                         * layer_size
                         * e_branch_product
                         * synapses
-                        * self.bytes_per_param
+                        * self.activation_bytes
                         * TOPK_INDEX_VALUE_FACTOR
                     )
                     activation_memory_bytes += topk_memory
@@ -672,7 +704,7 @@ class GPUMemoryEstimator:
                             batch_size
                             * layer_size
                             * i_branch_product
-                            * self.bytes_per_param
+                            * self.activation_bytes
                         )
                         activation_memory_bytes += branch_activations
 
@@ -684,7 +716,7 @@ class GPUMemoryEstimator:
                                 * layer_size
                                 * i_branch_product
                                 * synapses
-                                * self.bytes_per_param
+                                * self.activation_bytes
                                 * TOPK_INDEX_VALUE_FACTOR
                             )
                             activation_memory_bytes += topk_memory
@@ -701,28 +733,28 @@ class GPUMemoryEstimator:
                     activation_memory_bytes += _topk_activation_bytes(
                         module,
                         batch_size=batch_size,
-                        bytes_per_param=self.bytes_per_param,
+                        bytes_per_param=self.activation_bytes,
                     )
 
                 elif "BlockLinear" in type(module).__name__:
                     activation_memory_bytes += _blocklinear_activation_bytes(
                         module,
                         batch_size=batch_size,
-                        bytes_per_param=self.bytes_per_param,
+                        bytes_per_param=self.activation_bytes,
                     )
 
                 elif isinstance(module, torch.nn.Linear):
                     activation_memory_bytes += _linear_activation_bytes(
                         module,
                         batch_size=batch_size,
-                        bytes_per_param=self.bytes_per_param,
+                        bytes_per_param=self.activation_bytes,
                     )
 
             # If we couldn't get a good estimate, use parameter-based estimation
             if activation_memory_bytes == 0:
                 activation_memory_bytes = _parameter_fallback_activation_bytes(
                     model,
-                    bytes_per_param=self.bytes_per_param,
+                    bytes_per_param=self.activation_bytes,
                 )
 
             # Add gradient graph overhead
@@ -877,19 +909,20 @@ class GPUMemoryEstimator:
             dict: Optimal configuration with nodes, gpus_per_node, total_gpus, etc.
         """
 
-        if single_gpu_breakdown.total <= h100_memory:
+        # The smallest GPU that holds the model comes first.
+        if single_gpu_breakdown.total <= a100_memory:
             return {
                 "single_gpu_fits": True,
-                "gpu_type": "H100",
+                "gpu_type": "A100-40GB",
                 "nodes": 1,
                 "gpus_per_node": 1,
                 "total_gpus": 1,
                 "memory_per_gpu": single_gpu_breakdown.total,
             }
-        elif single_gpu_breakdown.total <= a100_memory:
+        if single_gpu_breakdown.total <= h100_memory:
             return {
                 "single_gpu_fits": True,
-                "gpu_type": "A100-40GB",
+                "gpu_type": "H100",
                 "nodes": 1,
                 "gpus_per_node": 1,
                 "total_gpus": 1,
@@ -1009,7 +1042,29 @@ class GPUMemoryEstimator:
         return optimal_config
 
 
-def estimate_from_config(config_path: str, batch_size: Optional[int] = None):
+@dataclass
+class ConfigEstimate:
+    """The estimator, model and inputs of one configuration's estimate."""
+
+    estimator: "GPUMemoryEstimator"
+    model: torch.nn.Module
+    batch_size: int
+    input_shape: tuple[int, ...]
+
+    def fsdp_memory_per_gpu(self, num_gpus: int) -> float:
+        """Estimated memory per GPU (GB) of the model sharded over ``num_gpus``."""
+        return self.estimator.estimate_memory_breakdown(
+            self.model,
+            self.batch_size,
+            self.input_shape,
+            use_fsdp=True,
+            num_gpus=num_gpus,
+        ).total
+
+
+def estimate_config(
+    config_path: str, batch_size: Optional[int] = None, *, report: bool = True
+) -> ConfigEstimate:
     """
     Estimate GPU requirements from a configuration file.
 
@@ -1019,6 +1074,7 @@ def estimate_from_config(config_path: str, batch_size: Optional[int] = None):
     Args:
         config_path: Path to configuration file
         batch_size: Override batch size (uses config value if None)
+        report: Print the estimation report
     """
     from dendritic_modeling.config import load_config
 
@@ -1028,8 +1084,18 @@ def estimate_from_config(config_path: str, batch_size: Optional[int] = None):
     input_shape = _resolve_estimation_input_shape(task_cfg, task_params)
     model = _build_estimation_model(config, input_shape, task_cfg, task_params)
 
-    dtype = _resolve_training_dtype(config)
-    estimator = GPUMemoryEstimator(dtype=dtype, optimizer=DEFAULT_ESTIMATION_OPTIMIZER)
-    estimator.print_estimation_report(model, batch_size, input_shape, config)
+    dtype, activation_dtype = _resolve_training_dtypes(config)
+    estimator = GPUMemoryEstimator(
+        dtype=dtype,
+        optimizer=_resolve_optimizer_name(config),
+        activation_dtype=activation_dtype,
+    )
+    if report:
+        estimator.print_estimation_report(model, batch_size, input_shape, config)
+    return ConfigEstimate(estimator, model, batch_size, tuple(input_shape))
 
-    return estimator, model
+
+def estimate_from_config(config_path: str, batch_size: Optional[int] = None):
+    """Print the estimate of a configuration; returns ``(estimator, model)``."""
+    estimate = estimate_config(config_path, batch_size)
+    return estimate.estimator, estimate.model

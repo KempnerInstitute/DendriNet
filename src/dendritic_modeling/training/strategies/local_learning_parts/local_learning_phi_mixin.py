@@ -88,15 +88,13 @@ def _update_conditional_phi_moments(
 ) -> tuple[float, float, float]:
     """Update conditional phi EMA moments and return them."""
     decay = 1.0 - alpha
-    stats.ema_var_y = decay * (stats.ema_var_y or 0.0) + alpha * float(
-        y.pow(2).mean().item()
-    )
-    stats.ema_var_x = decay * (stats.ema_var_x or 0.0) + alpha * float(
-        x.pow(2).mean().item()
-    )
-    stats.ema_cov_xy = decay * (stats.ema_cov_xy or 0.0) + alpha * float(
-        (y * x).mean().item()
-    )
+    # One host read for the three batch moments.
+    var_y, var_x, cov_xy = torch.stack(
+        [y.pow(2).mean(), x.pow(2).mean(), (y * x).mean()]
+    ).tolist()
+    stats.ema_var_y = decay * (stats.ema_var_y or 0.0) + alpha * var_y
+    stats.ema_var_x = decay * (stats.ema_var_x or 0.0) + alpha * var_x
+    stats.ema_cov_xy = decay * (stats.ema_cov_xy or 0.0) + alpha * cov_xy
     return stats.ema_var_y, stats.ema_var_x, stats.ema_cov_xy
 
 
@@ -105,7 +103,8 @@ def _mean_scalar_pair(
     parent: torch.Tensor,
 ) -> tuple[float, float]:
     """Return scalar child/parent means for single-sample conditional EMA."""
-    return v_n.mean().item(), parent.mean().item()
+    child, parent_mean = torch.stack([v_n.mean(), parent.mean()]).tolist()
+    return child, parent_mean
 
 
 def _update_single_sample_conditional_moments(

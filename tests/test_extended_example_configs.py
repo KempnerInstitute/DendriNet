@@ -24,6 +24,7 @@ POPULATION_NETWORK_EXAMPLES = [
     "configs/examples/population_network_heterogeneous_feedforward.yaml",
     "configs/examples/population_network_two_layer.yaml",
     "configs/examples/population_network_cifar10.yaml",
+    "configs/examples/population_network_spatial_morphology_cifar10.yaml",
     "configs/examples/population_network_dense_to_sparse_cifar10.yaml",
     "configs/examples/population_network_indexed_rewire_mnist.yaml",
     "configs/examples/population_network_normalized_additive_mnist.yaml",
@@ -33,7 +34,6 @@ POPULATION_NETWORK_EXAMPLES = [
 
 @pytest.mark.parametrize("config_path", EXTENDED_EXAMPLES)
 def test_extended_recurrent_example_config_builds_and_starts(config_path):
-    load_config.cache_clear()
     cfg = load_config(config_path)
     model, _ = initialize_model(cfg.model)
 
@@ -51,7 +51,6 @@ def test_extended_recurrent_example_config_builds_and_starts(config_path):
 
 @pytest.mark.parametrize("config_path", POPULATION_NETWORK_EXAMPLES)
 def test_population_network_example_config_builds_and_starts(config_path):
-    load_config.cache_clear()
     cfg = load_config(config_path)
     model, _ = initialize_model(cfg.model)
 
@@ -68,7 +67,6 @@ def test_population_network_example_config_builds_and_starts(config_path):
 
 @pytest.mark.parametrize("config_path", POPULATION_NETWORK_EXAMPLES)
 def test_population_network_examples_make_reactivation_policy_explicit(config_path):
-    load_config.cache_clear()
     cfg = load_config(config_path)
     layers = cfg.model.core.population_network["layers"]
 
@@ -90,7 +88,6 @@ def test_population_network_examples_make_reactivation_policy_explicit(config_pa
     ],
 )
 def test_recurrent_population_examples_drive_inhibitory_gradients(config_path):
-    load_config.cache_clear()
     torch.manual_seed(0)
     cfg = load_config(config_path)
     model, _ = initialize_model(cfg.model)
@@ -122,7 +119,6 @@ def test_recurrent_population_examples_drive_inhibitory_gradients(config_path):
 def test_spiking_example_drives_core_gradients_on_configured_data():
     """The public spiking example should not be a silent readout-only model."""
     config_path = "configs/examples/population_network_spiking.yaml"
-    load_config.cache_clear()
     torch.manual_seed(0)
     cfg = load_config(config_path)
     model, _ = initialize_model(cfg.model)

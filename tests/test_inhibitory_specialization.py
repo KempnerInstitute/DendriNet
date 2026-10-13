@@ -281,9 +281,35 @@ class TestInhibitorySpecializationAnalyzer(unittest.TestCase):
 
         self.assertEqual(entry["n_levels"], 3)
         self.assertIn("frac_middle_pop", entry)
-        # f_distal = 0.1/(0.1+0.5+0.4) = 0.1, f_soma = 0.4 → G = 0.3 for all pairs
+        # Weight mass per level: distal 3 * 0.1, middle 2 * 0.5, soma 0.4, so
+        # f_distal = 0.3 / 1.7 and f_soma = 0.4 / 1.7 for every pair.
         G = torch.as_tensor(entry["G"])
-        self.assertTrue(torch.allclose(G, torch.full_like(G, 0.3), atol=1e-4))
+        self.assertTrue(torch.allclose(G, torch.full_like(G, 0.1 / 1.7), atol=1e-6))
+        # The per-compartment control divides each level by its compartments.
+        control = entry["per_compartment_control"]
+        self.assertAlmostEqual(control["frac_distal_pop"], 0.1, places=6)
+        self.assertAlmostEqual(control["frac_middle_pop"], 0.5, places=6)
+        self.assertAlmostEqual(control["frac_soma_pop"], 0.4, places=6)
+
+    def test_analyzer_json_equals_the_public_summary(self) -> None:
+        """Both entry points aggregate unequal compartment counts the same way."""
+        torch.manual_seed(3)
+        n_E, n_I = 5, 4
+        factors = [4, 2, 1]
+        weights = [
+            torch.rand(n_E * k, n_I) * (torch.rand(n_E * k, n_I) < 0.5) for k in factors
+        ]
+        model = _FakeModel(_FakeCore([_make_layer(n_E, n_I, factors, weights)]))
+        entry = InhibitorySpecializationAnalyzer(
+            InhibitorySpecializationAnalysisParams(save_figures=False)
+        ).analyze(model, device="cpu")["layers"]["layer_0"]
+        summary = summarize_inhibitory_specialization_from_compartment_weights(
+            [w.reshape(n_E, k, n_I) for w, k in zip(weights, factors)]
+        )
+        self.assertTrue(torch.equal(torch.as_tensor(entry["G"]), summary["G"]))
+        self.assertEqual(entry["classes"], summary["classes"])
+        self.assertEqual(entry["pair_level"], summary["pair_level"])
+        self.assertEqual(entry["frac_soma_pop"], summary["frac_soma_pop"])
 
     def test_saves_json_and_pdf(self) -> None:
         n_E, n_I = 4, 3

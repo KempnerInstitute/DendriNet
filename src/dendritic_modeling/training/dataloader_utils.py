@@ -204,7 +204,17 @@ def _resolve_in_order(
     *,
     dataset_profile: DatasetLoaderProfile | None = None,
     num_workers: int = 0,
+    require_in_order: bool = False,
 ) -> bool | None:
+    if require_in_order and num_workers > 0:
+        # Out-of-order delivery makes batch order (and per-worker draws)
+        # depend on worker timing.
+        if in_order is not None and not bool(in_order):
+            raise ValueError(
+                "in_order: false delivers batches in worker-timing order, which "
+                "experiment.strict_deterministic forbids; remove it"
+            )
+        return True
     if in_order is not None:
         return bool(in_order)
     if (
@@ -225,8 +235,13 @@ def resolve_dataloader_tuning(
     persistent_workers: bool | None = None,
     prefetch_factor: int | None = None,
     in_order: bool | None = None,
+    require_in_order: bool | None = None,
 ) -> DataLoaderTuning:
     """Resolve DataLoader worker/pinning/prefetch settings.
+
+    ``require_in_order`` (default: whether PyTorch's deterministic algorithms
+    are enabled, as ``experiment.strict_deterministic`` does) delivers batches
+    in sampler order whenever workers are used.
 
     Tensor-backed datasets default to single-process loading because worker
     startup and IPC usually dominate. Lazy image/file-backed datasets, including
@@ -252,10 +267,13 @@ def resolve_dataloader_tuning(
         dataset_profile=dataset_profile,
         num_workers=resolved_workers,
     )
+    if require_in_order is None:
+        require_in_order = torch.are_deterministic_algorithms_enabled()
     resolved_in_order = _resolve_in_order(
         in_order,
         dataset_profile=dataset_profile,
         num_workers=resolved_workers,
+        require_in_order=bool(require_in_order),
     )
 
     return DataLoaderTuning(
@@ -305,9 +323,31 @@ def dataloader_kwargs_from_config(
     ).as_kwargs()
 
 
+def data_parallel_layout(train_loader: DataLoader, world_size: int) -> dict[str, Any]:
+    """Batch layout of a run whose ``world_size`` processes share the data.
+
+    ``batch_size`` is per process: under DDP and FSDP every rank draws its own
+    batches from its shard, so one optimizer step sees ``world_size`` times
+    ``batch_size`` samples and an epoch has ``train_steps_per_epoch`` steps.
+    Schedules counted in steps or forwards advance accordingly.
+    """
+    per_rank = int(train_loader.batch_size)
+    try:
+        steps = len(train_loader)
+    except TypeError:  # an iterable dataset without a length
+        steps = None
+    return {
+        "world_size": int(world_size),
+        "batch_size_per_rank": per_rank,
+        "global_batch_size": per_rank * int(world_size),
+        "train_steps_per_epoch": steps,
+    }
+
+
 __all__ = [
     "DataLoaderTuning",
     "auto_num_workers_for_dataset",
+    "data_parallel_layout",
     "dataloader_kwargs_from_config",
     "dataloader_supports_kwarg",
     "prefers_main_process_loading",

@@ -365,6 +365,17 @@ class TestCategoricalNLLLoss:
                 _reduce_tensor_loss(expected, reduction),
             )
 
+    def test_precomputed_predictions_match_model_forward(self, log_softmax_model):
+        x = torch.randn(4, 10)
+        y = torch.randint(0, 5, (4,))
+        logits = log_softmax_model(x)
+        loss_fn = CategoricalNLLLoss()
+
+        torch.testing.assert_close(
+            loss_fn.from_predictions(logits, y),
+            loss_fn(log_softmax_model, x, y),
+        )
+
 
 class TestVaeElboLoss:
     """Test the VaeElboLoss class."""
@@ -633,17 +644,27 @@ class TestVoltageStabilizationLoss:
         # Should return zero loss when no dendritic layers
         assert torch.allclose(loss, torch.tensor(0.0))
 
-    def test_hook_management(self, voltage_loss, dendritic_model):
-        """Test hook attachment and removal."""
-        # Mock the modules method to return an iterable
-        dendritic_model.modules = Mock(return_value=[Mock(), Mock()])
-
-        # Test that hooks can be attached and removed
-        handles = voltage_loss.attach_forward_hooks(dendritic_model)
-        assert isinstance(handles, list)
-
+    def test_hook_management(self, voltage_loss):
+        """Hooks attach to every branch layer and are removed again."""
+        model = self.TinyDendriticModel()
+        handles = voltage_loss.attach_forward_hooks(model)
+        assert isinstance(handles, list) and len(handles) == 2
         voltage_loss.remove_forward_hooks(handles)
-        # Should not raise an error
+
+    def test_a_model_without_branch_layers_is_rejected(self, voltage_loss):
+        with pytest.raises(ValueError, match="found no dendritic branch layer"):
+            voltage_loss.attach_forward_hooks(nn.Sequential(nn.Linear(2, 2)))
+
+    def test_hooks_record_only_inside_the_loss_forward(self, voltage_loss):
+        model = self.TinyDendriticModel()
+        handles = voltage_loss.attach_forward_hooks(model)
+        try:
+            model(torch.rand(4, 3))  # a forward outside the loss
+            assert voltage_loss.voltages == []
+            loss = voltage_loss(model, torch.rand(4, 3))
+        finally:
+            voltage_loss.remove_forward_hooks(handles)
+        assert loss > 0
 
     def test_different_target_voltages(self, dendritic_model):
         """Test with different target voltages."""
@@ -847,15 +868,11 @@ class TestGetLossFunction:
         with pytest.raises(ValueError, match="Invalid loss function"):
             get_loss_function("invalid_loss")
 
-    def test_case_sensitivity(self):
-        """Test that loss function names are case sensitive."""
-        # Should work
-        loss_fn = get_loss_function("mse")
-        assert isinstance(loss_fn, MSELoss)
-
-        # Should fail (case sensitive)
-        with pytest.raises(ValueError):
-            get_loss_function("MSE")
+    def test_names_fall_back_to_a_case_insensitive_match(self):
+        assert isinstance(get_loss_function("mse"), MSELoss)
+        assert isinstance(get_loss_function("MSE"), MSELoss)
+        with pytest.raises(ValueError, match="did you mean 'mse'"):
+            get_loss_function("msee")
 
     def test_loss_function_types(self):
         """Test that correct loss function types are returned."""
@@ -934,3 +951,49 @@ class TestLossFunctionIntegration:
 
             assert isinstance(loss, torch.Tensor)
             assert loss.dim() == 0  # Should always be scalar with mean reduction
+
+
+def test_ei_ratio_options_are_validated():
+    from dendritic_modeling.config.regularization import RegularizationConfig
+
+    with pytest.raises(ValueError, match="ei_ratio_scope"):
+        RegularizationConfig(ei_ratio_scope="pooled_everything")
+    with pytest.raises(ValueError, match="ei_ratio_metric"):
+        EIWeightRatioLoss(metric="max")
+
+
+def test_ei_ratio_loss_needs_a_layer_with_excitation_and_inhibition():
+    from dendritic_modeling.networks import DendriticBranchLayer
+
+    model = torch.nn.Sequential(
+        DendriticBranchLayer(
+            output_dim=2,
+            excitatory_input_dim=4,
+            excitatory_synapses_per_branch=2,
+            reactivate=False,
+        )
+    )
+    with pytest.raises(ValueError, match="no branch layer has both"):
+        EIWeightRatioLoss()(model, torch.zeros(1, 4))
+
+
+def test_ei_ratio_loss_value_is_the_dense_mean_ratio_deviation():
+    from dendritic_modeling.networks import DendriticBranchLayer
+
+    torch.manual_seed(0)
+    layer = DendriticBranchLayer(
+        output_dim=3,
+        excitatory_input_dim=6,
+        excitatory_synapses_per_branch=2,
+        inhibitory_input_dim=4,
+        inhibitory_synapses_per_branch=2,
+        reactivate=False,
+    )
+    model = torch.nn.Sequential(layer)
+    loss = EIWeightRatioLoss(target_ratio=0.5, loss_weight=2.0)(
+        model, torch.zeros(1, 6)
+    )
+    exc = layer.branch_excitation.pruned_weight().mean(dim=1)
+    inh = layer.branch_inhibition.pruned_weight().mean(dim=1)
+    expected = 2.0 * torch.mean((exc / (inh + 1e-8) - 0.5) ** 2)
+    torch.testing.assert_close(loss, expected)

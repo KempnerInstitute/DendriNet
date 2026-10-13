@@ -95,10 +95,6 @@ class LocalLearningPostFactorsMixin(LocalLearningHomeostasisMixin):
         additive_mode = getattr(
             self.local_cfg.three_factor, "additive_gain_mode", "none"
         )
-        if additive_mode == "learned_gain":
-            gain_params = self._ensure_additive_gain_params(v_n.size(1), v_n.device)
-            gain_n = torch.sigmoid(gain_params)
-            return e_v * gain_n.unsqueeze(0)
         if additive_mode == "input_dependent":
             pseudo_R, pseudo_drive = self._compute_additive_pseudo_signals(rec, v_n)
             return e_v * pseudo_R * pseudo_drive

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import logging
-
 import torch
 import torch.nn as nn
 
@@ -33,10 +31,12 @@ def compute_reactivation_derivative(
     react_module: nn.Module | None,
     v_n: torch.Tensor,
     v_out: torch.Tensor | None = None,
-    *,
-    logger: logging.Logger | None = None,
 ) -> torch.Tensor:
-    """Return the elementwise local slope d a / d V for a branch reactivation."""
+    """Return the elementwise local slope d a / d V for a branch reactivation.
+
+    Gates without a closed form are differentiated by autograd, also under
+    ``torch.inference_mode``.
+    """
 
     if react_module is None or isinstance(react_module, nn.Identity):
         return torch.ones_like(v_n)
@@ -66,26 +66,13 @@ def compute_reactivation_derivative(
     if isinstance(react_module, ParametricTanhOnlyM):
         return _parametric_tanh_derivative(react_module, v_n, v_out)
 
-    try:
-        with torch.enable_grad():
-            x = v_n.detach().clone().requires_grad_(True)
-            y = react_module(x)
-            grad = torch.autograd.grad(
-                y,
-                x,
-                grad_outputs=torch.ones_like(y),
-                retain_graph=False,
-                create_graph=False,
-                allow_unused=False,
-            )[0]
-        return grad.detach().to(device=v_n.device, dtype=v_n.dtype)
-    except Exception:
-        if logger is not None:
-            logger.warning(
-                "Falling back to unit reactivation derivative for module %s.",
-                react_module.__class__.__name__,
-            )
-        return torch.ones_like(v_n)
+    # Elementwise gates: the gradient of sum(a) is the slope at every entry.
+    # inference_mode(False) lets this run inside callers' inference mode.
+    with torch.inference_mode(False), torch.enable_grad():
+        x = v_n.detach().clone().requires_grad_(True)
+        y = react_module(x)
+        grad = torch.autograd.grad(y, x, grad_outputs=torch.ones_like(y))[0]
+    return grad.detach().to(device=v_n.device, dtype=v_n.dtype)
 
 
 __all__ = [

@@ -7,6 +7,11 @@ after model construction.  Data-driven training paths additionally write
 ``post_calibration_gate_stats.json`` after calibration, so the requested policy
 can be audited from the executed state rather than inferred from configuration.
 
+Each gate also records the initialization policy its dendritic layer applied
+(``init_policy``) and whether that policy calibrates the gate from data, so a
+run shows the resolved policy of every layer even where the configuration left
+it to a core-type default.
+
 This is intentionally lightweight: it does not depend on experiment-specific
 task logic, and it only inspects modules that already exist in the built model.
 The main goal is to catch suspicious gate states early, before a long training
@@ -23,6 +28,7 @@ from typing import Any
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.config.reactivation import is_data_driven_reactivation_policy
 from dendritic_modeling.utils.hooks import iter_named_modules_matching
 
 logger = logging.getLogger(__name__)
@@ -66,10 +72,23 @@ def _tensor_stats(values: torch.Tensor, tol: float = 1e-6) -> dict[str, Any]:
     }
 
 
+def _owner_init_policy(model: nn.Module, name: str) -> str | None:
+    """The gate initialization policy of the layer that owns ``name``."""
+    owner_name = name.rpartition(".")[0]
+    try:
+        owner = model.get_submodule(owner_name) if owner_name else model
+    except AttributeError:
+        return None
+    policy = getattr(owner, "reactivation_init_policy", None)
+    return None if policy is None else str(policy)
+
+
 def collect_reactivation_stats(model: nn.Module) -> dict[str, Any]:
     """Walk the model and collect (m, b) stats for every reactivation module.
 
-    Returns a dict keyed by module qualified name.
+    Returns a dict keyed by module qualified name. A gate of a dendritic layer
+    also records the layer's ``init_policy`` and whether that policy is
+    ``data_driven`` (calibrated on training inputs after the build).
     """
     stats: dict[str, Any] = {}
     for name, module in iter_named_modules_matching(
@@ -82,6 +101,10 @@ def collect_reactivation_stats(model: nn.Module) -> dict[str, Any]:
         if m_vals is None and b_vals is None:
             continue
         entry: dict[str, Any] = {"class": module.__class__.__name__}
+        policy = _owner_init_policy(model, name)
+        if policy is not None:
+            entry["init_policy"] = policy
+            entry["data_driven"] = is_data_driven_reactivation_policy(policy)
         if m_vals is not None:
             entry["m"] = _tensor_stats(m_vals)
         if b_vals is not None:
@@ -90,7 +113,9 @@ def collect_reactivation_stats(model: nn.Module) -> dict[str, Any]:
     return stats
 
 
-def _flag_suspicious(stats: dict[str, Any], m_clip_warn: float = 40.0) -> list[str]:
+def _flag_suspicious(
+    stats: dict[str, Any], calibration_max_m: float = 50.0, near_fraction: float = 0.8
+) -> list[str]:
     """Return a list of human-readable warnings about suspicious init patterns.
 
     Warnings are intentionally conservative. Identical values alone are not
@@ -112,6 +137,7 @@ def _flag_suspicious(stats: dict[str, Any], m_clip_warn: float = 40.0) -> list[s
 
         identical_m = m_n > 1 and m_unique == 1
         identical_b = b_n > 1 and b_unique == 1
+        m_clip_warn = near_fraction * calibration_max_m
         m_clipped = m_max >= m_clip_warn
         # Upper-edge (b >= 0.95) saturates regardless of m, because shunting
         # voltages are bounded in (0,1). Lower-edge (b <= 0.05) is only a
@@ -125,7 +151,7 @@ def _flag_suspicious(stats: dict[str, Any], m_clip_warn: float = 40.0) -> list[s
         if m_clipped:
             warnings.append(
                 f"{name}: m.max={m_max:.2f} is near or at the calibration "
-                f"clip ({m_clip_warn})"
+                f"slope limit (reactivation calibration_max_m={calibration_max_m:g})"
             )
 
         # Flag identical-value init only if combined with saturation or clip,
@@ -152,10 +178,15 @@ def dump_init_gate_stats(
     """
     stats = collect_reactivation_stats(model)
     warnings = _flag_suspicious(stats)
+    policies: dict[str, int] = {}
+    for entry in stats.values():
+        if "init_policy" in entry:
+            policies[entry["init_policy"]] = policies.get(entry["init_policy"], 0) + 1
     payload = {
         "reactivation_modules": stats,
         "warnings": warnings,
         "n_reactivation_modules": len(stats),
+        "init_policies": dict(sorted(policies.items())),
     }
 
     path = Path(run_dir) / name
