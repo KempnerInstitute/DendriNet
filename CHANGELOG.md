@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0 (unreleased)
+## 0.2.0 (2026-10-14)
 
 Changes since the ``pre-refactor`` tag (version 0.1.0), newest first.
 Configuration files carry ``config_version: 3``; ``dendritic-upgrade-config``
