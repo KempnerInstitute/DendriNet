@@ -124,7 +124,6 @@ def analyze_sweep(
 
 
 def main():
-    setup_logging()
     parser = argparse.ArgumentParser(description="Result Analyzer for Sweep Analysis")
     parser.add_argument(
         "results_dir", nargs="?", type=Path, help="Sweep results directory"
@@ -154,9 +153,7 @@ def main():
     )
 
     args = parser.parse_args()
-
-    if args.verbose:
-        logging.getLogger().setLevel(logging.DEBUG)
+    setup_logging(debug=args.verbose)
 
     if args.list_types:
         print("\nAvailable Sweep Types:", ", ".join(ANALYZER_REGISTRY.keys()))

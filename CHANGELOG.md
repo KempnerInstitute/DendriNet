@@ -972,6 +972,9 @@ Training rules:
   with ``python -m``/``torchrun``, and they reach the run's
   ``dendritic_modeling.log``. A run's ``train.log`` handler replaces the
   previous run's in the same process instead of accumulating.
+- ``dendritic-analyze --verbose`` prints debug messages. It lowered the level
+  of the root logger only, while the console handler that ``setup_logging``
+  installs stayed at INFO.
 - The information analysis ``"pid"`` component computes a partial information
   decomposition: the minimum-mutual-information measure on the configured
   estimator's ``I(S1;T)``, ``I(S2;T)`` and ``I(S1,S2;T)``, reporting

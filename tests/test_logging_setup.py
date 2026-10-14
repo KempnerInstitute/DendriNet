@@ -9,6 +9,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 SRC = Path(__file__).resolve().parents[1] / "src"
 
 
@@ -98,3 +100,28 @@ def test_a_program_module_logs_through_the_configured_handlers(tmp_path):
     assert completed.stdout.count("package record") == 1
     run_log = (tmp_path / "run" / "dendritic_modeling.log").read_text()
     assert "program record" in run_log and "package record" in run_log
+
+
+@pytest.mark.parametrize("verbose", [False, True])
+def test_the_result_analyzer_prints_debug_records_only_when_verbose(tmp_path, verbose):
+    flags = ["--list-types", *(["--verbose"] if verbose else [])]
+    probe = (
+        "import logging, sys\n"
+        "from dendritic_modeling.scripts.sweeps import result_analyzer\n"
+        f"sys.argv = ['dendritic-analyze', *{flags!r}]\n"
+        "result_analyzer.main()\n"
+        "logging.getLogger('dendritic_modeling.probe').debug('debug record')\n"
+        "logging.getLogger('dendritic_modeling.probe').info('info record')\n"
+    )
+    env = {**os.environ, "PYTHONPATH": str(SRC), "MPLBACKEND": "Agg"}
+    env.pop("DENDRITIC_LOG_DIR", None)
+    completed = subprocess.run(
+        [sys.executable, "-c", probe],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert "info record" in completed.stdout
+    assert ("debug record" in completed.stdout) is verbose
