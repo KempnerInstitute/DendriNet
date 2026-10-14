@@ -32,6 +32,9 @@ PYTHONPATH=$PWD/src python tests/golden_cases.py --write --reason "<why>"
 ```
 
 which records the reason, commit and numerical stack in the fixture history.
+The cases run in a child process with fixed MKL, oneDNN and PyTorch CPU code
+paths (`PINNED_NUMERICS` in `golden_cases.py`), so the recorded bytes hold on
+every x86 CPU, with or without AVX-512.
 
 ## Warnings
 

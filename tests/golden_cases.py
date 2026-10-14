@@ -10,6 +10,11 @@ file's history. A case is built at library defaults apart from its sizes, in
 float32 on one CPU thread with fixed seeds, in evaluation mode. Its record holds
 a SHA-256 of every state tensor (names, dtypes, shapes and bytes), the outputs
 for a fixed input and the gradient of their sum with respect to that input.
+
+The cases run in a child process whose numerical libraries take fixed code
+paths (:data:`PINNED_NUMERICS`), so the recorded bytes hold on every x86 CPU.
+Otherwise MKL's AVX-512 kernels round a few initial weights differently from
+the AVX2 kernels of CPUs without AVX-512, such as the pull-request runners.
 """
 
 from __future__ import annotations
@@ -17,6 +22,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import platform
 import subprocess
 import sys
@@ -30,6 +36,16 @@ import torch
 import yaml
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "default_path_goldens.json"
+#: Fixed code paths of the child process that runs the cases: Intel MKL in its
+#: conditional numerical reproducibility mode, oneDNN and PyTorch's own CPU
+#: kernels limited to AVX2, one thread.
+PINNED_NUMERICS = {
+    "MKL_CBWR": "COMPATIBLE",
+    "MKL_NUM_THREADS": "1",
+    "OMP_NUM_THREADS": "1",
+    "ATEN_CPU_CAPABILITY": "avx2",
+    "ONEDNN_MAX_CPU_ISA": "AVX2",
+}
 SEED = 9461
 INPUT_SEED = 17
 INPUT_DIM = 8
@@ -473,6 +489,22 @@ def run_case(name: str) -> dict:
         torch.set_num_threads(threads)
 
 
+def pinned_records(names: list[str] | None = None) -> dict[str, dict]:
+    """Records of ``names`` (all cases by default), run with :data:`PINNED_NUMERICS`."""
+    command = [sys.executable, str(Path(__file__).resolve()), "--records"]
+    result = subprocess.run(
+        [*command, *(names or [])],
+        capture_output=True,
+        text=True,
+        env={**os.environ, **PINNED_NUMERICS},
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"golden cases failed in the child process:\n{result.stderr}"
+        )
+    return json.loads(result.stdout)
+
+
 def _environment() -> dict:
     import dendritic_modeling
 
@@ -488,6 +520,7 @@ def _environment() -> dict:
         "python": platform.python_version(),
         "torch": torch.__version__,
         "numpy": np.__version__,
+        "pinned_numerics": PINNED_NUMERICS,
     }
 
 
@@ -496,8 +529,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--write", action="store_true", help="Rewrite the fixture")
     parser.add_argument("--reason", help="Why the goldens change (required to write)")
     parser.add_argument("--output", type=Path, help="Write the records here instead")
+    parser.add_argument(
+        "--records",
+        nargs="*",
+        metavar="CASE",
+        help="Print the records of these cases (all by default) from this process; "
+        "the other modes run them in a child process with PINNED_NUMERICS",
+    )
     args = parser.parse_args(argv)
-    records = {name: run_case(name) for name in CASES}
+    if args.records is not None:
+        print(json.dumps({name: run_case(name) for name in args.records or CASES}))
+        return 0
+    records = pinned_records()
     environment = _environment()
     if args.output is not None:
         args.output.write_text(

@@ -11,6 +11,11 @@ runs.
 
 Repository housekeeping:
 
+- The default-path goldens run their cases in a child process with fixed MKL,
+  oneDNN and PyTorch CPU code paths, so they hold on CPUs without AVX-512 such
+  as the pull-request runners; re-recorded, they change the initial-state
+  digest of one case by one rounding step in one 2x2 tensor. Tests that start
+  their own worker processes run one at a time in a separate CI step.
 - The configuration-options reference renders parameterized field types (for
   example ``list[int]`` and ``dict[str, Any]``) identically on every Python
   version, so its check passes on the Python 3.11 of the pull-request checks

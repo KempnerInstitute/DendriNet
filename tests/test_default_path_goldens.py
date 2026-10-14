@@ -12,7 +12,7 @@ import json
 
 import numpy as np
 import pytest
-from golden_cases import CASES, FIXTURE, run_case
+from golden_cases import CASES, FIXTURE, pinned_records
 
 GOLDENS = json.loads(FIXTURE.read_text())
 
@@ -22,9 +22,15 @@ def test_every_case_has_a_golden_and_a_recorded_reason():
     assert all(entry["reason"].strip() for entry in GOLDENS["history"])
 
 
+@pytest.fixture(scope="module")
+def records():
+    """Every case, run once in a child process with fixed numerical code paths."""
+    return pinned_records()
+
+
 @pytest.mark.parametrize("name", sorted(CASES))
-def test_case_matches_its_golden(name):
-    record, golden = run_case(name), GOLDENS["cases"][name]
+def test_case_matches_its_golden(name, records):
+    record, golden = records[name], GOLDENS["cases"][name]
     assert record["parameter_count"] == golden["parameter_count"]
     np.testing.assert_allclose(record["output"], golden["output"], atol=1e-6, rtol=1e-5)
     np.testing.assert_allclose(
