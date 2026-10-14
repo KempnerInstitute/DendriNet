@@ -4,6 +4,7 @@ Shared pytest fixtures for dendritic modeling tests.
 This module contains common fixtures used across multiple test files.
 """
 
+import logging
 import os
 from pathlib import Path
 
@@ -47,6 +48,23 @@ def _hermetic_site_settings(monkeypatch, tmp_path_factory):
     monkeypatch.setenv(
         "DENDRITIC_DATA_DIR", str(tmp_path_factory.getbasetemp() / "data_root")
     )
+
+
+@pytest.fixture(autouse=True)
+def _restore_program_logging():
+    """Remove the logging handlers a test added to the package and ``__main__``
+    loggers. A program run in-process calls ``setup_logging``, whose console
+    handler writes to the test's captured stdout; once that stream closes, a
+    later test's log records fail with a logging error on stderr."""
+    loggers = [logging.getLogger("dendritic_modeling"), logging.getLogger("__main__")]
+    saved = [(logger, list(logger.handlers), logger.level) for logger in loggers]
+    yield
+    for logger, handlers, level in saved:
+        for handler in list(logger.handlers):
+            if handler not in handlers:
+                logger.removeHandler(handler)
+                handler.close()
+        logger.setLevel(level)
 
 
 @pytest.fixture

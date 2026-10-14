@@ -16,6 +16,10 @@ Repository housekeeping:
   as the pull-request runners; re-recorded, they change the initial-state
   digest of one case by one rounding step in one 2x2 tensor. Tests that start
   their own worker processes run one at a time in a separate CI step.
+- Tests remove the logging handlers they add. A program run in-process
+  attaches its console handler to the test's captured stdout, and once that
+  stream closed, log records of later tests in the same worker failed with a
+  logging error on stderr, depending on which tests shared the worker.
 - The configuration-options reference renders parameterized field types (for
   example ``list[int]`` and ``dict[str, Any]``) identically on every Python
   version, so its check passes on the Python 3.11 of the pull-request checks
