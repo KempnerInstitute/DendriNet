@@ -11,6 +11,10 @@ runs.
 
 Repository housekeeping:
 
+- The configuration-options reference renders parameterized field types (for
+  example ``list[int]`` and ``dict[str, Any]``) identically on every Python
+  version, so its check passes on the Python 3.11 of the pull-request checks
+  as on 3.10.
 - Installation instructions select ``develop`` explicitly. The example guide
   distinguishes complete experiment configurations from section templates,
   and documents the contact-policy and gate-initialization differences between

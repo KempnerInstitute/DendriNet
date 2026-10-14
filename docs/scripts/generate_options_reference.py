@@ -117,7 +117,10 @@ def label(path: str) -> str:
 
 
 def type_name(annotation) -> str:
-    if isinstance(annotation, type):
+    # Python 3.10 reports parameterized generics such as list[int] as instances
+    # of type; only an unparameterized class is named by its __name__, so every
+    # Python version renders list[int] and dict[str, Any] the same way.
+    if isinstance(annotation, type) and not typing.get_args(annotation):
         return annotation.__name__
     text = str(annotation).replace("typing.", "")
     while "dendritic_modeling." in text:

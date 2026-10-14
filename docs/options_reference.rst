@@ -56,7 +56,7 @@ Explained in :doc:`configuration_guide`. Class ``dendritic_modeling.config.confi
      - ``DistributedConfig``
      - :ref:`distributed <options-distributed>`
    * - ``metadata``
-     - ``dict``
+     - ``dict[str, Any]``
      - ``{}``
 
 .. _options-experiment:
@@ -158,7 +158,7 @@ Explained in :doc:`datasets`. Class ``dendritic_modeling.config.config.DataConfi
      - ``DataProcessingConfig``
      - :ref:`data.processing <options-data-processing>`
    * - ``dataset_params``
-     - ``dict``
+     - ``dict[str, dict[str, Any]]``
      - ``{}``
 
 .. _options-model:
@@ -527,37 +527,37 @@ Explained in :ref:`core-types`. Class ``dendritic_modeling.config.model.CoreConf
      - ``SpatialConfig``
      - :ref:`model.core.spatial <options-model-core-spatial>`
    * - ``synapse_types``
-     - ``dict``
+     - ``dict[str, Any]``
      - ``{}``
    * - ``dynamics``
-     - ``dict``
+     - ``dict[str, Any]``
      - ``{}``
    * - ``dendritic_spikes``
-     - ``dict``
+     - ``dict[str, Any]``
      - ``{}``
    * - ``soma_feedback``
-     - ``dict``
+     - ``dict[str, Any]``
      - ``{}``
    * - ``unified_ei``
-     - ``dict``
+     - ``dict[str, Any]``
      - ``{}``
    * - ``recurrent_ei``
-     - ``dict``
+     - ``dict[str, Any]``
      - ``{}``
    * - ``baseline_rnn``
-     - ``dict``
+     - ``dict[str, Any]``
      - ``{}``
    * - ``heterogeneous_leak_ctrnn``
-     - ``dict``
+     - ``dict[str, Any]``
      - ``{}``
    * - ``legendre_memory``
-     - ``dict``
+     - ``dict[str, Any]``
      - ``{}``
    * - ``population_network``
-     - ``dict``
+     - ``dict[str, Any]``
      - ``{}``
    * - ``vision``
-     - ``dict``
+     - ``dict[str, Any]``
      - ``{}``
 
 .. _options-model-decoder:
@@ -707,10 +707,10 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
      - ``PerformanceAnalysisParams``
      - :ref:`analysis.performance.params <options-analysis-performance-params>`
    * - ``training_splits``
-     - ``list``
+     - ``list[str]``
      - ``[train, validation, test]``
    * - ``final_splits``
-     - ``list``
+     - ``list[str]``
      - ``[train, validation, test]``
 
 .. _options-analysis-synapse-turnover:
@@ -1517,10 +1517,10 @@ Explained in :ref:`encoder-decoder-types`. Class ``dendritic_modeling.config.mod
      - ``Optional[int]``
      - ``null``
    * - ``input_shape``
-     - ``list``
+     - ``list[int]``
      - ``[3, 32, 32]``
    * - ``encoder_hidden_dims``
-     - ``list``
+     - ``list[int]``
      - ``[128, 64]``
    * - ``latent_dim``
      - ``Optional[int]``
@@ -1529,7 +1529,7 @@ Explained in :ref:`encoder-decoder-types`. Class ``dendritic_modeling.config.mod
      - ``Optional[list[int]]``
      - ``null``
    * - ``decoder_hidden_dims``
-     - ``list``
+     - ``list[int]``
      - ``[64, 128]``
    * - ``activation``
      - ``str``
@@ -1538,10 +1538,10 @@ Explained in :ref:`encoder-decoder-types`. Class ``dendritic_modeling.config.mod
      - ``str``
      - ``fixed``
    * - ``pathway_groups``
-     - ``list``
+     - ``list[list[int]]``
      - ``[]``
    * - ``shared_indices``
-     - ``list``
+     - ``list[int]``
      - ``[]``
    * - ``n_pathways``
      - ``int``
@@ -1550,7 +1550,7 @@ Explained in :ref:`encoder-decoder-types`. Class ``dendritic_modeling.config.mod
      - ``Optional[int]``
      - ``null``
    * - ``pathway_dims``
-     - ``list``
+     - ``list[int]``
      - ``[]``
    * - ``router_activation``
      - ``str``
@@ -1577,7 +1577,7 @@ Explained in :ref:`baseline-models`. Class ``dendritic_modeling.config.affine_ml
      - Type
      - Default
    * - ``dimensions``
-     - ``list``
+     - ``list[int]``
      - ``[]``
    * - ``mode``
      - ``str``
@@ -1586,10 +1586,10 @@ Explained in :ref:`baseline-models`. Class ``dendritic_modeling.config.affine_ml
      - ``str``
      - ``kaiming_normal``
    * - ``fanin``
-     - ``list``
+     - ``list[int]``
      - ``[]``
    * - ``connectivity_seeds``
-     - ``list``
+     - ``list[int]``
      - ``[]``
    * - ``activation``
      - ``str``
@@ -1631,19 +1631,19 @@ Explained in :doc:`structured_ei_cores`. Class ``dendritic_modeling.config.model
      - Type
      - Default
    * - ``excitatory_layer_sizes``
-     - ``list``
+     - ``list[int]``
      - ``[20]``
    * - ``inhibitory_layer_sizes``
-     - ``list``
+     - ``list[int]``
      - ``[]``
    * - ``excitatory_branch_factors``
-     - ``list``
+     - ``list[int]``
      - ``[3, 3, 3, 3]``
    * - ``inhibitory_branch_factors``
-     - ``list``
+     - ``list[int]``
      - ``[1]``
    * - ``input_projection_dims``
-     - ``list``
+     - ``list[int]``
      - ``[]``
    * - ``inhibitory_network_type``
      - ``str``
@@ -1673,28 +1673,28 @@ Explained in :doc:`structured_ei_cores`. Class ``dendritic_modeling.config.model
      - Type
      - Default
    * - ``ee_synapses_per_branch_per_layer``
-     - ``list``
+     - ``list[int]``
      - ``[40]``
    * - ``ei_synapses_per_branch_per_layer``
-     - ``list``
+     - ``list[int]``
      - ``[0]``
    * - ``ie_synapses_per_branch_per_layer``
-     - ``list``
+     - ``list[int]``
      - ``[10]``
    * - ``ii_synapses_per_branch_per_layer``
-     - ``list``
+     - ``list[int]``
      - ``[0]``
    * - ``rec_ee_synapses_per_branch``
-     - ``list``
+     - ``list[int]``
      - ``[0]``
    * - ``rec_ie_synapses_per_branch``
-     - ``list``
+     - ``list[int]``
      - ``[0]``
    * - ``rec_ei_synapses_per_branch``
-     - ``list``
+     - ``list[int]``
      - ``[0]``
    * - ``rec_ii_synapses_per_branch``
-     - ``list``
+     - ``list[int]``
      - ``[0]``
    * - ``structured``
      - ``StructuredConnectivityConfig``
@@ -1778,13 +1778,13 @@ Explained in :doc:`dendritic_neurons`. Class ``dendritic_modeling.config.model.M
      - ``Optional[float]``
      - ``null``
    * - ``additive_options``
-     - ``dict``
+     - ``dict[str, Any]``
      - ``{}``
    * - ``additive_tangent_n0_by_depth``
-     - ``list``
+     - ``list[float]``
      - ``[]``
    * - ``additive_tangent_t0_by_depth``
-     - ``list``
+     - ``list[float]``
      - ``[]``
    * - ``allow_self_recurrence``
      - ``bool``
@@ -2168,7 +2168,7 @@ Explained in :ref:`encoder-decoder-types`. Class ``dendritic_modeling.config.mod
      - ``int``
      - ``20``
    * - ``hidden_dims``
-     - ``list``
+     - ``list[int]``
      - ``[16]``
    * - ``activation``
      - ``str``
@@ -2312,7 +2312,7 @@ Explained in :doc:`training_strategies`. Class ``dendritic_modeling.config.train
      - ``ParamGroupsConfig``
      - :ref:`training.main.common.param_groups <options-training-main-common-param-groups>`
    * - ``impact_rewiring``
-     - ``dict``
+     - ``dict[str, Any]``
      - ``{}``
 
 .. _options-training-main-optimizer:
@@ -2399,7 +2399,7 @@ Explained in :ref:`regularization-pruning`. Class ``dendritic_modeling.config.re
      - ``bool``
      - ``false``
    * - ``param_group_weights``
-     - ``dict``
+     - ``dict[str, dict[str, float]]``
      - mapping; keys below
    * - ``param_group_weights.topk``
      - ``dict``
@@ -2825,13 +2825,13 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
      - ``bool``
      - ``true``
    * - ``uniform_magnitudes``
-     - ``list``
+     - ``list[float]``
      - ``[0.1, 0.2]``
    * - ``gaussian_noise``
      - ``bool``
      - ``true``
    * - ``gaussian_sdevs``
-     - ``list``
+     - ``list[float]``
      - ``[0.1, 0.2]``
    * - ``n_samples``
      - ``int``
@@ -2933,16 +2933,16 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
      - Type
      - Default
    * - ``targets``
-     - ``list``
+     - ``list[str]``
      - ``[excitation_current, inhibition_current, joint_EI_currents]``
    * - ``methods``
-     - ``list``
+     - ``list[str]``
      - ``[zero, fixed_train_mean, global_test_shuffle]``
    * - ``depths``
-     - ``list``
+     - ``list[int]``
      - ``[]``
    * - ``paths_per_soma``
-     - ``list``
+     - ``list[int]``
      - ``[]``
    * - ``support_draws``
      - ``int``
@@ -2963,7 +2963,7 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
      - ``Optional[int]``
      - ``null``
    * - ``expected_branch_factors``
-     - ``list``
+     - ``list[int]``
      - ``[]``
    * - ``chance_accuracy``
      - ``Optional[float]``
@@ -2987,7 +2987,7 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
      - Type
      - Default
    * - ``depths``
-     - ``list``
+     - ``list[int]``
      - ``[]``
    * - ``module_name_prefix``
      - ``Optional[str]``
@@ -2996,7 +2996,7 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
      - ``Optional[int]``
      - ``null``
    * - ``expected_branch_factors``
-     - ``list``
+     - ``list[int]``
      - ``[]``
    * - ``max_samples``
      - ``Optional[int]``
@@ -3020,7 +3020,7 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
      - Type
      - Default
    * - ``methods``
-     - ``list``
+     - ``list[str]``
      - ``[global_test_shuffle, within_class_test_shuffle, zero]``
    * - ``permutation_draws``
      - ``int``
@@ -3053,10 +3053,10 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
      - Type
      - Default
    * - ``signals``
-     - ``list``
+     - ``list[str]``
      - ``[excitation_current, inhibition_current, joint_EI_current...``
    * - ``depths``
-     - ``list``
+     - ``list[int]``
      - ``[]``
    * - ``support_draws``
      - ``int``
@@ -3083,7 +3083,7 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
      - ``Optional[int]``
      - ``null``
    * - ``expected_branch_factors``
-     - ``list``
+     - ``list[int]``
      - ``[]``
    * - ``max_samples``
      - ``Optional[int]``
@@ -3155,16 +3155,16 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
      - ``bool``
      - ``false``
    * - ``source_support_target_polarities``
-     - ``list``
+     - ``list[str]``
      - ``[excitatory]``
    * - ``source_support_pathways``
-     - ``list``
+     - ``list[str]``
      - ``[ff_excitatory, ff_inhibitory]``
    * - ``source_support_image_shape``
      - ``Optional[tuple[int, int]]``
      - ``null``
    * - ``source_support_plot_soma_indices``
-     - ``list``
+     - ``list[int]``
      - ``[]``
    * - ``source_support_fig_save_format``
      - ``str``
@@ -3173,16 +3173,16 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
      - ``bool``
      - ``false``
    * - ``source_region_soma_to_class``
-     - ``list``
+     - ``list[int]``
      - ``[]``
    * - ``source_region_reference_split``
      - ``str``
      - ``validation``
    * - ``source_region_image_network_layers``
-     - ``list``
+     - ``list[int]``
      - ``[0]``
    * - ``source_region_foreground_thresholds``
-     - ``list``
+     - ``list[float]``
      - ``[0.0, 0.5]``
    * - ``source_region_center_bounds``
      - ``Optional[tuple[int, int, int, int]]``
@@ -3371,10 +3371,10 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
      - Type
      - Default
    * - ``gain_log_sds``
-     - ``list``
+     - ``list[float]``
      - ``[0.0, 0.2, 0.5, 0.8]``
    * - ``load_levels``
-     - ``list``
+     - ``list[float]``
      - ``[0.0, 0.1, 0.3, 0.5]``
    * - ``load_mode``
      - ``str``
@@ -3425,7 +3425,7 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
      - ``Optional[int]``
      - ``null``
    * - ``branch_sensitivity_draws``
-     - ``list``
+     - ``list[int]``
      - ``[0]``
 
 .. _options-analysis-synaptic-activation-params:
@@ -3638,7 +3638,7 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
      - ``bool``
      - ``true``
    * - ``components``
-     - ``list``
+     - ``list[str]``
      - ``[]``
    * - ``compute_ablation_aligned_mi``
      - ``bool``
@@ -3653,10 +3653,10 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
      - ``int``
      - ``10``
    * - ``scopes``
-     - ``list``
+     - ``list[str]``
      - ``[]``
    * - ``views``
-     - ``list``
+     - ``list[str]``
      - ``[]``
    * - ``pid_binarize``
      - ``bool``
@@ -3695,7 +3695,7 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
      - ``bool``
      - ``false``
    * - ``signal_variants``
-     - ``list``
+     - ``list[str]``
      - ``[]``
    * - ``lda_n_shuffles``
      - ``int``
@@ -3716,13 +3716,13 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
      - Type
      - Default
    * - ``representations``
-     - ``list``
+     - ``list[str]``
      - ``[excitatory, inhibitory, joint]``
    * - ``projections``
-     - ``list``
+     - ``list[RepresentationProjectionConfig]``
      - :ref:`analysis.representation_accessibility.params.projections <options-analysis-representation-accessibility-params-projections>`
    * - ``probes``
-     - ``list``
+     - ``list[RepresentationProbeConfig]``
      - :ref:`analysis.representation_accessibility.params.probes <options-analysis-representation-accessibility-params-probes>`
    * - ``information``
      - ``RepresentationInformationConfig``
@@ -3755,19 +3755,19 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
      - Type
      - Default
    * - ``pathways``
-     - ``list``
+     - ``list[str]``
      - ``[ff_excitatory, ff_inhibitory]``
    * - ``target_polarities``
-     - ``list``
+     - ``list[str]``
      - ``[excitatory, inhibitory]``
    * - ``image_shape``
      - ``Optional[tuple[int, ...]]``
      - ``null``
    * - ``image_source_layers``
-     - ``list``
+     - ``list[int]``
      - ``[]``
    * - ``image_source_names``
-     - ``list``
+     - ``list[str]``
      - ``[input, input_e, input_i]``
    * - ``image_binarization_threshold``
      - ``float``
@@ -3821,13 +3821,13 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
      - ``Optional[tuple[int, ...]]``
      - ``null``
    * - ``regions``
-     - ``list``
+     - ``list[InputImageRegionConfig]``
      - :ref:`analysis.input_region_intervention.params.regions <options-analysis-input-region-intervention-params-regions>`
    * - ``operations``
-     - ``list``
+     - ``list[str]``
      - ``[remove_only, retain_only]``
    * - ``replacement_methods``
-     - ``list``
+     - ``list[str]``
      - ``[zero, reference_mean]``
    * - ``reference_split``
      - ``str``
@@ -3842,7 +3842,7 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
      - ``Optional[int]``
      - ``null``
    * - ``target_population_polarities``
-     - ``list``
+     - ``list[str]``
      - ``[excitatory]``
    * - ``identity_soma_class_mapping``
      - ``Optional[list[int]]``
@@ -3890,16 +3890,16 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
      - ``bool``
      - ``false``
    * - ``activation_sample_signals``
-     - ``list``
+     - ``list[str]``
      - ``[]``
    * - ``activation_sample_depths``
-     - ``list``
+     - ``list[int]``
      - ``[]``
    * - ``activation_sample_branch_indices``
-     - ``list``
+     - ``list[int]``
      - ``[]``
    * - ``activation_sample_branch_indices_by_depth``
-     - ``dict``
+     - ``dict[int, list[int]]``
      - ``{}``
    * - ``activation_samples_per_class``
      - ``int``
@@ -3983,13 +3983,13 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
      - ``str``
      - ``layer_branch``
    * - ``components``
-     - ``list``
+     - ``list[str]``
      - ``[]``
    * - ``pairs``
-     - ``list``
+     - ``list[str]``
      - ``[]``
    * - ``scopes``
-     - ``list``
+     - ``list[str]``
      - ``[]``
    * - ``compute_noise_correlations``
      - ``bool``
@@ -4037,7 +4037,7 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
      - ``str``
      - ``stratified``
    * - ``stratified_categories``
-     - ``list``
+     - ``list[str]``
      - ``[within_branch, within_layer]``
    * - ``max_pairs_per_category``
      - ``int``
@@ -4181,7 +4181,7 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
      - Type
      - Default
    * - ``epsilons``
-     - ``list``
+     - ``list[float]``
      - ``[0.0, 0.05, 0.1, 0.15, 0.2, 0.3]``
    * - ``batch_size``
      - ``int``
@@ -4223,10 +4223,10 @@ Explained in :ref:`structured-connectivity`. Class ``dendritic_modeling.config.m
      - ``float``
      - ``1.0``
    * - ``spatial``
-     - ``dict``
+     - ``dict[str, Any]``
      - ``{}``
    * - ``pathways``
-     - ``dict``
+     - ``dict[str, Any]``
      - ``{}``
 
 .. _options-training-main-common-param-groups:
@@ -4283,13 +4283,13 @@ Explained in :ref:`regularization-pruning`. Class ``dendritic_modeling.config.re
      - Type
      - Default
    * - ``layers``
-     - ``list``
+     - ``list[int]``
      - ``[]``
    * - ``branches``
-     - ``list``
+     - ``list[str]``
      - ``[]``
    * - ``weight_types``
-     - ``list``
+     - ``list[str]``
      - ``[all]``
 
 .. _options-training-main-pruning-selective:
@@ -4307,13 +4307,13 @@ Explained in :ref:`regularization-pruning`. Class ``dendritic_modeling.config.re
      - Type
      - Default
    * - ``layers``
-     - ``list``
+     - ``list[int]``
      - ``[]``
    * - ``branches``
-     - ``list``
+     - ``list[str]``
      - ``[]``
    * - ``weight_types``
-     - ``list``
+     - ``list[str]``
      - ``[all]``
 
 .. _options-training-main-strategies-standard:
@@ -4349,7 +4349,7 @@ Explained in :ref:`multi-stage-training`. Class ``dendritic_modeling.config.mult
      - ``bool``
      - ``false``
    * - ``stages``
-     - ``list``
+     - ``list[TrainingStageConfig]``
      - :ref:`training.main.strategies.multi_stage.stages <options-training-main-strategies-multi-stage-stages>`
 
 .. _options-training-main-strategies-recurrent:
@@ -4835,7 +4835,7 @@ Explained in :ref:`local-credit-assignment`. Class ``dendritic_modeling.config.t
      - ``bool``
      - ``false``
    * - ``apply_to``
-     - ``list``
+     - ``list[str]``
      - ``[exc, rec_exc]``
    * - ``activity_mode``
      - ``str``
@@ -4985,13 +4985,13 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
      - Type
      - Default
    * - ``levels``
-     - ``list``
+     - ``list[str]``
      - ``[]``
    * - ``targets``
-     - ``list``
+     - ``list[str]``
      - ``[]``
    * - ``metrics``
-     - ``list``
+     - ``list[str]``
      - ``[]``
 
 .. _options-analysis-ablation-params-methods:
@@ -5009,7 +5009,7 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
      - Type
      - Default
    * - ``ablation_methods``
-     - ``list``
+     - ``list[str]``
      - ``[lesion]``
    * - ``shuffle_seed``
      - ``Optional[int]``
@@ -5033,16 +5033,16 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
      - Type
      - Default
    * - ``components``
-     - ``list``
+     - ``list[str]``
      - ``[]``
    * - ``scopes``
-     - ``list``
+     - ``list[str]``
      - ``[]``
    * - ``signal_variants``
-     - ``list``
+     - ``list[str]``
      - ``[]``
    * - ``views``
-     - ``list``
+     - ``list[str]``
      - ``[]``
 
 .. _options-analysis-information-params-compute:
@@ -5252,7 +5252,7 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
      - ``float``
      - ``1.0``
    * - ``hidden_dims``
-     - ``list``
+     - ``list[int]``
      - ``[32, 16]``
    * - ``activation``
      - ``str``
@@ -5303,10 +5303,10 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
      - ``bool``
      - ``false``
    * - ``projection_names``
-     - ``list``
+     - ``list[str]``
      - ``[matched16]``
    * - ``per_soma_representations``
-     - ``list``
+     - ``list[str]``
      - ``[excitatory, inhibitory]``
    * - ``n_neighbors``
      - ``int``
@@ -5336,10 +5336,10 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
      - ``bool``
      - ``false``
    * - ``representations``
-     - ``list``
+     - ``list[str]``
      - ``[excitatory]``
    * - ``subset_sizes``
-     - ``list``
+     - ``list[int]``
      - ``[1, 2, 4, 8, 16, 32, 64]``
    * - ``draws``
      - ``int``
@@ -5366,7 +5366,7 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
      - ``bool``
      - ``false``
    * - ``representations``
-     - ``list``
+     - ``list[str]``
      - ``[excitatory]``
    * - ``variance_epsilon``
      - ``float``
@@ -5414,13 +5414,13 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
      - Type
      - Default
    * - ``components``
-     - ``list``
+     - ``list[str]``
      - ``[]``
    * - ``pairs``
-     - ``list``
+     - ``list[str]``
      - ``[]``
    * - ``scopes``
-     - ``list``
+     - ``list[str]``
      - ``[]``
 
 .. _options-analysis-correlation-params-compute:
@@ -5474,7 +5474,7 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
      - ``str``
      - ``stratified``
    * - ``stratified_categories``
-     - ``list``
+     - ``list[str]``
      - ``[within_branch, within_layer]``
    * - ``max_pairs_per_category``
      - ``int``
@@ -5504,7 +5504,7 @@ Explained in :ref:`multi-stage-training`. Class ``dendritic_modeling.config.mult
      - ``Optional[int]``
      - ``null``
    * - ``trainer_config``
-     - ``dict``
+     - ``dict[str, Any]``
      - ``{}``
    * - ``batch_size``
      - ``Optional[int]``
@@ -5708,7 +5708,7 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
      - ``Optional[int]``
      - ``null``
    * - ``components``
-     - ``list``
+     - ``list[str]``
      - ``[basic]``
 
 .. _options-analysis-representation-accessibility-params-subset-decoding-probe:
@@ -5744,7 +5744,7 @@ Explained in :ref:`analyzer-catalogue`. Class ``dendritic_modeling.config.analys
      - ``float``
      - ``1.0``
    * - ``hidden_dims``
-     - ``list``
+     - ``list[int]``
      - ``[32, 16]``
    * - ``activation``
      - ``str``
