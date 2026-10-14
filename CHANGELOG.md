@@ -317,10 +317,20 @@ Public names removed compared with ``develop`` of 2026-07-21 (4102bf536), and
 what replaces them:
 
 - Transformer and vision replacement training is not part of this library:
-  ``run_transformer_replacement_training``,
+  the modules ``training.transformer_replacement``,
+  ``training.vision_replacement``, ``training.replacement_common`` and
+  ``training._transformer_replacement`` with everything they exported, among
+  them ``run_transformer_replacement_training``,
   ``run_vision_replacement_training``,
-  ``benchmark_saved_transformer_replacement`` and their result classes;
-  ``TokenReplacementCell``, ``LayerwiseTokenReplacementStack``,
+  ``benchmark_saved_transformer_replacement`` and their result classes; the
+  commands ``dendritic-train-transformer-replacement``,
+  ``dendritic-benchmark-transformer-replacement``,
+  ``dendritic-benchmark-transformer-operator``,
+  ``dendritic-assemble-transformer-replacements``,
+  ``dendritic-compact-transformer-checkpoint`` and
+  ``dendritic-profile-transformer-scaling`` (``dendritic-compact-checkpoint``
+  exports DendriNet models); ``TokenReplacementCell``,
+  ``LayerwiseTokenReplacementStack``,
   ``make_linear_output_projection``, ``GatedDendriticFFNReplacement`` and
   ``estimate_gated_dendritic_ffn_params``; the language-model sizing helpers
   of ``networks.architectures.transformer`` (``TransformerParameterSpec``,
@@ -351,6 +361,31 @@ what replaces them:
   encoders train in the main phase, and ``training.encoder_pretraining``
   pretrains autoencoder encoders); ``DatasetParamsConfig``
   (``data.dataset_params`` holds plain per-dataset mappings); ``WandbConfig``.
+- ``ShuntingFeedbackAlignmentTrainer`` and
+  ``training.factory.SHUNTING_FEEDBACK_ALIGNMENT_MODES``:
+  ``FeedbackAlignmentTrainer`` replaces the class, and the strategies
+  ``shunting_fa`` and ``shunting_dfa`` load as ``fa`` and ``dfa`` with a
+  warning (``DEPRECATED_STRATEGY_ALIASES``). FA and DFA compute each block's
+  exact local gradient, which in shunting branch layers includes each
+  pathway's conductance and driving force, the terms the class approximated
+  by scaling the feedback with ``R_tot * (e_rev_exc - V)``. Its ``e_rev_exc``
+  argument has no counterpart: the gradient uses the model's own reversal
+  potentials.
+- ``check_pid_available`` and ``pid_synergy_redundancy``
+  (``utils.information``): they imported ``PID`` from ``external``, which
+  never provided it (the former ``external/`` directory held only
+  ``BROJA_2PID``), so both always raised ``ImportError``.
+  ``partial_information_decomposition`` (two sources, a target and a
+  mutual-information estimator) and ``mmi_pid`` (from three mutual
+  informations) compute the decomposition.
+- Code that no part of the library ran: ``config.training.ReportingConfig``
+  (no configuration built it; ``PruningConfig`` holds the same pruning-report
+  settings); ``analysis.tools.integrate_pruning_with_turnover_analysis``, the
+  former pruning integration that never ran (the ``synapse_pruning``
+  analyzer replaces it); ``training.fsdp_utils.create_fsdp_wrap_policy``
+  (the FSDP setting ``auto_wrap_policy``, ``size`` or ``indexed_synapses``,
+  selects the wrapping); and the ``safe_hook`` decorator of the dendritic
+  gradient scaler.
 - The analysis scripts ``rec_inhibition_impact.py``,
   ``stability_analysis.py`` and ``trace_decomposition_analysis.py``, which
   needed models of the removed recurrent stack and could not run on
