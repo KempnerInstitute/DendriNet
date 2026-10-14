@@ -35,6 +35,15 @@ configuration schemas and the command-line programs, under
 belong in that study's own repository, which records the library revision it
 uses.
 
+Keep generated runs, checkpoints, datasets, logs and local credentials out of
+Git. Use ``outputs/``, ``data/``, ``checkpoints/``, ``slurm_jobs/`` or ``jobs/``
+for generated files, ``configs/local/`` for machine-specific configurations,
+and ``scripts/local/`` for ad hoc launchers. The repository's ignore rules
+exclude these locations, build products and local editor or agent state.
+Maintained scripts, example configurations and small test fixtures belong in
+version control. An ignore rule does not remove a file already tracked by
+Git; review the staged diff before committing.
+
 A new option or component:
 
 * is a typed configuration field with validation, so the loader accepts and

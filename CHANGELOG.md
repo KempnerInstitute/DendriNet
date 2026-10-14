@@ -9,6 +9,14 @@ runs.
 
 ### 2026-10
 
+Repository housekeeping:
+
+- Removed the empty submodule manifest and consolidated the ignore rules for
+  local environments, credentials, editor state, generated runs and scratch
+  files. Generated Slurm files are ignored in their output directories;
+  maintained scripts, example configurations and test CSV fixtures remain
+  addable without force. No library code or configuration defaults changed.
+
 Corrections change results only where the earlier behaviour was wrong;
 results produced before them reproduce at the library revision that produced
 them.
